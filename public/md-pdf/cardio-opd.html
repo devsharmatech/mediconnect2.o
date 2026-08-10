@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cardiology OPD Form</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+      color: #333;
+      padding: 20px 0;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      background: white;
+      margin: 0 auto;
+      padding: 25px;
+      box-sizing: border-box;
+      border-radius: 8px;
+      box-shadow: 0 3px 15px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+
+    /* Header Styles */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 15px 20px;
+      background:linear-gradient(135deg, #66baf7 0%, #62bcfb 100%);
+      border-radius: 8px;
+      color: white;
+      margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .logo-box {
+      display: flex;
+      align-items: center;
+    }
+
+    .logo-box img {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      border: 0px solid white;
+      padding: 0px;
+      background: black;
+    }
+
+    .title-box {
+      text-align: center;
+      flex-grow: 1;
+    }
+
+    .title-box h1 {
+      color: black;
+      filter:brightness(110%);
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+      
+      margin: 0;
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+
+    .title-box .tagline {
+      margin: 5px 0 0;
+      font-size: 14px;
+      font-weight: 500;
+      opacity: 0.9;
+      color: black;
+      
+    }
+
+    .email {
+      margin-top: 5px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      color: black;
+    }
+
+    .cross-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .medical-cross {
+      width: 90px;
+      height: 90px;
+      background: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+.medical-cross img{
+    height: 70px;
+    width: 70px;
+}
+   
+    /* Content Styles */
+    .top-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+      margin-bottom: 0px;
+      font-weight: 600;
+      background: #f0f7ff;
+      padding: 12px 15px;
+      border-radius: 6px;
+      font-size:13px;
+    }
+
+    .two-column {
+      display: flex;
+      gap: 25px;
+    }
+
+    .column {
+      width: 50%;
+      font-size: 12px;
+    }
+
+    h3 {
+      border-bottom: 2px solid #000;
+      margin-top: 5px;
+      padding-bottom: 6px;
+      font-size: 13px;
+      color: #000;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    h4 {
+      margin: 15px 0 8px;
+      font-size: 13px;
+      color: #000;
+      font-weight: 600;
+      border-left: 3px solid #2a8fd6;
+      padding-left: 8px;
+    }
+
+    .badge {
+      background: linear-gradient(135deg, #66baf7 0%, #62bcfb 100%);
+      color: black;
+      text-align: center;
+      font-weight: 900;
+      padding: 10px;
+      margin: 15px 0;
+      border-radius: 6px;
+      display: block;
+      font-size: 14px;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    p {
+      margin: 8px 0;
+      padding-left: 0px;
+    }
+
+    hr {
+      border: none;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #2a8fd6, transparent);
+      margin: 15px 0;
+    }
+
+    /* Form field styling */
+    .field {
+      position: relative;
+      padding-bottom: 5px;
+      margin: 8px 0;
+    }
+
+    .field::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 1px;
+      background: repeating-linear-gradient(90deg, transparent, transparent 2px, #e0e0e0 2px, #e0e0e0 4px);
+    }
+
+    .filled-data {
+      color: #1a6ca7;
+      font-weight: 500;
+    }
+
+    /* Print styles */
+    @media print {
+      body { 
+        background: white; 
+        margin: 0;
+      }
+      .page { 
+        box-shadow: none; 
+        margin: 0; 
+        border-radius: 0;
+        padding: 15px;
+      }
+      .header {
+        background: #1a6ca7 !important;
+        -webkit-print-color-adjust: exact;
+      }
+      .badge {
+        background: #1a6ca7 !important;
+        -webkit-print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="logo-box">
+      <img src="./logo.png" alt="logo" />
+    </div>
+    <div class="title-box">
+      <h1>MediConnect.fit</h1>
+      <p class="tagline">Cardiology Care & Consultation</p>
+      <p class="email">📧 hello@mediconnect.fit</p>
+    </div>
+
+    <div class="cross-icon">
+      <div class="medical-cross">
+           <img src="./dr.png" alt="logo" />
+      </div>
+    </div>
+  </header>
+
+  <!-- TOP INFO ROW -->
+  <div class="top-row">
+      <div>Booking ID: <span class="filled-data">MC-2023-CARD-0876</span></div>
+      <div>Date: <span class="filled-data">15 Nov 2023</span></div>
+  </div>
+
+  <hr />
+
+  <div class="two-column">
+
+    <!-- LEFT COLUMN -->
+    <div class="column">
+
+      <h3>DOCTOR DETAILS</h3>
+      <div class="field">Name: <span class="filled-data">Dr. Rajesh Kumar Sharma</span></div>
+      <div class="field">Qualification: <span class="filled-data">MD, DM Cardiology</span></div>
+      <div class="field">Specialization: <span class="filled-data">Interventional Cardiology</span></div>
+      <div class="field">Reg No.: <span class="filled-data">MCI-45872/2010</span></div>
+      <div class="field">Clinic Address: <span class="filled-data">MediHeart Clinic, Sector 14, Gurugram</span></div>
+      <div class="field">Contact: <span class="filled-data">+91-9876543210</span></div>
+
+      <br>
+      <h3>PROVISIONAL DIAGNOSIS</h3>
+      <div class="field"><span class="filled-data">Hypertensive Heart Disease with Stable Angina</span></div>
+
+      <h4>VITALS</h4>
+      <div class="field">BP: <span class="filled-data">150/95 mmHg</span></div>
+      <div class="field">Pulse: <span class="filled-data">88 bpm, regular</span></div>
+      <div class="field">Respiratory Rate: <span class="filled-data">18/min</span></div>
+      <div class="field">SpO₂: <span class="filled-data">98%</span></div>
+      <div class="field">Temperature: <span class="filled-data">98.6°F</span></div>
+      <div class="field">Weight/BMI: <span class="filled-data">82 kg / 28.5</span></div>
+
+      <h4>EXAMINATION</h4>
+      <div class="field">General appearance: <span class="filled-data">Anxious, moderately built</span></div>
+      <div class="field">Breathlessness: <span class="filled-data">NYHA Class II</span></div>
+      <div class="field">Chest pain details: <span class="filled-data">Retrosternal, squeezing, radiates to left arm</span></div>
+      <div class="field">Palpitations: <span class="filled-data">Yes</span></div>
+      <div class="field">Leg swelling: <span class="filled-data">Mild pedal edema</span></div>
+      <div class="field">Respiratory effort: <span class="filled-data">Normal</span></div>
+      <div class="field">Others: <span class="filled-data">Occasional dizziness</span></div>
+
+      <h4>POSITIVE FINDINGS:</h4>
+      <div class="field"><span class="filled-data">Hypertension, Elevated JVP, S4 gallop, Bilateral basal crepitations</span></div>
+
+      <h4>INVESTIGATIONS</h4>
+      <div class="field"><span class="filled-data">ECG / Echo / Troponin / Lipid / TFT / X-Ray / Holter</span></div>
+      <div class="field">Others: <span class="filled-data">Stress test, Coronary angiography advised</span></div>
+
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="column">
+
+      <h3>PATIENT DETAILS</h3>
+      <div class="field">Name: <span class="filled-data">Mr. Anil Verma</span></div>
+      <div class="field">Age / Sex: <span class="filled-data">52 Years / Male</span></div>
+      <div class="field">Weight: <span class="filled-data">82 kg</span></div>
+      <div class="field">Known Comorbidities: <span class="filled-data">HTN / DM / CAD / Dyslipidemia / Others</span></div>
+      <div class="field">Medications Currently Taking: <span class="filled-data">Amlodipine 5mg, Metformin 500mg</span></div>
+
+      <div class="badge">CARDIOLOGY OPD CONSULTATION</div>
+
+      <h3>PRESENTING COMPLAINTS</h3>
+      <div class="field">Chest pain (onset/duration/character): <span class="filled-data">3 months, exertional, relieved with rest</span></div>
+      <div class="field">Breathlessness: <span class="filled-data">On climbing 1 flight of stairs</span></div>
+      <div class="field">Palpitations: <span class="filled-data">Occasional, lasting 2-3 minutes</span></div>
+      <div class="field">Giddiness / syncope: <span class="filled-data">Occasional giddiness, no syncope</span></div>
+      <div class="field">Leg swelling: <span class="filled-data">Evening swelling of both ankles</span></div>
+      <div class="field">Orthopnea / PND: <span class="filled-data">Uses 2 pillows, no PND</span></div>
+      <div class="field">Fatigue: <span class="filled-data">Moderate, affecting daily activities</span></div>
+      <div class="field">Others: <span class="filled-data">Anxiety about heart condition</span></div>
+
+      <h3>TREATMENT (Rx)</h3>
+      <div class="field">1. <span class="filled-data">Tab. Aspirin 75mg OD</span></div>
+      <div class="field">2. <span class="filled-data">Tab. Atorvastatin 20mg HS</span></div>
+      <div class="field">3. <span class="filled-data">Tab. Metoprolol 25mg BD</span></div>
+      <div class="field">4. <span class="filled-data">Tab. Ranolazine 500mg BD</span></div>
+
+      <h3>PROCEDURE DONE (if any)</h3>
+      <div class="field"><span class="filled-data">12-lead ECG - Sinus rhythm, LVH with strain pattern</span></div>
+
+      <h3>FOLLOW-UP</h3>
+      <div class="field">Return after: <span class="filled-data">2 weeks</span></div>
+      <p><strong style="color:red; font-weight:700;">Warning signs:</strong></p>
+      <div class="field"><span class="filled-data">Severe chest pain, worsening breathlessness, fainting episodes</span></div>
+      <p>to report immediately</p>
+
+     
+
+      <h3>DIGITAL SIGNATURE</h3>
+      <div class="field">Timestamp: <span class="filled-data">15-Nov-2023 11:45 AM</span></div>
+      <div class="field">Doctor's Signature: <span class="filled-data">[Digitally Signed]</span></div>
+
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>

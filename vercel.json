@@ -1,0 +1,36 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/notifications",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/retry",
+      "schedule": "15 0 * * *"
+    },
+    {
+      "path": "/api/cron/offline-sync",
+      "schedule": "30 0 * * *"
+    },
+    {
+      "path": "/api/cron/followup",
+      "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/metrics",
+      "schedule": "35 18 * * *"
+    },
+    {
+      "path": "/api/cron/provider-ranking",
+      "schedule": "30 20 * * *"
+    },
+    {
+      "path": "/api/cron/outbox-processor",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/engagement-sync",
+      "schedule": "0 5 * * *"
+    }
+  ]
+}

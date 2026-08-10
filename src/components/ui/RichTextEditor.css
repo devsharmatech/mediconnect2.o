@@ -1,0 +1,80 @@
+/* RichTextEditor custom styles for matching Mediconnect's theme */
+
+/* Dark mode overrides for React Quill */
+.dark .ql-toolbar.ql-snow {
+  border-color: #4b5563 !important;
+  /* gray-600 */
+  background-color: #374151 !important;
+  /* gray-700 */
+}
+
+.dark .ql-container.ql-snow {
+  border-color: #4b5563 !important;
+  /* gray-600 */
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+.dark .ql-snow .ql-stroke {
+  stroke: #e5e7eb !important;
+  /* gray-200 */
+}
+
+.dark .ql-snow .ql-fill,
+.dark .ql-snow .ql-stroke.ql-fill {
+  fill: #e5e7eb !important;
+  /* gray-200 */
+}
+
+.dark .ql-snow .ql-picker {
+  color: #e5e7eb !important;
+  /* gray-200 */
+}
+
+.dark .ql-snow .ql-picker-options {
+  background-color: #1f2937 !important;
+  /* gray-800 */
+  border-color: #4b5563 !important;
+  /* gray-600 */
+}
+
+.dark .ql-snow .ql-tooltip {
+  background-color: #1f2937 !important;
+  /* gray-800 */
+  border-color: #4b5563 !important;
+  /* gray-600 */
+  color: #e5e7eb !important;
+  /* gray-200 */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+}
+
+.dark .ql-snow .ql-tooltip input[type=text] {
+  background-color: #374151 !important;
+  /* gray-700 */
+  border-color: #4b5563 !important;
+  /* gray-600 */
+  color: #ffffff !important;
+}
+
+.dark .rich-text-editor-wrapper .ql-editor {
+  min-height: 200px;
+  color: #ffffff;
+}
+
+.rich-text-editor-wrapper .ql-editor {
+  min-height: 200px;
+}
+
+/* Light mode border tweaks */
+.ql-toolbar.ql-snow {
+  border-color: #e5e7eb !important;
+  border-top-left-radius: 0.75rem;
+  border-top-right-radius: 0.75rem;
+  border-bottom: none !important;
+}
+
+.ql-container.ql-snow {
+  border-color: #e5e7eb !important;
+  border-bottom-left-radius: 0.75rem;
+  border-bottom-right-radius: 0.75rem;
+}

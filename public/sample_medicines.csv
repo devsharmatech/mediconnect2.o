@@ -1,0 +1,101 @@
+name,salt,power,category,is_active
+Paracetamol,Acetaminophen,500mg,O,true
+Amoxicillin,Amoxicillin Trihydrate,250mg,A,true
+Ibuprofen,Ibuprofen,400mg,B,true
+Metformin,Metformin Hydrochloride,20mg,O,true
+Omeprazole,Omeprazole,40mg,A,true
+Atorvastatin,Atorvastatin Calcium,5mg,B,true
+Azithromycin,Azithromycin Dihydrate,10mg,O,true
+Amlodipine,Amlodipine Besylate,50mcg,A,true
+Pantoprazole,Pantoprazole Sodium,100mg,B,true
+Levothyroxine,Levothyroxine Sodium,1g,O,true
+Losartan,Acetaminophen,500mg,A,true
+Cetirizine,Amoxicillin Trihydrate,250mg,B,true
+Lisinopril,Ibuprofen,400mg,O,true
+Metoprolol,Metformin Hydrochloride,20mg,A,true
+Simvastatin,Omeprazole,40mg,B,true
+Albuterol,Atorvastatin Calcium,5mg,O,true
+Gabapentin,Azithromycin Dihydrate,10mg,A,true
+Hydrochlorothiazide,Amlodipine Besylate,50mcg,B,true
+Sertraline,Pantoprazole Sodium,100mg,O,true
+Fluticasone,Levothyroxine Sodium,1g,A,true
+Tramadol,Acetaminophen,500mg,B,true
+Citalopram,Amoxicillin Trihydrate,250mg,O,true
+Meloxicam,Ibuprofen,400mg,A,true
+Montelukast,Metformin Hydrochloride,20mg,B,true
+Trazodone,Omeprazole,40mg,O,true
+Carvedilol,Atorvastatin Calcium,5mg,A,true
+Duloxetine,Azithromycin Dihydrate,10mg,B,true
+Escitalopram,Amlodipine Besylate,50mcg,O,true
+Venlafaxine,Pantoprazole Sodium,100mg,A,true
+Clopidogrel,Levothyroxine Sodium,1g,B,true
+Aspirin,Acetaminophen,500mg,O,true
+Ranitidine,Amoxicillin Trihydrate,250mg,A,true
+Domperidone,Ibuprofen,400mg,B,true
+Rabeprazole,Metformin Hydrochloride,20mg,O,true
+Diclofenac,Omeprazole,40mg,A,true
+Aceclofenac,Atorvastatin Calcium,5mg,B,true
+Cefixime,Azithromycin Dihydrate,10mg,O,true
+Cefpodoxime,Amlodipine Besylate,50mcg,A,true
+Ofloxacin,Pantoprazole Sodium,100mg,B,true
+Levofloxacin,Levothyroxine Sodium,1g,O,true
+Doxycycline,Acetaminophen,500mg,A,true
+Erythromycin,Amoxicillin Trihydrate,250mg,B,true
+Clarithromycin,Ibuprofen,400mg,O,true
+Fluconazole,Metformin Hydrochloride,20mg,A,true
+Ketoconazole,Omeprazole,40mg,B,true
+Itraconazole,Atorvastatin Calcium,5mg,O,true
+Ondansetron,Azithromycin Dihydrate,10mg,A,true
+Metoclopramide,Amlodipine Besylate,50mcg,B,true
+Rosuvastatin,Pantoprazole Sodium,100mg,O,true
+Fenofibrate,Levothyroxine Sodium,1g,A,true
+Telmisartan,Acetaminophen,500mg,B,true
+Olmesartan,Amoxicillin Trihydrate,250mg,O,true
+Valsartan,Ibuprofen,400mg,A,true
+Atenolol,Metformin Hydrochloride,20mg,B,true
+Bisoprolol,Omeprazole,40mg,O,true
+Nebivolol,Atorvastatin Calcium,5mg,A,true
+Nifedipine,Azithromycin Dihydrate,10mg,B,true
+Diltiazem,Amlodipine Besylate,50mcg,O,true
+Verapamil,Pantoprazole Sodium,100mg,A,true
+Spironolactone,Levothyroxine Sodium,1g,B,true
+Furosemide,Acetaminophen,500mg,O,true
+Torsemide,Amoxicillin Trihydrate,250mg,A,true
+Glibenclamide,Ibuprofen,400mg,B,true
+Glimepiride,Metformin Hydrochloride,20mg,O,true
+Gliclazide,Omeprazole,40mg,A,true
+Pioglitazone,Atorvastatin Calcium,5mg,B,true
+Sitagliptin,Azithromycin Dihydrate,10mg,O,true
+Vildagliptin,Amlodipine Besylate,50mcg,A,true
+Linagliptin,Pantoprazole Sodium,100mg,B,true
+Dapagliflozin,Levothyroxine Sodium,1g,O,true
+Empagliflozin,Acetaminophen,500mg,A,true
+Insulin Glargine,Amoxicillin Trihydrate,250mg,B,true
+Insulin Aspart,Ibuprofen,400mg,O,true
+Acarbose,Metformin Hydrochloride,20mg,A,true
+Voglibose,Omeprazole,40mg,B,true
+Pregabalin,Atorvastatin Calcium,5mg,O,true
+Amitriptyline,Azithromycin Dihydrate,10mg,A,true
+Nortriptyline,Amlodipine Besylate,50mcg,B,true
+Mirtazapine,Pantoprazole Sodium,100mg,O,true
+Fluoxetine,Levothyroxine Sodium,1g,A,true
+Paroxetine,Acetaminophen,500mg,B,true
+Clonazepam,Amoxicillin Trihydrate,250mg,O,true
+Lorazepam,Ibuprofen,400mg,A,true
+Alprazolam,Metformin Hydrochloride,20mg,B,true
+Diazepam,Omeprazole,40mg,O,true
+Zolpidem,Atorvastatin Calcium,5mg,A,true
+Eszopiclone,Azithromycin Dihydrate,10mg,B,true
+Levocetirizine,Amlodipine Besylate,50mcg,O,true
+Fexofenadine,Pantoprazole Sodium,100mg,A,true
+Loratadine,Levothyroxine Sodium,1g,B,true
+Desloratadine,Acetaminophen,500mg,O,true
+Bilastine,Amoxicillin Trihydrate,250mg,A,true
+Budesonide,Ibuprofen,400mg,B,true
+Formoterol,Metformin Hydrochloride,20mg,O,true
+Salmeterol,Omeprazole,40mg,A,true
+Tiotropium,Atorvastatin Calcium,5mg,B,true
+Ipratropium,Azithromycin Dihydrate,10mg,O,true
+Theophylline,Amlodipine Besylate,50mcg,A,true
+Doxofylline,Pantoprazole Sodium,100mg,B,true
+Acetaminophen,Levothyroxine Sodium,1g,O,true

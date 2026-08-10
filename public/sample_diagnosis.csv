@@ -1,0 +1,501 @@
+name,icd_code,description,is_active
+"Chronic Essential Hypertension","I10.2","Primary high blood pressure requiring daily BP tracking with chronic clinical phase.",true
+"Acute Essential Hypertension","I10.0","Primary high blood pressure requiring daily BP tracking with acute presentation.",true
+"Mild Essential Hypertension","I10.1","Primary high blood pressure requiring daily BP tracking with mild severity scale.",true
+"Severe Essential Hypertension","I10.3","Primary high blood pressure requiring daily BP tracking with severe clinical presentation.",true
+"Recurrent Essential Hypertension","I10.4","Primary high blood pressure requiring daily BP tracking with frequent recurrent episodes.",true
+"Chronic Secondary Hypertension","I15.2","Elevated BP secondary to renovascular or endocrine cause with chronic clinical phase.",true
+"Acute Secondary Hypertension","I15.0","Elevated BP secondary to renovascular or endocrine cause with acute presentation.",true
+"Mild Secondary Hypertension","I15.1","Elevated BP secondary to renovascular or endocrine cause with mild severity scale.",true
+"Severe Secondary Hypertension","I15.3","Elevated BP secondary to renovascular or endocrine cause with severe clinical presentation.",true
+"Recurrent Secondary Hypertension","I15.4","Elevated BP secondary to renovascular or endocrine cause with frequent recurrent episodes.",true
+"Chronic Coronary Artery Disease","I25.10.2","Narrowing of coronary arteries, evaluate lipid panel and advise statins with chronic clinical phase.",true
+"Acute Coronary Artery Disease","I25.10.0","Narrowing of coronary arteries, evaluate lipid panel and advise statins with acute presentation.",true
+"Mild Coronary Artery Disease","I25.10.1","Narrowing of coronary arteries, evaluate lipid panel and advise statins with mild severity scale.",true
+"Severe Coronary Artery Disease","I25.10.3","Narrowing of coronary arteries, evaluate lipid panel and advise statins with severe clinical presentation.",true
+"Recurrent Coronary Artery Disease","I25.10.4","Narrowing of coronary arteries, evaluate lipid panel and advise statins with frequent recurrent episodes.",true
+"Chronic Stable Angina Pectoris","I20.9.2","Exertional chest discomfort relieved by rest or sublingual nitroglycerin with chronic clinical phase.",true
+"Acute Stable Angina Pectoris","I20.9.0","Exertional chest discomfort relieved by rest or sublingual nitroglycerin with acute presentation.",true
+"Mild Stable Angina Pectoris","I20.9.1","Exertional chest discomfort relieved by rest or sublingual nitroglycerin with mild severity scale.",true
+"Severe Stable Angina Pectoris","I20.9.3","Exertional chest discomfort relieved by rest or sublingual nitroglycerin with severe clinical presentation.",true
+"Recurrent Stable Angina Pectoris","I20.9.4","Exertional chest discomfort relieved by rest or sublingual nitroglycerin with frequent recurrent episodes.",true
+"Chronic Unstable Angina","I20.0.2","New-onset or accelerating chest pain at rest, urgent cardiac evaluation with chronic clinical phase.",true
+"Acute Unstable Angina","I20.0.0","New-onset or accelerating chest pain at rest, urgent cardiac evaluation with acute presentation.",true
+"Mild Unstable Angina","I20.0.1","New-onset or accelerating chest pain at rest, urgent cardiac evaluation with mild severity scale.",true
+"Severe Unstable Angina","I20.0.3","New-onset or accelerating chest pain at rest, urgent cardiac evaluation with severe clinical presentation.",true
+"Recurrent Unstable Angina","I20.0.4","New-onset or accelerating chest pain at rest, urgent cardiac evaluation with frequent recurrent episodes.",true
+"Chronic Congestive Heart Failure","I50.9.2","Impaired myocardial contractility, monitor daily weight and peripheral edema with chronic clinical phase.",true
+"Acute Congestive Heart Failure","I50.9.0","Impaired myocardial contractility, monitor daily weight and peripheral edema with acute presentation.",true
+"Mild Congestive Heart Failure","I50.9.1","Impaired myocardial contractility, monitor daily weight and peripheral edema with mild severity scale.",true
+"Severe Congestive Heart Failure","I50.9.3","Impaired myocardial contractility, monitor daily weight and peripheral edema with severe clinical presentation.",true
+"Recurrent Congestive Heart Failure","I50.9.4","Impaired myocardial contractility, monitor daily weight and peripheral edema with frequent recurrent episodes.",true
+"Chronic Systolic Heart Failure","I50.20.2","Heart failure with reduced ejection fraction (HFrEF) with chronic clinical phase.",true
+"Acute Systolic Heart Failure","I50.20.0","Heart failure with reduced ejection fraction (HFrEF) with acute presentation.",true
+"Mild Systolic Heart Failure","I50.20.1","Heart failure with reduced ejection fraction (HFrEF) with mild severity scale.",true
+"Severe Systolic Heart Failure","I50.20.3","Heart failure with reduced ejection fraction (HFrEF) with severe clinical presentation.",true
+"Recurrent Systolic Heart Failure","I50.20.4","Heart failure with reduced ejection fraction (HFrEF) with frequent recurrent episodes.",true
+"Chronic Diastolic Heart Failure","I50.30.2","Heart failure with preserved ejection fraction (HFpEF) with chronic clinical phase.",true
+"Acute Diastolic Heart Failure","I50.30.0","Heart failure with preserved ejection fraction (HFpEF) with acute presentation.",true
+"Mild Diastolic Heart Failure","I50.30.1","Heart failure with preserved ejection fraction (HFpEF) with mild severity scale.",true
+"Severe Diastolic Heart Failure","I50.30.3","Heart failure with preserved ejection fraction (HFpEF) with severe clinical presentation.",true
+"Recurrent Diastolic Heart Failure","I50.30.4","Heart failure with preserved ejection fraction (HFpEF) with frequent recurrent episodes.",true
+"Chronic Atrial Fibrillation","I48.91.2","Irregularly irregular cardiac rhythm, evaluate stroke risk and anticoagulant therapy with chronic clinical phase.",true
+"Acute Atrial Fibrillation","I48.91.0","Irregularly irregular cardiac rhythm, evaluate stroke risk and anticoagulant therapy with acute presentation.",true
+"Mild Atrial Fibrillation","I48.91.1","Irregularly irregular cardiac rhythm, evaluate stroke risk and anticoagulant therapy with mild severity scale.",true
+"Severe Atrial Fibrillation","I48.91.3","Irregularly irregular cardiac rhythm, evaluate stroke risk and anticoagulant therapy with severe clinical presentation.",true
+"Recurrent Atrial Fibrillation","I48.91.4","Irregularly irregular cardiac rhythm, evaluate stroke risk and anticoagulant therapy with frequent recurrent episodes.",true
+"Chronic Atrial Flutter","I48.92.2","Macro-reentrant atrial tachycardia, monitor rate and rhythm control with chronic clinical phase.",true
+"Acute Atrial Flutter","I48.92.0","Macro-reentrant atrial tachycardia, monitor rate and rhythm control with acute presentation.",true
+"Mild Atrial Flutter","I48.92.1","Macro-reentrant atrial tachycardia, monitor rate and rhythm control with mild severity scale.",true
+"Severe Atrial Flutter","I48.92.3","Macro-reentrant atrial tachycardia, monitor rate and rhythm control with severe clinical presentation.",true
+"Recurrent Atrial Flutter","I48.92.4","Macro-reentrant atrial tachycardia, monitor rate and rhythm control with frequent recurrent episodes.",true
+"Chronic Supraventricular Tachycardia","I47.1.2","Paroxysmal SVT, advise vagal maneuvers and evaluate for beta-blockers with chronic clinical phase.",true
+"Acute Supraventricular Tachycardia","I47.1.0","Paroxysmal SVT, advise vagal maneuvers and evaluate for beta-blockers with acute presentation.",true
+"Mild Supraventricular Tachycardia","I47.1.1","Paroxysmal SVT, advise vagal maneuvers and evaluate for beta-blockers with mild severity scale.",true
+"Severe Supraventricular Tachycardia","I47.1.3","Paroxysmal SVT, advise vagal maneuvers and evaluate for beta-blockers with severe clinical presentation.",true
+"Recurrent Supraventricular Tachycardia","I47.1.4","Paroxysmal SVT, advise vagal maneuvers and evaluate for beta-blockers with frequent recurrent episodes.",true
+"Chronic Sinus Bradycardia","R00.1.2","Resting heart rate under 60 bpm, check for symptoms on exertion with chronic clinical phase.",true
+"Acute Sinus Bradycardia","R00.1.0","Resting heart rate under 60 bpm, check for symptoms on exertion with acute presentation.",true
+"Mild Sinus Bradycardia","R00.1.1","Resting heart rate under 60 bpm, check for symptoms on exertion with mild severity scale.",true
+"Severe Sinus Bradycardia","R00.1.3","Resting heart rate under 60 bpm, check for symptoms on exertion with severe clinical presentation.",true
+"Recurrent Sinus Bradycardia","R00.1.4","Resting heart rate under 60 bpm, check for symptoms on exertion with frequent recurrent episodes.",true
+"Chronic Mitral Valve Prolapse","I34.1.2","Floppy mitral valve leaflets, check echocardiogram for regurgitation with chronic clinical phase.",true
+"Acute Mitral Valve Prolapse","I34.1.0","Floppy mitral valve leaflets, check echocardiogram for regurgitation with acute presentation.",true
+"Mild Mitral Valve Prolapse","I34.1.1","Floppy mitral valve leaflets, check echocardiogram for regurgitation with mild severity scale.",true
+"Severe Mitral Valve Prolapse","I34.1.3","Floppy mitral valve leaflets, check echocardiogram for regurgitation with severe clinical presentation.",true
+"Recurrent Mitral Valve Prolapse","I34.1.4","Floppy mitral valve leaflets, check echocardiogram for regurgitation with frequent recurrent episodes.",true
+"Chronic Aortic Stenosis","I35.0.2","Narrowed aortic valve orifice, monitor for angina, syncope, and dyspnea with chronic clinical phase.",true
+"Acute Aortic Stenosis","I35.0.0","Narrowed aortic valve orifice, monitor for angina, syncope, and dyspnea with acute presentation.",true
+"Mild Aortic Stenosis","I35.0.1","Narrowed aortic valve orifice, monitor for angina, syncope, and dyspnea with mild severity scale.",true
+"Severe Aortic Stenosis","I35.0.3","Narrowed aortic valve orifice, monitor for angina, syncope, and dyspnea with severe clinical presentation.",true
+"Recurrent Aortic Stenosis","I35.0.4","Narrowed aortic valve orifice, monitor for angina, syncope, and dyspnea with frequent recurrent episodes.",true
+"Chronic Aortic Regurgitation","I35.1.2","Backward flow of blood into left ventricle, monitor ventricular size with chronic clinical phase.",true
+"Acute Aortic Regurgitation","I35.1.0","Backward flow of blood into left ventricle, monitor ventricular size with acute presentation.",true
+"Mild Aortic Regurgitation","I35.1.1","Backward flow of blood into left ventricle, monitor ventricular size with mild severity scale.",true
+"Severe Aortic Regurgitation","I35.1.3","Backward flow of blood into left ventricle, monitor ventricular size with severe clinical presentation.",true
+"Recurrent Aortic Regurgitation","I35.1.4","Backward flow of blood into left ventricle, monitor ventricular size with frequent recurrent episodes.",true
+"Chronic Infective Endocarditis","I33.0.2","Bacterial infection of cardiac valves, require prolonged IV antibiotic therapy with chronic clinical phase.",true
+"Acute Infective Endocarditis","I33.0.0","Bacterial infection of cardiac valves, require prolonged IV antibiotic therapy with acute presentation.",true
+"Mild Infective Endocarditis","I33.0.1","Bacterial infection of cardiac valves, require prolonged IV antibiotic therapy with mild severity scale.",true
+"Severe Infective Endocarditis","I33.0.3","Bacterial infection of cardiac valves, require prolonged IV antibiotic therapy with severe clinical presentation.",true
+"Recurrent Infective Endocarditis","I33.0.4","Bacterial infection of cardiac valves, require prolonged IV antibiotic therapy with frequent recurrent episodes.",true
+"Chronic Acute Pericarditis","I30.9.2","Inflammation of pericardial sac, typical pleuritic chest pain relieved by sitting forward with chronic clinical phase.",true
+"Acute Acute Pericarditis","I30.9.0","Inflammation of pericardial sac, typical pleuritic chest pain relieved by sitting forward with acute presentation.",true
+"Mild Acute Pericarditis","I30.9.1","Inflammation of pericardial sac, typical pleuritic chest pain relieved by sitting forward with mild severity scale.",true
+"Severe Acute Pericarditis","I30.9.3","Inflammation of pericardial sac, typical pleuritic chest pain relieved by sitting forward with severe clinical presentation.",true
+"Recurrent Acute Pericarditis","I30.9.4","Inflammation of pericardial sac, typical pleuritic chest pain relieved by sitting forward with frequent recurrent episodes.",true
+"Chronic Dilated Cardiomyopathy","I42.0.2","Enlarged, weakened left ventricle, optimize heart failure regimen with chronic clinical phase.",true
+"Acute Dilated Cardiomyopathy","I42.0.0","Enlarged, weakened left ventricle, optimize heart failure regimen with acute presentation.",true
+"Mild Dilated Cardiomyopathy","I42.0.1","Enlarged, weakened left ventricle, optimize heart failure regimen with mild severity scale.",true
+"Severe Dilated Cardiomyopathy","I42.0.3","Enlarged, weakened left ventricle, optimize heart failure regimen with severe clinical presentation.",true
+"Recurrent Dilated Cardiomyopathy","I42.0.4","Enlarged, weakened left ventricle, optimize heart failure regimen with frequent recurrent episodes.",true
+"Chronic Hypertrophic Cardiomyopathy","I42.1.2","Asymmetric septal hypertrophy, advise avoidance of extreme physical exertion with chronic clinical phase.",true
+"Acute Hypertrophic Cardiomyopathy","I42.1.0","Asymmetric septal hypertrophy, advise avoidance of extreme physical exertion with acute presentation.",true
+"Mild Hypertrophic Cardiomyopathy","I42.1.1","Asymmetric septal hypertrophy, advise avoidance of extreme physical exertion with mild severity scale.",true
+"Severe Hypertrophic Cardiomyopathy","I42.1.3","Asymmetric septal hypertrophy, advise avoidance of extreme physical exertion with severe clinical presentation.",true
+"Recurrent Hypertrophic Cardiomyopathy","I42.1.4","Asymmetric septal hypertrophy, advise avoidance of extreme physical exertion with frequent recurrent episodes.",true
+"Chronic Deep Vein Thrombosis (DVT)","I82.40.2","Blood clot in lower extremity deep veins, prescribe oral anticoagulants with chronic clinical phase.",true
+"Acute Deep Vein Thrombosis (DVT)","I82.40.0","Blood clot in lower extremity deep veins, prescribe oral anticoagulants with acute presentation.",true
+"Mild Deep Vein Thrombosis (DVT)","I82.40.1","Blood clot in lower extremity deep veins, prescribe oral anticoagulants with mild severity scale.",true
+"Severe Deep Vein Thrombosis (DVT)","I82.40.3","Blood clot in lower extremity deep veins, prescribe oral anticoagulants with severe clinical presentation.",true
+"Recurrent Deep Vein Thrombosis (DVT)","I82.40.4","Blood clot in lower extremity deep veins, prescribe oral anticoagulants with frequent recurrent episodes.",true
+"Chronic Peripheral Artery Disease","I73.9.2","Atherosclerotic narrowing of leg arteries, manage claudication symptoms with chronic clinical phase.",true
+"Acute Peripheral Artery Disease","I73.9.0","Atherosclerotic narrowing of leg arteries, manage claudication symptoms with acute presentation.",true
+"Mild Peripheral Artery Disease","I73.9.1","Atherosclerotic narrowing of leg arteries, manage claudication symptoms with mild severity scale.",true
+"Severe Peripheral Artery Disease","I73.9.3","Atherosclerotic narrowing of leg arteries, manage claudication symptoms with severe clinical presentation.",true
+"Recurrent Peripheral Artery Disease","I73.9.4","Atherosclerotic narrowing of leg arteries, manage claudication symptoms with frequent recurrent episodes.",true
+"Chronic Varicose Veins of Lower Extremity","I83.9.2","Dilated, tortuous superficial veins, advise compression stockings and leg elevation with chronic clinical phase.",true
+"Acute Varicose Veins of Lower Extremity","I83.9.0","Dilated, tortuous superficial veins, advise compression stockings and leg elevation with acute presentation.",true
+"Mild Varicose Veins of Lower Extremity","I83.9.1","Dilated, tortuous superficial veins, advise compression stockings and leg elevation with mild severity scale.",true
+"Severe Varicose Veins of Lower Extremity","I83.9.3","Dilated, tortuous superficial veins, advise compression stockings and leg elevation with severe clinical presentation.",true
+"Recurrent Varicose Veins of Lower Extremity","I83.9.4","Dilated, tortuous superficial veins, advise compression stockings and leg elevation with frequent recurrent episodes.",true
+"Chronic Postural Orthostatic Tachycardia Syndrome","G90.9.2","Autonomic intolerance, recommend increased fluid and sodium intake with chronic clinical phase.",true
+"Acute Postural Orthostatic Tachycardia Syndrome","G90.9.0","Autonomic intolerance, recommend increased fluid and sodium intake with acute presentation.",true
+"Mild Postural Orthostatic Tachycardia Syndrome","G90.9.1","Autonomic intolerance, recommend increased fluid and sodium intake with mild severity scale.",true
+"Severe Postural Orthostatic Tachycardia Syndrome","G90.9.3","Autonomic intolerance, recommend increased fluid and sodium intake with severe clinical presentation.",true
+"Recurrent Postural Orthostatic Tachycardia Syndrome","G90.9.4","Autonomic intolerance, recommend increased fluid and sodium intake with frequent recurrent episodes.",true
+"Chronic Orthostatic Hypotension","I95.1.2","Fall in BP upon standing, check medication list and advise slow postural changes with chronic clinical phase.",true
+"Acute Orthostatic Hypotension","I95.1.0","Fall in BP upon standing, check medication list and advise slow postural changes with acute presentation.",true
+"Mild Orthostatic Hypotension","I95.1.1","Fall in BP upon standing, check medication list and advise slow postural changes with mild severity scale.",true
+"Severe Orthostatic Hypotension","I95.1.3","Fall in BP upon standing, check medication list and advise slow postural changes with severe clinical presentation.",true
+"Recurrent Orthostatic Hypotension","I95.1.4","Fall in BP upon standing, check medication list and advise slow postural changes with frequent recurrent episodes.",true
+"Chronic Premature Ventricular Contractions (PVC)","I49.3.2","Ectopic ventricular beats, reassure patient if structurally normal heart with chronic clinical phase.",true
+"Acute Premature Ventricular Contractions (PVC)","I49.3.0","Ectopic ventricular beats, reassure patient if structurally normal heart with acute presentation.",true
+"Mild Premature Ventricular Contractions (PVC)","I49.3.1","Ectopic ventricular beats, reassure patient if structurally normal heart with mild severity scale.",true
+"Severe Premature Ventricular Contractions (PVC)","I49.3.3","Ectopic ventricular beats, reassure patient if structurally normal heart with severe clinical presentation.",true
+"Recurrent Premature Ventricular Contractions (PVC)","I49.3.4","Ectopic ventricular beats, reassure patient if structurally normal heart with frequent recurrent episodes.",true
+"Unspecified Type 2 Diabetes Mellitus","E11.99","Non-insulin-dependent diabetes mellitus, advise low carbohydrate diet with unspecified metabolic status.",true
+"Complicated Type 2 Diabetes Mellitus","E11.91","Non-insulin-dependent diabetes mellitus, advise low carbohydrate diet with complicated clinical status.",true
+"Controlled Type 2 Diabetes Mellitus","E11.92","Non-insulin-dependent diabetes mellitus, advise low carbohydrate diet with adequately controlled phase.",true
+"Refractory Type 2 Diabetes Mellitus","E11.93","Non-insulin-dependent diabetes mellitus, advise low carbohydrate diet with refractory to standard medical therapy.",true
+"Early Stage Type 2 Diabetes Mellitus","E11.94","Non-insulin-dependent diabetes mellitus, advise low carbohydrate diet with early stage detection.",true
+"Unspecified Type 1 Diabetes Mellitus","E10.99","Insulin-dependent diabetes mellitus, require basal-bolus insulin therapy with unspecified metabolic status.",true
+"Complicated Type 1 Diabetes Mellitus","E10.91","Insulin-dependent diabetes mellitus, require basal-bolus insulin therapy with complicated clinical status.",true
+"Controlled Type 1 Diabetes Mellitus","E10.92","Insulin-dependent diabetes mellitus, require basal-bolus insulin therapy with adequately controlled phase.",true
+"Refractory Type 1 Diabetes Mellitus","E10.93","Insulin-dependent diabetes mellitus, require basal-bolus insulin therapy with refractory to standard medical therapy.",true
+"Early Stage Type 1 Diabetes Mellitus","E10.94","Insulin-dependent diabetes mellitus, require basal-bolus insulin therapy with early stage detection.",true
+"Unspecified Latent Autoimmune Diabetes of Adults","E13.99","Slowly progressive autoimmune diabetes, monitor beta-cell function with unspecified metabolic status.",true
+"Complicated Latent Autoimmune Diabetes of Adults","E13.91","Slowly progressive autoimmune diabetes, monitor beta-cell function with complicated clinical status.",true
+"Controlled Latent Autoimmune Diabetes of Adults","E13.92","Slowly progressive autoimmune diabetes, monitor beta-cell function with adequately controlled phase.",true
+"Refractory Latent Autoimmune Diabetes of Adults","E13.93","Slowly progressive autoimmune diabetes, monitor beta-cell function with refractory to standard medical therapy.",true
+"Early Stage Latent Autoimmune Diabetes of Adults","E13.94","Slowly progressive autoimmune diabetes, monitor beta-cell function with early stage detection.",true
+"Unspecified Gestational Diabetes Mellitus","O24.49","Pregnancy-induced glucose intolerance, check postprandial glucose levels with unspecified metabolic status.",true
+"Complicated Gestational Diabetes Mellitus","O24.41","Pregnancy-induced glucose intolerance, check postprandial glucose levels with complicated clinical status.",true
+"Controlled Gestational Diabetes Mellitus","O24.42","Pregnancy-induced glucose intolerance, check postprandial glucose levels with adequately controlled phase.",true
+"Refractory Gestational Diabetes Mellitus","O24.43","Pregnancy-induced glucose intolerance, check postprandial glucose levels with refractory to standard medical therapy.",true
+"Early Stage Gestational Diabetes Mellitus","O24.44","Pregnancy-induced glucose intolerance, check postprandial glucose levels with early stage detection.",true
+"Unspecified Hypothyroidism","E03.99","Underactive thyroid gland, check TSH and prescribe levothyroxine with unspecified metabolic status.",true
+"Complicated Hypothyroidism","E03.91","Underactive thyroid gland, check TSH and prescribe levothyroxine with complicated clinical status.",true
+"Controlled Hypothyroidism","E03.92","Underactive thyroid gland, check TSH and prescribe levothyroxine with adequately controlled phase.",true
+"Refractory Hypothyroidism","E03.93","Underactive thyroid gland, check TSH and prescribe levothyroxine with refractory to standard medical therapy.",true
+"Early Stage Hypothyroidism","E03.94","Underactive thyroid gland, check TSH and prescribe levothyroxine with early stage detection.",true
+"Unspecified Primary Hyperthyroidism","E05.99","Overactive thyroid gland, evaluate for methimazole or beta-blockers with unspecified metabolic status.",true
+"Complicated Primary Hyperthyroidism","E05.91","Overactive thyroid gland, evaluate for methimazole or beta-blockers with complicated clinical status.",true
+"Controlled Primary Hyperthyroidism","E05.92","Overactive thyroid gland, evaluate for methimazole or beta-blockers with adequately controlled phase.",true
+"Refractory Primary Hyperthyroidism","E05.93","Overactive thyroid gland, evaluate for methimazole or beta-blockers with refractory to standard medical therapy.",true
+"Early Stage Primary Hyperthyroidism","E05.94","Overactive thyroid gland, evaluate for methimazole or beta-blockers with early stage detection.",true
+"Unspecified Hashimoto's Thyroiditis","E06.39","Autoimmune thyroid destruction, monitor for eventual hypothyroid state with unspecified metabolic status.",true
+"Complicated Hashimoto's Thyroiditis","E06.31","Autoimmune thyroid destruction, monitor for eventual hypothyroid state with complicated clinical status.",true
+"Controlled Hashimoto's Thyroiditis","E06.32","Autoimmune thyroid destruction, monitor for eventual hypothyroid state with adequately controlled phase.",true
+"Refractory Hashimoto's Thyroiditis","E06.33","Autoimmune thyroid destruction, monitor for eventual hypothyroid state with refractory to standard medical therapy.",true
+"Early Stage Hashimoto's Thyroiditis","E06.34","Autoimmune thyroid destruction, monitor for eventual hypothyroid state with early stage detection.",true
+"Unspecified Graves' Disease","E05.09","Autoimmune hyperthyroidism, monitor for exophthalmos and cardiotoxicity with unspecified metabolic status.",true
+"Complicated Graves' Disease","E05.01","Autoimmune hyperthyroidism, monitor for exophthalmos and cardiotoxicity with complicated clinical status.",true
+"Controlled Graves' Disease","E05.02","Autoimmune hyperthyroidism, monitor for exophthalmos and cardiotoxicity with adequately controlled phase.",true
+"Refractory Graves' Disease","E05.03","Autoimmune hyperthyroidism, monitor for exophthalmos and cardiotoxicity with refractory to standard medical therapy.",true
+"Early Stage Graves' Disease","E05.04","Autoimmune hyperthyroidism, monitor for exophthalmos and cardiotoxicity with early stage detection.",true
+"Unspecified Subacute Thyroiditis","E06.19","Inflammatory thyroid pain, treat with NSAIDs or steroids for symptom control with unspecified metabolic status.",true
+"Complicated Subacute Thyroiditis","E06.11","Inflammatory thyroid pain, treat with NSAIDs or steroids for symptom control with complicated clinical status.",true
+"Controlled Subacute Thyroiditis","E06.12","Inflammatory thyroid pain, treat with NSAIDs or steroids for symptom control with adequately controlled phase.",true
+"Refractory Subacute Thyroiditis","E06.13","Inflammatory thyroid pain, treat with NSAIDs or steroids for symptom control with refractory to standard medical therapy.",true
+"Early Stage Subacute Thyroiditis","E06.14","Inflammatory thyroid pain, treat with NSAIDs or steroids for symptom control with early stage detection.",true
+"Unspecified Hyperlipidemia","E78.59","Elevated lipids, advise low cholesterol diet and regular cardiovascular exercise with unspecified metabolic status.",true
+"Complicated Hyperlipidemia","E78.51","Elevated lipids, advise low cholesterol diet and regular cardiovascular exercise with complicated clinical status.",true
+"Controlled Hyperlipidemia","E78.52","Elevated lipids, advise low cholesterol diet and regular cardiovascular exercise with adequately controlled phase.",true
+"Refractory Hyperlipidemia","E78.53","Elevated lipids, advise low cholesterol diet and regular cardiovascular exercise with refractory to standard medical therapy.",true
+"Early Stage Hyperlipidemia","E78.54","Elevated lipids, advise low cholesterol diet and regular cardiovascular exercise with early stage detection.",true
+"Unspecified Pure Hypercholesterolemia","E78.09","Isolated elevated serum cholesterol, monitor LDL levels with unspecified metabolic status.",true
+"Complicated Pure Hypercholesterolemia","E78.01","Isolated elevated serum cholesterol, monitor LDL levels with complicated clinical status.",true
+"Controlled Pure Hypercholesterolemia","E78.02","Isolated elevated serum cholesterol, monitor LDL levels with adequately controlled phase.",true
+"Refractory Pure Hypercholesterolemia","E78.03","Isolated elevated serum cholesterol, monitor LDL levels with refractory to standard medical therapy.",true
+"Early Stage Pure Hypercholesterolemia","E78.04","Isolated elevated serum cholesterol, monitor LDL levels with early stage detection.",true
+"Unspecified Pure Hypertriglyceridemia","E78.19","Isolated elevated serum triglycerides, advise on alcohol restriction with unspecified metabolic status.",true
+"Complicated Pure Hypertriglyceridemia","E78.11","Isolated elevated serum triglycerides, advise on alcohol restriction with complicated clinical status.",true
+"Controlled Pure Hypertriglyceridemia","E78.12","Isolated elevated serum triglycerides, advise on alcohol restriction with adequately controlled phase.",true
+"Refractory Pure Hypertriglyceridemia","E78.13","Isolated elevated serum triglycerides, advise on alcohol restriction with refractory to standard medical therapy.",true
+"Early Stage Pure Hypertriglyceridemia","E78.14","Isolated elevated serum triglycerides, advise on alcohol restriction with early stage detection.",true
+"Unspecified Vitamin D Deficiency","E55.99","Low vitamin D levels, advise cholecalciferol supplementation with unspecified metabolic status.",true
+"Complicated Vitamin D Deficiency","E55.91","Low vitamin D levels, advise cholecalciferol supplementation with complicated clinical status.",true
+"Controlled Vitamin D Deficiency","E55.92","Low vitamin D levels, advise cholecalciferol supplementation with adequately controlled phase.",true
+"Refractory Vitamin D Deficiency","E55.93","Low vitamin D levels, advise cholecalciferol supplementation with refractory to standard medical therapy.",true
+"Early Stage Vitamin D Deficiency","E55.94","Low vitamin D levels, advise cholecalciferol supplementation with early stage detection.",true
+"Unspecified Vitamin B12 Deficiency","E53.89","Low cyanocobalamin levels, check for macrocytic anemia and paresthesias with unspecified metabolic status.",true
+"Complicated Vitamin B12 Deficiency","E53.81","Low cyanocobalamin levels, check for macrocytic anemia and paresthesias with complicated clinical status.",true
+"Controlled Vitamin B12 Deficiency","E53.82","Low cyanocobalamin levels, check for macrocytic anemia and paresthesias with adequately controlled phase.",true
+"Refractory Vitamin B12 Deficiency","E53.83","Low cyanocobalamin levels, check for macrocytic anemia and paresthesias with refractory to standard medical therapy.",true
+"Early Stage Vitamin B12 Deficiency","E53.84","Low cyanocobalamin levels, check for macrocytic anemia and paresthesias with early stage detection.",true
+"Unspecified Folate Deficiency Anemia","D52.99","Macrocytic anemia due to folic acid deficiency, prescribe daily folate with unspecified metabolic status.",true
+"Complicated Folate Deficiency Anemia","D52.91","Macrocytic anemia due to folic acid deficiency, prescribe daily folate with complicated clinical status.",true
+"Controlled Folate Deficiency Anemia","D52.92","Macrocytic anemia due to folic acid deficiency, prescribe daily folate with adequately controlled phase.",true
+"Refractory Folate Deficiency Anemia","D52.93","Macrocytic anemia due to folic acid deficiency, prescribe daily folate with refractory to standard medical therapy.",true
+"Early Stage Folate Deficiency Anemia","D52.94","Macrocytic anemia due to folic acid deficiency, prescribe daily folate with early stage detection.",true
+"Unspecified Primary Gout","M10.99","Uric acid crystal deposition, monitor uric acid and prescribe allopurinol with unspecified metabolic status.",true
+"Complicated Primary Gout","M10.91","Uric acid crystal deposition, monitor uric acid and prescribe allopurinol with complicated clinical status.",true
+"Controlled Primary Gout","M10.92","Uric acid crystal deposition, monitor uric acid and prescribe allopurinol with adequately controlled phase.",true
+"Refractory Primary Gout","M10.93","Uric acid crystal deposition, monitor uric acid and prescribe allopurinol with refractory to standard medical therapy.",true
+"Early Stage Primary Gout","M10.94","Uric acid crystal deposition, monitor uric acid and prescribe allopurinol with early stage detection.",true
+"Unspecified Primary Osteoporosis","M81.09","Decreased bone mineral density, discuss bisphosphonate therapy and calcium with unspecified metabolic status.",true
+"Complicated Primary Osteoporosis","M81.01","Decreased bone mineral density, discuss bisphosphonate therapy and calcium with complicated clinical status.",true
+"Controlled Primary Osteoporosis","M81.02","Decreased bone mineral density, discuss bisphosphonate therapy and calcium with adequately controlled phase.",true
+"Refractory Primary Osteoporosis","M81.03","Decreased bone mineral density, discuss bisphosphonate therapy and calcium with refractory to standard medical therapy.",true
+"Early Stage Primary Osteoporosis","M81.04","Decreased bone mineral density, discuss bisphosphonate therapy and calcium with early stage detection.",true
+"Unspecified Adrenal Insufficiency","E27.49","Impaired cortisol production, instruct on steroid stress dosing with unspecified metabolic status.",true
+"Complicated Adrenal Insufficiency","E27.41","Impaired cortisol production, instruct on steroid stress dosing with complicated clinical status.",true
+"Controlled Adrenal Insufficiency","E27.42","Impaired cortisol production, instruct on steroid stress dosing with adequately controlled phase.",true
+"Refractory Adrenal Insufficiency","E27.43","Impaired cortisol production, instruct on steroid stress dosing with refractory to standard medical therapy.",true
+"Early Stage Adrenal Insufficiency","E27.44","Impaired cortisol production, instruct on steroid stress dosing with early stage detection.",true
+"Unspecified Addison's Disease","E27.19","Primary autoimmune adrenal failure, require mineralo- and glucocorticoids with unspecified metabolic status.",true
+"Complicated Addison's Disease","E27.11","Primary autoimmune adrenal failure, require mineralo- and glucocorticoids with complicated clinical status.",true
+"Controlled Addison's Disease","E27.12","Primary autoimmune adrenal failure, require mineralo- and glucocorticoids with adequately controlled phase.",true
+"Refractory Addison's Disease","E27.13","Primary autoimmune adrenal failure, require mineralo- and glucocorticoids with refractory to standard medical therapy.",true
+"Early Stage Addison's Disease","E27.14","Primary autoimmune adrenal failure, require mineralo- and glucocorticoids with early stage detection.",true
+"Unspecified Cushing's Syndrome","E24.99","Cortisol excess, evaluate for pituitary or adrenal tumor sources with unspecified metabolic status.",true
+"Complicated Cushing's Syndrome","E24.91","Cortisol excess, evaluate for pituitary or adrenal tumor sources with complicated clinical status.",true
+"Controlled Cushing's Syndrome","E24.92","Cortisol excess, evaluate for pituitary or adrenal tumor sources with adequately controlled phase.",true
+"Refractory Cushing's Syndrome","E24.93","Cortisol excess, evaluate for pituitary or adrenal tumor sources with refractory to standard medical therapy.",true
+"Early Stage Cushing's Syndrome","E24.94","Cortisol excess, evaluate for pituitary or adrenal tumor sources with early stage detection.",true
+"Unspecified Hyperprolactinemia","E22.19","Elevated prolactin, check for pituitary adenoma and manage galactorrhea with unspecified metabolic status.",true
+"Complicated Hyperprolactinemia","E22.11","Elevated prolactin, check for pituitary adenoma and manage galactorrhea with complicated clinical status.",true
+"Controlled Hyperprolactinemia","E22.12","Elevated prolactin, check for pituitary adenoma and manage galactorrhea with adequately controlled phase.",true
+"Refractory Hyperprolactinemia","E22.13","Elevated prolactin, check for pituitary adenoma and manage galactorrhea with refractory to standard medical therapy.",true
+"Early Stage Hyperprolactinemia","E22.14","Elevated prolactin, check for pituitary adenoma and manage galactorrhea with early stage detection.",true
+"Unspecified Hypogonadotropic Hypogonadism","E23.09","Central testosterone or estrogen deficiency, monitor hormone replacement with unspecified metabolic status.",true
+"Complicated Hypogonadotropic Hypogonadism","E23.01","Central testosterone or estrogen deficiency, monitor hormone replacement with complicated clinical status.",true
+"Controlled Hypogonadotropic Hypogonadism","E23.02","Central testosterone or estrogen deficiency, monitor hormone replacement with adequately controlled phase.",true
+"Refractory Hypogonadotropic Hypogonadism","E23.03","Central testosterone or estrogen deficiency, monitor hormone replacement with refractory to standard medical therapy.",true
+"Early Stage Hypogonadotropic Hypogonadism","E23.04","Central testosterone or estrogen deficiency, monitor hormone replacement with early stage detection.",true
+"Unspecified Primary Hyperparathyroidism","E21.09","Elevated PTH causing hypercalcemia, monitor bone density and renal function with unspecified metabolic status.",true
+"Complicated Primary Hyperparathyroidism","E21.01","Elevated PTH causing hypercalcemia, monitor bone density and renal function with complicated clinical status.",true
+"Controlled Primary Hyperparathyroidism","E21.02","Elevated PTH causing hypercalcemia, monitor bone density and renal function with adequately controlled phase.",true
+"Refractory Primary Hyperparathyroidism","E21.03","Elevated PTH causing hypercalcemia, monitor bone density and renal function with refractory to standard medical therapy.",true
+"Early Stage Primary Hyperparathyroidism","E21.04","Elevated PTH causing hypercalcemia, monitor bone density and renal function with early stage detection.",true
+"Unspecified Metabolic Syndrome","E88.819","Combined insulin resistance, hypertension, obesity, and dyslipidemia with unspecified metabolic status.",true
+"Complicated Metabolic Syndrome","E88.811","Combined insulin resistance, hypertension, obesity, and dyslipidemia with complicated clinical status.",true
+"Controlled Metabolic Syndrome","E88.812","Combined insulin resistance, hypertension, obesity, and dyslipidemia with adequately controlled phase.",true
+"Refractory Metabolic Syndrome","E88.813","Combined insulin resistance, hypertension, obesity, and dyslipidemia with refractory to standard medical therapy.",true
+"Early Stage Metabolic Syndrome","E88.814","Combined insulin resistance, hypertension, obesity, and dyslipidemia with early stage detection.",true
+"Unspecified Polycystic Ovary Syndrome (PCOS)","E28.29","Hyperandrogenism, irregular menses, advise on weight control and metformin with unspecified metabolic status.",true
+"Complicated Polycystic Ovary Syndrome (PCOS)","E28.21","Hyperandrogenism, irregular menses, advise on weight control and metformin with complicated clinical status.",true
+"Controlled Polycystic Ovary Syndrome (PCOS)","E28.22","Hyperandrogenism, irregular menses, advise on weight control and metformin with adequately controlled phase.",true
+"Refractory Polycystic Ovary Syndrome (PCOS)","E28.23","Hyperandrogenism, irregular menses, advise on weight control and metformin with refractory to standard medical therapy.",true
+"Early Stage Polycystic Ovary Syndrome (PCOS)","E28.24","Hyperandrogenism, irregular menses, advise on weight control and metformin with early stage detection.",true
+"Mild Intermittent Acute Bronchitis","J20.91","Acute bronchial inflammation, advise symptomatic therapy and steam with mild intermittent severity.",true
+"Mild Persistent Acute Bronchitis","J20.92","Acute bronchial inflammation, advise symptomatic therapy and steam with mild persistent clinical state.",true
+"Moderate Persistent Acute Bronchitis","J20.93","Acute bronchial inflammation, advise symptomatic therapy and steam with moderate persistent severity.",true
+"Severe Persistent Acute Bronchitis","J20.94","Acute bronchial inflammation, advise symptomatic therapy and steam with severe persistent clinical state.",true
+"Atypical Acute Bronchitis","J20.95","Acute bronchial inflammation, advise symptomatic therapy and steam with atypical presentation.",true
+"Mild Intermittent Chronic Bronchitis","J421","Chronic productive cough, monitor pulmonary function and advise smoking cessation with mild intermittent severity.",true
+"Mild Persistent Chronic Bronchitis","J422","Chronic productive cough, monitor pulmonary function and advise smoking cessation with mild persistent clinical state.",true
+"Moderate Persistent Chronic Bronchitis","J423","Chronic productive cough, monitor pulmonary function and advise smoking cessation with moderate persistent severity.",true
+"Severe Persistent Chronic Bronchitis","J424","Chronic productive cough, monitor pulmonary function and advise smoking cessation with severe persistent clinical state.",true
+"Atypical Chronic Bronchitis","J425","Chronic productive cough, monitor pulmonary function and advise smoking cessation with atypical presentation.",true
+"Mild Intermittent Bronchial Asthma","J45.9091","Reversible bronchospasm, optimize inhaler technique and prescribe rescue puff with mild intermittent severity.",true
+"Mild Persistent Bronchial Asthma","J45.9092","Reversible bronchospasm, optimize inhaler technique and prescribe rescue puff with mild persistent clinical state.",true
+"Moderate Persistent Bronchial Asthma","J45.9093","Reversible bronchospasm, optimize inhaler technique and prescribe rescue puff with moderate persistent severity.",true
+"Severe Persistent Bronchial Asthma","J45.9094","Reversible bronchospasm, optimize inhaler technique and prescribe rescue puff with severe persistent clinical state.",true
+"Atypical Bronchial Asthma","J45.9095","Reversible bronchospasm, optimize inhaler technique and prescribe rescue puff with atypical presentation.",true
+"Mild Intermittent Allergic Asthma","J45.9011","Asthma triggered by environmental allergens, evaluate for antihistamines with mild intermittent severity.",true
+"Mild Persistent Allergic Asthma","J45.9012","Asthma triggered by environmental allergens, evaluate for antihistamines with mild persistent clinical state.",true
+"Moderate Persistent Allergic Asthma","J45.9013","Asthma triggered by environmental allergens, evaluate for antihistamines with moderate persistent severity.",true
+"Severe Persistent Allergic Asthma","J45.9014","Asthma triggered by environmental allergens, evaluate for antihistamines with severe persistent clinical state.",true
+"Atypical Allergic Asthma","J45.9015","Asthma triggered by environmental allergens, evaluate for antihistamines with atypical presentation.",true
+"Mild Intermittent COPD","J44.91","Progressive airflow limitation, advise smoking cessation and home oxygen with mild intermittent severity.",true
+"Mild Persistent COPD","J44.92","Progressive airflow limitation, advise smoking cessation and home oxygen with mild persistent clinical state.",true
+"Moderate Persistent COPD","J44.93","Progressive airflow limitation, advise smoking cessation and home oxygen with moderate persistent severity.",true
+"Severe Persistent COPD","J44.94","Progressive airflow limitation, advise smoking cessation and home oxygen with severe persistent clinical state.",true
+"Atypical COPD","J44.95","Progressive airflow limitation, advise smoking cessation and home oxygen with atypical presentation.",true
+"Mild Intermittent Lobal Pneumonia","J18.91","Lung parenchymal infection, monitor oxygen saturation and prescribe antibiotics with mild intermittent severity.",true
+"Mild Persistent Lobal Pneumonia","J18.92","Lung parenchymal infection, monitor oxygen saturation and prescribe antibiotics with mild persistent clinical state.",true
+"Moderate Persistent Lobal Pneumonia","J18.93","Lung parenchymal infection, monitor oxygen saturation and prescribe antibiotics with moderate persistent severity.",true
+"Severe Persistent Lobal Pneumonia","J18.94","Lung parenchymal infection, monitor oxygen saturation and prescribe antibiotics with severe persistent clinical state.",true
+"Atypical Lobal Pneumonia","J18.95","Lung parenchymal infection, monitor oxygen saturation and prescribe antibiotics with atypical presentation.",true
+"Mild Intermittent Viral Pneumonia","J12.91","Diffuse viral lung infection, monitor for secondary bacterial overlap with mild intermittent severity.",true
+"Mild Persistent Viral Pneumonia","J12.92","Diffuse viral lung infection, monitor for secondary bacterial overlap with mild persistent clinical state.",true
+"Moderate Persistent Viral Pneumonia","J12.93","Diffuse viral lung infection, monitor for secondary bacterial overlap with moderate persistent severity.",true
+"Severe Persistent Viral Pneumonia","J12.94","Diffuse viral lung infection, monitor for secondary bacterial overlap with severe persistent clinical state.",true
+"Atypical Viral Pneumonia","J12.95","Diffuse viral lung infection, monitor for secondary bacterial overlap with atypical presentation.",true
+"Mild Intermittent Allergic Rhinitis","J30.91","Seasonal or perennial hay fever, prescribe nasal steroid sprays with mild intermittent severity.",true
+"Mild Persistent Allergic Rhinitis","J30.92","Seasonal or perennial hay fever, prescribe nasal steroid sprays with mild persistent clinical state.",true
+"Moderate Persistent Allergic Rhinitis","J30.93","Seasonal or perennial hay fever, prescribe nasal steroid sprays with moderate persistent severity.",true
+"Severe Persistent Allergic Rhinitis","J30.94","Seasonal or perennial hay fever, prescribe nasal steroid sprays with severe persistent clinical state.",true
+"Atypical Allergic Rhinitis","J30.95","Seasonal or perennial hay fever, prescribe nasal steroid sprays with atypical presentation.",true
+"Mild Intermittent Vasomotor Rhinitis","J30.01","Non-allergic nasal congestion, manage with saline rinses or antihistamines with mild intermittent severity.",true
+"Mild Persistent Vasomotor Rhinitis","J30.02","Non-allergic nasal congestion, manage with saline rinses or antihistamines with mild persistent clinical state.",true
+"Moderate Persistent Vasomotor Rhinitis","J30.03","Non-allergic nasal congestion, manage with saline rinses or antihistamines with moderate persistent severity.",true
+"Severe Persistent Vasomotor Rhinitis","J30.04","Non-allergic nasal congestion, manage with saline rinses or antihistamines with severe persistent clinical state.",true
+"Atypical Vasomotor Rhinitis","J30.05","Non-allergic nasal congestion, manage with saline rinses or antihistamines with atypical presentation.",true
+"Mild Intermittent Acute Sinusitis","J01.901","Acute sinus pressure, advise decongestants and evaluate for antibiotics with mild intermittent severity.",true
+"Mild Persistent Acute Sinusitis","J01.902","Acute sinus pressure, advise decongestants and evaluate for antibiotics with mild persistent clinical state.",true
+"Moderate Persistent Acute Sinusitis","J01.903","Acute sinus pressure, advise decongestants and evaluate for antibiotics with moderate persistent severity.",true
+"Severe Persistent Acute Sinusitis","J01.904","Acute sinus pressure, advise decongestants and evaluate for antibiotics with severe persistent clinical state.",true
+"Atypical Acute Sinusitis","J01.905","Acute sinus pressure, advise decongestants and evaluate for antibiotics with atypical presentation.",true
+"Mild Intermittent Chronic Sinusitis","J32.91","Prolonged sinus inflammation, advise saline douching and intranasal steroids with mild intermittent severity.",true
+"Mild Persistent Chronic Sinusitis","J32.92","Prolonged sinus inflammation, advise saline douching and intranasal steroids with mild persistent clinical state.",true
+"Moderate Persistent Chronic Sinusitis","J32.93","Prolonged sinus inflammation, advise saline douching and intranasal steroids with moderate persistent severity.",true
+"Severe Persistent Chronic Sinusitis","J32.94","Prolonged sinus inflammation, advise saline douching and intranasal steroids with severe persistent clinical state.",true
+"Atypical Chronic Sinusitis","J32.95","Prolonged sinus inflammation, advise saline douching and intranasal steroids with atypical presentation.",true
+"Mild Intermittent Acute Tonsillitis","J03.901","Erythematous tonsils with exudate, check Centor score for strep test with mild intermittent severity.",true
+"Mild Persistent Acute Tonsillitis","J03.902","Erythematous tonsils with exudate, check Centor score for strep test with mild persistent clinical state.",true
+"Moderate Persistent Acute Tonsillitis","J03.903","Erythematous tonsils with exudate, check Centor score for strep test with moderate persistent severity.",true
+"Severe Persistent Acute Tonsillitis","J03.904","Erythematous tonsils with exudate, check Centor score for strep test with severe persistent clinical state.",true
+"Atypical Acute Tonsillitis","J03.905","Erythematous tonsils with exudate, check Centor score for strep test with atypical presentation.",true
+"Mild Intermittent Chronic Tonsillitis","J35.01","Recurrent tonsil inflammation, evaluate for surgical tonsillectomy with mild intermittent severity.",true
+"Mild Persistent Chronic Tonsillitis","J35.02","Recurrent tonsil inflammation, evaluate for surgical tonsillectomy with mild persistent clinical state.",true
+"Moderate Persistent Chronic Tonsillitis","J35.03","Recurrent tonsil inflammation, evaluate for surgical tonsillectomy with moderate persistent severity.",true
+"Severe Persistent Chronic Tonsillitis","J35.04","Recurrent tonsil inflammation, evaluate for surgical tonsillectomy with severe persistent clinical state.",true
+"Atypical Chronic Tonsillitis","J35.05","Recurrent tonsil inflammation, evaluate for surgical tonsillectomy with atypical presentation.",true
+"Mild Intermittent Acute Laryngitis","J04.01","Voice hoarseness and throat discomfort, advise vocal rest and hydration with mild intermittent severity.",true
+"Mild Persistent Acute Laryngitis","J04.02","Voice hoarseness and throat discomfort, advise vocal rest and hydration with mild persistent clinical state.",true
+"Moderate Persistent Acute Laryngitis","J04.03","Voice hoarseness and throat discomfort, advise vocal rest and hydration with moderate persistent severity.",true
+"Severe Persistent Acute Laryngitis","J04.04","Voice hoarseness and throat discomfort, advise vocal rest and hydration with severe persistent clinical state.",true
+"Atypical Acute Laryngitis","J04.05","Voice hoarseness and throat discomfort, advise vocal rest and hydration with atypical presentation.",true
+"Mild Intermittent Acute Pharyngitis","J02.91","Acute sore throat, advise warm saline gargles and throat lozenges with mild intermittent severity.",true
+"Mild Persistent Acute Pharyngitis","J02.92","Acute sore throat, advise warm saline gargles and throat lozenges with mild persistent clinical state.",true
+"Moderate Persistent Acute Pharyngitis","J02.93","Acute sore throat, advise warm saline gargles and throat lozenges with moderate persistent severity.",true
+"Severe Persistent Acute Pharyngitis","J02.94","Acute sore throat, advise warm saline gargles and throat lozenges with severe persistent clinical state.",true
+"Atypical Acute Pharyngitis","J02.95","Acute sore throat, advise warm saline gargles and throat lozenges with atypical presentation.",true
+"Mild Intermittent Influenza Infection","J11.11","Seasonal flu, advise rest, hydration, and antivirals within 48 hours with mild intermittent severity.",true
+"Mild Persistent Influenza Infection","J11.12","Seasonal flu, advise rest, hydration, and antivirals within 48 hours with mild persistent clinical state.",true
+"Moderate Persistent Influenza Infection","J11.13","Seasonal flu, advise rest, hydration, and antivirals within 48 hours with moderate persistent severity.",true
+"Severe Persistent Influenza Infection","J11.14","Seasonal flu, advise rest, hydration, and antivirals within 48 hours with severe persistent clinical state.",true
+"Atypical Influenza Infection","J11.15","Seasonal flu, advise rest, hydration, and antivirals within 48 hours with atypical presentation.",true
+"Mild Intermittent Croup (Laryngotracheobronchitis)","J38.01","Barking cough in pediatric patients, treat with single dose dexamethasone with mild intermittent severity.",true
+"Mild Persistent Croup (Laryngotracheobronchitis)","J38.02","Barking cough in pediatric patients, treat with single dose dexamethasone with mild persistent clinical state.",true
+"Moderate Persistent Croup (Laryngotracheobronchitis)","J38.03","Barking cough in pediatric patients, treat with single dose dexamethasone with moderate persistent severity.",true
+"Severe Persistent Croup (Laryngotracheobronchitis)","J38.04","Barking cough in pediatric patients, treat with single dose dexamethasone with severe persistent clinical state.",true
+"Atypical Croup (Laryngotracheobronchitis)","J38.05","Barking cough in pediatric patients, treat with single dose dexamethasone with atypical presentation.",true
+"Mild Intermittent Bronchiectasis","J47.91","Permanent bronchial dilation, advise chest physiotherapy and airway clearance with mild intermittent severity.",true
+"Mild Persistent Bronchiectasis","J47.92","Permanent bronchial dilation, advise chest physiotherapy and airway clearance with mild persistent clinical state.",true
+"Moderate Persistent Bronchiectasis","J47.93","Permanent bronchial dilation, advise chest physiotherapy and airway clearance with moderate persistent severity.",true
+"Severe Persistent Bronchiectasis","J47.94","Permanent bronchial dilation, advise chest physiotherapy and airway clearance with severe persistent clinical state.",true
+"Atypical Bronchiectasis","J47.95","Permanent bronchial dilation, advise chest physiotherapy and airway clearance with atypical presentation.",true
+"Mild Intermittent Acute Pleurisy","R07.11","Pleuritic chest pain on deep inspiration, treat pain with NSAIDs with mild intermittent severity.",true
+"Mild Persistent Acute Pleurisy","R07.12","Pleuritic chest pain on deep inspiration, treat pain with NSAIDs with mild persistent clinical state.",true
+"Moderate Persistent Acute Pleurisy","R07.13","Pleuritic chest pain on deep inspiration, treat pain with NSAIDs with moderate persistent severity.",true
+"Severe Persistent Acute Pleurisy","R07.14","Pleuritic chest pain on deep inspiration, treat pain with NSAIDs with severe persistent clinical state.",true
+"Atypical Acute Pleurisy","R07.15","Pleuritic chest pain on deep inspiration, treat pain with NSAIDs with atypical presentation.",true
+"Mild Intermittent Sarcoidosis","D86.91","Systemic granulomatous disease, monitor lung volumes and chest radiographs with mild intermittent severity.",true
+"Mild Persistent Sarcoidosis","D86.92","Systemic granulomatous disease, monitor lung volumes and chest radiographs with mild persistent clinical state.",true
+"Moderate Persistent Sarcoidosis","D86.93","Systemic granulomatous disease, monitor lung volumes and chest radiographs with moderate persistent severity.",true
+"Severe Persistent Sarcoidosis","D86.94","Systemic granulomatous disease, monitor lung volumes and chest radiographs with severe persistent clinical state.",true
+"Atypical Sarcoidosis","D86.95","Systemic granulomatous disease, monitor lung volumes and chest radiographs with atypical presentation.",true
+"Mild Intermittent Idiopathic Pulmonary Fibrosis","J84.1121","Progressive lung scarring, monitor for exertional dyspnea and hypoxia with mild intermittent severity.",true
+"Mild Persistent Idiopathic Pulmonary Fibrosis","J84.1122","Progressive lung scarring, monitor for exertional dyspnea and hypoxia with mild persistent clinical state.",true
+"Moderate Persistent Idiopathic Pulmonary Fibrosis","J84.1123","Progressive lung scarring, monitor for exertional dyspnea and hypoxia with moderate persistent severity.",true
+"Severe Persistent Idiopathic Pulmonary Fibrosis","J84.1124","Progressive lung scarring, monitor for exertional dyspnea and hypoxia with severe persistent clinical state.",true
+"Atypical Idiopathic Pulmonary Fibrosis","J84.1125","Progressive lung scarring, monitor for exertional dyspnea and hypoxia with atypical presentation.",true
+"Mild Intermittent Sleep Apnea Syndrome","G47.301","Obstructive sleep apnea, advise polysomnography and CPAP therapy with mild intermittent severity.",true
+"Mild Persistent Sleep Apnea Syndrome","G47.302","Obstructive sleep apnea, advise polysomnography and CPAP therapy with mild persistent clinical state.",true
+"Moderate Persistent Sleep Apnea Syndrome","G47.303","Obstructive sleep apnea, advise polysomnography and CPAP therapy with moderate persistent severity.",true
+"Severe Persistent Sleep Apnea Syndrome","G47.304","Obstructive sleep apnea, advise polysomnography and CPAP therapy with severe persistent clinical state.",true
+"Atypical Sleep Apnea Syndrome","G47.305","Obstructive sleep apnea, advise polysomnography and CPAP therapy with atypical presentation.",true
+"Mild Intermittent Pulmonary Hypertension","I27.201","Elevated pulmonary arterial pressure, monitor right ventricular function with mild intermittent severity.",true
+"Mild Persistent Pulmonary Hypertension","I27.202","Elevated pulmonary arterial pressure, monitor right ventricular function with mild persistent clinical state.",true
+"Moderate Persistent Pulmonary Hypertension","I27.203","Elevated pulmonary arterial pressure, monitor right ventricular function with moderate persistent severity.",true
+"Severe Persistent Pulmonary Hypertension","I27.204","Elevated pulmonary arterial pressure, monitor right ventricular function with severe persistent clinical state.",true
+"Atypical Pulmonary Hypertension","I27.205","Elevated pulmonary arterial pressure, monitor right ventricular function with atypical presentation.",true
+"Mild Intermittent Pleural Effusion","J901","Fluid accumulation in pleural space, evaluate for thoracentesis diagnostic tap with mild intermittent severity.",true
+"Mild Persistent Pleural Effusion","J902","Fluid accumulation in pleural space, evaluate for thoracentesis diagnostic tap with mild persistent clinical state.",true
+"Moderate Persistent Pleural Effusion","J903","Fluid accumulation in pleural space, evaluate for thoracentesis diagnostic tap with moderate persistent severity.",true
+"Severe Persistent Pleural Effusion","J904","Fluid accumulation in pleural space, evaluate for thoracentesis diagnostic tap with severe persistent clinical state.",true
+"Atypical Pleural Effusion","J905","Fluid accumulation in pleural space, evaluate for thoracentesis diagnostic tap with atypical presentation.",true
+"Mild Intermittent Pneumothorax","J93.91","Collapsed lung due to air in pleural space, check for tracheal deviation with mild intermittent severity.",true
+"Mild Persistent Pneumothorax","J93.92","Collapsed lung due to air in pleural space, check for tracheal deviation with mild persistent clinical state.",true
+"Moderate Persistent Pneumothorax","J93.93","Collapsed lung due to air in pleural space, check for tracheal deviation with moderate persistent severity.",true
+"Severe Persistent Pneumothorax","J93.94","Collapsed lung due to air in pleural space, check for tracheal deviation with severe persistent clinical state.",true
+"Atypical Pneumothorax","J93.95","Collapsed lung due to air in pleural space, check for tracheal deviation with atypical presentation.",true
+"Mild GERD","K21.91","Acid reflux, advise upright posture after meals and weight loss with mild severity symptoms.",true
+"Moderate GERD","K21.92","Acid reflux, advise upright posture after meals and weight loss with moderate severity symptoms.",true
+"Severe GERD","K21.93","Acid reflux, advise upright posture after meals and weight loss with severe clinical findings.",true
+"Active GERD","K21.94","Acid reflux, advise upright posture after meals and weight loss with currently active phase.",true
+"In Remission GERD","K21.95","Acid reflux, advise upright posture after meals and weight loss with under therapeutic remission.",true
+"Mild Reflux Esophagitis","K21.01","Esophageal mucosal injury from reflux, prescribe high-dose PPI with mild severity symptoms.",true
+"Moderate Reflux Esophagitis","K21.02","Esophageal mucosal injury from reflux, prescribe high-dose PPI with moderate severity symptoms.",true
+"Severe Reflux Esophagitis","K21.03","Esophageal mucosal injury from reflux, prescribe high-dose PPI with severe clinical findings.",true
+"Active Reflux Esophagitis","K21.04","Esophageal mucosal injury from reflux, prescribe high-dose PPI with currently active phase.",true
+"In Remission Reflux Esophagitis","K21.05","Esophageal mucosal injury from reflux, prescribe high-dose PPI with under therapeutic remission.",true
+"Mild Barrett's Esophagus","K22.701","Esophageal metaplasia, monitor with surveillance endoscopies with mild severity symptoms.",true
+"Moderate Barrett's Esophagus","K22.702","Esophageal metaplasia, monitor with surveillance endoscopies with moderate severity symptoms.",true
+"Severe Barrett's Esophagus","K22.703","Esophageal metaplasia, monitor with surveillance endoscopies with severe clinical findings.",true
+"Active Barrett's Esophagus","K22.704","Esophageal metaplasia, monitor with surveillance endoscopies with currently active phase.",true
+"In Remission Barrett's Esophagus","K22.705","Esophageal metaplasia, monitor with surveillance endoscopies with under therapeutic remission.",true
+"Mild Chronic Gastritis","K29.701","Inflammation of stomach mucosa, check H. pylori status with mild severity symptoms.",true
+"Moderate Chronic Gastritis","K29.702","Inflammation of stomach mucosa, check H. pylori status with moderate severity symptoms.",true
+"Severe Chronic Gastritis","K29.703","Inflammation of stomach mucosa, check H. pylori status with severe clinical findings.",true
+"Active Chronic Gastritis","K29.704","Inflammation of stomach mucosa, check H. pylori status with currently active phase.",true
+"In Remission Chronic Gastritis","K29.705","Inflammation of stomach mucosa, check H. pylori status with under therapeutic remission.",true
+"Mild Acute Gastritis","K29.001","Acute gastric mucosal irritation, advise avoiding NSAIDs and alcohol with mild severity symptoms.",true
+"Moderate Acute Gastritis","K29.002","Acute gastric mucosal irritation, advise avoiding NSAIDs and alcohol with moderate severity symptoms.",true
+"Severe Acute Gastritis","K29.003","Acute gastric mucosal irritation, advise avoiding NSAIDs and alcohol with severe clinical findings.",true
+"Active Acute Gastritis","K29.004","Acute gastric mucosal irritation, advise avoiding NSAIDs and alcohol with currently active phase.",true
+"In Remission Acute Gastritis","K29.005","Acute gastric mucosal irritation, advise avoiding NSAIDs and alcohol with under therapeutic remission.",true
+"Mild Peptic Ulcer Disease","K27.91","Gastric or duodenal ulcer, advise mucosal protectants and PPIs with mild severity symptoms.",true
+"Moderate Peptic Ulcer Disease","K27.92","Gastric or duodenal ulcer, advise mucosal protectants and PPIs with moderate severity symptoms.",true
+"Severe Peptic Ulcer Disease","K27.93","Gastric or duodenal ulcer, advise mucosal protectants and PPIs with severe clinical findings.",true
+"Active Peptic Ulcer Disease","K27.94","Gastric or duodenal ulcer, advise mucosal protectants and PPIs with currently active phase.",true
+"In Remission Peptic Ulcer Disease","K27.95","Gastric or duodenal ulcer, advise mucosal protectants and PPIs with under therapeutic remission.",true
+"Mild Duodenal Ulcer","K26.91","Ulceration of duodenum, check for H. pylori infection with mild severity symptoms.",true
+"Moderate Duodenal Ulcer","K26.92","Ulceration of duodenum, check for H. pylori infection with moderate severity symptoms.",true
+"Severe Duodenal Ulcer","K26.93","Ulceration of duodenum, check for H. pylori infection with severe clinical findings.",true
+"Active Duodenal Ulcer","K26.94","Ulceration of duodenum, check for H. pylori infection with currently active phase.",true
+"In Remission Duodenal Ulcer","K26.95","Ulceration of duodenum, check for H. pylori infection with under therapeutic remission.",true
+"Mild Gastric Ulcer","K25.91","Ulceration of stomach, biopsy required to rule out malignancy with mild severity symptoms.",true
+"Moderate Gastric Ulcer","K25.92","Ulceration of stomach, biopsy required to rule out malignancy with moderate severity symptoms.",true
+"Severe Gastric Ulcer","K25.93","Ulceration of stomach, biopsy required to rule out malignancy with severe clinical findings.",true
+"Active Gastric Ulcer","K25.94","Ulceration of stomach, biopsy required to rule out malignancy with currently active phase.",true
+"In Remission Gastric Ulcer","K25.95","Ulceration of stomach, biopsy required to rule out malignancy with under therapeutic remission.",true
+"Mild Irritable Bowel Syndrome","K58.91","Functional bowel disease, suggest lifestyle changes and probiotics with mild severity symptoms.",true
+"Moderate Irritable Bowel Syndrome","K58.92","Functional bowel disease, suggest lifestyle changes and probiotics with moderate severity symptoms.",true
+"Severe Irritable Bowel Syndrome","K58.93","Functional bowel disease, suggest lifestyle changes and probiotics with severe clinical findings.",true
+"Active Irritable Bowel Syndrome","K58.94","Functional bowel disease, suggest lifestyle changes and probiotics with currently active phase.",true
+"In Remission Irritable Bowel Syndrome","K58.95","Functional bowel disease, suggest lifestyle changes and probiotics with under therapeutic remission.",true
+"Mild IBS with Diarrhea","K58.11","Diarrhea-predominant irritable bowel syndrome (IBS-D) with mild severity symptoms.",true
+"Moderate IBS with Diarrhea","K58.12","Diarrhea-predominant irritable bowel syndrome (IBS-D) with moderate severity symptoms.",true
+"Severe IBS with Diarrhea","K58.13","Diarrhea-predominant irritable bowel syndrome (IBS-D) with severe clinical findings.",true
+"Active IBS with Diarrhea","K58.14","Diarrhea-predominant irritable bowel syndrome (IBS-D) with currently active phase.",true
+"In Remission IBS with Diarrhea","K58.15","Diarrhea-predominant irritable bowel syndrome (IBS-D) with under therapeutic remission.",true
+"Mild IBS with Constipation","K58.21","Constipation-predominant irritable bowel syndrome (IBS-C) with mild severity symptoms.",true
+"Moderate IBS with Constipation","K58.22","Constipation-predominant irritable bowel syndrome (IBS-C) with moderate severity symptoms.",true
+"Severe IBS with Constipation","K58.23","Constipation-predominant irritable bowel syndrome (IBS-C) with severe clinical findings.",true
+"Active IBS with Constipation","K58.24","Constipation-predominant irritable bowel syndrome (IBS-C) with currently active phase.",true
+"In Remission IBS with Constipation","K58.25","Constipation-predominant irritable bowel syndrome (IBS-C) with under therapeutic remission.",true
+"Mild Ulcerative Colitis","K51.901","Inflammatory bowel disease, monitor inflammatory markers and 5-ASA use with mild severity symptoms.",true
+"Moderate Ulcerative Colitis","K51.902","Inflammatory bowel disease, monitor inflammatory markers and 5-ASA use with moderate severity symptoms.",true
+"Severe Ulcerative Colitis","K51.903","Inflammatory bowel disease, monitor inflammatory markers and 5-ASA use with severe clinical findings.",true
+"Active Ulcerative Colitis","K51.904","Inflammatory bowel disease, monitor inflammatory markers and 5-ASA use with currently active phase.",true
+"In Remission Ulcerative Colitis","K51.905","Inflammatory bowel disease, monitor inflammatory markers and 5-ASA use with under therapeutic remission.",true
+"Mild Crohn's Disease","K50.901","Transmural bowel inflammation, evaluate for biologic therapy options with mild severity symptoms.",true
+"Moderate Crohn's Disease","K50.902","Transmural bowel inflammation, evaluate for biologic therapy options with moderate severity symptoms.",true
+"Severe Crohn's Disease","K50.903","Transmural bowel inflammation, evaluate for biologic therapy options with severe clinical findings.",true
+"Active Crohn's Disease","K50.904","Transmural bowel inflammation, evaluate for biologic therapy options with currently active phase.",true
+"In Remission Crohn's Disease","K50.905","Transmural bowel inflammation, evaluate for biologic therapy options with under therapeutic remission.",true
+"Mild Diverticulosis of Colon","K57.901","Asymptomatic colon diverticula, advise high fiber diet and hydration with mild severity symptoms.",true
+"Moderate Diverticulosis of Colon","K57.902","Asymptomatic colon diverticula, advise high fiber diet and hydration with moderate severity symptoms.",true
+"Severe Diverticulosis of Colon","K57.903","Asymptomatic colon diverticula, advise high fiber diet and hydration with severe clinical findings.",true
+"Active Diverticulosis of Colon","K57.904","Asymptomatic colon diverticula, advise high fiber diet and hydration with currently active phase.",true
+"In Remission Diverticulosis of Colon","K57.905","Asymptomatic colon diverticula, advise high fiber diet and hydration with under therapeutic remission.",true
+"Mild Acute Diverticulitis","K57.921","Inflamed colonic diverticula, prescribe oral antibiotics and clear liquid diet with mild severity symptoms.",true
+"Moderate Acute Diverticulitis","K57.922","Inflamed colonic diverticula, prescribe oral antibiotics and clear liquid diet with moderate severity symptoms.",true
+"Severe Acute Diverticulitis","K57.923","Inflamed colonic diverticula, prescribe oral antibiotics and clear liquid diet with severe clinical findings.",true
+"Active Acute Diverticulitis","K57.924","Inflamed colonic diverticula, prescribe oral antibiotics and clear liquid diet with currently active phase.",true
+"In Remission Acute Diverticulitis","K57.925","Inflamed colonic diverticula, prescribe oral antibiotics and clear liquid diet with under therapeutic remission.",true
+"Mild Cholelithiasis","K80.201","Gallstones without cholecystitis, advise low-fat meals with mild severity symptoms.",true
+"Moderate Cholelithiasis","K80.202","Gallstones without cholecystitis, advise low-fat meals with moderate severity symptoms.",true
+"Severe Cholelithiasis","K80.203","Gallstones without cholecystitis, advise low-fat meals with severe clinical findings.",true
+"Active Cholelithiasis","K80.204","Gallstones without cholecystitis, advise low-fat meals with currently active phase.",true
+"In Remission Cholelithiasis","K80.205","Gallstones without cholecystitis, advise low-fat meals with under therapeutic remission.",true
+"Mild Acute Cholecystitis","K81.01","Gallbladder inflammation, evaluate for surgical consult and antibiotics with mild severity symptoms.",true
+"Moderate Acute Cholecystitis","K81.02","Gallbladder inflammation, evaluate for surgical consult and antibiotics with moderate severity symptoms.",true
+"Severe Acute Cholecystitis","K81.03","Gallbladder inflammation, evaluate for surgical consult and antibiotics with severe clinical findings.",true
+"Active Acute Cholecystitis","K81.04","Gallbladder inflammation, evaluate for surgical consult and antibiotics with currently active phase.",true
+"In Remission Acute Cholecystitis","K81.05","Gallbladder inflammation, evaluate for surgical consult and antibiotics with under therapeutic remission.",true
+"Mild Non-Alcoholic Fatty Liver","K76.01","Hepatic steatosis, advise weight reduction and check liver panel with mild severity symptoms.",true
+"Moderate Non-Alcoholic Fatty Liver","K76.02","Hepatic steatosis, advise weight reduction and check liver panel with moderate severity symptoms.",true
+"Severe Non-Alcoholic Fatty Liver","K76.03","Hepatic steatosis, advise weight reduction and check liver panel with severe clinical findings.",true
+"Active Non-Alcoholic Fatty Liver","K76.04","Hepatic steatosis, advise weight reduction and check liver panel with currently active phase.",true
+"In Remission Non-Alcoholic Fatty Liver","K76.05","Hepatic steatosis, advise weight reduction and check liver panel with under therapeutic remission.",true
+"Mild Non-Alcoholic Steatohepatitis","K75.811","Fatty liver with active inflammation, monitor liver fibrosis scores with mild severity symptoms.",true
+"Moderate Non-Alcoholic Steatohepatitis","K75.812","Fatty liver with active inflammation, monitor liver fibrosis scores with moderate severity symptoms.",true
+"Severe Non-Alcoholic Steatohepatitis","K75.813","Fatty liver with active inflammation, monitor liver fibrosis scores with severe clinical findings.",true
+"Active Non-Alcoholic Steatohepatitis","K75.814","Fatty liver with active inflammation, monitor liver fibrosis scores with currently active phase.",true
+"In Remission Non-Alcoholic Steatohepatitis","K75.815","Fatty liver with active inflammation, monitor liver fibrosis scores with under therapeutic remission.",true
+"Mild Portal Hypertension","K76.61","Elevated portal venous pressure, evaluate for esophageal varices with mild severity symptoms.",true
+"Moderate Portal Hypertension","K76.62","Elevated portal venous pressure, evaluate for esophageal varices with moderate severity symptoms.",true
+"Severe Portal Hypertension","K76.63","Elevated portal venous pressure, evaluate for esophageal varices with severe clinical findings.",true
+"Active Portal Hypertension","K76.64","Elevated portal venous pressure, evaluate for esophageal varices with currently active phase.",true
+"In Remission Portal Hypertension","K76.65","Elevated portal venous pressure, evaluate for esophageal varices with under therapeutic remission.",true
+"Mild Chronic Pancreatitis","K86.11","Progressive pancreatic scarring, prescribe pancreatic enzyme replacement with mild severity symptoms.",true
+"Moderate Chronic Pancreatitis","K86.12","Progressive pancreatic scarring, prescribe pancreatic enzyme replacement with moderate severity symptoms.",true
+"Severe Chronic Pancreatitis","K86.13","Progressive pancreatic scarring, prescribe pancreatic enzyme replacement with severe clinical findings.",true
+"Active Chronic Pancreatitis","K86.14","Progressive pancreatic scarring, prescribe pancreatic enzyme replacement with currently active phase.",true
+"In Remission Chronic Pancreatitis","K86.15","Progressive pancreatic scarring, prescribe pancreatic enzyme replacement with under therapeutic remission.",true
+"Mild Celiac Disease","K90.01","Gluten-sensitive enteropathy, require strict lifetime gluten-free diet with mild severity symptoms.",true
+"Moderate Celiac Disease","K90.02","Gluten-sensitive enteropathy, require strict lifetime gluten-free diet with moderate severity symptoms.",true
+"Severe Celiac Disease","K90.03","Gluten-sensitive enteropathy, require strict lifetime gluten-free diet with severe clinical findings.",true
+"Active Celiac Disease","K90.04","Gluten-sensitive enteropathy, require strict lifetime gluten-free diet with currently active phase.",true
+"In Remission Celiac Disease","K90.05","Gluten-sensitive enteropathy, require strict lifetime gluten-free diet with under therapeutic remission.",true
+"Mild Internal Hemorrhoids","K64.91","Swollen internal rectal veins, prescribe stool softeners and topical creams with mild severity symptoms.",true
+"Moderate Internal Hemorrhoids","K64.92","Swollen internal rectal veins, prescribe stool softeners and topical creams with moderate severity symptoms.",true
+"Severe Internal Hemorrhoids","K64.93","Swollen internal rectal veins, prescribe stool softeners and topical creams with severe clinical findings.",true
+"Active Internal Hemorrhoids","K64.94","Swollen internal rectal veins, prescribe stool softeners and topical creams with currently active phase.",true
+"In Remission Internal Hemorrhoids","K64.95","Swollen internal rectal veins, prescribe stool softeners and topical creams with under therapeutic remission.",true
+"Mild Anal Fissure","K60.21","Mucosal tear in anal canal, suggest sitz baths and topical nitroglycerin with mild severity symptoms.",true
+"Moderate Anal Fissure","K60.22","Mucosal tear in anal canal, suggest sitz baths and topical nitroglycerin with moderate severity symptoms.",true
+"Severe Anal Fissure","K60.23","Mucosal tear in anal canal, suggest sitz baths and topical nitroglycerin with severe clinical findings.",true
+"Active Anal Fissure","K60.24","Mucosal tear in anal canal, suggest sitz baths and topical nitroglycerin with currently active phase.",true
+"In Remission Anal Fissure","K60.25","Mucosal tear in anal canal, suggest sitz baths and topical nitroglycerin with under therapeutic remission.",true
+"Mild Gastroduodenal Obstruction","K31.51","Narrowed stomach exit, evaluate for surgical dilation or bypass with mild severity symptoms.",true
+"Moderate Gastroduodenal Obstruction","K31.52","Narrowed stomach exit, evaluate for surgical dilation or bypass with moderate severity symptoms.",true
+"Severe Gastroduodenal Obstruction","K31.53","Narrowed stomach exit, evaluate for surgical dilation or bypass with severe clinical findings.",true
+"Active Gastroduodenal Obstruction","K31.54","Narrowed stomach exit, evaluate for surgical dilation or bypass with currently active phase.",true
+"In Remission Gastroduodenal Obstruction","K31.55","Narrowed stomach exit, evaluate for surgical dilation or bypass with under therapeutic remission.",true

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>DERMA OPD FORM</title>
+
+    <style>
+        /* ================= PAGE SETUP ================= */
+        @page {
+            size: 297mm 420mm; /* A3 Portrait */
+            margin: 20mm;
+        }
+
+        body {
+            margin: 0;
+            font-family: DejaVu Sans, sans-serif;
+            font-size: 15px;
+            line-height: 1.5;
+            background: #ffffff;
+            color: #000;
+        }
+
+        .page {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        /* ================= HEADER ================= */
+        .header {
+            background: #6fbdf2;
+        }
+
+        .header td {
+            padding: 18px;
+            vertical-align: middle;
+        }
+
+        .logo img {
+            width: 95px;
+        }
+
+        .title {
+            text-align: center;
+        }
+
+        .title h1 {
+            margin: 0;
+            font-size: 34px;
+            font-weight: 800;
+        }
+
+        .title p {
+            margin: 4px 0;
+            font-size: 16px;
+        }
+
+        /* ================= TOP INFO ================= */
+        .top-info {
+            background: #eef6ff;
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .top-info td {
+            padding: 12px;
+        }
+
+        /* ================= HEADINGS ================= */
+        h3 {
+            font-size: 18px;
+            margin: 22px 0 10px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #000;
+            text-transform: uppercase;
+        }
+
+        h4 {
+            font-size: 16px;
+            margin: 18px 0 8px;
+            padding-left: 10px;
+            border-left: 4px solid #2a8fd6;
+        }
+
+        /* ================= CONTENT ================= */
+        .field {
+            font-size: 15px;
+            padding: 8px 0;
+            border-bottom: 1px dotted #bbb;
+        }
+
+        .value {
+            color: #0b5ea8;
+            font-weight: 600;
+        }
+
+        .badge {
+            background: #6fbdf2;
+            font-size: 17px;
+            font-weight: 800;
+            text-align: center;
+            padding: 14px;
+            margin: 18px 0;
+        }
+
+        .two-col td {
+            width: 50%;
+            vertical-align: top;
+            padding: 20px;
+        }
+
+        .warning {
+            color: #c00000;
+            font-weight: 700;
+        }
+         .logo-box {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-box img {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            border: 0px solid white;
+            padding: 0px;
+            background: black;
+        }
+         .cross-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .medical-cross {
+            width: 90px;
+            height: 90px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .medical-cross img {
+            height: 70px;
+            width: 70px;
+        }
+        
+    </style>
+</head>
+
+<body>
+
+<div class="page">
+
+    <!-- ================= HEADER ================= -->
+    <table class="header">
+        <tr>
+            <td width="20%" class="logo">
+                <div class="logo-box">
+                  <img src="./logo.png">
+                    
+                </div>
+            </td>
+
+            <td width="60%" class="title">
+                <h1>MediConnect.fit</h1>
+                <p>Dermatology Care & Consultation</p>
+                <p>📧 hello@mediconnect.fit</p>
+            </td>
+
+            <td width="20%" align="right">
+                <div class="cross-icon">
+                <div class="medical-cross">
+                    <img src="./dr.png" alt="logo" />
+                </div>
+            </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- ================= TOP INFO ================= -->
+    <table class="top-info">
+        <tr>
+            <td>Booking ID: <span class="value">DM-2023-OPD-1289</span></td>
+            <td align="right">Date: <span class="value">17 Nov 2023</span></td>
+        </tr>
+    </table>
+
+    <!-- ================= BODY ================= -->
+    <table class="two-col">
+        <tr>
+
+            <!-- LEFT COLUMN -->
+            <td>
+
+                <h3>Doctor Details</h3>
+                <div class="field">Name: <span class="value">Dr. Anjali Mehta</span></div>
+                <div class="field">Qualification: <span class="value">MD Dermatology</span></div>
+                <div class="field">Specialization: <span class="value">Medical & Cosmetic Dermatology</span></div>
+                <div class="field">Reg No: <span class="value">MCI-56234/2015</span></div>
+                <div class="field">Clinic Address: <span class="value">SkinCare Clinic, Delhi</span></div>
+
+                <h3>Provisional Diagnosis</h3>
+                <div class="field">
+                    <span class="value">Acne Vulgaris with Post-Inflammatory Hyperpigmentation</span>
+                </div>
+
+                <h4>Vitals</h4>
+                <div class="field">BP: <span class="value">122 / 78 mmHg</span></div>
+                <div class="field">Pulse: <span class="value">76 bpm</span></div>
+                <div class="field">Respiratory Rate: <span class="value">16 / min</span></div>
+                <div class="field">SpO₂: <span class="value">99%</span></div>
+                <div class="field">Temperature: <span class="value">98.2°F</span></div>
+
+                <h4>Examination (Photo / Video Based)</h4>
+                <div class="field">Site: <span class="value">Face / Trunk</span></div>
+                <div class="field">Lesion Type: <span class="value">Papule / Pustule / Comedones</span></div>
+                <div class="field">Morphology: <span class="value">Redness / PIH</span></div>
+                <div class="field">Distribution: <span class="value">Face & Upper Back</span></div>
+                <div class="field">Scalp / Hair: <span class="value">Mild dandruff</span></div>
+                <div class="field">Nails: <span class="value">Normal</span></div>
+
+                <h4>Positive Findings</h4>
+                <div class="field">
+                    <span class="value">Inflammatory papules, pustules, comedones, PIH</span>
+                </div>
+
+                <h4>Investigations</h4>
+                <div class="field"><span class="value">CBC / IgE / KOH</span></div>
+                <div class="field"><span class="value">Skin Scraping / Patch Test</span></div>
+                <div class="field"><span class="value">Biopsy if required</span></div>
+
+            </td>
+
+            <!-- RIGHT COLUMN -->
+            <td>
+
+                <h3>Patient Details</h3>
+                <div class="field">Name: <span class="value">Ms. Riya Sharma</span></div>
+                <div class="field">Age / Sex: <span class="value">24 Years / Female</span></div>
+                <div class="field">Duration of Symptoms: <span class="value">8 months</span></div>
+                <div class="field">Relevant History: <span class="value">No allergy / No diabetes</span></div>
+
+                <div class="badge">DERMATOLOGY OPD CONSULTATION</div>
+
+                <h3>Presenting Complaints</h3>
+                <div class="field">Pain / Itching / Burning: <span class="value">Mild pain</span></div>
+                <div class="field">Acne / Boils / Hair Fall: <span class="value">Recurrent acne</span></div>
+                <div class="field">Others: <span class="value">Dark spots after healing</span></div>
+
+                <h3>Treatment (Rx)</h3>
+                <div class="field">1. <span class="value">Benzoyl Peroxide 2.5% gel (night)</span></div>
+                <div class="field">2. <span class="value">Clindamycin 1% lotion (BD)</span></div>
+                <div class="field">3. <span class="value">Adapalene 0.1% gel (alternate nights)</span></div>
+                <div class="field">4. <span class="value">Non-comedogenic moisturizer & sunscreen</span></div>
+
+                <h3>Follow Up</h3>
+                <div class="field">Return After: <span class="value">6 weeks</span></div>
+
+                <div class="field">
+                    <span class="warning">Precautions:</span>
+                    <span class="value">Worsening rash, fever, severe irritation</span>
+                </div>
+
+                <h3>Digital Signature</h3>
+                <div class="field">Timestamp: <span class="value">17-Nov-2023 02:45 PM</span></div>
+                <div class="field">
+                    <span class="value">Digitally Signed – Dr. Anjali Mehta</span>
+                </div>
+
+            </td>
+
+        </tr>
+    </table>
+
+</div>
+
+</body>
+</html>

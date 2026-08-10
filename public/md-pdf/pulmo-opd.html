@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PULMONOLOGY OPD CONSULTATION</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+            color: #333;
+            padding: 20px 0;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            background: white;
+            margin: 0 auto;
+            padding: 25px;
+            box-sizing: border-box;
+            border-radius: 8px;
+            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        /* Header Styles */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #66baf7 0%, #62bcfb 100%);
+            border-radius: 8px;
+            color: white;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .logo-box {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-box img {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            border: 0px solid white;
+            padding: 0px;
+            background: black;
+        }
+
+        .title-box {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        .title-box h1 {
+            color: black;
+            filter: brightness(110%);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+            margin: 0;
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+
+        .title-box .tagline {
+            margin: 5px 0 0;
+            font-size: 14px;
+            font-weight: 500;
+            opacity: 0.9;
+            color: black;
+        }
+
+        .email {
+            margin-top: 5px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            color: black;
+        }
+
+        .cross-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .medical-cross {
+            width: 90px;
+            height: 90px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .medical-cross img {
+            height: 70px;
+            width: 70px;
+        }
+        
+        /* Content Styles */
+        .top-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            margin-bottom: 0px;
+            font-weight: 600;
+            background: #f0f7ff;
+            padding: 12px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .two-column {
+            display: flex;
+            gap: 25px;
+        }
+
+        .column {
+            width: 50%;
+            font-size: 12px;
+        }
+
+        h3 {
+            border-bottom: 2px solid #000;
+            margin-top: 5px;
+            padding-bottom: 6px;
+            font-size: 13px;
+            color: #000;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        h4 {
+            margin: 15px 0 8px;
+            font-size: 13px;
+            color: #000;
+            font-weight: 600;
+            border-left: 3px solid #2a8fd6;
+            padding-left: 8px;
+        }
+
+        .badge {
+            background: linear-gradient(135deg, #66baf7 0%, #62bcfb 100%);
+            color: black;
+            text-align: center;
+            font-weight: 900;
+            padding: 10px;
+            margin: 15px 0;
+            border-radius: 6px;
+            display: block;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        p {
+            margin: 8px 0;
+            padding-left: 0px;
+        }
+
+        hr {
+            border: none;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #2a8fd6, transparent);
+            margin: 15px 0;
+        }
+
+        /* Form field styling */
+        .field {
+            position: relative;
+            padding-bottom: 5px;
+            margin: 8px 0;
+        }
+
+        .field::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: repeating-linear-gradient(90deg, transparent, transparent 2px, #e0e0e0 2px, #e0e0e0 4px);
+        }
+
+        .filled-data {
+            color: #1a6ca7;
+            font-weight: 500;
+        }
+
+        ul {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+
+        li {
+            margin: 4px 0;
+            font-size: 12px;
+        }
+
+        /* Print styles */
+        @media print {
+            body { 
+                background: white; 
+                margin: 0;
+            }
+            .page { 
+                box-shadow: none; 
+                margin: 0; 
+                border-radius: 0;
+                padding: 15px;
+            }
+            .header {
+                background: #1a6ca7 !important;
+                -webkit-print-color-adjust: exact;
+            }
+            .badge {
+                background: #1a6ca7 !important;
+                -webkit-print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="page">
+
+        <!-- HEADER -->
+        <header class="header">
+            <div class="logo-box">
+                <img src="./logo.png" alt="logo" />
+            </div>
+            <div class="title-box">
+                <h1>MediConnect.fit</h1>
+                <p class="tagline">Pulmonology Care & Consultation</p>
+                <p class="email">📧 hello@mediconnect.fit</p>
+            </div>
+
+            <div class="cross-icon">
+                <div class="medical-cross">
+                    <img src="./dr.png" alt="logo" />
+                </div>
+            </div>
+        </header>
+
+        <!-- TOP INFO ROW -->
+        <div class="top-row">
+            <div>Booking ID: <span class="filled-data">PUL-2023-OPD-9234</span></div>
+            <div>Date: <span class="filled-data">03 Dec 2023</span></div>
+        </div>
+
+        <hr />
+
+        <div class="two-column">
+
+            <!-- LEFT COLUMN -->
+            <div class="column">
+
+                <h3>DOCTOR DETAILS</h3>
+                <div class="field">Name: <span class="filled-data">Dr. Anil Kumar</span></div>
+                <div class="field">Qualification: <span class="filled-data">MD, DM Pulmonology</span></div>
+                <div class="field">Specialization: <span class="filled-data">Asthma & COPD Specialist</span></div>
+                <div class="field">Reg No: <span class="filled-data">MCI-56789/2013</span></div>
+                <div class="field">Clinic Address: <span class="filled-data">LungCare Center, MG Road, Hyderabad</span></div>
+                <div class="field">Contact: <span class="filled-data">+91-9876543210</span></div>
+
+                <br>
+                <h3>PROVISIONAL DIAGNOSIS</h3>
+                <div class="field"><span class="filled-data">Bronchial Asthma - Moderate Persistent</span></div>
+
+                <h4>VITALS</h4>
+                <div class="field">BP: <span class="filled-data">126/82 mmHg</span></div>
+                <div class="field">Pulse: <span class="filled-data">96 bpm</span></div>
+                <div class="field">Respiratory Rate: <span class="filled-data">24/min</span></div>
+                <div class="field">SpO₂: <span class="filled-data">94% on room air</span></div>
+                <div class="field">Temperature: <span class="filled-data">98.6°F</span></div>
+
+                <h4>EXAMINATION</h4>
+                <div class="field">General: <span class="filled-data">Comfortable at rest, mild respiratory distress on exertion</span></div>
+                <div class="field">Respiratory System:</div>
+                <div class="field">Air Entry: <span class="filled-data">Bilateral equal, mildly reduced</span></div>
+                <div class="field">Wheeze: <span class="filled-data">Yes - bilateral expiratory wheeze</span></div>
+                <div class="field">Crackles: <span class="filled-data">No</span></div>
+                <div class="field">Chest Expansion: <span class="filled-data">Symmetrical, mildly reduced</span></div>
+                <div class="field">Percussion: <span class="filled-data">Normal resonant note bilaterally</span></div>
+                <div class="field">Upper airway: <span class="filled-data">Mild nasal congestion</span></div>
+                <div class="field">CVS: <span class="filled-data">Normal S1S2, no murmurs</span></div>
+                <div class="field">Other: <span class="filled-data">Prolonged expiratory phase</span></div>
+
+                <h4>POSITIVE FINDINGS:</h4>
+                <div class="field"><span class="filled-data">Bilateral expiratory wheeze, tachypnea, reduced air entry, prolonged expiration</span></div>
+
+                <h4>INVESTIGATIONS</h4>
+                <ul>
+                    <li><span class="filled-data">Chest X-ray PA view</span></li>
+                    <li><span class="filled-data">CBC, ESR, CRP, Absolute eosinophil count</span></li>
+                    <li><span class="filled-data">Spirometry (PFT) with bronchodilator reversibility</span></li>
+                    <li><span class="filled-data">Allergy testing - skin prick test</span></li>
+                    <li><span class="filled-data">Sputum for eosinophils</span></li>
+                    <li>Others: <span class="filled-data">FeNO test if available</span></li>
+                </ul>
+
+            </div>
+
+            <!-- RIGHT COLUMN -->
+            <div class="column">
+
+                <h3>PATIENT DETAILS</h3>
+                <div class="field">Name: <span class="filled-data">Mr. Rajeev Nair</span></div>
+                <div class="field">Age / Sex: <span class="filled-data">42 Years / Male</span></div>
+                <div class="field">Smoking History: <span class="filled-data">Ex-smoker, quit 5 years ago</span></div>
+                <div class="field">Asthma / COPD / TB history: <span class="filled-data">Childhood asthma, allergic rhinitis</span></div>
+
+                <div class="badge">PULMONOLOGY OPD CONSULTATION</div>
+
+                <h3>PRESENTING COMPLAINTS</h3>
+                <div class="field">Cough / Breathlessness / Wheezing: <span class="filled-data">Episodic breathlessness, nocturnal cough</span></div>
+                <div class="field">Chest pain / Fever / Sputum production: <span class="filled-data">White mucoid sputum, no chest pain or fever</span></div>
+                <div class="field">Hemoptysis / Snoring / Sleep issues: <span class="filled-data">Sleep disturbed due to cough, no hemoptysis</span></div>
+                <div class="field">Others: <span class="filled-data">Nasal allergy symptoms, triggers: dust, cold air</span></div>
+
+                <h3>TREATMENT (Rx)</h3>
+                <div class="field">1. <span class="filled-data">Inhaler Budesonide+Formoterol 200/6 mcg 1 puff BD</span></div>
+                <div class="field">2. <span class="filled-data">Inhaler Salbutamol 100 mcg SOS for symptoms</span></div>
+                <div class="field">3. <span class="filled-data">Tab. Montelukast 10mg OD at bedtime</span></div>
+                <div class="field">4. <span class="filled-data">Nasal spray Fluticasone 1 spray each nostril OD</span></div>
+                <div class="field">5. <span class="filled-data">Peak flow monitoring twice daily</span></div>
+
+                <h3>FOLLOW-UP</h3>
+                <div class="field">Return after: <span class="filled-data">4 weeks with PFT reports</span></div>
+                <p><strong style="color:red; font-weight:700;">RED FLAGS:</strong></p>
+                <div class="field"><span class="filled-data">SpO₂ < 94% / Severe breathlessness at rest / Chest pain / High fever / Hemoptysis / Drowsiness or confusion</span></div>
+
+                <h3>DIGITAL SIGNATURE</h3>
+                <div class="field">Timestamp: <span class="filled-data">03-Dec-2023 10:30 AM</span></div>
+                <div class="field">Doctor's Signature: <span class="filled-data">[Digitally Signed - Dr. Anil Kumar]</span></div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</body>
+</html>

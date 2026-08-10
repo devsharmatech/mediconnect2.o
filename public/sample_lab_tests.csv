@@ -1,0 +1,101 @@
+test_name,category,instructions,is_active
+"Complete Blood Count (CBC)","Hematology","10-12 hours fasting required",true
+"Fasting Blood Sugar (FBS)","Biochemistry","Exactly 2 hours after a meal",true
+"Postprandial Blood Sugar (PPBS)","Pathology","",true
+"HbA1c","Endocrinology","",true
+"Lipid Profile","Immunology","",true
+"Thyroid Profile (T3, T4, TSH)","Microbiology","Early morning sample preferred",true
+"Liver Function Test (LFT)","Radiology","Avoid heavy exercise before test",true
+"Kidney Function Test (KFT)","Cytology","",true
+"Urine Routine","Hematology","",true
+"Urine Culture","Biochemistry","",true
+"Vitamin D (25-OH)","Pathology","10-12 hours fasting required",true
+"Vitamin B12","Endocrinology","Exactly 2 hours after a meal",true
+"Serum Calcium","Immunology","",true
+"Serum Electrolytes","Microbiology","",true
+"Uric Acid","Radiology","",true
+"Iron Profile","Cytology","Early morning sample preferred",true
+"Ferritin","Hematology","Avoid heavy exercise before test",true
+"Transferrin","Biochemistry","",true
+"TIBC","Pathology","",true
+"CRP (C-Reactive Protein)","Endocrinology","",true
+"ESR","Immunology","10-12 hours fasting required",true
+"Rheumatoid Factor (RF)","Microbiology","Exactly 2 hours after a meal",true
+"Anti-CCP","Radiology","",true
+"ANA (Anti-Nuclear Antibody)","Cytology","",true
+"HBsAg","Hematology","",true
+"Anti-HCV","Biochemistry","Early morning sample preferred",true
+"HIV I & II","Pathology","Avoid heavy exercise before test",true
+"VDRL","Endocrinology","",true
+"Widal Test","Immunology","",true
+"Dengue NS1 Antigen","Microbiology","",true
+"Dengue IgG/IgM","Radiology","10-12 hours fasting required",true
+"Malaria Parasite (MP)","Cytology","Exactly 2 hours after a meal",true
+"Typhi Dot","Hematology","",true
+"Chikungunya IgM","Biochemistry","",true
+"PSA (Prostate Specific Antigen)","Pathology","",true
+"CA 125","Endocrinology","Early morning sample preferred",true
+"CEA","Immunology","Avoid heavy exercise before test",true
+"Alpha Fetoprotein (AFP)","Microbiology","",true
+"Beta HCG","Radiology","",true
+"Prolactin","Cytology","",true
+"FSH","Hematology","10-12 hours fasting required",true
+"LH","Biochemistry","Exactly 2 hours after a meal",true
+"Testosterone","Pathology","",true
+"Estradiol (E2)","Endocrinology","",true
+"Progesterone","Immunology","",true
+"Cortisol","Microbiology","Early morning sample preferred",true
+"ACTH","Radiology","Avoid heavy exercise before test",true
+"PTH (Parathyroid Hormone)","Cytology","",true
+"Insulin (Fasting)","Hematology","",true
+"C-Peptide","Biochemistry","",true
+"Amylase","Pathology","10-12 hours fasting required",true
+"Lipase","Endocrinology","Exactly 2 hours after a meal",true
+"CPK (Creatine Phosphokinase)","Immunology","",true
+"Troponin I","Microbiology","",true
+"BNP","Radiology","",true
+"D-Dimer","Cytology","Early morning sample preferred",true
+"Procalcitonin","Hematology","Avoid heavy exercise before test",true
+"ABG (Arterial Blood Gas)","Biochemistry","",true
+"Serum Osmolality","Pathology","",true
+"Serum Magnesium","Endocrinology","",true
+"Serum Phosphorus","Immunology","10-12 hours fasting required",true
+"Zinc","Microbiology","Exactly 2 hours after a meal",true
+"Copper","Radiology","",true
+"Ceruloplasmin","Cytology","",true
+"Homocysteine","Hematology","",true
+"Lactate","Biochemistry","Early morning sample preferred",true
+"Ammonia","Pathology","Avoid heavy exercise before test",true
+"Bilirubin (Total/Direct/Indirect)","Endocrinology","",true
+"SGOT (AST)","Immunology","",true
+"SGPT (ALT)","Microbiology","",true
+"Alkaline Phosphatase (ALP)","Radiology","10-12 hours fasting required",true
+"GGT","Cytology","Exactly 2 hours after a meal",true
+"Total Protein","Hematology","",true
+"Albumin","Biochemistry","",true
+"Globulin","Pathology","",true
+"A/G Ratio","Endocrinology","Early morning sample preferred",true
+"BUN (Blood Urea Nitrogen)","Immunology","Avoid heavy exercise before test",true
+"Serum Creatinine","Microbiology","",true
+"eGFR","Radiology","",true
+"Urine Microalbumin","Cytology","",true
+"24 Hrs Urine Protein","Hematology","10-12 hours fasting required",true
+"Creatinine Clearance","Biochemistry","Exactly 2 hours after a meal",true
+"Semen Analysis","Pathology","",true
+"Stool Routine","Endocrinology","",true
+"Stool Occult Blood","Immunology","",true
+"Blood Culture","Microbiology","Early morning sample preferred",true
+"Sputum Culture","Radiology","Avoid heavy exercise before test",true
+"Throat Swab Culture","Cytology","",true
+"Pus Culture","Hematology","",true
+"CSF Analysis","Biochemistry","",true
+"Pleural Fluid Analysis","Pathology","10-12 hours fasting required",true
+"Ascitic Fluid Analysis","Endocrinology","Exactly 2 hours after a meal",true
+"Synovial Fluid Analysis","Immunology","",true
+"Pap Smear","Microbiology","",true
+"Biopsy","Radiology","",true
+"FNAC","Cytology","Early morning sample preferred",true
+"X-Ray Chest","Hematology","Avoid heavy exercise before test",true
+"ECG","Biochemistry","",true
+"USG Whole Abdomen","Pathology","",true
+"Lab Test 100","Endocrinology","",true

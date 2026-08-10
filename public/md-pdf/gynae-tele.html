@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GYNAE & OBS TELE CONSULTATION</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+            color: #333;
+            padding: 20px 0;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            background: white;
+            margin: 0 auto;
+            padding: 25px;
+            box-sizing: border-box;
+            border-radius: 8px;
+            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        /* Header Styles */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #66baf7 0%, #62bcfb 100%);
+            border-radius: 8px;
+            color: white;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .logo-box {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-box img {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            border: 0px solid white;
+            padding: 0px;
+            background: black;
+        }
+
+        .title-box {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        .title-box h1 {
+            color: black;
+            filter: brightness(110%);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+            margin: 0;
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+
+        .title-box .tagline {
+            margin: 5px 0 0;
+            font-size: 14px;
+            font-weight: 500;
+            opacity: 0.9;
+            color: black;
+        }
+
+        .email {
+            margin-top: 5px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            color: black;
+        }
+
+        .cross-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .medical-cross {
+            width: 90px;
+            height: 90px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .medical-cross img {
+            height: 70px;
+            width: 70px;
+        }
+        
+        /* Content Styles */
+        .top-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            margin-bottom: 0px;
+            font-weight: 600;
+            background: #f0f7ff;
+            padding: 12px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .two-column {
+            display: flex;
+            gap: 25px;
+        }
+
+        .column {
+            width: 50%;
+            font-size: 12px;
+        }
+
+        h3 {
+            border-bottom: 2px solid #000;
+            margin-top: 5px;
+            padding-bottom: 6px;
+            font-size: 13px;
+            color: #000;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        h4 {
+            margin: 15px 0 8px;
+            font-size: 13px;
+            color: #000;
+            font-weight: 600;
+            border-left: 3px solid #2a8fd6;
+            padding-left: 8px;
+        }
+
+        .badge {
+            background: linear-gradient(135deg, #66baf7 0%, #62bcfb 100%);
+            color: black;
+            text-align: center;
+            font-weight: 900;
+            padding: 10px;
+            margin: 15px 0;
+            border-radius: 6px;
+            display: block;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        p {
+            margin: 8px 0;
+            padding-left: 0px;
+        }
+
+        hr {
+            border: none;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #2a8fd6, transparent);
+            margin: 15px 0;
+        }
+
+        /* Form field styling */
+        .field {
+            position: relative;
+            padding-bottom: 5px;
+            margin: 8px 0;
+        }
+
+        .field::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: repeating-linear-gradient(90deg, transparent, transparent 2px, #e0e0e0 2px, #e0e0e0 4px);
+        }
+
+        .filled-data {
+            color: #1a6ca7;
+            font-weight: 500;
+        }
+
+        .note {
+            background: #fff8d6;
+            padding: 12px;
+            font-size: 13px;
+            margin: 15px 0;
+            border-radius: 6px;
+            border-left: 4px solid #ffc107;
+            font-style: italic;
+        }
+
+        ul {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+
+        li {
+            margin: 4px 0;
+            font-size: 12px;
+        }
+
+        /* Print styles */
+        @media print {
+            body { 
+                background: white; 
+                margin: 0;
+            }
+            .page { 
+                box-shadow: none; 
+                margin: 0; 
+                border-radius: 0;
+                padding: 15px;
+            }
+            .header {
+                background: #1a6ca7 !important;
+                -webkit-print-color-adjust: exact;
+            }
+            .badge {
+                background: #1a6ca7 !important;
+                -webkit-print-color-adjust: exact;
+            }
+            .note {
+                background: #fff8d6 !important;
+                -webkit-print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="page">
+
+        <!-- HEADER -->
+        <header class="header">
+            <div class="logo-box">
+                <img src="./logo.png" alt="logo" />
+            </div>
+            <div class="title-box">
+                <h1>MediConnect.fit</h1>
+                <p class="tagline">Gynecology & Obstetrics Care</p>
+                <p class="email">📧 hello@mediconnect.fit</p>
+            </div>
+
+            <div class="cross-icon">
+                <div class="medical-cross">
+                    <img src="./dr.png" alt="logo" />
+                </div>
+            </div>
+        </header>
+
+        <!-- TOP INFO ROW -->
+        <div class="top-row">
+            <div>Booking ID: <span class="filled-data">GYN-TC-2023-1789</span></div>
+            <div>Date: <span class="filled-data">24 Nov 2023</span></div>
+        </div>
+
+        <p class="note">
+            This prescription is based solely on the information provided during teleconsultation, without physical
+            examination. If symptoms worsen, red flag signs appear, or no improvement occurs, please seek in-person
+            consultation or visit the nearest hospital immediately.
+        </p>
+
+        <hr />
+
+        <div class="two-column">
+
+            <!-- LEFT COLUMN -->
+            <div class="column">
+
+                <h3>DOCTOR DETAILS</h3>
+                <div class="field">Name: <span class="filled-data">Dr. Anjali Mehta</span></div>
+                <div class="field">Qualification: <span class="filled-data">MD, DNB Obstetrics & Gynecology</span></div>
+                <div class="field">Specialization: <span class="filled-data">Tele-Gynecology & Fertility Counseling</span></div>
+                <div class="field">Reg No.: <span class="filled-data">MCI-67890/2018</span></div>
+                <div class="field">Clinic Address: <span class="filled-data">Virtual Consultation Only</span></div>
+                <div class="field">Contact: <span class="filled-data">+91-9876543210</span></div>
+
+                <br>
+                <h3>PROVISIONAL DIAGNOSIS</h3>
+                <div class="field"><span class="filled-data">First Trimester Pregnancy with Hyperemesis Gravidarum</span></div>
+
+                <div class="field"><strong>LMP:</strong> <span class="filled-data">12 Sep 2023 (10 weeks 3 days)</span></div>
+                <div class="field"><strong>Obstetric History (G/P/L/A):</strong> <span class="filled-data">G1P0L0A0 (Primigravida)</span></div>
+                <div class="field"><strong>Marital Status:</strong> <span class="filled-data">Married for 2 years</span></div>
+                <div class="field"><strong>Contraception Used (if any):</strong> <span class="filled-data">Discontinued OCP 4 months ago</span></div>
+
+                <h4>EXAMINATION</h4>
+                <div class="field">General: <span class="filled-data">Appears pale, dehydrated on video, mild tachycardia noted</span></div>
+
+                <h4>POSITIVE FINDINGS:</h4>
+                <div class="field"><span class="filled-data">Multiple vomiting episodes (8-10/day), weight loss 2 kg in 2 weeks, ketonuria on self-test</span></div>
+
+                <h4>INVESTIGATIONS</h4>
+                <ul>
+                    <li><span class="filled-data">Urine pregnancy test - Positive</span></li>
+                    <li><span class="filled-data">CBC, LFT, RFT, Serum electrolytes</span></li>
+                    <li><span class="filled-data">Thyroid profile, Blood sugar</span></li>
+                    <li><span class="filled-data">Transvaginal ultrasound for dating and viability</span></li>
+                    <li>Others: <span class="filled-data">Urine routine & microscopy, ketone bodies</span></li>
+                </ul>
+
+                <h4>PROCEDURES DONE (If any)</h4>
+                <div class="field"><span class="filled-data">None - Teleconsultation only</span></div>
+
+            </div>
+
+            <!-- RIGHT COLUMN -->
+            <div class="column">
+
+                <h3>PATIENT DETAILS</h3>
+                <div class="field">Name: <span class="filled-data">Mrs. Radhika Iyer</span></div>
+                <div class="field">Age / Sex: <span class="filled-data">26 Years / Female</span></div>
+                <div class="field">Patient ID: <span class="filled-data">MC-56789</span></div>
+
+                <div class="badge">GYNAE & OBS TELE-CONSULTATION</div>
+
+                <h3>PRESENTING COMPLAINTS</h3>
+                <ul>
+                    <li><span class="filled-data">Severe nausea and vomiting throughout day</span></li>
+                    <li><span class="filled-data">Unable to retain food or fluids</span></li>
+                    <li><span class="filled-data">Weight loss and weakness</span></li>
+                    <li><span class="filled-data">Missed periods - 10 weeks</span></li>
+                    <li><span class="filled-data">Breast tenderness and fatigue</span></li>
+                    <li><span class="filled-data">Dizziness on standing</span></li>
+                    <li><span class="filled-data">Decreased urine output</span></li>
+                    <li><span class="filled-data">Food and smell aversions</span></li>
+                    <li><span class="filled-data">Suspected pregnancy - confirmed with home test</span></li>
+                    <li>Other: <span class="filled-data">Anxiety about pregnancy health</span></li>
+                </ul>
+
+                <h3>TREATMENT (Rx)</h3>
+                <div class="field">1. <span class="filled-data">Tab. Doxylamine + Pyridoxine combination at bedtime</span></div>
+                <div class="field">2. <span class="filled-data">Tab. Ondansetron 4mg SOS for severe vomiting</span></div>
+                <div class="field">3. <span class="filled-data">IV fluids at day care if unable to tolerate orally</span></div>
+                <div class="field">4. <span class="filled-data">Folic acid 5mg OD continued</span></div>
+
+                <div class="field"><strong>Instructions:</strong> <span class="filled-data">Small frequent meals, dry crackers before rising, ginger tea, avoid triggers</span></div>
+                <div class="field"><strong>Diet · Lifestyle · Preventive Advice:</strong> <span class="filled-data">Hydration with electrolyte solutions, rest, frequent small carbohydrate-rich meals, avoid spicy/fatty foods</span></div>
+
+                <h3>FOLLOW-UP</h3>
+                <div class="field">Return after: <span class="filled-data">1 week or sooner if unable to retain fluids</span></div>
+                <p><strong style="color:red; font-weight:700;">Warning signs:</strong></p>
+                <div class="field"><span class="filled-data">No urine for 8 hours, severe abdominal pain, vaginal bleeding, fever, confusion, inability to stand</span></div>
+                <p>to report immediately</p>
+
+                <h3>DIGITAL SIGNATURE</h3>
+                <div class="field">Timestamp: <span class="filled-data">24-Nov-2023 04:30 PM</span></div>
+                <div class="field">Doctor's Signature: <span class="filled-data">[Digitally Signed - Dr. Anjali Mehta]</span></div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</body>
+</html>

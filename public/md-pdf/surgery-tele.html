@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SURGERY TELECONSULTATION</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+            color: #333;
+            padding: 20px 0;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            background: white;
+            margin: 0 auto;
+            padding: 25px;
+            box-sizing: border-box;
+            border-radius: 8px;
+            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        /* Header Styles */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #66baf7 0%, #62bcfb 100%);
+            border-radius: 8px;
+            color: white;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .logo-box {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-box img {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            border: 0px solid white;
+            padding: 0px;
+            background: black;
+        }
+
+        .title-box {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        .title-box h1 {
+            color: black;
+            filter: brightness(110%);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+            margin: 0;
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+
+        .title-box .tagline {
+            margin: 5px 0 0;
+            font-size: 14px;
+            font-weight: 500;
+            opacity: 0.9;
+            color: black;
+        }
+
+        .email {
+            margin-top: 5px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            color: black;
+        }
+
+        .cross-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .medical-cross {
+            width: 90px;
+            height: 90px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .medical-cross img {
+            height: 70px;
+            width: 70px;
+        }
+        
+        /* Content Styles */
+        .top-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            margin-bottom: 0px;
+            font-weight: 600;
+            background: #f0f7ff;
+            padding: 12px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .two-column {
+            display: flex;
+            gap: 25px;
+        }
+
+        .column {
+            width: 50%;
+            font-size: 12px;
+        }
+
+        h3 {
+            border-bottom: 2px solid #000;
+            margin-top: 5px;
+            padding-bottom: 6px;
+            font-size: 13px;
+            color: #000;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        h4 {
+            margin: 15px 0 8px;
+            font-size: 13px;
+            color: #000;
+            font-weight: 600;
+            border-left: 3px solid #2a8fd6;
+            padding-left: 8px;
+        }
+
+        .badge {
+            background: linear-gradient(135deg, #66baf7 0%, #62bcfb 100%);
+            color: black;
+            text-align: center;
+            font-weight: 900;
+            padding: 10px;
+            margin: 15px 0;
+            border-radius: 6px;
+            display: block;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        p {
+            margin: 8px 0;
+            padding-left: 0px;
+        }
+
+        hr {
+            border: none;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #2a8fd6, transparent);
+            margin: 15px 0;
+        }
+
+        /* Form field styling */
+        .field {
+            position: relative;
+            padding-bottom: 5px;
+            margin: 8px 0;
+        }
+
+        .field::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: repeating-linear-gradient(90deg, transparent, transparent 2px, #e0e0e0 2px, #e0e0e0 4px);
+        }
+
+        .filled-data {
+            color: #1a6ca7;
+            font-weight: 500;
+        }
+
+        .note {
+            background: #fff8d6;
+            padding: 12px;
+            font-size: 13px;
+            margin: 15px 0;
+            border-radius: 6px;
+            border-left: 4px solid #ffc107;
+            font-style: italic;
+        }
+
+        ul {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+
+        li {
+            margin: 4px 0;
+            font-size: 12px;
+        }
+
+        /* Print styles */
+        @media print {
+            body { 
+                background: white; 
+                margin: 0;
+            }
+            .page { 
+                box-shadow: none; 
+                margin: 0; 
+                border-radius: 0;
+                padding: 15px;
+            }
+            .header {
+                background: #1a6ca7 !important;
+                -webkit-print-color-adjust: exact;
+            }
+            .badge {
+                background: #1a6ca7 !important;
+                -webkit-print-color-adjust: exact;
+            }
+            .note {
+                background: #fff8d6 !important;
+                -webkit-print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="page">
+
+        <!-- HEADER -->
+        <header class="header">
+            <div class="logo-box">
+                <img src="./logo.png" alt="logo" />
+            </div>
+            <div class="title-box">
+                <h1>MediConnect.fit</h1>
+                <p class="tagline">Surgical Care & Consultation</p>
+                <p class="email">📧 hello@mediconnect.fit</p>
+            </div>
+
+            <div class="cross-icon">
+                <div class="medical-cross">
+                    <img src="./dr.png" alt="logo" />
+                </div>
+            </div>
+        </header>
+
+        <!-- TOP INFO ROW -->
+        <div class="top-row">
+            <div>Booking ID: <span class="filled-data">SUR-TC-2023-7234</span></div>
+            <div>Date: <span class="filled-data">06 Dec 2023</span></div>
+        </div>
+
+        <p class="note">
+            (This prescription is based solely on teleconsultation without physical examination. 
+            If symptoms worsen or red flags appear, seek immediate in-person evaluation.)
+        </p>
+
+        <hr />
+
+        <div class="two-column">
+
+            <!-- LEFT COLUMN -->
+            <div class="column">
+
+                <h3>DOCTOR DETAILS</h3>
+                <div class="field">Name: <span class="filled-data">Dr. Anjali Sharma</span></div>
+                <div class="field">Qualification: <span class="filled-data">MS, MCh General Surgery</span></div>
+                <div class="field">Specialization: <span class="filled-data">Tele-Surgery & Wound Care</span></div>
+                <div class="field">Reg No: <span class="filled-data">MCI-67890/2016</span></div>
+                <div class="field">Clinic Address: <span class="filled-data">Virtual Consultation Only</span></div>
+                <div class="field">Contact: <span class="filled-data">+91-9876543210</span></div>
+
+                <br>
+                <h3>PROVISIONAL DIAGNOSIS</h3>
+                <div class="field"><span class="filled-data">Post-operative Wound Infection</span></div>
+
+                <h4>VITALS</h4>
+                <div class="field">Temperature: <span class="filled-data">100.4°F</span></div>
+                <div class="field">Pulse: <span class="filled-data">92 bpm</span></div>
+                <div class="field">Blood pressure: <span class="filled-data">128/84 mmHg (self-reported)</span></div>
+                <div class="field">Hydration status: <span class="filled-data">Adequate oral intake</span></div>
+                <div class="field">Urine output: <span class="filled-data">Normal frequency and volume</span></div>
+
+                <h4>TELE-EXAMINATION (Video + Verbal)</h4>
+                <div class="field">General: <span class="filled-data">Mild distress due to wound pain</span></div>
+                <div class="field">Abdomen findings: <span class="filled-data">Surgical wound visible, no abdominal distension</span></div>
+                <div class="field">Wound / Swelling (video): <span class="filled-data">2cm area of redness around wound, mild swelling</span></div>
+                <div class="field">Hernia symptoms: <span class="filled-data">No hernia symptoms reported</span></div>
+                <div class="field">Local Examination: <span class="filled-data">Wound edges erythematous, serous discharge visible</span></div>
+                <div class="field">Other: <span class="filled-data">Patient afebrile until yesterday</span></div>
+
+                <h4>POSITIVE FINDINGS:</h4>
+                <div class="field"><span class="filled-data">Surgical site infection with erythema, swelling, serous discharge, and fever</span></div>
+
+                <h4>INVESTIGATIONS</h4>
+                <ul>
+                    <li><span class="filled-data">CBC, CRP, ESR</span></li>
+                    <li><span class="filled-data">Wound swab for culture and sensitivity</span></li>
+                    <li><span class="filled-data">Ultrasound if abscess suspected</span></li>
+                    <li>Others: <span class="filled-data">Blood culture if fever persists</span></li>
+                </ul>
+
+               
+            </div>
+
+            <!-- RIGHT COLUMN -->
+            <div class="column">
+
+                <h3>PATIENT DETAILS</h3>
+                <div class="field">Name: <span class="filled-data">Mr. Vikram Joshi</span></div>
+                <div class="field">Age / Sex: <span class="filled-data">52 Years / Male</span></div>
+                <div class="field">Symptoms sent via photo/video? <span class="filled-data">Yes - wound photos shared</span></div>
+
+                <div class="badge">SURGERY TELECONSULTATION</div>
+
+                <h3>PRESENTING COMPLAINTS</h3>
+                <div class="field">Abdominal pain (location + severity): <span class="filled-data">Wound site pain 6/10, no deep abdominal pain</span></div>
+                <div class="field">Vomiting: <span class="filled-data">No vomiting</span></div>
+                <div class="field">Suspected hernia: <span class="filled-data">No hernia symptoms</span></div>
+                <div class="field">Swelling, redness, discharge: <span class="filled-data">Redness around wound, mild swelling, serous discharge</span></div>
+                <div class="field">Trauma pain: <span class="filled-data">No new trauma</span></div>
+                <div class="field">Fever with abdominal pain: <span class="filled-data">Low-grade fever, wound site tenderness</span></div>
+                <div class="field">Any other: <span class="filled-data">Appendectomy 10 days ago, symptoms started 2 days ago</span></div>
+
+                <h3>TREATMENT (Rx)</h3>
+                <div class="field">1. <span class="filled-data">Tab. Amoxicillin-Clavulanate 625mg TDS for 7 days</span></div>
+                <div class="field">2. <span class="filled-data">Tab. Paracetamol 500mg SOS for fever/pain</span></div>
+                <div class="field">3. <span class="filled-data">Wound dressing with Povidone-iodine solution daily</span></div>
+                <div class="field">4. <span class="filled-data">Wound swab for culture at nearest lab</span></div>
+                <div class="field">5. <span class="filled-data">Monitor temperature twice daily</span></div>
+
+                <h3>FOLLOW-UP</h3>
+                <div class="field">Return after: <span class="filled-data">48 hours with wound swab report</span></div>
+                <p><strong style="color:red; font-weight:700;">Warning signs:</strong></p>
+                <div class="field"><span class="filled-data">High fever >102°F, increasing redness/swelling, pus discharge, severe pain, inability to tolerate oral medications</span></div>
+                <p>to report immediately</p>
+ <h3>DIGITAL SIGNATURE</h3>
+                <div class="field">Timestamp: <span class="filled-data">06-Dec-2023 02:15 PM</span></div>
+                <div class="field">Doctor's Signature: <span class="filled-data">[Digitally Signed - Dr. Anjali Sharma]</span></div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</body>
+</html>

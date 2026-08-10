@@ -1,0 +1,96 @@
+tablename,policyname,permissive,roles,cmd,qual,with_check
+patient_details,Patient can view self,PERMISSIVE,{public},SELECT,(id = auth.uid()),null
+patient_details,Patient can update self,PERMISSIVE,{public},UPDATE,(id = auth.uid()),null
+users,Admin full access to users,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM admin_details a
+  WHERE (a.id = auth.uid())))",null
+users,User can view self,PERMISSIVE,{public},SELECT,(id = auth.uid()),null
+users,User can update self,PERMISSIVE,{public},UPDATE,(id = auth.uid()),null
+doctor_details,Admin full access to doctor_details,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM admin_details
+  WHERE (admin_details.id = auth.uid())))",null
+doctor_details,Doctor can view self,PERMISSIVE,{public},SELECT,(id = auth.uid()),null
+doctor_details,Doctor can update self,PERMISSIVE,{public},UPDATE,(id = auth.uid()),null
+chemist_details,Admin full access to chemist_details,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM admin_details
+  WHERE (admin_details.id = auth.uid())))",null
+chemist_details,Chemist can view self,PERMISSIVE,{public},SELECT,(id = auth.uid()),null
+chemist_details,Chemist can update self,PERMISSIVE,{public},UPDATE,(id = auth.uid()),null
+lab_details,Admin full access to lab_details,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM admin_details
+  WHERE (admin_details.id = auth.uid())))",null
+lab_details,Lab can view self,PERMISSIVE,{public},SELECT,(id = auth.uid()),null
+lab_details,Lab can update self,PERMISSIVE,{public},UPDATE,(id = auth.uid()),null
+user_badges,Users can manage own badges,PERMISSIVE,{public},ALL,(auth.uid() = user_id),null
+breathing_sessions,Users can manage own breathing sessions,PERMISSIVE,{public},ALL,(auth.uid() = user_id),null
+aqi_data,Anyone can read AQI data,PERMISSIVE,{public},SELECT,true,null
+aqi_data,Admins can manage AQI data,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM users
+  WHERE ((users.id = auth.uid()) AND (users.role = 'admin'::text))))",null
+prescriptions,Admin and Doctor full access,PERMISSIVE,{public},ALL,"((EXISTS ( SELECT 1
+   FROM admin_details
+  WHERE (admin_details.id = auth.uid()))) OR (doctor_id = auth.uid()))",null
+prescriptions,Patient can view own prescriptions,PERMISSIVE,{public},SELECT,(patient_id = auth.uid()),null
+lab_reports,Admin and Lab full access,PERMISSIVE,{public},ALL,"((EXISTS ( SELECT 1
+   FROM admin_details
+  WHERE (admin_details.id = auth.uid()))) OR (lab_id = auth.uid()))",null
+lab_reports,Patient can view own reports,PERMISSIVE,{public},SELECT,(patient_id = auth.uid()),null
+bpl_requests,All authenticated users can insert,PERMISSIVE,{authenticated},INSERT,null,true
+bpl_requests,All authenticated users can update,PERMISSIVE,{authenticated},UPDATE,true,true
+bpl_requests,All authenticated users can delete,PERMISSIVE,{authenticated},DELETE,true,null
+appointments,Patients can view own appointments,PERMISSIVE,{public},SELECT,(auth.uid() = patient_id),null
+appointments,Doctors can view own appointments,PERMISSIVE,{public},SELECT,(auth.uid() = doctor_id),null
+appointments,Patients can insert appointments for self,PERMISSIVE,{public},INSERT,null,(auth.uid() = patient_id)
+appointments,Service role full access appointments,PERMISSIVE,{public},ALL,(auth.role() = 'service_role'::text),(auth.role() = 'service_role'::text)
+notifications,Users can view own notifications,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+notifications,Users can insert own notifications,PERMISSIVE,{public},INSERT,null,(auth.uid() = user_id)
+notifications,Users can update own notifications,PERMISSIVE,{public},UPDATE,(auth.uid() = user_id),null
+notifications,Service role full access notifications,PERMISSIVE,{public},ALL,(auth.role() = 'service_role'::text),(auth.role() = 'service_role'::text)
+screening_sessions,Service role full access,PERMISSIVE,{public},ALL,(auth.role() = 'service_role'::text),(auth.role() = 'service_role'::text)
+settings,everyone_can_read_settings,PERMISSIVE,{public},SELECT,true,null
+settings,everyone_can_insert_settings,PERMISSIVE,{public},INSERT,null,true
+settings,everyone_can_update_settings,PERMISSIVE,{public},UPDATE,true,true
+settings,no_delete_settings,PERMISSIVE,{public},DELETE,false,null
+hospital_details,Admins can do everything on hospital_details,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM users
+  WHERE ((users.id = auth.uid()) AND (users.role = 'admin'::text))))",null
+hospital_details,Hospital users can read own data,PERMISSIVE,{public},SELECT,"((id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM users
+  WHERE ((users.id = auth.uid()) AND (users.role = 'admin'::text)))))",null
+hospital_details,Hospital users can update own data,PERMISSIVE,{public},UPDATE,"((id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM users
+  WHERE ((users.id = auth.uid()) AND (users.role = 'admin'::text)))))",null
+hospital_details,Hospital users and admins can insert,PERMISSIVE,{public},INSERT,null,"((id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM users
+  WHERE ((users.id = auth.uid()) AND (users.role = 'admin'::text)))))"
+hospital_details,Only admins can delete hospital_details,PERMISSIVE,{public},DELETE,"(EXISTS ( SELECT 1
+   FROM users
+  WHERE ((users.id = auth.uid()) AND (users.role = 'admin'::text))))",null
+hospital_details,Public can read approved hospitals,PERMISSIVE,{public},SELECT,"((onboarding_status = 'approved'::text) OR (EXISTS ( SELECT 1
+   FROM users
+  WHERE ((users.id = auth.uid()) AND ((users.role = 'admin'::text) OR (users.role = 'hospital'::text))))))",null
+health_assessments,Users can view own health assessments,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+health_assessments,Users can insert own health assessments,PERMISSIVE,{public},INSERT,null,(auth.uid() = user_id)
+health_assessments,Admins can manage all health assessments,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM users
+  WHERE ((users.id = auth.uid()) AND (users.role = 'admin'::text))))",null
+heart_health_inputs,Users can manage own health data,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM health_assessments
+  WHERE ((health_assessments.id = heart_health_inputs.assessment_id) AND (health_assessments.user_id = auth.uid()))))",null
+lung_health_inputs,Users can manage own lung data,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM health_assessments
+  WHERE ((health_assessments.id = lung_health_inputs.assessment_id) AND (health_assessments.user_id = auth.uid()))))",null
+health_challenges,Users can manage own challenges,PERMISSIVE,{public},ALL,(auth.uid() = user_id),null
+bpl_requests,All authenticated users can read,PERMISSIVE,{authenticated},SELECT,true,null
+patient_abha,Enable insert for authenticated users only,PERMISSIVE,{public},INSERT,null,true
+patient_abha,Enable select for users based on user_id,PERMISSIVE,{public},SELECT,true,null
+abha_consent_logs,Enable all access for authenticated users,PERMISSIVE,{public},ALL,true,true
+ai_chat_logs,Users can insert their own chat logs,PERMISSIVE,{public},INSERT,null,(auth.uid() = user_id)
+ai_chat_logs,Users can view their own chat logs,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+ai_tool_interactions,Users can insert their own tool interactions,PERMISSIVE,{public},INSERT,null,(auth.uid() = user_id)
+ai_tool_interactions,Users can view their own tool interactions,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+user_ai_agreements,Users can insert their own agreements,PERMISSIVE,{public},INSERT,null,(auth.uid() = user_id)
+user_ai_agreements,Users can view their own agreements,PERMISSIVE,{public},SELECT,(auth.uid() = user_id),null
+lab_test_categories,Anyone can view categories,PERMISSIVE,{public},SELECT,true,null
+lab_tests,Anyone can view active tests,PERMISSIVE,{public},SELECT,(is_active = true),null
+lab_tests,Labs can manage their own tests,PERMISSIVE,{public},ALL,(auth.uid() = lab_id),(auth.uid() = lab_id)

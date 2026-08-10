@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ORTHOPAEDIC OPD FORM</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf5 100%);
+            color: #333;
+            padding: 20px 0;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            background: white;
+            margin: 0 auto;
+            padding: 25px;
+            box-sizing: border-box;
+            border-radius: 8px;
+            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        /* Header Styles */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #66baf7 0%, #62bcfb 100%);
+            border-radius: 8px;
+            color: white;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .logo-box {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-box img {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            border: 0px solid white;
+            padding: 0px;
+            background: black;
+        }
+
+        .title-box {
+            text-align: center;
+            flex-grow: 1;
+        }
+
+        .title-box h1 {
+            color: black;
+            filter: brightness(110%);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+            margin: 0;
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+
+        .title-box .tagline {
+            margin: 5px 0 0;
+            font-size: 14px;
+            font-weight: 500;
+            opacity: 0.9;
+            color: black;
+        }
+
+        .email {
+            margin-top: 5px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            color: black;
+        }
+
+        .cross-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .medical-cross {
+            width: 90px;
+            height: 90px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .medical-cross img {
+            height: 70px;
+            width: 70px;
+        }
+        
+        /* Content Styles */
+        .top-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            margin-bottom: 0px;
+            font-weight: 600;
+            background: #f0f7ff;
+            padding: 12px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .two-column {
+            display: flex;
+            gap: 25px;
+        }
+
+        .column {
+            width: 50%;
+            font-size: 12px;
+        }
+
+        h3 {
+            border-bottom: 2px solid #000;
+            margin-top: 5px;
+            padding-bottom: 6px;
+            font-size: 13px;
+            color: #000;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        h4 {
+            margin: 15px 0 8px;
+            font-size: 13px;
+            color: #000;
+            font-weight: 600;
+            border-left: 3px solid #2a8fd6;
+            padding-left: 8px;
+        }
+
+        .badge {
+            background: linear-gradient(135deg, #66baf7 0%, #62bcfb 100%);
+            color: black;
+            text-align: center;
+            font-weight: 900;
+            padding: 10px;
+            margin: 15px 0;
+            border-radius: 6px;
+            display: block;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        p {
+            margin: 8px 0;
+            padding-left: 0px;
+        }
+
+        hr {
+            border: none;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #2a8fd6, transparent);
+            margin: 15px 0;
+        }
+
+        /* Form field styling */
+        .field {
+            position: relative;
+            padding-bottom: 5px;
+            margin: 8px 0;
+        }
+
+        .field::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: repeating-linear-gradient(90deg, transparent, transparent 2px, #e0e0e0 2px, #e0e0e0 4px);
+        }
+
+        .filled-data {
+            color: #1a6ca7;
+            font-weight: 500;
+        }
+
+        /* Print styles */
+        @media print {
+            body { 
+                background: white; 
+                margin: 0;
+            }
+            .page { 
+                box-shadow: none; 
+                margin: 0; 
+                border-radius: 0;
+                padding: 15px;
+            }
+            .header {
+                background: #1a6ca7 !important;
+                -webkit-print-color-adjust: exact;
+            }
+            .badge {
+                background: #1a6ca7 !important;
+                -webkit-print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="page">
+
+        <!-- HEADER -->
+        <header class="header">
+            <div class="logo-box">
+                <img src="./logo.png" alt="logo" />
+            </div>
+            <div class="title-box">
+                <h1>MediConnect.fit</h1>
+                <p class="tagline">Orthopaedic Care & Consultation</p>
+                <p class="email">📧 hello@mediconnect.fit</p>
+            </div>
+
+            <div class="cross-icon">
+                <div class="medical-cross">
+                    <img src="./dr.png" alt="logo" />
+                </div>
+            </div>
+        </header>
+
+        <!-- TOP INFO ROW -->
+        <div class="top-row">
+            <div>Booking ID: <span class="filled-data">ORT-2023-OPD-5123</span></div>
+            <div>Date: <span class="filled-data">29 Nov 2023</span></div>
+        </div>
+
+        <hr />
+
+        <div class="two-column">
+
+            <!-- LEFT COLUMN -->
+            <div class="column">
+
+                <h3>DOCTOR DETAILS</h3>
+                <div class="field">Name: <span class="filled-data">Dr. Vikram Singh</span></div>
+                <div class="field">Qualification: <span class="filled-data">MS Orthopaedics</span></div>
+                <div class="field">Specialization: <span class="filled-data">Joint Replacement & Sports Medicine</span></div>
+                <div class="field">Reg No.: <span class="filled-data">MCI-12345/2011</span></div>
+                <div class="field">Clinic Address: <span class="filled-data">Bone & Joint Clinic, Koramangala, Bangalore</span></div>
+                <div class="field">Contact: <span class="filled-data">+91-9876543210</span></div>
+
+                <br>
+                <h3>PROVISIONAL DIAGNOSIS</h3>
+                <div class="field"><span class="filled-data">Osteoarthritis Right Knee Grade III</span></div>
+
+                <h4>VITALS</h4>
+                <div class="field">BP: <span class="filled-data">132/84 mmHg</span></div>
+                <div class="field">Pulse: <span class="filled-data">78 bpm</span></div>
+                <div class="field">Respiratory Rate: <span class="filled-data">16/min</span></div>
+                <div class="field">SpO₂: <span class="filled-data">98%</span></div>
+                <div class="field">Temperature: <span class="filled-data">98.4°F</span></div>
+
+                <h4>EXAMINATION</h4>
+                <div class="field">General Examination: <span class="filled-data">Obese, BMI 32.5, walks with antalgic gait</span></div>
+                <div class="field">Local Examination: <span class="filled-data">Right knee swollen, tender medial joint line</span></div>
+                <div class="field">Deformity / Range of Motion (ROM): <span class="filled-data">Flexion 0-90°, extension lag 5°, varus deformity</span></div>
+                <div class="field">Muscle Spasm / Gait: <span class="filled-data">Antalgic gait, quadriceps wasting</span></div>
+                <div class="field">Spine: <span class="filled-data">Normal alignment, no tenderness</span></div>
+                <div class="field">Neurovascular Status: <span class="filled-data">Distal pulses present, sensation intact</span></div>
+                <div class="field">Others: <span class="filled-data">Crepitus on knee movement, joint effusion</span></div>
+
+                <h4>POSITIVE FINDINGS:</h4>
+                <div class="field"><span class="filled-data">Right knee osteoarthritis with varus deformity, limited ROM, quadriceps wasting</span></div>
+
+                <h4>INVESTIGATIONS</h4>
+                <div class="field"><span class="filled-data">X-ray Right Knee (AP/Lat/Standing)</span></div>
+                <div class="field"><span class="filled-data">MRI Right Knee if required</span></div>
+                <div class="field"><span class="filled-data">CBC, ESR, CRP</span></div>
+                <div class="field"><span class="filled-data">Vitamin D, Calcium, Renal function</span></div>
+                <div class="field">Others: <span class="filled-data">Weight bearing X-rays both knees</span></div>
+
+                <h3>DIGITAL SIGNATURE</h3>
+                <div class="field">Timestamp: <span class="filled-data">29-Nov-2023 09:15 AM</span></div>
+                <div class="field">Doctor's Signature: <span class="filled-data">[Digitally Signed - Dr. Vikram Singh]</span></div>
+
+            </div>
+
+            <!-- RIGHT COLUMN -->
+            <div class="column">
+
+                <h3>PATIENT DETAILS</h3>
+                <div class="field">Name: <span class="filled-data">Mr. Rajesh Kumar</span></div>
+                <div class="field">Age / Sex: <span class="filled-data">65 Years / Male</span></div>
+                <div class="field">Weight: <span class="filled-data">92 kg</span></div>
+                <div class="field">Mode of Injury (if any): <span class="filled-data">Gradual onset over 5 years</span></div>
+                <div class="field">Dominant Side: <span class="filled-data">Right</span></div>
+
+                <div class="badge">ORTHOPAEDIC OPD CONSULTATION</div>
+
+                <h3>PRESENTING COMPLAINTS</h3>
+                <div class="field">Joint pain / Back pain / Neck pain: <span class="filled-data">Right knee pain, worse with walking</span></div>
+                <div class="field">Swelling / Stiffness: <span class="filled-data">Morning stiffness 30 min, knee swelling</span></div>
+                <div class="field">Trauma / Injury: <span class="filled-data">No recent trauma</span></div>
+                <div class="field">Restricted movement: <span class="filled-data">Difficulty climbing stairs, squatting</span></div>
+                <div class="field">Tingling / Numbness: <span class="filled-data">No neuro symptoms</span></div>
+                <div class="field">Others: <span class="filled-data">Pain worse in evenings, affects sleep</span></div>
+
+                <h3>TREATMENT (Rx)</h3>
+                <div class="field">1. <span class="filled-data">Tab. Aceclofenac 100mg BD after food</span></div>
+                <div class="field">2. <span class="filled-data">Tab. Pantoprazole 40mg OD</span></div>
+                <div class="field">3. <span class="filled-data">Cap. Glucosamine 750mg OD</span></div>
+                <div class="field">4. <span class="filled-data">Intra-articular Hyaluronic acid injection advised</span></div>
+                <div class="field">5. <span class="filled-data">Quadriceps strengthening exercises</span></div>
+
+                <h3>PROCEDURE DONE (if any)</h3>
+                <div class="field"><span class="filled-data">Right knee aspiration - 20ml synovial fluid removed</span></div>
+
+                <h3>FOLLOW-UP</h3>
+                <div class="field">Return after: <span class="filled-data">2 weeks for injection therapy</span></div>
+                <p><strong style="color:red; font-weight:700;">Warning signs:</strong></p>
+                <div class="field"><span class="filled-data">Sudden severe pain, inability to bear weight, fever, redness or warmth in joint</span></div>
+                <p>to report immediately</p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</body>
+</html>
