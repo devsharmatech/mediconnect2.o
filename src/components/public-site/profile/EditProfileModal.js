@@ -34,13 +34,13 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
   useEffect(() => {
     if (isOpen && userData) {
       setFormData({
-        full_name: userData.user.details.full_name || "",
-        email: userData.user.details.email || "",
+        full_name: userData.user.details?.full_name || "",
+        email: userData.user.details?.email || "",
         phone_number: userData.user.phone_number || "",
-        gender: userData.user.details.gender || "",
-        blood_group: userData.user.details.blood_group || "",
-        date_of_birth: userData.user.details.date_of_birth || "",
-        address: userData.user.details.address || "",
+        gender: userData.user.details?.gender || "",
+        blood_group: userData.user.details?.blood_group || "",
+        date_of_birth: userData.user.details?.date_of_birth || "",
+        address: userData.user.details?.address || "",
       });
       setErrors({});
       setPreviewImage(null);
@@ -81,7 +81,6 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviewImage(reader.result);
@@ -133,7 +132,6 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
       onClose();
     } catch (error) {
       console.error("Failed to save profile:", error);
-      // Keep modal open on error so user can correct issues if any
     } finally {
       setIsSaving(false);
     }
@@ -145,24 +143,24 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
     <div className="fixed inset-0 z-[9999] overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
         onClick={onClose}
       />
 
       {/* Modal */}
       <div className="flex h-full items-center justify-center p-4">
         <div
-          className="relative flex flex-col w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100 max-h-[90vh]"
+          className="relative flex flex-col w-full max-w-2xl bg-white rounded-xl shadow-2xl overflow-hidden border border-gray-100 max-h-[90vh]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="shrink-0 flex items-center justify-between p-6 bg-[#0067A1]">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <FaUser className="text-[#a7f3d0]" /> Edit Profile
+          <div className="shrink-0 flex items-center justify-between px-6 py-4 bg-[#0067A1]">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <FaUser className="text-white/80" /> Edit Profile
             </h2>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors duration-200 text-white/80 hover:text-white"
+              className="p-1.5 hover:bg-white/10 rounded-lg transition-colors duration-200 text-white/80 hover:text-white"
             >
               <FaTimes className="h-5 w-5" />
             </button>
@@ -174,7 +172,7 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
               {/* Profile Picture Upload Placeholder */}
-              <div className="flex justify-center mb-8">
+              <div className="flex justify-center mb-6">
                 <div
                   className="relative group cursor-pointer"
                   onClick={handleImageClick}
@@ -186,25 +184,25 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
                     accept="image/*"
                     className="hidden"
                   />
-                  <div className="w-24 h-24 rounded-full bg-white border-4 border-white shadow-md overflow-hidden flex items-center justify-center relative">
+                  <div className="w-20 h-20 rounded-full bg-white border-2 border-slate-200 shadow-xs overflow-hidden flex items-center justify-center relative">
                     {previewImage ? (
                       <img src={previewImage} alt="Preview" className="w-full h-full object-cover" />
                     ) : userData?.user?.profile_picture ? (
                       <img src={userData.user.profile_picture} alt="Profile" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="text-3xl font-bold text-[#0067A1]">{formData.full_name?.charAt(0)}</span>
+                      <span className="text-2xl font-bold text-[#0067A1]">{formData.full_name?.charAt(0)}</span>
                     )}
                   </div>
                   <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <FaCamera className="text-white w-6 h-6" />
+                    <FaCamera className="text-white w-5 h-5" />
                   </div>
-                  <div className="absolute bottom-0 right-0 bg-[#0067A1] text-white p-1.5 rounded-full border-2 border-white shadow-sm">
-                    <FaEdit className="w-3 h-3" />
+                  <div className="absolute bottom-0 right-0 bg-[#0067A1] text-white p-1 rounded-full border-2 border-white shadow-xs">
+                    <FaEdit className="w-2.5 h-2.5" />
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Full Name */}
                 <div className="md:col-span-2">
                   <FormField
@@ -244,9 +242,9 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
                 />
 
                 {/* Gender */}
-                <div className="space-y-2">
-                  <label className="flex items-center text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    <FaVenusMars className="h-4 w-4 mr-2 text-[#0067A1]" />
+                <div className="space-y-1.5">
+                  <label className="flex items-center text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    <FaVenusMars className="h-3.5 w-3.5 mr-1.5 text-[#0067A1]" />
                     Gender
                   </label>
                   <div className="relative">
@@ -254,37 +252,37 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
                       name="gender"
                       value={formData.gender}
                       onChange={handleChange}
-                      className={`w-full px-4 py-3 border ${errors.gender ? "border-red-300 bg-red-50" : "border-gray-200 bg-white"
-                        } rounded-xl focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 appearance-none`}
+                      className={`w-full px-3.5 py-2.5 text-sm border ${errors.gender ? "border-red-300 bg-red-50" : "border-slate-300 bg-white"
+                        } rounded-lg focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 appearance-none text-slate-800`}
                     >
                       <option value="">Select gender</option>
                       <option value="male">Male</option>
                       <option value="female">Female</option>
                       <option value="other">Other</option>
                     </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
+                    <div className="absolute inset-y-0 right-0 flex items-center px-3.5 pointer-events-none text-slate-400">
                       <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path></svg>
                     </div>
                   </div>
                   {errors.gender && (
-                    <p className="text-xs text-red-500 ml-1">{errors.gender}</p>
+                    <p className="text-xs text-red-500 ml-0.5">{errors.gender}</p>
                   )}
                 </div>
 
-                {/* Blood Group */}
-                <div className="space-y-2">
-                  <label className="flex items-center text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    <FaHeart className="h-4 w-4 mr-2 text-red-500" />
-                    Blood Group
+                {/* Blood Group (Optional) */}
+                <div className="space-y-1.5">
+                  <label className="flex items-center text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    <FaHeart className="h-3.5 w-3.5 mr-1.5 text-rose-500" />
+                    Blood Group <span className="text-slate-400 font-normal lowercase ml-1">(optional)</span>
                   </label>
                   <div className="relative">
                     <select
                       name="blood_group"
                       value={formData.blood_group}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 bg-white appearance-none"
+                      className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 bg-white appearance-none text-slate-800"
                     >
-                      <option value="">Select Group</option>
+                      <option value="">Select Group (Optional)</option>
                       <option value="A+">A+</option>
                       <option value="A-">A-</option>
                       <option value="B+">B+</option>
@@ -294,7 +292,7 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
                       <option value="O+">O+</option>
                       <option value="O-">O-</option>
                     </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
+                    <div className="absolute inset-y-0 right-0 flex items-center px-3.5 pointer-events-none text-slate-400">
                       <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" fillRule="evenodd"></path></svg>
                     </div>
                   </div>
@@ -312,9 +310,9 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
                 />
 
                 {/* Address */}
-                <div className="md:col-span-2 space-y-2">
-                  <label className="flex items-center text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    <FaMapMarkerAlt className="h-4 w-4 mr-2 text-[#0067A1]" />
+                <div className="md:col-span-2 space-y-1.5">
+                  <label className="flex items-center text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                    <FaMapMarkerAlt className="h-3.5 w-3.5 mr-1.5 text-[#0067A1]" />
                     Address
                   </label>
                   <textarea
@@ -322,30 +320,30 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
                     value={formData.address}
                     onChange={handleChange}
                     rows={2}
-                    className={`w-full px-4 py-3 border ${errors.address ? "border-red-300 bg-red-50" : "border-gray-200 bg-white"
-                      } rounded-xl focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 resize-none`}
+                    className={`w-full px-3.5 py-2.5 text-sm border ${errors.address ? "border-red-300 bg-red-50" : "border-slate-300 bg-white"
+                      } rounded-lg focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 resize-none text-slate-800`}
                     placeholder="Enter your address"
                   />
                   {errors.address && (
-                    <p className="text-xs text-red-500 ml-1">{errors.address}</p>
+                    <p className="text-xs text-red-500 ml-0.5">{errors.address}</p>
                   )}
                 </div>
               </div>
             </div>
 
             {/* Footer Buttons */}
-            <div className="shrink-0 flex items-center justify-end space-x-4 p-6 border-t border-gray-100 bg-white shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)] z-10 relative">
+            <div className="shrink-0 flex items-center justify-end space-x-3 px-6 py-4 border-t border-slate-200 bg-white z-10 relative">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-2.5 border border-gray-200 text-gray-600 font-semibold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all duration-200"
+                className="px-5 py-2 text-sm border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-all duration-200 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-8 py-2.5 bg-[#0067A1] text-white font-semibold rounded-xl shadow-lg shadow-teal-100 hover:bg-[#004F7C] hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex items-center"
+                className="px-6 py-2 text-sm bg-[#0067A1] text-white font-medium rounded-lg hover:bg-[#004F7C] transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center shadow-xs cursor-pointer"
               >
                 {isSaving ? (
                   <>
@@ -377,9 +375,9 @@ const FormField = ({
   disabled,
   placeholder,
 }) => (
-  <div className="space-y-2">
-    <label className="flex items-center text-xs font-bold text-gray-500 uppercase tracking-wider">
-      <Icon className="h-4 w-4 mr-2 text-[#0067A1]" />
+  <div className="space-y-1.5">
+    <label className="flex items-center text-xs font-semibold text-slate-600 uppercase tracking-wider">
+      <Icon className="h-3.5 w-3.5 mr-1.5 text-[#0067A1]" />
       {label}
     </label>
     <input
@@ -389,11 +387,11 @@ const FormField = ({
       onChange={onChange}
       disabled={disabled}
       placeholder={placeholder}
-      className={`w-full px-4 py-3 border ${error ? "border-red-300 bg-red-50" : "border-gray-200 bg-white"
-        } rounded-xl focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 ${disabled ? "bg-gray-50 text-gray-400 cursor-not-allowed border-dashed" : ""
+      className={`w-full px-3.5 py-2.5 text-sm border ${error ? "border-red-300 bg-red-50" : "border-slate-300 bg-white"
+        } rounded-lg focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 text-slate-800 ${disabled ? "bg-slate-100 text-slate-400 cursor-not-allowed border-dashed" : ""
         }`}
     />
-    {error && <p className="text-xs text-red-500 ml-1">{error}</p>}
+    {error && <p className="text-xs text-red-500 ml-0.5">{error}</p>}
   </div>
 );
 

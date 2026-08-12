@@ -14,7 +14,6 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
         if (!phone_number) {
             throw new Error("Phone number is required");
         }
-
         // 1. Format number: Strip non-digits and ensure 91 prefix
         let formattedNumber = phone_number.replace(/\D/g, "");
         if (formattedNumber.length > 10) {
@@ -43,7 +42,7 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
         const templateId = "1707177157384254091";
         const entityId = "1701176423722454287";
         const senderId = "MDCNCT";
-        
+
         const message = `Mediconnect.fit OTP is ${otp}.\nValid for 5 minutes.\nDo not share. - Mediconnect.fit`;
 
         const gatewayPayload = {
@@ -277,7 +276,7 @@ export function formatWhatsAppDate(dateStr) {
             const monthIndex = parseInt(parts[1], 10) - 1;
             const day = parseInt(parts[2], 10);
             const months = [
-                "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
             ];
             const monthName = months[monthIndex];
@@ -289,7 +288,7 @@ export function formatWhatsAppDate(dateStr) {
         if (isNaN(d.getTime())) return dateStr;
         const day = d.getDate();
         const months = [
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
         ];
         return `${day} ${months[d.getMonth()]} ${d.getFullYear()}`;
@@ -660,7 +659,7 @@ export async function sendNursingRequestReceived({
         // Clean and format number
         const formattedNumber = formatWhatsAppNumber(phone_number);
         const displayCareTypes = Array.isArray(care_types) ? care_types.join(", ") : care_types;
-        
+
         const token = process.env.INSIGN_WHATSAPP_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
         const phone_number_id = process.env.INSIGN_WHATSAPP_PHONE_NUMBER_ID || "935517672969433";
         const url = `https://multichannel.insignsms.com/api/v1/whatsapp/${phone_number_id}/messages`;

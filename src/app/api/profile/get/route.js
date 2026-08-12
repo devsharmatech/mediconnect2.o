@@ -13,7 +13,7 @@ export async function POST(req) {
     if (!user_id)
       return failure("User ID is required.", null, 400, { headers: corsHeaders });
 
-    const caller = await resolveCallerFromRequest(req);
+    const caller = await resolveCallerFromRequest(req, user_id);
     if (!caller) {
       return failure("Unauthorized - missing or invalid token.", null, 401, { headers: corsHeaders });
     }

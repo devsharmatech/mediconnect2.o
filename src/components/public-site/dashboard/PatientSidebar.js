@@ -24,6 +24,7 @@ import {
   FaUserMd,
 } from "react-icons/fa";
 import { TbLungsFilled } from "react-icons/tb";
+import Image from "next/image";
 
 const PatientSidebar = ({ 
   isOpen, 
@@ -255,18 +256,28 @@ const PatientSidebar = ({
         `}
       >
         {/* Header / Logo */}
-        <div className={`p-5 flex items-center h-20 shrink-0 border-b border-white/10 ${isCollapsed ? "justify-center relative" : "justify-between"}`}>
+        <div className={`px-4 flex items-center h-16 shrink-0 border-b border-white/10 ${isCollapsed ? "justify-center" : "justify-between"}`}>
           <Link
             href="/website"
-            className="flex items-center gap-3 overflow-hidden"
+            className={`flex items-center ${isCollapsed ? "justify-center" : ""}`}
           >
-            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/20 shrink-0">
-              <FaHeartbeat className="w-5 h-5 text-white" />
-            </div>
-            {!isCollapsed && (
-              <span className="text-base font-bold text-white tracking-wide whitespace-nowrap">
-                MediConnect
-              </span>
+            {isCollapsed ? (
+              <Image
+                src="/real-logo.png"
+                alt="MediConnect"
+                width={36}
+                height={36}
+                className="object-contain rounded-md"
+              />
+            ) : (
+              <Image
+                src="/real-logo.png"
+                alt="MediConnect"
+                width={140}
+                height={40}
+                className="object-contain"
+                style={{ width: "auto", height: "40px" }}
+              />
             )}
           </Link>
 

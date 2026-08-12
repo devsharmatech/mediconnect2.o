@@ -3,7 +3,6 @@ import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { sendOTPViaGateway } from "@/lib/sms";
 
-
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
@@ -18,14 +17,13 @@ export async function POST(req) {
 
     let query = supabase
       .from("users")
-      .select("id, role, phone_number")
+      .select("id, role, phone_number, is_verified")
       .eq("role", "patient");
 
     if (phone_number) {
       const cleanPhone = phone_number.replace(/\D/g, "").slice(-10);
       query = query.like("phone_number", `%${cleanPhone}%`);
     } else if (email) {
-      // Need to join with patient_details to check email
       const { data: patientDetails, error: detailsError } = await supabase
         .from("patient_details")
         .select("id")
@@ -44,14 +42,13 @@ export async function POST(req) {
 
     if (error) throw error;
     if (!user) {
-      return failure("Patient not found.", null, 404, { headers: corsHeaders });
+      return failure("No patient account found with this phone number. Please register first.", null, 404, { headers: corsHeaders });
     }
 
     // Send real OTP via gateway if phone_number is provided
     if (phone_number) {
       await sendOTPViaGateway(user.id, phone_number);
     } else {
-      // Fallback for email-only user
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
       const { error: updateError } = await supabase
@@ -62,16 +59,20 @@ export async function POST(req) {
       if (updateError) throw updateError;
     }
 
+    const isVerified = user.is_verified !== false;
+
     return success("OTP sent successfully.", {
       role: user.role,
       user_id: user.id,
-      message: phone_number 
-        ? `OTP sent to phone number ending in ${phone_number.slice(-4)}`
-        : `OTP sent to email ${email}`
+      is_verified: isVerified,
+      message: !isVerified
+        ? "Account pending registration verification. An OTP has been sent to complete your verification and log in."
+        : phone_number 
+          ? `OTP sent to phone number ending in ${phone_number.slice(-4)}`
+          : `OTP sent to email ${email}`
     }, 200, { headers: corsHeaders });
   } catch (error) {
     console.error("Website Patient Login Error:", error);
     return failure("Login failed.", error.message, 500, { headers: corsHeaders });
   }
 }
-

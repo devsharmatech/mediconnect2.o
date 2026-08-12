@@ -193,14 +193,14 @@ const HeartHealthResult = () => {
       }
 
       const pdfUrl = result?.data?.url;
-      if (!pdfUrl) {
-        throw new Error('PDF URL not found in response');
+      if (pdfUrl) {
+        window.location.href = pdfUrl;
+      } else {
+        window.print();
       }
-
-      window.open(pdfUrl, '_blank');
     } catch (error) {
       console.error('Failed to generate/download PDF:', error);
-      alert(error.message || 'Failed to download PDF. Please try again.');
+      window.print();
     } finally {
       setDownloadingPDF(false);
     }

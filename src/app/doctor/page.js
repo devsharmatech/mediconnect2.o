@@ -381,11 +381,11 @@ export default function DoctorDashboard() {
   })();
 
   const statCards = [
-    { title: "Total", value: stats.totalAppointments, icon: FaCalendarAlt, gradient: "from-[#0067A1] to-[#0080C6]" },
-    { title: "Completed", value: stats.completed, icon: FaCheck, gradient: "from-emerald-500 to-green-600" },
-    { title: "Pending", value: stats.pending, icon: FaClock, gradient: "from-amber-500 to-orange-500" },
-    { title: "Cancelled", value: stats.cancelled, icon: FaTimes, gradient: "from-rose-500 to-red-600" },
-    { title: "Prescriptions", value: stats.totalPrescriptions, icon: FaFileMedical, gradient: "from-violet-500 to-purple-600" },
+    { title: "Total Appointments", value: stats.totalAppointments, icon: FaCalendarAlt, gradient: "from-[#0067A1] to-[#0080C6]", href: "/doctor/appointments" },
+    { title: "Completed", value: stats.completed, icon: FaCheck, gradient: "from-emerald-500 to-green-600", href: "/doctor/appointments?status=completed" },
+    { title: "Pending", value: stats.pending, icon: FaClock, gradient: "from-amber-500 to-orange-500", href: "/doctor/appointments?status=booked" },
+    { title: "Cancelled", value: stats.cancelled, icon: FaTimes, gradient: "from-rose-500 to-red-600", href: "/doctor/appointments?status=cancelled" },
+    { title: "Prescriptions", value: stats.totalPrescriptions, icon: FaFileMedical, gradient: "from-violet-500 to-purple-600", href: "/doctor/prescriptions" },
   ];
 
   return (
@@ -571,18 +571,20 @@ export default function DoctorDashboard() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {statCards.map((s) => (
-              <div
+              <Link
                 key={s.title}
-                className="bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-md transition-all"
+                href={s.href}
+                className="group relative bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-lg hover:border-[#0067A1]/20 transition-all duration-300 block cursor-pointer"
               >
                 <div className="flex items-center justify-between mb-3">
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.gradient} flex items-center justify-center`}>
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.gradient} flex items-center justify-center group-hover:scale-110 transition-transform`}>
                     <s.icon className="w-4 h-4 text-white" />
                   </div>
+                  <FaChevronRight className="w-3 h-3 text-gray-300 group-hover:text-[#0067A1] group-hover:translate-x-0.5 transition-all" />
                 </div>
                 <p className="text-2xl font-bold text-gray-800">{s.value}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{s.title}</p>
-              </div>
+                <p className="text-xs text-gray-500 mt-0.5 font-medium">{s.title}</p>
+              </Link>
             ))}
           </div>
         </section>

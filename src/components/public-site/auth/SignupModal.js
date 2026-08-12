@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/utils/websiteApi';
-import { FaTimes, FaUser, FaEnvelope, FaPhone, FaVenusMars, FaCalendarAlt, FaMapMarkerAlt, FaHeartbeat, FaShieldAlt, FaCheckCircle, FaArrowRight, FaArrowLeft } from 'react-icons/fa';
-import { HiSparkles } from 'react-icons/hi2';
+import {
+  FaTimes, FaUser, FaEnvelope, FaPhone, FaVenusMars,
+  FaCalendarAlt, FaMapMarkerAlt, FaShieldAlt,
+  FaCheckCircle, FaArrowRight, FaArrowLeft
+} from 'react-icons/fa';
 
-const SignupModal = ({ isOpen, onClose, onLoginClick }) => {
+const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -17,7 +20,13 @@ const SignupModal = ({ isOpen, onClose, onLoginClick }) => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(1); // 1: Info, 2: Details, 3: OTP, 4: Success
+  const [userId, setUserId] = useState(null);
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [resendTimer, setResendTimer] = useState(30);
+  const [canResend, setCanResend] = useState(false);
+  const otpRefs = useRef([]);
+  const timerRef = useRef(null);
   const router = useRouter();
 
   const handleOpenLogin = (e) => {
@@ -30,17 +39,38 @@ const SignupModal = ({ isOpen, onClose, onLoginClick }) => {
       window.scrollTo(0, 0);
       setStep(1);
       setError('');
+      setOtp(['', '', '', '', '', '']);
+      setUserId(null);
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
+      if (timerRef.current) clearInterval(timerRef.current);
     }
     return () => {
       document.body.style.overflow = 'unset';
+      if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [isOpen]);
 
+  const startResendTimer = () => {
+    setCanResend(false);
+    setResendTimer(30);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setResendTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          setCanResend(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'phone_number' && isNaN(value)) return;
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -49,20 +79,28 @@ const SignupModal = ({ isOpen, onClose, onLoginClick }) => {
 
   const handleNextStep = (e) => {
     e.preventDefault();
-    if (formData.full_name && formData.phone_number) {
-      setStep(2);
-      setError('');
-    } else {
+    if (!formData.full_name || !formData.phone_number) {
       setError('Please fill in all required fields');
+      return;
     }
+
+    const cleanPhone = formData.phone_number.replace(/\D/g, "").slice(-10);
+    if (cleanPhone.length !== 10) {
+      setError('Please enter a valid 10-digit phone number');
+      return;
+    }
+
+    setError('');
+    setStep(2);
   };
 
-  const handleSubmit = async (e) => {
+  // Step 2 submit -> Register and send OTP (move to Step 3 inside modal)
+  const handleSubmitRegistration = async (e) => {
     e.preventDefault();
     setError('');
 
     if (!formData.phone_number) {
-      setError('Please fill in all required fields');
+      setError('Phone number is required');
       return;
     }
 
@@ -78,16 +116,122 @@ const SignupModal = ({ isOpen, onClose, onLoginClick }) => {
       });
 
       if (response.success) {
-        sessionStorage.setItem('registrationPhone', formData.phone_number);
-        sessionStorage.setItem('userId', response.data.user_id);
-        onClose();
-        router.push('/website/verify-otp?type=registration');
+        setUserId(response.data.user_id);
+        setStep(3); // Transition to OTP Verification inside modal
+        setOtp(['', '', '', '', '', '']);
+        startResendTimer();
+        setTimeout(() => otpRefs.current[0]?.focus(), 150);
       } else {
-        throw new Error(response.error || 'Registration failed');
+        throw new Error(response.error || response.message || 'Registration failed');
       }
     } catch (err) {
-      setError(err.message || 'An error occurred during signup');
+      setError(err.message || 'An error occurred during registration');
       console.error('Signup error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // OTP Input handlers
+  const handleOtpChange = (value, index) => {
+    if (isNaN(value)) return;
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+    if (value !== '' && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (e, index) => {
+    if (e.key === 'Backspace' && !e.target.value && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pasteData = e.clipboardData.getData('text').trim().slice(0, 6);
+    if (/^\d+$/.test(pasteData)) {
+      const newOtp = [...otp];
+      for (let i = 0; i < pasteData.length && i < 6; i++) {
+        newOtp[i] = pasteData[i];
+      }
+      setOtp(newOtp);
+      otpRefs.current[Math.min(pasteData.length, 5)]?.focus();
+    }
+  };
+
+  // Step 3: Verify OTP inside modal
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setError('');
+    const otpValue = otp.join('');
+    if (otpValue.length !== 6) {
+      setError('Please enter a valid 6-digit OTP');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await api.post('/website/auth/validate-otp', {
+        user_id: userId || undefined,
+        phone_number: formData.phone_number,
+        otp: otpValue,
+      });
+
+      if (response.success) {
+        setStep(4);
+        const { user_id, role, user } = response.data || {};
+        if (typeof window !== 'undefined') {
+          if (response.data?.token) localStorage.setItem('authToken', response.data.token);
+          if (user_id) localStorage.setItem('userId', String(user_id));
+          if (role) localStorage.setItem('userRole', role);
+          if (user) localStorage.setItem('userData', JSON.stringify(user));
+        }
+
+        setTimeout(() => {
+          onClose();
+          if (onSuccess) {
+            onSuccess(response.data);
+          } else {
+            router.push('/website/dashboard');
+          }
+        }, 1000);
+      } else {
+        throw new Error(response.error || response.message || 'Invalid OTP. Please try again.');
+      }
+    } catch (err) {
+      setError(err.message || 'Verification failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Resend OTP
+  const handleResendOtp = async () => {
+    if (!canResend) return;
+    try {
+      setLoading(true);
+      setError('');
+      const response = await api.post('/website/auth/patient/register', {
+        phone_number: formData.phone_number,
+        full_name: formData.full_name,
+        email: formData.email,
+        gender: formData.gender,
+        date_of_birth: formData.date_of_birth,
+        address: formData.address,
+      });
+
+      if (response.success) {
+        startResendTimer();
+        setOtp(['', '', '', '', '', '']);
+        otpRefs.current[0]?.focus();
+      } else {
+        throw new Error(response.error || 'Failed to resend OTP.');
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to resend OTP.');
     } finally {
       setLoading(false);
     }
@@ -95,310 +239,355 @@ const SignupModal = ({ isOpen, onClose, onLoginClick }) => {
 
   if (!isOpen) return null;
 
-  const benefits = [
-    { icon: FaHeartbeat, text: 'Access to verified doctors across key specialties', color: 'text-[#0067A1]' },
-    { icon: FaShieldAlt, text: 'Secure digital health records', color: 'text-[#0067A1]' },
-    { icon: HiSparkles, text: 'Smart health insights', color: 'text-[#0067A1]' },
-  ];
+  const maskedPhone = formData.phone_number.length >= 4
+    ? '••••••' + formData.phone_number.slice(-4)
+    : formData.phone_number;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 md:p-8 overflow-y-auto">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 overflow-y-auto">
       {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Clean Modal Window */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-      />
+        className="relative w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden animate-fadeIn"
+        style={{ maxHeight: '90vh' }}
+      >
+        {/* Close Button */}
+        <button
+          type="button"
+          className="absolute right-4 top-4 z-10 p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors"
+          onClick={onClose}
+        >
+          <FaTimes className="h-4 w-4" />
+        </button>
 
-      <div className="relative w-full max-w-3xl bg-white rounded-2xl shadow-xl flex flex-col md:flex-row overflow-hidden animate-fadeIn" style={{ maxHeight: '90vh' }}>
-        {/* Left Side - Benefits Panel (desktop only) */}
-        <div className="hidden md:flex md:w-2/5 bg-[#0067A1] p-6 flex-col justify-between relative overflow-hidden">
-          {/* Decorative Elements */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="p-6 sm:p-7 overflow-y-auto" style={{ maxHeight: '90vh' }}>
 
-          <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center">
-                <FaHeartbeat className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-white">mediconnect.fit</span>
-            </div>
-
-            <h3 className="text-xl font-bold text-white mb-3">
-              Designed for individuals and families
-            </h3>
-            <p className="text-[#E0F2F1] text-xs leading-relaxed mb-6">
-              Create your account and get access to personalized healthcare services, smart health insights, and a network of verified doctors.
-            </p>
-
-            {/* Benefits List */}
-            <div className="space-y-3">
-              {benefits.map((benefit, index) => (
-                <div
-                  key={index}
-                  className="flex items-center gap-3 bg-white/10 rounded-xl p-3 transform transition-transform hover:translate-x-1"
-                  style={{ animationDelay: `${index * 0.1}s` }}
-                >
-                  <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
-                    <benefit.icon className={`w-5 h-5 ${benefit.color}`} />
-                  </div>
-                  <span className="text-white font-medium text-xs">{benefit.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Trust Badge */}
-          <div className="relative z-10 mt-2 flex items-center gap-2 text-[#E0F2F1] text-[11px]">
-            <FaShieldAlt className="w-4 h-4" />
-            <span>256-bit Encryption</span>
-          </div>
-        </div>
-
-        {/* Right Side - Form */}
-        <div className="flex-1 flex flex-col bg-white">
-          {/* Header */}
-          <div className="flex items-start justify-between px-5 pt-5 pb-3 sm:px-7">
-            <div className="pr-6">
-              <div className="flex items-center gap-2 mb-2">
+          {/* Header & Step Indicator */}
+          <div className="mb-6">
+            {step < 4 && (
+              <div className="flex items-center gap-2 mb-3">
                 <div className="flex gap-1">
                   <div className={`w-8 h-1.5 rounded-full transition-colors ${step >= 1 ? 'bg-[#0067A1]' : 'bg-gray-200'}`} />
                   <div className={`w-8 h-1.5 rounded-full transition-colors ${step >= 2 ? 'bg-[#0067A1]' : 'bg-gray-200'}`} />
+                  <div className={`w-8 h-1.5 rounded-full transition-colors ${step >= 3 ? 'bg-[#0067A1]' : 'bg-gray-200'}`} />
                 </div>
-                <span className="text-xs text-gray-400 ml-2">Step {step} of 2</span>
-              </div>
-              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
-                {step === 1 ? 'Create your account' : 'Complete your profile'}
-              </h2>
-              <p className="mt-1 text-xs sm:text-sm text-gray-500">
-                {step === 1 ? 'Start your health journey today' : 'Just a few more details'}
-              </p>
-            </div>
-            <button
-              type="button"
-              className="p-2 rounded-full bg-gray-100 text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-all"
-              onClick={onClose}
-            >
-              <FaTimes className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Scrollable Form Body */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-7">
-            {error && (
-              <div className="mb-4 bg-red-50 border border-red-100 rounded-xl p-4 flex items-center gap-3 animate-fadeIn">
-                <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <FaTimes className="w-3 h-3 text-red-500" />
-                </div>
-                <p className="text-sm text-red-700">{error}</p>
+                <span className="text-xs text-gray-400 ml-2">Step {step} of 3</span>
               </div>
             )}
 
-            <form onSubmit={step === 1 ? handleNextStep : handleSubmit} className="space-y-4">
-              {step === 1 ? (
-                <>
-                  {/* Full Name */}
-                  <div className="group">
-                    <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Full Name <span className="text-red-400">*</span>
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <FaUser className="h-4 w-4 text-gray-400 group-focus-within:text-[#0067A1] transition-colors" />
-                      </div>
-                      <input
-                        id="full_name"
-                        name="full_name"
-                        placeholder="John Doe"
-                        type="text"
-                        required
-                        value={formData.full_name}
-                        onChange={handleChange}
-                        className="block w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none"
-                      />
-                    </div>
-                  </div>
-
-                   {/* Email */}
-                   <div className="group">
-                     <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
-                       Email Address <span className="text-gray-400 text-xs font-normal">(Optional)</span>
-                     </label>
-                     <div className="relative">
-                       <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                         <FaEnvelope className="h-4 w-4 text-gray-400 group-focus-within:text-[#0067A1] transition-colors" />
-                       </div>
-                       <input
-                         id="email"
-                         name="email"
-                         placeholder="john@example.com"
-                         type="email"
-                         autoComplete="email"
-                         value={formData.email}
-                         onChange={handleChange}
-                         className="block w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none"
-                       />
-                     </div>
-                   </div>
-
-                  {/* Phone Number */}
-                  <div className="group">
-                    <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Phone Number <span className="text-red-400">*</span>
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <FaPhone className="h-4 w-4 text-gray-400 group-focus-within:text-[#0067A1] transition-colors" />
-                      </div>
-                      <input
-                        id="phone_number"
-                        name="phone_number"
-                        placeholder="1234567890"
-                        type="tel"
-                        required
-                        value={formData.phone_number}
-                        onChange={handleChange}
-                        className="block w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Continue Button */}
-                  <button
-                    type="submit"
-                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold rounded-xl shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200"
-                  >
-                    Continue
-                    <FaArrowRight className="w-4 h-4" />
-                  </button>
-                </>
-              ) : (
-                <>
-                  {/* Gender */}
-                  <div className="group">
-                    <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Gender
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <FaVenusMars className="h-4 w-4 text-gray-400 group-focus-within:text-[#0067A1] transition-colors" />
-                      </div>
-                      <select
-                        id="gender"
-                        name="gender"
-                        value={formData.gender}
-                        onChange={handleChange}
-                        className="block w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none appearance-none bg-white cursor-pointer"
-                      >
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                        <option value="other">Other</option>
-                      </select>
-                      <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Date of Birth */}
-                  <div className="group">
-                    <label htmlFor="date_of_birth" className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Date of Birth
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <FaCalendarAlt className="h-4 w-4 text-gray-400 group-focus-within:text-[#0067A1] transition-colors" />
-                      </div>
-                      <input
-                        id="date_of_birth"
-                        name="date_of_birth"
-                        type="date"
-                        value={formData.date_of_birth}
-                        onChange={handleChange}
-                        className="block w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Address */}
-                  <div className="group">
-                    <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Address
-                    </label>
-                    <div className="relative">
-                      <div className="absolute top-3 left-0 pl-4 flex items-start pointer-events-none">
-                        <FaMapMarkerAlt className="h-4 w-4 text-gray-400 group-focus-within:text-[#0067A1] transition-colors" />
-                      </div>
-                      <textarea
-                        id="address"
-                        name="address"
-                        placeholder="Flat No, Street, City, State, Pincode"
-                        rows={3}
-                        value={formData.address}
-                        onChange={handleChange}
-                        className="block w-full pl-11 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none resize-none"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Buttons */}
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setStep(1)}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-all duration-200"
-                    >
-                      <FaArrowLeft className="w-4 h-4" />
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="flex-[2] flex items-center justify-center gap-2 py-2.5 px-4 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold rounded-xl shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                    >
-                      {loading ? (
-                        <>
-                          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                          Creating account...
-                        </>
-                      ) : (
-                        <>
-                          <FaCheckCircle className="w-4 h-4" />
-                          Create Account
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </>
-              )}
-            </form>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
+              {step === 1 && 'Create your account'}
+              {step === 2 && 'Complete your profile'}
+              {step === 3 && 'Verify Mobile Number'}
+              {step === 4 && '✓ Verified!'}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {step === 1 && 'Start your health journey today'}
+              {step === 2 && 'Just a few more details'}
+              {step === 3 && `We sent a 6-digit OTP code to ${maskedPhone}`}
+              {step === 4 && 'Redirecting to your dashboard...'}
+            </p>
           </div>
 
-          {/* Footer */}
-          <div className="px-6 py-4 sm:px-8 border-t border-gray-100 bg-gray-50">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <p className="text-xs text-gray-500">
-                Already have an account?{' '}
-                <button
-                  onClick={handleOpenLogin}
-                  className="font-semibold text-[#0067A1] hover:text-[#004F7C] transition-colors"
-                >
-                  Sign in
-                </button>
-              </p>
-              <p className="text-xs text-gray-400">
-                By signing up, you agree to our{' '}
-                <a href="/website/terms" className="text-[#0067A1] hover:underline">Terms</a>
-                {' & '}
-                <a href="/website/privacy" className="text-[#0067A1] hover:underline">Privacy Policy</a>
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm">
+              <p className="text-sm text-red-600 flex items-center gap-2">
+                <FaTimes className="w-4 h-4 shrink-0" />
+                {error}
               </p>
             </div>
+          )}
+
+          {/* STEP 1: Basic Info */}
+          {step === 1 && (
+            <form onSubmit={handleNextStep} className="space-y-4 text-sm">
+              {/* Full Name */}
+              <div>
+                <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Full Name <span className="text-red-400">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                    <FaUser className="h-4 w-4" />
+                  </div>
+                  <input
+                    id="full_name"
+                    name="full_name"
+                    placeholder="John Doe"
+                    type="text"
+                    required
+                    value={formData.full_name}
+                    onChange={handleChange}
+                    className="block w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Email Address */}
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Email Address <span className="text-gray-400 text-xs font-normal">(Optional)</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                    <FaEnvelope className="h-4 w-4" />
+                  </div>
+                  <input
+                    id="email"
+                    name="email"
+                    placeholder="john@example.com"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className="block w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Mobile Number */}
+              <div>
+                <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Phone Number <span className="text-red-400">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                    <FaPhone className="h-4 w-4" />
+                  </div>
+                  <input
+                    id="phone_number"
+                    name="phone_number"
+                    placeholder="10-digit phone number"
+                    type="tel"
+                    maxLength="10"
+                    required
+                    value={formData.phone_number}
+                    onChange={handleChange}
+                    className="block w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Continue Button */}
+              <button
+                type="submit"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 mt-2"
+              >
+                <span>Continue</span>
+                <FaArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+          )}
+
+          {/* STEP 2: Profile Details */}
+          {step === 2 && (
+            <form onSubmit={handleSubmitRegistration} className="space-y-4 text-sm">
+              {/* Gender */}
+              <div>
+                <label htmlFor="gender" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Gender
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                    <FaVenusMars className="h-4 w-4" />
+                  </div>
+                  <select
+                    id="gender"
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleChange}
+                    className="block w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none appearance-none bg-white cursor-pointer"
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Date of Birth */}
+              <div>
+                <label htmlFor="date_of_birth" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Date of Birth
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                    <FaCalendarAlt className="h-4 w-4" />
+                  </div>
+                  <input
+                    id="date_of_birth"
+                    name="date_of_birth"
+                    type="date"
+                    value={formData.date_of_birth}
+                    onChange={handleChange}
+                    className="block w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Address */}
+              <div>
+                <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Address
+                </label>
+                <div className="relative">
+                  <div className="absolute top-3 left-0 pl-3.5 flex items-start pointer-events-none text-gray-400">
+                    <FaMapMarkerAlt className="h-4 w-4" />
+                  </div>
+                  <textarea
+                    id="address"
+                    name="address"
+                    placeholder="Flat No, Street, City, State, Pincode"
+                    rows={2}
+                    value={formData.address}
+                    onChange={handleChange}
+                    className="block w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-all"
+                >
+                  <FaArrowLeft className="w-4 h-4" />
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-[2] flex items-center justify-center gap-2 py-2.5 px-4 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                      Creating account...
+                    </>
+                  ) : (
+                    <>
+                      <FaCheckCircle className="w-4 h-4" />
+                      Create Account
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* STEP 3: OTP Verification Inside Modal */}
+          {step === 3 && (
+            <form onSubmit={handleVerifyOtp} className="space-y-5">
+              <div className="flex justify-center mb-2">
+                <div className="w-14 h-14 rounded-2xl bg-[#0067A1]/10 flex items-center justify-center">
+                  <FaShieldAlt className="w-6 h-6 text-[#0067A1]" />
+                </div>
+              </div>
+
+              {/* 6-digit OTP Inputs */}
+              <div className="flex justify-center gap-2 sm:gap-2.5">
+                {otp.map((digit, index) => (
+                  <input
+                    key={index}
+                    ref={(el) => (otpRefs.current[index] = el)}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength="1"
+                    value={digit}
+                    onChange={(e) => handleOtpChange(e.target.value, index)}
+                    onKeyDown={(e) => handleOtpKeyDown(e, index)}
+                    onPaste={index === 0 ? handlePaste : undefined}
+                    className={`
+                      w-11 h-13 sm:w-12 sm:h-14
+                      text-center text-xl font-bold text-gray-900
+                      rounded-xl border-2 outline-none
+                      transition-all duration-200
+                      ${digit
+                        ? 'border-[#0067A1] bg-sky-50/50 shadow-sm'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                      }
+                      focus:border-[#0067A1] focus:ring-4 focus:ring-[#0067A1]/10
+                    `}
+                    autoFocus={index === 0}
+                    disabled={loading}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || otp.join('').length < 6}
+                className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                    Verifying...
+                  </>
+                ) : (
+                  <>
+                    <FaShieldAlt className="w-4 h-4" />
+                    Verify & Continue
+                  </>
+                )}
+              </button>
+
+              {/* Resend Timer */}
+              <div className="flex flex-col items-center gap-1.5 pt-1 text-center">
+                <span className="text-xs text-gray-400">Didn't receive the code?</span>
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={!canResend || loading}
+                  className={`text-xs font-semibold px-3 py-1 rounded-lg transition-all ${
+                    canResend
+                      ? 'text-[#0067A1] bg-[#0067A1]/10 hover:bg-[#0067A1]/20 cursor-pointer'
+                      : 'text-gray-400 cursor-default'
+                  }`}
+                >
+                  {canResend ? 'Resend Code' : `Resend in ${resendTimer}s`}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* STEP 4: Success State */}
+          {step === 4 && (
+            <div className="py-8 flex flex-col items-center justify-center text-center animate-fadeIn">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4 text-emerald-600 shadow-md">
+                <FaCheckCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Account Verified!</h3>
+              <p className="text-sm text-emerald-600 font-medium mt-1">
+                Redirecting to your dashboard...
+              </p>
+            </div>
+          )}
+
+          {/* Footer in Two Rows */}
+          <div className="mt-6 pt-4 border-t border-gray-100 flex flex-col items-center justify-center gap-2 text-xs text-center">
+            <p className="text-gray-500">
+              Already have an account?{' '}
+              <button
+                type="button"
+                onClick={handleOpenLogin}
+                className="font-semibold text-[#0067A1] hover:text-[#004F7C] transition-colors"
+              >
+                Sign in
+              </button>
+            </p>
+            <p className="text-gray-400 text-[11px]">
+              By signing up, you agree to our{' '}
+              <a href="/website/terms" className="text-[#0067A1] hover:underline">Terms</a>
+              {' & '}
+              <a href="/website/privacy" className="text-[#0067A1] hover:underline">Privacy Policy</a>
+            </p>
           </div>
+
         </div>
       </div>
     </div>

@@ -29,6 +29,9 @@ import {
   Venus,
   Mars,
   Activity,
+  CheckCircle,
+  XCircle,
+  Check,
 } from "lucide-react";
 
 const formatPatientUnId = (unId) => {
@@ -45,6 +48,7 @@ export default function PatientsPage() {
   const [viewPatient, setViewPatient] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [verificationFilter, setVerificationFilter] = useState("all");
   const [genderFilter, setGenderFilter] = useState("all");
 
   // Global stats (totals across all patients, not just current page)
@@ -80,6 +84,7 @@ export default function PatientsPage() {
     search = searchTerm,
     status = statusFilter,
     gender = genderFilter,
+    verification = verificationFilter,
     limit = pagination.itemsPerPage || 10
   ) => {
     try {
@@ -90,6 +95,7 @@ export default function PatientsPage() {
         ...(search && { search }),
         ...(status !== "all" && { status }),
         ...(gender !== "all" && { gender }),
+        ...(verification !== "all" && { verification }),
       });
 
       const res = await fetch(`/api/patients?${params}`);
@@ -123,11 +129,11 @@ export default function PatientsPage() {
   // Debounced filter/search — fetch paginated list
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchPatients(1, searchTerm, statusFilter, genderFilter, pagination.itemsPerPage);
+      fetchPatients(1, searchTerm, statusFilter, genderFilter, verificationFilter, pagination.itemsPerPage);
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, statusFilter, genderFilter, pagination.itemsPerPage]);
+  }, [searchTerm, statusFilter, genderFilter, verificationFilter, pagination.itemsPerPage]);
 
   const toggleSelect = (id) => {
     setSelectedIds((prev) =>
@@ -191,13 +197,11 @@ export default function PatientsPage() {
   };
 
   const getInitials = (name) => {
-    return (
-      name
-        ?.split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase() || "U"
-    );
+    if (!name || typeof name !== "string") return "P";
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "P";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
 
   const normalizeAvatarUrl = (rawUrl) => {
@@ -261,6 +265,29 @@ export default function PatientsPage() {
         stiffness: 400,
       },
     },
+  };
+
+  const formatAddress = (val) => {
+    if (!val) return "Not provided";
+    if (typeof val === "string") return val;
+    if (typeof val === "object") {
+      const parts = [val.street, val.city, val.state, val.pincode || val.zip].filter(Boolean);
+      return parts.length > 0 ? parts.join(", ") : JSON.stringify(val);
+    }
+    return String(val);
+  };
+
+  const formatEmergencyContact = (val) => {
+    if (!val) return "Not provided";
+    if (typeof val === "string") return val;
+    if (typeof val === "object") {
+      const name = val.name || val.contact_name || "";
+      const phone = val.phone || val.phone_number || val.mobile || "";
+      const relation = val.relation || val.relationship || "";
+      const parts = [name, relation ? `(${relation})` : "", phone].filter(Boolean);
+      return parts.length > 0 ? parts.join(" ") : JSON.stringify(val);
+    }
+    return String(val);
   };
 
   return (
@@ -419,6 +446,17 @@ export default function PatientsPage() {
 
                     <motion.select
                       whileFocus={{ scale: 1.05 }}
+                      value={verificationFilter}
+                      onChange={(e) => setVerificationFilter(e.target.value)}
+                      className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all duration-300 cursor-pointer"
+                    >
+                      <option value="all">All Verification</option>
+                      <option value="verified">Verified</option>
+                      <option value="unverified">Unverified</option>
+                    </motion.select>
+
+                    <motion.select
+                      whileFocus={{ scale: 1.05 }}
                       value={genderFilter}
                       onChange={(e) => setGenderFilter(e.target.value)}
                       className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all duration-300 cursor-pointer"
@@ -558,19 +596,19 @@ export default function PatientsPage() {
                               className="rounded border-gray-300 text-gray-800 focus:ring-gray-800 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
                             />
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Patient
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Contact
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Gender
                           </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Status
                           </th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Actions
                           </th>
                         </tr>
@@ -594,58 +632,65 @@ export default function PatientsPage() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center">
-                                <div className="flex-shrink-0 h-10 w-10">
+                                <div className="relative flex-shrink-0 h-10 w-10">
                                   {normalizeAvatarUrl(patient.profile_picture) ? (
                                     <motion.img
-                                      whileHover={{ scale: 1.1 }}
-                                      className="h-10 w-10 rounded-full object-cover shadow-sm"
+                                      whileHover={{ scale: 1.05 }}
+                                      className="h-10 w-10 rounded-full object-cover shadow-xs border border-slate-200"
                                       src={normalizeAvatarUrl(patient.profile_picture)}
                                       alt=""
                                     />
                                   ) : (
                                     <motion.div
-                                      whileHover={{ scale: 1.1 }}
-                                      className="h-10 w-10 rounded-full bg-gradient-to-br from-gray-800 to-gray-600 flex items-center justify-center text-white font-medium text-sm shadow-sm"
+                                      whileHover={{ scale: 1.05 }}
+                                      className="h-10 w-10 rounded-full bg-gradient-to-br from-[#0067A1] to-[#004F7C] flex items-center justify-center text-white font-bold text-xs shadow-xs"
                                     >
-                                      {getInitials(
-                                        patient.patient_details?.full_name
-                                      )}
+                                      {getInitials(patient.patient_details?.full_name)}
                                     </motion.div>
                                   )}
+                                  {patient.is_verified && (
+                                    <div
+                                      className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center shadow-xs"
+                                      title="Verified Account"
+                                    >
+                                      <Check size={10} className="text-white stroke-[3.5]" />
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="ml-4">
-                                  <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {patient.patient_details?.full_name ||
-                                      "Unknown"}
+                                <div className="ml-3.5">
+                                  <div className="text-sm font-bold text-slate-900 dark:text-white">
+                                    {patient.patient_details?.full_name || "Unknown"}
                                   </div>
-                                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  <div className="text-xs font-mono text-slate-400 dark:text-slate-400">
                                     ID: {formatPatientUnId(patient.un_id)}
                                   </div>
                                 </div>
                               </div>
                             </td>
                             <td className="px-4 py-3">
-                              <div className="text-sm text-gray-900 dark:text-white">
+                              <div className="text-sm font-medium text-slate-800 dark:text-slate-200">
                                 {patient.patient_details?.email || "No email"}
                               </div>
-                              <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center mt-1">
-                                <Phone size={14} className="mr-1" />
+                              <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center mt-0.5 gap-1 font-mono">
+                                <Phone size={12} className="text-slate-400" />
                                 {patient.phone_number || "No phone"}
                               </div>
                             </td>
                             <td className="px-4 py-3">
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-amber-100 to-orange-100 text-amber-800 dark:from-amber-900/40 dark:to-orange-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 capitalize">
                                 {patient.patient_details?.gender || "Unknown"}
                               </span>
                             </td>
                             <td className="px-4 py-3">
-                              <span
-                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                                  "active"
-                                )}`}
-                              >
-                                Active
-                              </span>
+                              {(patient.status === 1 || patient.status === null || patient.status === '1' || patient.status === 'active') ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span> Active
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700">
+                                  <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0"></span> Inactive
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end space-x-2">
@@ -894,21 +939,29 @@ export default function PatientsPage() {
 
               <div className="p-6 overflow-y-auto">
                 <div className="flex items-start space-x-6 mb-6">
-                  <div className="flex-shrink-0">
+                  <div className="relative flex-shrink-0">
                     {viewPatient.profile_picture ? (
                       <motion.img
-                        whileHover={{ scale: 1.1 }}
-                        className="h-20 w-20 rounded-full object-cover shadow-sm"
+                        whileHover={{ scale: 1.05 }}
+                        className="h-20 w-20 rounded-full object-cover shadow-sm border-2 border-slate-200"
                         src={viewPatient.profile_picture}
                         alt=""
                       />
                     ) : (
                       <motion.div
-                        whileHover={{ scale: 1.1 }}
-                        className="h-20 w-20 rounded-full bg-gradient-to-br from-gray-800 to-gray-600 flex items-center justify-center text-white font-medium text-2xl shadow-sm"
+                        whileHover={{ scale: 1.05 }}
+                        className="h-20 w-20 rounded-full bg-gradient-to-br from-[#0067A1] to-[#004F7C] flex items-center justify-center text-white font-bold text-2xl shadow-sm"
                       >
                         {getInitials(viewPatient.patient_details?.full_name)}
                       </motion.div>
+                    )}
+                    {viewPatient.is_verified && (
+                      <div
+                        className="absolute bottom-0 right-0 w-6 h-6 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center shadow-sm"
+                        title="Verified Patient"
+                      >
+                        <Check size={14} className="text-white stroke-[3.5]" />
+                      </div>
                     )}
                   </div>
                   <div className="flex-1">
@@ -919,9 +972,15 @@ export default function PatientsPage() {
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-amber-100 to-orange-100 text-amber-800 dark:from-amber-900/40 dark:to-orange-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                         Patient ID: {formatPatientUnId(viewPatient.un_id)}
                       </span>
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-800 dark:from-emerald-900/40 dark:to-[#003358]/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                        Active
-                      </span>
+                      {viewPatient.is_verified ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                          <CheckCircle size={12} /> Verified Patient
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                          <XCircle size={12} /> Unverified Account
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -951,8 +1010,8 @@ export default function PatientsPage() {
                       <span className="text-gray-600 dark:text-gray-400">
                         Gender:
                       </span>
-                      <span className="ml-2 text-gray-900 dark:text-white">
-                        {viewPatient.patient_details?.gender || "Not provided"}
+                      <span className="ml-2 text-gray-900 dark:text-white capitalize">
+                        {typeof viewPatient.patient_details?.gender === "string" ? viewPatient.patient_details.gender : "Not provided"}
                       </span>
                     </div>
                     <div className="flex items-center text-sm">
@@ -985,8 +1044,7 @@ export default function PatientsPage() {
                           Address:
                         </span>
                         <div className="ml-2 text-gray-900 dark:text-white">
-                          {viewPatient.patient_details?.address ||
-                            "Not provided"}
+                          {formatAddress(viewPatient.patient_details?.address)}
                         </div>
                       </div>
                     </div>
@@ -996,8 +1054,7 @@ export default function PatientsPage() {
                         Emergency Contact:
                       </span>
                       <span className="ml-2 text-gray-900 dark:text-white">
-                        {viewPatient.patient_details?.emergency_contact ||
-                          "Not provided"}
+                        {formatEmergencyContact(viewPatient.patient_details?.emergency_contact)}
                       </span>
                     </div>
                   </div>

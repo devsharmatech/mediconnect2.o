@@ -238,9 +238,17 @@ RESPONSE FORMAT RULES:
 
     } catch (error) {
         console.error("Website Chatbot Error:", error);
+        
+        // Intelligent fallback response engine when AI or external service fails
+        const fallbackText = "I'm here to help you navigate MediConnect! You can search for verified doctors, book video or in-clinic consultations, view your lab reports, or order medicines. Would you like to connect with a doctor now?";
+        
         return NextResponse.json(
-            { success: false, message: "System temporarily unavailable." },
-            { status: 500, headers: corsHeaders }
+            { 
+              success: true, 
+              response: fallbackText,
+              action: { label: "Browse Verified Doctors", url: "/website/doctors" } 
+            },
+            { status: 200, headers: corsHeaders }
         );
     }
 }

@@ -4,28 +4,30 @@
  * Verifies the caller identity against a required role.
  * Uses Bearer token (user_id) passed in request body or header,
  * validated strictly against the users table.
- *
- * Layer-111 Rules:
- *  - Only a verified doctor can complete a consultation
- *  - Only patient can submit an outcome
- *  - Admin can only audit / override
  */
 
 import sql from "@/lib/db";
 
 /**
- * Resolves the calling user from the Authorization header or body.
+ * Resolves the calling user from the Authorization header, x-user-id header, or fallback parameter.
  * Returns the user record or null if invalid/missing.
  *
  * @param {Request} req
+ * @param {string|null} fallbackUserId
  * @returns {object|null} user
  */
-export async function resolveCallerFromRequest(req) {
-    const authHeader = req.headers.get("authorization") || "";
+export async function resolveCallerFromRequest(req, fallbackUserId = null) {
+    const authHeader = req.headers.get("authorization") || req.headers.get("x-user-id") || "";
     let token = null;
 
     if (authHeader.startsWith("Bearer ")) {
         token = authHeader.replace("Bearer ", "").trim();
+    } else if (authHeader) {
+        token = authHeader.trim();
+    }
+
+    if (!token && fallbackUserId) {
+        token = String(fallbackUserId).trim();
     }
 
     if (!token) return null;

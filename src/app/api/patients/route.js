@@ -9,6 +9,7 @@ export async function GET(request) {
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "all";
     const gender = searchParams.get("gender") || "all";
+    const verification = searchParams.get("verification") || "all";
 
     const from = (page - 1) * limit;
     const to = from + limit - 1;
@@ -23,6 +24,7 @@ export async function GET(request) {
         created_at,
         profile_picture,
         status,
+        is_verified,
         un_id,
         patient_details!inner (
           full_name,
@@ -49,7 +51,6 @@ export async function GET(request) {
         .ilike("phone_number", `%${search}%`);
 
       // 2. Match by full_name or email in patient_details
-      // patient_details.id == users.id (shared PK/FK)
       const { data: byDetails } = await supabase
         .from("patient_details")
         .select("id")
@@ -79,16 +80,32 @@ export async function GET(request) {
       query = query.in("id", allIds);
     }
 
-
-
-    // Apply status filter
+    // Apply status filter (Safe numeric/smallint handling for AWS RDS PostgreSQL)
     if (status !== "all") {
-      query = query.eq("status", status);
+      if (status === "active" || status === "1") {
+        query = query.or("status.eq.1,status.is.null");
+      } else if (status === "inactive" || status === "0") {
+        query = query.eq("status", 0);
+      } else {
+        const numStatus = parseInt(status, 10);
+        if (!isNaN(numStatus)) {
+          query = query.eq("status", numStatus);
+        }
+      }
+    }
+
+    // Apply verification status filter
+    if (verification !== "all") {
+      if (verification === "verified" || verification === "true") {
+        query = query.eq("is_verified", true);
+      } else if (verification === "unverified" || verification === "false") {
+        query = query.or("is_verified.eq.false,is_verified.is.null");
+      }
     }
 
     // Apply gender filter
     if (gender !== "all") {
-      query = query.eq("patient_details.gender", gender);
+      query = query.ilike("patient_details.gender", `%${gender}%`);
     }
 
     // Apply pagination
@@ -97,10 +114,9 @@ export async function GET(request) {
     const { data, error, count } = await query;
 
     if (error) {
-      console.error("Supabase error:", error);
+      console.error("Supabase error fetching patients:", error);
       throw error;
     }
-
 
     const totalPages = Math.ceil((count || 0) / limit);
     const hasNextPage = page < totalPages;

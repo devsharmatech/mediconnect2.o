@@ -32,6 +32,7 @@ const normalizeStatus = (status) => {
   if (!status) return "pending";
   const s = status.toLowerCase();
   if (["booked", "approved", "freezed"].includes(s)) return "confirmed";
+  if (["cancelled", "canceled", "rejected", "patient_cancelled", "doctor_cancelled", "admin_cancelled"].includes(s)) return "cancelled";
   return s;
 };
 
@@ -1143,36 +1144,32 @@ export default function AppointmentsPage() {
           )}
 
           {/* Page Header */}
-          <div className="mb-8">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-800 tracking-tight mb-2">
-              My Appointments
-            </h1>
-            <p className="text-sm font-medium text-slate-500">
-              Manage, monitor, and view all your clinical and virtual consultations
-            </p>
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-slate-900 mb-1">My Appointments</h1>
+            <p className="text-sm text-slate-500">All clinical and virtual consultations in one place</p>
           </div>
 
-          {/* Date Filter */}
-          <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.015)] border border-slate-100 mb-6 overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-4">
-              <div className="flex items-center gap-2.5 text-sm font-bold text-slate-700">
-                <div className="w-8 h-8 rounded-lg bg-[#0067A1]/5 flex items-center justify-center border border-[#0067A1]/10">
-                  <FaCalendarAlt className="w-4 h-4 text-[#0067A1]" />
-                </div>
-                <span>Filter Consultations</span>
-              </div>
-              <select
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="w-full sm:w-64 px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#0067A1]/10 focus:border-[#0067A1] transition-all cursor-pointer shadow-sm hover:border-slate-300"
+          {/* Filter Tabs */}
+          <div className="flex gap-1 mb-6 border-b border-slate-200 overflow-x-auto no-scrollbar">
+            {[
+              { value: "today", label: "Today" },
+              { value: "upcoming", label: "Upcoming" },
+              { value: "past", label: "Past" },
+              { value: "cancelled", label: "Cancelled" },
+              { value: "all", label: "All" },
+            ].map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setDateFilter(tab.value)}
+                className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                  dateFilter === tab.value
+                    ? "border-[#0067A1] text-[#0067A1]"
+                    : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                }`}
               >
-                <option value="today">Today</option>
-                <option value="upcoming">Upcoming</option>
-                <option value="past">Past</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="all">All Sessions</option>
-              </select>
-            </div>
+                {tab.label}
+              </button>
+            ))}
           </div>
 
           {/* Appointments Grid */}
@@ -1473,44 +1470,39 @@ const AppointmentCard = ({ appointment, isActiveCall, hasPrescription, onViewDet
 const EmptyState = ({ dateFilter }) => {
   const messages = {
     today: {
-      title: "No Appointments Today",
-      description: "You don't have any appointments scheduled for today.",
-      icon: FaCalendarAlt,
+      title: "Nothing scheduled today",
+      description: "No consultations are booked for today. Book an appointment to get started.",
+      hint: "Your schedule is clear",
     },
     upcoming: {
-      title: "No Upcoming Appointments",
-      description: "You don't have any upcoming appointments scheduled.",
-      icon: FaCalendarCheck,
+      title: "No upcoming appointments",
+      description: "You don't have any consultations coming up. Find a doctor and book a slot.",
+      hint: "Book when you're ready",
     },
     past: {
-      title: "No Past Appointments",
-      description: "You don't have any past or expired appointments.",
-      icon: FaHistory,
+      title: "No past consultations",
+      description: "Your past appointments will appear here once you've had a consultation.",
+      hint: "Your history will show here",
     },
     cancelled: {
-      title: "No Cancelled Appointments",
-      description: "You haven't cancelled any appointments.",
-      icon: FaBan,
+      title: "No cancelled appointments",
+      description: "You haven't cancelled any appointments. That's a good sign.",
+      hint: "All clear here",
     },
     all: {
-      title: "No Appointments",
-      description: "You don't have any appointments yet.",
-      icon: FaCalendarAlt,
+      title: "No appointments yet",
+      description: "You haven't booked any consultations. Use Find Doctors to get started.",
+      hint: "Start your health journey",
     },
   };
 
   const message = messages[dateFilter] || messages.all;
-  const Icon = message.icon;
 
   return (
-    <div className="bg-white/80 backdrop-blur-md rounded-2xl shadow-xl border border-emerald-50 p-12 text-center">
-      <div className="flex justify-center mb-4">
-        <div className="p-6 bg-[#0067A1]/5 rounded-full">
-          <Icon className="h-12 w-12 text-[#0067A1]" />
-        </div>
-      </div>
-      <h3 className="text-2xl font-bold text-gray-900 mb-2">{message.title}</h3>
-      <p className="text-gray-600 mb-6">{message.description}</p>
+    <div className="py-16 px-6 text-center">
+      <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-3">{message.hint}</p>
+      <h3 className="text-xl font-semibold text-slate-800 mb-2">{message.title}</h3>
+      <p className="text-sm text-slate-500 max-w-sm mx-auto">{message.description}</p>
     </div>
   );
 };

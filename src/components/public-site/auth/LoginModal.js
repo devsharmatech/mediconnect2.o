@@ -28,6 +28,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [resendTimer, setResendTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
+  const [isUnverifiedAccount, setIsUnverifiedAccount] = useState(false);
   const otpRefs = useRef([]);
   const timerRef = useRef(null);
   const router = useRouter();
@@ -100,6 +101,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
 
       if (response.success) {
         setUserId(response.data.user_id);
+        setIsUnverifiedAccount(response.data.is_verified === false);
         // Store in session for fallback
         if (loginMethod === 'phone') {
           sessionStorage.setItem('loginPhoneNumber', formData.phone_number);
@@ -451,6 +453,14 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
                   </span>
                 </div>
               </div>
+
+              {/* Unverified Account Notice */}
+              {isUnverifiedAccount && (
+                <div className="mb-4 p-3 bg-[#0067A1]/10 border border-[#0067A1]/20 rounded-xl text-xs text-[#0067A1] font-medium flex items-center gap-2">
+                  <FaShieldAlt className="w-4 h-4 shrink-0 text-[#0067A1]" />
+                  <span>Registration verification pending. Enter the OTP code sent to your phone to verify your account and log in.</span>
+                </div>
+              )}
 
               {/* Error */}
               {error && (

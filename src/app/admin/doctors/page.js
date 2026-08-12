@@ -3178,6 +3178,90 @@ export default function DoctorsPage() {
   const [specialties, setSpecialties] = useState([]);
   const [summary, setSummary] = useState({ total: 0, active: 0, pending: 0, verified: 0 });
 
+  // Admin OTP Deletion Authorization States
+  const [deleteOtpStep, setDeleteOtpStep] = useState("confirm"); // "confirm" | "otp"
+  const [deleteOtp, setDeleteOtp] = useState("");
+  const [adminPhone, setAdminPhone] = useState("");
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingDelete, setIsVerifyingDelete] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("userPhone") || JSON.parse(localStorage.getItem("userData") || "{}")?.phone_number || "";
+      if (stored) setAdminPhone(stored);
+    }
+  }, []);
+
+  const handleSendDeleteOtp = async () => {
+    try {
+      const storedPhone =
+        typeof window !== "undefined"
+          ? localStorage.getItem("userPhone") ||
+            JSON.parse(localStorage.getItem("userData") || "{}")?.phone_number ||
+            JSON.parse(localStorage.getItem("userData") || "{}")?.phone
+          : "";
+
+      const phoneToUse = adminPhone || storedPhone;
+      if (!phoneToUse) {
+        return toast.error("Please enter Admin Phone Number to receive OTP");
+      }
+
+      setIsSendingOtp(true);
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone_number: phoneToUse, role: "admin" }),
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        toast.success("OTP sent to Admin phone number!");
+        setAdminPhone(phoneToUse);
+        setDeleteOtpStep("otp");
+      } else {
+        toast.error(result.error || result.message || "Failed to send OTP");
+      }
+    } catch (err) {
+      toast.error("Error sending OTP: " + err.message);
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (selectedIds.length === 0) return toast.error("No doctors selected!");
+    if (!deleteOtp) return toast.error("Please enter the 6-digit OTP");
+
+    try {
+      setIsVerifyingDelete(true);
+      const res = await fetch("/api/doctors/delete-doctors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedIds,
+          otp: deleteOtp,
+          admin_phone: adminPhone,
+        }),
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        toast.success("Doctors deleted successfully after OTP authorization!");
+        setConfirmOpen(false);
+        setDeleteOtpStep("confirm");
+        setDeleteOtp("");
+        setSelectedIds([]);
+        fetchDoctors(pagination.currentPage);
+      } else {
+        toast.error(result.error || "Failed to delete doctors");
+      }
+    } catch (err) {
+      toast.error("Error: " + err.message);
+    } finally {
+      setIsVerifyingDelete(false);
+    }
+  };
+
   useEffect(() => {
     async function fetchSpecialties() {
       try {
@@ -3288,30 +3372,6 @@ export default function DoctorsPage() {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
-  };
-
-  const handleDelete = async () => {
-    setConfirmOpen(false);
-    if (selectedIds.length === 0) return toast.error("No doctors selected!");
-
-    try {
-      const res = await fetch("/api/doctors/delete-doctors", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: selectedIds }),
-      });
-
-      const result = await res.json();
-      if (result.success) {
-        toast.success("Doctors deleted successfully!");
-        setSelectedIds([]);
-        fetchDoctors(pagination.currentPage);
-      } else {
-        toast.error(result.error || "Failed to delete doctors");
-      }
-    } catch (err) {
-      toast.error("Error: " + err.message);
-    }
   };
 
   const handleStatusChange = async (doctorId, newStatus) => {
@@ -4363,31 +4423,86 @@ export default function DoctorsPage() {
                 >
                   <AlertTriangle className="w-8 h-8 text-red-500 dark:text-red-400" />
                 </motion.div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  Confirm Deletion
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  {deleteOtpStep === "confirm" ? "Authorize Doctor Deletion" : "Enter Admin OTP"}
                 </h3>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">
-                  Are you sure you want to delete {selectedIds.length}{" "}
-                  doctor(s)? This action cannot be undone.
-                </p>
-                <div className="flex gap-3 justify-center">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setConfirmOpen(false)}
-                    className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-300 font-medium cursor-pointer"
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleDelete}
-                    className="px-6 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg transition-all duration-300 font-medium cursor-pointer"
-                  >
-                    Delete
-                  </motion.button>
-                </div>
+
+                {deleteOtpStep === "confirm" ? (
+                  <>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      Deleting {selectedIds.length} doctor(s) requires Admin OTP authorization. An OTP will be sent to the Admin&apos;s phone number.
+                    </p>
+                    <div className="mb-4 text-left">
+                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        Admin Phone Number:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Enter Admin Phone Number"
+                        value={adminPhone}
+                        onChange={(e) => setAdminPhone(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50 dark:bg-gray-700 dark:text-white border-gray-300 dark:border-gray-600"
+                      />
+                    </div>
+                    <div className="flex gap-3 justify-center">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          setConfirmOpen(false);
+                          setDeleteOtpStep("confirm");
+                        }}
+                        className="px-5 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium cursor-pointer"
+                      >
+                        Cancel
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleSendDeleteOtp}
+                        disabled={isSendingOtp}
+                        className="px-5 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg font-medium cursor-pointer disabled:opacity-50"
+                      >
+                        {isSendingOtp ? "Sending OTP..." : "Send OTP & Proceed"}
+                      </motion.button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      An OTP has been sent to <strong className="text-gray-900 dark:text-white">{adminPhone}</strong>. Enter the 6-digit code to authorize deletion.
+                    </p>
+                    <div className="mb-5">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="6-digit OTP"
+                        value={deleteOtp}
+                        onChange={(e) => setDeleteOtp(e.target.value)}
+                        className="w-full text-center tracking-widest text-2xl font-mono py-2.5 border-2 border-red-500 rounded-xl bg-gray-50 dark:bg-gray-700 dark:text-white focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex gap-3 justify-center">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setDeleteOtpStep("confirm")}
+                        className="px-5 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 font-medium cursor-pointer"
+                      >
+                        Back
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleDelete}
+                        disabled={isVerifyingDelete || !deleteOtp}
+                        className="px-5 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg font-medium cursor-pointer disabled:opacity-50"
+                      >
+                        {isVerifyingDelete ? "Verifying & Deleting..." : "Verify OTP & Delete"}
+                      </motion.button>
+                    </div>
+                  </>
+                )}
               </div>
             </motion.div>
           </motion.div>

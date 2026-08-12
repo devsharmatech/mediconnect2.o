@@ -3,111 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-  FaUser, FaBell, FaLock, FaShieldAlt, FaTrash,
-  FaChevronRight, FaEye, FaEyeSlash, FaCheckCircle,
-  FaExclamationTriangle, FaTimes, FaPhone, FaSave,
+  FaUser, FaBell, FaShieldAlt, FaTrash,
+  FaChevronRight, FaCheckCircle,
+  FaExclamationTriangle, FaTimes, FaPhone,
 } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
-
-// ─── Change Password Modal ────────────────────────────────────────────────────
-function ChangePasswordModal({ userId, onClose }) {
-  const [form, setForm] = useState({ current_password: "", new_password: "", confirm_password: "" });
-  const [show, setShow] = useState({ current: false, newPass: false, confirm: false });
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
-
-  const validate = () => {
-    const e = {};
-    if (!form.current_password) e.current_password = "Current password is required";
-    if (!form.new_password || form.new_password.length < 8) e.new_password = "New password must be at least 8 characters";
-    if (form.new_password !== form.confirm_password) e.confirm_password = "Passwords do not match";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validate()) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/auth/patient/change-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: userId, current_password: form.current_password, new_password: form.new_password }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success("Password changed successfully!");
-        onClose();
-      } else {
-        toast.error(data.error || "Failed to change password");
-      }
-    } catch (err) {
-      toast.error("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const Field = ({ label, name, showKey, showState }) => (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
-      <div className="relative">
-        <input
-          type={showState ? "text" : "password"}
-          value={form[name]}
-          onChange={(e) => setForm(prev => ({ ...prev, [name]: e.target.value }))}
-          className={`w-full px-4 py-3 pr-11 rounded-xl border text-sm focus:outline-none focus:ring-2 transition-all ${
-            errors[name] ? "border-red-400 focus:ring-red-200 bg-red-50" : "border-gray-200 focus:ring-[#0067A1]/30 focus:border-[#0067A1]"
-          }`}
-          placeholder={`Enter ${label.toLowerCase()}`}
-        />
-        <button type="button" onClick={() => setShow(prev => ({ ...prev, [showKey]: !prev[showKey] }))}
-          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-          {showState ? <FaEyeSlash className="w-4 h-4" /> : <FaEye className="w-4 h-4" />}
-        </button>
-      </div>
-      {errors[name] && <p className="text-red-500 text-xs mt-1">{errors[name]}</p>}
-    </div>
-  );
-
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-      onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-        <div className="bg-gradient-to-r from-[#0067A1] to-[#0080C6] px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
-              <FaLock className="w-4 h-4 text-white" />
-            </div>
-            <h3 className="text-white font-bold text-base">Change Password</h3>
-          </div>
-          <button onClick={onClose} className="text-white/70 hover:text-white transition-colors">
-            <FaTimes className="w-4 h-4" />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <Field label="Current Password" name="current_password" showKey="current" showState={show.current} />
-          <Field label="New Password" name="new_password" showKey="newPass" showState={show.newPass} />
-          <Field label="Confirm New Password" name="confirm_password" showKey="confirm" showState={show.confirm} />
-          <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-              Cancel
-            </button>
-            <button type="submit" disabled={loading}
-              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#0067A1] to-[#0080C6] text-white text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-              {loading ? <><div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />Saving...</> : <><FaSave className="w-3.5 h-3.5" />Update Password</>}
-            </button>
-          </div>
-        </form>
-      </motion.div>
-    </motion.div>
-  );
-}
 
 // ─── Delete Account Modal ─────────────────────────────────────────────────────
 function DeleteAccountModal({ userId, onClose }) {
@@ -192,7 +93,6 @@ export default function SettingsPage() {
   const [userPhone, setUserPhone] = useState("");
   const [notifications, setNotifications] = useState({ email: true, sms: true, appointment_reminders: true, health_tips: false });
   const [savingNotifications, setSavingNotifications] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const notifTimerRef = useRef(null);
 
@@ -270,7 +170,6 @@ export default function SettingsPage() {
   return (
     <>
       <AnimatePresence>
-        {showPasswordModal && <ChangePasswordModal userId={userId} onClose={() => setShowPasswordModal(false)} />}
         {showDeleteModal && <DeleteAccountModal userId={userId} onClose={() => setShowDeleteModal(false)} />}
       </AnimatePresence>
 
@@ -331,21 +230,15 @@ export default function SettingsPage() {
         </Section>
 
         {/* Security */}
-        <Section title="Security">
-          <ActionRow
-            icon={FaLock} iconBg="bg-red-500"
-            title="Change Password"
-            description="Update your account password"
-            onClick={() => setShowPasswordModal(true)}
-          />
+        <Section title="Security & Authentication">
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0">
                 <FaShieldAlt className="w-4 h-4 text-white" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-900">Two-Factor Authentication</p>
-                <p className="text-xs text-gray-500 mt-0.5">OTP login via mobile is already enabled</p>
+                <p className="text-sm font-medium text-gray-900">Passwordless Mobile OTP Login</p>
+                <p className="text-xs text-gray-500 mt-0.5">Instant & secure login via mobile OTP enabled</p>
               </div>
             </div>
             <span className="flex items-center gap-1 text-xs text-green-600 font-medium bg-green-50 px-2.5 py-1 rounded-full">

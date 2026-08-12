@@ -147,6 +147,13 @@ const LungHealthResult = () => {
           </div>
         </div>
         <div className="flex gap-2 self-start sm:self-auto">
+          <button
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition-all border border-gray-200"
+          >
+            <Download className="w-4 h-4 text-gray-600" />
+            Download PDF Report
+          </button>
           <Link
             href="/website/doctors"
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#0067A1] hover:bg-[#0080C6] text-white rounded-xl text-sm font-semibold shadow-md hover:shadow-lg transition-all"

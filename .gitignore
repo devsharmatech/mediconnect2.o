@@ -1,7 +1,11 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# ==========================================
+# Dependencies & Package Managers
+# ==========================================
 /node_modules
+node_modules/
+.npm/
 /.pnp
 .pnp.*
 .yarn/*
@@ -10,47 +14,54 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
-# next.js
+# ==========================================
+# Build & Output Directories
+# ==========================================
 /.next/
+.next/
 /out/
-
-# production
 /build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
+dist/
 *.tsbuildinfo
 next-env.d.ts
 
+# ==========================================
+# Testing & Coverage
+# ==========================================
+/coverage
+coverage/
 
+# ==========================================
+# Environment & Secrets
+# ==========================================
+.env*
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+
+# ==========================================
+# Deployment & Vercel
+# ==========================================
+.vercel
+
+# ==========================================
+# AI Tools, Assistants & Workspace Artifacts
+# ==========================================
 .gemini/
 .cursor/
 .cursorrules
 .cursorignore
 .aider*
-help-development/
+.system_generated/
+brain/
+artifacts/
 scratch/
-scripts/
-client-document/
-database-sql/
+dev-helpers/
+help-development/
 *_SPEC.md
 *_SUMMARY.md
 *_DIAGRAMS.md
@@ -61,26 +72,26 @@ database-sql/
 DIGITAL_LOCKER_*.md
 BUILD_*.md
 ORCHESTRATION_*.md
-test-*.js
-test-*.mjs
-*.sql
+walkthrough.md
+implementation_plan.md
 
-# Build and Error Logs
-*.log
-build*.txt
-
-# Local Media Uploads
-public/media/uploads/
-
-# Scratch debug files
-scratch_*.js
-
-# AI and Development Scripts
+# ==========================================
+# Helper, Debug & Development Scripts
+# ==========================================
 *.py
 check_*.js
 check_*.mjs
 test_*.js
 test_*.mjs
+fix_*.py
+fix_*.js
+add_*.py
+reorder*.py
+update_*.py
+replace_*.js
+replace_*.py
+find_*.js
+find_*.py
 get_*.js
 temp.js
 build_modal.js
@@ -92,6 +103,43 @@ list_tables.mjs
 recovered_*.txt
 recovered_*.json
 mediconnect-api-collection.json
+test-*.js
+test-*.mjs
+scratch_*.js
+
+# ==========================================
+# Documents & Issue Files
+# ==========================================
+client-document/
+database-sql/
+*.sql
+*.pdf
+*.docx
+*.doc
+*.xlsx
+
+# ==========================================
+# Build, Server & Debug Logs
+# ==========================================
+*.log
+dev.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+build*.txt
+
+# ==========================================
+# Local Media Uploads
+# ==========================================
+public/media/uploads/
+
+# ==========================================
+# IDE & System Files
+# ==========================================
+.DS_Store
+Thumbs.db
 .vscode/
-brain/
-artifacts/
+.idea/
+*.swp
+*.swo

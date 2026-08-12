@@ -16,8 +16,13 @@ export async function GET(req) {
     }
     
     if (specialty) {
-      if (specialty.toLowerCase() === "urology") {
+      const specLower = specialty.toLowerCase().trim();
+      if (specLower === "urology") {
         dbQuery = dbQuery.ilike("specialization", "%urology%").not("specialization", "ilike", "%neurology%");
+      } else if (specLower === "ent" || specLower === "otorhinolaryngology") {
+        dbQuery = dbQuery.or("specialization.ilike.%ENT%,specialization.ilike.%Otorhinolaryngology%").not("specialization", "ilike", "%dentistry%");
+      } else if (specLower.includes("gastro")) {
+        dbQuery = dbQuery.ilike("specialization", "%gastro%");
       } else {
         dbQuery = dbQuery.ilike("specialization", `%${specialty}%`);
       }

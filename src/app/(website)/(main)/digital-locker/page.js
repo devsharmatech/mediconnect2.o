@@ -12,6 +12,7 @@ import {
   FaShieldAlt,
   FaShareAlt,
   FaUserMd,
+  FaTrash,
 } from "react-icons/fa";
 import { LoadingScreen } from "@/components/public-site/ui/LoadingStates";
 
@@ -95,6 +96,32 @@ export default function DigitalLockerPage() {
   const [shareSuccess, setShareSuccess] = useState("");
   const [shares, setShares] = useState([]);
   const [activeTab, setActiveTab] = useState("documents"); // "documents" or "sharing"
+  const [viewingDoc, setViewingDoc] = useState(null);
+  const [deletingDoc, setDeletingDoc] = useState(null);
+  const [deletingLoading, setDeletingLoading] = useState(false);
+
+  const handleDeleteDocument = async (docId) => {
+    if (!docId || !userId) return;
+    setDeletingLoading(true);
+    try {
+      const res = await fetch("/api/digital-locker/document/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document_id: docId, user_id: userId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDocuments(prev => prev.filter(d => d.id !== docId));
+        setDeletingDoc(null);
+      } else {
+        alert(data.message || "Failed to delete document");
+      }
+    } catch (err) {
+      alert(err.message || "Something went wrong while deleting");
+    } finally {
+      setDeletingLoading(false);
+    }
+  };
 
   const userId = useMemo(() => {
     if (user?.id) return user.id;
@@ -397,15 +424,13 @@ export default function DigitalLockerPage() {
 
   const fetchDoctors = async () => {
     try {
-      console.log("Fetching doctors for patient:", userId);
       const res = await fetch(`/api/digital-locker/connected-doctors?patient_id=${userId}`);
       const data = await res.json();
-      console.log("Doctors fetched:", data);
       if (data?.success) {
         setDoctors(data.doctors || []);
       }
     } catch (e) {
-      console.error("Failed to fetch connected doctors", e);
+      // silently fail
     }
   };
 
@@ -754,54 +779,45 @@ export default function DigitalLockerPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-[#0067A1]/10 rounded-xl flex items-center justify-center shrink-0">
-              <FaLock className="w-6 h-6 text-[#0067A1]" />
-            </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                Digital Locker
-              </h1>
-              <p className="text-gray-600 mt-1 text-sm sm:text-base">
-                Store and access your documents securely in MediConnect.fit.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-[#0067A1] text-white text-sm font-semibold hover:bg-[#004F7C] shadow-lg shadow-[#0067A1]/20 transition-all active:scale-95 w-full sm:w-auto shrink-0"
-          >
-            <FaCloudUploadAlt className="w-4 h-4" />
-            Add Document
-          </button>
+    <div className="space-y-5">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Digital Locker</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Secure storage for your medical documents</p>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowAddModal(true)}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#0067A1] text-white text-sm font-semibold hover:bg-[#004F7C] transition-colors shrink-0 w-full sm:w-auto"
+        >
+          <FaCloudUploadAlt className="w-4 h-4" />
+          Add Document
+        </button>
+      </div>
 
-        {/* Tabs */}
-        <div className="flex items-center gap-1 mt-6 p-1 bg-gray-100 rounded-2xl w-full sm:w-fit">
-          <button
-            onClick={() => setActiveTab("documents")}
-            className={`flex-1 sm:flex-initial text-center px-3 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === "documents"
-              ? "bg-white text-[#0067A1] shadow-sm"
-              : "text-gray-500 hover:text-gray-700"
-              }`}
-          >
-            Documents
-          </button>
-          <button
-            onClick={() => setActiveTab("sharing")}
-            className={`flex-1 sm:flex-initial text-center px-3 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === "sharing"
-              ? "bg-white text-[#0067A1] shadow-sm"
-              : "text-gray-500 hover:text-gray-700"
-              }`}
-          >
-            Sharing History
-          </button>
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab("documents")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "documents"
+              ? "border-[#0067A1] text-[#0067A1]"
+              : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+          }`}
+        >
+          Documents
+        </button>
+        <button
+          onClick={() => setActiveTab("sharing")}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "sharing"
+              ? "border-[#0067A1] text-[#0067A1]"
+              : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+          }`}
+        >
+          Sharing History
+        </button>
       </div>
 
       {showAddModal && (
@@ -811,162 +827,131 @@ export default function DigitalLockerPage() {
             setEditingDoc(null);
             setEditStep('form');
           }} />
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-gray-100 p-6 sm:p-8 m-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <div className="flex items-center justify-between mb-8 sticky top-0 bg-white z-20 pb-4 border-b border-gray-50">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#0067A1]/10 rounded-2xl flex items-center justify-center shrink-0">
-                  {editingDoc ? <FaFileAlt className="w-5 h-5 sm:w-6 sm:h-6 text-[#0067A1]" /> : <FaCloudUploadAlt className="w-5 h-5 sm:w-6 sm:h-6 text-[#0067A1]" />}
-                </div>
-                <div>
-                  <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
-                    {editingDoc ? "Edit Document" : "Upload Document"}
-                  </h2>
-                  <p className="text-xs sm:text-sm text-gray-500 font-medium">
-                    {editingDoc ? "Securely update record details" : "Securely add new medical records"}
-                  </p>
-                </div>
+          <div className="relative w-full max-w-lg bg-white rounded-xl shadow-xl border border-slate-200 p-5 m-4 max-h-[90vh] overflow-y-auto">
+            {/* Modal header */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">
+                  {editingDoc ? "Edit Document" : "Upload Document"}
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {editingDoc ? "Update document details" : "Add a new medical record to your locker"}
+                </p>
               </div>
               <button
-                onClick={() => {
-                  setShowAddModal(false);
-                  setEditingDoc(null);
-                  setEditStep('form');
-                }}
-                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                onClick={() => { setShowAddModal(false); setEditingDoc(null); setEditStep('form'); }}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1"
               >
-                <span className="sr-only">Close</span>
-                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
 
             {(error || editError) && (
-              <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 font-bold flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping" />
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">
                 {error || editError}
               </div>
             )}
             {editSuccess && (
-              <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 font-bold flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
+              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-700">
                 {editSuccess}
               </div>
             )}
 
             {editingDoc && editStep === 'verification' ? (
-              <div className="space-y-6 text-center py-4">
-                <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FaShieldAlt className="w-8 h-8 text-[#0067A1]" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">Verification Required</h3>
-                <p className="text-sm text-gray-500 max-w-sm mx-auto">
-                  For your security, please enter the 6-digit OTP sent to your email to authorize this edit.
-                </p>
-                <div className="max-w-xs mx-auto">
-                  <input
-                    value={editOtp}
-                    onChange={(e) => setEditOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    className="w-full text-center text-2xl font-black tracking-[1em] rounded-2xl border border-gray-100 bg-slate-50 p-5 focus:bg-white focus:ring-4 focus:ring-blue-100 transition-all outline-none"
-                    placeholder="••••••"
-                  />
-                  <button
-                    onClick={handleVerifyEdit}
-                    disabled={submitting || editOtp.length !== 6}
-                    className="w-full mt-6 py-4 px-6 bg-[#0067A1] text-white rounded-2xl text-sm font-black shadow-xl shadow-[#0067A1]/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
-                  >
-                    {submitting ? "Verifying..." : "Verify & Continue"}
-                  </button>
-                </div>
+              <div className="py-6 text-center space-y-4">
+                <p className="text-sm font-medium text-slate-800">Verification Required</p>
+                <p className="text-xs text-slate-500">Enter the 6-digit OTP sent to verify this edit.</p>
+                <input
+                  value={editOtp}
+                  onChange={(e) => setEditOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="w-40 mx-auto block text-center text-lg font-bold tracking-widest rounded-lg border border-slate-200 bg-slate-50 py-2.5 focus:bg-white focus:ring-2 focus:ring-[#0067A1]/20 outline-none"
+                  placeholder="------"
+                />
+                <button
+                  onClick={handleVerifyEdit}
+                  disabled={submitting || editOtp.length !== 6}
+                  className="px-6 py-2 bg-[#0067A1] text-white rounded-lg text-sm font-semibold hover:bg-[#004F7C] transition-colors disabled:opacity-50"
+                >
+                  {submitting ? "Verifying..." : "Verify & Continue"}
+                </button>
               </div>
             ) : (
-              <form onSubmit={editingDoc ? handleUpdate : async (e) => {
-                await handleUpload(e);
-                if (!error) setShowAddModal(false);
-              }} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {!editingDoc && (
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">1. Select File</label>
-                      <div className="relative group">
-                        <input
-                          type="file"
-                          onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                          accept="application/pdf,image/*"
-                        />
-                        <div className="w-full border-2 border-dashed border-gray-200 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 group-hover:border-[#0067A1] transition-all bg-slate-50/50">
-                          <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center">
-                            <FaCloudUploadAlt className="w-5 h-5 text-gray-400 group-hover:text-[#0067A1]" />
-                          </div>
-                          <p className="text-sm font-bold text-gray-600">
-                            {file ? file.name : "Drag and drop or click to browse"}
+              <form onSubmit={editingDoc ? handleUpdate : async (e) => { await handleUpload(e); if (!error) setShowAddModal(false); }} className="space-y-4">
+                {!editingDoc && (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">File</label>
+                    <div className="relative group">
+                      <input
+                        type="file"
+                        onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        accept="application/pdf,image/*"
+                      />
+                      <div className="flex items-center gap-3 border border-dashed border-slate-300 rounded-lg px-3 py-2.5 group-hover:border-[#0067A1] transition-colors bg-slate-50">
+                        <FaCloudUploadAlt className="w-4 h-4 text-slate-400 group-hover:text-[#0067A1] shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-slate-600 truncate">
+                            {file ? file.name : "Click to select a file"}
                           </p>
-                          <p className="text-xs text-gray-400 font-medium">Supported: PDF, JPG, PNG (Max 10MB)</p>
+                          <p className="text-[10px] text-slate-400">PDF, JPG, PNG — max 10MB</p>
                         </div>
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  <div className={editingDoc ? "md:col-span-2" : ""}>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">
-                      {editingDoc ? "Document Name" : "2. Document Name"}
-                    </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className={editingDoc ? "sm:col-span-2" : ""}>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Document Name</label>
                     <input
                       value={documentName}
                       onChange={(e) => setDocumentName(e.target.value)}
-                      className="w-full rounded-2xl border border-gray-100 bg-slate-50 p-4 text-sm font-medium focus:bg-white focus:ring-4 focus:ring-[#0067A1]/5 transition-all outline-none"
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1]"
                       placeholder="e.g., Blood Test Report"
                     />
                   </div>
 
                   {!editingDoc && (
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">3. Document Type</label>
+                      <label className="block text-xs font-medium text-slate-600 mb-1.5">Document Type</label>
                       <select
                         value={documentType}
                         onChange={(e) => setDocumentType(e.target.value)}
-                        className="w-full rounded-2xl border border-gray-100 bg-slate-50 p-4 text-sm font-medium focus:bg-white focus:ring-4 focus:ring-[#0067A1]/5 transition-all outline-none"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1]"
                       >
                         {DOCUMENT_TYPES.map((t) => (
-                          <option key={t.value} value={t.value}>
-                            {t.label}
-                          </option>
+                          <option key={t.value} value={t.value}>{t.label}</option>
                         ))}
                       </select>
                     </div>
                   )}
-
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">
-                      {editingDoc ? "Description (Optional)" : "4. Description (Optional)"}
-                    </label>
-                    <textarea
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      rows={3}
-                      className="w-full rounded-2xl border border-gray-100 bg-slate-50 p-4 text-sm font-medium focus:bg-white focus:ring-4 focus:ring-[#0067A1]/5 transition-all outline-none resize-none"
-                      placeholder="Add helpful notes here..."
-                    />
-                  </div>
                 </div>
 
-                <div className="flex gap-4 pt-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1.5">Description <span className="text-slate-400 font-normal">(optional)</span></label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={2}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] resize-none"
+                    placeholder="Add any notes..."
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-1">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowAddModal(false);
-                      setEditingDoc(null);
-                      setEditStep('form');
-                    }}
-                    className="flex-1 py-4 px-6 border-2 border-gray-100 rounded-2xl text-sm font-bold text-gray-400 hover:bg-gray-50 transition-all"
+                    onClick={() => { setShowAddModal(false); setEditingDoc(null); setEditStep('form'); }}
+                    className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-[2] py-4 px-6 bg-[#0067A1] text-white rounded-2xl text-sm font-black shadow-xl shadow-[#0067A1]/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                    className="flex-1 py-2 px-4 bg-[#0067A1] text-white rounded-lg text-sm font-semibold hover:bg-[#004F7C] transition-colors disabled:opacity-50"
                   >
-                    {submitting ? "Processing..." : (editingDoc ? "Save Changes" : "Complete Upload")}
+                    {submitting ? "Processing..." : (editingDoc ? "Save Changes" : "Upload")}
                   </button>
                 </div>
               </form>
@@ -978,124 +963,101 @@ export default function DigitalLockerPage() {
       {/* Content Tabs */}
 
       {activeTab === "documents" ? (
-        <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#0067A1]/10 rounded-lg flex items-center justify-center">
-                <FaFolderOpen className="w-5 h-5 text-[#0067A1]" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Your documents
-                </h2>
-                <p className="text-sm text-gray-600">
-                  {documents.length} document{documents.length === 1 ? "" : "s"}
-                </p>
-              </div>
+        <div className="bg-white rounded-xl border border-slate-200">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <div>
+              <span className="text-sm font-semibold text-slate-800">Your documents</span>
+              <span className="ml-2 text-xs text-slate-400">{documents.length} file{documents.length !== 1 ? "s" : ""}</span>
             </div>
-
             <button
               type="button"
               onClick={fetchDocuments}
-              className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="text-xs text-slate-500 hover:text-[#0067A1] transition-colors font-medium"
             >
               Refresh
             </button>
           </div>
 
           {documents.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-200 p-10 text-center">
-              <FaFileAlt className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-700 font-medium">No documents yet</p>
-              <p className="text-sm text-gray-500 mt-1">
-                Upload your first document to get started.
-              </p>
+            <div className="py-14 px-6 text-center">
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">No files yet</p>
+              <p className="text-sm font-medium text-slate-700 mb-1">Your locker is empty</p>
+              <p className="text-xs text-slate-500">Upload your first document using the Add Document button above.</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="divide-y divide-slate-100">
               {documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="rounded-2xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">
-                      {doc.document_name}
+                <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3.5 hover:bg-slate-50 transition-colors">
+                  {/* Doc icon */}
+                  <div className="w-9 h-9 rounded-lg bg-[#0067A1]/8 border border-[#0067A1]/10 flex items-center justify-center shrink-0">
+                    <FaFileAlt className="w-4 h-4 text-[#0067A1]" />
+                  </div>
+
+                  {/* Doc info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{doc.document_name}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      <span className="capitalize">{doc.document_type}</span>
+                      <span className="mx-1.5">·</span>
+                      {formatBytes(doc.file_size)}
+                      <span className="mx-1.5">·</span>
+                      {formatDate(doc.upload_date || doc.created_at)}
                     </p>
-                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                      <span className="inline-flex items-center gap-1">
-                        <span className="font-medium text-gray-700">Type:</span>
-                        {doc.document_type}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <span className="font-medium text-gray-700">Size:</span>
-                        {formatBytes(doc.file_size)}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <span className="font-medium text-gray-700">Uploaded:</span>
-                        {formatDate(doc.upload_date || doc.created_at)}
-                      </span>
-                    </div>
                     {doc.description && (
-                      <p className="mt-2 text-sm text-gray-600 line-clamp-2">
-                        {doc.description}
-                      </p>
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-1">{doc.description}</p>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:flex-row sm:w-auto shrink-0 mt-3 sm:mt-0">
+                  {/* Actions */}
+                  <div className="flex flex-wrap gap-2 shrink-0">
                     <button
                       type="button"
                       disabled={loadingEditDoc === doc.id}
                       onClick={() => handleEditRequest(doc)}
-                      className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 w-full sm:w-auto"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50 transition-colors"
                     >
                       {loadingEditDoc === doc.id ? (
-                        <>
-                          <div className="w-3 h-3 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                          Processing...
-                        </>
+                        <div className="w-3 h-3 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
                       ) : (
-                        <>
-                          <FaFileAlt className="w-3.5 h-3.5" />
-                          Edit
-                        </>
+                        <FaFileAlt className="w-3 h-3" />
                       )}
+                      Edit
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setSharingDoc(doc);
-                        setShowShareModal(true);
-                        setShareError("");
-                        setShareSuccess("");
-                        setShareConsent(false);
-                      }}
-                      className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-blue-200 text-xs sm:text-sm font-medium text-[#004F7C] hover:bg-blue-50 w-full sm:w-auto"
+                      onClick={() => { setSharingDoc(doc); setShowShareModal(true); setShareError(""); setShareSuccess(""); setShareConsent(false); }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-blue-200 text-xs font-medium text-[#0067A1] hover:bg-blue-50 transition-colors"
                     >
-                      <FaShareAlt className="w-3.5 h-3.5" />
+                      <FaShareAlt className="w-3 h-3" />
                       Share
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setViewingDoc(doc); logAction(doc.id, "viewed"); }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                    >
+                      <FaExternalLinkAlt className="w-3 h-3" />
+                      View
                     </button>
                     <a
                       href={doc.document_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => logAction(doc.id, "viewed")}
-                      className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 w-full sm:w-auto"
-                    >
-                      <FaExternalLinkAlt className="w-3.5 h-3.5" />
-                      View
-                    </a>
-                    <a
-                      href={doc.document_url}
+                      download={doc.document_name || "document"}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => logAction(doc.id, "downloaded")}
-                      className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-[#0067A1] text-white text-xs sm:text-sm font-semibold hover:bg-[#004F7C] w-full sm:w-auto"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#0067A1] text-white text-xs font-medium hover:bg-[#004F7C] transition-colors"
                     >
-                      <FaDownload className="w-3.5 h-3.5" />
+                      <FaDownload className="w-3 h-3" />
                       Download
                     </a>
+                    <button
+                      type="button"
+                      onClick={() => setDeletingDoc(doc)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <FaTrash className="w-3 h-3" />
+                      Delete
+                    </button>
                   </div>
                 </div>
               ))}
@@ -1103,101 +1065,68 @@ export default function DigitalLockerPage() {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
-          <div className="flex items-center justify-between gap-3 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#0067A1]/10 rounded-lg flex items-center justify-center">
-                <FaShareAlt className="w-5 h-5 text-[#0067A1]" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Sharing History
-                </h2>
-                <p className="text-sm text-gray-600">
-                  Track who has access to your medical records
-                </p>
-              </div>
+        <div className="bg-white rounded-xl border border-slate-200">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <div>
+              <span className="text-sm font-semibold text-slate-800">Sharing History</span>
+              <p className="text-xs text-slate-400 mt-0.5">Track who has access to your records</p>
             </div>
             <button
               type="button"
               onClick={fetchShares}
-              className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="text-xs text-slate-500 hover:text-[#0067A1] transition-colors font-medium"
             >
               Refresh
             </button>
           </div>
 
           {shares.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-gray-200 p-10 text-center">
-              <FaShareAlt className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-700 font-medium">No sharing history</p>
-              <p className="text-sm text-gray-500 mt-1">
-                Records you share with doctors will appear here.
-              </p>
+            <div className="py-14 px-6 text-center">
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">No records</p>
+              <p className="text-sm font-medium text-slate-700 mb-1">No sharing history yet</p>
+              <p className="text-xs text-slate-500">Records you share with doctors will appear here.</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="divide-y divide-slate-100">
               {shares.map((share) => {
                 const isExpired = new Date(share.expires_at) < new Date();
                 const displayStatus = share.status === "ACTIVE" && isExpired ? "EXPIRED" : share.status;
 
                 return (
-                  <div
-                    key={share.id}
-                    className="rounded-2xl border border-gray-200 p-4 sm:p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4 hover:border-gray-300 transition-all"
-                  >
+                  <div key={share.id} className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3.5 hover:bg-slate-50 transition-colors">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="text-sm font-bold text-gray-900 truncate">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-slate-800 truncate">
                           {share.digital_locker?.document_name || "Document Unavailable"}
                         </p>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase ${displayStatus === "ACTIVE"
-                          ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
-                          : displayStatus === "REVOKED"
-                            ? "bg-red-50 text-red-600 border border-red-100"
-                            : "bg-gray-50 text-gray-400 border border-gray-100"
-                          }`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${
+                          displayStatus === "ACTIVE"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : displayStatus === "REVOKED"
+                              ? "bg-red-50 text-red-600"
+                              : "bg-slate-100 text-slate-400"
+                        }`}>
                           {displayStatus}
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                        <span className="flex items-center gap-1.5">
-                          <FaUserMd className="w-3 h-3" />
-                          <span className="font-bold text-gray-700">{share.doctor_details?.full_name}</span>
-                        </span>
-                        {share.digital_locker && (
-                          <>
-                            <span className="flex items-center gap-1.5">
-                              <span className="font-medium text-gray-400">Type:</span>
-                              {share.digital_locker.document_type}
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <span className="font-medium text-gray-400">Size:</span>
-                              {formatBytes(share.digital_locker.file_size)}
-                            </span>
-                          </>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {share.doctor_details?.full_name && (
+                          <span className="font-medium text-slate-600">{share.doctor_details.full_name}</span>
                         )}
-                        <span className="flex items-center gap-1.5">
-                          <span className="font-medium text-gray-400">Shared:</span>
-                          {formatDate(share.created_at)}
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <span className="font-medium text-gray-400">Expires:</span>
-                          {formatDate(share.expires_at)}
-                        </span>
-                      </div>
+                        {share.digital_locker?.document_type && (
+                          <><span className="mx-1.5">·</span>{share.digital_locker.document_type}</>
+                        )}
+                        <span className="mx-1.5">·</span>Expires {formatDate(share.expires_at)}
+                      </p>
                     </div>
-
-                    <div className="flex items-center gap-2">
-                      {displayStatus === "ACTIVE" && (
-                        <button
-                          onClick={() => handleRevokeShare(share.id)}
-                          className="px-4 py-2 rounded-xl border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 transition-colors"
-                        >
-                          Revoke Access
-                        </button>
-                      )}
-                    </div>
+                    {displayStatus === "ACTIVE" && (
+                      <button
+                        onClick={() => handleRevokeShare(share.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                      >
+                        Revoke
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -1210,72 +1139,66 @@ export default function DigitalLockerPage() {
       {showShareModal && sharingDoc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowShareModal(false)} />
-          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-gray-100 p-6 sm:p-8 m-4 max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <div className="flex items-center gap-4 mb-6 sticky top-0 bg-white z-20 pb-4 border-b border-gray-50">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#0067A1]/10 rounded-2xl flex items-center justify-center shadow-inner shrink-0">
-                <FaShareAlt className="w-5 h-5 sm:w-6 sm:h-6 text-[#0067A1]" />
-              </div>
+          <div className="relative w-full max-w-md bg-white rounded-xl shadow-xl border border-slate-200 p-5 m-4 max-h-[90vh] overflow-y-auto">
+            {/* Modal header */}
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">Share Document</h2>
-                <p className="text-xs sm:text-sm text-gray-500 font-medium">Configure secure access for your doctor</p>
+                <h2 className="text-base font-semibold text-slate-900">Share Document</h2>
+                <p className="text-xs text-slate-400 mt-0.5">Grant your doctor temporary access</p>
               </div>
+              <button onClick={() => setShowShareModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
 
             {shareError && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-700 font-bold flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping" />
-                {shareError}
-              </div>
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">{shareError}</div>
             )}
             {shareSuccess && (
-              <div className="mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl text-sm text-emerald-700 font-bold flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
-                {shareSuccess}
-              </div>
+              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-700">{shareSuccess}</div>
             )}
 
-            <div className="space-y-6">
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Selected Document</p>
-                <p className="text-sm font-bold text-slate-700 truncate">{sharingDoc.document_name}</p>
+            <div className="space-y-4">
+              {/* Selected doc */}
+              <div className="flex items-center gap-2.5 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                <FaFileAlt className="w-4 h-4 text-slate-400 shrink-0" />
+                <p className="text-sm font-medium text-slate-700 truncate">{sharingDoc.document_name}</p>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">1. Select Doctor</label>
-                <div className="relative">
-                  <FaUserMd className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <select
-                    value={selectedDoctorKey}
-                    onChange={(e) => setSelectedDoctorKey(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-[#0067A1]/5 transition-all outline-none"
-                  >
-                    <option value="">Choose a practitioner...</option>
-                    {doctors.map((doc) => (
-                      <option key={`${doc.doctor_id}:${doc.appointment_id}`} value={`${doc.doctor_id}:${doc.appointment_id}`}>
-                        {doc.doctor_name} | Appt: #{doc.appointment_id.slice(-8).toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Doctor</label>
+                <select
+                  value={selectedDoctorKey}
+                  onChange={(e) => setSelectedDoctorKey(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1]"
+                >
+                  <option value="">Select a doctor...</option>
+                  {doctors.map((doc) => (
+                    <option key={`${doc.doctor_id}:${doc.appointment_id}`} value={`${doc.doctor_id}:${doc.appointment_id}`}>
+                      {doc.doctor_name} — Appt #{doc.appointment_id.slice(-8).toUpperCase()}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">2. Access Duration (Expiry)</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Access duration</label>
+                <div className="grid grid-cols-4 gap-2">
                   {[
-                    { label: "10 Min", value: "10" },
-                    { label: "30 Min", value: "30" },
-                    { label: "1 Hr", value: "60" },
-                    { label: "2 Hrs", value: "120" },
+                    { label: "10 min", value: "10" },
+                    { label: "30 min", value: "30" },
+                    { label: "1 hr", value: "60" },
+                    { label: "2 hrs", value: "120" },
                   ].map((opt) => (
                     <button
                       key={opt.value}
                       type="button"
                       onClick={() => setExpiryMinutes(opt.value)}
-                      className={`py-3 rounded-2xl text-[10px] sm:text-xs font-bold transition-all border-2 ${expiryMinutes === opt.value
-                        ? "bg-[#0067A1]/10 border-[#0067A1] text-[#0067A1] shadow-lg shadow-[#0067A1]/10"
-                        : "bg-white border-gray-100 text-gray-500 hover:border-gray-200"
-                        }`}
+                      className={`py-2 rounded-lg text-xs font-medium transition-colors border ${
+                        expiryMinutes === opt.value
+                          ? "bg-[#0067A1] border-[#0067A1] text-white"
+                          : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                      }`}
                     >
                       {opt.label}
                     </button>
@@ -1283,31 +1206,23 @@ export default function DigitalLockerPage() {
                 </div>
               </div>
 
-              <div className="p-5 bg-[#0067A1]/5 rounded-3xl border border-[#0067A1]/10">
-                <label className="flex items-start gap-4 cursor-pointer group">
-                  <div className="relative flex items-center mt-1">
-                    <input
-                      type="checkbox"
-                      checked={shareConsent}
-                      onChange={(e) => setShareConsent(e.target.checked)}
-                      className="peer h-5 w-5 opacity-0 absolute cursor-pointer"
-                    />
-                    <div className="h-5 w-5 bg-white border-2 border-gray-200 rounded-lg peer-checked:bg-[#0067A1] peer-checked:border-[#0067A1] transition-all flex items-center justify-center">
-                      <div className="h-2 w-2 bg-white rounded-full opacity-0 peer-checked:opacity-100 transition-all" />
-                    </div>
-                  </div>
-                  <span className="text-xs text-gray-600 font-medium leading-relaxed">
-                    I understand that this document will be shared with the selected practitioner.
-                    Access will <span className="font-bold text-[#0067A1]">automatically expire</span> after the selected duration.
-                  </span>
-                </label>
-              </div>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={shareConsent}
+                  onChange={(e) => setShareConsent(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1]/20"
+                />
+                <span className="text-xs text-slate-500 leading-relaxed">
+                  I understand this document will be shared and access will expire automatically.
+                </span>
+              </label>
 
-              <div className="flex gap-4">
+              <div className="flex gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => setShowShareModal(false)}
-                  className="flex-1 py-4 px-6 border-2 border-gray-100 rounded-2xl text-sm font-bold text-gray-400 hover:bg-gray-50 transition-all"
+                  className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                 >
                   Cancel
                 </button>
@@ -1315,11 +1230,71 @@ export default function DigitalLockerPage() {
                   type="button"
                   disabled={shareSubmitting || !shareConsent || !selectedDoctorKey}
                   onClick={handleShare}
-                  className="flex-[2] py-4 px-6 bg-[#0067A1] text-white rounded-2xl text-sm font-black shadow-xl shadow-[#0067A1]/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                  className="flex-1 py-2 px-4 bg-[#0067A1] text-white rounded-lg text-sm font-semibold hover:bg-[#004F7C] transition-colors disabled:opacity-50"
                 >
-                  {shareSubmitting ? "Generating Secure Link..." : "Share Securely"}
+                  {shareSubmitting ? "Sharing..." : "Share"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document View Preview Modal */}
+      {viewingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FaFileAlt className="w-5 h-5 text-[#0067A1]" />
+                <div>
+                  <h3 className="font-bold text-gray-900 text-base">{viewingDoc.document_name}</h3>
+                  <p className="text-xs text-gray-500">{viewingDoc.document_type} · {formatBytes(viewingDoc.file_size)}</p>
+                </div>
+              </div>
+              <button onClick={() => setViewingDoc(null)} className="text-gray-400 hover:text-gray-700 text-lg font-bold">✕</button>
+            </div>
+            <div className="flex-1 bg-gray-100 p-4 overflow-auto flex items-center justify-center min-h-[400px]">
+              {viewingDoc.document_url?.match(/\.(jpeg|jpg|png|webp|gif)/i) ? (
+                <img src={viewingDoc.document_url} alt={viewingDoc.document_name} className="max-w-full max-h-[70vh] object-contain rounded-xl shadow" />
+              ) : (
+                <iframe src={viewingDoc.document_url} title={viewingDoc.document_name} className="w-full h-[65vh] rounded-xl border-none" />
+              )}
+            </div>
+            <div className="px-6 py-3 bg-white border-t border-gray-100 flex justify-between items-center">
+              <a href={viewingDoc.document_url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-[#0067A1] hover:underline flex items-center gap-1">
+                <FaExternalLinkAlt className="w-3 h-3" /> Open in New Tab
+              </a>
+              <button onClick={() => setViewingDoc(null)} className="px-5 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Delete Confirmation Modal */}
+      {deletingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="relative w-full max-w-sm bg-white rounded-xl shadow-xl p-5 border border-slate-200">
+            <h3 className="text-base font-semibold text-slate-900 mb-1">Delete document?</h3>
+            <p className="text-xs text-slate-500 mb-4">
+              <strong className="text-slate-700">&quot;{deletingDoc.document_name}&quot;</strong> will be permanently removed from your locker.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDeletingDoc(null)}
+                className="flex-1 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deletingLoading}
+                onClick={() => handleDeleteDocument(deletingDoc.id)}
+                className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+              >
+                {deletingLoading ? "Deleting..." : "Delete"}
+              </button>
             </div>
           </div>
         </div>

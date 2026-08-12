@@ -1,3 +1,4 @@
+import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseAdmin";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
@@ -1072,28 +1073,105 @@ function buildLungHealthHtml(assessment, logoDataUri) {
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
+    const assessmentId = searchParams.get("id") || searchParams.get("assessment_id");
     const userId = searchParams.get("user_id");
 
-    if (!userId) {
-      return failure("User ID is required", "validation_error", 400, {
+    if (!assessmentId && !userId) {
+      return failure("Assessment ID or User ID is required", "validation_error", 400, {
         headers: corsHeaders,
       });
     }
 
-    return success(
-      "PDF generation endpoint",
+    let query = supabase
+      .from("health_assessments")
+      .select(
+        `
+        *,
+        heart_health_inputs(*),
+        lung_health_inputs(*)
+      `
+      );
+
+    if (assessmentId) {
+      query = query.eq("id", assessmentId);
+    } else if (userId) {
+      query = query.eq("user_id", userId).order("created_at", { ascending: false });
+    }
+
+    const { data: assessments, error: fetchError } = await query;
+
+    if (fetchError) throw fetchError;
+
+    const targetAssessment = Array.isArray(assessments) ? assessments[0] : assessments;
+
+    if (!targetAssessment) {
+      return failure("Health assessment record not found", "not_found", 404, {
+        headers: corsHeaders,
+      });
+    }
+
+    // Read local real-logo.png and convert to base64 Data URI
+    let logoDataUri = "https://mediconnect.fit/real-logo.png";
+    try {
+      const fs = require("fs");
+      const path = require("path");
+      const logoPath = path.join(process.cwd(), "public", "real-logo.png");
+      if (fs.existsSync(logoPath)) {
+        const logoBuffer = fs.readFileSync(logoPath);
+        logoDataUri = `data:image/png;base64,${logoBuffer.toString("base64")}`;
+      }
+    } catch (err) {
+      console.error("Failed to load local logo for PDF:", err);
+    }
+
+    // Generate HTML based on assessment type
+    let html;
+    if (targetAssessment.assessment_type === "heart") {
+      html = buildHeartHealthHtml(targetAssessment, logoDataUri);
+    } else if (targetAssessment.assessment_type === "lung") {
+      html = buildLungHealthHtml(targetAssessment, logoDataUri);
+    } else {
+      return failure("Invalid assessment type", "validation_error", 400, {
+        headers: corsHeaders,
+      });
+    }
+
+    // Generate PDF using external API
+    const pdfResponse = await fetch(
+      "https://argosmob.uk/dhillon/public/api/v1/pdf/generate-pdf",
       {
-        message: "Use POST method to generate PDF from health assessments",
-        parameters: {
-          user_id: "required",
-          assessment_id: "optional (uses latest if not provided)",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        supported_types: ["heart", "lung"],
-        pdf_endpoint:
-          "https://argosmob.uk/dhillon/public/api/v1/pdf/generate-pdf",
+        body: JSON.stringify({ html }),
+      }
+    );
+
+    if (!pdfResponse.ok) {
+      const errText = await pdfResponse.text();
+      throw new Error(`PDF service error: ${pdfResponse.status} — ${errText}`);
+    }
+
+    const pdfJson = await pdfResponse.json();
+
+    if (searchParams.get("redirect") === "true" && pdfJson.url) {
+      return NextResponse.redirect(pdfJson.url);
+    }
+
+    return success(
+      "PDF generated successfully",
+      {
+        url: pdfJson.url || "",
+        assessment_id: targetAssessment.id,
+        assessment_type: targetAssessment.assessment_type,
+        success: true,
+        message: `${targetAssessment.assessment_type} health PDF generated successfully.`,
       },
       200,
-      { headers: corsHeaders }
+      {
+        headers: corsHeaders,
+      }
     );
   } catch (error) {
     console.error("GET PDF Error:", error);

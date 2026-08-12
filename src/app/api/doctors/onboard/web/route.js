@@ -63,10 +63,12 @@ async function uploadFile(folder, file, doctorId) {
 
 // Helper: Parse JSON safely
 const parseJSON = (v) => {
+  if (!v) return null;
+  if (typeof v === "object") return v;
   try {
-    return v ? (typeof v === "string" ? JSON.parse(v) : v) : null;
+    return JSON.parse(v);
   } catch {
-    return null;
+    return v;
   }
 };
 

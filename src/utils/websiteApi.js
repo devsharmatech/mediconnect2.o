@@ -15,11 +15,12 @@ const apiClient = axios.create({
 // Request interceptor for API calls
 apiClient.interceptors.request.use(
   (config) => {
-    // You can add auth token here if needed
-    // const token = getTokenFromStorage();
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('authToken') || localStorage.getItem('userId') || sessionStorage.getItem('userId');
+      if (token && !config.headers.Authorization) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
     return config;
   },
   (error) => {

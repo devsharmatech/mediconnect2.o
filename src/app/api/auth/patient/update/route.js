@@ -1,137 +1,109 @@
+import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseAdmin";
-import { uploadToS3, deleteFromS3 } from "@/lib/s3";
-import { success, failure } from "@/lib/response";
-import { corsHeaders } from "@/lib/cors";
+import { uploadToS3 } from "@/lib/s3";
 
-// 🟢 Handle preflight (CORS)
-export async function OPTIONS() {
-  return new Response("OK", { headers: corsHeaders });
-}
-
-export async function PUT(req) {
+export async function PUT(request) {
   try {
-    const formData = await req.formData();
-    const user_id = formData.get("user_id");
-    const full_name = formData.get("full_name");
-    const email = formData.get("email");
-    const gender = formData.get("gender");
-    const date_of_birth = formData.get("date_of_birth");
-    const address = formData.get("address") || "";
-    const file = formData.get("profile_picture");
-    const emergency_contact = formData.get("emergency_contact");
-    const latitude = formData.get("latitude");
-    const longitude = formData.get("longitude");
+    const contentType = request.headers.get("content-type") || "";
+    let userId, full_name, email, gender, blood_group, date_of_birth, address, phone_number;
+    let profilePictureUrl = null;
 
-    // 🔸 Validate required fields
-    if (!user_id)
-      return failure("Missing required field: user_id.", null, 400, { headers: corsHeaders });
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      userId = formData.get("user_id");
+      full_name = formData.get("full_name");
+      email = formData.get("email");
+      gender = formData.get("gender");
+      blood_group = formData.get("blood_group");
+      date_of_birth = formData.get("date_of_birth");
+      address = formData.get("address");
+      phone_number = formData.get("phone_number");
 
-    const requiredFields = { full_name, email, gender, date_of_birth };
-    for (const [key, value] of Object.entries(requiredFields)) {
-      if (!value || value.trim() === "") {
-        return failure(`${key.replace("_", " ")} is required.`, null, 400, { headers: corsHeaders });
+      const file = formData.get("profile_picture");
+      if (file && typeof file === "object" && file.name) {
+        const fileBuffer = Buffer.from(await file.arrayBuffer());
+        const ext = file.name.split(".").pop() || "jpg";
+        const key = `patient-profiles/${userId || "user"}_${Date.now()}.${ext}`;
+        const uploadResult = await uploadToS3(fileBuffer, key, file.type || "image/jpeg");
+        profilePictureUrl = uploadResult.url;
       }
+    } else {
+      const body = await request.json();
+      userId = body.user_id;
+      full_name = body.full_name;
+      email = body.email;
+      gender = body.gender;
+      blood_group = body.blood_group;
+      date_of_birth = body.date_of_birth;
+      address = body.address;
+      phone_number = body.phone_number;
     }
 
-    // 📧 Email validation
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      return failure("Invalid email format.", null, 400, { headers: corsHeaders });
-
-    // 🔍 Fetch user info
-    const { data: userData, error: userFetchError } = await supabase
-      .from("users")
-      .select("id, profile_picture")
-      .eq("id", user_id)
-      .maybeSingle();
-
-    if (userFetchError) throw userFetchError;
-    if (!userData) return failure("User not found.", null, 404, { headers: corsHeaders });
-
-    // 📧 Ensure unique email
-    const { data: emailExists, error: emailCheckError } = await supabase
-      .from("patient_details")
-      .select("id")
-      .eq("email", email)
-      .neq("id", user_id)
-      .maybeSingle();
-
-    if (emailCheckError) throw emailCheckError;
-    if (emailExists)
-      return failure("Email already registered with another account.", null, 409, { headers: corsHeaders });
-
-    // 🖼️ Handle optional profile picture upload
-    let profile_picture_url = userData.profile_picture;
-
-    if (file && file.name) {
-      try {
-        // 🧹 Delete old image if exists
-        if (userData.profile_picture) {
-          const oldFile = userData.profile_picture.split("/").pop();
-          if (oldFile) {
-            await deleteFromS3(`profile-pictures/${oldFile}`);
-          }
-        }
-
-        // 📸 Upload new image
-        const ext = file.name.split(".").pop();
-        const fileName = `${user_id}_${Date.now()}.${ext}`;
-        const { url } = await uploadToS3(file, `profile-pictures/${fileName}`, file.type || "application/octet-stream");
-        profile_picture_url = url;
-      } catch (uploadError) {
-        console.error("Profile picture upload failed:", uploadError);
-        return failure("Failed to upload profile picture.", uploadError.message, 500, { headers: corsHeaders });
-      }
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, message: "User ID is required" },
+        { status: 400 }
+      );
     }
 
-    // 🧠 Upsert patient details
-    const { error: updateError } = await supabase
+    // 1. Update patient_details
+    const detailsUpdate = {
+      full_name: full_name || null,
+      email: email || null,
+      gender: gender || null,
+      blood_group: blood_group || null,
+      date_of_birth: date_of_birth || null,
+      address: address || null,
+      updated_at: new Date(),
+    };
+
+    const { error: detailsError } = await supabase
       .from("patient_details")
       .upsert({
-        id: user_id,
-        full_name,
-        email,
-        gender,
-        date_of_birth,
-        address,
-        latitude: latitude ? parseFloat(latitude) : null,
-        longitude: longitude ? parseFloat(longitude) : null,
-        emergency_contact,
-        updated_at: new Date(),
+        id: userId,
+        ...detailsUpdate,
       });
 
-    if (updateError) throw updateError;
-
-    // 🖼️ Update picture only if changed
-    if (profile_picture_url !== userData.profile_picture) {
-      const { error: userUpdateError } = await supabase
-        .from("users")
-        .update({
-          profile_picture: profile_picture_url,
-          updated_at: new Date(),
-        })
-        .eq("id", user_id);
-
-      if (userUpdateError) throw userUpdateError;
+    if (detailsError) {
+      console.error("Error updating patient_details:", detailsError);
+      throw detailsError;
     }
 
-    // ✅ Return final data
-    return success(
-      "Profile updated successfully.",
-      {
-        user_id,
+    // 2. Update users table (if profile picture or phone updated)
+    const userUpdate = { updated_at: new Date() };
+    if (phone_number) userUpdate.phone_number = phone_number.replace(/\D/g, "").slice(-10);
+    if (profilePictureUrl) userUpdate.profile_picture = profilePictureUrl;
+
+    try {
+      await supabase
+        .from("users")
+        .update(userUpdate)
+        .eq("id", userId);
+    } catch (uErr) {
+      console.warn("Notice updating users table:", uErr?.message);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Patient profile updated successfully",
+      data: {
+        user_id: userId,
         full_name,
         email,
         gender,
+        blood_group,
         date_of_birth,
         address,
-        emergency_contact,
-        profile_picture: profile_picture_url,
+        phone_number,
+        profile_picture: profilePictureUrl,
       },
-      200,
-      { headers: corsHeaders }
-    );
+    });
+
   } catch (error) {
-    console.error("Profile update error:", error);
-    return failure("Unexpected server error occurred.", error.message, 500, { headers: corsHeaders });
+    console.error("Patient profile update route error:", error);
+    return NextResponse.json(
+      { success: false, message: error.message || "Failed to update profile details" },
+      { status: 500 }
+    );
   }
 }

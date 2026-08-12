@@ -69,8 +69,16 @@ const PatientHeader = ({ user, onMenuClick }) => {
   const [modalLoading, setModalLoading] = useState(false);
   const [activeCallAppointmentId, setActiveCallAppointmentId] = useState(null);
   const [showActiveCallBanner, setShowActiveCallBanner] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const profileRef = useRef(null);
   const notificationRef = useRef(null);
+
+  const handleGlobalSearch = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/website/doctors?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -503,16 +511,6 @@ const PatientHeader = ({ user, onMenuClick }) => {
           >
             <FaBars className="w-5 h-5 text-gray-600" />
           </button>
-
-          {/* Search Bar */}
-          <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-xl w-80">
-            <FaSearch className="w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search doctors, appointments..."
-              className="bg-transparent border-none outline-none text-sm text-gray-700 w-full placeholder-gray-400"
-            />
-          </div>
         </div>
 
         {/* Right Section */}

@@ -3,7 +3,6 @@ import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { sendOTPViaGateway } from "@/lib/sms";
 
-
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
@@ -17,26 +16,59 @@ export async function POST(req) {
       return failure("Phone number and full name are required.", null, 400, { headers: corsHeaders });
     }
 
-    const phoneRegex = /^[0-9]{10,15}$/;
-    if (!phoneRegex.test(phone_number)) {
-      return failure("Invalid phone number format.", null, 400, { headers: corsHeaders });
+    const cleanPhone = phone_number.replace(/\D/g, "").slice(-10);
+    if (!/^[0-9]{10}$/.test(cleanPhone)) {
+      return failure("Invalid phone number format. Please enter a 10-digit mobile number.", null, 400, { headers: corsHeaders });
     }
 
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return failure("Invalid email format.", null, 400, { headers: corsHeaders });
     }
 
+    // Check if user already exists
     const { data: phoneExists, error: phoneError } = await supabase
       .from("users")
-      .select("id")
-      .eq("phone_number", phone_number)
+      .select("id, is_verified, phone_number, role")
+      .like("phone_number", `%${cleanPhone}%`)
       .maybeSingle();
 
     if (phoneError) throw phoneError;
+
     if (phoneExists) {
-      return failure("Phone number already registered.", null, 409, { headers: corsHeaders });
+      // User exists — check verification status
+      if (phoneExists.is_verified) {
+        return failure("This phone number is already registered and verified. Please log in using OTP.", null, 409, { headers: corsHeaders });
+      }
+
+      // User exists but is UNVERIFIED — update details & send new OTP to complete verification
+      await supabase
+        .from("patient_details")
+        .upsert({
+          id: phoneExists.id,
+          full_name,
+          email: email || null,
+          gender: gender || null,
+          date_of_birth: date_of_birth || null,
+          address: address || null,
+          updated_at: new Date(),
+        });
+
+      // Send fresh OTP to complete registration verification
+      await sendOTPViaGateway(phoneExists.id, phoneExists.phone_number);
+
+      return success(
+        "Account pending verification. OTP sent to your registered phone number.",
+        {
+          user_id: phoneExists.id,
+          phone_number: phoneExists.phone_number,
+          role: phoneExists.role || "patient",
+        },
+        200,
+        { headers: corsHeaders }
+      );
     }
 
+    // Email duplicate check for new user
     if (email) {
       const { data: emailExists, error: emailError } = await supabase
         .from("patient_details")
@@ -46,15 +78,16 @@ export async function POST(req) {
 
       if (emailError) throw emailError;
       if (emailExists) {
-        return failure("Email already registered.", null, 409, { headers: corsHeaders });
+        return failure("Email address already registered.", null, 409, { headers: corsHeaders });
       }
     }
 
+    // Create new unverified user
     const { data: user, error: userError } = await supabase
       .from("users")
       .insert([
         {
-          phone_number,
+          phone_number: cleanPhone,
           role: "patient",
           is_verified: false,
           created_at: new Date(),
@@ -81,12 +114,13 @@ export async function POST(req) {
       throw detailsError;
     }
 
-    // Send real OTP via gateway (OTP saved to DB regardless of SMS success)
-    await sendOTPViaGateway(user.id, phone_number);
+    // Send real OTP via SMS gateway
+    await sendOTPViaGateway(user.id, user.phone_number);
 
     return success(
-      "Registration successful. Use the OTP sent to your phone number for verification.",
+      "Registration successful. Please enter the OTP sent to your phone number to complete verification.",
       {
+        user_id: user.id,
         phone_number: user.phone_number,
         role: user.role,
       },
