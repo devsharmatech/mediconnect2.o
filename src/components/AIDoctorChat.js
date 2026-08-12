@@ -756,11 +756,15 @@ const AIDoctorChat = () => {
             sender: "ai",
           };
           setMessages((prev) => [...prev, aiMessage]);
+        } else if (data.message) {
+          const aiMessage = {
+            id: Date.now() + 2,
+            text: data.message,
+            sender: "ai",
+          };
+          setMessages((prev) => [...prev, aiMessage]);
         } else {
-          throw new Error(
-            data.message ||
-              "Failed to start health screening. Please try again.",
-          );
+          throw new Error("Failed to start health screening. Please try again.");
         }
       } else {
         // Subsequent messages: answer flow
@@ -784,6 +788,16 @@ const AIDoctorChat = () => {
             text:
               data.message ||
               "Could you please clarify your previous answer a bit more?",
+            sender: "ai",
+          };
+          setMessages((prev) => [...prev, aiMessage]);
+          return;
+        }
+
+        if (!data.status && data.message) {
+          const aiMessage = {
+            id: Date.now() + 2,
+            text: data.message,
             sender: "ai",
           };
           setMessages((prev) => [...prev, aiMessage]);

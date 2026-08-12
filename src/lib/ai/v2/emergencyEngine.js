@@ -8,7 +8,9 @@ import { AI_CONFIG } from "./config";
 
 // List of high-priority emergency phrases and patterns
 const EMERGENCY_KEYWORDS = [
-    "chest pain",
+    "crushing chest pain",
+    "severe chest pain",
+    "chest pain radiating",
     "heart attack",
     "severe breathlessness",
     "can't breathe",
@@ -30,7 +32,6 @@ const EMERGENCY_KEYWORDS = [
     "end my life",
     "overdose",
     "poison",
-    "crushing pain in chest",
 ];
 
 // Compile regex for faster matching (case-insensitive)
