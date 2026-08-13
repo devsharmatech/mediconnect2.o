@@ -25,9 +25,11 @@ export const supabase = {
     return realSupabase.storage;
   },
   from(tableName) {
+    // Default to AWS RDS PostgreSQL
     return new SupabasePostgresQueryBuilder(tableName, sql);
   },
   rpc(funcName, params) {
+    // Default to AWS RDS PostgreSQL
     return new SupabasePostgresRpcBuilder(funcName, params, sql);
   }
 };
