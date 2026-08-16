@@ -1258,7 +1258,17 @@ export default function DigitalLockerPage() {
               {viewingDoc.document_url?.match(/\.(jpeg|jpg|png|webp|gif)/i) ? (
                 <img src={viewingDoc.document_url} alt={viewingDoc.document_name} className="max-w-full max-h-[70vh] object-contain rounded-xl shadow" />
               ) : (
-                <iframe src={viewingDoc.document_url} title={viewingDoc.document_name} className="w-full h-[65vh] rounded-xl border-none" />
+                <object
+                  data={viewingDoc.document_url}
+                  type="application/pdf"
+                  className="w-full h-[65vh] rounded-xl border-none"
+                >
+                  <iframe
+                    src={`https://docs.google.com/gview?url=${encodeURIComponent(viewingDoc.document_url)}&embedded=true`}
+                    title={viewingDoc.document_name}
+                    className="w-full h-[65vh] rounded-xl border-none"
+                  />
+                </object>
               )}
             </div>
             <div className="px-6 py-3 bg-white border-t border-gray-100 flex justify-between items-center">

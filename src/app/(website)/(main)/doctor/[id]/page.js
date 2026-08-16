@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   FaUserMd,
@@ -14,7 +14,9 @@ import {
   FaHome,
   FaInfoCircle,
   FaShieldAlt,
+  FaGraduationCap,
 } from "react-icons/fa";
+import { getDoctorDetailsAction, checkDoctorDiscountAction, getDoctorSlotsAction } from "./actions";
 import { loadRazorpayScript } from "@/lib/razorpay";
 import { LoadingScreen } from "@/components/public-site/ui/LoadingStates";
 import ConsentGate from "@/components/public-site/auth/ConsentGate";
@@ -46,6 +48,95 @@ const normalizeSpecialty = (value) => {
   return String(value);
 };
 
+function DoctorProfileSkeleton() {
+  return (
+    <div className="animate-pulse space-y-6">
+      {/* Summary Header Panel Skeleton */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row items-center md:items-start gap-5">
+        <div className="h-28 w-28 md:h-32 md:w-32 rounded-lg bg-slate-200 shrink-0"></div>
+        <div className="flex-1 space-y-3 text-center md:text-left w-full">
+          <div className="h-6 bg-slate-200 rounded w-48 mx-auto md:mx-0"></div>
+          <div className="h-4 bg-slate-200 rounded w-32 mx-auto md:mx-0"></div>
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-1">
+            <div className="h-7 bg-slate-200 rounded w-36"></div>
+            <div className="h-7 bg-slate-200 rounded w-24"></div>
+            <div className="h-7 bg-slate-200 rounded w-28"></div>
+          </div>
+        </div>
+      </div>
+
+      {/* 2-Column Main Layout Skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column Skeleton */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="flex border-b border-slate-200 bg-slate-50">
+              <div className="flex-1 py-3.5 px-4"><div className="h-4 bg-slate-200 rounded w-28 mx-auto"></div></div>
+              <div className="flex-1 py-3.5 px-4"><div className="h-4 bg-slate-200 rounded w-28 mx-auto"></div></div>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="space-y-2">
+                <div className="h-4 bg-slate-200 rounded w-24"></div>
+                <div className="h-3 bg-slate-200 rounded w-full"></div>
+                <div className="h-3 bg-slate-200 rounded w-5/6"></div>
+                <div className="h-3 bg-slate-200 rounded w-3/4"></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="h-28 bg-slate-100 rounded-lg p-4 space-y-2 border border-slate-200">
+                  <div className="h-4 bg-slate-200 rounded w-20"></div>
+                  <div className="h-3 bg-slate-200 rounded w-32"></div>
+                  <div className="h-3 bg-slate-200 rounded w-28"></div>
+                </div>
+                <div className="h-28 bg-slate-100 rounded-lg p-4 space-y-2 border border-slate-200">
+                  <div className="h-4 bg-slate-200 rounded w-24"></div>
+                  <div className="h-3 bg-slate-200 rounded w-36"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column Skeleton */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-5">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+              <div className="space-y-1">
+                <div className="h-3 bg-slate-200 rounded w-24"></div>
+                <div className="h-6 bg-slate-200 rounded w-16"></div>
+              </div>
+              <div className="h-6 bg-slate-200 rounded w-20"></div>
+            </div>
+            <div className="space-y-2">
+              <div className="h-3 bg-slate-200 rounded w-28"></div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="h-10 bg-slate-200 rounded-lg"></div>
+                <div className="h-10 bg-slate-200 rounded-lg"></div>
+                <div className="h-10 bg-slate-200 rounded-lg"></div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="h-3 bg-slate-200 rounded w-24"></div>
+              <div className="h-9 bg-slate-200 rounded-lg"></div>
+            </div>
+            <div className="space-y-2">
+              <div className="h-3 bg-slate-200 rounded w-32"></div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="h-8 bg-slate-200 rounded-lg"></div>
+                <div className="h-8 bg-slate-200 rounded-lg"></div>
+                <div className="h-8 bg-slate-200 rounded-lg"></div>
+                <div className="h-8 bg-slate-200 rounded-lg"></div>
+                <div className="h-8 bg-slate-200 rounded-lg"></div>
+                <div className="h-8 bg-slate-200 rounded-lg"></div>
+              </div>
+            </div>
+            <div className="h-11 bg-slate-200 rounded-lg w-full"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DoctorProfilePage() {
   const params = useParams();
   const router = useRouter();
@@ -75,15 +166,18 @@ export default function DoctorProfilePage() {
       const patientId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
       if (!patientId || !doctorId) return;
       try {
-        const res = await fetch(`/api/doctors/check-discount?patient_id=${patientId}&doctor_id=${doctorId}&appointment_type=${appointmentType}`);
-        const json = await res.json();
-        if (json.success && json.data) {
-          setDiscountDetails(json.data);
+        const res = await checkDoctorDiscountAction({
+          patient_id: patientId,
+          doctor_id: doctorId,
+          appointment_type: appointmentType,
+        });
+        if (res.success && res.data) {
+          setDiscountDetails(res.data);
         } else {
           setDiscountDetails(null);
         }
       } catch (err) {
-        console.warn("Failed to check discount:", err);
+        console.warn("Failed to check discount via Server Action:", err);
       }
     };
     fetchDiscount();
@@ -122,11 +216,10 @@ export default function DoctorProfilePage() {
       try {
         setLoading(true);
         setError("");
-        const res = await fetch(`/api/doctors/${doctorId}`);
-        const json = await res.json();
-        if (!json.success)
-          throw new Error(json.error || "Failed to load doctor");
-        setDoctor(json.data);
+        const res = await getDoctorDetailsAction(doctorId);
+        if (!res.success)
+          throw new Error(res.error || "Failed to load doctor");
+        setDoctor(res.data);
       } catch (e) {
         console.error("Doctor profile error:", e);
         setError(e.message || "Failed to load doctor");
@@ -147,23 +240,18 @@ export default function DoctorProfilePage() {
         setSlots([]);
         setSelectedSlot(null);
 
-        const res = await fetch("/api/doctors/slots", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            doctor_id: doctorId,
-            date: selectedDate,
-            appointment_type: appointmentType,
-          }),
+        const res = await getDoctorSlotsAction({
+          doctor_id: doctorId,
+          date: selectedDate,
+          appointment_type: appointmentType,
         });
 
-        const json = await res.json();
-        if (!json.success)
-          throw new Error(json.message || "Failed to fetch slots");
-        setSlots(Array.isArray(json.data) ? json.data : []);
+        if (!res.success)
+          throw new Error(res.error || "Failed to fetch slots");
+        setSlots(Array.isArray(res.data) ? res.data : []);
       } catch (e) {
         console.error("Doctor slots error:", e);
-        setError(e.message || "Failed to load slots");
+        setError(e.message || "Failed to fetch slots");
       } finally {
         setSlotsLoading(false);
       }
@@ -490,143 +578,148 @@ export default function DoctorProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-12">
-      {/* Hero Header */}
-      <div className="bg-gradient-to-r from-[#0067A1] to-[#136f68] pt-6 pb-32 text-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-6">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center text-white/80 hover:text-white transition-colors text-sm"
-            >
-              ← Back to Doctors
-            </button>
-          </div>
-
-          {!loading && !error && doctor && (
-            <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
-              <div className="relative">
-                <div className="h-32 w-32 md:h-40 md:w-40 rounded-full border-4 border-white/20 shadow-xl overflow-hidden bg-white">
-                  <img
-                    src={profileImage}
-                    alt={fullName}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-                <div className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-green-500 shadow-md">
-                  <FaCheckCircle className="h-4 w-4 text-white" />
-                </div>
-              </div>
-
-              <div className="text-center md:text-left flex-1">
-                <h1 className="text-3xl md:text-4xl font-bold mb-2">
-                  {fullName}
-                </h1>
-                <p className="text-xl text-white/90 font-medium mb-4">
-                  {specialty}
-                </p>
-
-                <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm text-white/80">
-                  <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">
-                    <FaMapMarkerAlt /> {clinic}
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">
-                    <FaClock /> {experience} Exp.
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full backdrop-blur-sm">
-                    <FaStar className="text-yellow-400" />{" "}
-                    {rating > 0 ? rating.toFixed(1) : "New"} ({reviews} Reviews)
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+    <div className="min-h-screen bg-slate-50 pb-12">
+      {/* Top Header Navigation */}
+      <div className="bg-white border-b border-slate-200 py-3.5 px-4 sm:px-6 lg:px-8 shadow-2xs">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-1.5 text-xs font-semibold text-[#0067A1] hover:text-[#004F7C] transition-colors"
+          >
+            ← Back to Doctors
+          </button>
+          <span className="text-xs font-semibold text-slate-500">Doctor Profile</span>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Doctor Summary Header Panel */}
+        {!loading && !error && doctor && (
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row items-center md:items-start gap-5">
+            <div className="relative shrink-0">
+              <div className="h-28 w-28 md:h-32 md:w-32 rounded-lg border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
+                <img
+                  src={profileImage}
+                  alt={fullName}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-xs">
+                <FaCheckCircle className="h-4 w-4 text-emerald-500" />
+              </div>
+            </div>
+
+            <div className="flex-1 text-center md:text-left">
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-1">
+                <h1 className="text-xl md:text-2xl font-bold text-slate-900">
+                  {fullName}
+                </h1>
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200/60">
+                  <FaShieldAlt className="w-3 h-3 text-emerald-500" /> DMC Verified
+                </span>
+              </div>
+              
+              <p className="text-sm font-semibold text-[#0067A1] mb-3">
+                {specialty}
+              </p>
+
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-xs text-slate-600">
+                <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
+                  <FaMapMarkerAlt className="text-[#0067A1]" /> <span>{clinic}</span>
+                </div>
+                <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
+                  <FaClock className="text-[#0067A1]" /> <span>{experience} Exp.</span>
+                </div>
+                <div className="flex items-center gap-1.5 bg-amber-50 px-2.5 py-1 rounded border border-amber-200/60 font-semibold text-amber-800">
+                  <FaStar className="text-amber-500" /> 
+                  <span>{rating > 0 ? rating.toFixed(1) : "New"}</span>
+                  {reviews > 0 && <span className="font-normal text-amber-700">({reviews} Reviews)</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {loading ? (
-          <LoadingScreen
-            message="Loading doctor profile..."
-            submessage="Fetching availability"
-          />
+          <DoctorProfileSkeleton />
         ) : error ? (
-          <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
-            <p className="text-red-500">{error}</p>
+          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+            <p className="text-red-500 font-medium text-sm">{error}</p>
           </div>
         ) : !doctor ? (
-          <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
-            <p className="text-gray-500">Doctor not found.</p>
+          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+            <p className="text-slate-500 text-sm">Doctor not found.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Content */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column Content */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Tabs */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="flex border-b border-gray-100">
+              {/* Navigation Tabs */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+                <div className="flex border-b border-slate-200 bg-slate-50/50">
                   <button
                     onClick={() => setActiveTab("overview")}
-                    className={`flex-1 py-4 text-sm font-medium text-center transition-colors ${
+                    className={`flex-1 py-3 text-xs font-bold text-center transition-colors ${
                       activeTab === "overview"
-                        ? "text-[#0067A1] border-b-2 border-[#0067A1] bg-[#f0fdfa]"
-                        : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                        ? "text-[#0067A1] border-b-2 border-[#0067A1] bg-white"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/50"
                     }`}
                   >
-                    Overview
+                    Overview & Details
                   </button>
                   <button
                     onClick={() => setActiveTab("reviews")}
-                    className={`flex-1 py-4 text-sm font-medium text-center transition-colors ${
+                    className={`flex-1 py-3 text-xs font-bold text-center transition-colors ${
                       activeTab === "reviews"
-                        ? "text-[#0067A1] border-b-2 border-[#0067A1] bg-[#f0fdfa]"
-                        : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                        ? "text-[#0067A1] border-b-2 border-[#0067A1] bg-white"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/50"
                     }`}
                   >
-                    Reviews
+                    Patient Reviews
                   </button>
                 </div>
 
-                <div className="p-6 md:p-8">
+                <div className="p-5 md:p-6">
                   {activeTab === "overview" ? (
                     <div className="space-y-6">
                       <div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
-                          <FaInfoCircle className="text-[#0067A1]" /> About
+                        <h3 className="text-sm font-bold text-slate-900 mb-2 flex items-center gap-2">
+                          <FaInfoCircle className="text-[#0067A1]" /> About Doctor
                         </h3>
-                        <p className="text-gray-600 leading-relaxed text-sm md:text-base">
+                        <p className="text-slate-600 leading-relaxed text-xs md:text-sm">
                           {details.about ||
-                            `${fullName} is a highly skilled ${specialty} with over ${experience} years of experience in ${clinic}. Requires appointment for consultation.`}
+                            `${fullName} is a registered ${specialty} with over ${experience} years of experience practicing at ${clinic}. Provides dedicated medical consultations and patient care.`}
                         </p>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-gray-50 p-4 rounded-xl">
-                          <h4 className="font-semibold text-gray-900 mb-2">
-                            Services
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200/80">
+                          <h4 className="font-bold text-xs text-slate-800 mb-2 uppercase tracking-wider">
+                            Services Provided
                           </h4>
-                          <ul className="space-y-2 text-sm text-gray-600">
+                          <ul className="space-y-1.5 text-xs text-slate-600">
                             <li className="flex items-center gap-2">
-                              <div className="h-1.5 w-1.5 rounded-full bg-[#0067A1]"></div>{" "}
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#0067A1]"></span>
                               General Consultation
                             </li>
                             <li className="flex items-center gap-2">
-                              <div className="h-1.5 w-1.5 rounded-full bg-[#0067A1]"></div>{" "}
-                              Follow-up Visits
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#0067A1]"></span>
+                              Follow-up & Prescription Reviews
                             </li>
                             <li className="flex items-center gap-2">
-                              <div className="h-1.5 w-1.5 rounded-full bg-[#0067A1]"></div>{" "}
-                              Preventive Care
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#0067A1]"></span>
+                              Preventive Healthcare
                             </li>
                           </ul>
                         </div>
-                        <div className="bg-gray-50 p-4 rounded-xl">
-                          <h4 className="font-semibold text-gray-900 mb-2">
+
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200/80">
+                          <h4 className="font-bold text-xs text-slate-800 mb-2 uppercase tracking-wider">
                             Specializations
                           </h4>
-                          <ul className="space-y-2 text-sm text-gray-600">
+                          <ul className="space-y-1.5 text-xs text-slate-600">
                             <li className="flex items-center gap-2">
-                              <div className="h-1.5 w-1.5 rounded-full bg-[#0067A1]"></div>{" "}
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#0067A1]"></span>
                               {specialty}
                             </li>
                           </ul>
@@ -634,17 +727,17 @@ export default function DoctorProfilePage() {
                       </div>
 
                       {qualifications.length > 0 && (
-                        <div className="mt-6 bg-gray-50 p-4 rounded-xl">
-                          <h4 className="font-semibold text-gray-900 mb-2">
-                            Qualifications
+                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200/80">
+                          <h4 className="font-bold text-xs text-slate-800 mb-2 uppercase tracking-wider">
+                            Qualifications & Degrees
                           </h4>
                           <div className="flex flex-wrap gap-2">
                             {qualifications.map((qual, idx) => (
                               <span
                                 key={idx}
-                                className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-gray-200 text-[#0067A1]"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs"
                               >
-                                🎓 {qual}
+                                <FaGraduationCap className="w-3.5 h-3.5 text-[#0067A1]" /> {qual}
                               </span>
                             ))}
                           </div>
@@ -652,15 +745,13 @@ export default function DoctorProfilePage() {
                       )}
                     </div>
                   ) : (
-                    <div className="text-center py-12">
-                      <div className="bg-gray-50 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <FaStar className="h-8 w-8 text-yellow-400" />
-                      </div>
-                      <h3 className="text-lg font-bold text-gray-900 mb-2">
+                    <div className="text-center py-10">
+                      <FaStar className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                      <h3 className="text-sm font-bold text-slate-800 mb-1">
                         Patient Reviews
                       </h3>
-                      <p className="text-gray-500">
-                        No reviews available specifically for this profile yet.
+                      <p className="text-xs text-slate-500">
+                        No patient reviews published yet for this doctor profile.
                       </p>
                     </div>
                   )}
@@ -668,253 +759,248 @@ export default function DoctorProfilePage() {
               </div>
             </div>
 
-            {/* Right: Booking Card (Sticky) */}
+            {/* Right Column: Appointment Booking Panel */}
             <div className="lg:col-span-1">
-              <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.06)] border border-gray-100 p-6 sticky top-24">
-                <div className="flex items-center justify-between mb-6 pb-6 border-b border-gray-100">
+              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-5">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                   <div>
-                    <p className="text-sm text-gray-500 mb-1">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
                       Consultation Fee
-                    </p>
+                    </span>
                     {discountDetails?.is_discount_applicable ? (
-                      <div className="space-y-1">
+                      <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
-                          <p className="text-2xl font-bold text-[#0067A1]">
+                          <span className="text-xl font-bold text-[#0067A1]">
                             ₹{discountDetails.discounted_fee}
-                          </p>
-                          <p className="text-sm text-gray-400 line-through">
+                          </span>
+                          <span className="text-xs text-slate-400 line-through">
                             ₹{discountDetails.original_fee}
-                          </p>
+                          </span>
                         </div>
-                        <span className="inline-block text-[10px] bg-teal-50 text-[#004F7C] font-semibold px-2 py-0.5 rounded">
-                          🏷️ 2nd Booking Discount!
+                        <span className="inline-block text-[10px] bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded border border-emerald-200/60">
+                          2nd Booking Discount Applied
                         </span>
                       </div>
                     ) : fee > 0 ? (
-                      <p className="text-2xl font-bold text-[#0067A1]">
+                      <span className="text-xl font-bold text-slate-900">
                         ₹{fee}
-                      </p>
+                      </span>
                     ) : (
-                      <p className="text-xl font-bold text-green-600">Free</p>
+                      <span className="text-lg font-bold text-emerald-600">Free</span>
                     )}
                   </div>
-                  <div className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
-                    <FaShieldAlt /> DMC Specialist
+                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1">
+                    <FaShieldAlt className="w-3 h-3 text-emerald-500" /> Verified
+                  </span>
+                </div>
+
+                {/* Consultation Mode Selection */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                    Consultation Mode
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      {
+                        id: "video_consultation",
+                        icon: <FaVideo className="w-3.5 h-3.5" />,
+                        label: "Video",
+                      },
+                      {
+                        id: "clinic_visit",
+                        icon: <FaClinicMedical className="w-3.5 h-3.5" />,
+                        label: "Clinic",
+                      },
+                      { id: "home_visit", icon: <FaHome className="w-3.5 h-3.5" />, label: "Home" },
+                    ].map((type) => (
+                      <button
+                        key={type.id}
+                        type="button"
+                        onClick={() => setAppointmentType(type.id)}
+                        className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-xs font-semibold transition-colors ${
+                          appointmentType === type.id
+                            ? "border-[#0067A1] bg-[#0067A1] text-white shadow-2xs"
+                            : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span className="mb-1">{type.icon}</span>
+                        <span className="text-[11px]">{type.label}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                <div className="space-y-6">
-                  {/* Appointment Type */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-                      Mode
+                {/* Multiple Clinics Dropdown */}
+                {appointmentType === "clinic_visit" && (details.meta?.additional_clinics || []).length > 0 && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                      Clinic Location
                     </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        {
-                          id: "video_consultation",
-                          icon: <FaVideo />,
-                          label: "Video",
-                        },
-                        {
-                          id: "clinic_visit",
-                          icon: <FaClinicMedical />,
-                          label: "Clinic",
-                        },
-                        { id: "home_visit", icon: <FaHome />, label: "Home" },
-                      ].map((type) => (
-                        <button
-                          key={type.id}
-                          onClick={() => setAppointmentType(type.id)}
-                          className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${
-                            appointmentType === type.id
-                              ? "border-[#0067A1] bg-[#0067A1] text-white shadow-md transform scale-105"
-                              : "border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
-                          }`}
-                        >
-                          <span className="mb-1 text-lg">{type.icon}</span>
-                          <span className="text-[10px] font-medium">
-                            {type.label}
-                          </span>
-                        </button>
+                    <select
+                      value={selectedClinicIndex}
+                      onChange={(e) => setSelectedClinicIndex(parseInt(e.target.value, 10))}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50 text-slate-800 font-medium focus:outline-none focus:border-[#0067A1]"
+                    >
+                      <option value={0}>{details.clinic_name || "Primary Clinic"} ({details.clinic_address})</option>
+                      {(details.meta.additional_clinics).map((c, cIdx) => (
+                        <option key={cIdx + 1} value={cIdx + 1}>
+                          {c.name || `Branch ${cIdx + 2}`} ({c.address})
+                        </option>
                       ))}
-                    </div>
+                    </select>
                   </div>
+                )}
 
-                  {appointmentType === "clinic_visit" && (details.meta?.additional_clinics || []).length > 0 && (
-                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                      <label className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-                        Clinic Location
-                      </label>
-                      <select
-                        value={selectedClinicIndex}
-                        onChange={(e) => setSelectedClinicIndex(parseInt(e.target.value, 10))}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] text-gray-700 font-medium cursor-pointer"
-                      >
-                        <option value={0}>{details.clinic_name || "Primary Clinic"} ({details.clinic_address})</option>
-                        {(details.meta.additional_clinics).map((c, cIdx) => (
-                          <option key={cIdx + 1} value={cIdx + 1}>
-                            {c.name || `Branch ${cIdx + 2}`} ({c.address})
-                          </option>
-                        ))}
-                      </select>
+                {/* Date Picker */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                    <span>Consultation Date</span>
+                    <span className="text-[10px] font-semibold text-[#0067A1]">
+                      {selectedDate}
+                    </span>
+                  </label>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    min={todayStr}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:border-[#0067A1]"
+                  />
+                </div>
+
+                {/* Available Slots */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                    Available Time Slots
+                  </label>
+                  {slotsLoading ? (
+                    <div className="text-center py-4">
+                      <div className="animate-spin h-5 w-5 border-2 border-[#0067A1] border-t-transparent rounded-full mx-auto"></div>
+                    </div>
+                  ) : slots.length === 0 ? (
+                    <div className="text-center py-5 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="text-xs text-slate-500 font-medium">
+                        No slots available for this date.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2 max-h-44 overflow-y-auto hide-scrollbar p-0.5">
+                      {slots.map((slot) => {
+                        const isBooked =
+                          slot.slot_booked ||
+                          [
+                            "booked",
+                            "approved",
+                            "completed",
+                            "freezed",
+                          ].includes(slot.status);
+                        const rawTime = slot.time?.slice(0, 5) || slot.time;
+                        const [hStr, mStr] = (rawTime || "").split(":");
+                        const hNum = parseInt(hStr || "", 10);
+                        const suffix =
+                          !Number.isNaN(hNum) && hNum >= 12 ? "PM" : "AM";
+                        const displayHour = !Number.isNaN(hNum)
+                          ? ((hNum + 11) % 12) + 1
+                          : rawTime;
+                        const label = `${displayHour}:${mStr} ${suffix}`;
+                        const isPast = isPastSlot(selectedDate, rawTime);
+                        const disabled = isBooked || isPast;
+                        const isSelected = selectedSlot === rawTime;
+
+                        return (
+                          <button
+                            key={slot.time}
+                            disabled={disabled}
+                            onClick={() => setSelectedSlot(rawTime)}
+                            className={`text-[11px] py-2 px-1 rounded-lg border font-semibold transition-colors ${
+                              disabled
+                                ? "bg-slate-100 text-slate-300 border-transparent cursor-not-allowed"
+                                : isSelected
+                                  ? "bg-[#0067A1] text-white border-[#0067A1] shadow-2xs"
+                                  : "bg-slate-50 text-slate-700 border-slate-200 hover:border-[#0067A1] hover:bg-slate-100"
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
+                </div>
 
-                  {/* Date Selection */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wide flex items-center justify-between">
-                      <span>Date</span>
-                      <span className="text-[10px] font-normal text-gray-400">
-                        {selectedDate}
-                      </span>
-                    </label>
+                {/* DPDP Consents */}
+                <div className="space-y-2 pt-1 border-t border-slate-100">
+                  <div className="flex items-start gap-2.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
                     <input
-                      type="date"
-                      value={selectedDate}
-                      min={todayStr}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all"
-                    />
-                  </div>
-
-                  {/* Slots */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-                      Time Slots
-                    </label>
-                    {slotsLoading ? (
-                      <div className="text-center py-4">
-                        <div className="animate-spin h-5 w-5 border-2 border-[#0067A1] border-t-transparent rounded-full mx-auto"></div>
-                      </div>
-                    ) : slots.length === 0 ? (
-                      <div className="text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                        <p className="text-xs text-gray-500">
-                          No slots available.
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
-                        {slots.map((slot) => {
-                          const isBooked =
-                            slot.slot_booked ||
-                            [
-                              "booked",
-                              "approved",
-                              "completed",
-                              "freezed",
-                            ].includes(slot.status);
-                          const rawTime = slot.time?.slice(0, 5) || slot.time;
-                          const [hStr, mStr] = (rawTime || "").split(":");
-                          const hNum = parseInt(hStr || "", 10);
-                          const suffix =
-                            !Number.isNaN(hNum) && hNum >= 12 ? "PM" : "AM";
-                          const displayHour = !Number.isNaN(hNum)
-                            ? ((hNum + 11) % 12) + 1
-                            : rawTime;
-                          const label = `${displayHour}:${mStr} ${suffix}`;
-                          const isPast = isPastSlot(selectedDate, rawTime);
-                          const disabled = isBooked || isPast;
-                          const isSelected = selectedSlot === rawTime;
-
-                          return (
-                            <button
-                              key={slot.time}
-                              disabled={disabled}
-                              onClick={() => setSelectedSlot(rawTime)}
-                              className={`text-[11px] px-1 py-2 rounded-lg border transition-all ${
-                                disabled
-                                  ? "bg-gray-100 text-gray-300 border-transparent cursor-not-allowed"
-                                  : isSelected
-                                    ? "bg-[#0067A1] text-white border-[#0067A1] font-medium shadow-md"
-                                    : "bg-white text-gray-700 border-gray-200 hover:border-[#0067A1] hover:bg-emerald-50"
-                              }`}
-                            >
-                              {label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* DPDP Consents */}
-                  <div className="space-y-3 pt-2">
-                    <div className="flex items-start gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
-                      <input
-                        type="checkbox"
-                        id="dataSharing"
-                        checked={dataSharingConsent}
-                        onChange={(e) =>
-                          setDataSharingConsent(e.target.checked)
-                        }
-                        className="mt-1 h-4 w-4 rounded border-gray-300 text-[#0067A1] focus:ring-[#0067A1]"
-                      />
-                      <label
-                        htmlFor="dataSharing"
-                        className="text-xs text-gray-600 leading-relaxed cursor-pointer"
-                      >
-                        I consent to the sharing of my medical data with this
-                        doctor and the MediConnect platform for the purpose of
-                        clinical assessment and treatment as per the DPDP Act
-                        2023.
-                      </label>
-                    </div>
-                    <div className="flex items-start gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
-                      <input
-                        type="checkbox"
-                        id="teleconsult"
-                        checked={teleconsultConsent}
-                        onChange={(e) =>
-                          setTeleconsultConsent(e.target.checked)
-                        }
-                        className="mt-1 h-4 w-4 rounded border-gray-300 text-[#0067A1] focus:ring-[#0067A1]"
-                      />
-                      <label
-                        htmlFor="teleconsult"
-                        className="text-xs text-gray-600 leading-relaxed cursor-pointer"
-                      >
-                        I agree to the Telemedicine Guidelines (2020) and
-                        understand that digital consultations have clinical
-                        limitations compared to physical examinations.
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Submit */}
-                  <div className="pt-2">
-                    {error && (
-                      <p className="text-xs text-red-500 mb-3 text-center bg-red-50 p-2 rounded-lg">
-                        {error}
-                      </p>
-                    )}
-
-                    <button
-                      onClick={handleBook}
-                      disabled={
-                        booking ||
-                        !selectedSlot ||
-                        !dataSharingConsent ||
-                        !teleconsultConsent
+                      type="checkbox"
+                      id="dataSharing"
+                      checked={dataSharingConsent}
+                      onChange={(e) =>
+                        setDataSharingConsent(e.target.checked)
                       }
-                      className="w-full bg-[#0067A1] text-white py-3.5 rounded-xl font-bold shadow-lg shadow-[#0067A1]/30 hover:bg-[#09403c] hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none flex items-center justify-center gap-2"
+                      className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1]"
+                    />
+                    <label
+                      htmlFor="dataSharing"
+                      className="text-[11px] text-slate-600 leading-normal cursor-pointer"
                     >
-                      {booking ? (
-                        <>
-                          <div className="h-4 w-4 border-2 border-white/50 border-t-white rounded-full animate-spin"></div>
-                          Processing...
-                        </>
-                      ) : (
-                        "Book Appointment"
-                      )}
-                    </button>
-
-                    {bookingSuccess && (
-                      <div className="mt-3 bg-green-50 text-green-700 p-3 rounded-xl flex items-center justify-center gap-2 text-sm font-medium animate-in fade-in slide-in-from-bottom-2">
-                        <FaCheckCircle /> Booking Confirmed!
-                      </div>
-                    )}
+                      I consent to sharing medical records with this doctor for clinical care as per DPDP Act 2023.
+                    </label>
                   </div>
+
+                  <div className="flex items-start gap-2.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
+                    <input
+                      type="checkbox"
+                      id="teleconsult"
+                      checked={teleconsultConsent}
+                      onChange={(e) =>
+                        setTeleconsultConsent(e.target.checked)
+                      }
+                      className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1]"
+                    />
+                    <label
+                      htmlFor="teleconsult"
+                      className="text-[11px] text-slate-600 leading-normal cursor-pointer"
+                    >
+                      I agree to Telemedicine Practice Guidelines (2020) and understand digital consultation terms.
+                    </label>
+                  </div>
+                </div>
+
+                {/* Booking CTA Button */}
+                <div className="pt-1">
+                  {error && (
+                    <p className="text-xs text-rose-600 mb-2.5 p-2 rounded bg-rose-50 border border-rose-200 text-center font-medium">
+                      {error}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleBook}
+                    disabled={
+                      booking ||
+                      !selectedSlot ||
+                      !dataSharingConsent ||
+                      !teleconsultConsent
+                    }
+                    className="w-full bg-[#0067A1] text-white py-3 rounded-lg font-bold text-xs hover:bg-[#004F7C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-xs flex items-center justify-center gap-2"
+                  >
+                    {booking ? (
+                      <>
+                        <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Processing Booking...</span>
+                      </>
+                    ) : (
+                      "Book Appointment"
+                    )}
+                  </button>
+
+                  {bookingSuccess && (
+                    <div className="mt-2.5 bg-emerald-50 text-emerald-800 p-2.5 rounded-lg border border-emerald-200 flex items-center justify-center gap-2 text-xs font-semibold">
+                      <FaCheckCircle className="text-emerald-600" /> Booking Confirmed! Redirecting...
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

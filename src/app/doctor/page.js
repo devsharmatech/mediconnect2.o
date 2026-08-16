@@ -61,17 +61,38 @@ export default function DoctorDashboard() {
     fetchDashboardData(userId);
   }, [router]);
 
-  // Poll for incoming instant calls every 15 seconds
+  // Play ringtone chime sound when call arrives
+  const playRingtone = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.5);
+    } catch {
+      /* ignore audio context restrictions */
+    }
+  };
+
+  // Poll for incoming instant calls every 5 seconds
   useEffect(() => {
     if (!doctorId) return;
     fetchIncomingCalls(doctorId);
-    pollRef.current = setInterval(() => fetchIncomingCalls(doctorId), 60000); // Increased interval from 15s to 60s
+    pollRef.current = setInterval(() => fetchIncomingCalls(doctorId), 5000);
     return () => clearInterval(pollRef.current);
   }, [doctorId]);
 
   // Listen for FCM instant_call events
   useEffect(() => {
     const handleInstantCall = () => {
+      playRingtone();
       if (doctorId) fetchIncomingCalls(doctorId);
     };
     window.addEventListener("instant-call-received", handleInstantCall);

@@ -51,7 +51,7 @@ export async function PUT(req) {
     if (clinic_name !== undefined) updateData.clinic_name = clinic_name;
     if (clinic_address !== undefined) updateData.clinic_address = clinic_address;
     if (license_number !== undefined) updateData.license_number = license_number;
-    if (about_me !== undefined) updateData.bio = about_me;
+    if (about_me !== undefined) updateData.about_me = about_me;
     if (languages !== undefined) updateData.languages = languages;
     if (available_days !== undefined) updateData.available_days = available_days;
     if (available_time !== undefined) updateData.available_time = available_time;
@@ -67,7 +67,7 @@ export async function PUT(req) {
     }
 
     // Update doctor_details
-    const { data: updatedDoctor, error: detailsError } = await supabase
+    let { data: updatedDoctor, error: detailsError } = await supabase
       .from("doctor_details")
       .update(updateData)
       .eq("id", user_id)
@@ -75,6 +75,16 @@ export async function PUT(req) {
       .maybeSingle();
 
     if (detailsError) throw detailsError;
+
+    if (!updatedDoctor) {
+      const { data: insertedDoctor, error: insertError } = await supabase
+        .from("doctor_details")
+        .insert([{ id: user_id, ...updateData }])
+        .select()
+        .single();
+      if (insertError) throw insertError;
+      updatedDoctor = insertedDoctor;
+    }
 
     // Update phone/name in users table if phone_number is present
     if (phone_number) {

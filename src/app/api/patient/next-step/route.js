@@ -78,7 +78,7 @@ export async function GET(req) {
         let type = "NONE";
         let actions = [];
 
-        if (case_status === "STARTED" || case_status === "ACTIVE") {
+        if (!consultation.completed_at && (case_status === "STARTED" || case_status === "ACTIVE")) {
             // Doctor hasn't completed yet — patient should wait
             type = "MONITOR";
             actions = [];

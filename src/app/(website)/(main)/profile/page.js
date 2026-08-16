@@ -141,21 +141,21 @@ export default function ProfilePage() {
   const handleSaveProfile = async (formData) => {
     const toastId = toast.loading("Updating profile...");
     try {
+      const targetUserId = userData?.user_id || userData?.user?.id || (typeof window !== 'undefined' ? localStorage.getItem("userId") : null);
       const data = new FormData();
-      data.append("user_id", userData.user_id);
-      data.append("full_name", formData.full_name);
-      data.append("email", formData.email);
-      data.append("gender", formData.gender);
-      data.append("date_of_birth", formData.date_of_birth);
-      data.append("address", formData.address);
+      data.append("user_id", targetUserId);
+      data.append("full_name", formData.full_name || "");
+      data.append("email", formData.email || "");
+      data.append("gender", formData.gender || "");
+      data.append("date_of_birth", formData.date_of_birth || "");
+      data.append("address", formData.address || "");
+      if (formData.phone_number) data.append("phone_number", formData.phone_number);
 
       if (formData.profile_picture_file) {
         data.append("profile_picture", formData.profile_picture_file);
       }
 
-      const response = await api.put("/auth/patient/update", data, {
-        "Content-Type": "multipart/form-data",
-      });
+      const response = await api.put("/auth/patient/update", data);
 
       if (response.success) {
         setUserData((prev) => ({

@@ -165,7 +165,7 @@ export default function DoctorNotificationsPage() {
       type === "appointment_reschedule" ||
       type === "appointment_booked"
     ) {
-      router.push("/doctor/appointments");
+      router.push("/doctor/appointments?date=all&status=booked");
     } else if (
       type === "consultation" ||
       type === "teleconsultation" ||

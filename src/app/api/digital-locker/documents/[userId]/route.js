@@ -374,7 +374,8 @@ export async function POST(req, { params }) {
     // Upload file to AWS S3
     let document_url;
     try {
-      const { url } = await uploadToS3(file, `digital-locker/${fileName}`, "application/octet-stream");
+      const mimeType = fileType || (fileExtension === "pdf" ? "application/pdf" : fileExtension.match(/(jpg|jpeg|png|webp|gif)/i) ? `image/${fileExtension.toLowerCase()}` : "application/pdf");
+      const { url } = await uploadToS3(file, `digital-locker/${fileName}`, mimeType);
       document_url = url;
     } catch (uploadError) {
       console.error("Storage upload error:", uploadError);

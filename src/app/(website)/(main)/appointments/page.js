@@ -30,9 +30,9 @@ import { Activity, ShieldAlert, ClipboardList, Stethoscope, CalendarPlus, CheckC
 
 const normalizeStatus = (status) => {
   if (!status) return "pending";
-  const s = status.toLowerCase();
-  if (["booked", "approved", "freezed"].includes(s)) return "confirmed";
-  if (["cancelled", "canceled", "rejected", "patient_cancelled", "doctor_cancelled", "admin_cancelled"].includes(s)) return "cancelled";
+  const s = String(status).toLowerCase();
+  if (["booked", "approved", "freezed", "confirmed"].includes(s)) return "confirmed";
+  if (s.includes("cancel") || ["rejected", "declined"].includes(s)) return "cancelled";
   return s;
 };
 

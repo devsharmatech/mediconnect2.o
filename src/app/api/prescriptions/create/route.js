@@ -91,7 +91,8 @@ export async function POST(req) {
       .maybeSingle();
 
     // Enforce access control rules based on main doctor profile
-    if (doctor.onboarding_status !== "approved") {
+    const isApproved = doctor.onboarding_status && ["approved", "active"].includes(doctor.onboarding_status.toLowerCase());
+    if (!isApproved) {
       return failure(
         "Consultation access blocked. Doctor account is inactive or pending verification.",
         null,
@@ -100,8 +101,8 @@ export async function POST(req) {
       );
     }
 
-    // If the secondary onboarding table exists, only block if explicitly forbidden
-    if (onboarding && onboarding.allowed_to_consult === false) {
+    // Only block if explicitly revoked by admin via status flag
+    if (doctor.onboarding_status === "revoked" || doctor.onboarding_status === "suspended") {
       return failure(
         "Consultation access explicitly revoked by admin.",
         null,

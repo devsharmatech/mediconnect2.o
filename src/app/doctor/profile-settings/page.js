@@ -170,7 +170,6 @@ const qualificationsOptions = [
 const Field = ({
   label,
   value,
-  icon: Icon,
   isEditing,
   name,
   type = "text",
@@ -178,32 +177,31 @@ const Field = ({
   rows = 3,
   onChange,
 }) => (
-  <div className="space-y-2">
-    <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-      {Icon && <Icon className="w-4 h-4 text-[#0067A1]" />}
+  <div className="space-y-1.5">
+    <label className="block text-xs font-semibold text-slate-700">
       {label}
     </label>
     {isEditing ? (
       textarea ? (
         <textarea
           name={name}
-          value={value}
+          value={value || ""}
           onChange={onChange}
           rows={rows}
-          className="w-full p-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent transition-all"
+          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-colors"
         />
       ) : (
         <input
           type={type}
           name={name}
-          value={value}
+          value={value || ""}
           onChange={onChange}
-          className="w-full p-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent transition-all"
+          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-colors"
         />
       )
     ) : (
-      <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-slate-700 min-h-[44px] flex items-center">
-        {value || <span className="text-slate-400">Not provided</span>}
+      <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200/80 text-slate-800 text-sm min-h-[38px] flex items-center">
+        {value || <span className="text-slate-400 font-normal">—</span>}
       </div>
     )}
   </div>
@@ -781,9 +779,9 @@ export default function DoctorProfile() {
 
       const res = await api.put("/profile/doctor/basic-update", payload);
 
-      if (!res.success || !res.data) {
+      if (!res.success) {
         console.error("Failed to update doctor profile", res.error);
-        toast.error("Failed to update profile. Please try again.");
+        toast.error(res.message || res.error || "Failed to update profile. Please try again.");
         return;
       }
 
@@ -827,52 +825,48 @@ export default function DoctorProfile() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F6F8FA]">
-      <div className="w-full mx-auto space-y-4 md:space-y-6">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-[#0067A1] shadow-md">
-                <FaUserMd className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-slate-800">Professional Profile</h1>
-                <p className="text-xs sm:text-sm text-slate-500 mt-1">Manage your professional information and credentials</p>
-              </div>
-            </div>
+    <div className="min-h-screen bg-slate-50/50 py-4 px-3 sm:px-6">
+      <div className="max-w-7xl mx-auto space-y-5">
+        {/* Top Action Header Bar */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Doctor Profile & Settings</h1>
+            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Manage your medical credentials, practice fees, opening hours & contact details</p>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             {!isEditing ? (
               <button
+                type="button"
                 onClick={() => setIsEditing(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#0067A1] text-white font-semibold rounded-xl hover:bg-[#004F7C] transition-all duration-200"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#0067A1] text-white text-sm font-medium rounded-lg hover:bg-[#004F7C] transition-colors"
               >
-                <FaEdit className="w-4 h-4" />
+                <FaEdit className="w-3.5 h-3.5" />
                 Edit Profile
               </button>
             ) : (
               <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={() => setIsEditing(false)}
-                  className="px-4 py-2.5 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all text-sm font-semibold text-slate-700 hover:text-slate-900 hover:border-slate-300"
+                  className="px-3.5 py-2 bg-white text-slate-700 text-sm font-medium rounded-lg border border-slate-300 hover:bg-slate-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={handleSubmit}
                   disabled={isLoading}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-[#0067A1] text-white font-semibold rounded-xl hover:bg-[#004F7C] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#0067A1] text-white text-sm font-medium rounded-lg hover:bg-[#004F7C] transition-colors disabled:opacity-50"
                 >
                   {isLoading ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                       Saving...
                     </>
                   ) : (
                     <>
-                      <FaSave className="w-4 h-4" />
+                      <FaSave className="w-3.5 h-3.5" />
                       Save Changes
                     </>
                   )}
@@ -882,26 +876,21 @@ export default function DoctorProfile() {
           </div>
         </div>
 
-        {/* Main Profile Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Profile Overview */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2.5 rounded-xl bg-[#0067A1]/10">
-                  <FaUserEdit className="w-5 h-5 text-[#0067A1]" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-800">Personal Information</h3>
-                  <p className="text-sm text-slate-500">Your basic contact and identification details</p>
-                </div>
+        {/* Main 2-Column Responsive Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          {/* Left Main Form Column */}
+          <div className="lg:col-span-2 space-y-5">
+            {/* Personal Information */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <h2 className="text-base font-bold text-slate-900">Personal Information</h2>
+                <p className="text-xs text-slate-500">Contact details and identity information</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field
                   label="Full Name"
                   value={profile.name}
-                  icon={FaUser}
                   isEditing={isEditing}
                   name="name"
                   onChange={handleInputChange}
@@ -910,7 +899,6 @@ export default function DoctorProfile() {
                 <Field
                   label="Email Address"
                   value={profile.email}
-                  icon={FaEnvelope}
                   isEditing={false}
                   name="email"
                   onChange={handleInputChange}
@@ -919,7 +907,6 @@ export default function DoctorProfile() {
                 <Field
                   label="Phone Number"
                   value={profile.phone}
-                  icon={FaPhone}
                   isEditing={isEditing}
                   name="phone"
                   type="tel"
@@ -927,9 +914,8 @@ export default function DoctorProfile() {
                 />
                 
                 <Field
-                  label="Medical License"
+                  label="Medical License Number"
                   value={profile.licenseNumber}
-                  icon={FaCertificate}
                   isEditing={isEditing}
                   name="licenseNumber"
                   onChange={handleInputChange}
@@ -938,7 +924,6 @@ export default function DoctorProfile() {
                 <Field
                   label="Languages Spoken"
                   value={profile.languages}
-                  icon={FaUser}
                   isEditing={isEditing}
                   name="languages"
                   onChange={handleInputChange}
@@ -946,48 +931,33 @@ export default function DoctorProfile() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2.5 rounded-xl bg-[#0067A1]/10">
-                  <FaBriefcaseMedical className="w-5 h-5 text-[#0067A1]" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-800">Professional Details</h3>
-                  <p className="text-sm text-slate-500">Your medical qualifications and practice information</p>
-                </div>
+            {/* Speciality & Qualifications */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <h2 className="text-base font-bold text-slate-900">Specialities & Qualifications</h2>
+                <p className="text-xs text-slate-500">Medical degrees and clinical specializations</p>
               </div>
-              <div className="space-y-8">
-                {/* Specialities - professional multi-select */}
-                <div>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-                    <div className="flex items-center gap-2">
-                      <FaStethoscope className="w-5 h-5 text-[#0067A1]" />
-                      <div>
-                        <h3 className="text-sm font-semibold text-slate-800">Specialities</h3>
-                        <p className="text-xs text-slate-500">Select one or more areas of expertise</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="border border-slate-200 rounded-2xl p-3 bg-white">
-                    {/* Selected chips */}
-                    <div className="flex flex-wrap gap-2 mb-3 min-h-[32px]">
-                      {selectedSpecialities.length === 0 && !isEditing && (
-                        <span className="text-xs text-slate-400">Not provided</span>
-                      )}
-                      {selectedSpecialities.length === 0 && isEditing && (
-                        <span className="text-xs text-slate-400">Select one or more specialities from the list below</span>
+
+              <div className="space-y-4">
+                {/* Specialities */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-700">Specialities</label>
+                  <div className="border border-slate-200 rounded-lg p-3 bg-white space-y-3">
+                    <div className="flex flex-wrap gap-1.5 min-h-[28px]">
+                      {selectedSpecialities.length === 0 && (
+                        <span className="text-xs text-slate-400 font-normal">No speciality selected</span>
                       )}
                       {selectedSpecialities.map((spec) => (
                         <span
                           key={spec}
-                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#0067A1] text-white text-xs font-medium"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#0067A1]/10 text-[#0067A1] text-xs font-medium border border-[#0067A1]/20"
                         >
                           {spec}
                           {isEditing && (
                             <button
                               type="button"
                               onClick={() => handleSpecialityToggle(spec)}
-                              className="ml-1 text-white/80 hover:text-white"
+                              className="ml-1 text-slate-400 hover:text-slate-700"
                             >
                               ×
                             </button>
@@ -996,95 +966,79 @@ export default function DoctorProfile() {
                       ))}
                     </div>
 
-                    {/* Custom speciality input */}
                     {isEditing && (
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
-                        <input
-                          type="text"
-                          value={newSpeciality}
-                          onChange={(e) => setNewSpeciality(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
+                      <div className="pt-2 border-t border-slate-100 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={newSpeciality}
+                            onChange={(e) => setNewSpeciality(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleSpecialityAdd(newSpeciality);
+                                setNewSpeciality("");
+                              }
+                            }}
+                            placeholder="Add custom speciality..."
+                            className="flex-1 px-3 py-1.5 text-xs sm:text-sm rounded-md border border-slate-200 focus:outline-none focus:border-[#0067A1]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
                               handleSpecialityAdd(newSpeciality);
                               setNewSpeciality("");
-                            }
-                          }}
-                          placeholder="Add custom speciality (e.g. Diabetology)"
-                          className="flex-1 px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleSpecialityAdd(newSpeciality);
-                            setNewSpeciality("");
-                          }}
-                          className="px-3 py-2 text-xs sm:text-sm font-semibold rounded-xl bg-[#0067A1] text-white hover:bg-[#004F7C] disabled:opacity-50 disabled:cursor-not-allowed"
-                          disabled={!newSpeciality.trim()}
-                        >
-                          Add
-                        </button>
-                      </div>
-                    )}
+                            }}
+                            disabled={!newSpeciality.trim()}
+                            className="px-3 py-1.5 text-xs font-medium rounded-md bg-[#0067A1] text-white hover:bg-[#004F7C] disabled:opacity-50"
+                          >
+                            Add
+                          </button>
+                        </div>
 
-                    {/* Options list (edit mode only) */}
-                    {isEditing && (
-                      <div className="max-h-64 overflow-y-auto divide-y divide-slate-100">
-                        {specialities.map((spec) => {
-                          const active = selectedSpecialities.includes(spec.name);
-                          return (
-                            <label
-                              key={spec.name}
-                              className="flex items-start gap-3 py-2 px-1 cursor-pointer hover:bg-slate-50 rounded-lg"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={active}
-                                onChange={() => handleSpecialityToggle(spec.name)}
-                                className="mt-1 w-4 h-4 rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1]"
-                              />
-                              <div className="flex items-start gap-2 flex-1 min-w-0">
-                                <div className="mt-0.5 text-lg">
-                                  <span>{spec.icon}</span>
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-sm font-semibold text-slate-800 truncate">{spec.name}</p>
-                                  <p className="text-xs text-slate-500 line-clamp-2 mt-0.5">{spec.description}</p>
-                                </div>
-                              </div>
-                            </label>
-                          );
-                        })}
+                        <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 rounded-md border border-slate-200">
+                          {specialities.map((spec) => {
+                            const active = selectedSpecialities.includes(spec.name);
+                            return (
+                              <label
+                                key={spec.name}
+                                className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-slate-50 text-xs"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={active}
+                                  onChange={() => handleSpecialityToggle(spec.name)}
+                                  className="w-3.5 h-3.5 rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1]"
+                                />
+                                <span className="font-medium text-slate-800">{spec.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Qualifications (chips + dropdown, like onboarding) */}
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <FaGraduationCap className="w-4 h-4 text-[#0067A1]" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">Qualifications</p>
-                      <p className="text-xs text-slate-500">Add all your medical degrees</p>
-                    </div>
-                  </div>
-                  <div className="border border-slate-200 rounded-2xl p-3 bg-white">
-                    <div className="flex flex-wrap gap-2 mb-3 min-h-[32px]">
-                      {selectedQualifications.length === 0 && !isEditing && (
-                        <span className="text-xs text-slate-400">Not provided</span>
+                {/* Qualifications */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-700">Medical Qualifications</label>
+                  <div className="border border-slate-200 rounded-lg p-3 bg-white space-y-2">
+                    <div className="flex flex-wrap gap-1.5 min-h-[28px]">
+                      {selectedQualifications.length === 0 && (
+                        <span className="text-xs text-slate-400 font-normal">No qualification listed</span>
                       )}
                       {selectedQualifications.map((qual) => (
                         <span
                           key={qual}
-                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#0067A1] text-white text-xs font-medium"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 text-xs font-medium border border-slate-200"
                         >
                           {qual}
                           {isEditing && (
                             <button
                               type="button"
                               onClick={() => handleQualificationRemove(qual)}
-                              className="ml-1 text-white/80 hover:text-white"
+                              className="ml-1 text-slate-400 hover:text-slate-700"
                             >
                               ×
                             </button>
@@ -1094,105 +1048,90 @@ export default function DoctorProfile() {
                     </div>
                     {isEditing && (
                       <select
-                        className="w-full border-none text-sm text-slate-700 focus:outline-none focus:ring-0 bg-transparent"
+                        className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-xs text-slate-700 focus:outline-none focus:border-[#0067A1] bg-white"
                         defaultValue=""
                         onChange={(e) => {
                           handleQualificationAdd(e.target.value);
                           e.target.value = "";
                         }}
                       >
-                        <option value="" disabled>
-                          Add qualification...
-                        </option>
+                        <option value="" disabled>+ Select qualification to add...</option>
                         {qualificationsOptions.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
+                          <option key={opt} value={opt}>{opt}</option>
                         ))}
                       </select>
                     )}
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <Field
-                    label="Experience"
-                    value={profile.experience}
-                    icon={FaHistory}
-                    isEditing={isEditing}
-                    name="experience"
-                    onChange={handleInputChange}
-                  />
-                  
-                  <Field
-                    label="Video Consultation Fee"
-                    value={profile.videoConsultationFee}
-                    icon={FaDollarSign}
-                    isEditing={isEditing}
-                    name="videoConsultationFee"
-                    onChange={handleInputChange}
-                  />
-                  <Field
-                    label="Clinic Consultation Fee"
-                    value={profile.clinicConsultationFee}
-                    icon={FaDollarSign}
-                    isEditing={isEditing}
-                    name="clinicConsultationFee"
-                    onChange={handleInputChange}
-                  />
-                  <Field
-                    label="Home Visit Fee"
-                    value={profile.homeVisitFee}
-                    icon={FaDollarSign}
-                    isEditing={isEditing}
-                    name="homeVisitFee"
-                    onChange={handleInputChange}
-                  />
-                  
-                  <Field
-                    label="Hospital/Clinic"
-                    value={profile.hospital}
-                    icon={FaHospital}
-                    isEditing={isEditing}
-                    name="hospital"
-                    onChange={handleInputChange}
-                  />
-                  
-                  <Field
-                    label="Availability"
-                    value={profile.availability}
-                    icon={FaCalendarAlt}
-                    isEditing={false}
-                    name="availability"
-                    onChange={handleInputChange}
-                  />
-                </div>
               </div>
             </div>
 
-            {/* Second Booking Discount Card */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2.5 rounded-xl bg-[#0067A1]/10">
-                  <FaDollarSign className="w-5 h-5 text-[#0067A1]" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-800">Second Booking Discount</h3>
-                  <p className="text-sm text-slate-500">Offer a discount to patients returning for their second booking</p>
-                </div>
+            {/* Fees & Practice Details */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <h2 className="text-base font-bold text-slate-900">Consultation Fees & Experience</h2>
+                <p className="text-xs text-slate-500">Pricing and hospital affiliation</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field
+                  label="Years of Experience"
+                  value={profile.experience}
+                  isEditing={isEditing}
+                  name="experience"
+                  onChange={handleInputChange}
+                />
+                
+                <Field
+                  label="Video Consultation Fee (₹)"
+                  value={profile.videoConsultationFee}
+                  isEditing={isEditing}
+                  name="videoConsultationFee"
+                  onChange={handleInputChange}
+                />
+                <Field
+                  label="Clinic Visit Fee (₹)"
+                  value={profile.clinicConsultationFee}
+                  isEditing={isEditing}
+                  name="clinicConsultationFee"
+                  onChange={handleInputChange}
+                />
+                <Field
+                  label="Home Visit Fee (₹)"
+                  value={profile.homeVisitFee}
+                  isEditing={isEditing}
+                  name="homeVisitFee"
+                  onChange={handleInputChange}
+                />
+                
+                <Field
+                  label="Primary Hospital / Clinic Name"
+                  value={profile.hospital}
+                  isEditing={isEditing}
+                  name="hospital"
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+
+            {/* Discounts & Additional Clinics */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <h2 className="text-base font-bold text-slate-900">Discounts & Practice Locations</h2>
+                <p className="text-xs text-slate-500">Follow-up discounts and secondary clinic addresses</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                    Discount Type
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Follow-up Discount Type
                   </label>
                   <select
                     value={profile.secondBookingDiscountType}
                     disabled={!isEditing}
                     name="secondBookingDiscountType"
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0067A1] bg-white text-slate-700 font-medium transition text-sm"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-[#0067A1] disabled:bg-slate-50"
                   >
                     <option value="none">No Discount</option>
                     <option value="percentage">Percentage (%)</option>
@@ -1202,7 +1141,7 @@ export default function DoctorProfile() {
 
                 {profile.secondBookingDiscountType !== "none" && (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       Discount Value
                     </label>
                     <input
@@ -1211,44 +1150,38 @@ export default function DoctorProfile() {
                       disabled={!isEditing}
                       name="secondBookingDiscountValue"
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0067A1] bg-white text-slate-700 font-medium transition text-sm"
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-[#0067A1] disabled:bg-slate-50"
                       placeholder="Enter value"
                     />
                   </div>
                 )}
               </div>
-            </div>
 
-            {/* Additional Clinic Locations Card */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-[#0067A1]/10">
-                    <FaHospital className="w-5 h-5 text-[#0067A1]" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-slate-800">Additional Clinic Locations</h3>
-                    <p className="text-sm text-slate-500">Manage multiple clinic locations for physical consultations</p>
-                  </div>
+              {/* Additional Clinics */}
+              <div className="pt-3 border-t border-slate-100 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-semibold text-slate-700">Additional Clinic Locations</span>
+                  {isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const list = [...(profile.additionalClinics || [])];
+                        list.push({ name: "", address: "" });
+                        setProfile(prev => ({ ...prev, additionalClinics: list }));
+                      }}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-md border border-slate-200 transition-colors"
+                    >
+                      + Add Location
+                    </button>
+                  )}
                 </div>
-                {isEditing && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const list = [...(profile.additionalClinics || [])];
-                      list.push({ name: "", address: "", lat: "", lng: "" });
-                      setProfile(prev => ({ ...prev, additionalClinics: list }));
-                    }}
-                    className="px-4 py-1.5 bg-[#0067A1] text-white text-xs font-semibold rounded-xl hover:bg-[#004F7C] transition"
-                  >
-                    + Add Clinic
-                  </button>
-                )}
-              </div>
 
-              <div className="space-y-4">
+                {(profile.additionalClinics || []).length === 0 && (
+                  <p className="text-xs text-slate-400 font-normal italic">No additional clinic locations added.</p>
+                )}
+
                 {(profile.additionalClinics || []).map((clinic, idx) => (
-                  <div key={idx} className="p-4 border border-slate-100 rounded-xl bg-slate-50 relative space-y-3">
+                  <div key={idx} className="p-3 border border-slate-200 rounded-lg bg-slate-50/50 space-y-2 relative">
                     {isEditing && (
                       <button
                         type="button"
@@ -1256,370 +1189,216 @@ export default function DoctorProfile() {
                           const list = (profile.additionalClinics || []).filter((_, i) => i !== idx);
                           setProfile(prev => ({ ...prev, additionalClinics: list }));
                         }}
-                        className="absolute top-3 right-3 text-slate-400 hover:text-rose-500 transition"
+                        className="absolute top-2 right-2 text-slate-400 hover:text-rose-500"
                       >
-                        <FaTimes className="w-4 h-4" />
+                        <FaTimes className="w-3.5 h-3.5" />
                       </button>
                     )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                          Clinic Name
-                        </label>
-                        <input
-                          type="text"
-                          value={clinic.name || ""}
-                          disabled={!isEditing}
-                          onChange={(e) => {
-                            const list = [...profile.additionalClinics];
-                            list[idx].name = e.target.value;
-                            setProfile(prev => ({ ...prev, additionalClinics: list }));
-                          }}
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0067A1] bg-white text-slate-700 font-medium transition text-sm"
-                          placeholder="Clinic Name"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                          Clinic Address
-                        </label>
-                        <input
-                          type="text"
-                          value={clinic.address || ""}
-                          disabled={!isEditing}
-                          onChange={(e) => {
-                            const list = [...profile.additionalClinics];
-                            list[idx].address = e.target.value;
-                            setProfile(prev => ({ ...prev, additionalClinics: list }));
-                          }}
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0067A1] bg-white text-slate-700 font-medium transition text-sm"
-                          placeholder="Clinic Address"
-                        />
-                      </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={clinic.name || ""}
+                        disabled={!isEditing}
+                        onChange={(e) => {
+                          const list = [...profile.additionalClinics];
+                          list[idx].name = e.target.value;
+                          setProfile(prev => ({ ...prev, additionalClinics: list }));
+                        }}
+                        className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 bg-white"
+                        placeholder="Clinic Name"
+                      />
+                      <input
+                        type="text"
+                        value={clinic.address || ""}
+                        disabled={!isEditing}
+                        onChange={(e) => {
+                          const list = [...profile.additionalClinics];
+                          list[idx].address = e.target.value;
+                          setProfile(prev => ({ ...prev, additionalClinics: list }));
+                        }}
+                        className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 bg-white"
+                        placeholder="Clinic Address"
+                      />
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2.5 rounded-xl bg-[#0067A1]/10">
-                  <FaClock className="w-5 h-5 text-[#0067A1]" />
-                </div>
+            {/* Weekly Timings */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+              <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-800">Opening Timings <span className="ml-2 text-xs text-rose-500 font-normal">(Required: Select at least one day)</span></h3>
-                  <p className="text-sm text-slate-500">Configure your weekly clinic, video, and home visit hours</p>
+                  <h2 className="text-base font-bold text-slate-900">Weekly Schedule & Hours</h2>
+                  <p className="text-xs text-slate-500">Configure clinic, video consultation, and home visit availability</p>
                 </div>
+                <span className="text-xs text-amber-600 font-medium">Select at least 1 active day</span>
+              </div>
+
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="p-2.5">Day</th>
+                      <th className="p-2.5 text-center">Leave</th>
+                      <th className="p-2.5">Clinic Visit</th>
+                      <th className="p-2.5">Video Consultation</th>
+                      <th className="p-2.5">Home Visit</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {daysOfWeek.map((day) => (
+                      <tr key={day} className="hover:bg-slate-50/50">
+                        <td className="p-2.5 font-semibold text-slate-800">{day}</td>
+                        <td className="p-2.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={weeklyAvailability.leave_days.includes(day)}
+                            onChange={() => isEditing && handleWeeklyLeaveToggle(day)}
+                            disabled={!isEditing}
+                            className="w-3.5 h-3.5 rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1]"
+                          />
+                        </td>
+                        {["clinic_slots", "video_slots", "home_slots"].map((type) => (
+                          <td key={type} className="p-2.5">
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="time"
+                                value={weeklyAvailability[type]?.[day]?.start || ""}
+                                onChange={(e) =>
+                                  handleWeeklySlotChange(type, day, "start", e.target.value)
+                                }
+                                disabled={!isEditing || weeklyAvailability.leave_days.includes(day)}
+                                className="border border-slate-200 rounded px-1.5 py-1 text-xs disabled:bg-slate-100 disabled:text-slate-400"
+                              />
+                              <span className="text-slate-400">-</span>
+                              <input
+                                type="time"
+                                value={weeklyAvailability[type]?.[day]?.end || ""}
+                                onChange={(e) =>
+                                  handleWeeklySlotChange(type, day, "end", e.target.value)
+                                }
+                                disabled={!isEditing || weeklyAvailability.leave_days.includes(day)}
+                                className="border border-slate-200 rounded px-1.5 py-1 text-xs disabled:bg-slate-100 disabled:text-slate-400"
+                              />
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Address & Bio */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+              <div className="border-b border-slate-100 pb-3">
+                <h2 className="text-base font-bold text-slate-900">Address & Professional Bio</h2>
+                <p className="text-xs text-slate-500">Physical address and summary for patients</p>
               </div>
 
               <div className="space-y-4">
-                <div className="overflow-x-auto rounded-xl border border-slate-200">
-                  <table className="w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="bg-[#0067A1] text-white">
-                        <th className="p-3 text-left font-semibold">Day</th>
-                        <th className="p-3 text-center font-semibold">Leave</th>
-                        <th className="p-3 text-center font-semibold">Clinic Visit</th>
-                        <th className="p-3 text-center font-semibold">Video Consultation</th>
-                        <th className="p-3 text-center font-semibold">Home Visit</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {daysOfWeek.map((day) => (
-                        <tr key={day} className="hover:bg-slate-50">
-                          <td className="border-t border-slate-200 p-3 font-semibold text-slate-800 bg-white">
-                            {day}
-                          </td>
-                          <td className="border-t border-slate-200 p-3 text-center bg-white">
-                            <input
-                              type="checkbox"
-                              checked={weeklyAvailability.leave_days.includes(day)}
-                              onChange={() => isEditing && handleWeeklyLeaveToggle(day)}
-                              disabled={!isEditing}
-                              className="w-4 h-4 rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1] disabled:opacity-60"
-                            />
-                          </td>
-                          {["clinic_slots", "video_slots", "home_slots"].map((type) => (
-                            <td
-                              key={type}
-                              className="border-t border-slate-200 p-3 bg-white"
-                            >
-                              <div className="flex items-center justify-center gap-2">
-                                <input
-                                  type="time"
-                                  value={weeklyAvailability[type]?.[day]?.start || ""}
-                                  onChange={(e) =>
-                                    handleWeeklySlotChange(
-                                      type,
-                                      day,
-                                      "start",
-                                      e.target.value
-                                    )
-                                  }
-                                  disabled={
-                                    !isEditing || weeklyAvailability.leave_days.includes(day)
-                                  }
-                                  className="border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] disabled:bg-slate-50 disabled:text-slate-400"
-                                />
-                                <span className="text-xs text-slate-400">to</span>
-                                <input
-                                  type="time"
-                                  value={weeklyAvailability[type]?.[day]?.end || ""}
-                                  onChange={(e) =>
-                                    handleWeeklySlotChange(
-                                      type,
-                                      day,
-                                      "end",
-                                      e.target.value
-                                    )
-                                  }
-                                  disabled={
-                                    !isEditing || weeklyAvailability.leave_days.includes(day)
-                                  }
-                                  className="border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] disabled:bg-slate-50 disabled:text-slate-400"
-                                />
-                                {type === "clinic_slots" && (
-                                  <select
-                                    value={weeklyAvailability[type]?.[day]?.clinic_index || 0}
-                                    onChange={(e) =>
-                                      handleWeeklySlotChange(
-                                        type,
-                                        day,
-                                        "clinic_index",
-                                        parseInt(e.target.value, 10)
-                                      )
-                                    }
-                                    disabled={
-                                      !isEditing || weeklyAvailability.leave_days.includes(day)
-                                    }
-                                    className="border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] disabled:bg-slate-50 disabled:text-slate-400 bg-white text-slate-800"
-                                  >
-                                    <option value={0}>{profile.hospital || "Primary"}</option>
-                                    {(profile.additionalClinics || []).map((c, cIdx) => (
-                                      <option key={cIdx + 1} value={cIdx + 1}>
-                                        {c.name || `Clinic ${cIdx + 2}`}
-                                      </option>
-                                    ))}
-                                  </select>
-                                )}
-                              </div>
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="text-xs text-slate-500">
-                  Note: Update your timings and click "Save Changes" to apply them across clinic, video, and home visit bookings.
-                </p>
+                <Field
+                  label="Primary Clinic Address"
+                  value={profile.address}
+                  isEditing={isEditing}
+                  name="address"
+                  textarea={true}
+                  rows={3}
+                  onChange={handleInputChange}
+                />
+
+                <Field
+                  label="About Me (Bio)"
+                  value={profile.about}
+                  isEditing={isEditing}
+                  name="about"
+                  textarea={true}
+                  rows={4}
+                  onChange={handleInputChange}
+                />
               </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2.5 rounded-xl bg-[#0067A1]/10">
-                  <FaMapMarkerAlt className="w-5 h-5 text-[#0067A1]" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-800">Clinic Address</h3>
-                  <p className="text-sm text-slate-500">Your practice location and contact details</p>
-                </div>
-              </div>
-
-              <Field
-                label="Address"
-                value={profile.address}
-                icon={FaMapMarkerAlt}
-                isEditing={isEditing}
-                name="address"
-                textarea={true}
-                rows={4}
-                onChange={handleInputChange}
-              />
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2.5 rounded-xl bg-[#0067A1]/10">
-                  <FaUserMd className="w-5 h-5 text-[#0067A1]" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-800">About Me</h3>
-                  <p className="text-sm text-slate-500">Your professional bio and background</p>
-                </div>
-              </div>
-
-              <Field
-                label="Professional Bio"
-                value={profile.about}
-                isEditing={isEditing}
-                name="about"
-                textarea={true}
-                rows={6}
-                onChange={handleInputChange}
-              />
             </div>
           </div>
 
-          {/* Right Column - Quick Stats & Info */}
-          <div className="space-y-6">
-            {/* Profile Card */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
-              <div className="text-center mb-6">
-                <div className="relative w-32 h-32 mx-auto mb-4">
-                  <div className="w-32 h-32 rounded-full bg-[#E3EBEB] flex items-center justify-center shadow-lg overflow-hidden">
-                    {profilePicture ? (
-                      <img
-                        src={profilePicture}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <FaUserMd className="w-16 h-16 text-[#0067A1]" />
-                    )}
-                  </div>
-                  <label className="absolute bottom-0 right-3 w-8 h-8 flex items-center justify-center rounded-full bg-[#0067A1] text-white shadow-md border border-white cursor-pointer hover:bg-[#004F7C] transition-colors">
-                    <FaEdit className="w-3 h-3" />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleProfilePictureChange}
+          {/* Right Summary Column */}
+          <div className="space-y-5">
+            {/* Profile Avatar Card */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 text-center space-y-4">
+              <div className="relative w-28 h-28 mx-auto">
+                <div className="w-28 h-28 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
+                  {profilePicture ? (
+                    <img
+                      src={profilePicture}
+                      alt="Doctor Profile"
+                      className="w-full h-full object-cover"
                     />
-                  </label>
+                  ) : (
+                    <FaUserMd className="w-12 h-12 text-[#0067A1]" />
+                  )}
                 </div>
-                <h3 className="text-xl font-bold text-slate-800">{profile.name}</h3>
-                <p className="text-emerald-600 font-semibold">{profile.specialization}</p>
-                <div className="flex items-center justify-center gap-1 mt-2">
-                  <FaStar className="w-4 h-4 text-amber-500" />
-                  <span className="font-semibold text-slate-700">{profile.rating}</span>
-                  <span className="text-sm text-slate-500">({profile.patientsTreated} patients)</span>
+                <label className="absolute bottom-0 right-1 w-7 h-7 bg-[#0067A1] text-white rounded-full flex items-center justify-center cursor-pointer border border-white hover:bg-[#004F7C]">
+                  <FaEdit className="w-3 h-3" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleProfilePictureChange}
+                  />
+                </label>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">{profile.name || "Doctor Profile"}</h3>
+                <p className="text-xs font-semibold text-[#0067A1] mt-0.5">{profile.specialization || "General Physician"}</p>
+                <div className="flex items-center justify-center gap-1 mt-2 text-xs text-slate-600">
+                  <FaStar className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="font-medium text-slate-800">{profile.rating || "5.0"}</span>
+                  <span className="text-slate-400">({profile.patientsTreated || 0} consultations)</span>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Status</span>
-                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-[#0067A1]/10 text-[#0067A1] border border-[#0067A1]/20">
+              <div className="pt-3 border-t border-slate-100 text-xs space-y-2 text-left">
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Account Status</span>
+                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium text-[11px]">
                     Active
                   </span>
                 </div>
-                
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Member Since</span>
-                  <span className="font-medium text-slate-700">Jan 2023</span>
-                </div>
-                
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Last Updated</span>
-                  <span className="font-medium text-slate-700">Today</span>
-                </div>
-                
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Profile Completion</span>
-                  <span className="font-medium text-slate-700">85%</span>
-                </div>
-              </div>
-
-                <div className="mt-6 pt-6 border-t border-slate-100">
-                <div className="text-sm text-slate-500 mb-2">Profile Strength</div>
-                <div className="w-full bg-slate-100 rounded-full h-2">
-                  <div className="bg-[#0067A1] h-2 rounded-full" style={{ width: '85%' }}></div>
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>License Status</span>
+                  <span className="px-2 py-0.5 rounded bg-[#0067A1]/10 text-[#0067A1] font-medium text-[11px]">
+                    Verified
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
-              <h4 className="text-sm font-semibold text-slate-700 mb-4">Quick Actions</h4>
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={() => router.push("/doctor/appointments")}
-                  className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-[#0067A1]/40 hover:bg-[#0067A1]/5 transition-all"
-                >
-                  <span className="font-medium text-slate-700">View Schedule</span>
-                  <FaCalendarAlt className="w-4 h-4 text-slate-400" />
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => router.push("/doctor/manage-slots")}
-                  className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-[#0067A1]/40 hover:bg-[#0067A1]/5 transition-all"
-                >
-                  <span className="font-medium text-slate-700">Update Availability</span>
-                  <FaClock className="w-4 h-4 text-slate-400" />
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      window.print();
-                    }
-                  }}
-                  className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-emerald-200 hover:bg-emerald-50 transition-all"
-                >
-                  <span className="font-medium text-slate-700">Download Profile</span>
-                  <FaUserMd className="w-4 h-4 text-slate-400" />
-                </button>
-              </div>
-            </div>
-
-            {/* Verification Status */}
-            <div className="bg-[#0067A1]/5 rounded-2xl border border-[#0067A1]/20 p-5">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 rounded-lg bg-[#0067A1]">
-                  <FaCertificate className="w-4 h-4 text-white" />
-                </div>
-                <h4 className="font-semibold text-emerald-800">Verification Status</h4>
-              </div>
+            {/* Quick Actions Panel */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2.5">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">Quick Navigation</h3>
               
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-700">Medical License</span>
-                  <span className="px-2 py-1 rounded text-xs font-semibold bg-[#0067A1]/10 text-[#0067A1]">
-                    Verified
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-700">Qualifications</span>
-                  <span className="px-2 py-1 rounded text-xs font-semibold bg-[#0067A1]/10 text-[#0067A1]">
-                    Verified
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-700">Identity</span>
-                  <span className="px-2 py-1 rounded text-xs font-semibold bg-[#0067A1]/10 text-[#0067A1]">
-                    Verified
-                  </span>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => router.push("/doctor/appointments")}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
+              >
+                <span>View Appointments</span>
+                <FaCalendarAlt className="w-3.5 h-3.5 text-slate-400" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => router.push("/doctor/manage-slots")}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors"
+              >
+                <span>Manage Consultation Slots</span>
+                <FaClock className="w-3.5 h-3.5 text-slate-400" />
+              </button>
             </div>
           </div>
         </div>
-
-        {/* Edit Mode Notice */}
-        {isEditing && (
-          <div className="bg-amber-50 rounded-2xl border border-amber-200 p-5">
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-amber-500 flex-shrink-0">
-                <FaEdit className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-amber-800 mb-2">You are in Edit Mode</h4>
-                <p className="text-sm text-amber-700">
-                  Changes made here will update your professional profile. Some information may require verification before being published.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

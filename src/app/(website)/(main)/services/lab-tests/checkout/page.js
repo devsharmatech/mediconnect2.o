@@ -65,7 +65,9 @@ export default function PublicCheckoutPage() {
 
     if (!cart) return <LoadingScreen message="Preparing checkout..." submessage="Loading your order" />;
 
-    const totalAmount = cart.tests.reduce((s, t) => s + t.price, 0);
+    const testsTotal = cart.tests.reduce((s, t) => s + (parseFloat(t.price) || 0), 0);
+    const collectionFee = visitType === "home_collection" ? 150 : 0;
+    const totalAmount = testsTotal + collectionFee;
     const allConsentsGiven = Object.values(consents).every(Boolean);
 
     const handlePayment = async () => {
@@ -419,8 +421,12 @@ export default function PublicCheckoutPage() {
                                         <span className="font-bold text-gray-900">{cart.lab_name}</span>
                                     </div>
                                     <div className="flex justify-between text-sm mb-3">
-                                        <span className="text-gray-500 font-medium">Collection Mode</span>
-                                        <span className="font-bold text-gray-900">{visitType === "home_collection" ? "Home Collection" : "Walk-in"}</span>
+                                        <span className="text-gray-500 font-medium">Tests Total</span>
+                                        <span className="font-bold text-gray-900">₹{testsTotal.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm mb-3">
+                                        <span className="text-gray-500 font-medium">Collection Mode ({visitType === "home_collection" ? "Home Collection" : "Walk-in"})</span>
+                                        <span className="font-bold text-gray-900">{visitType === "home_collection" ? "₹150" : "Free"}</span>
                                     </div>
                                     <div className="border-t border-gray-200 pt-4 mt-4 flex justify-between items-center">
                                         <span className="font-bold text-gray-900">Total payable</span>

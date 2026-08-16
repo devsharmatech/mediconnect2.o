@@ -65,6 +65,16 @@ export default function DoctorAppointmentsPage() {
   const [pagination, setPagination] = useState(null);
   const [dateFilter, setDateFilter] = useState("today");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlDate = params.get("date") || params.get("date_filter");
+      const urlStatus = params.get("status") || params.get("status_filter");
+      if (urlDate) setDateFilter(urlDate);
+      if (urlStatus) setStatusFilter(urlStatus);
+    }
+  }, []);
   const [typeFilter, setTypeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);

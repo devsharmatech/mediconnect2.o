@@ -90,7 +90,7 @@ export async function GET(req) {
         }
 
         // 2. Consultation in progress
-        else if (latestConsultation && (latestConsultation.case_status === "STARTED" || latestConsultation.case_status === "ACTIVE")) {
+        else if (latestConsultation && !latestConsultation.completed_at && (latestConsultation.case_status === "STARTED" || latestConsultation.case_status === "ACTIVE")) {
             const createdTime = new Date(latestConsultation.created_at || now);
             const isStale = (now - createdTime) > 15 * 60 * 1000; // 15 minutes timeout
 

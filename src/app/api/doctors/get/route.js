@@ -7,10 +7,13 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 10;
+    const limit = parseInt(searchParams.get('limit')) || 12;
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status');
-    const specialization = searchParams.get('specialization');
+    const specialization = searchParams.get('specialization') || searchParams.get('specialty');
+    const feeFilter = searchParams.get('feeFilter') || searchParams.get('fee_filter');
+    const sortBy = searchParams.get('sortBy') || searchParams.get('sort_by') || 'recommended';
+    const publicOnly = searchParams.get('public_only') === 'true';
 
     const offset = (page - 1) * limit;
 
@@ -19,6 +22,10 @@ export async function GET(request) {
       .from('users')
       .select('*', { count: 'exact' })
       .eq('role', 'doctor');
+
+    if (publicOnly) {
+      userQuery = userQuery.eq('status', 1);
+    }
 
     // Apply status filter to users
     if (status && status !== 'all') {
@@ -36,49 +43,61 @@ export async function GET(request) {
       }
     }
 
-    // Apply Specialization filter at database level
-    if (specialization && specialization !== 'all') {
-      let specQuery = supabase
-        .from('doctor_details')
-        .select('id');
-      
-      if (specialization.toLowerCase() === 'urology') {
-        specQuery = specQuery.ilike('specialization', '%urology%').not('specialization', 'ilike', '%neurology%');
-      } else {
-        specQuery = specQuery.ilike('specialization', `%${specialization}%`);
+    // Check if we need doctor_details filtering
+    const hasDetailsFilter = (specialization && specialization !== 'All Specialties' && specialization !== 'all') || search || (feeFilter && feeFilter !== 'all') || publicOnly;
+
+    if (hasDetailsFilter) {
+      let detailsQuery = supabase.from('doctor_details').select('id, specialization, clinic_consultation_fee, video_consultation_fee, home_visit_fee, rating, experience_years, full_name, onboarding_status');
+
+      if (publicOnly) {
+        detailsQuery = detailsQuery.eq('onboarding_status', 'approved');
       }
 
-      const { data: matchedDetails, error: specError } = await specQuery;
-      
-      if (specError) throw specError;
+      // Specialization filter
+      if (specialization && specialization !== 'All Specialties' && specialization !== 'all') {
+        const specLower = specialization.toLowerCase();
+        if (specLower === 'urology') {
+          detailsQuery = detailsQuery.ilike('specialization', '%urology%').not('specialization', 'ilike', '%neurology%');
+        } else if (specLower.includes('dentist') || specLower.includes('dental') || specLower.includes('dentistry')) {
+          detailsQuery = detailsQuery.or('specialization.ilike.%dentist%,specialization.ilike.%dental%,specialization.ilike.%dentistry%');
+        } else if (specLower.includes('physician') || specLower.includes('gp') || specLower.includes('general')) {
+          detailsQuery = detailsQuery.or('specialization.ilike.%physician%,specialization.ilike.%general%,specialization.ilike.%medicine%');
+        } else if (specLower.includes('gynecol') || specLower.includes('obgyn')) {
+          detailsQuery = detailsQuery.or('specialization.ilike.%gynecol%,specialization.ilike.%gynaecol%,specialization.ilike.%obgyn%');
+        } else if (specLower.includes('pediatr') || specLower.includes('paediatr')) {
+          detailsQuery = detailsQuery.or('specialization.ilike.%pediatr%,specialization.ilike.%paediatr%,specialization.ilike.%child%');
+        } else if (specLower.includes('orthoped') || specLower.includes('orthopaed')) {
+          detailsQuery = detailsQuery.or('specialization.ilike.%orthoped%,specialization.ilike.%orthopaed%,specialization.ilike.%bone%');
+        } else if (specLower.includes('ent') || specLower.includes('throat') || specLower.includes('ear')) {
+          detailsQuery = detailsQuery.or('specialization.ilike.%ent%,specialization.ilike.%throat%,specialization.ilike.%ear%');
+        } else if (specLower.includes('cardio') || specLower.includes('heart')) {
+          detailsQuery = detailsQuery.or('specialization.ilike.%cardio%,specialization.ilike.%heart%');
+        } else {
+          detailsQuery = detailsQuery.ilike('specialization', `%${specialization}%`);
+        }
+      }
 
-      const specIds = matchedDetails?.map(d => d.id) || [];
-      userQuery = userQuery.in('id', specIds.length > 0 ? specIds : ['00000000-0000-0000-0000-000000000000']);
-    }
+      // Search filter
+      if (search) {
+        detailsQuery = detailsQuery.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,specialization.ilike.%${search}%,license_number.ilike.%${search}%,clinic_name.ilike.%${search}%,clinic_address.ilike.%${search}%`);
+      }
 
-    // Apply Search filter at database level
-    if (search) {
-      const { data: searchedDetails, error: detailsError } = await supabase
-        .from('doctor_details')
-        .select('id')
-        .or(`full_name.ilike.%${search}%,email.ilike.%${search}%,specialization.ilike.%${search}%,license_number.ilike.%${search}%,clinic_name.ilike.%${search}%`);
-      
+      // Fee filter
+      if (feeFilter && feeFilter !== 'all') {
+        if (feeFilter === 'under_500') {
+          detailsQuery = detailsQuery.or('clinic_consultation_fee.lt.500,video_consultation_fee.lt.500');
+        } else if (feeFilter === '500_1000') {
+          detailsQuery = detailsQuery.or('and(clinic_consultation_fee.gte.500,clinic_consultation_fee.lte.1000),and(video_consultation_fee.gte.500,video_consultation_fee.lte.1000)');
+        } else if (feeFilter === 'above_1000') {
+          detailsQuery = detailsQuery.or('clinic_consultation_fee.gt.1000,video_consultation_fee.gt.1000');
+        }
+      }
+
+      const { data: matchedDetails, error: detailsError } = await detailsQuery;
       if (detailsError) throw detailsError;
 
-      const searchedIds = searchedDetails?.map(d => d.id) || [];
-
-      const { data: searchedUsers, error: usersSearchError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('role', 'doctor')
-        .ilike('phone_number', `%${search}%`);
-      
-      if (usersSearchError) throw usersSearchError;
-
-      const searchedUserIds = searchedUsers?.map(u => u.id) || [];
-
-      const combinedIds = Array.from(new Set([...searchedIds, ...searchedUserIds]));
-      userQuery = userQuery.in('id', combinedIds.length > 0 ? combinedIds : ['00000000-0000-0000-0000-000000000000']);
+      const matchedIds = matchedDetails?.map(d => d.id) || [];
+      userQuery = userQuery.in('id', matchedIds.length > 0 ? matchedIds : ['00000000-0000-0000-0000-000000000000']);
     }
 
     // Get users with pagination

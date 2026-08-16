@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { getDoctorsAction } from "./actions";
 import {
   FaUserMd,
   FaSearch,
@@ -99,103 +100,91 @@ const DoctorCard = ({ doctor, isHighlighted, onSelect, onOpenProfile }) => {
       tabIndex={0}
       onClick={onSelect}
       onKeyDown={(e) => { if (e.key === "Enter") onSelect(); }}
-      className={`group w-full text-left cursor-pointer rounded-2xl transition-all duration-300 hover:shadow-xl hover:-translate-y-1 bg-white border ${isHighlighted ? "border-[#0067A1] ring-1 ring-[#0067A1]" : "border-gray-200"
-        } flex flex-col h-full overflow-hidden relative`}
+      className={`group w-full text-left cursor-pointer rounded-xl transition-all bg-white border ${
+        isHighlighted ? "border-[#0067A1] ring-2 ring-[#0067A1]/20" : "border-slate-200 hover:border-[#0067A1] hover:shadow-sm"
+      } flex flex-col h-full overflow-hidden p-4 shadow-xs`}
     >
-      <div className="p-6 md:p-7 flex-1 flex flex-col">
-        {/* Header */}
-        <div className="flex gap-4 md:gap-5 mb-5">
-          <div className="relative shrink-0">
-            <div className="h-20 w-20 rounded-2xl overflow-hidden border border-gray-100 shadow-sm bg-gray-50 flex items-center justify-center">
-              <img
-                src={doctor.profileImage || "/dr.png"}
-                alt={doctor.name}
-                className="h-full w-full object-cover"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'flex';
-                }}
-              />
-              <div className="hidden absolute inset-0 bg-[#0067A1]/10 items-center justify-center text-xl font-bold text-[#0067A1]">
-                {doctor.name.charAt(0)}
-              </div>
-            </div>
-            <div className="absolute -bottom-2 -right-2 bg-white rounded-full p-[2px] shadow-sm">
-              <FaCheckCircle className="h-5 w-5 text-emerald-500" />
+      {/* Doctor Header Info */}
+      <div className="flex gap-3 items-start mb-3">
+        <div className="relative shrink-0">
+          <div className="h-16 w-16 rounded-lg overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center">
+            <img
+              src={doctor.profileImage || "/dr.png"}
+              alt={doctor.name}
+              className="h-full w-full object-cover"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+              }}
+            />
+            <div className="hidden absolute inset-0 bg-[#0067A1]/10 items-center justify-center text-[#0067A1] font-bold text-base">
+              {doctor.name ? doctor.name.charAt(0) : "D"}
             </div>
           </div>
-
-          <div className="flex-1 min-w-0 flex flex-col justify-center">
-            <h3 className="text-lg md:text-xl font-bold text-gray-900 truncate tracking-tight">
-              {doctor.name}
-            </h3>
-            <p className="text-[15px] font-semibold text-[#0067A1] truncate mt-0.5">
-              {doctor.specialty}
-            </p>
-            <div className="mt-1.5 flex items-center">
-              {typeof doctor.rating === "number" && doctor.rating > 0 && typeof doctor.reviews === "number" && doctor.reviews > 0 ? (
-                <div className="flex items-center gap-1.5 bg-yellow-50 px-2 py-0.5 rounded-full border border-yellow-100">
-                  <FaStar className="h-3 w-3 text-yellow-500" />
-                  <span className="text-xs font-bold text-yellow-700">
-                    {doctor.rating.toFixed(1)} <span className="font-medium opacity-80">({doctor.reviews})</span>
-                  </span>
-                </div>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
-                  <HiOutlineBadgeCheck className="h-4 w-4" />
-                  DMC Specialist
-                </span>
-              )}
-            </div>
+          <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-xs">
+            <FaCheckCircle className="h-3.5 w-3.5 text-emerald-500" />
           </div>
         </div>
 
-        {/* Info List */}
-        <div className="mb-6 space-y-3 px-1 flex-1">
-          <div className="flex items-center gap-3">
-            <div className="bg-[#0067A1]/10 p-1.5 rounded-lg shrink-0">
-              <FaClock className="h-3.5 w-3.5 text-[#0067A1]" />
-            </div>
-            <span className="text-[15px] text-gray-600 truncate">
-              {typeof doctor.experience === "number" && doctor.experience > 0
-                ? <><span className="font-semibold text-gray-800">{doctor.experience}+</span> Years Experience</>
-                : "Experience verified"}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="bg-[#0067A1]/10 p-1.5 rounded-lg shrink-0">
-              <FaCalendarAlt className="h-3.5 w-3.5 text-[#0067A1]" />
-            </div>
-            <span className="text-[15px] font-medium text-emerald-600">Available Today</span>
-          </div>
-        </div>
-
-        {/* Footer actions */}
-        <div className="mt-auto grid grid-cols-[1fr,auto] gap-3 items-center border-t border-gray-100 pt-5">
-          <div className="flex flex-col">
-            <span className="text-[11px] md:text-xs font-medium text-gray-400 uppercase tracking-wider">Consultation Fee</span>
-            {doctor.fee ? (
-              <div className="text-lg font-bold text-gray-900 mt-0.5">
-                ₹{doctor.fee}
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-bold text-slate-900 truncate group-hover:text-[#0067A1] transition-colors">
+            {doctor.name}
+          </h3>
+          <p className="text-xs font-semibold text-[#0067A1] truncate mt-0.5">
+            {doctor.specialty}
+          </p>
+          <div className="mt-1 flex items-center gap-1.5">
+            {typeof doctor.rating === "number" && doctor.rating > 0 ? (
+              <div className="inline-flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded text-[11px] font-semibold text-amber-800 border border-amber-200/60">
+                <FaStar className="h-3 w-3 text-amber-500" />
+                <span>{doctor.rating.toFixed(1)}</span>
+                {doctor.reviews && <span className="text-amber-700/70 font-normal">({doctor.reviews})</span>}
               </div>
             ) : (
-              <div className="text-sm font-semibold text-gray-600 mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis pr-2" title="Shared upon booking">
-                TBD
-              </div>
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
+                <HiOutlineBadgeCheck className="h-3.5 w-3.5" />
+                Verified Specialist
+              </span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenProfile();
-            }}
-            className="flex items-center justify-center gap-2 rounded-xl bg-[#0067A1] px-4 md:px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-[#0067A1]/20 hover:bg-[#004F7C] transition-all group-hover:shadow-lg active:scale-95 whitespace-nowrap"
-          >
-            <FaVideo className="h-4 w-4 shrink-0" />
-            <span>Book Now</span>
-          </button>
         </div>
+      </div>
+
+      {/* Doctor Meta Details */}
+      <div className="space-y-1.5 border-t border-slate-100 pt-3 mb-3 text-xs text-slate-600 flex-1">
+        <div className="flex items-center justify-between">
+          <span className="text-slate-500">Experience</span>
+          <span className="font-semibold text-slate-800">
+            {doctor.experience ? `${doctor.experience}+ Years` : "Verified"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-slate-500">Location</span>
+          <span className="font-semibold text-slate-800 truncate max-w-[130px]" title={doctor.location}>
+            {doctor.location || "India"}
+          </span>
+        </div>
+      </div>
+
+      {/* Footer Fee & CTA */}
+      <div className="border-t border-slate-100 pt-3 flex items-center justify-between mt-auto">
+        <div>
+          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">Consultation</span>
+          <span className="text-sm font-bold text-slate-900">
+            {doctor.fee ? `₹${doctor.fee}` : "TBD"}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenProfile();
+          }}
+          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0067A1] text-white text-xs font-semibold rounded-lg hover:bg-[#004F7C] transition-colors shadow-xs"
+        >
+          <FaVideo className="h-3 w-3" />
+          <span>Book Slot</span>
+        </button>
       </div>
     </div>
   );
@@ -325,6 +314,116 @@ const ConditionsStrip = ({ conditions, onSelectCondition }) => {
   );
 };
 
+const CustomSelect = ({
+  options = [],
+  value,
+  onChange,
+  placeholder = "Select...",
+  searchable = false,
+  labelPrefix = "",
+  fullWidth = false,
+  alignRight = false,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedItem = options.find((opt) =>
+    typeof opt === "object" ? opt.value === value : opt === value
+  );
+
+  const displayLabel = selectedItem
+    ? typeof selectedItem === "object"
+      ? selectedItem.label
+      : selectedItem
+    : value || placeholder;
+
+  const filteredOptions = options.filter((opt) => {
+    const label = typeof opt === "object" ? opt.label : opt;
+    return label.toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
+  return (
+    <div ref={dropdownRef} className={`relative ${fullWidth ? "w-full" : "inline-block"} text-xs`}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 font-semibold focus:outline-none focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all flex items-center justify-between gap-2 shadow-2xs ${
+          fullWidth ? "w-full" : "min-w-[130px]"
+        }`}
+      >
+        <span className="truncate">
+          {labelPrefix && <span className="text-slate-400 font-normal mr-1">{labelPrefix}</span>}
+          {displayLabel}
+        </span>
+        <FaChevronDown className={`w-2.5 h-2.5 text-slate-400 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180 text-[#0067A1]" : ""}`} />
+      </button>
+
+      {isOpen && (
+        <div className={`absolute ${alignRight ? "right-0 left-auto" : "left-0"} mt-1.5 ${fullWidth ? "w-full" : "w-56"} max-h-64 overflow-hidden bg-white border border-slate-200 rounded-xl shadow-2xl z-[10001] p-2 animate-in fade-in slide-in-from-top-1 duration-150`}>
+          {searchable && (
+            <div className="p-1 mb-1.5 border-b border-slate-100">
+              <div className="relative">
+                <FaSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 w-3 h-3" />
+                <input
+                  type="text"
+                  placeholder="Search options..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-7 pr-2 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#0067A1]"
+                  autoFocus
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-0.5 max-h-48 overflow-y-auto hide-scrollbar">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2.5 text-slate-400 text-center italic text-xs">No matching options</div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const optVal = typeof opt === "object" ? opt.value : opt;
+                const optLabel = typeof opt === "object" ? opt.label : opt;
+                const isSelected = optVal === value;
+
+                return (
+                  <button
+                    key={optVal}
+                    type="button"
+                    onClick={() => {
+                      onChange(optVal);
+                      setIsOpen(false);
+                      setSearchTerm("");
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between font-semibold text-xs transition-colors ${
+                      isSelected
+                        ? "bg-[#0067A1]/10 text-[#0067A1]"
+                        : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+                    }`}
+                  >
+                    <span className="truncate">{optLabel}</span>
+                    {isSelected && <FaCheckCircle className="w-3.5 h-3.5 text-[#0067A1] shrink-0 ml-2" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 function DoctorsContent() {
   const router = useRouter();
@@ -339,9 +438,16 @@ function DoctorsContent() {
   const [doctors, setDoctors] = useState([]);
   const [conditions, setConditions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(1);
   const [error, setError] = useState("");
   const [selectedDoctorId, setSelectedDoctorId] = useState(null);
-  const [visibleCount, setVisibleCount] = useState(9);
+  const [sortBy, setSortBy] = useState("recommended");
+  const [feeFilter, setFeeFilter] = useState("all");
+  const [totalDoctorsCount, setTotalDoctorsCount] = useState(0);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const activeFilterCount = (selectedSpecialty !== "All Specialties" ? 1 : 0) + (feeFilter !== "all" ? 1 : 0) + (searchQuery.trim() !== "" ? 1 : 0);
   const [headerData, setHeaderData] = useState({
     title: "TRUSTED DOCTORS",
     heading: "Meet Our Expert Doctors",
@@ -419,85 +525,94 @@ function DoctorsContent() {
     fetchConditions();
   }, []);
 
-  useEffect(() => {
-    const fetchDoctors = async () => {
-      try {
+  const loadDoctorsFromApi = async (targetPage = 1, isReset = false) => {
+    try {
+      if (isReset) {
         setLoading(true);
-        setError("");
-
-        const res = await fetch("/api/doctors/get?limit=100");
-        const json = await res.json();
-        const allDocs = Array.isArray(json?.data) ? json.data : [];
-
-        const mapped = allDocs
-          .filter((doc) => {
-            const details = doc.doctor_details || {};
-            // Check if doctor has any availability slots configured
-            const hasHomeSlots = details.home_slots && Object.keys(details.home_slots).length > 0 && JSON.stringify(details.home_slots) !== '{}';
-            const hasClinicSlots = details.clinic_slots && Object.keys(details.clinic_slots).length > 0 && JSON.stringify(details.clinic_slots) !== '{}';
-            const hasAvailability = hasHomeSlots || hasClinicSlots;
-
-            return (details.onboarding_status === "approved" || doc.status === 1) && hasAvailability;
-          })
-          .map((doc) => {
-            const details = doc.doctor_details || {};
-            const rawFee = details.clinic_consultation_fee || details.video_consultation_fee || details.home_visit_fee;
-            const numericFee =
-              typeof rawFee === "number" ? rawFee : rawFee ? Number(rawFee) : NaN;
-
-            // Fix malformed profile image from DB (e.g. "'url'::text")
-            let profileImage = "";
-            if (details.passport_photo) {
-              profileImage = Array.isArray(details.passport_photo) 
-                ? details.passport_photo[0] 
-                : details.passport_photo;
-            }
-            if (!profileImage && doc.profile_picture) {
-              profileImage = doc.profile_picture;
-            }
-            if (profileImage && typeof profileImage === 'string' && profileImage.includes("ui-avatars.com")) {
-              profileImage = "";
-            }
-            
-            if (profileImage && typeof profileImage === 'string' && profileImage.includes("::text")) {
-              const match = profileImage.match(/'([^']+)'/);
-              profileImage = match ? match[1] : "";
-            }
-
-            return {
-              id: doc.id,
-              name: details.full_name || details.name || "Doctor",
-              specialty: normalizeSpecialty(details.specialization),
-              rating: typeof details.rating === "number" ? details.rating : null,
-              reviews:
-                typeof details.total_reviews === "number" && details.total_reviews > 0
-                  ? details.total_reviews
-                  : null,
-              location: cleanClinicAddress(details.clinic_address),
-              experience:
-                typeof details.experience_years === "number" && details.experience_years > 0
-                  ? details.experience_years
-                  : null,
-              fee: Number.isFinite(numericFee) && numericFee > 0 ? numericFee : null,
-              profileImage: profileImage,
-              channels: [],
-            };
-          });
-
-        setDoctors(mapped);
-      } catch (err) {
-        console.error("Failed to load doctors", err);
-        setError(
-          "Unable to load available doctors right now. Please try again later.",
-        );
-      } finally {
-        setLoading(false);
+      } else {
+        setLoadingMore(true);
       }
-    };
+      setError("");
 
+      const res = await getDoctorsAction({
+        page: targetPage,
+        limit: 12,
+        search: searchQuery.trim(),
+        specialization: selectedSpecialty,
+        feeFilter: feeFilter,
+        sortBy: sortBy,
+      });
 
-    fetchDoctors();
-  }, []);
+      const rawList = Array.isArray(res?.data) ? res.data : [];
+
+      const mapped = rawList.map((doc) => {
+        const details = doc.doctor_details || {};
+        const rawFee = details.clinic_consultation_fee || details.video_consultation_fee || details.home_visit_fee;
+        const numericFee = typeof rawFee === "number" ? rawFee : rawFee ? Number(rawFee) : NaN;
+
+        let profileImage = "";
+        if (details.passport_photo) {
+          profileImage = Array.isArray(details.passport_photo) 
+            ? details.passport_photo[0] 
+            : details.passport_photo;
+        }
+        if (!profileImage && doc.profile_picture) {
+          profileImage = doc.profile_picture;
+        }
+        if (profileImage && typeof profileImage === 'string' && profileImage.includes("ui-avatars.com")) {
+          profileImage = "";
+        }
+        if (profileImage && typeof profileImage === 'string' && profileImage.includes("::text")) {
+          const match = profileImage.match(/'([^']+)'/);
+          profileImage = match ? match[1] : "";
+        }
+
+        return {
+          id: doc.id,
+          name: details.full_name || details.name || "Doctor",
+          specialty: normalizeSpecialty(details.specialization),
+          rating: typeof details.rating === "number" ? details.rating : null,
+          reviews: typeof details.total_reviews === "number" && details.total_reviews > 0 ? details.total_reviews : null,
+          location: cleanClinicAddress(details.clinic_address),
+          experience: typeof details.experience_years === "number" && details.experience_years > 0 ? details.experience_years : null,
+          fee: Number.isFinite(numericFee) && numericFee > 0 ? numericFee : null,
+          profileImage: profileImage,
+          channels: [],
+        };
+      });
+
+      mapped.sort((a, b) => {
+        if (sortBy === "rating_high") return (b.rating || 0) - (a.rating || 0);
+        if (sortBy === "exp_high") return (b.experience || 0) - (a.experience || 0);
+        if (sortBy === "fee_low") return (a.fee || 99999) - (b.fee || 99999);
+        if (sortBy === "fee_high") return (b.fee || 0) - (a.fee || 0);
+        if (sortBy === "name_asc") return a.name.localeCompare(b.name);
+        return 0;
+      });
+
+      setHasMore(res?.pagination?.hasNextPage ?? (mapped.length >= 12));
+      if (typeof res?.pagination?.totalItems === "number") {
+        setTotalDoctorsCount(res.pagination.totalItems);
+      }
+
+      if (isReset) {
+        setDoctors(mapped);
+      } else {
+        setDoctors((prev) => [...prev, ...mapped]);
+      }
+    } catch (err) {
+      console.error("Failed to load doctors via Server Action", err);
+      setError("Unable to load available doctors right now. Please try again later.");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    setPage(1);
+    loadDoctorsFromApi(1, true);
+  }, [searchQuery, selectedSpecialty, feeFilter, sortBy]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -527,222 +642,372 @@ function DoctorsContent() {
   }, [loading]);
 
   return (
-    <div className="min-h-screen bg-[#F6F8FA]">
-      {/* Hero Section - compact with primary background */}
-      <div className="mb-10  bg-[#0067A1] px-6 py-10 md:px-10 md:py-12 text-center text-white">
-        <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-white/10">
-          <FaUserMd className="h-9 w-9 text-white" />
+    <div className="min-h-screen bg-[#F8FAFC]">
+      {/* Top Page Header Bar (No Hero Section) */}
+      <div className="bg-white border-b border-slate-200 py-4 px-4 sm:px-6 lg:px-8 shadow-2xs">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
+              <span>Find & Book Doctors</span>
+              {(totalDoctorsCount > 0 || doctors.length > 0) && (
+                <span className="text-xs font-semibold bg-[#0067A1]/10 text-[#0067A1] px-2.5 py-0.5 rounded-full">
+                  {totalDoctorsCount > 0 ? totalDoctorsCount : doctors.length} Verified
+                </span>
+              )}
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+              Browse specialists and book online or in-clinic consultations
+            </p>
+          </div>
         </div>
-        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-3">
-          Find the Right Doctor for Your Need
-        </h1>
-        <p className="mt-2 text-sm md:text-base text-white/80 max-w-2xl mx-auto">
-          Browse verified specialists across key departments and book online or
-          in-clinic consultations in a few simple steps.
-        </p>
       </div>
-      <div className="relative overflow-visible">
-        <div className={`relative container mx-auto px-4 sm:px-4 lg:px-4 ${searchQuery ? "pb-4" : "pb-12 md:pb-16"}`}>
-          
 
-          {/* Filter Section */}
-          <div className={`${searchQuery ? "mb-0" : "mb-8"} w-full`}>
-            {/* Search Input Bar */}
-            <div className={`w-full max-w-2xl mx-auto px-4 ${searchQuery ? "mb-0" : "mb-8"}`}>
-              <div className="relative shadow-md rounded-2xl">
-                <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="text"
-                  placeholder="Search doctors by name, specialty, or clinic location..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setVisibleCount(9);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      const target = document.getElementById("doctors-list");
-                      if (target) {
-                        target.scrollIntoView({ behavior: "smooth" });
-                      }
-                    }
-                  }}
-                  className="w-full pl-12 pr-10 py-4 text-base border border-gray-150 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent transition-all bg-white text-gray-900 placeholder-gray-400"
-                />
-                {searchQuery && (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Mobile Toolbar: Search + Quick Filter Drawer Trigger */}
+        <div className="lg:hidden space-y-3 mb-6">
+          {/* Mobile Search Bar */}
+          <div className="relative shadow-2xs rounded-xl bg-white border border-slate-200 focus-within:border-[#0067A1]">
+            <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
+            <input
+              type="text"
+              placeholder="Search doctor name, specialty, or clinic..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-9 py-2.5 text-xs bg-transparent text-slate-900 placeholder-slate-400 focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-500 hover:text-slate-700 bg-slate-100 px-2 py-0.5 rounded"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Quick Controls Bar */}
+          <div className="flex items-center justify-between gap-2 bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setIsMobileFilterOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0067A1]/10 text-[#0067A1] rounded-lg text-xs font-bold hover:bg-[#0067A1]/20 transition-colors"
+            >
+              <FaFilter className="w-3 h-3 text-[#0067A1]" />
+              <span>All Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="bg-[#0067A1] text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Sort:</span>
+              <CustomSelect
+                options={[
+                  { value: "recommended", label: "Recommended" },
+                  { value: "rating_high", label: "Rating: High" },
+                  { value: "exp_high", label: "Exp: High" },
+                  { value: "fee_low", label: "Fee: Low to High" },
+                  { value: "fee_high", label: "Fee: High to Low" },
+                  { value: "name_asc", label: "Name: A-Z" },
+                ]}
+                value={sortBy}
+                onChange={(val) => setSortBy(val)}
+                alignRight={true}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 2-Column Responsive Layout for Desktop / Tablet */}
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Left Sidebar Filter Panel (Desktop) */}
+          <div className="hidden lg:block w-72 shrink-0">
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-2xs sticky top-20 space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2 font-bold text-slate-900 text-sm">
+                  <FaFilter className="w-3.5 h-3.5 text-[#0067A1]" />
+                  <span>Filter Doctors</span>
+                </div>
+                {activeFilterCount > 0 && (
                   <button
+                    type="button"
                     onClick={() => {
+                      setSelectedSpecialty("All Specialties");
+                      setFeeFilter("all");
                       setSearchQuery("");
-                      setVisibleCount(9);
+                      setSortBy("recommended");
                     }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 font-medium text-sm"
+                    className="text-xs font-semibold text-rose-600 hover:underline"
                   >
-                    Clear
+                    Reset All
                   </button>
                 )}
               </div>
+
+              {/* Search Box */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                  Search Query
+                </label>
+                <div className="relative rounded-lg bg-slate-50 border border-slate-200 focus-within:border-[#0067A1]">
+                  <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3 h-3" />
+                  <input
+                    type="text"
+                    placeholder="Doctor, specialty, location..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-8 pr-7 py-2 text-xs bg-transparent text-slate-900 placeholder-slate-400 focus:outline-none"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-400 hover:text-slate-700"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Specialty Select */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                  Specialty
+                </label>
+                <CustomSelect
+                  options={specialties}
+                  value={selectedSpecialty}
+                  onChange={(val) => setSelectedSpecialty(val)}
+                  searchable={true}
+                  placeholder="Select Specialty"
+                />
+              </div>
+
+              {/* Fee Filter */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                  Consultation Fee
+                </label>
+                <CustomSelect
+                  options={[
+                    { value: "all", label: "All Fees" },
+                    { value: "under_500", label: "Under ₹500" },
+                    { value: "500_1000", label: "₹500 - ₹1,000" },
+                    { value: "above_1000", label: "Above ₹1,000" },
+                  ]}
+                  value={feeFilter}
+                  onChange={(val) => setFeeFilter(val)}
+                />
+              </div>
+
+              {/* Sort By Filter */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                  Sort By
+                </label>
+                <CustomSelect
+                  options={[
+                    { value: "recommended", label: "Recommended" },
+                    { value: "rating_high", label: "Rating: High to Low" },
+                    { value: "exp_high", label: "Experience: High to Low" },
+                    { value: "fee_low", label: "Fee: Low to High" },
+                    { value: "fee_high", label: "Fee: High to Low" },
+                    { value: "name_asc", label: "Name: A to Z" },
+                  ]}
+                  value={sortBy}
+                  onChange={(val) => setSortBy(val)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Right Main Content Column */}
+          <div className="flex-1 space-y-4">
+            {!searchQuery && (
+              <ConditionsStrip
+                conditions={conditions}
+                onSelectCondition={(slug) => router.push(`/website/problem/${slug}`)}
+              />
+            )}
+
+            <div id="doctors-list" className="relative">
+              {loading ? (
+                <div className="text-center text-slate-500 py-12 space-y-2 bg-white rounded-xl border border-slate-200">
+                  <div className="w-8 h-8 border-3 border-[#0067A1] border-t-transparent rounded-full animate-spin mx-auto"></div>
+                  <p className="text-sm font-medium">Loading verified medical specialists...</p>
+                </div>
+              ) : error ? (
+                <p className="text-center text-red-500 py-8 text-sm font-medium bg-white rounded-xl border border-slate-200">{error}</p>
+              ) : doctors.length === 0 ? (
+                <div className="bg-white rounded-xl border border-slate-200 p-12 text-center my-2">
+                  <FaUserMd className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <h3 className="text-base font-bold text-slate-800">No doctors match your criteria</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                    Try adjusting your search query or clear the active filters to see available doctors.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setSelectedSpecialty("All Specialties");
+                      setFeeFilter("all");
+                      setSearchQuery("");
+                      setSortBy("recommended");
+                      setPage(1);
+                      loadDoctorsFromApi(1, true);
+                    }}
+                    className="mt-4 px-4 py-2 bg-[#0067A1] text-white text-xs font-semibold rounded-lg hover:bg-[#004F7C] transition-colors"
+                  >
+                    Reset All Filters
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Grid of Doctor Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4.5 mb-8">
+                    {doctors.map((doctor, index) => (
+                      <DoctorCard
+                        key={doctor.id || index}
+                        doctor={doctor}
+                        isHighlighted={selectedDoctorId && String(selectedDoctorId) === String(doctor.id)}
+                        onSelect={() => setSelectedDoctorId(doctor.id)}
+                        onOpenProfile={() => router.push(`/website/doctor/${doctor.id}`)}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Load More Button via API */}
+                  {hasMore && (
+                    <div className="text-center mb-12">
+                      <button
+                        type="button"
+                        disabled={loadingMore}
+                        onClick={() => {
+                          const nextPage = page + 1;
+                          setPage(nextPage);
+                          loadDoctorsFromApi(nextPage, false);
+                        }}
+                        className="px-6 py-2.5 bg-[#0067A1] hover:bg-[#004F7C] disabled:opacity-50 text-white font-semibold text-xs rounded-lg transition-colors shadow-xs inline-flex items-center gap-2"
+                      >
+                        {loadingMore ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <span>Loading More Doctors...</span>
+                          </>
+                        ) : (
+                          <span>Load More Doctors</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Slide-Up Bottom Sheet Filter Modal */}
+      {isMobileFilterOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-end justify-center lg:hidden bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white w-full max-w-lg rounded-t-2xl max-h-[85vh] p-5 flex flex-col justify-between shadow-2xl animate-in slide-in-from-bottom-5">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div className="flex items-center gap-2">
+                <FaFilter className="w-3.5 h-3.5 text-[#0067A1]" />
+                <h3 className="font-bold text-slate-900 text-sm">Filter & Sort Doctors</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition-colors"
+              >
+                ✕
+              </button>
             </div>
 
-            {!searchQuery && (
-              <>
-                <div className="w-full max-w-full mx-auto relative px-6 mt-4">
-                  <ConditionsStrip
-                    conditions={conditions}
-                    onSelectCondition={(slug) => router.push(`/website/problem/${slug}`)}
-                  />
-                </div>
+            {/* Filter Content Scrollable */}
+            <div className="space-y-5 overflow-y-auto py-4 pr-1">
+              {/* Specialty Custom Select with Search */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                  Medical Specialty
+                </label>
+                <CustomSelect
+                  options={specialties}
+                  value={selectedSpecialty}
+                  onChange={(val) => setSelectedSpecialty(val)}
+                  searchable={true}
+                  fullWidth={true}
+                  placeholder="Select Specialty"
+                />
+              </div>
 
-                <div className="flex flex-col items-center justify-center space-y-4 w-full max-w-full mx-auto relative px-4 mt-8">
-                  <h3 className="text-xl font-semibold text-gray-900">
-                    Choose a Specialty
-                  </h3>
-                  <SpecialtyFilter
-                    specialties={specialties}
-                    selectedSpecialty={selectedSpecialty}
-                    onSelect={(s) => {
-                      setSelectedSpecialty(s);
-                      setVisibleCount(9);
-                    }}
-                  />
-                </div>
-              </>
-            )}
+              {/* Consultation Fee Custom Select */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                  Consultation Fee
+                </label>
+                <CustomSelect
+                  options={[
+                    { value: "all", label: "All Fees" },
+                    { value: "under_500", label: "Under ₹500" },
+                    { value: "500_1000", label: "₹500 - ₹1,000" },
+                    { value: "above_1000", label: "Above ₹1,000" },
+                  ]}
+                  value={feeFilter}
+                  onChange={(val) => setFeeFilter(val)}
+                  fullWidth={true}
+                />
+              </div>
+
+              {/* Sort By Custom Select */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                  Sort By
+                </label>
+                <CustomSelect
+                  options={[
+                    { value: "recommended", label: "Recommended" },
+                    { value: "rating_high", label: "Rating: High to Low" },
+                    { value: "exp_high", label: "Experience: High to Low" },
+                    { value: "fee_low", label: "Fee: Low to High" },
+                    { value: "fee_high", label: "Fee: High to Low" },
+                    { value: "name_asc", label: "Name: A to Z" },
+                  ]}
+                  value={sortBy}
+                  onChange={(val) => setSortBy(val)}
+                  fullWidth={true}
+                />
+              </div>
+            </div>
+
+            {/* Bottom Actions Bar */}
+            <div className="pt-3 border-t border-slate-100 flex gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedSpecialty("All Specialties");
+                  setFeeFilter("all");
+                  setSearchQuery("");
+                  setSortBy("recommended");
+                  setIsMobileFilterOpen(false);
+                }}
+                className="flex-1 py-2.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+              >
+                Reset All
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="flex-1 py-2.5 text-xs font-bold text-white bg-[#0067A1] hover:bg-[#004F7C] rounded-lg transition-colors shadow-xs"
+              >
+                Show Results
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Featured Doctors Section */}
-      <div id="doctors-list" className="relative container mx-auto px-4 sm:px-6 lg:px-8 ">
-        <div className={`text-center ${searchQuery ? "mb-6 mt-4" : "mb-12"}`}>
-          <div className="mb-4 inline-block rounded-full bg-[#0067A1]/5 px-6 py-2">
-            <span className="text-sm font-semibold text-[#0067A1]">
-              {headerData.title}
-            </span>
-          </div>
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-            {headerData.heading.replace('Expert Doctors', '')} <span className="text-[#0067A1]">Expert Doctors</span>
-          </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            {headerData.subheading}
-          </p>
-        </div>
-
-        {loading ? (
-          <p className="text-center text-gray-500 py-8">
-            Loading available doctors...
-          </p>
-        ) : error ? (
-          <p className="text-center text-red-500 py-8">{error}</p>
-        ) : doctors.length === 0 ? (
-          <p className="text-center text-gray-500 py-8">
-            No doctors are available at the moment. Please check again later.
-          </p>
-        ) : (
-          (() => {
-            const filteredDoctors = doctors.filter((doctor) => {
-              if (searchQuery.trim() !== "") {
-                const query = searchQuery.toLowerCase().trim();
-                const name = (doctor.name || "").toLowerCase();
-                const specialty = (doctor.specialty || "").toLowerCase();
-                const location = (doctor.location || "").toLowerCase();
-                
-                // Escape regex characters
-                const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(`\\b${escapedQuery}`, 'i');
-                
-                const isSpecialtyMatch = regex.test(specialty);
-                const isLocationMatch = regex.test(location);
-
-                if (!name.includes(query) && !isSpecialtyMatch && !isLocationMatch) {
-                  return false;
-                }
-              }
-
-              // 2. Filter by Selected Specialty
-              if (selectedSpecialty === "All Specialties") return true;
-
-              const docSpec = (doctor.specialty || "").toLowerCase();
-              const target = selectedSpecialty.toLowerCase();
-
-              const checkWordMatch = (sourceStr, searchWord) => {
-                const escaped = searchWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-                return regex.test(sourceStr);
-              };
-
-              // Direct whole-word match for multiple specialties
-              if (checkWordMatch(docSpec, target) || checkWordMatch(target, docSpec)) return true;
-
-              // Advanced synonym matching to bridge CMS vs Onboarding discrepancies
-              // Creates conceptual "clusters" of words. If both the selected filter AND 
-              // the doctor's specialty contain a word from the same cluster, they match.
-              const clusters = [
-                ["dentistry", "dentist", "dental", "teeth"],
-                ["general physician", "general medicine", "family physician", "gp", "physician"],
-                ["gynecology", "gynaecology", "gynecologist", "obstetrics", "obgyn"],
-                ["pediatrics", "paediatrics", "pediatrician", "child", "children"],
-                ["orthopedics", "orthopaedics", "orthopedic", "bone", "joints"],
-                ["ent", "ear nose throat", "otolaryngology", "ear, nose"],
-                ["cardiology", "cardiologist", "heart", "cardio"],
-                ["ophthalmology", "eye", "ophthalmologist", "vision"],
-                ["dermatology", "skin", "dermatologist", "hair"],
-                ["psychiatry", "mental health", "psychiatrist", "psychology"],
-                ["nephrology", "nephrologist", "kidney", "renal"],
-                ["surgery", "surgeon", "general surgery", "surgical"]
-              ];
-
-              for (const cluster of clusters) {
-                // 1. Does the selected filter match any word in this cluster (whole-word)?
-                const isFilterInCluster = cluster.some(word => checkWordMatch(target, word) || checkWordMatch(word, target));
-
-                if (isFilterInCluster) {
-                  // 2. Does the doctor's string match any word in this cluster (whole-word)?
-                  const isDoctorInCluster = cluster.some(word => checkWordMatch(docSpec, word));
-                  if (isDoctorInCluster) return true;
-                }
-              }
-
-              return false;
-            });
-
-            if (filteredDoctors.length === 0) {
-              return (
-                <p className="text-center text-gray-500 py-8">
-                  No doctors found for this specialty.
-                </p>
-              );
-            }
-
-            return (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-                  {filteredDoctors.slice(0, visibleCount).map((doctor, index) => (
-                    <DoctorCard
-                      key={doctor.id || index}
-                      doctor={doctor}
-                      isHighlighted={selectedDoctorId && String(selectedDoctorId) === String(doctor.id)}
-                      onSelect={() => setSelectedDoctorId(doctor.id)}
-                      onOpenProfile={() => router.push(`/website/doctor/${doctor.id}`)}
-                    />
-                  ))}
-                </div>
-
-                {/* Load More Button */}
-                {visibleCount < filteredDoctors.length && (
-                  <div className="text-center mt-12">
-                    <button
-                      onClick={() => setVisibleCount((prev) => prev + 9)}
-                      className="px-8 py-3 bg-white hover:bg-gray-50 active:bg-gray-100 text-[#0067A1] font-semibold rounded-full border-2 border-[#0067A1]/30 transition-colors shadow-sm"
-                    >
-                      Load More Doctors
-                    </button>
-                  </div>
-                )}
-              </>
-            );
-          })()
-        )}
-      </div>
+      )}
 
       {/* How It Works Section */}
       <div className="bg-white py-16">

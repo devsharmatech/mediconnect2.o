@@ -65,7 +65,9 @@ export default function CheckoutPage() {
 
     if (!cart) return <LoadingScreen message="Preparing checkout..." submessage="Loading your order details" />;
 
-    const totalAmount = cart.tests.reduce((s, t) => s + t.price, 0);
+    const testsTotal = cart.tests.reduce((s, t) => s + (parseFloat(t.price) || 0), 0);
+    const collectionFee = visitType === "home_collection" ? 150 : 0;
+    const totalAmount = testsTotal + collectionFee;
     const allConsentsGiven = Object.values(consents).every(Boolean);
 
     const handlePayment = async () => {
@@ -384,12 +386,12 @@ export default function CheckoutPage() {
                                     <span className="font-medium text-gray-900">{cart.lab_name}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600">Tests</span>
-                                    <span className="font-medium text-gray-900">{cart.tests.length} tests</span>
+                                    <span className="text-gray-600">Tests Total</span>
+                                    <span className="font-medium text-gray-900">₹{testsTotal.toLocaleString()} ({cart.tests.length} test{cart.tests.length !== 1 ? 's' : ''})</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600">Visit Type</span>
-                                    <span className="font-medium text-gray-900">{visitType === "home_collection" ? "Home Collection" : "Walk-in"}</span>
+                                    <span className="text-gray-600">Collection Mode ({visitType === "home_collection" ? "Home Collection" : "Walk-in"})</span>
+                                    <span className="font-medium text-gray-900">{visitType === "home_collection" ? "₹150" : "Free"}</span>
                                 </div>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-600">Address</span>

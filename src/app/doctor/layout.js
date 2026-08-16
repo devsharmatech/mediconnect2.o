@@ -236,6 +236,20 @@ export default function DoctorDashboardLayout({ children }) {
 
           // Special handling for instant call notifications
           if (pushType === "instant_call") {
+            try {
+              const ctx = new (window.AudioContext || window.webkitAudioContext)();
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.type = "sine";
+              osc.frequency.setValueAtTime(880, ctx.currentTime);
+              osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
+              gain.gain.setValueAtTime(0.3, ctx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.start();
+              osc.stop(ctx.currentTime + 0.5);
+            } catch {}
             toast(
               (t) => (
                 <div className="flex items-center gap-3">
@@ -525,7 +539,7 @@ export default function DoctorDashboardLayout({ children }) {
       type === "appointment_reschedule" ||
       type === "appointment_booked"
     ) {
-      router.push("/doctor/appointments");
+      router.push("/doctor/appointments?date=all&status=booked");
     } else if (
       type === "consultation" ||
       type === "teleconsultation" ||
