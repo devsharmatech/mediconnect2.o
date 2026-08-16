@@ -97,7 +97,6 @@ export async function POST(req) {
       .single();
 
     if (userError) throw userError;
-
     const { error: detailsError } = await supabase.from("patient_details").insert([
       {
         id: user.id,
