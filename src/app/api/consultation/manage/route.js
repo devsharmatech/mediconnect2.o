@@ -222,7 +222,7 @@ export async function POST(req) {
                 // Sync structured tables
                 await syncClinicalData(
                     consultation_id,
-                    clinical_payload.medicines || null,
+                    clinical_payload.prescriptions || clinical_payload.medicines || null,
                     clinical_payload.symptoms || null
                 ).catch(err => console.error("[Sync Complete Error]:", err.message));
             }
@@ -388,6 +388,10 @@ export async function POST(req) {
                 : (clinical_payload?.prescriptions || []);
 
             const labs = clinical_payload?.investigations || [];
+            const rawDiag = clinical?.diagnosis_id || clinical_payload?.diagnosis || "";
+            const cleanDiag = typeof rawDiag === "string" 
+                ? rawDiag 
+                : (rawDiag?.primary || rawDiag?.name || rawDiag?.diagnosis || "");
 
             const prescriptionPayload = {
                 appointment_id: consultation.appointment_id,
@@ -396,7 +400,7 @@ export async function POST(req) {
                 medicines: formattedMedicines,
                 lab_tests: labs,
                 investigations: labs,
-                diagnosis: clinical?.diagnosis_id || clinical_payload?.diagnosis || "",
+                diagnosis: cleanDiag,
                 special_message: clinical?.clinical_notes || clinical_payload?.notes || "",
                 follow_up: clinical_payload?.follow_up ? { duration: clinical_payload.follow_up } : {},
                 is_draft: false,

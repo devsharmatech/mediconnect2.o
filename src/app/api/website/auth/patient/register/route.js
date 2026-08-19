@@ -113,6 +113,24 @@ export async function POST(req) {
       throw detailsError;
     }
 
+    // Log explicit DPDP registration consent (J01 / J16)
+    try {
+      const { logConsent } = await import("@/lib/layer1/consentManager");
+      await logConsent({
+        patient_id: user.id,
+        consent_type: "TERMS_AND_DATA_PROCESSING",
+        status: true,
+        purpose: "Patient Registration & Teleconsultation Services (DPDP Act 2023)",
+        metadata: {
+          ip: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown",
+          userAgent: req.headers.get("user-agent") || "unknown",
+          registered_at: new Date().toISOString()
+        }
+      });
+    } catch (consentErr) {
+      console.warn("Registration consent log note:", consentErr?.message);
+    }
+
     // Send real OTP via SMS gateway
     await sendOTPViaGateway(user.id, user.phone_number);
 

@@ -52,6 +52,8 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
   // Helpers & Autocomplete Masters State
   const [favoriteMeds, setFavoriteMeds] = useState([]);
   const [diagnosisSuggestions, setDiagnosisSuggestions] = useState([]);
+  const [datasetProtocol, setDatasetProtocol] = useState(null);
+  const [loadingProtocol, setLoadingProtocol] = useState(false);
   const [lastSavedPayload, setLastSavedPayload] = useState("");
   const [quickMode, setQuickMode] = useState(false);
   const [symptomMaster, setSymptomMaster] = useState([]);
@@ -127,25 +129,25 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
           .then(json => { if (json.success) setDiagnosisSuggestions(json.data.suggestions || []); })
           .catch(console.error);
 
-        // Fetch autocomplete master lists
+        // Fetch autocomplete master lists from dataset tables
         fetch("/api/admin/medicines")
           .then(r => r.json())
-          .then(json => { if (json.success) setMedicineMaster(json.data.filter(d => d.is_active)); })
+          .then(json => { if (json.success && Array.isArray(json.data)) setMedicineMaster(json.data.filter(d => d.is_active !== false)); })
           .catch(console.error);
 
-        fetch("/api/admin/diagnosis?limit=200")
+        fetch("/api/admin/diagnosis?limit=1000")
           .then(r => r.json())
-          .then(json => { if (json.success) setDiagnosisMaster(json.data.filter(d => d.is_active)); })
+          .then(json => { if (json.success && Array.isArray(json.data)) setDiagnosisMaster(json.data.filter(d => d.is_active !== false)); })
           .catch(console.error);
 
-        fetch("/api/admin/clinical-repository?table=cr_complaint_master&limit=200")
+        fetch("/api/admin/clinical-repository?table=cr_complaint_master&limit=500")
           .then(r => r.json())
           .then(json => { if (json.success && json.data) setSymptomMaster([...new Set(json.data.map(d => d.canonical_complaint).filter(Boolean))].sort()); })
           .catch(console.error);
 
-        fetch("/api/admin/lab-tests?limit=200")
+        fetch("/api/admin/lab-tests?limit=2000")
           .then(r => r.json())
-          .then(json => { if (json.success) setLabMaster(json.data.filter(l => l.is_active)); })
+          .then(json => { if (json.success && Array.isArray(json.data)) setLabMaster(json.data.filter(l => l.is_active !== false)); })
           .catch(console.error);
 
       } catch (err) {
@@ -157,6 +159,72 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
       fetchHelpers();
     }
   }, [isCompleted]);
+
+  // CLINICAL DATASET: Dynamic Complaint Mapping for Symptoms
+  useEffect(() => {
+    if (!clinicalData.symptoms || isCompleted) return;
+    const firstSymptom = clinicalData.symptoms.split(",")[0]?.trim();
+    if (!firstSymptom || firstSymptom.length < 2) return;
+
+    const timeout = setTimeout(() => {
+      fetch(`/api/clinical/complaint-mapping?query=${encodeURIComponent(firstSymptom)}`)
+        .then(r => r.json())
+        .then(res => {
+          if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+            const mappedDiags = res.data.flatMap(group => group.diagnoses || []);
+            if (mappedDiags.length > 0) {
+              const formatted = mappedDiags.map(d => ({
+                diagnosis_id: d.diagnosis_id,
+                diagnosis_name: d.diagnosis_name,
+                source: "dataset-complaint-map",
+                priority: d.priority_rank || 1,
+              }));
+              setDiagnosisSuggestions(formatted.slice(0, 5));
+            }
+          }
+        })
+        .catch(console.error);
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [clinicalData.symptoms, isCompleted]);
+
+  // CLINICAL DATASET: Fetch Clinical Protocol when Diagnosis is selected
+  const fetchProtocolForDiagnosis = async (diagNameOrId) => {
+    if (!diagNameOrId || isCompleted) return;
+    const cleanId = diagNameOrId.trim().toLowerCase().replace(/\s+/g, "-");
+    setLoadingProtocol(true);
+    try {
+      const res = await fetch(`/api/clinical/diagnosis-details?diagnosis_id=${encodeURIComponent(cleanId)}`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        setDatasetProtocol(json.data);
+      } else {
+        setDatasetProtocol(null);
+      }
+    } catch (err) {
+      console.error("Failed to fetch clinical dataset protocol:", err);
+      setDatasetProtocol(null);
+    } finally {
+      setLoadingProtocol(false);
+    }
+  };
+
+  const applyProtocolMedicines = (meds) => {
+    if (!Array.isArray(meds) || meds.length === 0) return;
+    const newItems = meds.map(m => ({
+      medicine_name: `${m.generic_name}${m.strength ? ` ${m.strength}` : ''}${m.dosage_form ? ` (${m.dosage_form})` : ''}`,
+      dosage: m.strength || "",
+      frequency: m.therapy_role === "first-line" ? "1-0-1 (After Food)" : "1-0-0 (After Food)",
+      duration_days: "5 Days",
+      instructions: m.therapy_role ? `Prescribed as ${m.therapy_role} therapy` : "Take after meals"
+    }));
+    setClinicalData(prev => ({
+      ...prev,
+      prescriptions: [...prev.prescriptions, ...newItems]
+    }));
+    toast.success(`Added ${newItems.length} protocol medicines from clinical dataset!`);
+  };
 
   // F8: AUTO-SAVE ENGINE (Every 5 seconds as per PDF)
   useEffect(() => {
@@ -567,24 +635,119 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
               disabled={isCompleted}
               list="diagnosis-list"
               value={clinicalData.diagnosis}
-              onChange={(e) => setClinicalData({ ...clinicalData, diagnosis: e.target.value })}
+              onChange={(e) => {
+                const val = e.target.value;
+                setClinicalData({ ...clinicalData, diagnosis: val });
+                fetchProtocolForDiagnosis(val);
+              }}
               placeholder="Enter diagnosis..."
               className="w-full text-sm border-slate-200 rounded-xl focus:border-[#0067A1] focus:ring-[#0067A1] disabled:bg-slate-100 px-3 py-2 border"
             />
             {diagnosisSuggestions.length > 0 && !isCompleted && (
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold text-slate-400 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5" /> AI Suggestions:
+                  <Sparkles className="w-3.5 h-3.5 text-[#0067A1]" /> Dataset & AI Suggestions:
                 </span>
                 {diagnosisSuggestions.map((ds, idx) => (
                   <button
                     key={idx}
-                    onClick={() => setClinicalData((prev) => ({ ...prev, diagnosis: ds.diagnosis_id }))}
+                    type="button"
+                    onClick={() => {
+                      const selectedName = ds.diagnosis_name || ds.diagnosis_id;
+                      setClinicalData((prev) => ({ ...prev, diagnosis: selectedName }));
+                      fetchProtocolForDiagnosis(ds.diagnosis_id || selectedName);
+                    }}
                     className="px-2.5 py-1 text-xs font-medium bg-[#0067A1]/5 text-[#0067A1] border border-[#0067A1]/20 rounded-lg hover:bg-[#0067A1] hover:text-white transition-colors"
                   >
-                    {ds.diagnosis_id.charAt(0).toUpperCase() + ds.diagnosis_id.slice(1).replace(/-/g, " ")}
+                    {ds.diagnosis_name || (ds.diagnosis_id.charAt(0).toUpperCase() + ds.diagnosis_id.slice(1).replace(/-/g, " "))}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {/* CLINICAL PROTOCOL GUIDANCE CARD FROM DATASET */}
+            {datasetProtocol && !isCompleted && (
+              <div className="mt-3 p-4 bg-sky-50/70 border border-sky-200/80 rounded-xl">
+                <div className="flex items-center justify-between gap-2 mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Pill className="w-4 h-4 text-[#0067A1]" />
+                    <span className="text-xs font-bold text-sky-900 uppercase tracking-wider">
+                      Clinical Protocol Dataset Guidance ({datasetProtocol.diagnosis_id})
+                    </span>
+                  </div>
+                  {datasetProtocol.recommended_medicines?.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => applyProtocolMedicines(datasetProtocol.recommended_medicines)}
+                      className="px-2.5 py-1 text-xs font-bold bg-[#0067A1] text-white rounded-lg hover:bg-[#005585] transition-all shadow-sm"
+                    >
+                      + Add All ({datasetProtocol.recommended_medicines.length}) Medicines
+                    </button>
+                  )}
+                </div>
+
+                {datasetProtocol.recommended_medicines?.length > 0 && (
+                  <div className="mb-2.5">
+                    <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">Standard Protocol Medicines:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {datasetProtocol.recommended_medicines.map((m, mIdx) => (
+                        <button
+                          key={mIdx}
+                          type="button"
+                          onClick={() => applyProtocolMedicines([m])}
+                          className="text-xs bg-white text-sky-900 border border-sky-200 px-2.5 py-1 rounded-md hover:bg-sky-100 transition-colors flex items-center gap-1.5"
+                        >
+                          <span>+ {m.generic_name} {m.strength || ''}</span>
+                          {m.therapy_role && (
+                            <span className="text-[10px] px-1.5 py-0.2 bg-sky-100 text-sky-800 rounded font-semibold">
+                              {m.therapy_role}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {datasetProtocol.clinical_template?.recommended_test_group && (
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-sky-100">
+                    <span className="text-[11px] font-semibold text-slate-500">Recommended Tests:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = clinicalData.investigations ? clinicalData.investigations + ", " : "";
+                        setClinicalData(prev => ({
+                          ...prev,
+                          investigations: current + datasetProtocol.clinical_template.recommended_test_group
+                        }));
+                        toast.success("Added recommended test group!");
+                      }}
+                      className="text-xs text-[#0067A1] bg-white border border-sky-200 px-2 py-0.5 rounded hover:bg-sky-100 transition-colors font-medium"
+                    >
+                      + {datasetProtocol.clinical_template.recommended_test_group}
+                    </button>
+                  </div>
+                )}
+
+                {datasetProtocol.clinical_template?.doctor_advice_template && (
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-sky-100">
+                    <span className="text-[11px] font-semibold text-slate-500">Clinical Advice:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = clinicalData.notes ? clinicalData.notes + "\n" : "";
+                        setClinicalData(prev => ({
+                          ...prev,
+                          notes: current + datasetProtocol.clinical_template.doctor_advice_template
+                        }));
+                        toast.success("Applied standard clinical advice!");
+                      }}
+                      className="text-xs text-[#0067A1] bg-white border border-sky-200 px-2 py-0.5 rounded hover:bg-sky-100 transition-colors font-medium"
+                    >
+                      + Apply Standard Protocol Advice
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -750,6 +913,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
                     <input
                       type="text"
                       disabled={isCompleted}
+                      list="dosage-list"
                       value={med.frequency}
                       onChange={(e) => updateMedicine(idx, "frequency", e.target.value)}
                       placeholder="e.g. 1-0-1 (After Food)"
@@ -761,6 +925,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
                     <input
                       type="text"
                       disabled={isCompleted}
+                      list="duration-list"
                       value={med.duration_days}
                       onChange={(e) => updateMedicine(idx, "duration_days", e.target.value)}
                       placeholder="e.g. 5 Days"
@@ -772,6 +937,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
                     <input
                       type="text"
                       disabled={isCompleted}
+                      list="med-instructions-list"
                       value={med.instructions}
                       onChange={(e) => updateMedicine(idx, "instructions", e.target.value)}
                       placeholder="Instructions..."
@@ -872,7 +1038,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
                     <ShieldAlert className="w-10 h-10 text-slate-200" />
                   </div>
                   <h4 className="text-lg font-bold text-slate-700 mb-1">No Shared Documents</h4>
-                  <p className="text-sm text-slate-400 max-w-xs">The patient hasn't shared any documents for this appointment yet.</p>
+                  <p className="text-sm text-slate-400 max-w-xs">The patient has not shared any documents for this appointment yet.</p>
                 </div>
               ) : (
                 <div className="grid gap-4">
@@ -949,18 +1115,56 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
       </datalist>
       <datalist id="diagnosis-list">
         {diagnosisMaster.map((diag, i) => (
-          <option key={i} value={diag.name || diag.id} />
+          <option key={i} value={diag.name || diag.id}>
+            {diag.icd_code ? `ICD: ${diag.icd_code}` : (diag.category || "")}
+          </option>
         ))}
       </datalist>
       <datalist id="labs-list">
         {labMaster.map((lab, i) => (
-          <option key={i} value={lab.test_name || lab.name} />
+          <option key={i} value={lab.test_name || lab.name}>
+            {lab.test_code ? `Code: ${lab.test_code}` : (lab.category || "")}
+          </option>
         ))}
       </datalist>
       <datalist id="medicines-list">
-        {medicineMaster.map((med, i) => (
-          <option key={i} value={med.name || med.medicine_name} />
-        ))}
+        {medicineMaster.map((med, i) => {
+          const medName = med.name || med.medicine_name || med.generic_name;
+          const powerStr = med.power ? ` ${med.power}` : "";
+          const saltStr = med.salt ? ` (${med.salt})` : "";
+          return (
+            <option key={i} value={`${medName}${powerStr}`}>
+              {saltStr || med.category || ""}
+            </option>
+          );
+        })}
+      </datalist>
+      <datalist id="dosage-list">
+        <option value="1-0-1 (After Food)" />
+        <option value="1-0-0 (Before Breakfast)" />
+        <option value="0-0-1 (At Bedtime)" />
+        <option value="1-1-1 (After Food)" />
+        <option value="1-0-0 (Empty Stomach)" />
+        <option value="SOS (As Needed)" />
+        <option value="Once Daily (OD)" />
+        <option value="Twice Daily (BD)" />
+        <option value="Thrice Daily (TDS)" />
+      </datalist>
+      <datalist id="duration-list">
+        <option value="3 Days" />
+        <option value="5 Days" />
+        <option value="7 Days" />
+        <option value="10 Days" />
+        <option value="15 Days" />
+        <option value="1 Month" />
+      </datalist>
+      <datalist id="med-instructions-list">
+        <option value="Take with warm water" />
+        <option value="Take after meals" />
+        <option value="Take before meals" />
+        <option value="Avoid alcohol during medication" />
+        <option value="Complete full course" />
+        <option value="Apply locally on affected area" />
       </datalist>
       <datalist id="notes-list">
         <option value="Take rest, drink plenty of fluids." />

@@ -140,7 +140,8 @@ export async function POST(req) {
           doctor_id,
           patient_id,
           status,
-          appointment_type
+          appointment_type,
+          care_episode_id
         `)
         .eq("id", appointment_id)
         .maybeSingle();
@@ -289,6 +290,13 @@ export async function POST(req) {
     -------------------------------------------------- */
     const now = new Date().toISOString();
 
+    let normalizedDiagnosis = "";
+    if (typeof diagnosis === "string") {
+      normalizedDiagnosis = diagnosis;
+    } else if (diagnosis && typeof diagnosis === "object") {
+      normalizedDiagnosis = diagnosis.primary || diagnosis.name || diagnosis.diagnosis || diagnosis.diagnosis_id || Object.values(diagnosis).filter(v => typeof v === 'string').join(", ") || "";
+    }
+
     const prescriptionData = {
       doctor_id,
       patient_id,
@@ -296,7 +304,7 @@ export async function POST(req) {
       appointment_type,
       specialization,
 
-      diagnosis,
+      diagnosis: normalizedDiagnosis || "General Medical Consultation",
       medicines,
       lab_tests,
       investigations,

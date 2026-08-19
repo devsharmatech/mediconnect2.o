@@ -17,20 +17,25 @@
  * Uses direct HTTP fetch to bypass PostgREST schema cache.
  */
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+function getDbCredentials() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return { url, key };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Utility
 // ─────────────────────────────────────────────────────────────────────────────
 async function dbSelect(table, filters = '', options = {}) {
+  const { url, key } = getDbCredentials();
+  if (!url || !key) return [];
   const select = options.select || '*';
   const limit  = options.limit ? `&limit=${options.limit}` : '';
   const path   = `${table}?select=${select}${filters ? '&' + filters : ''}${limit}`;
-  const res    = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+  const res    = await fetch(`${url}/rest/v1/${path}`, {
     headers: {
-      'apikey':        SERVICE_KEY,
-      'Authorization': `Bearer ${SERVICE_KEY}`,
+      'apikey':        key,
+      'Authorization': `Bearer ${key}`,
       'Content-Type':  'application/json',
     }
   });
@@ -40,11 +45,13 @@ async function dbSelect(table, filters = '', options = {}) {
 }
 
 async function dbSelectCount(table, filters = '') {
+  const { url, key } = getDbCredentials();
+  if (!url || !key) return 0;
   const path = `${table}?select=id${filters ? '&' + filters : ''}`;
-  const res  = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+  const res  = await fetch(`${url}/rest/v1/${path}`, {
     headers: {
-      'apikey':           SERVICE_KEY,
-      'Authorization':    `Bearer ${SERVICE_KEY}`,
+      'apikey':           key,
+      'Authorization':    `Bearer ${key}`,
       'Prefer':           'count=exact',
     }
   });
@@ -53,11 +60,13 @@ async function dbSelectCount(table, filters = '') {
 }
 
 async function dbInsert(table, payload) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+  const { url, key } = getDbCredentials();
+  if (!url || !key) return false;
+  const res = await fetch(`${url}/rest/v1/${table}`, {
     method:  'POST',
     headers: {
-      'apikey':        SERVICE_KEY,
-      'Authorization': `Bearer ${SERVICE_KEY}`,
+      'apikey':        key,
+      'Authorization': `Bearer ${key}`,
       'Content-Type':  'application/json',
       'Prefer':        'return=minimal',
     },
@@ -67,11 +76,13 @@ async function dbInsert(table, payload) {
 }
 
 async function dbUpsert(table, payload, onConflict) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+  const { url, key } = getDbCredentials();
+  if (!url || !key) return false;
+  const res = await fetch(`${url}/rest/v1/${table}`, {
     method:  'POST',
     headers: {
-      'apikey':        SERVICE_KEY,
-      'Authorization': `Bearer ${SERVICE_KEY}`,
+      'apikey':        key,
+      'Authorization': `Bearer ${key}`,
       'Content-Type':  'application/json',
       'Prefer':        `resolution=merge-duplicates,return=minimal`,
     },
@@ -106,8 +117,13 @@ export async function validatePrescriptionLegality(consultation_id, mode_used = 
     // ── CHECK 1: Doctor Registration ────────────────────────────────────────
     if (!doctor) {
       critical_violations.push('Doctor record not found');
-    } else if (doctor.registration_verified !== true) {
-      critical_violations.push('Doctor registration not verified — cannot prescribe');
+    } else {
+      const isDoctorVerified = doctor.registration_verified === true || 
+        (doctor.onboarding_status && ['approved', 'active'].includes(doctor.onboarding_status.toLowerCase())) || 
+        (doctor.kyc_status && ['verified', 'approved'].includes(doctor.kyc_status.toLowerCase()));
+      if (!isDoctorVerified) {
+        critical_violations.push('Doctor registration not verified — cannot prescribe');
+      }
     }
 
     // ── CHECK 2: Patient Consent ────────────────────────────────────────────

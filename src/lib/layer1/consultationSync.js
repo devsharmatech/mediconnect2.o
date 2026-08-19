@@ -46,7 +46,7 @@ export async function syncClinicalData(consultation_id, medicines = null, sympto
             normalized_name: normName,
             dosage: med.dosage || "",
             frequency: med.frequency || "",
-            duration: med.duration || "",
+            duration: med.duration || med.duration_days || "",
             route: med.route || "ORAL",
             instructions: med.instructions || "",
             is_free_text: isFreeText,

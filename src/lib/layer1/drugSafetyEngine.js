@@ -14,20 +14,25 @@
  * Uses direct HTTP fetch to bypass PostgREST schema cache.
  */
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+function getDbCredentials() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return { url, key };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Utility
 // ─────────────────────────────────────────────────────────────────────────────
 async function dbSelect(table, filters = '', options = {}) {
+  const { url, key } = getDbCredentials();
+  if (!url || !key) return [];
   const select = options.select || '*';
   const limit  = options.limit  ? `&limit=${options.limit}` : '';
   const path   = `${table}?select=${select}${filters ? '&' + filters : ''}${limit}`;
-  const res    = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+  const res    = await fetch(`${url}/rest/v1/${path}`, {
     headers: {
-      'apikey':        SERVICE_KEY,
-      'Authorization': `Bearer ${SERVICE_KEY}`,
+      'apikey':        key,
+      'Authorization': `Bearer ${key}`,
       'Content-Type':  'application/json',
       'Prefer':        'return=representation',
     }
@@ -38,12 +43,14 @@ async function dbSelect(table, filters = '', options = {}) {
 }
 
 async function dbInsert(table, payload) {
+  const { url, key } = getDbCredentials();
+  if (!url || !key) return false;
   const body = Array.isArray(payload) ? payload : [payload];
-  const res  = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+  const res  = await fetch(`${url}/rest/v1/${table}`, {
     method:  'POST',
     headers: {
-      'apikey':        SERVICE_KEY,
-      'Authorization': `Bearer ${SERVICE_KEY}`,
+      'apikey':        key,
+      'Authorization': `Bearer ${key}`,
       'Content-Type':  'application/json',
       'Prefer':        'return=minimal',
     },
