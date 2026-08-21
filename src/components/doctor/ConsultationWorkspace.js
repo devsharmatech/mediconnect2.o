@@ -66,7 +66,8 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
   const [sharedDocs, setSharedDocs] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
 
-  const isCompleted = appointment.status === "COMPLETED" || appointment.status === "CLOSED_RESOLVED";
+  const isRejectedOrCancelled = ["rejected", "cancelled", "REJECTED", "CANCELLED"].includes(appointment?.status);
+  const isCompleted = appointment?.status === "COMPLETED" || appointment?.status === "CLOSED_RESOLVED" || appointment?.status === "completed";
 
   // Load existing data if any (from DRAFT)
   useEffect(() => {
@@ -480,6 +481,22 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
       setLoadingDocs(false);
     }
   };
+
+  if (isRejectedOrCancelled) {
+    return (
+      <div className="py-12 px-6 text-center space-y-3 bg-slate-50 rounded-2xl border border-slate-200/80 m-4">
+        <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+          <AlertTriangle className="w-6 h-6" />
+        </div>
+        <h4 className="text-base font-bold text-slate-800">
+          Clinical Workspace Unavailable
+        </h4>
+        <p className="text-sm text-slate-500 max-w-md mx-auto">
+          This appointment has been <span className="font-semibold capitalize text-slate-700">{appointment?.status}</span>. Writing prescriptions and consultation notes is disabled for {appointment?.status} appointments.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

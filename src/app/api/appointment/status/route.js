@@ -16,6 +16,27 @@ export async function POST(req) {
     if (!["approved", "rejected"].includes(status))
       return failure("Invalid status. Must be approved or rejected.", null, 400, { headers: corsHeaders });
 
+    // Validate that appointment slot has not expired if approving
+    if (status === "approved") {
+      const { supabase } = await import("@/lib/supabaseAdmin");
+      const { data: apt } = await supabase
+        .from("appointments")
+        .select("appointment_date, appointment_time, status")
+        .eq("id", appointment_id)
+        .maybeSingle();
+
+      if (apt?.appointment_date) {
+        const timeStr = (apt.appointment_time || "23:59").slice(0, 5);
+        const [year, month, day] = apt.appointment_date.split("-").map(Number);
+        const [hours, minutes] = timeStr.split(":").map(Number);
+        const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
+        const now = new Date();
+        if (now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000) {
+          return failure("This appointment slot has expired and can no longer be approved.", null, 400, { headers: corsHeaders });
+        }
+      }
+    }
+
     // Route via orchestration engine
     const orchestrationResult = await executeOrchestration({
       idempotencyKey: `status-${appointment_id}-${status}-${randomUUID()}`,

@@ -157,6 +157,15 @@ export default function DoctorNotificationsPage() {
       return;
     }
 
+    let metaObj = null;
+    try {
+      metaObj = typeof notification.metadata === "string"
+        ? JSON.parse(notification.metadata)
+        : notification.metadata;
+    } catch { }
+
+    const appointmentId = metaObj?.appointment_id || metaObj?.id || metaObj?.consultation_id || notification.appointment_id;
+
     const type = (notification.type || "").toLowerCase();
     if (
       type === "appointment" ||
@@ -165,14 +174,27 @@ export default function DoctorNotificationsPage() {
       type === "appointment_reschedule" ||
       type === "appointment_booked"
     ) {
-      router.push("/doctor/appointments?date=all&status=booked");
+      if (appointmentId) {
+        router.push(`/doctor/appointments?id=${appointmentId}&date=all&status=all`);
+      } else {
+        router.push("/doctor/appointments?date=all&status=all");
+      }
+    } else if (
+      type === "instant_call" ||
+      type === "instant_request" ||
+      type === "instant"
+    ) {
+      router.push("/doctor/instant-request");
     } else if (
       type === "consultation" ||
       type === "teleconsultation" ||
-      type === "instant_call" ||
       type === "video_call_started"
     ) {
-      router.push("/doctor");
+      if (appointmentId) {
+        router.push(`/doctor/appointments?id=${appointmentId}&date=all&status=all`);
+      } else {
+        router.push("/doctor/appointments?date=all&status=all");
+      }
     } else if (type === "prescription") {
       router.push("/doctor/prescriptions");
     } else {

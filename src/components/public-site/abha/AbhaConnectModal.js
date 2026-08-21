@@ -249,11 +249,19 @@ const AbhaConnectModal = ({ isOpen, onClose, userId, onSuccess }) => {
                                 <FaFingerprint className="absolute left-3 top-3 text-gray-400" />
                                 <input
                                     type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    autoComplete="one-time-code"
                                     placeholder="Enter 6-digit OTP"
-                                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all text-center tracking-widest text-lg"
+                                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all text-center tracking-widest text-lg font-bold"
                                     value={otp}
                                     maxLength={6}
-                                    onChange={(e) => setOtp(e.target.value)}
+                                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                    onPaste={(e) => {
+                                        e.preventDefault();
+                                        const pasteData = e.clipboardData?.getData('text') || '';
+                                        setOtp(pasteData.replace(/\D/g, '').slice(0, 6));
+                                    }}
                                 />
                             </div>
 

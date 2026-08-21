@@ -32,6 +32,9 @@ import {
   FaExternalLinkAlt,
   FaFileAlt,
   FaDownload,
+  FaPhoneAlt,
+  FaPhoneSlash,
+  FaTimes,
 } from "react-icons/fa";
 import api from "@/utils/websiteApi";
 
@@ -110,6 +113,89 @@ export default function DoctorDashboardLayout({ children }) {
   const [showSharedDocsModal, setShowSharedDocsModal] = useState(false);
   const [sharedDocs, setSharedDocs] = useState([]);
   const [sharedDocsLoading, setSharedDocsLoading] = useState(false);
+
+  // --- Instant Call Global Alert & Ringtone (BUG-016) ---
+  const [incomingCall, setIncomingCall] = useState(null);
+  const ringtoneIntervalRef = useRef(null);
+
+  const startRingtone = useCallback(() => {
+    if (ringtoneIntervalRef.current) return;
+    const playChime = () => {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(659, ctx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.35, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.7);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.75);
+      } catch (err) {
+        console.warn("[Audio] Ringtone play error:", err);
+      }
+    };
+    playChime();
+    ringtoneIntervalRef.current = setInterval(playChime, 1500);
+  }, []);
+
+  const stopRingtone = useCallback(() => {
+    if (ringtoneIntervalRef.current) {
+      clearInterval(ringtoneIntervalRef.current);
+      ringtoneIntervalRef.current = null;
+    }
+  }, []);
+
+  const handleIncomingInstantCall = useCallback((callData) => {
+    if (!callData) return;
+    setIncomingCall(callData);
+    startRingtone();
+  }, [startRingtone]);
+
+  const handleAcceptInstantCall = async () => {
+    stopRingtone();
+    if (!incomingCall) return;
+    const aptId = incomingCall.appointment_id || incomingCall.appointment?.id || incomingCall.id;
+    try {
+      await api.post("/instant-call/accept", {
+        appointment_id: aptId,
+        doctor_id: doctorId,
+      });
+    } catch {}
+    setIncomingCall(null);
+    router.push(`/appointments/${aptId}/video?userId=${doctorId}&role=doctor`);
+  };
+
+  const handleRejectInstantCall = async () => {
+    stopRingtone();
+    if (!incomingCall) return;
+    const aptId = incomingCall.appointment_id || incomingCall.appointment?.id || incomingCall.id;
+    try {
+      await api.post("/instant-call/reject", {
+        appointment_id: aptId,
+        doctor_id: doctorId,
+      });
+    } catch {}
+    setIncomingCall(null);
+  };
+
+  useEffect(() => {
+    const handleInstantCallEvent = (e) => {
+      if (e.detail) {
+        handleIncomingInstantCall(e.detail);
+      }
+    };
+    window.addEventListener("instant-call-received", handleInstantCallEvent);
+    return () => {
+      window.removeEventListener("instant-call-received", handleInstantCallEvent);
+      stopRingtone();
+    };
+  }, [handleIncomingInstantCall, stopRingtone]);
 
   const fetchSharedDocs = useCallback(async () => {
     if (!doctorId) return;
@@ -236,35 +322,13 @@ export default function DoctorDashboardLayout({ children }) {
 
           // Special handling for instant call notifications
           if (pushType === "instant_call") {
-            try {
-              const ctx = new (window.AudioContext || window.webkitAudioContext)();
-              const osc = ctx.createOscillator();
-              const gain = ctx.createGain();
-              osc.type = "sine";
-              osc.frequency.setValueAtTime(880, ctx.currentTime);
-              osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
-              gain.gain.setValueAtTime(0.3, ctx.currentTime);
-              gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-              osc.connect(gain);
-              gain.connect(ctx.destination);
-              osc.start();
-              osc.stop(ctx.currentTime + 0.5);
-            } catch {}
-            toast(
-              (t) => (
-                <div className="flex items-center gap-3">
-                  <div className="shrink-0 w-10 h-10 bg-[#0067A1] rounded-full flex items-center justify-center">
-                    <span className="text-white text-lg">📞</span>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-sm">{title}</p>
-                    <p className="text-xs text-gray-500">{body}</p>
-                  </div>
-                </div>
-              ),
-              { duration: 15000 }
-            );
-            // Dispatch event so dashboard can re-fetch incoming calls
+            handleIncomingInstantCall({
+              appointment_id: payload?.data?.appointment_id,
+              patient_id: payload?.data?.patient_id,
+              call_room_id: payload?.data?.call_room_id,
+              patient_name: title || "Patient",
+              message: body || "Incoming instant video consultation request",
+            });
             window.dispatchEvent(new CustomEvent("instant-call-received", { detail: payload?.data }));
           } else {
             toast(body || title, {
@@ -530,6 +594,15 @@ export default function DoctorDashboardLayout({ children }) {
       return;
     }
 
+    let metaObj = null;
+    try {
+      metaObj = typeof notification.metadata === "string"
+        ? JSON.parse(notification.metadata)
+        : notification.metadata;
+    } catch { }
+
+    const appointmentId = metaObj?.appointment_id || metaObj?.id || metaObj?.consultation_id || notification.appointment_id;
+
     // Route by notification type
     const type = (notification.type || "").toLowerCase();
     if (
@@ -539,14 +612,27 @@ export default function DoctorDashboardLayout({ children }) {
       type === "appointment_reschedule" ||
       type === "appointment_booked"
     ) {
-      router.push("/doctor/appointments?date=all&status=booked");
+      if (appointmentId) {
+        router.push(`/doctor/appointments?id=${appointmentId}&date=all&status=all`);
+      } else {
+        router.push("/doctor/appointments?date=all&status=all");
+      }
+    } else if (
+      type === "instant_call" ||
+      type === "instant_request" ||
+      type === "instant"
+    ) {
+      router.push("/doctor/instant-request");
     } else if (
       type === "consultation" ||
       type === "teleconsultation" ||
-      type === "instant_call" ||
       type === "video_call_started"
     ) {
-      router.push("/doctor");
+      if (appointmentId) {
+        router.push(`/doctor/appointments?id=${appointmentId}&date=all&status=all`);
+      } else {
+        router.push("/doctor/appointments?date=all&status=all");
+      }
     } else if (type === "prescription") {
       router.push("/doctor/prescriptions");
     } else {
@@ -1394,6 +1480,53 @@ export default function DoctorDashboardLayout({ children }) {
               <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em]">
                 Secure Clinical Data Gateway • Powered by Layer-111
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Incoming Instant Call Overlay with Ringtone (BUG-016) */}
+      {incomingCall && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-md w-full overflow-hidden p-6 sm:p-8 text-center space-y-6 animate-scaleIn">
+            <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
+              <span className="absolute inset-0 rounded-full bg-emerald-400/30 animate-ping" />
+              <span className="absolute inset-2 rounded-full bg-emerald-500/20 animate-pulse" />
+              <div className="relative w-16 h-16 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg shadow-emerald-600/30">
+                <FaPhoneAlt className="w-7 h-7 animate-bounce" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wider">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                Live Consultation Request
+              </span>
+              <h3 className="text-xl font-bold text-slate-800">
+                {incomingCall.patient_name || "Incoming Patient Call"}
+              </h3>
+              <p className="text-sm text-slate-500">
+                {incomingCall.message || "A patient is requesting an instant video consultation right now."}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-4 pt-2">
+              <button
+                type="button"
+                onClick={handleRejectInstantCall}
+                className="flex-1 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-red-50 text-red-600 hover:bg-red-100 font-semibold text-sm transition-all active:scale-95 border border-red-200"
+              >
+                <FaPhoneSlash className="w-4 h-4" />
+                Decline
+              </button>
+              <button
+                type="button"
+                onClick={handleAcceptInstantCall}
+                className="flex-1 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-lg shadow-emerald-600/30 transition-all active:scale-95"
+              >
+                <FaVideo className="w-4 h-4" />
+                Accept Call
+              </button>
             </div>
           </div>
         </div>

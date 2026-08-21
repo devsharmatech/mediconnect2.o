@@ -354,15 +354,17 @@ export default function DoctorDashboard() {
     }
   };
 
-  const isExpiredOneDayBefore = (dateStr) => {
+  const isAppointmentExpired = (apt) => {
+    const dateStr = apt?.date || apt?.appointment_date;
     if (!dateStr) return false;
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const timeStr = apt?.time || apt?.appointment_time || "23:59";
+      const timePart = timeStr.slice(0, 5);
       const [year, month, day] = dateStr.split("-").map(Number);
-      const aptDate = new Date(year, month - 1, day);
-      aptDate.setHours(0, 0, 0, 0);
-      return aptDate < today;
+      const [hours, minutes] = timePart.split(":").map(Number);
+      const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
+      const now = new Date();
+      return now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000;
     } catch {
       return false;
     }
@@ -838,7 +840,15 @@ export default function DoctorDashboard() {
                       </div>
                       <div className="flex items-center gap-2">
                         <StatusBadge status={apt.status} />
-                        {(apt.status === "booked" || apt.status === "approved") && !isExpiredOneDayBefore(apt.date) && (
+                        {["rejected", "cancelled"].includes(apt.status) ? (
+                          <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
+                            {apt.status === "rejected" ? "Rejected" : "Cancelled"}
+                          </span>
+                        ) : isAppointmentExpired(apt) ? (
+                          <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200/60 px-2 py-1 rounded-md">
+                            Expired
+                          </span>
+                        ) : (apt.status === "booked" || apt.status === "approved") ? (
                           <>
                             <button
                               onClick={() => handleStartCall(apt)}
@@ -857,7 +867,7 @@ export default function DoctorDashboard() {
                               Notify
                             </button>
                           </>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   ))}

@@ -445,6 +445,21 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
 
   if (error || !appointment) throw new Error("Appointment not found.");
 
+  if (status === "approved" && appointment.appointment_date) {
+    try {
+      const timePart = appointment.appointment_time ? appointment.appointment_time.slice(0, 5) : "23:59";
+      const [year, month, day] = appointment.appointment_date.split("-").map(Number);
+      const [hours, minutes] = timePart.split(":").map(Number);
+      const aptDateTime = new Date(year, month - 1, day, hours, minutes, 0);
+      const now = new Date();
+      if (now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000) {
+        throw new Error("Cannot approve an expired appointment slot.");
+      }
+    } catch (err) {
+      if (err.message.includes("expired")) throw err;
+    }
+  }
+
   const { data: updated, error: updateErr } = await supabase
     .from("appointments")
     .update({ status, updated_at: new Date().toISOString() })

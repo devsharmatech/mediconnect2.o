@@ -30,7 +30,7 @@ export async function DELETE(req) {
       });
     }
 
-    if (existingPrescription.doctor_id !== doctor_id) {
+    if (String(existingPrescription.doctor_id) !== String(doctor_id)) {
       return failure("You are not authorized to delete this prescription", null, 403, {
         headers: corsHeaders
       });

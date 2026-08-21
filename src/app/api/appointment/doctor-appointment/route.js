@@ -60,13 +60,21 @@ export async function POST(req) {
       .from("doctor_details")
       .select("clinic_name, clinic_address, latitude, longitude")
       .eq("id", doctor_id)
-      .single();
+      .maybeSingle();
+
+    // Fetch consultations for call duration
+    const appointmentIds = appointments.map((a) => a.id);
+    const { data: consultations } = await supabase
+      .from("consultations")
+      .select("id, appointment_id, call_duration_seconds, duration_minutes, started_at, ended_at, status")
+      .in("appointment_id", appointmentIds);
 
     // Merge data
     const merged = appointments.map((a) => ({
       ...a,
-      patient: patients.find((p) => p.id === a.patient_id) || null,
+      patient: patients ? patients.find((p) => p.id === a.patient_id) || null : null,
       doctor: doctorDetails || null,
+      consultations: consultations ? consultations.filter((c) => c.appointment_id === a.id) : [],
     }));
 
     return success(

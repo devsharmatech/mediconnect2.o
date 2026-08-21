@@ -167,9 +167,30 @@ export default function DoctorAppointmentsPage() {
         return;
       }
 
-      setAppointments(res.data.appointments || []);
+      const loaded = res.data.appointments || [];
+      setAppointments(loaded);
       setPagination(res.data.pagination || null);
       setPage(pageToLoad);
+
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const targetId = params.get("id") || params.get("appointment_id");
+        if (targetId) {
+          const matched = loaded.find((a) => a.id === targetId || String(a.id) === String(targetId));
+          if (matched) {
+            setSelectedAppointment(matched);
+          } else {
+            api.post("/appointment/doctor-appointments-detailed", {
+              doctor_id: userId,
+              date_filter: "all",
+              page: 1,
+            }).then((r) => {
+              const found = r?.data?.appointments?.find((a) => a.id === targetId || String(a.id) === String(targetId));
+              if (found) setSelectedAppointment(found);
+            }).catch(() => {});
+          }
+        }
+      }
     } catch (err) {
       console.error("Error loading appointments", err);
       setError("Unable to load appointments. Please try again.");
@@ -189,6 +210,13 @@ export default function DoctorAppointmentsPage() {
     try {
       setIsLoading(true);
       setError("");
+
+      const apt = appointments.find((a) => a.id === appointmentId);
+      if (newStatus === "approved" && apt && isAppointmentExpired(apt)) {
+        toast.error("This appointment slot has expired and can no longer be approved.");
+        setIsLoading(false);
+        return;
+      }
 
       const userId =
         typeof window !== "undefined" ? localStorage.getItem("userId") : null;
@@ -283,6 +311,21 @@ export default function DoctorAppointmentsPage() {
       const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
       const now = new Date();
       return now >= earlyStart && now <= end;
+    } catch {
+      return false;
+    }
+  }
+
+  function isAppointmentExpired(apt) {
+    if (!apt?.appointment_date) return false;
+    try {
+      const timePart = apt.appointment_time ? apt.appointment_time.slice(0, 5) : "23:59";
+      const [year, month, day] = apt.appointment_date.split("-").map(Number);
+      const [hours, minutes] = timePart.split(":").map(Number);
+      const aptDateTime = new Date(year, month - 1, day, hours, minutes, 0);
+      const now = new Date();
+      // If appointment slot start was more than 30 mins ago, it's expired
+      return now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000;
     } catch {
       return false;
     }
@@ -688,9 +731,19 @@ export default function DoctorAppointmentsPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-2">
-                        {!isExpiredOneDayBefore(apt.appointment_date) ? (
+                        {["rejected", "cancelled"].includes(apt.status) ? (
+                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200/60 inline-flex items-center gap-1.5">
+                            <Info className="w-3.5 h-3.5" />
+                            Appointment {apt.status}
+                          </span>
+                        ) : isAppointmentExpired(apt) ? (
+                          <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200/60 inline-flex items-center gap-1.5">
+                            <Info className="w-3.5 h-3.5" />
+                            Expired Slot
+                          </span>
+                        ) : (
                           <>
-                            {isVideoAppointment(apt) && (
+                            {isVideoAppointment(apt) && ["approved", "booked"].includes(apt.status) && (
                               <button
                                 onClick={() => handleStartCall(apt)}
                                 disabled={isLoading}
@@ -735,11 +788,6 @@ export default function DoctorAppointmentsPage() {
                               </>
                             )}
                           </>
-                        ) : (
-                          <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200/60 inline-flex items-center gap-1.5">
-                            <Info className="w-3.5 h-3.5" />
-                            Expired Slot (actions unavailable)
-                          </span>
                         )}
                       </div>
                     </div>
@@ -1059,6 +1107,18 @@ export default function DoctorAppointmentsPage() {
                 )}
               </div>
             </div>
+          ) : ["rejected", "cancelled"].includes(selectedAppointment?.status) ? (
+            <div className="py-12 px-6 text-center space-y-3 bg-slate-50 rounded-2xl border border-slate-200/80 m-4">
+              <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <h4 className="text-base font-bold text-slate-800">
+                Clinical Workspace Unavailable
+              </h4>
+              <p className="text-sm text-slate-500 max-w-md mx-auto">
+                This appointment has been <span className="font-semibold capitalize text-slate-700">{selectedAppointment?.status}</span>. Writing prescriptions and consultation notes is disabled for {selectedAppointment?.status} appointments.
+              </p>
+            </div>
           ) : (
             <ConsultationWorkspace 
               appointment={selectedAppointment} 
@@ -1089,7 +1149,7 @@ export default function DoctorAppointmentsPage() {
                   View Full Screening
                 </button>
               )}
-              {isVideoAppointment(selectedAppointment) && !isExpiredOneDayBefore(selectedAppointment.appointment_date) && (
+              {isVideoAppointment(selectedAppointment) && !["rejected", "cancelled"].includes(selectedAppointment.status) && !isAppointmentExpired(selectedAppointment) && (
                 <button
                   onClick={() => {
                     handleStartCall(selectedAppointment);

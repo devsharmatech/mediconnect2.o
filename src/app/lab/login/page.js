@@ -279,11 +279,19 @@ export default function LabLogin() {
               <div className="relative">
                 <input
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="one-time-code"
                   placeholder="Enter 6-digit OTP"
                   value={otp}
                   onChange={(e) =>
                     setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
                   }
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    const text = e.clipboardData?.getData("text") || "";
+                    setOtp(text.replace(/\D/g, "").slice(0, 6));
+                  }}
                   className="w-full p-4 border border-gray-300 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] dark:bg-gray-700 dark:text-white transition-all text-center text-xl tracking-widest bg-gray-50 font-mono"
                   maxLength={6}
                   onKeyDown={(e) => e.key === "Enter" && handleVerifyOtp()}

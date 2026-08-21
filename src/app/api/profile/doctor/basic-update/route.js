@@ -1,6 +1,10 @@
-import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseAdmin";
 import { success, failure } from "@/lib/response";
+import { corsHeaders } from "@/lib/cors";
+
+export async function OPTIONS() {
+  return new Response("OK", { headers: corsHeaders });
+}
 
 export async function PUT(req) {
   try {
@@ -33,7 +37,7 @@ export async function PUT(req) {
     } = body;
 
     if (!user_id) {
-      return failure("user_id is required", null, 400);
+      return failure("user_id is required", null, 400, { headers: corsHeaders });
     }
 
     const updateData = {
@@ -63,7 +67,15 @@ export async function PUT(req) {
     if (second_booking_discount_value !== undefined) updateData.second_booking_discount_value = Number(second_booking_discount_value) || 0;
 
     if (additional_clinics !== undefined) {
-      updateData.meta = { additional_clinics };
+      // Fetch existing meta to merge
+      const { data: existingDoc } = await supabase
+        .from("doctor_details")
+        .select("meta")
+        .eq("id", user_id)
+        .maybeSingle();
+
+      const existingMeta = (existingDoc?.meta && typeof existingDoc.meta === "object") ? existingDoc.meta : {};
+      updateData.meta = { ...existingMeta, additional_clinics };
     }
 
     // Update doctor_details
@@ -86,17 +98,20 @@ export async function PUT(req) {
       updatedDoctor = insertedDoctor;
     }
 
-    // Update phone/name in users table if phone_number is present
-    if (phone_number) {
+    // Update users table (phone_number and full_name if present)
+    const userUpdates = {};
+    if (phone_number) userUpdates.phone_number = phone_number;
+    if (full_name) userUpdates.full_name = full_name;
+    if (Object.keys(userUpdates).length > 0) {
       await supabase
         .from("users")
-        .update({ phone_number })
+        .update(userUpdates)
         .eq("id", user_id);
     }
 
-    return success("Doctor profile updated successfully", updatedDoctor || updateData, 200);
+    return success("Doctor profile updated successfully", updatedDoctor || updateData, 200, { headers: corsHeaders });
   } catch (err) {
     console.error("Doctor basic-update Error:", err);
-    return failure("Failed to update doctor profile", err.message, 500);
+    return failure("Failed to update doctor profile", err.message, 500, { headers: corsHeaders });
   }
 }

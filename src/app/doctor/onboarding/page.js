@@ -3214,12 +3214,20 @@ function DoctorOnboardingForm({
                               <div className="flex flex-col sm:flex-row gap-3">
                                 <input
                                   type="text"
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  autoComplete="one-time-code"
                                   maxLength="6"
                                   value={otp}
-                                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                  onPaste={(e) => {
+                                    e.preventDefault();
+                                    const text = e.clipboardData?.getData('text') || '';
+                                    setOtp(text.replace(/\D/g, '').slice(0, 6));
+                                  }}
                                   disabled={!otpSent || otpVerified}
                                   placeholder="Enter 6-digit OTP"
-                                  className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] disabled:bg-gray-100 disabled:cursor-not-allowed text-sm"
+                                  className="w-full sm:flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] disabled:bg-gray-100 disabled:cursor-not-allowed text-sm font-mono tracking-wider"
                                 />
                                 {otpVerified ? (
                                   <button

@@ -93,6 +93,22 @@ export async function POST(req) {
             }
         }
 
+        // ── REJECTED / CANCELLED GUARD ──
+        const REJECTED_STATES = ["REJECTED", "CANCELLED", "rejected", "cancelled"];
+        if (REJECTED_STATES.includes(consultation.status) || REJECTED_STATES.includes(consultation.case_status)) {
+            return failure("Cannot modify or complete a rejected or cancelled consultation", null, 400);
+        }
+
+        const { data: relatedApt } = await supabase
+            .from("appointments")
+            .select("status")
+            .eq("id", consultation_id)
+            .maybeSingle();
+
+        if (relatedApt && REJECTED_STATES.includes(relatedApt.status)) {
+            return failure("Cannot modify or complete a consultation for a rejected or cancelled appointment", null, 400);
+        }
+
         // ── M3: IMMUTABILITY CHECK ──
         const IMMUTABLE_STATES = ["COMPLETED", "FOLLOW_UP_PENDING", "CLOSED_RESOLVED", "CLOSED_NO_RESPONSE"];
         if (IMMUTABLE_STATES.includes(consultation.case_status) && action === "save") {

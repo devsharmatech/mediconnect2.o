@@ -21,7 +21,14 @@ export async function POST(req) {
       .eq("role", "doctor");
     
     if (phone_number) {
-      const cleanPhone = phone_number.replace(/\D/g, "").slice(-10);
+      const digitsOnly = String(phone_number).replace(/\D/g, "");
+      let cleanPhone = digitsOnly;
+      if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) {
+        cleanPhone = digitsOnly.slice(2);
+      }
+      if (cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+        return failure("Please enter a valid 10-digit mobile number.", null, 400, { headers: corsHeaders });
+      }
       query = query.like("phone_number", `%${cleanPhone}%`);
     } else if (email) {
       // Join with doctor_details to find by email
@@ -40,7 +47,7 @@ export async function POST(req) {
     const { data: user, error } = await query.maybeSingle();
 
     if (error) throw error;
-    if (!user) return failure("Doctor not found.", null, 404, { headers: corsHeaders });
+    if (!user) return failure("No doctor account found with this phone number. Please check your credentials or register as a doctor.", null, 404, { headers: corsHeaders });
 
     // Send real OTP via gateway if phone_number is provided
     if (phone_number) {

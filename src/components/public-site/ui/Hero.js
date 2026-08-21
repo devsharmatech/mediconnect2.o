@@ -96,7 +96,18 @@ const Hero = ({ onLoginClick }) => {
 
             <div className="flex flex-col sm:flex-row items-center sm:items-stretch gap-3 mb-2 justify-center md:justify-start">
               <Button
-                onClick={onLoginClick}
+                onClick={() => {
+                  if (cmsData?.primary_button_link && !cmsData.primary_button_link.includes('/login')) {
+                    window.location.href = cmsData.primary_button_link;
+                    return;
+                  }
+                  const section = document.getElementById('book-consultation') || document.getElementById('doctors-section');
+                  if (section) {
+                    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  } else {
+                    window.location.href = '/website/doctors';
+                  }
+                }}
                 className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0067A1]"
               >
                 <FaCalendarCheck className="mr-2 h-4 w-4" />

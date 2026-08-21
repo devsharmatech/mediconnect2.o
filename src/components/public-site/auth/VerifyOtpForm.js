@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import api from '@/utils/websiteApi';
@@ -12,6 +12,7 @@ const VerifyOtpForm = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [resendTimer, setResendTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
+  const inputRefs = useRef([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -39,24 +40,70 @@ const VerifyOtpForm = () => {
     return () => clearInterval(timer);
   }, [router]);
 
-  const handleOtpChange = (element, index) => {
-    if (isNaN(element.value)) return;
-    
+  const handleOtpChange = (value, index) => {
+    const cleaned = String(value).replace(/\D/g, '');
+    if (!cleaned && value !== '') {
+      const newOtp = [...otp];
+      newOtp[index] = '';
+      setOtp(newOtp);
+      return;
+    }
+
+    // If multiple digits pasted or autofilled by browser
+    if (cleaned.length > 1) {
+      const digits = cleaned.slice(0, 6).split('');
+      const newOtp = [...otp];
+      digits.forEach((d, i) => {
+        if (i < 6) newOtp[i] = d;
+      });
+      setOtp(newOtp);
+      const focusIndex = Math.min(digits.length, 5);
+      inputRefs.current[focusIndex]?.focus();
+      return;
+    }
+
+    // Single digit input
+    const char = cleaned.slice(-1);
     const newOtp = [...otp];
-    newOtp[index] = element.value;
+    newOtp[index] = char;
     setOtp(newOtp);
-    
-    // Auto focus to next input
-    if (element.nextSibling && element.value !== '') {
-      element.nextSibling.focus();
+
+    if (char !== '' && index < 5) {
+      inputRefs.current[index + 1]?.focus();
     }
   };
 
   const handleKeyDown = (e, index) => {
-    if (e.key === 'Backspace' && !e.target.value && index > 0) {
-      // Move to previous input on backspace
-      const prevInput = e.target.previousSibling;
-      if (prevInput) prevInput.focus();
+    if (e.key === 'Backspace') {
+      if (!otp[index] && index > 0) {
+        const newOtp = [...otp];
+        newOtp[index - 1] = '';
+        setOtp(newOtp);
+        inputRefs.current[index - 1]?.focus();
+      } else if (otp[index]) {
+        const newOtp = [...otp];
+        newOtp[index] = '';
+        setOtp(newOtp);
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pasteData = e.clipboardData?.getData('text') || '';
+    const digits = pasteData.replace(/\D/g, '').slice(0, 6).split('');
+    if (digits.length > 0) {
+      const newOtp = [...otp];
+      digits.forEach((d, i) => {
+        if (i < 6) newOtp[i] = d;
+      });
+      setOtp(newOtp);
+      const focusIndex = Math.min(digits.length, 5);
+      inputRefs.current[focusIndex]?.focus();
     }
   };
 
@@ -172,14 +219,21 @@ const VerifyOtpForm = () => {
             {otp.map((data, index) => (
               <input
                 key={index}
+                ref={(el) => (inputRefs.current[index] = el)}
                 type="text"
-                maxLength="1"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete={index === 0 ? "one-time-code" : "off"}
+                maxLength={6}
                 value={data}
-                onChange={(e) => handleOtpChange(e.target, index)}
+                onChange={(e) => handleOtpChange(e.target.value, index)}
                 onKeyDown={(e) => handleKeyDown(e, index)}
-                className="w-12 h-12 text-center text-xl border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent"
+                onPaste={handlePaste}
+                onFocus={(e) => e.target.select()}
+                className="w-12 h-12 text-center text-xl font-bold border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent"
                 autoFocus={index === 0}
                 disabled={loading}
+                aria-label={`OTP digit ${index + 1}`}
               />
             ))}
           </div>

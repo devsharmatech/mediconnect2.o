@@ -21,7 +21,14 @@ export async function POST(req) {
       .eq("role", "patient");
 
     if (phone_number) {
-      const cleanPhone = phone_number.replace(/\D/g, "").slice(-10);
+      const digitsOnly = String(phone_number).replace(/\D/g, "");
+      let cleanPhone = digitsOnly;
+      if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) {
+        cleanPhone = digitsOnly.slice(2);
+      }
+      if (cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+        return failure("Please enter a valid 10-digit mobile number.", null, 400, { headers: corsHeaders });
+      }
       query = query.like("phone_number", `%${cleanPhone}%`);
     } else if (email) {
       const { data: patientDetails, error: detailsError } = await supabase

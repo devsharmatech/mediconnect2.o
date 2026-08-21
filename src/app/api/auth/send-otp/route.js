@@ -14,8 +14,15 @@ export async function POST(req) {
     console.log("SEND-OTP RECEIVED:", { phone_number, role });
     if (!phone_number || !role) return failure("Phone number and role are required.");
 
-    // Clean phone number (strip spaces, remove +91 prefix, keep last 10 digits)
-    let cleaned_phone = phone_number.replace(/\D/g, "").slice(-10);
+    // Validate phone number format
+    const digitsOnly = String(phone_number).replace(/\D/g, "");
+    let cleaned_phone = digitsOnly;
+    if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) {
+      cleaned_phone = digitsOnly.slice(2);
+    }
+    if (cleaned_phone.length !== 10 || !/^[6-9]\d{9}$/.test(cleaned_phone)) {
+      return failure("Please enter a valid 10-digit mobile number.", null, 400);
+    }
 
     const rateLimitKey = cleaned_phone || "unknown";
     const limitResult = rateLimit(`otp-send:${rateLimitKey}`, 3, 120000); // 3 requests per 2 minutes

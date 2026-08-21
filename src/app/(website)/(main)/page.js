@@ -102,7 +102,9 @@ export default function Home() {
 
       <main className="bg-white">
         {/* Featured Doctors, Specialties, and Conditions Section */}
-        <FeaturedDoctorsHome />
+        <section id="book-consultation" className="scroll-mt-8">
+          <FeaturedDoctorsHome />
+        </section>
 
         {/* SECTION 2: SERVICES AVAILABLE NOW (CORE PRACTICAL CARE) */}
         <section id="services">

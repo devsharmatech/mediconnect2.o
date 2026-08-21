@@ -84,9 +84,13 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
       return;
     }
 
-    const cleanPhone = formData.phone_number.replace(/\D/g, "").slice(-10);
-    if (cleanPhone.length !== 10) {
-      setError('Please enter a valid 10-digit phone number');
+    const digitsOnly = String(formData.phone_number || '').replace(/\D/g, '');
+    let cleanPhone = digitsOnly;
+    if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) {
+      cleanPhone = digitsOnly.slice(2);
+    }
+    if (cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setError('Please enter a valid 10-digit mobile number');
       return;
     }
 
@@ -99,15 +103,20 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
     e.preventDefault();
     setError('');
 
-    if (!formData.phone_number) {
-      setError('Phone number is required');
+    const digitsOnly = String(formData.phone_number || '').replace(/\D/g, '');
+    let cleanPhone = digitsOnly;
+    if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) {
+      cleanPhone = digitsOnly.slice(2);
+    }
+    if (cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setError('Please enter a valid 10-digit mobile number');
       return;
     }
 
     setLoading(true);
     try {
       const response = await api.post('/website/auth/patient/register', {
-        phone_number: formData.phone_number,
+        phone_number: cleanPhone,
         full_name: formData.full_name,
         email: formData.email,
         gender: formData.gender,
@@ -134,31 +143,69 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
 
   // OTP Input handlers
   const handleOtpChange = (value, index) => {
-    if (isNaN(value)) return;
+    const cleaned = String(value).replace(/\D/g, '');
+    if (!cleaned && value !== '') {
+      const newOtp = [...otp];
+      newOtp[index] = '';
+      setOtp(newOtp);
+      return;
+    }
+
+    // If multiple digits pasted or autofilled by browser
+    if (cleaned.length > 1) {
+      const digits = cleaned.slice(0, 6).split('');
+      const newOtp = [...otp];
+      digits.forEach((d, i) => {
+        if (i < 6) newOtp[i] = d;
+      });
+      setOtp(newOtp);
+      const focusIndex = Math.min(digits.length, 5);
+      otpRefs.current[focusIndex]?.focus();
+      return;
+    }
+
+    // Single digit input
+    const char = cleaned.slice(-1);
     const newOtp = [...otp];
-    newOtp[index] = value;
+    newOtp[index] = char;
     setOtp(newOtp);
-    if (value !== '' && index < 5) {
+
+    if (char !== '' && index < 5) {
       otpRefs.current[index + 1]?.focus();
     }
   };
 
   const handleOtpKeyDown = (e, index) => {
-    if (e.key === 'Backspace' && !e.target.value && index > 0) {
+    if (e.key === 'Backspace') {
+      if (!otp[index] && index > 0) {
+        const newOtp = [...otp];
+        newOtp[index - 1] = '';
+        setOtp(newOtp);
+        otpRefs.current[index - 1]?.focus();
+      } else if (otp[index]) {
+        const newOtp = [...otp];
+        newOtp[index] = '';
+        setOtp(newOtp);
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
       otpRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      otpRefs.current[index + 1]?.focus();
     }
   };
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const pasteData = e.clipboardData.getData('text').trim().slice(0, 6);
-    if (/^\d+$/.test(pasteData)) {
+    const pasteData = e.clipboardData?.getData('text') || '';
+    const digits = pasteData.replace(/\D/g, '').slice(0, 6).split('');
+    if (digits.length > 0) {
       const newOtp = [...otp];
-      for (let i = 0; i < pasteData.length && i < 6; i++) {
-        newOtp[i] = pasteData[i];
-      }
+      digits.forEach((d, i) => {
+        if (i < 6) newOtp[i] = d;
+      });
       setOtp(newOtp);
-      otpRefs.current[Math.min(pasteData.length, 5)]?.focus();
+      const focusIndex = Math.min(digits.length, 5);
+      otpRefs.current[focusIndex]?.focus();
     }
   };
 
@@ -293,11 +340,20 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
 
           {/* Error Message */}
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm">
-              <p className="text-sm text-red-600 flex items-center gap-2">
-                <FaTimes className="w-4 h-4 shrink-0" />
-                {error}
+            <div className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-xl text-sm space-y-2">
+              <p className="text-sm text-red-600 flex items-start gap-2">
+                <FaTimes className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{error}</span>
               </p>
+              {error.toLowerCase().includes("already registered") && (
+                <button
+                  type="button"
+                  onClick={handleOpenLogin}
+                  className="w-full mt-1 py-2 px-3 bg-[#0067A1] text-white text-xs font-semibold rounded-lg hover:bg-[#004F7C] transition-colors"
+                >
+                  Click here to Log In with this number
+                </button>
+              )}
             </div>
           )}
 
@@ -496,11 +552,14 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
                     ref={(el) => (otpRefs.current[index] = el)}
                     type="text"
                     inputMode="numeric"
-                    maxLength="1"
+                    pattern="[0-9]*"
+                    autoComplete={index === 0 ? "one-time-code" : "off"}
+                    maxLength={6}
                     value={digit}
                     onChange={(e) => handleOtpChange(e.target.value, index)}
                     onKeyDown={(e) => handleOtpKeyDown(e, index)}
-                    onPaste={index === 0 ? handlePaste : undefined}
+                    onPaste={handlePaste}
+                    onFocus={(e) => e.target.select()}
                     className={`
                       w-11 h-13 sm:w-12 sm:h-14
                       text-center text-xl font-bold text-gray-900
@@ -514,6 +573,7 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
                     `}
                     autoFocus={index === 0}
                     disabled={loading}
+                    aria-label={`OTP digit ${index + 1}`}
                   />
                 ))}
               </div>

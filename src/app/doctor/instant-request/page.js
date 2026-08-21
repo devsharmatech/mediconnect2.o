@@ -84,6 +84,24 @@ export default function InstantRequest() {
               minutesLeft = Math.max(0, 30 - (nowMinutes - aptMinutes));
             }
 
+            let formattedDuration = "Scheduled (15 mins)";
+            const cons = apt.consultations?.[0];
+            if (cons) {
+              let durationSec = cons.call_duration_seconds;
+              if (!durationSec && cons.started_at && cons.ended_at) {
+                durationSec = Math.max(0, Math.round((new Date(cons.ended_at).getTime() - new Date(cons.started_at).getTime()) / 1000));
+              }
+              if (durationSec && durationSec > 0) {
+                const mins = Math.floor(durationSec / 60);
+                const secs = durationSec % 60;
+                formattedDuration = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+              } else if (cons.duration_minutes) {
+                formattedDuration = `${cons.duration_minutes} mins`;
+              }
+            } else if (apt.consultation_duration || apt.duration) {
+              formattedDuration = `${apt.consultation_duration || apt.duration} mins`;
+            }
+
             return {
               id: apt.id,
               patientName: apt.patient?.full_name || "Patient",
@@ -98,7 +116,7 @@ export default function InstantRequest() {
                 apt.chief_complaint ||
                 "Instant consultation request from patient.",
               medicalHistory: apt.patient?.medical_history || "",
-              duration: "15 mins",
+              duration: formattedDuration,
               priority: apt.priority || "normal",
               minutesLeft,
             };

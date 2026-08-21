@@ -84,6 +84,8 @@ export default function Prescriptions() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showNewPrescription, setShowNewPrescription] = useState(false);
   const [currentPrescription, setCurrentPrescription] = useState(null);
+  const [prescriptionToDelete, setPrescriptionToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Patient and generic state
   const [patients, setPatients] = useState([]);
@@ -266,6 +268,7 @@ export default function Prescriptions() {
             p.patient_details?.users?.un_id ||
             p.patient_details?.user?.un_id ||
             null,
+          doctorId: p.doctor_id || doctorId,
           appointment: p.appointments || null,
           date: p.created_at?.slice(0, 10) || '',
           time: p.created_at ? new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
@@ -351,13 +354,15 @@ export default function Prescriptions() {
 
   const filteredPrescriptions = getFilteredPrescriptions();
 
-  const handleDelete = async (prescription) => {
-    if (!window.confirm('Are you sure you want to delete this prescription? This action cannot be undone.')) {
-      return;
-    }
+  const handleDelete = (prescription) => {
+    setPrescriptionToDelete(prescription);
+  };
+
+  const confirmDelete = async () => {
+    if (!prescriptionToDelete) return;
 
     try {
-      setIsLoading(true);
+      setIsDeleting(true);
       setError('');
 
       const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
@@ -365,27 +370,30 @@ export default function Prescriptions() {
 
       if (!userId || role !== 'doctor') {
         setError('Please log in as a doctor to delete prescriptions.');
-        setIsLoading(false);
+        setIsDeleting(false);
+        setPrescriptionToDelete(null);
         return;
       }
 
       const res = await api.delete('/prescriptions/delete', {
-        prescription_id: prescription.id,
-        doctor_id: prescription.doctorId || userId,
+        prescription_id: prescriptionToDelete.id,
+        doctor_id: prescriptionToDelete.doctorId || userId,
       });
 
       if (!res.success) {
         setError(res.error || 'Unable to delete prescription.');
-        setIsLoading(false);
+        setIsDeleting(false);
         return;
       }
 
-      setPrescriptions(prev => prev.filter(p => p.id !== prescription.id));
+      setPrescriptions(prev => prev.filter(p => p.id !== prescriptionToDelete.id));
+      setPrescriptionToDelete(null);
+      toast.success("Prescription deleted successfully.");
     } catch (err) {
       console.error('Error deleting prescription', err);
       setError('Unable to delete prescription. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsDeleting(false);
     }
   };
 
@@ -1035,6 +1043,57 @@ export default function Prescriptions() {
                   <p style={{ textAlign: 'center', fontSize: 10, color: '#888', margin: 0 }}>MediConnect Healthcare Services &middot; Ref ID: {String(currentPrescription.id).slice(0, 8).toUpperCase()}</p>
 
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Custom UI Modal for Prescription Deletion */}
+        {prescriptionToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full overflow-hidden flex flex-col">
+              <div className="p-6 text-center space-y-4">
+                <div className="w-14 h-14 mx-auto rounded-full bg-red-50 flex items-center justify-center text-red-500">
+                  <FaTrash className="w-6 h-6" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-slate-800">Delete Prescription</h3>
+                  <p className="text-sm text-slate-600">
+                    Are you sure you want to delete the prescription for{" "}
+                    <span className="font-semibold text-slate-800">
+                      {prescriptionToDelete.patientName || "this patient"}
+                    </span>
+                    ? This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="bg-slate-50 px-6 py-4 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setPrescriptionToDelete(null)}
+                  disabled={isDeleting}
+                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDelete}
+                  disabled={isDeleting}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm transition-colors disabled:opacity-50"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <FaTrash className="w-3.5 h-3.5" />
+                      Delete Prescription
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>

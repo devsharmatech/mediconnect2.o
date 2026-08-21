@@ -226,10 +226,18 @@ function OTPStep({ phone, doctorId, onComplete, isCompleted, disabled }) {
               <label className="block text-sm font-medium text-gray-700 mb-2">Enter 6-digit OTP</label>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="one-time-code"
                 maxLength={6}
                 value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                className="w-full px-4 py-4 text-center text-2xl font-bold tracking-[0.5em] border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  const text = e.clipboardData?.getData("text") || "";
+                  setOtp(text.replace(/\D/g, "").slice(0, 6));
+                }}
+                className="w-full px-4 py-4 text-center text-2xl font-bold tracking-[0.5em] border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono"
                 placeholder="• • • • • •"
               />
             </div>

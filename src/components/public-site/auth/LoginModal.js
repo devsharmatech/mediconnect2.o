@@ -77,7 +77,11 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'phone_number' && isNaN(value)) return;
+    if (name === 'phone_number') {
+      const clean = value.replace(/\D/g, '').slice(0, 10);
+      setFormData(prev => ({ ...prev, [name]: clean }));
+      return;
+    }
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -85,9 +89,18 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    const identifier = loginMethod === 'phone' ? formData.phone_number : formData.email;
-    if (!identifier) {
-      setError(`Please enter your ${loginMethod === 'phone' ? 'phone number' : 'email address'}`);
+    if (loginMethod === 'phone') {
+      const digitsOnly = String(formData.phone_number || '').replace(/\D/g, '');
+      let cleanPhone = digitsOnly;
+      if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) {
+        cleanPhone = digitsOnly.slice(2);
+      }
+      if (cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
+        setError('Please enter a valid 10-digit mobile number');
+        return;
+      }
+    } else if (!identifier) {
+      setError('Please enter your email address');
       return;
     }
 
@@ -128,31 +141,69 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
 
   // OTP input handlers
   const handleOtpChange = (value, index) => {
-    if (isNaN(value)) return;
+    const cleaned = String(value).replace(/\D/g, '');
+    if (!cleaned && value !== '') {
+      const newOtp = [...otp];
+      newOtp[index] = '';
+      setOtp(newOtp);
+      return;
+    }
+
+    // If multiple digits pasted or autofilled by browser
+    if (cleaned.length > 1) {
+      const digits = cleaned.slice(0, 6).split('');
+      const newOtp = [...otp];
+      digits.forEach((d, i) => {
+        if (i < 6) newOtp[i] = d;
+      });
+      setOtp(newOtp);
+      const focusIndex = Math.min(digits.length, 5);
+      otpRefs.current[focusIndex]?.focus();
+      return;
+    }
+
+    // Single digit input
+    const char = cleaned.slice(-1);
     const newOtp = [...otp];
-    newOtp[index] = value;
+    newOtp[index] = char;
     setOtp(newOtp);
-    if (value !== '' && index < 5) {
+
+    if (char !== '' && index < 5) {
       otpRefs.current[index + 1]?.focus();
     }
   };
 
   const handleOtpKeyDown = (e, index) => {
-    if (e.key === 'Backspace' && !e.target.value && index > 0) {
+    if (e.key === 'Backspace') {
+      if (!otp[index] && index > 0) {
+        const newOtp = [...otp];
+        newOtp[index - 1] = '';
+        setOtp(newOtp);
+        otpRefs.current[index - 1]?.focus();
+      } else if (otp[index]) {
+        const newOtp = [...otp];
+        newOtp[index] = '';
+        setOtp(newOtp);
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
       otpRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      otpRefs.current[index + 1]?.focus();
     }
   };
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const pasteData = e.clipboardData.getData('text').trim().slice(0, 6);
-    if (/^\d+$/.test(pasteData)) {
+    const pasteData = e.clipboardData?.getData('text') || '';
+    const digits = pasteData.replace(/\D/g, '').slice(0, 6).split('');
+    if (digits.length > 0) {
       const newOtp = [...otp];
-      for (let i = 0; i < pasteData.length && i < 6; i++) {
-        newOtp[i] = pasteData[i];
-      }
+      digits.forEach((d, i) => {
+        if (i < 6) newOtp[i] = d;
+      });
       setOtp(newOtp);
-      otpRefs.current[Math.min(pasteData.length, 5)]?.focus();
+      const focusIndex = Math.min(digits.length, 5);
+      otpRefs.current[focusIndex]?.focus();
     }
   };
 
@@ -360,7 +411,10 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
                         id="phone_number"
                         name="phone_number"
                         type="tel"
-                        placeholder="Enter your phone number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={10}
+                        placeholder="Enter 10-digit mobile number"
                         required
                         value={formData.phone_number}
                         onChange={handleChange}
@@ -490,11 +544,14 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
                       ref={(el) => (otpRefs.current[index] = el)}
                       type="text"
                       inputMode="numeric"
-                      maxLength="1"
+                      pattern="[0-9]*"
+                      autoComplete={index === 0 ? "one-time-code" : "off"}
+                      maxLength={6}
                       value={data}
                       onChange={(e) => handleOtpChange(e.target.value, index)}
                       onKeyDown={(e) => handleOtpKeyDown(e, index)}
-                      onPaste={index === 0 ? handlePaste : undefined}
+                      onPaste={handlePaste}
+                      onFocus={(e) => e.target.select()}
                       className={`
                         w-11 h-13 sm:w-12 sm:h-14
                         text-center text-lg sm:text-xl font-bold text-gray-900

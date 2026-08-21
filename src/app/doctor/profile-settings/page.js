@@ -663,13 +663,23 @@ export default function DoctorProfile() {
     e.preventDefault();
     try {
       setIsLoading(true);
-      const userId =
+      let userId =
         typeof window !== "undefined"
           ? window.localStorage.getItem("userId")
           : null;
 
+      if (!userId && typeof window !== "undefined") {
+        try {
+          const stored = window.localStorage.getItem("userData");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            userId = parsed?.id || parsed?.user_id || parsed?.doctor_id;
+          }
+        } catch {}
+      }
+
       if (!userId) {
-        console.error("No userId found in localStorage for profile update");
+        toast.error("Session not found. Please log in again.");
         setIsLoading(false);
         return;
       }
@@ -743,11 +753,11 @@ export default function DoctorProfile() {
 
       const { availableDays, availableTime } = computeAvailabilityFromSlots();
 
-      if (availableDays.length === 0) {
-        toast.error("Please configure at least one day of availability in your schedule.");
-        setIsLoading(false);
-        return;
-      }
+      const parseFee = (feeVal) => {
+        if (feeVal === undefined || feeVal === null || feeVal === "") return 0;
+        const num = Number(String(feeVal).replace(/[^0-9.-]+/g, ""));
+        return isNaN(num) ? 0 : num;
+      };
 
       const payload = {
         user_id: userId,
@@ -757,17 +767,17 @@ export default function DoctorProfile() {
         specialization: selectedSpecialities,
         qualification: selectedQualifications,
         experience_years: experienceYears,
-        video_consultation_fee: profile.videoConsultationFee ? Number(profile.videoConsultationFee.replace(/[^0-9.-]+/g, "")) : 0,
-        clinic_consultation_fee: profile.clinicConsultationFee ? Number(profile.clinicConsultationFee.replace(/[^0-9.-]+/g, "")) : 0,
-        home_visit_fee: profile.homeVisitFee ? Number(profile.homeVisitFee.replace(/[^0-9.-]+/g, "")) : 0,
+        video_consultation_fee: parseFee(profile.videoConsultationFee),
+        clinic_consultation_fee: parseFee(profile.clinicConsultationFee),
+        home_visit_fee: parseFee(profile.homeVisitFee),
         clinic_name: profile.hospital,
         clinic_address: profile.address,
         license_number: profile.licenseNumber,
         about_me: profile.about,
         languages: profile.languages,
-        // Store short day codes like ["Mon", "Tue", ...]
-        available_days: availableDays,
-        available_time: availableTime,
+        // Store short day codes like ["Mon", "Tue", ...] if available
+        available_days: availableDays.length > 0 ? availableDays : undefined,
+        available_time: availableTime || undefined,
         clinic_slots: weeklyAvailability.clinic_slots,
         video_slots: weeklyAvailability.video_slots,
         home_slots: weeklyAvailability.home_slots,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X, ShieldCheck, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -9,6 +9,7 @@ export default function LabOtpModal({ isOpen, onClose, labId, onVerified }) {
     const [loading, setLoading] = useState(false);
     const [sending, setSending] = useState(false);
     const [timer, setTimer] = useState(0);
+    const inputRefs = useRef([]);
 
     useEffect(() => {
         if (isOpen && labId) {
@@ -81,23 +82,69 @@ export default function LabOtpModal({ isOpen, onClose, labId, onVerified }) {
 
     const handleChange = (e, index) => {
         const value = e.target.value;
-        if (isNaN(value)) return;
+        const cleaned = String(value).replace(/\D/g, "");
+        if (!cleaned && value !== "") {
+            const newOtp = [...otp];
+            newOtp[index] = "";
+            setOtp(newOtp);
+            return;
+        }
 
+        // If multiple digits pasted or autofilled by browser
+        if (cleaned.length > 1) {
+            const digits = cleaned.slice(0, 6).split("");
+            const newOtp = [...otp];
+            digits.forEach((d, i) => {
+                if (i < 6) newOtp[i] = d;
+            });
+            setOtp(newOtp);
+            const focusIndex = Math.min(digits.length, 5);
+            inputRefs.current[focusIndex]?.focus();
+            return;
+        }
+
+        // Single digit input
+        const char = cleaned.slice(-1);
         const newOtp = [...otp];
-        newOtp[index] = value.substring(value.length - 1);
+        newOtp[index] = char;
         setOtp(newOtp);
 
-        // Move to next input
-        if (value && index < 5) {
-            const nextInput = document.getElementById(`otp-${index + 1}`);
-            if (nextInput) nextInput.focus();
+        if (char !== "" && index < 5) {
+            inputRefs.current[index + 1]?.focus();
         }
     };
 
     const handleKeyDown = (e, index) => {
-        if (e.key === "Backspace" && !otp[index] && index > 0) {
-            const prevInput = document.getElementById(`otp-${index - 1}`);
-            if (prevInput) prevInput.focus();
+        if (e.key === "Backspace") {
+            if (!otp[index] && index > 0) {
+                const newOtp = [...otp];
+                newOtp[index - 1] = "";
+                setOtp(newOtp);
+                inputRefs.current[index - 1]?.focus();
+            } else if (otp[index]) {
+                const newOtp = [...otp];
+                newOtp[index] = "";
+                setOtp(newOtp);
+            }
+        } else if (e.key === "ArrowLeft" && index > 0) {
+            inputRefs.current[index - 1]?.focus();
+        } else if (e.key === "ArrowRight" && index < 5) {
+            inputRefs.current[index + 1]?.focus();
+        }
+    };
+
+    const handlePaste = (e) => {
+        e.preventDefault();
+        const pasteData = e.clipboardData?.getData("text") || "";
+        const digits = pasteData.replace(/\D/g, "").slice(0, 6).split("");
+        if (digits.length > 0) {
+            const newOtp = [...otp];
+            digits.forEach((d, i) => {
+                if (i < 6) newOtp[i] = d;
+            });
+            setOtp(newOtp);
+            const focusIndex = Math.min(digits.length, 5);
+            inputRefs.current[focusIndex]?.focus();
         }
     };
 
@@ -128,13 +175,19 @@ export default function LabOtpModal({ isOpen, onClose, labId, onVerified }) {
                         {otp.map((digit, idx) => (
                             <input
                                 key={idx}
-                                id={`otp-${idx}`}
+                                ref={(el) => (inputRefs.current[idx] = el)}
                                 type="text"
-                                maxLength="1"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                autoComplete={idx === 0 ? "one-time-code" : "off"}
+                                maxLength={6}
                                 value={digit}
                                 onChange={(e) => handleChange(e, idx)}
                                 onKeyDown={(e) => handleKeyDown(e, idx)}
+                                onPaste={handlePaste}
+                                onFocus={(e) => e.target.select()}
                                 className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-semibold bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                aria-label={`OTP digit ${idx + 1}`}
                             />
                         ))}
                     </div>

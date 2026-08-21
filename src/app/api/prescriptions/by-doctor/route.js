@@ -15,11 +15,13 @@ export async function POST(req) {
       return failure("doctor_id is required", null, 400, { headers: corsHeaders });
     }
 
-    // Fetch all prescriptions for this doctor
+    // Fetch all active prescriptions for this doctor (excluding archived/deleted)
     const { data: prescriptions, error } = await supabase
       .from("prescriptions")
       .select("*")
       .eq("doctor_id", doctor_id)
+      .neq("status", "archived")
+      .neq("status", "deleted")
       .order("created_at", { ascending: false });
 
     if (error) throw error;

@@ -50,46 +50,102 @@ function VerifyOtpContent() {
       return;
     }
 
-    const timer = setInterval(() => {
-      setResendTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setCanResend(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    // WebOTP API for automatic SMS OTP detection on mobile browsers
+    if (typeof window !== 'undefined' && 'OTPCredential' in window) {
+      const ac = new AbortController();
+      navigator.credentials
+        .get({
+          otp: { transport: ['sms'] },
+          signal: ac.signal,
+        })
+        .then((otpCredential) => {
+          if (otpCredential && otpCredential.code) {
+            const digits = otpCredential.code.replace(/\D/g, '').slice(0, 6).split('');
+            if (digits.length > 0) {
+              const newOtp = ['', '', '', '', '', ''];
+              digits.forEach((d, i) => {
+                if (i < 6) newOtp[i] = d;
+              });
+              setOtp(newOtp);
+              const focusIdx = Math.min(digits.length, 5);
+              inputRefs.current[focusIdx]?.focus();
+            }
+          }
+        })
+        .catch(() => {});
+
+      return () => {
+        clearInterval(timer);
+        ac.abort();
+      };
+    }
 
     return () => clearInterval(timer);
   }, [router, searchParams]);
 
   const handleOtpChange = (value, index) => {
-    if (isNaN(value)) return;
+    const cleaned = String(value).replace(/\D/g, '');
+    if (!cleaned && value !== '') {
+      const newOtp = [...otp];
+      newOtp[index] = '';
+      setOtp(newOtp);
+      return;
+    }
+
+    // If multiple digits pasted or autofilled by browser
+    if (cleaned.length > 1) {
+      const digits = cleaned.slice(0, 6).split('');
+      const newOtp = [...otp];
+      digits.forEach((d, i) => {
+        if (i < 6) newOtp[i] = d;
+      });
+      setOtp(newOtp);
+      const focusIndex = Math.min(digits.length, 5);
+      inputRefs.current[focusIndex]?.focus();
+      return;
+    }
+
+    // Single digit input
+    const char = cleaned.slice(-1);
     const newOtp = [...otp];
-    newOtp[index] = value;
+    newOtp[index] = char;
     setOtp(newOtp);
-    if (value !== '' && index < 5) {
+
+    if (char !== '' && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
   const handleKeyDown = (e, index) => {
-    if (e.key === 'Backspace' && !e.target.value && index > 0) {
+    if (e.key === 'Backspace') {
+      if (!otp[index] && index > 0) {
+        const newOtp = [...otp];
+        newOtp[index - 1] = '';
+        setOtp(newOtp);
+        inputRefs.current[index - 1]?.focus();
+      } else if (otp[index]) {
+        const newOtp = [...otp];
+        newOtp[index] = '';
+        setOtp(newOtp);
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
       inputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      inputRefs.current[index + 1]?.focus();
     }
   };
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const pasteData = e.clipboardData.getData('text').trim().slice(0, 6);
-    if (/^\d+$/.test(pasteData)) {
+    const pasteData = e.clipboardData?.getData('text') || '';
+    const digits = pasteData.replace(/\D/g, '').slice(0, 6).split('');
+    if (digits.length > 0) {
       const newOtp = [...otp];
-      for (let i = 0; i < pasteData.length && i < 6; i++) {
-        newOtp[i] = pasteData[i];
-      }
+      digits.forEach((d, i) => {
+        if (i < 6) newOtp[i] = d;
+      });
       setOtp(newOtp);
-      const focusIndex = Math.min(pasteData.length, 5);
+      const focusIndex = Math.min(digits.length, 5);
       inputRefs.current[focusIndex]?.focus();
     }
   };
@@ -290,11 +346,14 @@ function VerifyOtpContent() {
                     ref={(el) => (inputRefs.current[index] = el)}
                     type="text"
                     inputMode="numeric"
-                    maxLength="1"
+                    pattern="[0-9]*"
+                    autoComplete={index === 0 ? "one-time-code" : "off"}
+                    maxLength={6}
                     value={data}
                     onChange={(e) => handleOtpChange(e.target.value, index)}
                     onKeyDown={(e) => handleKeyDown(e, index)}
-                    onPaste={index === 0 ? handlePaste : undefined}
+                    onPaste={handlePaste}
+                    onFocus={(e) => e.target.select()}
                     className={`
                       w-12 h-14 sm:w-14 sm:h-16
                       text-center text-xl sm:text-2xl font-bold text-gray-900
