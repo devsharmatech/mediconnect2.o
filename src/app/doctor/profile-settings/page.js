@@ -537,15 +537,35 @@ export default function DoctorProfile() {
     reader.readAsDataURL(file);
 
     try {
-      const userId =
+      let userId =
         typeof window !== "undefined"
           ? window.localStorage.getItem("userId")
           : null;
 
+      if (!userId && typeof window !== "undefined") {
+        try {
+          const stored = window.localStorage.getItem("userData");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            userId = parsed?.id || parsed?.user_id || parsed?.doctor_id;
+          }
+          if (!userId) {
+            const docStored = window.localStorage.getItem("doctorUser");
+            if (docStored) {
+              const parsedDoc = JSON.parse(docStored);
+              userId = parsedDoc?.id || parsedDoc?.user_id;
+            }
+          }
+        } catch {}
+      }
+
       if (!userId) {
+        toast.error("Session not found. Please log in again.", { id: "avatar-toast" });
         console.error("No userId found in localStorage for profile picture update");
         return;
       }
+
+      toast.loading("Uploading profile picture...", { id: "avatar-toast" });
 
       const formData = new FormData();
       formData.append("user_id", userId);
@@ -558,12 +578,14 @@ export default function DoctorProfile() {
 
       const data = await response.json();
       if (!response.ok || !data?.success) {
+        toast.error(data?.message || "Failed to upload profile picture.", { id: "avatar-toast" });
         console.error("Failed to update profile picture", data);
         return;
       }
 
       if (data.data?.profile_picture) {
         setProfilePicture(data.data.profile_picture);
+        toast.success("Profile picture updated successfully!", { id: "avatar-toast" });
         if (typeof window !== "undefined") {
           const stored = window.localStorage.getItem("userData");
           if (stored) {
@@ -581,6 +603,7 @@ export default function DoctorProfile() {
         }
       }
     } catch (error) {
+      toast.error("Error updating profile picture.", { id: "avatar-toast" });
       console.error("Error updating profile picture", error);
     } finally {
       setNewProfileFile(null);

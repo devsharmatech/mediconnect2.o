@@ -25,7 +25,8 @@ export async function POST(req) {
     }
 
     const id = formData.get("id");
-    const phone_number = formData.get("phone_number").trim();
+    const raw_phone = formData.get("phone_number") || "";
+    const phone_number = String(raw_phone).replace(/\D/g, "").slice(-10);
     const email = formData.get("email").trim();
 
     // Check if lab exists

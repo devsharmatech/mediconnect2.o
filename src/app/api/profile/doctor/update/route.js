@@ -47,50 +47,40 @@ export async function PUT(req) {
       return failure("Invalid email format.", null, 400, { headers: corsHeaders });
     }
 
-    // ✅ Fetch current user
-    const { data: userData, error: userFetchError } = await supabase
-      .from("users")
-      .select("id, profile_picture, role")
-      .eq("id", user_id)
-      .maybeSingle();
+    // ✅ Fetch current user and doctor_details
+    const [{ data: userData, error: userFetchError }, { data: existingDoc }] = await Promise.all([
+      supabase.from("users").select("id, profile_picture, role").eq("id", user_id).maybeSingle(),
+      supabase.from("doctor_details").select("dmc_mci_certificate, aadhaar_pan_license, address_proof, passport_photo").eq("id", user_id).maybeSingle(),
+    ]);
 
     if (userFetchError) throw userFetchError;
     if (!userData) return failure("User not found.", null, 404, { headers: corsHeaders });
     if (userData.role !== "doctor")
       return failure("Invalid role. Only doctors can be updated here.", null, 403, { headers: corsHeaders });
 
-    // ✅ Declare file URLs
-    let profile_picture_url = userData.profile_picture;
-    let dmc_mci_certificate_url = null;
-    let aadhaar_pan_license_url = null;
-    let address_proof_url = null;
-    let passport_photo_url = null;
-
     // ✅ Helper to upload file
-    async function uploadFile(file, folder) {
-      if (!file || !file.name) return null;
+    async function uploadFile(file, folder, existingFallback = null) {
+      if (!file || typeof file === "string" || !file.name) return existingFallback;
       const ext = file.name.split(".").pop();
       const fileName = `${folder}/${user_id}_${Date.now()}.${ext}`;
       const { url } = await uploadToS3(file, `profile-pictures/${fileName}`, "application/octet-stream");
       return url;
     }
 
-    // ✅ Upload all files
-    const uploads = await Promise.all([
-      uploadFile(fileProfile, "profile"),
-      uploadFile(fileDmc, "certificates"),
-      uploadFile(fileAadhaar, "aadhaar"),
-      uploadFile(fileAddress, "address"),
-      uploadFile(filePassport, "passport")
-    ]);
-
-    [
+    // ✅ Upload all files with fallback to existing
+    const [
       profile_picture_url,
       dmc_mci_certificate_url,
       aadhaar_pan_license_url,
       address_proof_url,
       passport_photo_url
-    ] = uploads;
+    ] = await Promise.all([
+      uploadFile(fileProfile, "profile", userData.profile_picture),
+      uploadFile(fileDmc, "certificates", existingDoc?.dmc_mci_certificate),
+      uploadFile(fileAadhaar, "aadhaar", existingDoc?.aadhaar_pan_license),
+      uploadFile(fileAddress, "address", existingDoc?.address_proof),
+      uploadFile(filePassport, "passport", existingDoc?.passport_photo)
+    ]);
 
     // ✅ Parse JSON fields
     let parsedBank = null;

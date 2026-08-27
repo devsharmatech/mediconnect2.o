@@ -161,6 +161,34 @@ const HeartHealthResult = () => {
   const combinedRecommendations = currentHistory?.recommendations || recommendations;
   const combinedInputs = currentHistory?.inputs || null;
 
+  const triggerFileDownload = async (url, filename) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to fetch file stream');
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename || 'mediconnect-heart-health-report.pdf';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(link);
+      }, 100);
+    } catch (err) {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || 'mediconnect-heart-health-report.pdf';
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+    }
+  };
+
   const downloadPDF = async () => {
     if (!assessmentId) return;
     try {
@@ -194,7 +222,8 @@ const HeartHealthResult = () => {
 
       const pdfUrl = result?.data?.url;
       if (pdfUrl) {
-        window.location.href = pdfUrl;
+        const fileName = `mediconnect-heart-report-${assessmentId.slice(0, 8)}.pdf`;
+        await triggerFileDownload(pdfUrl, fileName);
       } else {
         window.print();
       }

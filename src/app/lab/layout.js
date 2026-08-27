@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from "react";
 import Sidebar from "@/components/lab/Sidebar";
 import Navbar from "@/components/lab/Navbar";
-import { Toaster } from "react-hot-toast";
 import toast from "react-hot-toast";
 import { getLoggedInUser } from "@/lib/authHelpers";
 import { usePathname } from "next/navigation";
@@ -112,8 +111,6 @@ export default function LabLayout({ children }) {
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 text-gray-900 dark:text-gray-100 cursor-default relative">
-      <Toaster position="top-right" />
-      
       {isLoggedIn && userId && (
         <DpdpConsentModal role="lab" userId={userId} />
       )}

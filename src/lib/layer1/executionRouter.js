@@ -181,11 +181,11 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
       const doctorName = doctorDetails?.full_name || "Doctor";
       const phoneNumber = patientUser?.phone_number;
 
-      // 1. In-App & FCM Push Notification for Patient
+      // 1. In-App & FCM Push Notification for Patient (Pending doctor approval)
       await sendPushAndInAppNotification({
         user_id: patient_id,
-        title: "Appointment Booked Successfully!",
-        message: `Your appointment with Dr. ${doctorName} on ${appointment_date} at ${appointment_time} is confirmed.`,
+        title: "Appointment Request Received",
+        message: `Your appointment request with Dr. ${doctorName} on ${appointment_date} at ${appointment_time} has been received and is pending doctor confirmation.`,
         type: "appointment_booked",
         metadata: { appointment_id: appointment.id, doctor_id, doctor_name: doctorName }
       });
@@ -469,7 +469,7 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
 
   if (updateErr) throw new Error(`Update failed: ${updateErr.message}`);
 
-  // Dispatch WhatsApp Status Mapped notification asynchronously
+  // Dispatch in-app, push, and WhatsApp notifications asynchronously
   (async () => {
     try {
       let whatsappStatusType = status;
@@ -497,6 +497,25 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
       const doctorName = doctorDetails?.full_name || "Doctor";
       const phoneNumber = patientUser?.phone_number;
 
+      // In-App & FCM Push Notification for Patient upon Doctor Decision
+      if (status === "approved") {
+        await sendPushAndInAppNotification({
+          user_id: appointment.patient_id,
+          title: "Appointment Confirmed!",
+          message: `Dr. ${doctorName} has confirmed your appointment on ${appointment.appointment_date} at ${appointment.appointment_time}.`,
+          type: "appointment_confirmed",
+          metadata: { appointment_id: appointment.id, doctor_id: appointment.doctor_id, doctor_name: doctorName }
+        });
+      } else if (status === "rejected") {
+        await sendPushAndInAppNotification({
+          user_id: appointment.patient_id,
+          title: "Appointment Update",
+          message: `Your appointment request with Dr. ${doctorName} for ${appointment.appointment_date} could not be accepted.`,
+          type: "appointment_rejected",
+          metadata: { appointment_id: appointment.id, doctor_id: appointment.doctor_id, doctor_name: doctorName }
+        });
+      }
+
       if (phoneNumber) {
         await sendAppointmentUpdateAlert({
           phone_number: phoneNumber,
@@ -512,7 +531,7 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
         });
       }
     } catch (err) {
-      console.error("[WHATSAPP] Failed to send update status notification:", err.message);
+      console.error("[NOTIFICATION ENGINE] Failed to send update status notification:", err.message);
     }
   })();
 

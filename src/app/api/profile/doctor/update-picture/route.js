@@ -50,11 +50,15 @@ export async function PUT(req) {
     let profile_picture_url = userData.profile_picture || null;
 
     try {
-      // Delete old file if exists
+      // Delete old file if exists (non-fatal if old key is external/invalid)
       if (userData.profile_picture) {
-        const oldKey = extractKeyFromUrl(userData.profile_picture);
-        if (oldKey) {
-          await deleteFromS3(oldKey);
+        try {
+          const oldKey = extractKeyFromUrl(userData.profile_picture);
+          if (oldKey) {
+            await deleteFromS3(oldKey);
+          }
+        } catch (cleanupErr) {
+          console.warn("[S3] Old avatar cleanup skipped:", cleanupErr.message);
         }
       }
 

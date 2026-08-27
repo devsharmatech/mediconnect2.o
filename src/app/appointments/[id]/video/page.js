@@ -197,37 +197,37 @@ function VideoCall({ appointmentId, userId, role }) {
     return AgoraRTC;
   };
 
-  /* ── create tracks using DIRECT probe result (not stale state) ── */
-  const createTracks = async (AgoraRTC, probe) => {
+  /* ── create tracks directly with AgoraRTC (resilient to browser permissions) ── */
+  const createTracks = async (AgoraRTC) => {
     let mic = null,
       cam = null;
 
     // Audio track
-    if (probe.hasMicrophone) {
+    try {
+      mic = await AgoraRTC.createMicrophoneAudioTrack({
+        AEC: true,
+        ANS: true,
+        AGC: true,
+      });
+    } catch (e) {
       try {
-        mic = await AgoraRTC.createMicrophoneAudioTrack({
-          AEC: true,
-          ANS: true,
-          AGC: true,
-        });
-      } catch (e) {
-        console.warn("Mic track creation failed:", e.message);
+        mic = await AgoraRTC.createMicrophoneAudioTrack();
+      } catch (e2) {
+        console.warn("Microphone track creation failed:", e2.message);
       }
     }
 
-    // Video track – 480p for good quality
-    if (probe.hasCamera) {
+    // Video track
+    try {
+      cam = await AgoraRTC.createCameraVideoTrack({
+        encoderConfig: "480p_1",
+        optimizationMode: "detail",
+      });
+    } catch {
       try {
-        cam = await AgoraRTC.createCameraVideoTrack({
-          encoderConfig: "480p_1",
-          optimizationMode: "detail",
-        });
-      } catch {
-        try {
-          cam = await AgoraRTC.createCameraVideoTrack();
-        } catch (e2) {
-          console.warn("Camera track creation failed:", e2.message);
-        }
+        cam = await AgoraRTC.createCameraVideoTrack();
+      } catch (e2) {
+        console.warn("Camera track creation failed:", e2.message);
       }
     }
 
@@ -378,8 +378,8 @@ function VideoCall({ appointmentId, userId, role }) {
       console.log(`[Agora] Joined channel=${channelName} assignedUid=${assignedUid}`);
       toast.dismiss(loadingToast);
 
-      // ── Create local tracks using DIRECT probe result ──
-      const { mic, cam } = await createTracks(AgoraRTC, probe);
+      // ── Create local tracks directly without device locking ──
+      const { mic, cam } = await createTracks(AgoraRTC);
       localTracks.current.audio = mic;
       localTracks.current.video = cam;
 
@@ -473,8 +473,23 @@ function VideoCall({ appointmentId, userId, role }) {
 
   /* ── TOGGLE MIC ──────────────────────────────── */
   const toggleMic = async () => {
-    const mic = localTracks.current.audio;
-    if (!mic) { toast.error("Microphone not available"); return; }
+    let mic = localTracks.current.audio;
+    if (!mic) {
+      try {
+        const AgoraRTC = await loadAgora();
+        mic = await AgoraRTC.createMicrophoneAudioTrack();
+        localTracks.current.audio = mic;
+        if (clientRef.current && joined) {
+          await clientRef.current.publish([mic]);
+        }
+        setMicOn(true);
+        toast.success("Microphone enabled");
+        return;
+      } catch (e) {
+        toast.error("Microphone access failed: " + (e.message || "denied"));
+        return;
+      }
+    }
     try {
       const next = !micOn;
       await mic.setEnabled(next);
@@ -486,8 +501,24 @@ function VideoCall({ appointmentId, userId, role }) {
 
   /* ── TOGGLE CAM ──────────────────────────────── */
   const toggleCam = async () => {
-    const cam = localTracks.current.video;
-    if (!cam) { toast.error("Camera not available"); return; }
+    let cam = localTracks.current.video;
+    if (!cam) {
+      try {
+        const AgoraRTC = await loadAgora();
+        cam = await AgoraRTC.createCameraVideoTrack();
+        localTracks.current.video = cam;
+        if (clientRef.current && joined) {
+          await clientRef.current.publish([cam]);
+        }
+        setCamOn(true);
+        setTimeout(playLocalVideo, 150);
+        toast.success("Camera enabled");
+        return;
+      } catch (e) {
+        toast.error("Camera access failed: " + (e.message || "denied"));
+        return;
+      }
+    }
     try {
       const next = !camOn;
       await cam.setEnabled(next);
@@ -577,7 +608,11 @@ function VideoCall({ appointmentId, userId, role }) {
     try {
       const res = await fetch("/api/prescriptions/by-patient-appointment", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${patientId}`,
+          "x-user-id": patientId,
+        },
         body: JSON.stringify({ patient_id: patientId, appointment_id: appointmentId }),
       });
 

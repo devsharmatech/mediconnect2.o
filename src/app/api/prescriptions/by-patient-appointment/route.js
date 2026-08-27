@@ -18,7 +18,7 @@ export async function POST(req) {
       });
     }
 
-    const caller = await resolveCallerFromRequest(req);
+    const caller = await resolveCallerFromRequest(req, patient_id);
     if (!caller) {
       return failure("Unauthorized - missing or invalid token.", null, 401, { headers: corsHeaders });
     }

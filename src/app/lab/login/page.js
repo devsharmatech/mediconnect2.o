@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import { sendOtp, verifyOtp, setLoggedInUser } from "@/lib/authHelpers";
 import Image from "next/image";
 
@@ -16,9 +16,11 @@ export default function LabLogin() {
 
   const handleSendOtp = async () => {
     if (!phone.trim()) {
-      toast.error("Please enter your phone number");
+      toast.error("Please enter your phone number", { id: "auth-toast" });
       return;
     }
+
+    if (loading) return;
 
     setLoading(true);
     const data = await sendOtp(phone, "lab");
@@ -27,17 +29,19 @@ export default function LabLogin() {
     if (data.success) {
       setStep(2);
       setUserId(data.data.user_id);
-      toast.success(`OTP sent successfully!`);
+      toast.success(`OTP sent successfully!`, { id: "auth-toast" });
     } else {
-      toast.error(data.message || "Failed to send OTP");
+      toast.error(data.message || "Failed to send OTP", { id: "auth-toast" });
     }
   };
 
   const handleVerifyOtp = async () => {
     if (!otp.trim()) {
-      toast.error("Please enter the OTP");
+      toast.error("Please enter the OTP", { id: "auth-toast" });
       return;
     }
+
+    if (loading) return;
 
     setLoading(true);
     const data = await verifyOtp(userId, otp);
@@ -45,10 +49,10 @@ export default function LabLogin() {
 
     if (data.success) {
       setLoggedInUser("lab", data.data.user);
-      toast.success("OTP verified successfully!");
+      toast.success("OTP verified successfully!", { id: "auth-toast" });
       router.push("/lab/dashboard");
     } else {
-      toast.error(data.message || "Invalid OTP");
+      toast.error(data.message || "Invalid OTP", { id: "auth-toast" });
     }
   };
 
@@ -60,18 +64,6 @@ export default function LabLogin() {
 
   return (
     <div className="w-full min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: "#1f2937",
-            color: "#fff",
-            border: "1px solid #004F7C",
-          },
-        }}
-      />
-
       <div className="w-full max-w-4xl flex flex-col md:flex-row bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300">
         {/* Left Side - Lab Illustration with Medical Blue Theme */}
         <div className="md:w-1/2 bg-[#0067A1] p-8 flex flex-col justify-center items-center text-white relative overflow-hidden">

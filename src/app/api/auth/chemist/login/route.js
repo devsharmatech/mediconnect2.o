@@ -15,14 +15,29 @@ export async function POST(req) {
 
     const cleanNumber = phone_number.replace(/\D/g, "").slice(-10);
 
-    const { data: user, error } = await supabase
+    let user = null;
+
+    const { data: directUser } = await supabase
       .from("users")
-      .select("id, role")
+      .select("id, role, phone_number")
       .like("phone_number", `%${cleanNumber}%`)
       .eq("role", "chemist")
       .maybeSingle();
 
-    if (error) throw error;
+    if (directUser) {
+      user = directUser;
+    } else {
+      const { data: chem } = await supabase
+        .from("chemist_details")
+        .select("id")
+        .or(`mobile.ilike.%${cleanNumber}%,whatsapp.ilike.%${cleanNumber}%`)
+        .maybeSingle();
+      if (chem) {
+        const { data: u } = await supabase.from("users").select("id, role, phone_number").eq("id", chem.id).maybeSingle();
+        if (u) user = u;
+      }
+    }
+
     if (!user) return failure("Chemist not found.", null, 404);
 
     await sendOTPViaGateway(user.id, phone_number);

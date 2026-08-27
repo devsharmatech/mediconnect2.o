@@ -2,77 +2,69 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import { sendOtp, verifyOtp, setLoggedInUser } from "@/lib/authHelpers";
 import Image from "next/image";
 
 export default function ChemistLogin() {
- const [phone, setPhone] = useState("");
- const [otp, setOtp] = useState("");
- const [step, setStep] = useState(1);
- const [userId, setUserId] = useState(null);
- const [loading, setLoading] = useState(false);
- const router = useRouter();
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [step, setStep] = useState(1);
+  const [userId, setUserId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
- const handleSendOtp = async () => {
- if (!phone.trim()) {
- toast.error("Please enter your phone number");
- return;
- }
+  const handleSendOtp = async () => {
+    if (!phone.trim()) {
+      toast.error("Please enter your phone number", { id: "auth-toast" });
+      return;
+    }
 
- setLoading(true);
- const data = await sendOtp(phone, "chemist");
- setLoading(false);
+    if (loading) return;
 
- if (data.success) {
- setStep(2);
- setUserId(data.data.user_id);
- toast.success(`OTP sent successfully!`);
- } else {
- toast.error(data.message || "Failed to send OTP");
- }
- };
+    setLoading(true);
+    const data = await sendOtp(phone, "chemist");
+    setLoading(false);
 
- const handleVerifyOtp = async () => {
- if (!otp.trim()) {
- toast.error("Please enter the OTP");
- return;
- }
+    if (data.success) {
+      setStep(2);
+      setUserId(data.data.user_id);
+      toast.success(`OTP sent successfully!`, { id: "auth-toast" });
+    } else {
+      toast.error(data.message || "Failed to send OTP", { id: "auth-toast" });
+    }
+  };
 
- setLoading(true);
- const data = await verifyOtp(userId, otp);
- setLoading(false);
+  const handleVerifyOtp = async () => {
+    if (!otp.trim()) {
+      toast.error("Please enter the OTP", { id: "auth-toast" });
+      return;
+    }
 
- if (data.success) {
- setLoggedInUser("chemist", data.data.user);
- toast.success("OTP verified successfully!");
- router.push("/chemist/dashboard");
- } else {
- toast.error(data.message || "Invalid OTP");
- }
- };
+    if (loading) return;
 
- const handleBack = () => {
- setStep(1);
- setOtp("");
- setLoading(false);
- };
+    setLoading(true);
+    const data = await verifyOtp(userId, otp);
+    setLoading(false);
 
- return (
- <div className="w-full min-h-screen flex items-center justify-center dark:bg-gray-900 p-4">
- <Toaster
- position="top-center"
- toastOptions={{
- duration: 3000,
- style: {
- background: "#1f2937",
- color: "#fff",
- border: "1px solid #004F7C",
- },
- }}
- />
+    if (data.success) {
+      setLoggedInUser("chemist", data.data.user);
+      toast.success("OTP verified successfully!", { id: "auth-toast" });
+      router.push("/chemist/dashboard");
+    } else {
+      toast.error(data.message || "Invalid OTP", { id: "auth-toast" });
+    }
+  };
 
- <div className="w-full max-w-4xl flex flex-col md:flex-row bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300">
+  const handleBack = () => {
+    setStep(1);
+    setOtp("");
+    setLoading(false);
+  };
+
+  return (
+    <div className="w-full min-h-screen flex items-center justify-center dark:bg-gray-900 p-4">
+      <div className="w-full max-w-4xl flex flex-col md:flex-row bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300">
  {/* Left Side - Chemistry Image */}
  <div className="md:w-1/2 bg-[#0067A1] p-8 flex flex-col justify-center items-center text-white relative overflow-hidden">
  {/* Background decorative elements */}

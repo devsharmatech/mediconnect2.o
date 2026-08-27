@@ -3,16 +3,20 @@ import { success, failure } from "@/lib/response";
 
 // Generate lead ID: MCN-EQP-000123
 async function generateLeadId() {
-  const { data } = await supabase.rpc("nextval", { seq_name: "equipment_lead_seq" }).single();
-  let seq = data;
-  if (!seq) {
+  try {
     const { count } = await supabase
       .from("medical_equipment_leads")
       .select("id", { count: "exact", head: true });
-    seq = (count || 0) + 1;
+    const seq = (count || 0) + 1;
+    return `MCN-EQP-${String(seq).padStart(6, "0")}`;
+  } catch (e) {
+    const rand = Math.floor(100000 + Math.random() * 900000);
+    return `MCN-EQP-${rand}`;
   }
-  return `MCN-EQP-${String(seq).padStart(6, "0")}`;
 }
+
+const isValidUUID = (str) =>
+  typeof str === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
 export async function POST(req) {
   try {
@@ -52,13 +56,14 @@ export async function POST(req) {
     }
 
     const lead_id = await generateLeadId();
+    const sanitizedUserId = isValidUUID(user_id) ? user_id : null;
 
     // Create Lead
     const { data: lead, error: leadError } = await supabase
       .from("medical_equipment_leads")
       .insert({
         lead_id,
-        user_id: user_id || null,
+        user_id: sanitizedUserId,
         name,
         phone,
         email: email || null,
@@ -79,26 +84,30 @@ export async function POST(req) {
       return failure("Failed to submit request. Please try again.", leadError.message, 500);
     }
 
-    // Consent Log
-    const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
-    await supabase
-      .from("medical_equipment_consent_logs")
-      .insert({
-        lead_id: lead.id,
-        data_consent: true,
-        communication_consent: true,
-        consent_timestamp: new Date().toISOString(),
-        ip_address: ip,
-        device_type: device_type || "web",
-        form_version: "1.0",
-      });
+    // Consent Log (fail-safe)
+    try {
+      const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
+      await supabase
+        .from("medical_equipment_consent_logs")
+        .insert({
+          lead_id: lead.id,
+          data_consent: true,
+          communication_consent: true,
+          consent_timestamp: new Date().toISOString(),
+          ip_address: ip,
+          device_type: device_type || "web",
+          form_version: "1.0",
+        });
+    } catch (consentErr) {
+      console.warn("Consent logging notice:", consentErr.message);
+    }
 
-    // In-system notification
-    if (user_id) {
+    // In-system notification (fail-safe)
+    if (sanitizedUserId) {
       try {
         const displayEq = Array.isArray(equipment_types) ? equipment_types.join(", ") : equipment_types;
         await supabase.from("notifications").insert({
-          user_id: user_id,
+          user_id: sanitizedUserId,
           title: "Medical Equipment Request Submitted",
           message: `Thank you ${name}. Your medical equipment request (ID: ${lead.lead_id}) for ${displayEq} has been received successfully.`,
           type: "equipment",

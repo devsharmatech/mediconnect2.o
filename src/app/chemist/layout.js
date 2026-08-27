@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/chemist/Sidebar";
 import Navbar from "@/components/chemist/Navbar";
-import { Toaster } from "react-hot-toast";
 import { getLoggedInUser } from "@/lib/authHelpers";
 import { usePathname } from "next/navigation";
 import DpdpConsentModal from "@/components/chemist/DpdpConsentModal";
@@ -62,34 +61,6 @@ export default function ChemistLayout({ children }) {
 
  return (
  <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 cursor-default relative">
-   <Toaster 
-     position="top-right" 
-     toastOptions={{
-       duration: 3000,
-       success: {
-         style: {
-           background: '#ffffff',
-           color: '#1f2937',
-           padding: '12px 16px',
-           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-           borderRadius: '12px',
-           border: '1px solid #e5e7eb',
-           fontWeight: '500',
-         }
-       },
-       error: {
-         style: {
-           background: '#ffffff',
-           color: '#dc2626',
-           padding: '12px 16px',
-           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-           borderRadius: '12px',
-           border: '1px solid #fecaca',
-           fontWeight: '500',
-         }
-       }
-     }}
-   />
   
   {isLoggedIn && userId && (
     <DpdpConsentModal role="chemist" userId={userId} />

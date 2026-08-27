@@ -110,7 +110,8 @@ export async function POST(req) {
     }
 
     // ── Common processing for both flows ──
-    const phone_number = fields.phone_number;
+    const raw_phone = fields.phone_number || "";
+    const phone_number = String(raw_phone).replace(/\D/g, "").slice(-10);
     const owner_name = fields.owner_name;
     const email = fields.email;
     const pharmacy_name = fields.pharmacy_name;
@@ -120,8 +121,6 @@ export async function POST(req) {
     const mobile = fields.mobile;
     const whatsapp = fields.whatsapp;
     const registration_no = fields.registration_no;
-
-    console.log("ONBOARDING SUBMITTING PHONE & REG:", { phone_number, registration_no });
 
     const terms_conditions_agreement =
       fields.terms_conditions_agreement === "true" || fields.terms_conditions_agreement === true;
@@ -145,7 +144,7 @@ export async function POST(req) {
     const { data: existingPhone } = await supabase
       .from("users")
       .select("id")
-      .eq("phone_number", phone_number)
+      .like("phone_number", `%${phone_number}%`)
       .maybeSingle();
 
     if (existingPhone) {
@@ -179,6 +178,7 @@ export async function POST(req) {
           phone_number,
           role: "chemist",
           is_verified: true,
+          status: 1,
         },
       ])
       .select()

@@ -92,6 +92,24 @@ export default function AboutPage() {
   const differentiators = aboutSections.find(s => s.section_key === 'differentiators');
   const foundersMessage = aboutSections.find(s => s.section_key === 'founders_message');
 
+  const DEFAULT_VISION = `<p>To build India's most trusted, accessible, and continuous healthcare ecosystem where every individual receives proactive, doctor-led clinical guidance and seamless care continuity.</p><p>We envision a future where geographical and technological barriers to quality medical expertise are completely eliminated through secure digital health lockers, ABDM-compliant records, and patient-first clinical empathy.</p>`;
+
+  const DEFAULT_MISSION = `<p>To empower patients and healthcare practitioners through integrated telemedicine consultations, digitized health history, and transparent care pathways.</p><p>We are committed to upholding the highest clinical standards under the NMC Telemedicine Practice Guidelines, ensuring patients receive timely triage, accurate electronic prescriptions, and dependable follow-up support throughout their recovery journey.</p>`;
+
+  // Helper to strip html and whitespace for deduplication comparison
+  const normalizeText = (htmlOrText) => (htmlOrText || "").replace(/<[^>]*>?/gm, '').trim().toLowerCase();
+
+  const isDuplicateOpening = opening && headerData?.subheading && normalizeText(opening.content) === normalizeText(headerData.subheading);
+
+  const getCleanContent = (section, defaultText) => {
+    if (!section?.content) return defaultText;
+    const plain = normalizeText(section.content);
+    if (plain.length < 120) {
+      return `<p>${section.content.replace(/<[^>]*>?/gm, '').trim()}</p>` + defaultText;
+    }
+    return section.content;
+  };
+
   return (
     <div className="min-h-screen bg-[#F6F8FA]  pb-20">
       {/* Page Header Component */}
@@ -113,8 +131,8 @@ export default function AboutPage() {
 
       <div className="relative  mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-16">
 
-        {/* Opening Statement */}
-        {opening && (
+        {/* Opening Statement - Render only if distinct from hero subheading */}
+        {opening && !isDuplicateOpening && (
           <AnimateIn delay={100}>
             <div className="max-w-4xl mx-auto text-center mb-16 px-4">
               <p className="text-xl md:text-2xl text-[#003358] font-medium leading-relaxed"
@@ -125,31 +143,27 @@ export default function AboutPage() {
 
         {/* Vision & Mission Grid */}
         <div className="grid gap-8 lg:grid-cols-2 max-w-full mx-auto mb-16">
-          {vision && (
-            <AnimateIn delay={200} className="relative h-full">
-              <div className="relative rounded-2xl border border-gray-200 bg-white p-8 shadow-sm h-full flex flex-col items-center text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#0067A1]/10 text-[#0067A1] mb-6">
-                  <FaLightbulb className="h-8 w-8" />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">{vision.title || "Our Vision"}</h2>
-                <div className="text-base text-gray-600 leading-relaxed max-w-none prose prose-sm prose-p:my-2"
-                  dangerouslySetInnerHTML={{ __html: vision.content }} />
+          <AnimateIn delay={200} className="relative h-full">
+            <div className="relative rounded-2xl border border-gray-200 bg-white p-8 shadow-sm h-full flex flex-col items-center text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#0067A1]/10 text-[#0067A1] mb-6">
+                <FaLightbulb className="h-8 w-8" />
               </div>
-            </AnimateIn>
-          )}
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">{vision?.title || "Our Vision"}</h2>
+              <div className="text-base text-gray-600 leading-relaxed max-w-none prose prose-sm prose-p:my-2"
+                dangerouslySetInnerHTML={{ __html: getCleanContent(vision, DEFAULT_VISION) }} />
+            </div>
+          </AnimateIn>
 
-          {mission && (
-            <AnimateIn delay={300} className="relative h-full">
-              <div className="relative rounded-2xl border border-gray-200 bg-white p-8 shadow-sm h-full flex flex-col items-center text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#0067A1]/10 text-[#0067A1] mb-6">
-                  <FaBullseye className="h-8 w-8" />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">{mission.title || "Our Mission"}</h2>
-                <div className="text-base text-gray-600 leading-relaxed max-w-none prose prose-sm prose-p:my-2"
-                  dangerouslySetInnerHTML={{ __html: mission.content }} />
+          <AnimateIn delay={300} className="relative h-full">
+            <div className="relative rounded-2xl border border-gray-200 bg-white p-8 shadow-sm h-full flex flex-col items-center text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#0067A1]/10 text-[#0067A1] mb-6">
+                <FaBullseye className="h-8 w-8" />
               </div>
-            </AnimateIn>
-          )}
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">{mission?.title || "Our Mission"}</h2>
+              <div className="text-base text-gray-600 leading-relaxed max-w-none prose prose-sm prose-p:my-2"
+                dangerouslySetInnerHTML={{ __html: getCleanContent(mission, DEFAULT_MISSION) }} />
+            </div>
+          </AnimateIn>
         </div>
 
         {/* What Makes Us Different */}

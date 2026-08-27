@@ -671,7 +671,11 @@ export default function AppointmentsPage() {
 
       const res = await fetch("/api/prescriptions/by-patient-appointment", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${patientId}`,
+          "x-user-id": patientId,
+        },
         body: JSON.stringify({
           patient_id: patientId,
           appointment_id: appointment.id,

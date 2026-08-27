@@ -28,28 +28,40 @@ export async function getDoctorsAction({
       let detailsQuery = supabase
         .from("doctor_details")
         .select(
-          "id, specialization, clinic_consultation_fee, video_consultation_fee, home_visit_fee, rating, experience_years, full_name, onboarding_status"
-        )
-        .eq("onboarding_status", "approved");
+          "id, specialization, clinic_consultation_fee, video_consultation_fee, home_visit_fee, rating, experience_years, full_name, onboarding_status, clinic_name, clinic_address"
+        );
 
       if (specialization && specialization !== "All Specialties" && specialization !== "all") {
-        const specLower = specialization.toLowerCase();
+        const specLower = specialization.toLowerCase().trim();
         if (specLower === "urology") {
           detailsQuery = detailsQuery.ilike("specialization", "%urology%").not("specialization", "ilike", "%neurology%");
+        } else if (specLower.includes("gastro")) {
+          detailsQuery = detailsQuery.or("specialization.ilike.%gastro%,specialization.ilike.%stomach%,specialization.ilike.%digestive%");
         } else if (specLower.includes("dentist") || specLower.includes("dental") || specLower.includes("dentistry")) {
           detailsQuery = detailsQuery.or("specialization.ilike.%dentist%,specialization.ilike.%dental%,specialization.ilike.%dentistry%");
-        } else if (specLower.includes("physician") || specLower.includes("gp") || specLower.includes("general")) {
+        } else if (specLower.includes("physician") || specLower === "gp" || specLower.includes("general")) {
           detailsQuery = detailsQuery.or("specialization.ilike.%physician%,specialization.ilike.%general%,specialization.ilike.%medicine%");
-        } else if (specLower.includes("gynecol") || specLower.includes("obgyn")) {
+        } else if (specLower.includes("gynecol") || specLower.includes("gynaecol") || specLower.includes("obgyn")) {
           detailsQuery = detailsQuery.or("specialization.ilike.%gynecol%,specialization.ilike.%gynaecol%,specialization.ilike.%obgyn%");
         } else if (specLower.includes("pediatr") || specLower.includes("paediatr")) {
           detailsQuery = detailsQuery.or("specialization.ilike.%pediatr%,specialization.ilike.%paediatr%,specialization.ilike.%child%");
         } else if (specLower.includes("orthoped") || specLower.includes("orthopaed")) {
           detailsQuery = detailsQuery.or("specialization.ilike.%orthoped%,specialization.ilike.%orthopaed%,specialization.ilike.%bone%");
-        } else if (specLower.includes("ent") || specLower.includes("throat") || specLower.includes("ear")) {
-          detailsQuery = detailsQuery.or("specialization.ilike.%ent%,specialization.ilike.%throat%,specialization.ilike.%ear%");
+        } else if (specLower === "ent" || specLower.includes("ear, nose") || specLower.includes("otolaryngol") || specLower.includes("throat")) {
+          detailsQuery = detailsQuery
+            .or("specialization.ilike.%ent%,specialization.ilike.%throat%,specialization.ilike.%ear%,specialization.ilike.%otolaryngol%")
+            .not("specialization", "ilike", "%gastro%")
+            .not("specialization", "ilike", "%dent%");
         } else if (specLower.includes("cardio") || specLower.includes("heart")) {
           detailsQuery = detailsQuery.or("specialization.ilike.%cardio%,specialization.ilike.%heart%");
+        } else if (specLower.includes("derma") || specLower.includes("skin")) {
+          detailsQuery = detailsQuery.or("specialization.ilike.%derma%,specialization.ilike.%skin%");
+        } else if (specLower.includes("neuro")) {
+          detailsQuery = detailsQuery.or("specialization.ilike.%neuro%").not("specialization", "ilike", "%urology%");
+        } else if (specLower.includes("ophthal") || specLower.includes("eye")) {
+          detailsQuery = detailsQuery.or("specialization.ilike.%ophthal%,specialization.ilike.%eye%");
+        } else if (specLower.includes("psychiat") || specLower.includes("mental")) {
+          detailsQuery = detailsQuery.or("specialization.ilike.%psychiat%,specialization.ilike.%mental%");
         } else {
           detailsQuery = detailsQuery.ilike("specialization", `%${specialization}%`);
         }
@@ -61,22 +73,35 @@ export async function getDoctorsAction({
         );
       }
 
-      if (feeFilter && feeFilter !== "all") {
-        if (feeFilter === "under_500") {
-          detailsQuery = detailsQuery.or("clinic_consultation_fee.lt.500,video_consultation_fee.lt.500");
-        } else if (feeFilter === "500_1000") {
-          detailsQuery = detailsQuery.or(
-            "and(clinic_consultation_fee.gte.500,clinic_consultation_fee.lte.1000),and(video_consultation_fee.gte.500,video_consultation_fee.lte.1000)"
-          );
-        } else if (feeFilter === "above_1000") {
-          detailsQuery = detailsQuery.or("clinic_consultation_fee.gt.1000,video_consultation_fee.gt.1000");
-        }
-      }
-
       const { data: matchedDetails, error: detailsError } = await detailsQuery;
       if (detailsError) throw detailsError;
 
-      const matchedIds = matchedDetails?.map((d) => d.id) || [];
+      let filteredDetails = matchedDetails || [];
+
+      // Accurate fee filtering
+      if (feeFilter && feeFilter !== "all") {
+        filteredDetails = filteredDetails.filter((doc) => {
+          const rawFees = [
+            doc.clinic_consultation_fee,
+            doc.video_consultation_fee,
+            doc.home_visit_fee,
+          ].map((f) => (typeof f === "number" ? f : f ? Number(f) : NaN)).filter((f) => Number.isFinite(f) && f > 0);
+
+          if (rawFees.length === 0) return false;
+          const minFee = Math.min(...rawFees);
+
+          if (feeFilter === "under_500") {
+            return minFee < 500;
+          } else if (feeFilter === "500_1000") {
+            return minFee >= 500 && minFee <= 1000;
+          } else if (feeFilter === "above_1000") {
+            return minFee > 1000;
+          }
+          return true;
+        });
+      }
+
+      const matchedIds = filteredDetails.map((d) => d.id);
       userQuery = userQuery.in("id", matchedIds.length > 0 ? matchedIds : ["00000000-0000-0000-0000-000000000000"]);
     }
 

@@ -88,14 +88,43 @@ const AssessmentsPage = () => {
     }
   };
 
+  const triggerFileDownload = async (url, filename) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to fetch file stream');
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename || 'mediconnect-assessment-report.pdf';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(link);
+      }, 100);
+    } catch (err) {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || 'mediconnect-assessment-report.pdf';
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+    }
+  };
+
   const downloadPDF = async (assessmentId) => {
     try {
       toast.loading("Generating PDF report...", { id: "pdf-toast" });
       const response = await fetch(`/api/health/assessments/pdf?id=${assessmentId}`);
       const data = await response.json();
       if (data.success && data.data?.url) {
-        toast.success("Opening PDF report...", { id: "pdf-toast" });
-        window.location.href = data.data.url;
+        toast.success("Downloading PDF report...", { id: "pdf-toast" });
+        const fileName = `mediconnect-${data.data?.assessment_type || 'health'}-report-${assessmentId.slice(0, 8)}.pdf`;
+        await triggerFileDownload(data.data.url, fileName);
       } else {
         toast.error(data.message || "Failed to generate PDF", { id: "pdf-toast" });
       }

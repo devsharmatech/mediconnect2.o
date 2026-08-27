@@ -122,8 +122,112 @@ const LungHealthResult = () => {
 
   // Calculate pie chart data
   const scorePercentage = health_score;
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
+
+  const triggerFileDownload = async (url, filename) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to fetch file stream');
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename || 'mediconnect-lung-health-report.pdf';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(link);
+      }, 100);
+    } catch (err) {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || 'mediconnect-lung-health-report.pdf';
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+    }
+  };
+
+  const downloadPDF = async () => {
+    if (!assessmentData?.id) {
+      window.print();
+      return;
+    }
+    try {
+      setDownloadingPDF(true);
+
+      const userDataRaw = typeof window !== 'undefined' ? localStorage.getItem('userData') : null;
+      const userData = userDataRaw ? JSON.parse(userDataRaw) : null;
+      const userId = userData?.id;
+
+      if (!userId) {
+        window.print();
+        return;
+      }
+
+      const response = await fetch('/api/health/assessments/pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          assessment_id: assessmentData.id,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || 'Failed to generate PDF.');
+      }
+
+      const pdfUrl = result?.data?.url;
+      if (pdfUrl) {
+        const fileName = `mediconnect-lung-report-${assessmentData.id.slice(0, 8)}.pdf`;
+        await triggerFileDownload(pdfUrl, fileName);
+      } else {
+        window.print();
+      }
+    } catch (error) {
+      console.error('Failed to generate/download PDF:', error);
+      window.print();
+    } finally {
+      setDownloadingPDF(false);
+    }
+  };
+
   const circumference = 2 * Math.PI * 45; // Smaller circle
   const strokeDashoffset = circumference - (scorePercentage / 100) * circumference;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#0067A1]"></div>
+      </div>
+    );
+  }
+
+  if (!assessmentData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center p-8 bg-white rounded-2xl shadow-sm border border-gray-100">
+          <h2 className="text-xl font-bold text-gray-800 mb-2">No Data Found</h2>
+          <p className="text-gray-500 mb-6 text-sm">Please complete the lung health assessment first.</p>
+          <button
+            onClick={() => router.push('/website/lung-assessment')}
+            className="bg-[#0067A1] text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-[#0080C6] transition-colors"
+          >
+            Take Assessment
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen text-gray-800  font-sans">
@@ -148,11 +252,12 @@ const LungHealthResult = () => {
         </div>
         <div className="flex gap-2 self-start sm:self-auto">
           <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition-all border border-gray-200"
+            onClick={downloadPDF}
+            disabled={downloadingPDF}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-semibold transition-all border border-gray-200 disabled:opacity-50"
           >
             <Download className="w-4 h-4 text-gray-600" />
-            Download PDF Report
+            {downloadingPDF ? 'Downloading...' : 'Download PDF Report'}
           </button>
           <Link
             href="/website/doctors"

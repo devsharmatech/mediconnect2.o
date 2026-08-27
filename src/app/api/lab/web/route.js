@@ -137,14 +137,15 @@ export async function POST(req) {
       }
     }
 
-    const phone_number = fields.phone_number.trim();
+    const raw_phone = fields.phone_number || "";
+    const phone_number = String(raw_phone).replace(/\D/g, "").slice(-10);
     const email = fields.email.trim();
 
     // Check if user already registered
     const { data: existing } = await supabase
       .from("users")
       .select("id")
-      .eq("phone_number", phone_number)
+      .like("phone_number", `%${phone_number}%`)
       .maybeSingle();
 
     if (existing)
@@ -162,6 +163,7 @@ export async function POST(req) {
         phone_number,
         role: "lab",
         is_verified: true,
+        status: 1,
       })
       .select()
       .single();

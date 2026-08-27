@@ -251,6 +251,81 @@ export default function PrescriptionViewerModal({
     return age >= 0 ? `${age} yrs` : "—";
   };
 
+  const handlePrint = () => {
+    const el = document.getElementById('rx-print-area');
+    if (!el) {
+      toast.error("Prescription content not ready for printing.");
+      return;
+    }
+
+    try {
+      let iframe = document.getElementById('rx-print-iframe');
+      if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'rx-print-iframe';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        document.body.appendChild(iframe);
+      }
+
+      const doc = iframe.contentWindow?.document || iframe.contentDocument;
+      if (!doc) throw new Error("Print iframe unavailable");
+
+      doc.open();
+      doc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>MediConnect Prescription - ${data?.patient_details?.full_name || 'Patient'}</title>
+            <style>
+              @page { size: auto; margin: 10mm; }
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+                color: #333;
+                background: #fff;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+              .no-print { display: none !important; }
+              img { max-width: 100%; }
+            </style>
+          </head>
+          <body>
+            ${el.innerHTML}
+          </body>
+        </html>
+      `);
+      doc.close();
+
+      setTimeout(() => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          console.warn("Iframe print fallback:", e);
+          window.print();
+        }
+      }, 300);
+    } catch (err) {
+      console.warn("Print error, using window.open fallback:", err);
+      const w = window.open('', '_blank');
+      if (w) {
+        w.document.write(`<html><head><title>Prescription</title><style>body{font-family:Segoe UI,sans-serif;margin:16px;padding:0;}</style></head><body>${el.innerHTML}</body></html>`);
+        w.document.close();
+        w.focus();
+        setTimeout(() => { w.print(); }, 350);
+      } else {
+        window.print();
+      }
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onClose} />
@@ -261,19 +336,11 @@ export default function PrescriptionViewerModal({
           <span className="text-white font-semibold text-sm">Prescription View</span>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                const el = document.getElementById('rx-print-area');
-                if(!el) return;
-                const w = window.open('', '_blank');
-                w.document.write(`<html><head><title>Prescription</title><style>body{font-family:Segoe UI,sans-serif;margin:0;padding:0;} .no-print{display:none;} @media print{.no-print{display:none;}}</style></head><body>${el.innerHTML}</body></html>`);
-                w.document.close();
-                w.focus();
-                w.print();
-                w.close();
-              }}
-              className="px-4 py-1.5 bg-[#0080C6] text-white rounded-lg text-xs font-semibold hover:bg-[#0067A1] transition"
+              type="button"
+              onClick={handlePrint}
+              className="px-4 py-1.5 bg-[#0080C6] text-white rounded-lg text-xs font-semibold hover:bg-[#0067A1] transition cursor-pointer shadow-sm flex items-center gap-1.5"
             >
-              🖨 Print
+              <span>🖨</span> Print
             </button>
             <button
               onClick={onClose}

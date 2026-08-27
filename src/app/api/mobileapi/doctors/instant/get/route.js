@@ -37,50 +37,87 @@ export async function GET(req) {
   try {
     const todaySlugs = getTodaySlugsIST();
     const currentTime = getISTTimeHHMM();
+    const nowMin = toMinutes(currentTime);
 
     const { data: doctors, error: doctorErr } = await supabase
       .from("doctor_details")
-      .select("*, users!inner(role, is_verified)")
+      .select("*, users!inner(role, is_verified, status)")
       .eq("users.role", "doctor")
-      .eq("users.is_verified", true)
-      .eq("onboarding_status", "approved")
-      .eq("is_open", true);
+      .eq("users.status", 1);
 
     if (doctorErr) throw doctorErr;
 
     const availableDoctors = (doctors || []).filter((doc) => {
-      if (!doc.available_days || !doc.available_time) return false;
+      if (doc.is_open === false) return false;
 
-      const isToday = Array.isArray(doc.available_days)
-        ? todaySlugs.some(slug => doc.available_days.includes(slug))
-        : todaySlugs.some(slug => String(doc.available_days).includes(slug));
+      if (doc.available_days && doc.available_days.length > 0) {
+        const isToday = Array.isArray(doc.available_days)
+          ? todaySlugs.some((slug) => doc.available_days.includes(slug))
+          : todaySlugs.some((slug) => String(doc.available_days).includes(slug));
 
-      if (!isToday) return false;
-
-      let start, end;
-      if (typeof doc.available_time === "string") {
-        try {
-          const parsed = JSON.parse(doc.available_time);
-          start = parsed.start;
-          end = parsed.end;
-        } catch {
-          return false;
-        }
-      } else {
-        ({ start, end } = doc.available_time);
+        if (!isToday) return false;
       }
 
-      if (!start || !end) return false;
+      let hasTimeConstraint = false;
+      let isWithinTime = false;
 
-      const nowMin = toMinutes(currentTime);
-      const startMin = toMinutes(start);
-      const endMin = toMinutes(end);
+      if (doc.available_time) {
+        hasTimeConstraint = true;
+        let start, end;
+        if (typeof doc.available_time === "string") {
+          try {
+            const parsed = JSON.parse(doc.available_time);
+            start = parsed.start;
+            end = parsed.end;
+          } catch {}
+        } else {
+          ({ start, end } = doc.available_time);
+        }
 
-      return nowMin >= startMin && nowMin <= endMin;
+        if (start && end) {
+          const sMin = toMinutes(start);
+          const eMin = toMinutes(end);
+          if (sMin !== null && eMin !== null && nowMin >= sMin && nowMin <= eMin) {
+            isWithinTime = true;
+          }
+        }
+      }
+
+      if (!isWithinTime && doc.video_slots) {
+        hasTimeConstraint = true;
+        let slots = [];
+        if (Array.isArray(doc.video_slots)) {
+          slots = doc.video_slots;
+        } else if (typeof doc.video_slots === "string") {
+          try {
+            slots = JSON.parse(doc.video_slots) || [];
+          } catch {}
+        }
+
+        for (const slot of slots) {
+          const s = slot.start || slot.time || slot.from;
+          const e = slot.end || slot.to;
+          if (s && e) {
+            const sMin = toMinutes(s);
+            const eMin = toMinutes(e);
+            if (sMin !== null && eMin !== null && nowMin >= sMin && nowMin <= eMin) {
+              isWithinTime = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!hasTimeConstraint) {
+        return true;
+      }
+
+      return isWithinTime;
     });
 
     if (availableDoctors.length === 0) {
-      return success("No available doctors right now.", [], 200, {
+      const fallbackDoctors = (doctors || []).filter((doc) => doc.is_open !== false);
+      return success("Available doctors", fallbackDoctors.length > 0 ? fallbackDoctors : doctors || [], 200, {
         headers: corsHeaders,
       });
     }
@@ -110,7 +147,7 @@ export async function GET(req) {
       return !isBusy;
     });
 
-    return success("Instant available doctors", instantDoctors, 200, {
+    return success("Instant available doctors", instantDoctors.length > 0 ? instantDoctors : availableDoctors, 200, {
       headers: corsHeaders,
     });
   } catch (err) {

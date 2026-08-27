@@ -11,7 +11,6 @@ export async function OPTIONS() {
 export async function POST(req) {
   try {
     const { phone_number, role } = await req.json();
-    console.log("SEND-OTP RECEIVED:", { phone_number, role });
     if (!phone_number || !role) return failure("Phone number and role are required.");
 
     // Validate phone number format
@@ -30,14 +29,55 @@ export async function POST(req) {
       return failure("Too many OTP requests. Please wait 2 minutes before requesting a new OTP.", null, 429);
     }
 
-    const { data: user, error } = await supabase
+    let user = null;
+
+    // 1. Direct query on users table
+    const { data: directUser } = await supabase
       .from("users")
-      .select("id, role")
-      .like("phone_number", `%${cleaned_phone}%`)
+      .select("id, role, phone_number")
       .eq("role", role)
+      .like("phone_number", `%${cleaned_phone}%`)
       .maybeSingle();
 
-    if (error) throw error;
+    if (directUser) {
+      user = directUser;
+    }
+
+    // 2. If not found, check detail tables by role as fallback
+    if (!user) {
+      if (role === "chemist") {
+        const { data: chem } = await supabase
+          .from("chemist_details")
+          .select("id")
+          .or(`mobile.ilike.%${cleaned_phone}%,whatsapp.ilike.%${cleaned_phone}%`)
+          .maybeSingle();
+        if (chem) {
+          const { data: u } = await supabase.from("users").select("id, role, phone_number").eq("id", chem.id).maybeSingle();
+          if (u) user = u;
+        }
+      } else if (role === "lab") {
+        const { data: lab } = await supabase
+          .from("lab_details")
+          .select("id")
+          .ilike("phone_number", `%${cleaned_phone}%`)
+          .maybeSingle();
+        if (lab) {
+          const { data: u } = await supabase.from("users").select("id, role, phone_number").eq("id", lab.id).maybeSingle();
+          if (u) user = u;
+        }
+      } else if (role === "doctor") {
+        const { data: doc } = await supabase
+          .from("doctor_details")
+          .select("id")
+          .or(`phone_number.ilike.%${cleaned_phone}%,mobile.ilike.%${cleaned_phone}%`)
+          .maybeSingle();
+        if (doc) {
+          const { data: u } = await supabase.from("users").select("id, role, phone_number").eq("id", doc.id).maybeSingle();
+          if (u) user = u;
+        }
+      }
+    }
+
     if (!user) return failure(`${role} not found.`, null, 404);
 
     // Send real OTP via gateway

@@ -190,11 +190,8 @@ export default function ContactPage() {
         {/* Page Header - compact with primary background */}
         <div className="mb-4 md:mb-4 lg:mb-4">
           <div className="bg-[#0067A1] px-6 py-10 md:px-10 md:py-12 text-center text-white">
-            <div className="mb-2 uppercase tracking-wider text-xs font-semibold text-white/70">
-               {headerData.title}
-            </div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3">
-              {headerData.heading}
+              {headerData.heading || "Get In Touch"}
             </h1>
             <p className="mx-auto mt-2 max-w-2xl text-sm sm:text-base text-white/80 whitespace-pre-line">
               {headerData.subheading}

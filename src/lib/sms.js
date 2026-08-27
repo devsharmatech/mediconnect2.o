@@ -66,10 +66,7 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
             }
         };
 
-        console.log(`[SMS GATEWAY] Dispatching OTP ${otp} to ${formattedNumber}...`);
         const result = await execute("sms", gatewayPayload);
-        console.log(`[SMS GATEWAY] Dispatch result:`, result);
-
         return { success: result.success, otp };
     } catch (err) {
         console.error("[SMS GATEWAY] Exception inside sendOTPViaGateway:", err);
@@ -125,10 +122,7 @@ export async function sendGenericOTPViaSMS(phone_number, otp, role = 'patient') 
             }
         };
 
-        console.log(`[SMS GATEWAY] Dispatching generic OTP ${otp} to ${formattedNumber}...`);
         const result = await execute("sms", gatewayPayload);
-        console.log(`[SMS GATEWAY] Dispatch generic result:`, result);
-
         return { success: result.success };
     } catch (err) {
         console.error("[SMS GATEWAY] Exception inside sendGenericOTPViaSMS:", err);
