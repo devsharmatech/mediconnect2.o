@@ -78,13 +78,28 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
     fileInputRef.current.click();
   };
 
+  const MAX_FILE_SIZE_MB = 15;
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (file) {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setErrors((prev) => ({
+          ...prev,
+          profile_picture: `Image size (${(file.size / (1024 * 1024)).toFixed(2)} MB) exceeds ${MAX_FILE_SIZE_MB}MB limit. Please choose a smaller photo.`,
+        }));
+        return;
+      }
+      setErrors((prev) => ({ ...prev, profile_picture: "" }));
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviewImage(reader.result);
-        setFormData(prev => ({ ...prev, profile_picture_file: file, profile_picture_preview: reader.result }));
+        setFormData((prev) => ({
+          ...prev,
+          profile_picture_file: file,
+          profile_picture_preview: reader.result,
+        }));
       };
       reader.readAsDataURL(file);
     }
@@ -172,7 +187,7 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
               {/* Profile Picture Upload Placeholder */}
-              <div className="flex justify-center mb-6">
+              <div className="flex flex-col items-center justify-center mb-6">
                 <div
                   className="relative group cursor-pointer"
                   onClick={handleImageClick}
@@ -200,6 +215,9 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
                     <FaEdit className="w-2.5 h-2.5" />
                   </div>
                 </div>
+                {errors.profile_picture && (
+                  <p className="text-xs text-red-500 text-center mt-2">{errors.profile_picture}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

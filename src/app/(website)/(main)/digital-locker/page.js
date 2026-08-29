@@ -240,10 +240,25 @@ export default function DigitalLockerPage() {
     }
   };
 
-  const handleFileChange = (selectedFile) => {
-    setFile(selectedFile);
-    if (!selectedFile) return;
+  const MAX_FILE_SIZE_MB = 15;
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
+  const handleFileChange = (selectedFile) => {
+    setError("");
+    if (!selectedFile) {
+      setFile(null);
+      return;
+    }
+
+    if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
+      setError(
+        `File size (${formatBytes(selectedFile.size)}) exceeds the ${MAX_FILE_SIZE_MB}MB limit. Please choose a smaller file.`
+      );
+      setFile(null);
+      return;
+    }
+
+    setFile(selectedFile);
     if (!documentName) {
       const baseName = selectedFile.name?.replace(/\.[^/.]+$/, "") || "";
       setDocumentName(baseName);
@@ -262,6 +277,12 @@ export default function DigitalLockerPage() {
     }
     if (!file) {
       setError("Please choose a file.");
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setError(
+        `File size (${formatBytes(file.size)}) exceeds the ${MAX_FILE_SIZE_MB}MB limit. Please choose a smaller file.`
+      );
       return;
     }
     if (!documentName.trim()) {
@@ -283,6 +304,10 @@ export default function DigitalLockerPage() {
         method: "POST",
         body: form,
       });
+
+      if (res.status === 413) {
+        throw new Error("File is too large for the server. Please upload a file under 15MB.");
+      }
 
       const data = await res.json();
       if (!data?.success) {
@@ -885,15 +910,15 @@ export default function DigitalLockerPage() {
                         type="file"
                         onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                        accept="application/pdf,image/*"
+                        accept="application/pdf,image/*,.doc,.docx"
                       />
                       <div className="flex items-center gap-3 border border-dashed border-slate-300 rounded-lg px-3 py-2.5 group-hover:border-[#0067A1] transition-colors bg-slate-50">
                         <FaCloudUploadAlt className="w-4 h-4 text-slate-400 group-hover:text-[#0067A1] shrink-0" />
                         <div className="min-w-0">
                           <p className="text-xs font-medium text-slate-600 truncate">
-                            {file ? file.name : "Click to select a file"}
+                            {file ? `${file.name} (${formatBytes(file.size)})` : "Click to select a file"}
                           </p>
-                          <p className="text-[10px] text-slate-400">PDF, JPG, PNG — max 10MB</p>
+                          <p className="text-[10px] text-slate-400">PDF, JPG, PNG, WEBP, HEIC — max 15MB</p>
                         </div>
                       </div>
                     </div>

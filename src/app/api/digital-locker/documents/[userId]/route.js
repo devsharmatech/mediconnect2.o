@@ -38,35 +38,41 @@ async function requireEmailVerified(userId) {
       .from("users")
       .select("role")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
     if (userError) {
-      console.error("Error fetching user role for email verification check:", userError.message);
-    } else if (user?.role === "patient") {
+      console.warn("Notice fetching user role for email verification check:", userError.message);
+      return null;
+    }
+    
+    if (user?.role === "patient") {
       // Patients login via OTP and do not require email verification
       return null;
     }
+
+    const { data: latestVerified, error: evError } = await supabase
+      .from("email_verifications")
+      .select("id, is_verified")
+      .eq("user_id", userId)
+      .eq("is_verified", true)
+      .order("verified_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (evError) {
+      console.warn("Notice fetching email verification record:", evError.message);
+      return null;
+    }
+
+    if (!latestVerified?.is_verified) {
+      return failure(
+        "Email verification required to access Digital Locker.",
+        { verified: false },
+        403
+      );
+    }
   } catch (err) {
-    console.error("Failed to determine user role:", err);
-  }
-
-  const { data: latestVerified, error } = await supabase
-    .from("email_verifications")
-    .select("id, is_verified")
-    .eq("user_id", userId)
-    .eq("is_verified", true)
-    .order("verified_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  if (!latestVerified?.is_verified) {
-    return failure(
-      "Email verification required to access Digital Locker.",
-      { verified: false },
-      403
-    );
+    console.error("Failed to determine user verification status:", err);
   }
 
   return null;
@@ -159,11 +165,11 @@ export async function POST(req, { params }) {
       return failure("User ID is required.", null, 400);
     }
 
-    const verificationFailure = await requireEmailVerified(userId);
-    if (verificationFailure) return verificationFailure;
-
     // If action is "log", log a document action (view/download/share)
     if (action === "log") {
+      const verificationFailure = await requireEmailVerified(userId);
+      if (verificationFailure) return verificationFailure;
+
       const { document_id, action_type, ip_address, user_agent } = await req.json();
 
       if (!document_id || !action_type) {
@@ -330,8 +336,27 @@ export async function POST(req, { params }) {
     const document_type = formData.get("document_type");
     const description = formData.get("description");
 
-    if (!file || !document_name || !document_type) {
-      return failure("File, document name, and document type are required.", null, 400);
+    if (!file || typeof file === "string" || !file.size) {
+      return failure("A valid, non-empty file is required.", null, 400);
+    }
+
+    if (!document_name || !document_name.trim()) {
+      return failure("Document name is required.", null, 400);
+    }
+
+    if (!document_type) {
+      return failure("Document type is required.", null, 400);
+    }
+
+    // Enforce 15MB file size limit
+    const MAX_FILE_SIZE_MB = 15;
+    const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return failure(
+        `File size (${(file.size / (1024 * 1024)).toFixed(2)} MB) exceeds the ${MAX_FILE_SIZE_MB}MB limit. Please upload a smaller file.`,
+        null,
+        400
+      );
     }
 
     // Validate document type (government IDs and medical documents)
@@ -353,29 +378,75 @@ export async function POST(req, { params }) {
       return failure("Invalid document type.", validDocTypes, 400);
     }
 
+    // Extract and validate file extension
+    const rawFileName = file.name || "document.pdf";
+    const fileExtension = rawFileName.includes(".")
+      ? rawFileName.split(".").pop().toLowerCase().trim()
+      : "pdf";
+
+    const allowedExtensions = [
+      "pdf",
+      "jpg",
+      "jpeg",
+      "png",
+      "webp",
+      "gif",
+      "bmp",
+      "heic",
+      "heif",
+      "tiff",
+      "doc",
+      "docx",
+    ];
+
+    if (!allowedExtensions.includes(fileExtension)) {
+      return failure(
+        `Unsupported file type (.${fileExtension}). Allowed formats: PDF, JPG, JPEG, PNG, WEBP, GIF, HEIC, DOCX.`,
+        null,
+        400
+      );
+    }
+
     // Verify user exists
     const { data: user, error: userError } = await supabase
       .from("users")
       .select("id")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
     if (userError || !user) {
       return failure("User not found.", null, 404);
     }
 
-    // Get file details
-    const fileSize = file.size;
-    const fileType = file.type;
-    const fileExtension = file.name.split(".").pop();
-    const timestamp = Date.now();
-    const fileName = `${userId}-${document_type}-${timestamp}.${fileExtension}`;
+    // Map MIME type for S3 / CloudFront
+    const mimeTypeMap = {
+      pdf: "application/pdf",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      webp: "image/webp",
+      gif: "image/gif",
+      bmp: "image/bmp",
+      heic: "image/heic",
+      heif: "image/heif",
+      tiff: "image/tiff",
+      doc: "application/msword",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    };
 
-    // Upload file to AWS S3
+    const finalMimeType =
+      file.type || mimeTypeMap[fileExtension] || "application/octet-stream";
+    const fileSize = file.size;
+    const timestamp = Date.now();
+    const cleanDocType = String(document_type).replace(/[^a-zA-Z0-9_-]/g, "");
+    const fileName = `${userId}-${cleanDocType}-${timestamp}.${fileExtension}`;
+
+    // Upload file buffer to AWS S3
     let document_url;
     try {
-      const mimeType = fileType || (fileExtension === "pdf" ? "application/pdf" : fileExtension.match(/(jpg|jpeg|png|webp|gif)/i) ? `image/${fileExtension.toLowerCase()}` : "application/pdf");
-      const { url } = await uploadToS3(file, `digital-locker/${fileName}`, mimeType);
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const { url } = await uploadToS3(buffer, `digital-locker/${fileName}`, finalMimeType);
       document_url = url;
     } catch (uploadError) {
       console.error("Storage upload error:", uploadError);
@@ -387,12 +458,12 @@ export async function POST(req, { params }) {
       .from("digital_locker_documents")
       .insert({
         user_id: userId,
-        document_name,
+        document_name: document_name.trim(),
         document_type,
         document_url,
-        description: description || null,
+        description: description ? description.trim() : null,
         file_size: fileSize,
-        mime_type: fileType,
+        mime_type: finalMimeType,
       })
       .select()
       .single();
@@ -405,10 +476,10 @@ export async function POST(req, { params }) {
       user_id: userId,
       action: "uploaded",
       action_details: {
-        document_name,
+        document_name: document_name.trim(),
         document_type,
         file_size: fileSize,
-        mime_type: fileType,
+        mime_type: finalMimeType,
       },
     });
 

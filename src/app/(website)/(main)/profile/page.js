@@ -155,22 +155,22 @@ export default function ProfilePage() {
         data.append("profile_picture", formData.profile_picture_file);
       }
 
-      const response = await api.put("/auth/patient/update", data);
+      const response = await api.put("/patient/profile", data);
 
       if (response.success) {
         setUserData((prev) => ({
           ...prev,
           user: {
             ...prev.user,
-            profile_picture: response.data.profile_picture,
-            phone_number: formData.phone_number,
+            profile_picture: response.data.profile_picture || response.data.profile?.profile_picture || prev?.user?.profile_picture,
+            phone_number: formData.phone_number || prev?.user?.phone_number,
             details: {
               ...prev.user.details,
-              full_name: response.data.full_name,
-              email: response.data.email,
-              gender: response.data.gender,
-              date_of_birth: response.data.date_of_birth,
-              address: response.data.address,
+              full_name: response.data.full_name || response.data.profile?.full_name || formData.full_name,
+              email: response.data.email || response.data.profile?.email || formData.email,
+              gender: response.data.gender || response.data.profile?.gender || formData.gender,
+              date_of_birth: response.data.date_of_birth || response.data.profile?.date_of_birth || formData.date_of_birth,
+              address: response.data.address || response.data.profile?.address || formData.address,
             },
           },
         }));
