@@ -708,71 +708,94 @@ async function executeCancelAppointment(payload, actorId) {
     throw new Error("Permission denied to cancel this appointment.");
   }
 
-  // Dispatch WhatsApp Cancelled Template notification asynchronously before database row is deleted
+  // Dispatch WhatsApp Cancelled Template notification asynchronously to BOTH patient and doctor
   (async () => {
     try {
-      const { data: patientUser } = await supabase
-        .from("users")
-        .select("phone_number")
-        .eq("id", appointment.patient_id)
-        .single();
-
-      const { data: patientDetails } = await supabase
-        .from("patient_details")
-        .select("full_name")
-        .eq("id", appointment.patient_id)
-        .single();
-
-      const { data: doctorDetails } = await supabase
-        .from("doctor_details")
-        .select("full_name")
-        .eq("id", appointment.doctor_id)
-        .single();
+      const [
+        { data: patientUser },
+        { data: patientDetails },
+        { data: doctorUser },
+        { data: doctorDetails },
+      ] = await Promise.all([
+        supabase.from("users").select("phone_number").eq("id", appointment.patient_id).maybeSingle(),
+        supabase.from("patient_details").select("full_name").eq("id", appointment.patient_id).maybeSingle(),
+        supabase.from("users").select("phone_number").eq("id", appointment.doctor_id).maybeSingle(),
+        supabase.from("doctor_details").select("full_name").eq("id", appointment.doctor_id).maybeSingle(),
+      ]);
 
       const patientName = patientDetails?.full_name || "Patient";
       const doctorName = doctorDetails?.full_name || "Doctor";
-      const phoneNumber = patientUser?.phone_number;
+      const appointmentCode = "MCAPT-" + appointment.id.slice(0, 8).toUpperCase();
+      const locationOrMode =
+        appointment.appointment_type === "video_call" ||
+        appointment.appointment_type === "video_consultation" ||
+        appointment.appointment_type === "video"
+          ? "Video Call"
+          : appointment.appointment_type === "home_visit"
+          ? "Home Visit"
+          : "Clinic Visit";
 
-      if (phoneNumber) {
+      // 1. Send WhatsApp message to Patient
+      if (patientUser?.phone_number) {
         await sendAppointmentUpdateAlert({
-          phone_number: phoneNumber,
+          phone_number: patientUser.phone_number,
           recipient_name: patientName,
           status_type: "cancelled",
-          appointment_code: "MCAPT-" + appointment.id.slice(0, 8).toUpperCase(),
+          appointment_code: appointmentCode,
           patient_name: patientName,
           doctor_or_service: "Dr. " + doctorName,
           date: appointment.appointment_date,
           time: appointment.appointment_time,
-          location_or_mode: (appointment.appointment_type === "video_call" || appointment.appointment_type === "video_consultation" || appointment.appointment_type === "video") ? "Video Call" : (appointment.appointment_type === "home_visit" ? "Home Visit" : "Clinic Visit"),
-          patient_id: appointment.patient_id
-        });
+          location_or_mode: locationOrMode,
+          patient_id: appointment.patient_id,
+        }).catch((err) => console.warn("[WHATSAPP] Patient cancel alert note:", err.message));
+      }
+
+      // 2. Send WhatsApp message to Doctor
+      if (doctorUser?.phone_number) {
+        await sendAppointmentUpdateAlert({
+          phone_number: doctorUser.phone_number,
+          recipient_name: "Dr. " + doctorName,
+          status_type: "cancelled",
+          appointment_code: appointmentCode,
+          patient_name: patientName,
+          doctor_or_service: "Dr. " + doctorName,
+          date: appointment.appointment_date,
+          time: appointment.appointment_time,
+          location_or_mode: locationOrMode,
+          patient_id: null,
+        }).catch((err) => console.warn("[WHATSAPP] Doctor cancel alert note:", err.message));
       }
     } catch (err) {
       console.error("[WHATSAPP] Failed to send cancel notification:", err.message);
     }
   })();
 
-  const { error: deleteErr } = await supabase
+  const { data: updatedAppointment, error: updateErr } = await supabase
     .from("appointments")
-    .delete()
-    .eq("id", appointment_id);
+    .update({
+      status: "cancelled",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", appointment_id)
+    .select()
+    .single();
 
-  if (deleteErr) throw new Error(`Delete failed: ${deleteErr.message}`);
-
+  if (updateErr) throw new Error(`Cancel failed: ${updateErr.message}`);
 
   const notifications = [
     {
       user_id: appointment.doctor_id,
       title: "Appointment Cancelled",
       message: `Appointment for ${appointment.appointment_date} at ${appointment.appointment_time} has been cancelled.`,
-      type: "appointment_delete",
+      type: "appointment_cancelled",
       metadata: { appointment_id, by_user: actorId }
     },
     {
       user_id: appointment.patient_id,
       title: "Appointment Cancelled",
       message: `Your appointment for ${appointment.appointment_date} at ${appointment.appointment_time} has been cancelled.`,
-      type: "appointment_delete",
+      type: "appointment_cancelled",
       metadata: { appointment_id, by_user: actorId }
     }
   ];
@@ -799,5 +822,5 @@ async function executeCancelAppointment(payload, actorId) {
     });
   }
 
-  return { deleted_id: appointment_id, status: "CANCELLED" };
+  return { appointment_id, status: "cancelled", appointment: updatedAppointment };
 }

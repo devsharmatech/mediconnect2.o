@@ -188,3 +188,41 @@ export async function GET(req) {
     return failure("Test endpoint run failed", err.message, 500);
   }
 }
+
+export async function POST(req) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const phoneNumber = body.phone_number || "+919027924662";
+    const recipientName = body.recipient_name || "Dev Sharma";
+    const doctorName = body.doctor_name || "Dr. Sandeep Sharma";
+    const appointmentCode = body.appointment_code || "MCAPT-CNCL8899";
+    const date = body.date || new Date().toISOString().split("T")[0];
+    const time = body.time || "11:30";
+    const locationOrMode = body.location_or_mode || "Video Call";
+
+    console.log(`[WhatsApp Test Endpoint POST] Dispatching cancellation message to ${phoneNumber}...`);
+
+    const result = await sendAppointmentUpdateAlert({
+      phone_number: phoneNumber,
+      recipient_name: recipientName,
+      status_type: "cancelled",
+      appointment_code: appointmentCode,
+      patient_name: recipientName,
+      doctor_or_service: doctorName,
+      date: date,
+      time: time,
+      location_or_mode: locationOrMode,
+      patient_id: null
+    });
+
+    return success("Cancellation WhatsApp & SMS alert dispatched.", {
+      recipient_phone: phoneNumber,
+      recipient_name: recipientName,
+      status_type: "cancelled",
+      result
+    });
+  } catch (err) {
+    console.error("[WhatsApp Test Endpoint POST] Error:", err);
+    return failure("Failed to dispatch test message", err.message, 500);
+  }
+}

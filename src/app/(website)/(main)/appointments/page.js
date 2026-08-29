@@ -585,7 +585,13 @@ export default function AppointmentsPage() {
       }
 
       toast.success("Appointment cancelled successfully.");
-      setAppointments((prev) => prev.filter((apt) => apt.id !== appointmentToCancel.id));
+      setAppointments((prev) =>
+        prev.map((apt) =>
+          apt.id === appointmentToCancel.id
+            ? { ...apt, status: "cancelled" }
+            : apt
+        )
+      );
       setIsCancelModalOpen(false);
       setAppointmentToCancel(null);
     } catch (e) {

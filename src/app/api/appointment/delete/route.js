@@ -31,7 +31,7 @@ export async function POST(req) {
       return failure(orchestrationResult.error || "Failed to cancel appointment", null, orchestrationResult.status || 500, { headers: corsHeaders });
     }
 
-    return success("Appointment deleted successfully.", null, 200, { headers: corsHeaders });
+    return success("Appointment cancelled successfully.", orchestrationResult.data, 200, { headers: corsHeaders });
   } catch (error) {
     console.error("POST /api/appointment/delete error:", error);
     return failure("Failed to delete appointment.", error.message, 500, { headers: corsHeaders });
