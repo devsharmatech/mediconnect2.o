@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaHeartbeat, FaMale, FaFemale, FaArrowRight, FaArrowLeft,
   FaCheck, FaRunning, FaSmoking, FaWineGlass, FaWineBottle, FaBan,
-  FaCouch, FaWalking, FaBiking, FaExclamationTriangle, FaHeart, FaDumbbell
+  FaCouch, FaWalking, FaExclamationTriangle, FaHeart, FaDumbbell
 } from 'react-icons/fa';
 
 export default function GamifiedHeartHealthAssessment() {
@@ -15,7 +15,7 @@ export default function GamifiedHeartHealthAssessment() {
   const totalSteps = 5;
   const [loading, setLoading] = useState(false);
 
-  // Pre-filled "Game" values
+  // Pre-filled initial values
   const [formData, setFormData] = useState({
     age: 45,
     gender: 'male',
@@ -40,6 +40,33 @@ export default function GamifiedHeartHealthAssessment() {
     breathlessness: false,
     palpitations: false
   });
+
+  // Canonical Age Derivation from Authoritative DOB (SP-07 P0-02)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('userData');
+      if (stored) {
+        const u = JSON.parse(stored);
+        const dobStr = u.user?.details?.date_of_birth || u.details?.date_of_birth || u.date_of_birth;
+        if (dobStr) {
+          const dob = new Date(dobStr);
+          if (!isNaN(dob.getTime())) {
+            const today = new Date();
+            let calculatedAge = today.getFullYear() - dob.getFullYear();
+            const m = today.getMonth() - dob.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+              calculatedAge--;
+            }
+            if (calculatedAge > 0) {
+              setFormData(prev => ({ ...prev, age: calculatedAge }));
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load DOB:", e);
+    }
+  }, []);
 
   const handleSliderChange = (name, value) => {
     setFormData(prev => ({ ...prev, [name]: parseFloat(value) }));
@@ -109,7 +136,7 @@ export default function GamifiedHeartHealthAssessment() {
       const result = await response.json();
       if (result.success) {
         sessionStorage.setItem('heartAssessmentResult', JSON.stringify(result.data));
-        router.push('/website/heart-health-result');
+        router.push('/heart-health-result');
       } else {
         alert('Failed to submit: ' + (result.message || 'Error'));
       }
@@ -122,12 +149,15 @@ export default function GamifiedHeartHealthAssessment() {
   };
 
   // UI Components
-  const RangeSlider = ({ label, name, min, max, step = 1, unit = "", colorClass = "text-emerald-500", accentClass = "accent-emerald-500" }) => (
-    <div className="bg-white/50 rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all">
-      <div className="flex justify-between items-end mb-4">
-        <label className="text-gray-600 font-bold uppercase tracking-wide text-xs">{label}</label>
-        <div className={`text-4xl font-black ${colorClass}`}>
-          {formData[name]}<span className="text-sm text-gray-400 font-normal ml-1">{unit}</span>
+  const RangeSlider = ({ label, name, min, max, step = 1, unit = "", accentClass = "accent-[#0067A1]", helper = "" }) => (
+    <div className="bg-slate-50/80 rounded-lg p-3 sm:p-3.5 border border-slate-200/80">
+      <div className="flex justify-between items-center mb-1.5">
+        <div>
+          <label className="text-[11px] sm:text-xs font-semibold text-slate-700 uppercase tracking-wide">{label}</label>
+          {helper && <p className="text-[10px] text-slate-400 mt-0.5">{helper}</p>}
+        </div>
+        <div className="text-xs sm:text-sm font-bold text-slate-900 bg-white px-2.5 py-0.5 rounded-md border border-slate-200 shadow-2xs font-mono">
+          {formData[name]} <span className="text-[10px] font-normal text-slate-500 font-sans">{unit}</span>
         </div>
       </div>
       <input
@@ -135,251 +165,299 @@ export default function GamifiedHeartHealthAssessment() {
         min={min} max={max} step={step}
         value={formData[name]}
         onChange={(e) => handleSliderChange(name, e.target.value)}
-        className={`w-full cursor-pointer mt-2 mb-1 ${accentClass}`}
+        className={`w-full h-1.5 bg-slate-200 rounded-lg cursor-pointer appearance-none ${accentClass}`}
       />
-      <div className="flex justify-between text-[10px] text-gray-400 font-bold mt-2">
-        <span>{min}</span><span>{max}</span>
+      <div className="flex justify-between text-[10px] text-slate-400 font-medium mt-1">
+        <span>{min} {unit}</span>
+        <span>{max} {unit}</span>
       </div>
     </div>
   );
 
   const ChoiceCard = ({ active, onClick, icon, title, subtitle }) => (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      className={`relative p-5 rounded-2xl cursor-pointer border-2 transition-all transform hover:scale-105 ${active ? 'border-[#0067A1] bg-[#0067A1]/5 shadow-lg' : 'border-gray-100 bg-white hover:border-gray-300'}`}
+      className={`w-full text-left p-2.5 sm:p-3 rounded-lg border transition-all flex items-center gap-2 sm:gap-2.5 cursor-pointer ${
+        active
+          ? 'border-[#0067A1] bg-[#0067A1]/5 text-[#0067A1] ring-1 ring-[#0067A1]/20 shadow-2xs'
+          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/50'
+      }`}
     >
-      {active && (
-        <div className="absolute top-3 right-3 w-6 h-6 bg-[#0067A1] text-white rounded-full flex items-center justify-center">
-          <FaCheck className="w-3 h-3" />
-        </div>
-      )}
-      <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${active ? 'bg-[#0067A1] text-white' : 'bg-gray-100 text-gray-400'}`}>
+      <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
+        active ? 'bg-[#0067A1] text-white' : 'bg-slate-100 text-slate-500'
+      }`}>
         {icon}
       </div>
-      <h4 className={`font-bold text-lg ${active ? 'text-[#0067A1]' : 'text-gray-700'}`}>{title}</h4>
-      {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
-    </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold leading-tight">{title}</p>
+        {subtitle && <p className="text-[10px] text-slate-400 truncate mt-0.5">{subtitle}</p>}
+      </div>
+      {active && (
+        <div className="w-4 h-4 rounded-full bg-[#0067A1] text-white flex items-center justify-center shrink-0">
+          <FaCheck className="w-2 h-2" />
+        </div>
+      )}
+    </button>
   );
 
-  const ToggleCard = ({ active, onClick, title }) => (
+  const ToggleCard = ({ active, onClick, title, subtitle }) => (
     <div
       onClick={onClick}
-      className={`p-5 rounded-xl cursor-pointer border-2 transition-all flex justify-between items-center ${active ? 'border-red-500 bg-red-50' : 'border-gray-100 bg-white'}`}
+      className={`p-2.5 sm:p-3 rounded-lg border cursor-pointer transition-all flex items-center justify-between gap-2.5 ${
+        active
+          ? 'border-rose-300 bg-rose-50/40'
+          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+      }`}
     >
-      <span className={`font-bold ${active ? 'text-red-700' : 'text-gray-600'}`}>{title}</span>
-      <div className={`w-14 h-8 rounded-full p-1 transition-colors ${active ? 'bg-red-500' : 'bg-gray-200'}`}>
+      <div className="flex-1 min-w-0">
+        <p className={`text-xs font-medium ${active ? 'text-rose-900 font-semibold' : 'text-slate-800'}`}>{title}</p>
+        {subtitle && <p className="text-[10px] text-slate-400 mt-0.5">{subtitle}</p>}
+      </div>
+      <div className={`w-9 h-5 rounded-full p-0.5 transition-colors shrink-0 ${active ? 'bg-rose-500' : 'bg-slate-200'}`}>
         <motion.div
           layout
-          className="w-6 h-6 bg-white rounded-full shadow-sm"
-          animate={{ x: active ? 24 : 0 }}
+          className="w-4 h-4 bg-white rounded-full shadow-2xs"
+          animate={{ x: active ? 16 : 0 }}
           transition={{ type: "spring", stiffness: 500, damping: 30 }}
         />
       </div>
     </div>
   );
 
-  return (
-    <div className="min-h-screen py-10">
-      <div className="max-w-full mx-auto">
+  const stepLabels = [
+    { num: 1, name: "Profile" },
+    { num: 2, name: "Vitals" },
+    { num: 3, name: "Lipids" },
+    { num: 4, name: "Lifestyle" },
+    { num: 5, name: "History" }
+  ];
 
-        {/* Header & Heart Animation */}
-        <div className="text-center mb-10">
-          <motion.div
-            animate={{ scale: [1, 1.15, 1] }}
-            transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
-            className="inline-flex items-center justify-center w-24 h-24 bg-red-100 rounded-full mb-4 shadow-inner"
-          >
-            <FaHeart className="w-12 h-12 text-red-500 drop-shadow-md" />
-          </motion.div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight">Heart Health Score</h1>
-          <p className="text-gray-500 mt-2 font-medium">Level {currentStep} of {totalSteps}</p>
+  return (
+    <div className="min-h-screen bg-slate-50/50 py-4 sm:py-6 px-3 sm:px-6 font-sans">
+      <div className="max-w-3xl mx-auto space-y-4 sm:space-y-5">
+
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pb-2 border-b border-slate-200">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shadow-2xs shrink-0">
+              <FaHeart className="w-4 h-4" />
+            </div>
+            <div>
+              <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                Cardiovascular Wellness Screening
+              </h1>
+              <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
+                Standardized non-diagnostic cardiovascular lifestyle screening
+              </p>
+            </div>
+          </div>
+          <div className="text-right self-start sm:self-auto">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+              Step {currentStep} of {totalSteps}
+            </span>
+          </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-8">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-bold text-gray-400 uppercase">Progress</span>
-            <span className="text-xs font-black text-[#0067A1]">{Math.round((currentStep / totalSteps) * 100)}%</span>
+        {/* Red Flag Emergency Gate (SP-07 P1-14) */}
+        <div className="bg-amber-50/80 border border-amber-200/80 rounded-lg p-2.5 sm:p-3 flex items-start gap-2.5 text-[11px] sm:text-xs text-amber-900 leading-relaxed shadow-2xs">
+          <FaExclamationTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-semibold">Important Safety Notice:</span> If you have severe chest pain, sudden breathlessness, fainting, or acute symptoms, seek immediate emergency medical care rather than relying on this wellness screening.
           </div>
-          <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden">
-            <motion.div
-              className="h-full bg-gradient-to-r from-[#0067A1] to-emerald-400"
-              initial={{ width: 0 }}
-              animate={{ width: `${(currentStep / totalSteps) * 100}%` }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-            />
+        </div>
+
+        {/* Step Progress Tracker */}
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-3.5 shadow-xs">
+          <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+            {stepLabels.map((s) => {
+              const isDone = currentStep > s.num;
+              const isCurrent = currentStep === s.num;
+              return (
+                <div key={s.num} className="space-y-1">
+                  <div className={`h-1 sm:h-1.5 rounded-full transition-all ${
+                    isDone ? 'bg-[#0067A1]' : isCurrent ? 'bg-[#0067A1]' : 'bg-slate-100'
+                  }`} />
+                  <p className={`text-[10px] sm:text-[11px] font-medium truncate ${
+                    isCurrent ? 'text-[#0067A1] font-semibold' : isDone ? 'text-slate-700' : 'text-slate-400'
+                  }`}>
+                    {s.num}. {s.name}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
 
         {/* Form Container */}
-        <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden min-h-[500px] relative">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentStep}
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -40 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="p-6 sm:p-10 pb-32 sm:pb-32"
-            >
+        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
+          
+          {/* Step Header */}
+          <div className="px-4 sm:px-5 py-3 border-b border-slate-100 bg-slate-50/40">
+            <h2 className="text-xs sm:text-sm font-bold text-slate-900">
+              {currentStep === 1 && "Basic Demographic Profile"}
+              {currentStep === 2 && "Vital Signs & Blood Pressure"}
+              {currentStep === 3 && "Lipid Profile Markers"}
+              {currentStep === 4 && "Blood Sugar & Lifestyle Habits"}
+              {currentStep === 5 && "Cardiac History & Symptoms"}
+            </h2>
+            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
+              {currentStep === 1 && "Provide your age, sex, and physical measurements."}
+              {currentStep === 2 && "Enter your recorded blood pressure and resting heart rate."}
+              {currentStep === 3 && "Optional blood lipid measurements from recent lab reports."}
+              {currentStep === 4 && "Fasting glucose, physical activity, and smoking status."}
+              {currentStep === 5 && "Relevant personal and family medical history indicators."}
+            </p>
+          </div>
 
-              {/* LEVEL 1 */}
-              {currentStep === 1 && (
-                <div className="space-y-8">
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-black text-gray-800">Who are you?</h2>
-                    <p className="text-gray-500 text-sm mt-1">Let&apos;s build your player profile.</p>
-                  </div>
+          <div className="p-4 sm:p-5 min-h-[300px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentStep}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-4"
+              >
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <ChoiceCard
-                      active={formData.gender === 'male'}
-                      onClick={() => handleSelect('gender', 'male')}
-                      icon={<FaMale className="w-6 h-6" />}
-                      title="Male"
-                    />
-                    <ChoiceCard
-                      active={formData.gender === 'female'}
-                      onClick={() => handleSelect('gender', 'female')}
-                      icon={<FaFemale className="w-6 h-6" />}
-                      title="Female"
-                    />
-                  </div>
+                {/* LEVEL 1: Demographic Profile */}
+                {currentStep === 1 && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">Biological Sex</label>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <ChoiceCard
+                          active={formData.gender === 'male'}
+                          onClick={() => handleSelect('gender', 'male')}
+                          icon={<FaMale className="w-3.5 h-3.5" />}
+                          title="Male"
+                        />
+                        <ChoiceCard
+                          active={formData.gender === 'female'}
+                          onClick={() => handleSelect('gender', 'female')}
+                          icon={<FaFemale className="w-3.5 h-3.5" />}
+                          title="Female"
+                        />
+                      </div>
+                    </div>
 
-                  <RangeSlider label="Age" name="age" min={18} max={100} unit="yrs" colorClass="text-[#0067A1]" accentClass="accent-[#0067A1]" />
+                    <RangeSlider label="Age" name="age" min={18} max={100} unit="yrs" helper="Derived from your profile date of birth" />
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <RangeSlider label="Height" name="height" min={120} max={220} unit="cm" colorClass="text-blue-500" accentClass="accent-blue-500" />
-                    <RangeSlider label="Weight" name="weight" min={40} max={150} unit="kg" colorClass="text-blue-500" accentClass="accent-blue-500" />
-                  </div>
-                </div>
-              )}
-
-              {/* LEVEL 2 */}
-              {currentStep === 2 && (
-                <div className="space-y-8">
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-black text-gray-800">The Vitals</h2>
-                    <p className="text-gray-500 text-sm mt-1">How is the engine running?</p>
-                  </div>
-
-                  <RangeSlider label="Systolic BP (Top number)" name="systolicBP" min={90} max={200} unit="mmHg" colorClass="text-red-500" accentClass="accent-red-500" />
-                  <RangeSlider label="Diastolic BP (Bottom number)" name="diastolicBP" min={50} max={130} unit="mmHg" colorClass="text-red-500" accentClass="accent-red-500" />
-                  <RangeSlider label="Resting Heart Rate" name="restingHeartRate" min={40} max={120} unit="bpm" colorClass="text-pink-500" accentClass="accent-pink-500" />
-                </div>
-              )}
-
-              {/* LEVEL 3 */}
-              {currentStep === 3 && (
-                <div className="space-y-8">
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-black text-gray-800">Lipid Profile</h2>
-                    <p className="text-gray-500 text-sm mt-1">Cholesterol and fat levels in your blood.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <RangeSlider label="Total Cholesterol" name="totalCholesterol" min={100} max={300} unit="mg/dL" colorClass="text-amber-500" accentClass="accent-amber-500" />
-                    <RangeSlider label="Triglycerides" name="triglycerides" min={50} max={400} unit="mg/dL" colorClass="text-amber-500" accentClass="accent-amber-500" />
-                    <RangeSlider label="HDL (Good) Cholesterol" name="hdlCholesterol" min={20} max={100} unit="mg/dL" colorClass="text-green-500" accentClass="accent-green-500" />
-                    <RangeSlider label="LDL (Bad) Cholesterol" name="ldlCholesterol" min={50} max={200} unit="mg/dL" colorClass="text-orange-500" accentClass="accent-orange-500" />
-                  </div>
-                </div>
-              )}
-
-              {/* LEVEL 4 */}
-              {currentStep === 4 && (
-                <div className="space-y-8">
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-black text-gray-800">Blood Sugar & Lifestyle</h2>
-                    <p className="text-gray-500 text-sm mt-1">Daily habits and glucose levels.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <RangeSlider label="HbA1c" name="hba1c" min={4.0} max={12.0} step={0.1} unit="%" colorClass="text-purple-500" accentClass="accent-purple-500" />
-                    <RangeSlider label="Fasting Glucose" name="fastingGlucose" min={60} max={250} unit="mg/dL" colorClass="text-purple-500" accentClass="accent-purple-500" />
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-gray-600 font-bold uppercase tracking-wide text-xs ml-1">Smoking Status</label>
-                    <div className="grid grid-cols-3 gap-3">
-                      <ChoiceCard active={formData.smokingStatus === 'never'} onClick={() => handleSelect('smokingStatus', 'never')} icon={<FaBan />} title="Never" />
-                      <ChoiceCard active={formData.smokingStatus === 'former'} onClick={() => handleSelect('smokingStatus', 'former')} icon={<FaSmoking />} title="Former" />
-                      <ChoiceCard active={formData.smokingStatus === 'current'} onClick={() => handleSelect('smokingStatus', 'current')} icon={<FaSmoking className="text-red-500" />} title="Current" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <RangeSlider label="Height" name="height" min={120} max={220} unit="cm" />
+                      <RangeSlider label="Weight" name="weight" min={40} max={150} unit="kg" />
                     </div>
                   </div>
+                )}
 
-                  <div className="space-y-3">
-                    <label className="text-gray-600 font-bold uppercase tracking-wide text-xs ml-1">Activity Level</label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <ChoiceCard active={formData.physicalActivity === 'sedentary'} onClick={() => handleSelect('physicalActivity', 'sedentary')} icon={<FaCouch />} title="Sedentary" />
-                      <ChoiceCard active={formData.physicalActivity === 'light'} onClick={() => handleSelect('physicalActivity', 'light')} icon={<FaWalking />} title="Light" />
-                      <ChoiceCard active={formData.physicalActivity === 'moderate'} onClick={() => handleSelect('physicalActivity', 'moderate')} icon={<FaRunning />} title="Moderate" />
-                      <ChoiceCard active={formData.physicalActivity === 'very'} onClick={() => handleSelect('physicalActivity', 'very')} icon={<FaDumbbell />} title="Very Active" />
+                {/* LEVEL 2: Vitals */}
+                {currentStep === 2 && (
+                  <div className="space-y-3.5">
+                    <RangeSlider label="Systolic BP (Top number)" name="systolicBP" min={90} max={200} unit="mmHg" helper="Normal reference: < 120 mmHg (2024 ESC Guidelines)" />
+                    <RangeSlider label="Diastolic BP (Bottom number)" name="diastolicBP" min={50} max={130} unit="mmHg" helper="Normal reference: < 80 mmHg" />
+                    <RangeSlider label="Resting Heart Rate" name="restingHeartRate" min={40} max={120} unit="bpm" helper="Normal resting range: 60–100 bpm" />
+                  </div>
+                )}
+
+                {/* LEVEL 3: Lipids */}
+                {currentStep === 3 && (
+                  <div className="space-y-3.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <RangeSlider label="Total Cholesterol" name="totalCholesterol" min={100} max={300} unit="mg/dL" />
+                      <RangeSlider label="Triglycerides" name="triglycerides" min={50} max={400} unit="mg/dL" />
+                      <RangeSlider label="HDL (Good) Cholesterol" name="hdlCholesterol" min={20} max={100} unit="mg/dL" />
+                      <RangeSlider label="LDL (Bad) Cholesterol" name="ldlCholesterol" min={50} max={200} unit="mg/dL" />
                     </div>
                   </div>
+                )}
 
-                  <div className="space-y-3">
-                    <label className="text-gray-600 font-bold uppercase tracking-wide text-xs ml-1">Alcohol Consumption</label>
-                    <div className="grid grid-cols-3 gap-3">
-                      <ChoiceCard active={formData.alcoholConsumption === 'none'} onClick={() => handleSelect('alcoholConsumption', 'none')} icon={<FaBan />} title="None" />
-                      <ChoiceCard active={formData.alcoholConsumption === 'occasional'} onClick={() => handleSelect('alcoholConsumption', 'occasional')} icon={<FaWineGlass />} title="Occasional" />
-                      <ChoiceCard active={formData.alcoholConsumption === 'regular'} onClick={() => handleSelect('alcoholConsumption', 'regular')} icon={<FaWineBottle />} title="Regular" />
+                {/* LEVEL 4: Lifestyle */}
+                {currentStep === 4 && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <RangeSlider label="HbA1c" name="hba1c" min={4.0} max={12.0} step={0.1} unit="%" />
+                      <RangeSlider label="Fasting Glucose" name="fastingGlucose" min={60} max={250} unit="mg/dL" />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">Smoking Status</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <ChoiceCard active={formData.smokingStatus === 'never'} onClick={() => handleSelect('smokingStatus', 'never')} icon={<FaBan className="w-3 h-3" />} title="Never" />
+                        <ChoiceCard active={formData.smokingStatus === 'former'} onClick={() => handleSelect('smokingStatus', 'former')} icon={<FaSmoking className="w-3 h-3" />} title="Former" />
+                        <ChoiceCard active={formData.smokingStatus === 'current'} onClick={() => handleSelect('smokingStatus', 'current')} icon={<FaSmoking className="w-3 h-3 text-rose-500" />} title="Current" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">Physical Activity Level</label>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                        <ChoiceCard active={formData.physicalActivity === 'sedentary'} onClick={() => handleSelect('physicalActivity', 'sedentary')} icon={<FaCouch className="w-3 h-3" />} title="Sedentary" />
+                        <ChoiceCard active={formData.physicalActivity === 'light'} onClick={() => handleSelect('physicalActivity', 'light')} icon={<FaWalking className="w-3 h-3" />} title="Light" />
+                        <ChoiceCard active={formData.physicalActivity === 'moderate'} onClick={() => handleSelect('physicalActivity', 'moderate')} icon={<FaRunning className="w-3 h-3" />} title="Moderate" />
+                        <ChoiceCard active={formData.physicalActivity === 'very'} onClick={() => handleSelect('physicalActivity', 'very')} icon={<FaDumbbell className="w-3 h-3" />} title="Very Active" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">Alcohol Consumption</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <ChoiceCard active={formData.alcoholConsumption === 'none'} onClick={() => handleSelect('alcoholConsumption', 'none')} icon={<FaBan className="w-3 h-3" />} title="None" />
+                        <ChoiceCard active={formData.alcoholConsumption === 'occasional'} onClick={() => handleSelect('alcoholConsumption', 'occasional')} icon={<FaWineGlass className="w-3 h-3" />} title="Occasional" />
+                        <ChoiceCard active={formData.alcoholConsumption === 'regular'} onClick={() => handleSelect('alcoholConsumption', 'regular')} icon={<FaWineBottle className="w-3 h-3" />} title="Regular" />
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* LEVEL 5 */}
-              {currentStep === 5 && (
-                <div className="space-y-8">
-                  <div className="mb-6">
-                    <h2 className="text-2xl font-black text-gray-800">History & Symptoms</h2>
-                    <p className="text-gray-500 text-sm mt-1">Check any that apply to you or your family.</p>
+                {/* LEVEL 5: History */}
+                {currentStep === 5 && (
+                  <div className="space-y-3">
+                    <p className="text-[11px] sm:text-xs text-slate-500">Select any medical conditions or symptoms that apply to you or your immediate family.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <ToggleCard active={formData.familyHistory} onClick={() => toggleBoolean('familyHistory')} title="Family Cardiac History" subtitle="Parents or siblings" />
+                      <ToggleCard active={formData.hypertensionHistory} onClick={() => toggleBoolean('hypertensionHistory')} title="Hypertension (High BP)" subtitle="Previously diagnosed" />
+                      <ToggleCard active={formData.diabetesHistory} onClick={() => toggleBoolean('diabetesHistory')} title="Diabetes" subtitle="Type 1 or Type 2" />
+                      <ToggleCard active={formData.chestPain} onClick={() => toggleBoolean('chestPain')} title="Frequent Chest Discomfort" subtitle="Exertional or at rest" />
+                      <ToggleCard active={formData.breathlessness} onClick={() => toggleBoolean('breathlessness')} title="Breathlessness" subtitle="With mild activity" />
+                      <ToggleCard active={formData.palpitations} onClick={() => toggleBoolean('palpitations')} title="Palpitations" subtitle="Irregular heartbeats" />
+                    </div>
                   </div>
+                )}
 
-                  <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5 mb-4 flex gap-4 items-start">
-                    <FaExclamationTriangle className="text-orange-500 w-6 h-6 shrink-0 mt-0.5" />
-                    <p className="text-sm text-orange-800">Toggle these switches if you experience any of these symptoms or have been diagnosed with these conditions.</p>
-                  </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <ToggleCard active={formData.familyHistory} onClick={() => toggleBoolean('familyHistory')} title="Family Cardiac History" />
-                    <ToggleCard active={formData.hypertensionHistory} onClick={() => toggleBoolean('hypertensionHistory')} title="Hypertension (High BP)" />
-                    <ToggleCard active={formData.diabetesHistory} onClick={() => toggleBoolean('diabetesHistory')} title="Diabetes" />
-                    <ToggleCard active={formData.chestPain} onClick={() => toggleBoolean('chestPain')} title="Frequent Chest Pain" />
-                    <ToggleCard active={formData.breathlessness} onClick={() => toggleBoolean('breathlessness')} title="Breathlessness" />
-                    <ToggleCard active={formData.palpitations} onClick={() => toggleBoolean('palpitations')} title="Palpitations" />
-                  </div>
-                </div>
-              )}
-
-            </motion.div>
-          </AnimatePresence>
-
-          {/* Navigation Footer */}
-          <div className="absolute bottom-0 left-0 right-0 p-6 bg-white/90 backdrop-blur-md border-t border-gray-100 flex justify-between items-center z-10">
+          {/* Card Footer Navigation */}
+          <div className="px-4 sm:px-5 py-3 bg-slate-50/70 border-t border-slate-200/80 flex items-center justify-between">
             <button
+              type="button"
               onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${currentStep === 1 ? 'opacity-0 pointer-events-none' : 'text-gray-500 hover:bg-gray-100'}`}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200/60 transition-all cursor-pointer ${
+                currentStep === 1 ? 'opacity-0 pointer-events-none' : ''
+              }`}
             >
-              <FaArrowLeft /> Back
+              <FaArrowLeft className="w-3 h-3" /> Back
             </button>
 
             {currentStep < totalSteps ? (
               <button
+                type="button"
                 onClick={() => setCurrentStep(prev => Math.min(totalSteps, prev + 1))}
-                className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-[#0067A1] to-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-500/30 hover:scale-105 transition-all"
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#0067A1] hover:bg-[#005584] text-white text-xs font-semibold rounded-lg shadow-xs transition-all cursor-pointer"
               >
-                Next Level <FaArrowRight />
+                Next Step <FaArrowRight className="w-3 h-3" />
               </button>
             ) : (
               <button
+                type="button"
                 onClick={handleSubmit}
                 disabled={loading}
-                className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl font-bold shadow-lg shadow-red-500/30 hover:scale-105 transition-all disabled:opacity-50"
+                className="flex items-center gap-1.5 px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-all disabled:opacity-50 cursor-pointer"
               >
-                {loading ? 'Calculating...' : 'Calculate Score'}
-                {!loading && <FaHeartbeat />}
+                {loading ? 'Processing...' : 'Calculate Screening'}
+                {!loading && <FaHeartbeat className="w-3 h-3" />}
               </button>
             )}
           </div>

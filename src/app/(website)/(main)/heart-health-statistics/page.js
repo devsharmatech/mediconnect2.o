@@ -84,7 +84,7 @@ export default function HeartHealthStatisticsPage() {
       <header className="w-full mx-auto mb-8 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => router.push("/website/dashboard/assessments")}
+            onClick={() => router.push("/dashboard/assessments")}
             className="p-3 bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-gray-200"
           >
             <ChevronLeft className="w-5 h-5 text-gray-600" />
@@ -116,7 +116,7 @@ export default function HeartHealthStatisticsPage() {
             ))}
           </div>
           <button
-            onClick={() => router.push("/website/heart-health-result")}
+            onClick={() => router.push("/heart-health-result")}
             className="hidden md:inline-flex items-center gap-2 text-xs font-semibold text-[#0067A1] hover:underline"
           >
             <Heart className="w-4 h-4" />
@@ -141,7 +141,7 @@ export default function HeartHealthStatisticsPage() {
           <div className="bg-white rounded-3xl p-10 border border-gray-100 shadow-sm text-center">
             <p className="text-gray-700 text-sm mb-3">We could not find enough heart assessments to build statistics.</p>
             <button
-              onClick={() => router.push("/website/heart-health")}
+              onClick={() => router.push("/heart-health")}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#0067A1] to-emerald-600 text-white text-sm font-semibold shadow-md hover:shadow-lg"
             >
               <Activity className="w-4 h-4" />
@@ -170,9 +170,9 @@ export default function HeartHealthStatisticsPage() {
               />
               <SummaryCard
                 icon={<Heart className="w-5 h-5 text-emerald-600" />}
-                title="Improvement"
-                value={summary.heart?.improvement ?? 0}
-                helper="points from first to latest"
+                title="Recorded Change"
+                value={trend.length >= 2 ? (summary.heart?.improvement ?? 0) : "—"}
+                helper="between first and latest recorded"
               />
             </section>
 
@@ -190,11 +190,10 @@ export default function HeartHealthStatisticsPage() {
                       <Activity className="w-5 h-5 text-emerald-600" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-semibold text-gray-800">Heart score trend</h2>
-                      <p className="text-xs text-gray-500">Each bar shows an assessment over time</p>
+                      <h2 className="text-lg font-semibold text-gray-800">Recorded Assessment Trend</h2>
+                      <p className="text-xs text-gray-500">Recorded movement across assessments</p>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500">Higher is better</p>
                 </div>
                 <div className="h-56 relative">
                   <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
@@ -265,6 +264,9 @@ export default function HeartHealthStatisticsPage() {
                   </span>
                   <span>Latest: {trend[trend.length - 1].score}/100</span>
                 </div>
+                <p className="text-[11px] text-gray-400 mt-3 leading-relaxed border-t border-gray-100 pt-2">
+                  Recorded movement does not by itself establish clinical improvement. Discuss persistent concerns with a qualified doctor.
+                </p>
               </motion.div>
 
               {/* Risk distribution */}

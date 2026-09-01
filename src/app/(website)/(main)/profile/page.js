@@ -476,7 +476,7 @@ export default function ProfilePage() {
 
               <div className="p-5 sm:p-6">
                 <p className="text-xs sm:text-sm text-gray-600 mb-5 leading-relaxed">
-                  Under the Digital Personal Data Protection (DPDP) Act 2023, you have full ownership of your personal and health records. Use these cryptographic tools to manage your digital footprint. Actions taken here are legally binding and permanent.
+                  You can manage the privacy and data rights available to you under applicable law. Some records may need to be retained where required by law or professional obligations.
                 </p>
 
                 <div className="space-y-3.5">
@@ -500,7 +500,7 @@ export default function ProfilePage() {
                       <h4 className="font-bold text-orange-900 flex items-center gap-2 text-sm">
                         <FaUserSecret className="text-orange-500 shrink-0" /> Anonymize My PII
                       </h4>
-                      <p className="text-xs text-orange-700/85 mt-1 leading-relaxed">Permanently erase your name, phone number, and address from the system. Non-identifiable clinical data will remain for analytics.</p>
+                      <p className="text-xs text-orange-700/85 mt-1 leading-relaxed">Request anonymization of eligible personal identifiers. We will process the request according to applicable law, retention requirements and technical feasibility. Some information may need to be retained where legally required.</p>
                     </div>
                     <button
                       onClick={handleAnonymizeData}
@@ -515,7 +515,7 @@ export default function ProfilePage() {
                       <h4 className="font-bold text-red-900 flex items-center gap-2 text-sm">
                         <FaBan className="text-red-500 shrink-0" /> Withdraw Telemedicine Consent
                       </h4>
-                      <p className="text-xs text-red-700/85 mt-1 leading-relaxed">Revoke all legal consents. You will be unable to book or complete any future consultations on this platform.</p>
+                      <p className="text-xs text-red-700/85 mt-1 leading-relaxed">Withdraw applicable telemedicine consent. This may stop consent-based processing and may affect future services that require that consent. Records that must be retained under applicable law or professional obligations will not be deleted solely because consent is withdrawn.</p>
                     </div>
                     <button
                       onClick={handleWithdrawConsent}

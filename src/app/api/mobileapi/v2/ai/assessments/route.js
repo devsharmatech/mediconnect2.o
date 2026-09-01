@@ -171,14 +171,18 @@ export async function POST(req) {
             }
         }
 
-        // 4. Insert into health_assessments table (identical to V1)
+        // 4. Insert into health_assessments table (with safe non-null calculated_age)
+        const safeCalculatedAge = (calculatedAge !== null && calculatedAge !== undefined)
+            ? Number(calculatedAge)
+            : (parseInt(inputs.age) || 45);
+
         const { data: assessment, error: assessmentError } = await supabase
             .from("health_assessments")
             .insert([{
                 user_id,
                 assessment_type,
                 health_score: healthScore,
-                calculated_age: calculatedAge,
+                calculated_age: safeCalculatedAge,
                 risk_level: riskLevel,
                 ai_analysis: aiAnalysis,
                 recommendations: recommendations,
@@ -234,6 +238,11 @@ export async function POST(req) {
             .single();
 
         if (fetchError) throw fetchError;
+
+        const serialPrefix = assessment_type === "lung" ? "LCN" : "CCN";
+        const serialYear = new Date(completeAssessment.created_at || Date.now()).getFullYear();
+        const serialCode = (completeAssessment.id || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
+        completeAssessment.serial_no = `${serialPrefix}-${serialYear}-${serialCode}`;
 
         // Return EXACT same shape as V1
         return success(

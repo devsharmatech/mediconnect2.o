@@ -101,6 +101,32 @@ export async function POST(req) {
       );
     }
 
+    // 0. Canonical Age Derivation (SP-07 P0-02 & SP-06 LC-02): Age derives from canonical DOB
+    try {
+      const { data: profile } = await supabase
+        .from("patient_details")
+        .select("date_of_birth")
+        .eq("id", user_id)
+        .maybeSingle();
+
+      if (profile?.date_of_birth) {
+        const dob = new Date(profile.date_of_birth);
+        if (!isNaN(dob.getTime())) {
+          const today = new Date();
+          let canonicalAge = today.getFullYear() - dob.getFullYear();
+          const m = today.getMonth() - dob.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+            canonicalAge--;
+          }
+          if (canonicalAge > 0) {
+            inputs.age = canonicalAge;
+          }
+        }
+      }
+    } catch (dobErr) {
+      console.warn("Could not query DOB for canonical age:", dobErr.message);
+    }
+
     // Calculate health score based on assessment type
     let healthScore, calculatedAge, riskLevel, riskFactors;
 
@@ -124,7 +150,11 @@ export async function POST(req) {
       generateHealthRecommendations(assessment_type, inputs, riskFactors),
     ]);
 
-    // Create health assessment record
+    // Create health assessment record (with safe non-null calculated_age)
+    const safeCalculatedAge = (calculatedAge !== null && calculatedAge !== undefined)
+      ? Number(calculatedAge)
+      : (parseInt(inputs.age) || 45);
+
     const { data: assessment, error: assessmentError } = await supabase
       .from("health_assessments")
       .insert([
@@ -132,7 +162,7 @@ export async function POST(req) {
           user_id,
           assessment_type,
           health_score: healthScore,
-          calculated_age: calculatedAge,
+          calculated_age: safeCalculatedAge,
           risk_level: riskLevel,
           ai_analysis: aiAnalysis,
           recommendations: recommendations,
@@ -181,6 +211,11 @@ export async function POST(req) {
 
     if (fetchError) throw fetchError;
 
+    const serialPrefix = assessment_type === "lung" ? "LCN" : "CCN";
+    const serialYear = new Date(completeAssessment.created_at || Date.now()).getFullYear();
+    const serialCode = (completeAssessment.id || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
+    completeAssessment.serial_no = `${serialPrefix}-${serialYear}-${serialCode}`;
+
     return success(
       "Health assessment created successfully with assistive analysis.",
       completeAssessment,
@@ -223,13 +258,15 @@ function calculateHeartHealth(inputs) {
     riskFactors.push("Overweight");
   }
 
-  // Blood Pressure
-  if (inputs.systolic_bp >= 140 || inputs.diastolic_bp >= 90) {
-    score -= 20;
-    riskFactors.push("Stage 2 Hypertension");
-  } else if (inputs.systolic_bp >= 130 || inputs.diastolic_bp >= 80) {
-    score -= 12;
-    riskFactors.push("Elevated BP");
+  // Blood Pressure (2024 ESC guidelines: 120/80 is NOT hypertension)
+  const sys = parseInt(inputs.systolic_bp) || 120;
+  const dia = parseInt(inputs.diastolic_bp) || 80;
+  if (sys >= 140 || dia >= 90) {
+    score -= 18;
+    riskFactors.push("Elevated Blood Pressure (Clinical confirmation recommended)");
+  } else if (sys >= 130 || dia >= 85) {
+    score -= 8;
+    riskFactors.push("Elevated Blood Pressure");
   }
 
   // Cholesterol
@@ -253,16 +290,16 @@ function calculateHeartHealth(inputs) {
   // Blood Sugar
   if (inputs.hba1c >= 6.5) {
     score -= 12;
-    riskFactors.push("Diabetes");
+    riskFactors.push("Elevated Blood Sugar");
   } else if (inputs.hba1c >= 5.7) {
     score -= 6;
-    riskFactors.push("Prediabetes");
+    riskFactors.push("Borderline Blood Sugar");
   }
 
   // Heart Rate
   if (inputs.resting_heart_rate > 100) {
     score -= 12;
-    riskFactors.push("Tachycardia");
+    riskFactors.push("Elevated resting heart rate");
   } else if (inputs.resting_heart_rate > 80) score -= 5;
 
   // Lifestyle
@@ -273,18 +310,19 @@ function calculateHeartHealth(inputs) {
 
   if (inputs.physical_activity_minutes < 120) {
     score -= 10;
-    riskFactors.push("Low physical activity");
+    riskFactors.push("Low physical activity (<150 mins/week)");
   }
 
   // Symptoms
   if (inputs.chest_pain) {
     score -= 25;
-    riskFactors.push("Chest pain – urgent");
+    riskFactors.push("Chest discomfort (Urgent evaluation advised)");
   }
 
   score = Math.max(0, Math.min(100, score));
 
-  const heartAge = inputs.age + Math.floor((100 - score) / 3);
+  // Phase-1 Rule (P0-03): Heart Age is NOT an approved Phase-1 output.
+  const calculatedAge = null;
 
   let riskLevel =
     score >= 80
@@ -297,7 +335,7 @@ function calculateHeartHealth(inputs) {
 
   return {
     healthScore: Math.round(score),
-    calculatedAge: heartAge,
+    calculatedAge,
     riskLevel,
     riskFactors,
   };
@@ -313,7 +351,7 @@ function calculateLungHealth(inputs) {
 
   if (bmi > 30) {
     score -= 10;
-    riskFactors.push("Obesity affecting breathing");
+    riskFactors.push("Obesity");
   }
 
   // Smoking
@@ -324,20 +362,20 @@ function calculateLungHealth(inputs) {
     score -= 12;
   }
 
-  // Peak Flow (Lung power)
-  if (inputs.peak_flow < 350) {
-    score -= 25;
-    riskFactors.push("Low peak flow (possible asthma/COPD)");
-  } else if (inputs.peak_flow < 450) {
-    score -= 10;
+  // Peak Flow (Optional)
+  if (inputs.peak_flow && inputs.peak_flow < 350) {
+    score -= 20;
+    riskFactors.push("Lower peak expiratory flow");
+  } else if (inputs.peak_flow && inputs.peak_flow < 450) {
+    score -= 8;
   }
 
-  // AQI Impact
+  // AQI Context (Environmental observation)
   if (inputs.aqi > 200) {
-    score -= 20;
-    riskFactors.push("Severe pollution exposure");
+    score -= 15;
+    riskFactors.push("High environmental pollution exposure");
   } else if (inputs.aqi > 120) {
-    score -= 10;
+    score -= 8;
   }
 
   // Symptoms
@@ -350,34 +388,25 @@ function calculateLungHealth(inputs) {
 
   if (inputs.cough_frequency === "constant") {
     score -= 18;
-    riskFactors.push("Chronic cough");
+    riskFactors.push("Frequent cough");
   }
 
   if (inputs.wheezing) {
     score -= 12;
-    riskFactors.push("Wheezing (possible asthma)");
+    riskFactors.push("Wheezing");
   }
 
-  // Breath Holding
-  if (inputs.breath_holding_time < 20) {
-    score -= 20;
-    riskFactors.push("Low lung capacity");
-  } else if (inputs.breath_holding_time < 40) {
-    score -= 10;
+  // Breath Holding (Factual input, not diagnostic capacity)
+  if (inputs.breath_holding_time && inputs.breath_holding_time < 20) {
+    score -= 15;
+    riskFactors.push("Reduced breath-holding time");
+  } else if (inputs.breath_holding_time && inputs.breath_holding_time < 35) {
+    score -= 8;
   }
 
   score = Math.max(0, Math.min(100, score));
-
-  const lungAge = inputs.age + Math.floor((100 - score) / 2.5);
-
-  let riskLevel =
-    score >= 80
-      ? "low"
-      : score >= 60
-      ? "moderate"
-      : score >= 40
-      ? "high"
-      : "critical";
+  const lungAge = inputs.age ? Math.round(inputs.age + Math.floor((100 - score) / 2.5)) : null;
+  let riskLevel = score >= 80 ? "low" : score >= 60 ? "moderate" : score >= 40 ? "high" : "critical";
 
   return {
     healthScore: Math.round(score),

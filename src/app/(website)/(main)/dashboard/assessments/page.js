@@ -159,7 +159,7 @@ const AssessmentsPage = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
-              href="/website/dashboard"
+              href="/dashboard"
               className="p-2.5 bg-white border border-slate-200 rounded-lg shadow-xs hover:bg-slate-50 transition-colors text-slate-600"
             >
               <FaArrowLeft className="w-4 h-4" />
@@ -216,14 +216,14 @@ const AssessmentsPage = () => {
           {/* Quick Stat Links */}
           <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100 text-xs">
             <Link
-              href="/website/heart-health-statistics"
+              href="/heart-health-statistics"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200/60 hover:bg-rose-100 font-medium transition-colors"
             >
               <FaHeartbeat className="w-3 h-3 text-rose-600" />
               View Heart Statistics
             </Link>
             <Link
-              href="/website/lung-health-statistics"
+              href="/lung-health-statistics"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-50 text-[#004F7C] border border-teal-200/60 hover:bg-teal-100 font-medium transition-colors"
             >
               <TbLungsFilled className="w-3 h-3 text-[#0067A1]" />
@@ -248,13 +248,13 @@ const AssessmentsPage = () => {
             </p>
             <div className="flex flex-wrap gap-3 justify-center">
               <Link
-                href="/website/heart-health"
+                href="/heart-health"
                 className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-4 py-2 rounded-lg text-xs font-semibold transition-colors"
               >
                 Take Heart Assessment
               </Link>
               <Link
-                href="/website/lung-assessment"
+                href="/lung-assessment"
                 className="bg-teal-50 hover:bg-teal-100 text-[#0067A1] border border-teal-200 px-4 py-2 rounded-lg text-xs font-semibold transition-colors"
               >
                 Take Lung Assessment
@@ -293,6 +293,9 @@ const AssessmentsPage = () => {
                         <h3 className="text-base font-bold text-slate-900 capitalize">
                           {assessment.assessment_type} Health Assessment
                         </h3>
+                        <span className="bg-slate-100 text-slate-700 font-mono font-semibold text-[10px] px-2 py-0.5 rounded border border-slate-200">
+                          Serial No: #{assessment.serial_no || `${assessment.assessment_type === 'heart' ? 'CCN' : 'LCN'}-${new Date(assessment.created_at).getFullYear()}-${(assessment.id || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`}
+                        </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5 font-mono">
                         {new Date(assessment.created_at).toLocaleDateString('en-US', {

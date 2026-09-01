@@ -63,7 +63,7 @@ export default function LungHealthStatisticsPage() {
       <header className="max-w-full mx-auto mb-8 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => router.push("/website/dashboard/assessments")}
+            onClick={() => router.push("/dashboard/assessments")}
             className="p-3 bg-white/80 backdrop-blur-sm rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border border-white/20"
           >
             <ChevronLeft className="w-5 h-5 text-gray-600" />
@@ -95,7 +95,7 @@ export default function LungHealthStatisticsPage() {
             ))}
           </div>
           <button
-            onClick={() => router.push("/website/lung-health-result")}
+            onClick={() => router.push("/lung-health-result")}
             className="hidden md:inline-flex items-center gap-2 text-xs font-semibold text-[#0067A1] hover:underline"
           >
             <Wind className="w-4 h-4" />
@@ -118,7 +118,7 @@ export default function LungHealthStatisticsPage() {
           <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-10 border border-white/20 shadow-xl text-center">
             <p className="text-gray-700 text-sm mb-3">We could not find enough lung assessments to build statistics.</p>
             <button
-              onClick={() => router.push("/website/lung-assessment")}
+              onClick={() => router.push("/lung-assessment")}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#0067A1] to-[#0080C6] text-white text-sm font-semibold shadow-md hover:shadow-lg"
             >
               <Activity className="w-4 h-4" />
@@ -147,9 +147,9 @@ export default function LungHealthStatisticsPage() {
               />
               <SummaryCard
                 icon={<Wind className="w-5 h-5 text-[#0067A1]" />}
-                title="Improvement"
-                value={summary.lung?.improvement ?? 0}
-                helper="points from first to latest"
+                title="Recorded Change"
+                value={trend.length >= 2 ? (summary.lung?.improvement ?? 0) : "—"}
+                helper="between first and latest recorded"
               />
             </section>
 
@@ -167,11 +167,10 @@ export default function LungHealthStatisticsPage() {
                       <Activity className="w-5 h-5 text-[#0067A1]" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-semibold text-gray-800">Lung score trend</h2>
-                      <p className="text-xs text-gray-500">Score movement over time</p>
+                      <h2 className="text-lg font-semibold text-gray-800">Recorded Assessment Trend</h2>
+                      <p className="text-xs text-gray-500">Score movement across recorded assessments</p>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500">Higher is better</p>
                 </div>
                 <div className="h-60">
                   {(() => {
@@ -272,6 +271,9 @@ export default function LungHealthStatisticsPage() {
                   </span>
                   <span>Latest: {trend[trend.length - 1].score}/100</span>
                 </div>
+                <p className="text-[11px] text-gray-400 mt-3 leading-relaxed border-t border-gray-100 pt-2">
+                  Recorded movement does not by itself establish clinical improvement. Discuss persistent concerns with a qualified doctor.
+                </p>
               </motion.div>
 
               {/* Risk distribution */}

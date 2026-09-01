@@ -305,30 +305,40 @@ function buildHeartHealthHtml(assessment, logoDataUri) {
                     </td>
                 </tr>
             </table>
-            <h1 style="color: #dc3545; margin: 0; font-size: 26px; text-align: left;">HEART HEALTH ASSESSMENT REPORT</h1>
-            <div class="subtitle" style="color: #666; font-size: 15px; margin-top: 5px; text-align: left;">Comprehensive Cardiovascular Health Analysis</div>
+            <h1 style="color: #0067A1; margin: 0; font-size: 24px; text-align: left;">CARDIOVASCULAR HEALTH SCREENING SUMMARY</h1>
+            <div class="subtitle" style="color: #555; font-size: 13px; margin-top: 5px; text-align: left; line-height: 1.4;">This screening summarizes the information entered for this assessment. It does not diagnose cardiovascular disease or determine individual treatment.</div>
         </div>
+
+        <!-- Metadata Row -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+            <tr>
+                <td style="padding: 8px 12px;"><strong>Assessment ID:</strong> ${assessment.id || "N/A"}</td>
+                <td style="padding: 8px 12px;"><strong>Data Source:</strong> Self-reported</td>
+                <td style="padding: 8px 12px;"><strong>Clinical Framework:</strong> 2024 ESC Guidelines</td>
+                <td style="padding: 8px 12px;"><strong>Status:</strong> Screening Generated</td>
+            </tr>
+        </table>
 
         <!-- Summary Table -->
         <table class="summary-table">
             <tr>
-                <th colspan="4">ASSESSMENT SUMMARY</th>
+                <th colspan="4" style="background: #0067A1;">ASSESSMENT SUMMARY</th>
             </tr>
             <tr>
-                <td><strong>Health Score</strong></td>
-                <td class="score">${health_score}/100</td>
-                <td><strong>Heart Age</strong></td>
-                <td>${calculated_age} years</td>
+                <td><strong>Assessment Score</strong></td>
+                <td class="score" style="color: #0067A1;">${health_score}/100</td>
+                <td><strong>Guideline Framework</strong></td>
+                <td>2024 ESC Guidelines</td>
             </tr>
             <tr>
-                <td><strong>Risk Level</strong></td>
+                <td><strong>Risk Classification</strong></td>
                 <td>
                     <span class="risk-indicator risk-${risk_level}">
                         ${risk_level.toUpperCase()}
                     </span>
                 </td>
                 <td><strong>Assessment Type</strong></td>
-                <td>Heart Health Screening</td>
+                <td>Cardiovascular Health Screening</td>
             </tr>
         </table>
 
@@ -784,30 +794,40 @@ function buildLungHealthHtml(assessment, logoDataUri) {
                     </td>
                 </tr>
             </table>
-            <h1 style="color: #17a2b8; margin: 0; font-size: 26px; text-align: left;">LUNG HEALTH ASSESSMENT REPORT</h1>
-            <div class="subtitle" style="color: #666; font-size: 15px; margin-top: 5px; text-align: left;">Comprehensive Respiratory Health Analysis</div>
+            <h1 style="color: #0067A1; margin: 0; font-size: 24px; text-align: left;">LUNG HEALTH SUMMARY</h1>
+            <div class="subtitle" style="color: #555; font-size: 13px; margin-top: 5px; text-align: left; line-height: 1.4;">Assessment summary based on the information provided. It does not diagnose pulmonary disease or determine individual treatment.</div>
         </div>
+
+        <!-- Metadata Row -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+            <tr>
+                <td style="padding: 8px 12px;"><strong>Assessment ID:</strong> ${assessment.id || "N/A"}</td>
+                <td style="padding: 8px 12px;"><strong>Data Source:</strong> Self-reported</td>
+                <td style="padding: 8px 12px;"><strong>Status:</strong> Screening Generated</td>
+                <td style="padding: 8px 12px;"><strong>Guideline:</strong> Standard Wellness Reference</td>
+            </tr>
+        </table>
 
         <!-- Summary Table -->
         <table class="summary-table">
             <tr>
-                <th colspan="4">ASSESSMENT SUMMARY</th>
+                <th colspan="4" style="background: #0067A1;">ASSESSMENT SUMMARY</th>
             </tr>
             <tr>
-                <td><strong>Health Score</strong></td>
-                <td class="score">${health_score}/100</td>
-                <td><strong>Lung Age</strong></td>
-                <td>${calculated_age} years</td>
+                <td><strong>Assessment Score</strong></td>
+                <td class="score" style="color: #0067A1;">${health_score}/100</td>
+                <td><strong>Lung Age Reference</strong></td>
+                <td>${calculated_age ? `${calculated_age} years` : "N/A"}</td>
             </tr>
             <tr>
-                <td><strong>Risk Level</strong></td>
+                <td><strong>Risk Classification</strong></td>
                 <td>
                     <span class="risk-indicator risk-${risk_level}">
                         ${risk_level.toUpperCase()}
                     </span>
                 </td>
                 <td><strong>Assessment Type</strong></td>
-                <td>Lung Health Screening</td>
+                <td>Respiratory Wellness Screening</td>
             </tr>
         </table>
 
@@ -930,18 +950,18 @@ function buildLungHealthHtml(assessment, logoDataUri) {
           ai_analysis
             ? `
         <div class="section">
-            <div class="section-title">MEDICAL ANALYSIS</div>
+            <div class="section-title">ASSESSMENT SUMMARY & OBSERVATIONS</div>
             <div class="analysis-section">
-                <p><strong>Overall Assessment:</strong> ${
+                <p><strong>Assessment Summary:</strong> ${
                   ai_analysis.analysis ||
-                  "Comprehensive lung health assessment completed."
+                  "Respiratory wellness assessment completed."
                 }</p>
                 
                 ${
                   ai_analysis.key_findings &&
                   ai_analysis.key_findings.length > 0
                     ? `
-                <p><strong>Key Findings:</strong></p>
+                <p><strong>Key Recorded Factors:</strong></p>
                 <ul>
                     ${ai_analysis.key_findings
                       .map((finding) => `<li>${finding}</li>`)
@@ -955,7 +975,7 @@ function buildLungHealthHtml(assessment, logoDataUri) {
                   ai_analysis.positive_aspects &&
                   ai_analysis.positive_aspects.length > 0
                     ? `
-                <p><strong>Positive Aspects:</strong></p>
+                <p><strong>Positive Markers:</strong></p>
                 <ul>
                     ${ai_analysis.positive_aspects
                       .map((aspect) => `<li>${aspect}</li>`)
@@ -969,7 +989,7 @@ function buildLungHealthHtml(assessment, logoDataUri) {
                   ai_analysis.improvement_areas &&
                   ai_analysis.improvement_areas.length > 0
                     ? `
-                <p><strong>Areas for Improvement:</strong></p>
+                <p><strong>Areas to Monitor:</strong></p>
                 <ul>
                     ${ai_analysis.improvement_areas
                       .map((area) => `<li>${area}</li>`)
@@ -989,7 +1009,7 @@ function buildLungHealthHtml(assessment, logoDataUri) {
           recommendations && recommendations.length > 0
             ? `
         <div class="section">
-            <div class="section-title">HEALTH RECOMMENDATIONS</div>
+            <div class="section-title">SUGGESTED WELLNESS ACTIONS</div>
             ${recommendations
               .map(
                 (rec) => `
@@ -1018,7 +1038,7 @@ function buildLungHealthHtml(assessment, logoDataUri) {
                         <th>Description</th>
                         <td>${
                           rec.description ||
-                          "Follow these action steps to improve your lung health."
+                          "Follow these action steps to support your respiratory wellness."
                         }</td>
                     </tr>
                     ${
@@ -1042,7 +1062,7 @@ function buildLungHealthHtml(assessment, logoDataUri) {
                         ? `
                     <tr>
                         <th>Context</th>
-                        <td>🇮🇳 Specifically tailored for Indian context</td>
+                        <td>Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.</td>
                     </tr>
                     `
                         : ""

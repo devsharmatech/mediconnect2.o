@@ -14,11 +14,17 @@ const PatientDashboardLayout = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showChat, setShowChat] = useState(false);
-  const [showDisclaimer, setShowDisclaimer] = useState(true);
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
+    // Check if disclaimer was previously dismissed
+    const isDismissed = localStorage.getItem("mediconnect_doctor_disclaimer_dismissed");
+    if (!isDismissed) {
+      setShowDisclaimer(true);
+    }
+
     // Check if user is logged in
     const userId = localStorage.getItem("userId");
     const userRole = localStorage.getItem("userRole");
@@ -41,6 +47,11 @@ const PatientDashboardLayout = ({ children }) => {
     // Register FCM device token + foreground listener
     initNotifications(userId);
   }, [router]);
+
+  const handleDismissDisclaimer = () => {
+    localStorage.setItem("mediconnect_doctor_disclaimer_dismissed", "true");
+    setShowDisclaimer(false);
+  };
 
   /** Tracks whether foreground listener is already attached */
   const foregroundListenerRef = useRef(false);
@@ -183,8 +194,8 @@ const PatientDashboardLayout = ({ children }) => {
               </span>
             </div>
             <button 
-              onClick={() => setShowDisclaimer(false)}
-              className="text-gray-400 hover:text-gray-600 hover:bg-gray-100/80 p-1.5 rounded-full shrink-0 transition-all duration-200"
+              onClick={handleDismissDisclaimer}
+              className="text-gray-400 hover:text-gray-600 hover:bg-gray-100/80 p-1.5 rounded-full shrink-0 transition-all duration-200 cursor-pointer"
               aria-label="Dismiss disclaimer"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

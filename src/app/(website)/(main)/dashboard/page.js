@@ -419,14 +419,14 @@ const Dashboard = () => {
                     </motion.div>
                     <div>
                       <h3 className="text-lg font-extrabold text-gray-900">Cardio Connect</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">Heart Health Analyzer</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Cardiovascular Wellness Screening</p>
                     </div>
                   </div>
                   <span className="text-[10px] font-bold bg-rose-50 text-rose-600 px-2.5 py-1 rounded-full uppercase tracking-wider">Active</span>
                 </div>
 
                 <p className="text-sm text-gray-600 mt-4 leading-relaxed">
-                  Track cardiovascular vitals, assess coronary risks, and get personalized insights instantly.
+                  Record cardiovascular wellness indicators, view your heart health spectrum, and receive general guidance.
                 </p>
               </div>
 
@@ -447,7 +447,7 @@ const Dashboard = () => {
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/website/heart-health")}
+                    onClick={() => router.push("/heart-health")}
                     className="px-5 py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-xs font-bold rounded-xl shadow-md shadow-rose-500/10 transition-colors grow text-center"
                   >
                     Start Assessment
@@ -455,7 +455,7 @@ const Dashboard = () => {
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/website/heart-health-statistics")}
+                    onClick={() => router.push("/heart-health-statistics")}
                     className="p-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl transition-colors border border-gray-100"
                     title="View Statistics"
                   >
@@ -487,14 +487,14 @@ const Dashboard = () => {
                     </motion.div>
                     <div>
                       <h3 className="text-lg font-extrabold text-gray-900">Lung Connect</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">Respiratory Health Evaluation</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Respiratory Wellness Assessment</p>
                     </div>
                   </div>
                   <span className="text-[10px] font-bold bg-teal-50 text-[#0067A1] px-2.5 py-1 rounded-full uppercase tracking-wider">Active</span>
                 </div>
 
                 <p className="text-sm text-gray-600 mt-4 leading-relaxed">
-                  Evaluate respiratory efficiency, breath duration, and screen for potential pulmonary risks.
+                  Complete a guided respiratory wellness assessment and review your recorded results.
                 </p>
               </div>
 
@@ -515,7 +515,7 @@ const Dashboard = () => {
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/website/lung-assessment")}
+                    onClick={() => router.push("/lung-assessment")}
                     className="px-5 py-2.5 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-[#0067A1] hover:to-emerald-700 text-white text-xs font-bold rounded-xl shadow-md shadow-teal-500/10 transition-colors grow text-center"
                   >
                     Start Assessment
@@ -523,7 +523,7 @@ const Dashboard = () => {
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/website/lung-health-statistics")}
+                    onClick={() => router.push("/lung-health-statistics")}
                     className="p-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl transition-colors border border-gray-100"
                     title="View Statistics"
                   >
