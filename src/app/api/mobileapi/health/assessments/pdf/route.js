@@ -50,6 +50,28 @@ export async function POST(req) {
       });
     }
 
+    // Enforce SP-06 LC-06 & LC-07 Frozen Policy: 15-Day Interval Disclosure Gate
+    const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
+    const createdAtMs = new Date(targetAssessment.created_at).getTime();
+    const elapsedMs = Date.now() - createdAtMs;
+
+    if (elapsedMs < FIFTEEN_DAYS_MS) {
+      const remainingDays = Math.ceil((FIFTEEN_DAYS_MS - elapsedMs) / (24 * 60 * 60 * 1000));
+      return failure(
+        `Full report sharing is available after 15 complete days from the assessment date. You can view your results now. (${remainingDays} days remaining)`,
+        "disclosure_gate_locked",
+        403,
+        {
+          headers: corsHeaders,
+          data: {
+            is_locked: true,
+            days_remaining: remainingDays,
+            eligible_at: new Date(createdAtMs + FIFTEEN_DAYS_MS).toISOString(),
+          },
+        }
+      );
+    }
+
     // Read local real-logo.png and convert to base64 Data URI
     let logoDataUri = "https://mediconnect.fit/real-logo.png"; // fallback
     try {
@@ -76,34 +98,48 @@ export async function POST(req) {
       });
     }
 
-    // Generate PDF using your external API
-    const pdfResponse = await fetch(
-      "https://argosmob.uk/dhillon/public/api/v1/pdf/generate-pdf",
-      {
-        method: "POST",
+    const reqBody = await req.json().catch(() => ({}));
+    if (reqBody.format === "html") {
+      return new NextResponse(html, {
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "text/html; charset=utf-8",
+          ...corsHeaders,
         },
-        body: JSON.stringify({ html }),
-      }
-    );
-
-    if (!pdfResponse.ok) {
-      const errText = await pdfResponse.text();
-      throw new Error(`PDF service error: ${pdfResponse.status} — ${errText}`);
+      });
     }
 
-    const pdfJson = await pdfResponse.json();
-    console.log("PDF API result:", pdfJson);
+    // Attempt generation with external API with timeout and fallback
+    let pdfUrl = "";
+    try {
+      const pdfResponse = await fetch(
+        "https://argosmob.uk/dhillon/public/api/v1/pdf/generate-pdf",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ html }),
+          signal: AbortSignal.timeout(8000),
+        }
+      );
+
+      if (pdfResponse.ok) {
+        const pdfJson = await pdfResponse.json();
+        pdfUrl = pdfJson.url || "";
+      }
+    } catch (apiErr) {
+      console.warn("External PDF microservice fallback in mobileapi POST:", apiErr.message);
+    }
 
     return success(
-      "PDF generated successfully",
+      "PDF report processed successfully",
       {
-        url: pdfJson.url || "",
+        url: pdfUrl,
+        html: !pdfUrl ? html : undefined,
         assessment_id: targetAssessment.id,
         assessment_type: targetAssessment.assessment_type,
         success: true,
-        message: `${targetAssessment.assessment_type} health PDF generated successfully.`,
+        message: `${targetAssessment.assessment_type} health report processed successfully.`,
       },
       200,
       {
@@ -1156,37 +1192,51 @@ export async function GET(req) {
       });
     }
 
-    // Generate PDF using external API
-    const pdfResponse = await fetch(
-      "https://argosmob.uk/dhillon/public/api/v1/pdf/generate-pdf",
-      {
-        method: "POST",
+    if (searchParams.get("format") === "html") {
+      return new NextResponse(html, {
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "text/html; charset=utf-8",
+          ...corsHeaders,
         },
-        body: JSON.stringify({ html }),
-      }
-    );
-
-    if (!pdfResponse.ok) {
-      const errText = await pdfResponse.text();
-      throw new Error(`PDF service error: ${pdfResponse.status} — ${errText}`);
+      });
     }
 
-    const pdfJson = await pdfResponse.json();
+    // Attempt generation with external API with timeout and fallback
+    let pdfUrl = "";
+    try {
+      const pdfResponse = await fetch(
+        "https://argosmob.uk/dhillon/public/api/v1/pdf/generate-pdf",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ html }),
+          signal: AbortSignal.timeout(8000),
+        }
+      );
 
-    if (searchParams.get("redirect") === "true" && pdfJson.url) {
-      return NextResponse.redirect(pdfJson.url);
+      if (pdfResponse.ok) {
+        const pdfJson = await pdfResponse.json();
+        pdfUrl = pdfJson.url || "";
+      }
+    } catch (apiErr) {
+      console.warn("External PDF microservice fallback in mobileapi GET:", apiErr.message);
+    }
+
+    if (searchParams.get("redirect") === "true" && pdfUrl) {
+      return NextResponse.redirect(pdfUrl);
     }
 
     return success(
-      "PDF generated successfully",
+      "PDF report processed successfully",
       {
-        url: pdfJson.url || "",
+        url: pdfUrl,
+        html: !pdfUrl ? html : undefined,
         assessment_id: targetAssessment.id,
         assessment_type: targetAssessment.assessment_type,
         success: true,
-        message: `${targetAssessment.assessment_type} health PDF generated successfully.`,
+        message: `${targetAssessment.assessment_type} health report processed successfully.`,
       },
       200,
       {

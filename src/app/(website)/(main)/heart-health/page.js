@@ -454,10 +454,19 @@ export default function GamifiedHeartHealthAssessment() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={loading}
-                className="flex items-center gap-1.5 px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-2 px-5 py-2 bg-[#0067A1] hover:bg-[#005584] text-white text-xs font-semibold rounded-lg shadow-xs transition-all disabled:opacity-70 cursor-pointer"
               >
-                {loading ? 'Processing...' : 'Calculate Screening'}
-                {!loading && <FaHeartbeat className="w-3 h-3" />}
+                {loading ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    <span>Calculating...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Calculate Screening</span>
+                    <FaHeartbeat className="w-3 h-3 text-white/90" />
+                  </>
+                )}
               </button>
             )}
           </div>

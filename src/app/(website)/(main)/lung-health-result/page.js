@@ -6,13 +6,14 @@ import Link from 'next/link';
 import {
   Activity, Wind, ChevronLeft, Download,
   TrendingUp, AlertTriangle, Stethoscope, Calendar,
-  Zap, Info, CheckCircle2
+  Zap, Info, CheckCircle2, FileText, History, Printer, Eye
 } from 'lucide-react';
 import { FaLungs } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import AssessmentTrendChart from '@/components/public-site/health/AssessmentTrendChart';
 import AssessmentPrintReport from '@/components/public-site/health/AssessmentPrintReport';
-import { generateClientPdf } from '@/lib/clientPdfGenerator';
+import LungSnapshotModal from '@/components/public-site/health/LungSnapshotModal';
+import { generateClientPdf, printClientReport } from '@/lib/clientPdfGenerator';
 
 export default function LungHealthResult() {
   const [assessmentData, setAssessmentData] = useState(null);
@@ -24,6 +25,8 @@ export default function LungHealthResult() {
   const [graphSummary, setGraphSummary] = useState(null);
   const [history, setHistory] = useState([]);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
+  const [printingReport, setPrintingReport] = useState(false);
+  const [showSnapshotModal, setShowSnapshotModal] = useState(false);
 
   const reportRef = useRef(null);
   const router = useRouter();
@@ -147,20 +150,46 @@ export default function LungHealthResult() {
 
   const currentRiskBadge = riskBadgeStyles[risk_level?.toLowerCase()] || riskBadgeStyles.moderate;
 
+  // 15-Day Interval Policy Check (SP-06 LC-06 & LC-07 / Sheet 02)
+  const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
+  const elapsedMs = Date.now() - new Date(created_at).getTime();
+  const isEligibleForPDF = elapsedMs >= FIFTEEN_DAYS_MS;
+  const remainingDaysForPDF = Math.max(0, Math.ceil((FIFTEEN_DAYS_MS - elapsedMs) / (24 * 60 * 60 * 1000)));
+
   /**
    * Client-side high-resolution canvas PDF generation
-   * Instant, reliable, and completely independent of external backend APIs
+   * Governed by SP-06 15-day interval disclosure gate
    */
   const handleDownloadPDF = async () => {
+    if (!isEligibleForPDF) {
+      alert(`Full report sharing is available after 15 complete days from the assessment date (${remainingDaysForPDF} days remaining). You can view your results now.`);
+      return;
+    }
     try {
       setDownloadingPDF(true);
-      const filename = `mediconnect-lung-report-${formattedSerialNo.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      const filename = `mediconnect-lung-summary-${formattedSerialNo.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
       await generateClientPdf(reportRef.current, filename);
     } catch (error) {
       console.error('Client PDF generation error, falling back to window.print():', error);
       window.print();
     } finally {
       setDownloadingPDF(false);
+    }
+  };
+
+  /**
+   * High-Resolution Direct Print with MediConnect Logo and Watermark
+   */
+  const handlePrintReport = async () => {
+    try {
+      setPrintingReport(true);
+      if (!reportRef.current) throw new Error("Report element not found");
+      await printClientReport(reportRef.current);
+    } catch (error) {
+      console.error('Client print error, falling back to window.print():', error);
+      window.print();
+    } finally {
+      setPrintingReport(false);
     }
   };
 
@@ -194,10 +223,10 @@ export default function LungHealthResult() {
               </button>
               <div>
                 <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                  Respiratory Health Screening Summary
+                  Lung Health Summary
                 </h1>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 max-w-xl leading-relaxed">
-                  Assessment summary based on recorded self-reported measures. This utility does not replace clinical spirometry or diagnostic testing.
+                  Assessment summary based on the information provided. This summary reflects your assessment results and recorded inputs. It does not provide a diagnosis and does not replace professional clinical advice.
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-2 text-[11px]">
                   <span className="bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded border border-slate-200 font-mono">
@@ -218,26 +247,68 @@ export default function LungHealthResult() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-center shrink-0">
+              {/* LC-10: Snapshot Modal trigger */}
               <button
                 type="button"
-                onClick={handleDownloadPDF}
-                disabled={downloadingPDF}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200 disabled:opacity-50 cursor-pointer"
+                onClick={() => setShowSnapshotModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                title="View Full Report Snapshot (LC-10)"
               >
-                <Download className="w-3.5 h-3.5 text-slate-600" />
-                {downloadingPDF ? 'Generating PDF...' : 'PDF Report'}
+                <Eye className="w-3.5 h-3.5" />
+                <span>Snapshot</span>
               </button>
+
+              {/* Direct Print Button with Logo & Watermark */}
+              <button
+                type="button"
+                onClick={handlePrintReport}
+                disabled={printingReport}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                title="Print Clinical Report with MediConnect Logo & Watermark"
+              >
+                <Printer className="w-3.5 h-3.5 text-[#0067A1]" />
+                <span>{printingReport ? 'Preparing...' : 'Print'}</span>
+              </button>
+
+              {/* Download PDF Button */}
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={handleDownloadPDF}
+                  disabled={downloadingPDF || !isEligibleForPDF}
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
+                    isEligibleForPDF
+                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 cursor-pointer'
+                      : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-75'
+                  }`}
+                  title={!isEligibleForPDF ? `Available in ${remainingDaysForPDF} days` : 'Download PDF Report'}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>{downloadingPDF ? 'Generating...' : 'PDF'}</span>
+                </button>
+              </div>
+
               <Link
                 href="/doctors"
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0067A1] hover:bg-[#005584] text-white rounded-lg text-xs font-semibold shadow-xs transition-all"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#0067A1] hover:bg-[#005584] text-white rounded-lg text-xs font-semibold shadow-xs transition-all"
               >
                 <Stethoscope className="w-3.5 h-3.5" />
-                Consult Doctor
+                <span>Consult Doctor</span>
               </Link>
             </div>
           </div>
         </div>
+
+        {/* 15-Day Policy Notice Card (SP-06 LC-07 / Sheet 02) */}
+        {!isEligibleForPDF && (
+          <div className="bg-blue-50/90 border border-blue-200 rounded-lg p-3 flex items-start gap-2.5 text-xs text-blue-900 shadow-2xs">
+            <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-semibold">Report Sharing Notice:</span> Full report sharing is available after 15 complete days from the assessment date ({remainingDaysForPDF} days remaining). You can view your results now.
+            </div>
+          </div>
+        )}
 
         {/* Safety Notice Banner */}
         <div className="bg-amber-50/80 border border-amber-200/80 rounded-lg p-2.5 sm:p-3 flex items-start gap-2.5 text-[11px] sm:text-xs text-amber-900 leading-relaxed shadow-2xs">
@@ -282,6 +353,25 @@ export default function LungHealthResult() {
                   {inputs.breath_holding_time || 35} <span className="text-[10px] font-normal text-slate-400">sec</span>
                 </p>
               </div>
+            </div>
+
+            {/* Snapshot Modal & History Trigger Buttons (LC-09 & LC-10 / Sheet 03) */}
+            <div className="flex items-center gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowSnapshotModal(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+              >
+                <FileText className="w-3.5 h-3.5 text-emerald-700" />
+                Full Report
+              </button>
+              <Link
+                href="/dashboard/assessments"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-[#0067A1] hover:bg-[#005584] text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer text-center shadow-2xs"
+              >
+                <History className="w-3.5 h-3.5 text-white" />
+                View History
+              </Link>
             </div>
           </div>
 
@@ -419,6 +509,15 @@ export default function LungHealthResult() {
         </div>
 
       </div>
+
+      {/* LC-10: Full Lung Report Snapshot Modal */}
+      <LungSnapshotModal
+        isOpen={showSnapshotModal}
+        onClose={() => setShowSnapshotModal(false)}
+        assessmentData={assessmentData}
+        trendPoints={trendPoints}
+        patientData={patientData}
+      />
     </div>
   );
 }

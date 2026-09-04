@@ -6,12 +6,12 @@ import Link from 'next/link';
 import {
   Activity, Heart, ShieldAlert, ChevronLeft, Download,
   TrendingUp, AlertTriangle, Stethoscope, Calendar, Clock,
-  User, Ruler, Scale, Zap, Info, CheckCircle2
+  User, Ruler, Scale, Zap, Info, CheckCircle2, Printer
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AssessmentTrendChart from '@/components/public-site/health/AssessmentTrendChart';
 import AssessmentPrintReport from '@/components/public-site/health/AssessmentPrintReport';
-import { generateClientPdf } from '@/lib/clientPdfGenerator';
+import { generateClientPdf, printClientReport } from '@/lib/clientPdfGenerator';
 
 export default function HeartHealthResult() {
   const [assessmentData, setAssessmentData] = useState(null);
@@ -23,6 +23,7 @@ export default function HeartHealthResult() {
   const [graphSummary, setGraphSummary] = useState(null);
   const [history, setHistory] = useState([]);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
+  const [printingReport, setPrintingReport] = useState(false);
 
   const reportRef = useRef(null);
   const router = useRouter();
@@ -163,6 +164,22 @@ export default function HeartHealthResult() {
     }
   };
 
+  /**
+   * High-Resolution Direct Print with MediConnect Logo and Watermark
+   */
+  const handlePrintReport = async () => {
+    try {
+      setPrintingReport(true);
+      if (!reportRef.current) throw new Error("Report element not found");
+      await printClientReport(reportRef.current);
+    } catch (error) {
+      console.error('Client print error, falling back to window.print():', error);
+      window.print();
+    } finally {
+      setPrintingReport(false);
+    }
+  };
+
   // Trend data points for line graph
   const trendPoints = graphData?.healthScoreTrend?.filter((p) => p.type === 'heart') || [];
 
@@ -196,7 +213,7 @@ export default function HeartHealthResult() {
                   Cardiovascular Health Screening Summary
                 </h1>
                 <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 max-w-xl leading-relaxed">
-                  This screening summarizes self-reported indicators. It does not diagnose cardiovascular disease or determine medical treatments.
+                  This screening summarizes the information entered for this assessment. It does not diagnose cardiovascular disease or determine individual treatment.
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-2 text-[11px]">
                   <span className="bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded border border-slate-200 font-mono">
@@ -220,24 +237,45 @@ export default function HeartHealthResult() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-center shrink-0">
+              <button
+                type="button"
+                onClick={handlePrintReport}
+                disabled={printingReport}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                title="Print Clinical Report with MediConnect Logo & Watermark"
+              >
+                <Printer className="w-3.5 h-3.5 text-[#0067A1]" />
+                <span>{printingReport ? 'Preparing...' : 'Print Report'}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={handleDownloadPDF}
                 disabled={downloadingPDF}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200 disabled:opacity-50 cursor-pointer"
+                title="Download PDF Report"
               >
                 <Download className="w-3.5 h-3.5 text-slate-600" />
-                {downloadingPDF ? 'Generating PDF...' : 'PDF Report'}
+                <span>{downloadingPDF ? 'Generating PDF...' : 'PDF Report'}</span>
               </button>
+
               <Link
                 href="/doctors"
                 className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0067A1] hover:bg-[#005584] text-white rounded-lg text-xs font-semibold shadow-xs transition-all"
               >
                 <Stethoscope className="w-3.5 h-3.5" />
-                Consult Doctor
+                <span>Consult Doctor</span>
               </Link>
             </div>
+          </div>
+        </div>
+
+        {/* Emergency Safety Notice Banner (SP-07 P1-14) */}
+        <div className="bg-amber-50/80 border border-amber-200/80 rounded-lg p-2.5 sm:p-3 flex items-start gap-2.5 text-[11px] sm:text-xs text-amber-900 leading-relaxed shadow-2xs">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-semibold">Important Clinical Notice:</span> If you have severe chest pain, sudden breathlessness, fainting, or acute symptoms, seek immediate emergency medical care rather than relying on this wellness screening.
           </div>
         </div>
 
@@ -305,8 +343,16 @@ export default function HeartHealthResult() {
                 label: 'Blood Pressure',
                 value: inputs.systolic_bp && inputs.diastolic_bp ? `${inputs.systolic_bp}/${inputs.diastolic_bp}` : '120/80',
                 unit: 'mmHg',
-                status: (inputs.systolic_bp >= 140 || inputs.diastolic_bp >= 90) ? 'Elevated' : (inputs.systolic_bp >= 120 || inputs.diastolic_bp >= 80) ? 'Normal / Optimal' : 'Normal',
-                badgeClass: (inputs.systolic_bp >= 140 || inputs.diastolic_bp >= 90) ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                status: (inputs.systolic_bp >= 140 || inputs.diastolic_bp >= 90)
+                  ? 'Potential Elevation*'
+                  : (inputs.systolic_bp >= 120 || inputs.diastolic_bp >= 70)
+                    ? 'Elevated BP (2024 ESC)*'
+                    : 'Normal / Optimal',
+                badgeClass: (inputs.systolic_bp >= 140 || inputs.diastolic_bp >= 90)
+                  ? 'bg-rose-50 text-rose-700 border-rose-200'
+                  : (inputs.systolic_bp >= 120 || inputs.diastolic_bp >= 70)
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
               },
               {
                 label: 'LDL Cholesterol',
@@ -373,10 +419,15 @@ export default function HeartHealthResult() {
 
           {/* Action Recommendations */}
           <div className="pt-2">
-            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              Suggested Wellness Follow-Up (Indian Context)
-            </h4>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2.5">
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                Suggested Cardiovascular Wellness Practices
+              </h4>
+              <span className="text-[10px] text-slate-500 font-medium">
+                Content adapted for common Indian food and activity contexts
+              </span>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {Array.isArray(recommendations) && recommendations.length > 0 ? (
@@ -396,19 +447,24 @@ export default function HeartHealthResult() {
               ) : (
                 <>
                   <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-200/90 text-xs space-y-1">
-                    <span className="font-semibold text-slate-900 text-xs">Aerobic Activity Goal</span>
+                    <span className="font-semibold text-slate-900 text-xs">1. Aerobic Physical Activity</span>
                     <p className="text-[11px] text-slate-600 leading-relaxed">
-                      Aim for 150–300 minutes of moderate physical activity per week (e.g. brisk walking, cycling, or yoga).
+                      For adults for whom moderate-intensity aerobic activity is appropriate, 150–300 minutes per week is used as a public-health reference band. Increase activity gradually.
                     </p>
                   </div>
                   <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-200/90 text-xs space-y-1">
-                    <span className="font-semibold text-slate-900 text-xs">Heart-Healthy Nutrition</span>
+                    <span className="font-semibold text-slate-900 text-xs">2. Heart-Healthy Nutrition</span>
                     <p className="text-[11px] text-slate-600 leading-relaxed">
-                      Incorporate whole grains, legumes, fresh vegetables, and limit refined oils, salt, and processed snacks.
+                      Choose a dietary pattern rich in vegetables, whole grains, and legumes; prefer unsaturated plant oils and limit excess sodium, saturated fat, and processed foods.
                     </p>
                   </div>
                 </>
               )}
+            </div>
+
+            <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[10px] text-slate-400">
+              <span>Health education content version: V2.4 | Reviewed by: Clinical Team | Framework: 2024 ESC</span>
+              <span>Screening generated · Not individualized medical advice</span>
             </div>
           </div>
         </div>

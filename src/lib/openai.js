@@ -176,46 +176,86 @@ function generateFallbackAnalysis(assessmentType, healthScore, riskFactors, inpu
   };
 }
 
-function generateFallbackRecommendations(assessmentType, riskFactors) {
-  const rec = [];
+function generateFallbackRecommendations(assessmentType, riskFactors, inputs = {}) {
+  const isHeart = assessmentType === "heart";
 
-  const hasBP =
-    riskFactors.includes("High blood pressure") ||
-    riskFactors.includes("Stage 2 Hypertension") ||
-    riskFactors.includes("Elevated BP");
+  if (isHeart) {
+    return [
+      {
+        category: "Physical Activity",
+        title: "Aerobic Physical Activity Band",
+        description:
+          "For adults for whom moderate-intensity aerobic activity is appropriate, 150–300 minutes per week is used as a public-health reference band. If you are inactive or have health limitations, increase activity gradually and seek professional advice when appropriate.",
+        priority: "General health action",
+        action_steps: [
+          "Engage in moderate-intensity walking or preferred aerobic exercise gradually building towards 150–300 mins/week.",
+          "Incorporate muscle-strengthening exercises on two or more days weekly.",
+        ],
+        timeframe: "Next 1–4 weeks: build activity gradually",
+        indian_context:
+          "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
+      },
+      {
+        category: "Nutrition",
+        title: "Heart-Healthy Dietary Pattern",
+        description:
+          "Choose a dietary pattern rich in vegetables, fruits, whole grains, pulses/legumes, nuts and other minimally processed foods; prefer unsaturated plant oils in appropriate amounts and limit excess sodium, saturated fat, trans fat and highly processed foods.",
+        priority: "General health action",
+        action_steps: [
+          "Prefer unsaturated plant oils and reduce deep-fried food consumption.",
+          "Incorporate fresh vegetables and whole grains into daily family meals.",
+        ],
+        timeframe: "Next 2–4 weeks",
+        indian_context:
+          "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
+      },
+      {
+        category: "Stress Management",
+        title: "Restorative Wellbeing & Stress Management",
+        description:
+          "Stress-management practices such as breathing exercises, mindfulness, yoga or other preferred relaxation activities may support overall wellbeing. Choose an approach that is safe and acceptable for you.",
+        priority: "General health action",
+        action_steps: [
+          "Practice 10–15 minutes of relaxed mindfulness or gentle yoga daily.",
+          "Prioritize regular sleep schedule and hydration.",
+        ],
+        timeframe: "Ongoing routine",
+        indian_context:
+          "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
+      },
+    ];
+  }
 
-  if (assessmentType === "heart" && hasBP) {
-    rec.push({
-      category: "lifestyle",
-      title: "Control Blood Pressure",
+  // Lung health fallbacks
+  return [
+    {
+      category: "Respiratory Wellness",
+      title: "Diaphragmatic Breathing Exercises",
       description:
-        "Reduce salt, improve activity, and manage stress to lower BP.",
-      priority: "high",
+        "Daily structured breath-control exercises support respiratory muscle conditioning and promote relaxation.",
+      priority: "General health action",
       action_steps: [
-        "Lower salt intake",
-        "Exercise at least 150 mins/week",
-        "Monitor BP regularly",
+        "Practice 5–10 minutes of diaphragmatic box breathing morning and evening.",
+        "Maintain upright posture during deep inhalation exercises.",
       ],
-      timeframe: "1-week",
-      indian_context: true,
-    });
-  }
-
-  if (assessmentType === "lung" && riskFactors.includes("Smoking")) {
-    rec.push({
-      category: "lifestyle",
-      title: "Stop Smoking",
-      description: "Quitting smoking improves lung function significantly.",
-      priority: "high",
+      timeframe: "Next 1–2 weeks",
+      indian_context:
+        "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
+    },
+    {
+      category: "Environmental Precaution",
+      title: "Ambient Air Quality Protection",
+      description:
+        "Limit strenuous outdoor exertion during high ambient AQI periods. Use indoor HEPA air filtration or particulate respirators when ambient PM2.5 levels are elevated.",
+      priority: "General health action",
       action_steps: [
-        "Join cessation program",
-        "Avoid smoking triggers",
-        "Practice breathing exercises",
+        "Check local AQI forecasts before planning vigorous morning walks.",
+        "Wear an N95 mask in high-dust or congested traffic corridors.",
       ],
-      timeframe: "1-week",
-      indian_context: true,
-    });
-  }
-
-  return rec;
+      timeframe: "Continuous daily practice",
+      indian_context:
+        "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
+    },
+  ];
 }
+

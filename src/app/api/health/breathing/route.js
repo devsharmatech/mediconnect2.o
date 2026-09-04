@@ -20,12 +20,15 @@ export async function GET(req) {
       });
     }
 
-    const { data, count, error } = await supabase
+    let query = supabase
       .from("breathing_sessions")
       .select("*", { count: "exact" })
       .eq("user_id", userId)
+      .neq("status", "CANCELLED")
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
+
+    const { data, count, error } = await query;
 
     if (error) throw error;
 
@@ -60,6 +63,7 @@ export async function POST(req) {
       duration_seconds,
       breaths_count,
       calm_score,
+      status = "COMPLETED",
     } = await req.json();
 
     if (!user_id || !session_type || !duration_seconds || !breaths_count) {
@@ -77,6 +81,7 @@ export async function POST(req) {
           duration_seconds,
           breaths_count,
           calm_score,
+          status,
           created_at: new Date().toISOString(),
         },
       ])
@@ -102,8 +107,9 @@ export async function POST(req) {
 async function calculateBreathingStats(userId) {
   const { data: sessions } = await supabase
     .from("breathing_sessions")
-    .select("created_at, duration_seconds, calm_score")
+    .select("created_at, duration_seconds, calm_score, status")
     .eq("user_id", userId)
+    .neq("status", "CANCELLED")
     .order("created_at", { ascending: false });
 
   const totalSessions = sessions?.length || 0;

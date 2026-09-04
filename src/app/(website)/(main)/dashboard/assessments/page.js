@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { FaHeartbeat, FaHistory, FaArrowLeft, FaDownload, FaEye, FaLightbulb } from "react-icons/fa";
+import React, { useState, useEffect, useRef } from "react";
+import { FaHeartbeat, FaHistory, FaArrowLeft, FaDownload, FaEye, FaLightbulb, FaPrint } from "react-icons/fa";
 import { TbLungsFilled } from "react-icons/tb";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { LoadingScreen } from "@/components/public-site/ui/LoadingStates";
+import AssessmentPrintReport from "@/components/public-site/health/AssessmentPrintReport";
+import { generateClientPdf, printClientReport } from "@/lib/clientPdfGenerator";
 
 const formatRecommendationsText = (recommendations) => {
   if (!recommendations) return "";
@@ -54,6 +56,8 @@ const AssessmentsPage = () => {
   const [assessments, setAssessments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [printingAssessment, setPrintingAssessment] = useState(null);
+  const reportRef = useRef(null);
 
   useEffect(() => {
     const userData = localStorage.getItem('userData');
@@ -88,49 +92,80 @@ const AssessmentsPage = () => {
     }
   };
 
-  const triggerFileDownload = async (url, filename) => {
+  const downloadPDF = async (assessmentId) => {
     try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('Failed to fetch file stream');
-      const blob = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename || 'mediconnect-assessment-report.pdf';
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        window.URL.revokeObjectURL(blobUrl);
-        document.body.removeChild(link);
-      }, 100);
-    } catch (err) {
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename || 'mediconnect-assessment-report.pdf';
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        document.body.removeChild(link);
-      }, 100);
+      const targetAssessment = assessments.find((a) => a.id === assessmentId);
+      if (!targetAssessment) {
+        toast.error("Assessment not found", { id: "pdf-toast" });
+        return;
+      }
+
+      // 15-Day Interval Policy Check for Lung Assessments (SP-06 LC-06 & LC-07)
+      if (targetAssessment.assessment_type === 'lung') {
+        const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
+        const elapsedMs = Date.now() - new Date(targetAssessment.created_at).getTime();
+        if (elapsedMs < FIFTEEN_DAYS_MS) {
+          const remainingDays = Math.max(0, Math.ceil((FIFTEEN_DAYS_MS - elapsedMs) / (24 * 60 * 60 * 1000)));
+          toast.error(
+            `Full report sharing is available after 15 complete days from the assessment date (${remainingDays} days remaining).`,
+            { id: "pdf-toast", duration: 5000 }
+          );
+          return;
+        }
+      }
+
+      toast.loading("Generating professional PDF report...", { id: "pdf-toast" });
+      setPrintingAssessment(targetAssessment);
+
+      // Allow DOM to render offscreen report element
+      await new Promise((resolve) => setTimeout(resolve, 120));
+
+      if (!reportRef.current) {
+        throw new Error("Report element failed to render");
+      }
+
+      const serialNo = targetAssessment.serial_no || (
+        targetAssessment.assessment_type === 'heart'
+          ? `CCN-${new Date(targetAssessment.created_at).getFullYear()}-${(targetAssessment.id || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
+          : `LCN-${new Date(targetAssessment.created_at).getFullYear()}-${(targetAssessment.id || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
+      );
+
+      const fileName = `mediconnect-${targetAssessment.assessment_type || 'health'}-report-${serialNo}.pdf`;
+      await generateClientPdf(reportRef.current, fileName);
+      toast.success("PDF report downloaded successfully!", { id: "pdf-toast" });
+    } catch (error) {
+      console.error('Failed to download PDF:', error);
+      toast.error("Failed to generate PDF report", { id: "pdf-toast" });
+    } finally {
+      setPrintingAssessment(null);
     }
   };
 
-  const downloadPDF = async (assessmentId) => {
+  const printReport = async (assessmentId) => {
     try {
-      toast.loading("Generating PDF report...", { id: "pdf-toast" });
-      const response = await fetch(`/api/health/assessments/pdf?id=${assessmentId}`);
-      const data = await response.json();
-      if (data.success && data.data?.url) {
-        toast.success("Downloading PDF report...", { id: "pdf-toast" });
-        const fileName = `mediconnect-${data.data?.assessment_type || 'health'}-report-${assessmentId.slice(0, 8)}.pdf`;
-        await triggerFileDownload(data.data.url, fileName);
-      } else {
-        toast.error(data.message || "Failed to generate PDF", { id: "pdf-toast" });
+      const targetAssessment = assessments.find((a) => a.id === assessmentId);
+      if (!targetAssessment) {
+        toast.error("Assessment not found", { id: "print-toast" });
+        return;
       }
+
+      toast.loading("Preparing print layout...", { id: "print-toast" });
+      setPrintingAssessment(targetAssessment);
+
+      // Allow DOM to render offscreen report element
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      if (!reportRef.current) {
+        throw new Error("Report element failed to render");
+      }
+
+      await printClientReport(reportRef.current);
+      toast.success("Print dialog opened!", { id: "print-toast" });
     } catch (error) {
-      console.error('Failed to download PDF:', error);
-      toast.error("Failed to download PDF report", { id: "pdf-toast" });
+      console.error('Failed to print report:', error);
+      toast.error("Failed to open print layout", { id: "print-toast" });
+    } finally {
+      setPrintingAssessment(null);
     }
   };
 
@@ -154,6 +189,16 @@ const AssessmentsPage = () => {
 
   return (
     <div className="min-h-screen bg-slate-50/50 py-4 sm:py-8 px-3 sm:px-6">
+      {/* Hidden Off-Screen Report Template for Canvas/PDF Generation */}
+      {printingAssessment && (
+        <AssessmentPrintReport
+          assessmentType={printingAssessment.assessment_type || "lung"}
+          assessmentData={printingAssessment}
+          patientData={user || {}}
+          reportRef={reportRef}
+        />
+      )}
+
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -330,6 +375,15 @@ const AssessmentsPage = () => {
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => printReport(assessment.id)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                        title="Print Clinical Report (with Logo & Watermark)"
+                      >
+                        <FaPrint className="w-3 h-3 text-[#0067A1]" />
+                        <span className="hidden xs:inline">Print</span>
+                      </button>
+
                       <button
                         onClick={() => downloadPDF(assessment.id)}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200/80 rounded-lg transition-colors cursor-pointer"

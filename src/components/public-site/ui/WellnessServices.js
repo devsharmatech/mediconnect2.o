@@ -132,7 +132,7 @@ const WellnessServices = ({ onLoginClick }) => {
                                         <FaLungs className="w-7 h-7 text-emerald-500 animate-pulse" />
                                     </div>
                                     <div>
-                                        <span className="text-xs font-bold uppercase tracking-widest text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full">Respiratory Care</span>
+                                        <span className="text-xs font-bold uppercase tracking-widest text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full">Respiratory Wellness Assessment</span>
                                         <h3 className="text-2xl sm:text-3xl font-extrabold text-[#003358] mt-1">
                                             LungConnect
                                         </h3>
@@ -140,7 +140,7 @@ const WellnessServices = ({ onLoginClick }) => {
                                 </div>
 
                                 <p className="text-gray-600 text-base mb-8 leading-relaxed">
-                                    Comprehensive respiratory wellness. Use our breathing exercises and interactive games to improve lung capacity and track your breath quality.
+                                    Complete a guided respiratory wellness assessment and review your recorded results.
                                 </p>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
@@ -149,24 +149,24 @@ const WellnessServices = ({ onLoginClick }) => {
                                         <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mb-3 shadow-sm">
                                             <FaGamepad className="w-5 h-5" />
                                         </div>
-                                        <h4 className="font-bold text-[#003358] text-sm mb-1">1. Breath Games</h4>
-                                        <p className="text-xs text-gray-500 leading-relaxed">Exercises to check lung capacity.</p>
+                                        <h4 className="font-bold text-[#003358] text-sm mb-1">1. Guided Inputs</h4>
+                                        <p className="text-xs text-gray-500 leading-relaxed">Profile, habits & breathing observations.</p>
                                     </div>
                                     {/* Step 2 */}
                                     <div className="flex flex-col items-start p-4 rounded-2xl bg-gray-50 border border-gray-100 hover:border-[#0067A1]/20 transition-colors">
                                         <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-3 shadow-sm">
                                             <FaChartLine className="w-5 h-5" />
                                         </div>
-                                        <h4 className="font-bold text-[#003358] text-sm mb-1">2. Analyze Trends</h4>
-                                        <p className="text-xs text-gray-500 leading-relaxed">See patterns in your respiratory health.</p>
+                                        <h4 className="font-bold text-[#003358] text-sm mb-1">2. Recorded Trend</h4>
+                                        <p className="text-xs text-gray-500 leading-relaxed">Review historical assessment movements.</p>
                                     </div>
                                     {/* Step 3 */}
                                     <div className="flex flex-col items-start p-4 rounded-2xl bg-gray-50 border border-gray-100 hover:border-[#0067A1]/20 transition-colors">
                                         <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-500 flex items-center justify-center mb-3 shadow-sm">
                                             <FaClipboardCheck className="w-5 h-5" />
                                         </div>
-                                        <h4 className="font-bold text-[#003358] text-sm mb-1">3. Stay Informed</h4>
-                                        <p className="text-xs text-gray-500 leading-relaxed">Alerts to share with your specialist.</p>
+                                        <h4 className="font-bold text-[#003358] text-sm mb-1">3. Care Navigation</h4>
+                                        <p className="text-xs text-gray-500 leading-relaxed">Seamlessly connect with verified doctors.</p>
                                     </div>
                                 </div>
 
@@ -174,9 +174,9 @@ const WellnessServices = ({ onLoginClick }) => {
                                     <button
                                         suppressHydrationWarning
                                         onClick={() => handleServiceClick('lung')}
-                                        className="w-full sm:w-auto py-3.5 px-8 rounded-xl bg-white border border-[#0067A1] text-[#0067A1] font-semibold hover:bg-[#0067A1]/5 transition-all hover:shadow-md text-sm active:scale-95"
+                                        className="w-full sm:w-auto py-3.5 px-8 rounded-xl bg-[#0067A1] text-white font-semibold hover:bg-[#005584] transition-all hover:shadow-md text-sm active:scale-95"
                                     >
-                                        Check Respiratory Health
+                                        Start Assessment
                                     </button>
                                 </div>
                             </div>

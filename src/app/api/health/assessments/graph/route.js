@@ -26,6 +26,7 @@ export async function GET(req) {
       .from("health_assessments")
       .select(`
         id,
+        serial_no,
         assessment_type,
         health_score,
         calculated_age,
@@ -64,10 +65,14 @@ export async function GET(req) {
           gender,
           height_cm,
           weight_kg,
+          bmi,
+          lung_age,
           smoking_status,
           smoking_pack_years,
+          pack_years,
           pollution_exposure,
           occupational_risk,
+          occupational_exposure,
           breath_holding_time,
           breaths_per_minute,
           peak_flow,
@@ -121,13 +126,20 @@ export async function GET(req) {
 function getDateFilter(timeframe) {
   const now = new Date();
   switch (timeframe) {
+    case '7d':
     case 'week':
       return new Date(now.setDate(now.getDate() - 7)).toISOString();
+    case '1m':
     case 'month':
       return new Date(now.setMonth(now.getMonth() - 1)).toISOString();
     case '3months':
+    case '3m':
       return new Date(now.setMonth(now.getMonth() - 3)).toISOString();
+    case '6m':
+    case '6months':
+      return new Date(now.setMonth(now.getMonth() - 6)).toISOString();
     case 'year':
+    case '1y':
       return new Date(now.setFullYear(now.getFullYear() - 1)).toISOString();
     default:
       return null;
@@ -169,6 +181,11 @@ function formatHistoryData(assessments) {
 
   return assessments.map(assessment => ({
     id: assessment.id,
+    serialNo: assessment.serial_no || (
+      assessment.assessment_type === 'heart'
+        ? `CCN-${new Date(assessment.created_at).getFullYear()}-${assessment.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
+        : `LCN-${new Date(assessment.created_at).getFullYear()}-${assessment.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
+    ),
     type: assessment.assessment_type,
     date: assessment.created_at,
     healthScore: assessment.health_score,
@@ -176,6 +193,7 @@ function formatHistoryData(assessments) {
     calculatedAge: assessment.calculated_age,
     aiAnalysis: assessment.ai_analysis,
     recommendations: assessment.recommendations,
+    rawAssessment: assessment,
     inputs: assessment.assessment_type === 'heart' 
       ? formatHeartInputs(assessment.heart_health_inputs?.[0])
       : formatLungInputs(assessment.lung_health_inputs?.[0])

@@ -82,13 +82,7 @@ function calculateLungHealth(inputs) {
         score -= 8;
     }
 
-    // AQI Context (Environmental observation)
-    if (inputs.aqi > 200) {
-        score -= 15;
-        riskFactors.push("High environmental pollution exposure");
-    } else if (inputs.aqi > 120) {
-        score -= 8;
-    }
+    // Note: Per DEC-006 & LC-05, AQI and weather are environmental context only and do NOT enter score calculation.
 
     if (inputs.breathlessness === "severe") { score -= 20; riskFactors.push("Severe breathlessness"); }
     else if (inputs.breathlessness === "moderate") { score -= 12; }
@@ -222,10 +216,13 @@ export async function POST(req) {
             }
         }
 
-        // 4. Insert into health_assessments table (with safe non-null calculated_age)
+        // 4. Insert into health_assessments table (with safe non-null calculated_age and canonical serial_no)
         const safeCalculatedAge = (calculatedAge !== null && calculatedAge !== undefined)
             ? Number(calculatedAge)
             : (parseInt(inputs.age) || 45);
+
+        const generatedSerialNo = (assessment_type === "heart" ? "CCN" : "LCN") +
+            `-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
         const { data: assessment, error: assessmentError } = await supabase
             .from("health_assessments")
@@ -237,6 +234,7 @@ export async function POST(req) {
                 risk_level: riskLevel,
                 ai_analysis: aiAnalysis,
                 recommendations: recommendations,
+                serial_no: generatedSerialNo,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             }])
@@ -248,8 +246,26 @@ export async function POST(req) {
         // 5. Insert into specific input table (identical to V1)
         const inputTable = assessment_type === "heart" ? "heart_health_inputs" : "lung_health_inputs";
         const cleanInputs = { ...inputs };
-        delete cleanInputs.bmi;
         delete cleanInputs.calculated_bmi;
+
+        if (assessment_type === "heart") {
+            // In PostgreSQL, heart_health_inputs.bmi is defined as GENERATED ALWAYS AS (weight_kg / ((height_cm/100)^2)) STORED
+            // Attempting to insert a value causes error 428C9 (cannot insert a non-DEFAULT value into column "bmi")
+            delete cleanInputs.bmi;
+        }
+
+        if (assessment_type === "lung") {
+            cleanInputs.lung_age = safeCalculatedAge;
+            if (cleanInputs.pack_years !== undefined && cleanInputs.smoking_pack_years === undefined) {
+                cleanInputs.smoking_pack_years = cleanInputs.pack_years;
+            }
+            if (cleanInputs.smoking_pack_years !== undefined && cleanInputs.pack_years === undefined) {
+                cleanInputs.pack_years = cleanInputs.smoking_pack_years;
+            }
+            if (cleanInputs.occupational_exposure !== undefined && cleanInputs.occupational_risk === undefined) {
+                cleanInputs.occupational_risk = cleanInputs.occupational_exposure !== 'none';
+            }
+        }
 
         const { error: inputError } = await supabase.from(inputTable).insert([{
             assessment_id: assessment.id,

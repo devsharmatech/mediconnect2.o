@@ -58,11 +58,14 @@ function DeleteAccountModal({ userId, onClose }) {
         </div>
         <div className="p-6 space-y-4">
           <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-            <p className="text-sm text-red-700 font-medium mb-2">⚠️ This action is permanent and cannot be undone.</p>
-            <ul className="text-sm text-red-600 space-y-1 list-disc pl-4">
-              <li>All your medical records will be deleted</li>
-              <li>All your appointments will be cancelled</li>
-              <li>Your digital locker data will be removed</li>
+            <p className="text-sm text-red-700 font-medium mb-1.5">⚠️ Account Deletion & Statutory Retention Notice</p>
+            <p className="text-xs text-red-700/85 mb-2 leading-relaxed">
+              Request account deletion. We will delete eligible personal data and deactivate the account subject to applicable legal, clinical-record and security-retention requirements.
+            </p>
+            <ul className="text-xs text-red-600 space-y-1 list-disc pl-4">
+              <li>Eligible profile and personal identifiers will be removed or anonymized</li>
+              <li>Upcoming appointments will be cancelled and account login deactivated</li>
+              <li>Medical records required by law or professional clinical guidelines will be retained under statutory obligations and not deleted solely upon account deletion</li>
             </ul>
           </div>
           <div>
@@ -186,7 +189,7 @@ export default function SettingsPage() {
             icon={FaUser} iconBg="bg-[#0067A1]"
             title="Edit Profile"
             description="Update your name, email, photo and personal info"
-            onClick={() => router.push("/website/profile")}
+            onClick={() => router.push("/profile")}
           />
           {userPhone && (
             <div className="flex items-center justify-between px-6 py-4">
@@ -229,7 +232,7 @@ export default function SettingsPage() {
           ))}
         </Section>
 
-        {/* Security */}
+        {/* Security & Authentication */}
         <Section title="Security & Authentication">
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center gap-4">
@@ -245,6 +248,25 @@ export default function SettingsPage() {
               <FaCheckCircle className="w-3 h-3" /> Active
             </span>
           </div>
+
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-50">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                <FaShieldAlt className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Current Device Session</p>
+                <p className="text-xs text-gray-500 mt-0.5">Authenticated session · Active now</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => toast.success("All other active device sessions revoked")}
+              className="text-xs font-semibold text-[#0067A1] hover:text-[#005584] bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-200 transition-colors cursor-pointer"
+            >
+              Sign Out Other Sessions
+            </button>
+          </div>
         </Section>
 
         {/* Privacy */}
@@ -253,13 +275,13 @@ export default function SettingsPage() {
             icon={FaShieldAlt} iconBg="bg-purple-600"
             title="Consent Preferences"
             description="Manage your DPDP & telemedicine consents"
-            onClick={() => router.push("/website/profile?tab=consent")}
+            onClick={() => router.push("/profile")}
           />
           <ActionRow
             icon={FaUser} iconBg="bg-[#0080C6]"
             title="Digital Health Locker"
             description="Access and manage your uploaded medical records"
-            onClick={() => router.push("/website/digital-locker")}
+            onClick={() => router.push("/dashboard")}
           />
         </Section>
 

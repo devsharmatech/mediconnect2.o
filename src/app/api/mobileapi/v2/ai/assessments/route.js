@@ -64,20 +64,19 @@ function calculateLungHealth(inputs) {
     if (inputs.smoking_status === "current") { score -= 30; riskFactors.push("Smoking"); }
     else if (inputs.smoking_status === "former") { score -= 12; }
 
-    if (inputs.peak_flow < 350) { score -= 25; riskFactors.push("Low peak flow (possible asthma/COPD)"); }
-    else if (inputs.peak_flow < 450) { score -= 10; }
+    if (inputs.peak_flow && inputs.peak_flow < 350) { score -= 20; riskFactors.push("Lower peak expiratory flow"); }
+    else if (inputs.peak_flow && inputs.peak_flow < 450) { score -= 8; }
 
-    if (inputs.aqi > 200) { score -= 20; riskFactors.push("Severe pollution exposure"); }
-    else if (inputs.aqi > 120) { score -= 10; }
+    // Note: Per DEC-006 & LC-05, AQI and weather are environmental context only and do NOT enter score calculation.
 
     if (inputs.breathlessness === "severe") { score -= 20; riskFactors.push("Severe breathlessness"); }
     else if (inputs.breathlessness === "moderate") { score -= 12; }
 
-    if (inputs.cough_frequency === "constant") { score -= 18; riskFactors.push("Chronic cough"); }
-    if (inputs.wheezing) { score -= 12; riskFactors.push("Wheezing (possible asthma)"); }
+    if (inputs.cough_frequency === "constant") { score -= 18; riskFactors.push("Frequent cough"); }
+    if (inputs.wheezing) { score -= 12; riskFactors.push("Wheezing reported"); }
 
-    if (inputs.breath_holding_time < 20) { score -= 20; riskFactors.push("Low lung capacity"); }
-    else if (inputs.breath_holding_time < 40) { score -= 10; }
+    if (inputs.breath_holding_time && inputs.breath_holding_time < 20) { score -= 15; riskFactors.push("Reduced breath-holding time"); }
+    else if (inputs.breath_holding_time && inputs.breath_holding_time < 35) { score -= 8; }
 
     score = Math.max(0, Math.min(100, score));
     const lungAge = inputs.age + Math.floor((100 - score) / 2.5);
@@ -171,10 +170,13 @@ export async function POST(req) {
             }
         }
 
-        // 4. Insert into health_assessments table (with safe non-null calculated_age)
+        // 4. Insert into health_assessments table (with safe non-null calculated_age and canonical serial_no)
         const safeCalculatedAge = (calculatedAge !== null && calculatedAge !== undefined)
             ? Number(calculatedAge)
             : (parseInt(inputs.age) || 45);
+
+        const generatedSerialNo = (assessment_type === "heart" ? "CCN" : "LCN") +
+            `-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
         const { data: assessment, error: assessmentError } = await supabase
             .from("health_assessments")
@@ -186,6 +188,7 @@ export async function POST(req) {
                 risk_level: riskLevel,
                 ai_analysis: aiAnalysis,
                 recommendations: recommendations,
+                serial_no: generatedSerialNo,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             }])
@@ -197,8 +200,26 @@ export async function POST(req) {
         // 5. Insert into specific input table (identical to V1)
         const inputTable = assessment_type === "heart" ? "heart_health_inputs" : "lung_health_inputs";
         const cleanInputs = { ...inputs };
-        delete cleanInputs.bmi;
         delete cleanInputs.calculated_bmi;
+
+        if (assessment_type === "heart") {
+            // In PostgreSQL, heart_health_inputs.bmi is defined as GENERATED ALWAYS AS (weight_kg / ((height_cm/100)^2)) STORED
+            // Attempting to insert a value causes error 428C9 (cannot insert a non-DEFAULT value into column "bmi")
+            delete cleanInputs.bmi;
+        }
+
+        if (assessment_type === "lung") {
+            cleanInputs.lung_age = safeCalculatedAge;
+            if (cleanInputs.pack_years !== undefined && cleanInputs.smoking_pack_years === undefined) {
+                cleanInputs.smoking_pack_years = cleanInputs.pack_years;
+            }
+            if (cleanInputs.smoking_pack_years !== undefined && cleanInputs.pack_years === undefined) {
+                cleanInputs.pack_years = cleanInputs.smoking_pack_years;
+            }
+            if (cleanInputs.occupational_exposure !== undefined && cleanInputs.occupational_risk === undefined) {
+                cleanInputs.occupational_risk = cleanInputs.occupational_exposure !== 'none';
+            }
+        }
 
         const { error: inputError } = await supabase.from(inputTable).insert([{
             assessment_id: assessment.id,
