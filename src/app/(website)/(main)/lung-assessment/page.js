@@ -2,12 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaLungs, FaMale, FaFemale, FaArrowRight, FaArrowLeft,
   FaCheck, FaWind, FaSmoking, FaCity, FaCloud, FaIndustry,
   FaExclamationTriangle, FaMapMarkerAlt, FaSync
 } from 'react-icons/fa';
+import toast from 'react-hot-toast';
+
+const LoginModal = dynamic(
+  () => import("@/components/public-site/auth/LoginModal"),
+  { ssr: false }
+);
 
 export default function GamifiedLungAssessment() {
   const router = useRouter();
@@ -16,6 +23,7 @@ export default function GamifiedLungAssessment() {
   const [loading, setLoading] = useState(false);
   const [aqiLoading, setAqiLoading] = useState(false);
   const [aqiInfo, setAqiInfo] = useState(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Pre-filled values (Delhi default per policy)
   const [formData, setFormData] = useState({
@@ -122,10 +130,11 @@ export default function GamifiedLungAssessment() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const userData = localStorage.getItem('userData');
+      const userData = typeof window !== 'undefined' ? localStorage.getItem('userData') : null;
       if (!userData) {
-        alert('Please login to submit assessment');
-        router.push('/website/auth/patient/login');
+        setLoading(false);
+        setShowLoginModal(true);
+        toast.error('Please log in to save and calculate your assessment.');
         return;
       }
 
@@ -587,8 +596,20 @@ export default function GamifiedLungAssessment() {
                 {!loading && <FaLungs className="w-3 h-3" />}
               </button>
             )}
-          </div>
         </div>
+
+      </div>
+
+      {/* Login Modal for Guest Submissions */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        initialUserType="patient"
+        onSuccess={() => {
+          setShowLoginModal(false);
+          handleSubmit();
+        }}
+      />
 
       </div>
     </div>

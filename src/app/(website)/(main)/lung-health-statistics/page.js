@@ -882,7 +882,7 @@ export default function LungHealthStatisticsPage() {
                     {breathingStats.totalMinutes} total minutes practiced
                   </p>
                   <Link
-                    href="/breathing-exercise"
+                    href="/dashboard/breathing"
                     className="mt-3 block w-full py-1.5 px-3 bg-white text-[#0067A1] hover:bg-sky-50 rounded-lg text-xs font-semibold text-center transition-colors shadow-2xs"
                   >
                     Start Breathing Exercise

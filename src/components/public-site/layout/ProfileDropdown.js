@@ -8,7 +8,10 @@ import {
   FaChevronDown,
   FaCalendarAlt,
   FaFlask,
+  FaHeartbeat,
+  FaCog,
 } from "react-icons/fa";
+import { TbLungsFilled } from "react-icons/tb";
 
 const ProfileDropdown = ({ user, userRole, onLogout }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -101,7 +104,7 @@ const ProfileDropdown = ({ user, userRole, onLogout }) => {
       {/* Dropdown Menu */}
       {isOpen && (
       <div
-        className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden origin-top-right"
+        className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden origin-top-right z-50"
       >
         {/* User Info Section */}
         <div className="px-4 py-3 bg-[#F6F8FA] border-b border-gray-100">
@@ -134,19 +137,37 @@ const ProfileDropdown = ({ user, userRole, onLogout }) => {
           <Link
             href={isDoctor ? "/doctor" : "/website/dashboard"}
             onClick={() => setIsOpen(false)}
-            className="flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 group"
+            className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 group"
           >
             <FaUser className="h-4 w-4 mr-3 text-gray-400 group-hover:text-[#0067A1]" />
             <span className="font-medium">{isDoctor ? "Doctor Dashboard" : "Dashboard"}</span>
           </Link>
 
-          {/* Patient shortcuts (appointments, labs) */}
+          {/* Patient shortcuts */}
           {!isDoctor && (
             <>
               <Link
+                href="/website/lung-connect"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 group"
+              >
+                <TbLungsFilled className="h-4 w-4 mr-3 text-teal-600 group-hover:text-teal-700" />
+                <span className="font-medium">LungConnect</span>
+              </Link>
+
+              <Link
+                href="/website/cardio-connect"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 group"
+              >
+                <FaHeartbeat className="h-4 w-4 mr-3 text-rose-500 group-hover:text-rose-600" />
+                <span className="font-medium">CardioConnect</span>
+              </Link>
+
+              <Link
                 href="/website/appointments"
                 onClick={() => setIsOpen(false)}
-                className="flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 group"
+                className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 group"
               >
                 <FaCalendarAlt className="h-4 w-4 mr-3 text-gray-400 group-hover:text-[#0067A1]" />
                 <span className="font-medium">My Appointments</span>
@@ -155,10 +176,19 @@ const ProfileDropdown = ({ user, userRole, onLogout }) => {
               <Link
                 href="/website/lab-reports"
                 onClick={() => setIsOpen(false)}
-                className="flex items-center px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 group"
+                className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 group"
               >
                 <FaFlask className="h-4 w-4 mr-3 text-gray-400 group-hover:text-[#0067A1]" />
                 <span className="font-medium">Lab Reports</span>
+              </Link>
+
+              <Link
+                href="/website/profile"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 group"
+              >
+                <FaUser className="h-4 w-4 mr-3 text-gray-400 group-hover:text-[#0067A1]" />
+                <span className="font-medium">My Profile</span>
               </Link>
             </>
           )}

@@ -50,11 +50,11 @@ const PatientSidebar = ({
         try {
           return JSON.parse(saved);
         } catch (error) {
-          return { heart: false, lung: false };
+          return { cardio: false, lung: false, heart: false };
         }
       }
     }
-    return { heart: false, lung: false };
+    return { cardio: false, lung: false, heart: false };
   });
 
   const handleLogout = () => {
@@ -103,6 +103,57 @@ const PatientSidebar = ({
       icon: FaUserMd,
     },
     {
+      section: "Health Programs",
+      name: "LungConnect",
+      icon: TbLungsFilled,
+      groupId: "lung",
+      children: [
+        {
+          name: "LungConnect Hub",
+          href: "/website/lung-connect",
+          icon: TbLungsFilled,
+        },
+        {
+          name: "Respiratory Assessment",
+          href: "/website/lung-assessment",
+          icon: TbLungsFilled,
+        },
+        {
+          name: "Longitudinal Statistics",
+          href: "/website/lung-health-statistics",
+          icon: TbLungsFilled,
+        },
+        {
+          name: "Breathing Exercises",
+          href: "/website/dashboard/breathing",
+          icon: FaWind,
+        },
+      ],
+    },
+    {
+      section: "Health Programs",
+      name: "CardioConnect",
+      icon: FaHeartbeat,
+      groupId: "cardio",
+      children: [
+        {
+          name: "CardioConnect Hub",
+          href: "/website/cardio-connect",
+          icon: FaHeartbeat,
+        },
+        {
+          name: "Cardio Assessment",
+          href: "/website/heart-health",
+          icon: FaHeartbeat,
+        },
+        {
+          name: "Cardio Statistics",
+          href: "/website/heart-health-statistics",
+          icon: FaHeartbeat,
+        },
+      ],
+    },
+    {
       section: "Services",
       name: "Medicines",
       href: "/website/medicine-order",
@@ -128,6 +179,12 @@ const PatientSidebar = ({
     },
     {
       section: "Services",
+      name: "Medical Equipment",
+      href: "/website/medical-equipment",
+      icon: FaFileMedical,
+    },
+    {
+      section: "Services",
       name: "Digital Locker",
       href: "/website/digital-locker",
       icon: FaLock,
@@ -145,46 +202,16 @@ const PatientSidebar = ({
       icon: FaHeartbeat,
     },
     {
-      section: "Health Programs",
-      name: "Heart Wellness",
-      icon: FaHeartbeat,
-      groupId: "heart",
-      children: [
-        {
-          name: "Heart Health",
-          href: "/website/heart-health",
-          icon: FaHeartbeat,
-        },
-        {
-          name: "Heart Statistics",
-          href: "/website/heart-health-statistics",
-          icon: FaHeartbeat,
-        },
-      ],
+      section: "Tools",
+      name: "Symptom Checker",
+      href: "/website/guided-symptom-check",
+      icon: FaUserNurse,
     },
     {
-      section: "Health Programs",
-      name: "Lung Wellness",
-      icon: TbLungsFilled,
-      groupId: "lung",
-      children: [
-        {
-          name: "Lung Health",
-          href: "/website/lung-assessment",
-          icon: TbLungsFilled,
-        },
-        {
-          name: "Lung Statistics",
-          href: "/website/lung-health-statistics",
-          icon: TbLungsFilled,
-        },
-      ],
-    },
-    {
-      section: "Health Programs",
-      name: "Breathing Exercises",
-      href: "/website/dashboard/breathing",
-      icon: FaWind,
+      section: "Tools",
+      name: "ABHA Health ID",
+      href: "/website/abha",
+      icon: FaLock,
     },
     {
       section: "Tools",
@@ -192,28 +219,43 @@ const PatientSidebar = ({
       href: "/website#ai-chat",
       icon: FaUserNurse,
     },
+    {
+      section: "Account",
+      name: "My Profile",
+      href: "/website/profile",
+      icon: FaUser,
+    },
+    {
+      section: "Account",
+      name: "Settings",
+      href: "/website/settings",
+      icon: FaCog,
+    },
   ];
 
   const isActive = (href) => {
-    if (href === "/website/dashboard") {
-      return pathname === "/website/dashboard";
+    const cleanPath = (pathname || "").replace(/^\/website/, "") || "/";
+    const cleanHref = (href || "").replace(/^\/website/, "") || "/";
+
+    if (cleanHref === "/dashboard") {
+      return cleanPath === "/dashboard";
     }
 
-    if (href === "/website/nursing-care") {
-      return pathname === "/website/nursing-care";
+    if (cleanHref === "/nursing-care") {
+      return cleanPath === "/nursing-care";
     }
-    if (href === "/website/nursing-care/status") {
-      return pathname === "/website/nursing-care/status";
-    }
-
-    if (href === "/website/dashboard/lab-booking") {
-      return pathname === "/website/dashboard/lab-booking" || (pathname.startsWith("/website/dashboard/lab-booking/") && !pathname.startsWith("/website/dashboard/lab-booking/orders"));
-    }
-    if (href === "/website/dashboard/lab-booking/orders") {
-      return pathname === "/website/dashboard/lab-booking/orders";
+    if (cleanHref === "/nursing-care/status") {
+      return cleanPath === "/nursing-care/status";
     }
 
-    return pathname === href || pathname.startsWith(`${href}/`);
+    if (cleanHref === "/dashboard/lab-booking") {
+      return cleanPath === "/dashboard/lab-booking" || (cleanPath.startsWith("/dashboard/lab-booking/") && !cleanPath.startsWith("/dashboard/lab-booking/orders"));
+    }
+    if (cleanHref === "/dashboard/lab-booking/orders") {
+      return cleanPath === "/dashboard/lab-booking/orders";
+    }
+
+    return cleanPath === cleanHref || cleanPath.startsWith(`${cleanHref}/`);
   };
 
   useEffect(() => {
@@ -221,6 +263,21 @@ const PatientSidebar = ({
     if (navRef.current && saved) {
       navRef.current.scrollTop = Number(saved);
     }
+  }, [pathname]);
+
+  // Auto-expand group if current route is a child
+  useEffect(() => {
+    menuItems.forEach((item) => {
+      if (item.children && item.groupId) {
+        const hasActiveChild = item.children.some((child) => isActive(child.href));
+        if (hasActiveChild) {
+          setOpenGroups((prev) => {
+            if (prev[item.groupId]) return prev;
+            return { ...prev, [item.groupId]: true };
+          });
+        }
+      }
+    });
   }, [pathname]);
 
   useEffect(() => {

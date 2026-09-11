@@ -640,6 +640,14 @@ export default function BreathingPage() {
         {/* SETUP STAGE */}
         {stage === "setup" && (
           <div className="space-y-4 sm:space-y-6">
+
+            {/* LC-14 Non-diagnostic Wellness Policy Alert */}
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 flex items-start gap-2.5">
+              <FaWind className="w-3.5 h-3.5 text-[#0067A1] shrink-0 mt-0.5" />
+              <p className="leading-relaxed text-[11px]">
+                <strong className="text-slate-800">Wellness Activity:</strong> Paced breathing exercises support relaxation and respiratory awareness. They do not constitute medical therapy, diagnostic assessment, or prescription treatment for asthma, COPD, or clinical dyspnea.
+              </p>
+            </div>
             
             {/* Stats Overview */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5">
@@ -810,41 +818,46 @@ export default function BreathingPage() {
                 })}
               </div>
 
-              {/* Duration & Launch Bar */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 pt-3 sm:pt-4 border-t border-slate-100">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-xs font-semibold text-slate-700">Duration:</span>
-                  <div className="inline-flex rounded-lg bg-slate-100 p-1 border border-slate-200 overflow-x-auto no-scrollbar">
-                    {[1, 2, 3, 5, 10].map(m => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setSelectedMinutes(m)}
-                        className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-md transition-all whitespace-nowrap cursor-pointer ${
-                          selectedMinutes === m
-                            ? "bg-white text-[#0067A1] shadow-2xs"
-                            : "text-slate-600 hover:text-slate-900"
-                        }`}
-                      >
-                        {m} min
-                      </button>
-                    ))}
+              {/* Duration & Launch Bar (LC-15) */}
+              <div className="space-y-2 pt-3 sm:pt-4 border-t border-slate-100">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xs font-semibold text-slate-700">Duration:</span>
+                    <div className="inline-flex rounded-lg bg-slate-100 p-1 border border-slate-200 overflow-x-auto no-scrollbar">
+                      {[1, 2, 3, 5, 10].map(m => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setSelectedMinutes(m)}
+                          className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-md transition-all whitespace-nowrap cursor-pointer ${
+                            selectedMinutes === m
+                              ? "bg-white text-[#0067A1] shadow-2xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          {m} min
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={startSession}
-                  className="w-full sm:w-auto px-5 py-2.5 bg-[#0067A1] hover:bg-[#005584] text-white text-xs font-semibold rounded-lg shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <FaPlay className="w-3 h-3" />
-                  Begin {selectedExercise.name} ({selectedMinutes}m)
-                </button>
+                  <button
+                    type="button"
+                    onClick={startSession}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-[#0067A1] hover:bg-[#005584] text-white text-xs font-semibold rounded-lg shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <FaPlay className="w-3 h-3" />
+                    Begin {selectedExercise.name} ({selectedMinutes}m)
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Duration is a personal pacing session configuration, not a clinical dose or treatment prescription.
+                </p>
               </div>
 
             </div>
 
-            {/* Session History Log Table */}
+            {/* Session History Log Table (LC-16) */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs">
               <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
                 <FaRegCalendarAlt className="text-slate-400 w-3.5 h-3.5" />
@@ -853,7 +866,7 @@ export default function BreathingPage() {
 
               {history.length === 0 ? (
                 <div className="text-center py-6 text-xs text-slate-400">
-                  No completed exercise sessions recorded yet. Completed exercises will be stored here.
+                  No completed sessions logged yet. Your completed breathing sessions will appear here.
                 </div>
               ) : (
                 <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">

@@ -1564,23 +1564,58 @@ function DoctorOnboardingForm({
     setCurrentStep((prev) => Math.max(prev - 1, 1));
   };
 
-  // Upload a single file directly via server-side Supabase upload
+  // Upload a single file via S3 presigned URL (direct client-to-S3 upload, bypasses server body size limits)
   const uploadFileViaSignedUrl = async (file, folder) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("folder", folder);
+    const contentType =
+      file.type ||
+      (file.name?.toLowerCase().endsWith(".pdf")
+        ? "application/pdf"
+        : file.name?.toLowerCase().endsWith(".png")
+        ? "image/png"
+        : file.name?.toLowerCase().endsWith(".webp")
+        ? "image/webp"
+        : "image/jpeg");
 
-    const res = await fetch("/api/upload/doctor-document", {
+    // Step 1: Request presigned S3 upload URL from API
+    const res = await fetch("/api/upload/signed-url", {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName: file.name,
+        contentType: contentType,
+        bucket: "doctor-documents",
+        folder: folder,
+      }),
     });
 
-    const result = await res.json();
-    if (!result.success) {
-      throw new Error(result.message || "Failed to upload file");
+    let result;
+    try {
+      result = await res.json();
+    } catch (err) {
+      if (res.status === 413) throw new Error("File too large. Please upload a smaller file.");
+      throw new Error(`Server error (${res.status}). Failed to get upload URL.`);
     }
 
-    return result.publicUrl;
+    if (!result.success) {
+      throw new Error(result.message || "Failed to get upload URL");
+    }
+
+    const { signedUrl, publicUrl } = result.data;
+
+    // Step 2: Upload file directly to AWS S3 using presigned PUT URL
+    const uploadRes = await fetch(signedUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": contentType,
+      },
+      body: file,
+    });
+
+    if (!uploadRes.ok) {
+      throw new Error(`Direct S3 upload failed (${uploadRes.status}) for ${file.name}`);
+    }
+
+    return publicUrl;
   };
 
   const handleSubmit = async (e) => {

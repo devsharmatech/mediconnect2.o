@@ -25,7 +25,11 @@ const WellnessServices = ({ onLoginClick }) => {
 
         if (serviceType === 'cardio') {
             router.push('/website/heart-health');
+        } else if (serviceType === 'cardio_hub') {
+            router.push('/website/cardio-connect');
         } else if (serviceType === 'lung') {
+            router.push('/lung-connect');
+        } else if (serviceType === 'lung_assessment') {
             router.push('/website/lung-assessment');
         }
     };
@@ -109,13 +113,20 @@ const WellnessServices = ({ onLoginClick }) => {
                                     </div>
                                 </div>
 
-                                <div className="pt-2">
+                                <div className="pt-2 flex flex-wrap items-center gap-3">
+                                    <button
+                                        suppressHydrationWarning
+                                        onClick={() => handleServiceClick('cardio_hub')}
+                                        className="w-full sm:w-auto py-3.5 px-8 rounded-xl bg-[#0067A1] text-white font-semibold hover:bg-[#004F7C] transition-all hover:shadow-lg hover:shadow-[#0067A1]/20 text-sm active:scale-95 cursor-pointer"
+                                    >
+                                        Enter CardioConnect
+                                    </button>
                                     <button
                                         suppressHydrationWarning
                                         onClick={() => handleServiceClick('cardio')}
-                                        className="w-full sm:w-auto py-3.5 px-8 rounded-xl bg-[#0067A1] text-white font-semibold hover:bg-[#004F7C] transition-all hover:shadow-lg hover:shadow-[#0067A1]/20 text-sm active:scale-95"
+                                        className="w-full sm:w-auto py-3.5 px-6 rounded-xl bg-white border border-[#0067A1] text-[#0067A1] font-semibold hover:bg-slate-50 transition-all text-sm active:scale-95 cursor-pointer"
                                     >
-                                        Start Heart Assessment
+                                        Start Assessment
                                     </button>
                                 </div>
                             </div>
@@ -170,11 +181,18 @@ const WellnessServices = ({ onLoginClick }) => {
                                     </div>
                                 </div>
 
-                                <div className="pt-2">
+                                <div className="pt-2 flex flex-wrap items-center gap-3">
                                     <button
                                         suppressHydrationWarning
                                         onClick={() => handleServiceClick('lung')}
-                                        className="w-full sm:w-auto py-3.5 px-8 rounded-xl bg-[#0067A1] text-white font-semibold hover:bg-[#005584] transition-all hover:shadow-md text-sm active:scale-95"
+                                        className="w-full sm:w-auto py-3.5 px-8 rounded-xl bg-[#0067A1] text-white font-semibold hover:bg-[#005584] transition-all hover:shadow-md text-sm active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                                    >
+                                        Enter LungConnect
+                                    </button>
+                                    <button
+                                        suppressHydrationWarning
+                                        onClick={() => handleServiceClick('lung_assessment')}
+                                        className="w-full sm:w-auto py-3.5 px-6 rounded-xl bg-white border border-[#0067A1] text-[#0067A1] font-semibold hover:bg-slate-50 transition-all text-sm active:scale-95 cursor-pointer"
                                     >
                                         Start Assessment
                                     </button>

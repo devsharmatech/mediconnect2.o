@@ -137,14 +137,30 @@ const CardioDashboard = () => {
       <div className="max-w-6xl mx-auto">
         
         {/* Header banner */}
-        <header className="mb-8 bg-gradient-to-r from-[#0067A1] to-[#125f59] text-white rounded-3xl p-6 md:p-8 shadow-md relative overflow-hidden">
+        <header className="mb-8 bg-[#0067A1] text-white rounded-3xl p-6 md:p-8 shadow-md relative overflow-hidden">
           <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full blur-3xl -mr-10 -mt-10"></div>
-          <div className="relative z-10">
-            <span className="bg-white/20 text-white font-bold text-xs uppercase px-3 py-1 rounded-full border border-white/20">Wellness Module</span>
-            <h1 className="text-3xl md:text-4xl font-extrabold mt-3 text-white">Cardio Connect</h1>
-            <p className="text-white/80 mt-2 text-sm md:text-base max-w-xl">
-              Track heart rate variability, log daily blood pressure readings, and learn strategies to build cardiorespiratory endurance.
-            </p>
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <span className="bg-white/20 text-white font-bold text-xs uppercase px-3 py-1 rounded-full border border-white/20">Wellness Module</span>
+              <h1 className="text-3xl md:text-4xl font-extrabold mt-3 text-white">CardioConnect</h1>
+              <p className="text-white/80 mt-2 text-sm md:text-base max-w-xl">
+                Track heart rate variability, log daily blood pressure readings, and learn strategies to build cardiorespiratory endurance.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <a
+                href="/heart-health"
+                className="px-4 py-2.5 bg-white text-[#0067A1] font-bold text-xs rounded-xl shadow hover:bg-slate-100 transition-colors whitespace-nowrap"
+              >
+                Start Assessment
+              </a>
+              <a
+                href="/heart-health-statistics"
+                className="px-4 py-2.5 bg-white/15 hover:bg-white/25 text-white font-semibold text-xs rounded-xl border border-white/20 transition-colors whitespace-nowrap"
+              >
+                Cardio Statistics
+              </a>
+            </div>
           </div>
         </header>
 
@@ -390,7 +406,7 @@ const CardioDashboard = () => {
         )}
 
         <section className="bg-white border border-yellow-200 rounded-2xl p-4 text-xs text-slate-500 leading-relaxed">
-          <strong>⚠ Medical Disclaimer:</strong> Cardio Connect parameters represent simulated values for fitness assessment. In the event of chest pain, shortness of breath, or any physical discomfort, terminate exercise immediately and contact a qualified emergency medical provider.
+          <strong>⚠ Medical Disclaimer:</strong> CardioConnect parameters represent simulated values for fitness assessment. In the event of chest pain, shortness of breath, or any physical discomfort, terminate exercise immediately and contact a qualified emergency medical provider.
         </section>
 
       </div>

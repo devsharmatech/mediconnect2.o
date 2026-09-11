@@ -20,9 +20,11 @@ const dashboardRoutes = [
   "/heart-health",
   "/heart-health-result",
   "/heart-health-statistics",
+  "/cardio-connect",
   "/lung-assessment",
   "/lung-health-result",
   "/lung-health-statistics",
+  "/lung-connect",
   "/medicine-order",
   "/nursing-care/status",
   "/find-doctors",
@@ -54,9 +56,10 @@ export default function MainLayout({ children }) {
     };
   }, []);
 
-  // Check if current route is a dashboard route
+  // Check if current route is a dashboard route (support both /route and /website/route)
+  const cleanPath = (pathname || "").replace(/^\/website/, "");
   const isDashboardRoute = dashboardRoutes.some((route) =>
-    pathname?.startsWith(route)
+    pathname?.startsWith(route) || cleanPath.startsWith(route)
   );
 
   const OfflineBanner = () => (

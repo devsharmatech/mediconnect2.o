@@ -174,6 +174,8 @@ const Dashboard = () => {
   const quickActions = [
     { label: "Appointments", sub: "Book & manage", href: "/website/appointments", icon: FaCalendarAlt, gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50", text: "text-[#004F7C]" },
     { label: "Instant Doctor", sub: "Talk now", onClick: () => setShowInstantModal(true), icon: FaVideo, gradient: "from-[#0067A1] to-[#0080C6]", bg: "bg-teal-50", text: "text-[#004F7C]", pulse: true },
+    { label: "LungConnect", sub: "Respiratory Hub", href: "/website/lung-connect", icon: TbLungsFilled, gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50", text: "text-[#0067A1]" },
+    { label: "CardioConnect", sub: "Heart Vitals & Hub", href: "/website/cardio-connect", icon: FaHeartbeat, gradient: "from-rose-500 to-pink-600", bg: "bg-rose-50", text: "text-rose-600" },
     { label: "Medicines", sub: "Order online", href: "/website/medicine-order", icon: FaPills, gradient: "from-amber-500 to-orange-600", bg: "bg-amber-50", text: "text-amber-700" },
     { label: "Lab Reports", sub: "View results", href: "/website/lab-reports", icon: FaFileMedical, gradient: "from-purple-500 to-violet-600", bg: "bg-purple-50", text: "text-purple-700" },
     { label: "Nursing Status", sub: "Track request", href: "/website/nursing-care/status", icon: FaHandHoldingHeart, gradient: "from-fuchsia-500 to-purple-600", bg: "bg-fuchsia-50", text: "text-fuchsia-700" },
@@ -186,7 +188,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen ">
       {/* Hero / Greeting */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#0067A1] via-[#0080C6] to-[#0067A1] rounded-3xl px-4 sm:px-6 pt-6 pb-10 sm:pb-14 mb-6">
+      <div className="relative overflow-hidden bg-[#0067A1] rounded-3xl px-4 sm:px-6 pt-6 pb-10 sm:pb-14 mb-6 shadow-md">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32" />
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-24 -mb-24" />
         <div className="absolute top-1/2 right-1/4 w-20 h-20 bg-white/5 rounded-full" />
@@ -223,9 +225,9 @@ const Dashboard = () => {
         {/* Engagement CTA Banner */}
         {nextActionData && nextActionData.decision !== "SUPPRESS" && (
           <section>
-            <div className={`p-5 sm:p-6 rounded-2xl text-white shadow-lg relative overflow-hidden ${nextActionData.intensity === "STRONG" ? "bg-gradient-to-r from-red-600 to-rose-600 animate-pulse" :
-                nextActionData.intensity === "MEDIUM" ? "bg-gradient-to-r from-amber-500 to-orange-500" :
-                  "bg-gradient-to-r from-[#0067A1] to-[#0080C6]"
+            <div className={`p-5 sm:p-6 rounded-2xl text-white shadow-lg relative overflow-hidden ${nextActionData.intensity === "STRONG" ? "bg-red-600 animate-pulse" :
+                nextActionData.intensity === "MEDIUM" ? "bg-amber-500" :
+                  "bg-[#0067A1]"
               }`}>
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10" />
               <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -385,10 +387,13 @@ const Dashboard = () => {
           )}
         </section>
 
-        {/* Health Programs Section (Heart & Lung Health) */}
+        {/* Specialized Health Programs Section (LungConnect & CardioConnect) */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-gray-800">Cardio & Respiratory Programs</h2>
+            <div>
+              <h2 className="text-lg font-bold text-gray-800">Specialized Health Programs</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Comprehensive lifestyle health tracking and guided assessments</p>
+            </div>
             {assessments.length > 0 && (
               <Link href="/website/dashboard/assessments" className="text-sm text-[#0067A1] hover:text-[#004F7C] font-medium flex items-center gap-1">
                 <FaHistory className="w-3.5 h-3.5" />
@@ -397,100 +402,24 @@ const Dashboard = () => {
             )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Heart Health Card */}
+            {/* LC-18 LungConnect Card */}
             <motion.div
-              whileHover={{ y: -6, boxShadow: "0 20px 25px -5px rgba(239,68,68,0.1), 0 10px 10px -5px rgba(239,68,68,0.04)" }}
-              transition={{ duration: 0.3 }}
-              className="relative overflow-hidden bg-gradient-to-br from-red-50 to-red-100 rounded-3xl p-6 border border-red-100/40 shadow-sm flex flex-col justify-between min-h-[200px]"
+              whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.08)" }}
+              transition={{ duration: 0.2 }}
+              className="relative overflow-hidden bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between min-h-[210px]"
             >
-              {/* Abstract Background Elements */}
-              <div className="absolute -top-10 -right-10 w-32 h-32 bg-red-500/15 rounded-full blur-xl pointer-events-none" />
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-red-500/10 rounded-full blur-lg pointer-events-none" />
-
               <div>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <motion.div
-                      className="w-14 h-14 bg-gradient-to-br from-rose-500 to-pink-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-rose-500/20"
-                      animate={{ scale: [1, 1.15, 1] }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                    >
-                      <FaHeartbeat className="w-6 h-6 text-white" />
-                    </motion.div>
+                    <div className="w-14 h-14 bg-[#0067A1] rounded-2xl flex items-center justify-center shrink-0 shadow-md">
+                      <TbLungsFilled className="w-7 h-7 text-white" />
+                    </div>
                     <div>
-                      <h3 className="text-lg font-extrabold text-gray-900">Cardio Connect</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">Cardiovascular Wellness Screening</p>
+                      <h3 className="text-lg font-extrabold text-gray-900">LungConnect</h3>
+                      <p className="text-xs text-[#0067A1] font-semibold mt-0.5">Respiratory Wellness Assessment</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold bg-rose-50 text-rose-600 px-2.5 py-1 rounded-full uppercase tracking-wider">Active</span>
-                </div>
-
-                <p className="text-sm text-gray-600 mt-4 leading-relaxed">
-                  Record cardiovascular wellness indicators, view your heart health spectrum, and receive general guidance.
-                </p>
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-gray-50 flex items-center justify-between gap-3 flex-wrap">
-                {(() => {
-                  const ha = assessments.filter((a) => a.assessment_type === "heart");
-                  return ha.length > 0 ? (
-                    <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
-                      <FaChartLine className="w-3.5 h-3.5 text-green-500" />
-                      <span>Last: {new Date(ha[0].created_at).toLocaleDateString()} (Score: {ha[0].health_score || ha[0].overall_score}/100)</span>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-gray-400 italic font-medium">No assessment completed yet</span>
-                  );
-                })()}
-
-                <div className="flex items-center gap-2 grow sm:grow-0">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/heart-health")}
-                    className="px-5 py-2.5 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-xs font-bold rounded-xl shadow-md shadow-rose-500/10 transition-colors grow text-center"
-                  >
-                    Start Assessment
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/heart-health-statistics")}
-                    className="p-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl transition-colors border border-gray-100"
-                    title="View Statistics"
-                  >
-                    <FaChartLine className="w-4 h-4" />
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Lung Health Card */}
-            <motion.div
-              whileHover={{ y: -6, boxShadow: "0 20px 25px -5px rgba(20,184,166,0.1), 0 10px 10px -5px rgba(20,184,166,0.04)" }}
-              transition={{ duration: 0.3 }}
-              className="relative overflow-hidden bg-gradient-to-br from-teal-50 to-teal-100 rounded-3xl p-6 border border-teal-100/40 shadow-sm flex flex-col justify-between min-h-[200px]"
-            >
-              {/* Abstract Background Elements */}
-              <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#0080C6]/15 rounded-full blur-xl pointer-events-none" />
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-[#0080C6]/10 rounded-full blur-lg pointer-events-none" />
-
-              <div>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <motion.div
-                      className="w-14 h-14 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-teal-500/20"
-                      animate={{ scale: [1, 1.08, 1] }}
-                      transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-                    >
-                      <TbLungsFilled className="w-6 h-6 text-white" />
-                    </motion.div>
-                    <div>
-                      <h3 className="text-lg font-extrabold text-gray-900">Lung Connect</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">Respiratory Wellness Assessment</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold bg-teal-50 text-[#0067A1] px-2.5 py-1 rounded-full uppercase tracking-wider">Active</span>
+                  <span className="text-[10px] font-bold bg-teal-50 text-[#0067A1] border border-teal-200 px-2.5 py-1 rounded-full uppercase tracking-wider">Active</span>
                 </div>
 
                 <p className="text-sm text-gray-600 mt-4 leading-relaxed">
@@ -498,16 +427,16 @@ const Dashboard = () => {
                 </p>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-gray-50 flex items-center justify-between gap-3 flex-wrap">
+              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
                 {(() => {
                   const la = assessments.filter((a) => a.assessment_type === "lung");
                   return la.length > 0 ? (
-                    <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
-                      <FaChartLine className="w-3.5 h-3.5 text-green-500" />
+                    <div className="flex items-center gap-1.5 text-xs text-gray-600 font-medium">
+                      <FaChartLine className="w-3.5 h-3.5 text-[#0067A1]" />
                       <span>Last: {new Date(la[0].created_at).toLocaleDateString()} (Score: {la[0].health_score || la[0].overall_score}/100)</span>
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-400 italic font-medium">No assessment completed yet</span>
+                    <span className="text-xs text-gray-400 italic font-medium">No assessment recorded yet</span>
                   );
                 })()}
 
@@ -515,19 +444,95 @@ const Dashboard = () => {
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/lung-assessment")}
-                    className="px-5 py-2.5 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-[#0067A1] hover:to-emerald-700 text-white text-xs font-bold rounded-xl shadow-md shadow-teal-500/10 transition-colors grow text-center"
+                    onClick={() => router.push("/website/lung-connect")}
+                    className="px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-bold rounded-xl shadow-sm transition-colors grow text-center whitespace-nowrap"
+                  >
+                    Enter LungConnect
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => router.push("/website/lung-assessment")}
+                    className="px-3.5 py-2 bg-white hover:bg-slate-50 text-[#0067A1] rounded-xl text-xs font-bold transition-colors border border-slate-200 shadow-2xs text-center whitespace-nowrap"
                   >
                     Start Assessment
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/lung-health-statistics")}
-                    className="p-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl transition-colors border border-gray-100"
-                    title="View Statistics"
+                    onClick={() => router.push("/website/lung-health-statistics")}
+                    className="p-2 bg-white hover:bg-gray-100 text-gray-600 rounded-xl transition-colors border border-gray-200 shadow-2xs"
+                    title="View Longitudinal Statistics"
                   >
-                    <FaChartLine className="w-4 h-4" />
+                    <FaChartLine className="w-3.5 h-3.5" />
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* CardioConnect Card */}
+            <motion.div
+              whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.08)" }}
+              transition={{ duration: 0.2 }}
+              className="relative overflow-hidden bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between min-h-[210px]"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-[#003358] rounded-2xl flex items-center justify-center shrink-0 shadow-md">
+                      <FaHeartbeat className="w-7 h-7 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-extrabold text-gray-900">CardioConnect</h3>
+                      <p className="text-xs text-[#003358] font-semibold mt-0.5">Cardiovascular Health Assessment</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-bold bg-slate-100 text-[#003358] border border-slate-200 px-2.5 py-1 rounded-full uppercase tracking-wider">Active</span>
+                </div>
+
+                <p className="text-sm text-gray-600 mt-4 leading-relaxed">
+                  Record cardiovascular wellness indicators, view your heart health spectrum, and receive general guidance.
+                </p>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+                {(() => {
+                  const ha = assessments.filter((a) => a.assessment_type === "heart");
+                  return ha.length > 0 ? (
+                    <div className="flex items-center gap-1.5 text-xs text-gray-600 font-medium">
+                      <FaChartLine className="w-3.5 h-3.5 text-[#003358]" />
+                      <span>Last: {new Date(ha[0].created_at).toLocaleDateString()} (Score: {ha[0].health_score || ha[0].overall_score}/100)</span>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-400 italic font-medium">No assessment recorded yet</span>
+                  );
+                })()}
+
+                <div className="flex items-center gap-2 grow sm:grow-0">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => router.push("/website/cardio-connect")}
+                    className="px-4 py-2 bg-[#003358] hover:bg-[#00223d] text-white text-xs font-bold rounded-xl shadow-sm transition-colors grow text-center whitespace-nowrap"
+                  >
+                    Enter CardioConnect
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => router.push("/website/heart-health")}
+                    className="px-3.5 py-2 bg-white hover:bg-slate-50 text-[#003358] rounded-xl text-xs font-bold transition-colors border border-slate-200 shadow-2xs text-center whitespace-nowrap"
+                  >
+                    Start Assessment
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => router.push("/website/heart-health-statistics")}
+                    className="p-2 bg-white hover:bg-gray-100 text-gray-600 rounded-xl transition-colors border border-gray-200 shadow-2xs"
+                    title="View Cardio Statistics"
+                  >
+                    <FaChartLine className="w-3.5 h-3.5" />
                   </motion.button>
                 </div>
               </div>
@@ -540,7 +545,7 @@ const Dashboard = () => {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative overflow-hidden bg-gradient-to-r from-[#0067A1] via-[#0080C6] to-[#0067A1] rounded-2xl p-5 sm:p-6 text-white cursor-pointer hover:shadow-xl transition-shadow"
+            className="relative overflow-hidden bg-[#0067A1] rounded-2xl p-5 sm:p-6 text-white cursor-pointer hover:shadow-xl transition-shadow"
             onClick={() => setShowInstantModal(true)}>
             <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20" />
             <div className="absolute bottom-0 left-1/3 w-24 h-24 bg-white/5 rounded-full -mb-12" />
@@ -666,7 +671,7 @@ const Dashboard = () => {
 
         {/* Health Assistant Banner */}
         <section>
-          <div className="bg-gradient-to-br from-[#003358] to-[#1a3a4d] rounded-2xl p-5 sm:p-6 text-white relative overflow-hidden">
+          <div className="bg-[#003358] rounded-2xl p-5 sm:p-6 text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -mr-20 -mt-20" />
             <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full -ml-16 -mb-16" />
             <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -932,7 +937,7 @@ function InstantDoctorsModal({ patientId, onClose }) {
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#0067A1] via-[#0080C6] to-[#0067A1] px-6 py-5 text-white shrink-0">
+        <div className="bg-[#0067A1] px-6 py-5 text-white shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><FaVideo className="w-5 h-5" /></div>
@@ -960,7 +965,7 @@ function InstantDoctorsModal({ patientId, onClose }) {
               </motion.div>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="flex flex-col gap-3 w-full max-w-xs">
                 <button onClick={joinCall}
-                  className="w-full py-3.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:from-[#094440] hover:to-[#0a5c56] transition-all shadow-lg flex items-center justify-center gap-2">
+                  className="w-full py-3.5 rounded-xl text-sm font-bold text-white bg-[#0067A1] hover:bg-[#004F7C] transition-all shadow-lg flex items-center justify-center gap-2">
                   <FaVideo className="w-4 h-4" />
                   Join Video Call
                 </button>
