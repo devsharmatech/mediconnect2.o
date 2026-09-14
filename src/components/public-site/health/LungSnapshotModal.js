@@ -123,7 +123,7 @@ export default function LungSnapshotModal({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 sm:p-7 text-slate-800 space-y-5"
+        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-[5px] shadow-2xl border border-slate-200 p-5 sm:p-7 text-slate-800 space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -133,14 +133,14 @@ export default function LungSnapshotModal({
               <Wind className="w-5 h-5 text-[#0067A1]" />
               Full Lung Report Snapshot
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-900 mt-0.5">
               Summary of your latest lung assessment
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="p-1.5 rounded-[5px] text-slate-800 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             title="Close Snapshot"
           >
             <X className="w-5 h-5" />
@@ -150,22 +150,22 @@ export default function LungSnapshotModal({
         {/* 3 Metric Cards Row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
           {/* 1. CURRENT SCORE */}
-          <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-200/80 flex flex-col justify-between">
+          <div className="p-4 rounded-[5px] bg-slate-50/90 border border-slate-200/80 flex flex-col justify-between">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-800">
                 CURRENT SCORE
               </p>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-3xl sm:text-4xl font-black font-mono text-[#0067A1]">
                   {health_score}
                 </span>
-                <span className="text-xs text-slate-400 font-medium">/100</span>
+                <span className="text-xs text-slate-800 font-medium">/100</span>
               </div>
             </div>
 
             {/* Conditional "Recorded Change" - strictly rendered ONLY when >= 2 historical tests exist */}
             {hasHistory && (
-              <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center gap-1.5 text-[11px] font-medium text-slate-600">
+              <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center gap-1.5 text-[11px] font-medium text-slate-950">
                 {changeType === 'up' && (
                   <TrendingUp className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 )}
@@ -173,7 +173,7 @@ export default function LungSnapshotModal({
                   <TrendingDown className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                 )}
                 {changeType === 'stable' && (
-                  <Minus className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <Minus className="w-3.5 h-3.5 text-slate-800 shrink-0" />
                 )}
                 <span>{changeText}</span>
               </div>
@@ -181,27 +181,27 @@ export default function LungSnapshotModal({
           </div>
 
           {/* 2. LUNG AGE */}
-          <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-200/80 flex flex-col justify-between">
+          <div className="p-4 rounded-[5px] bg-slate-50/90 border border-slate-200/80 flex flex-col justify-between">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-800">
                 LUNG AGE
               </p>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-3xl sm:text-4xl font-black font-mono text-slate-900">
                   {lungAge}
                 </span>
-                <span className="text-xs text-slate-400 font-medium">yrs</span>
+                <span className="text-xs text-slate-800 font-medium">yrs</span>
               </div>
             </div>
-            <div className="mt-2 pt-2 border-t border-slate-200/60 text-[11px] text-slate-500">
+            <div className="mt-2 pt-2 border-t border-slate-200/60 text-[11px] text-slate-900">
               Chronological age: <span className="font-semibold text-slate-700">{chronologicalAge}</span>
             </div>
           </div>
 
           {/* 3. RISK LEVEL */}
-          <div className="p-4 rounded-xl bg-slate-50/90 border border-slate-200/80 flex flex-col justify-between">
+          <div className="p-4 rounded-[5px] bg-slate-50/90 border border-slate-200/80 flex flex-col justify-between">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-800">
                 RISK LEVEL
               </p>
               <div className="mt-2">
@@ -211,7 +211,7 @@ export default function LungSnapshotModal({
               </div>
             </div>
             <div className="mt-2 pt-2 border-t border-slate-200/60">
-              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${riskInfo.bg} ${riskInfo.color} ${riskInfo.border}`}>
+              <span className={`inline-block px-2 py-0.5 rounded-[5px] text-[10px] font-semibold border ${riskInfo.bg} ${riskInfo.color} ${riskInfo.border}`}>
                 Self-Reported Spectrum
               </span>
             </div>
@@ -219,36 +219,36 @@ export default function LungSnapshotModal({
         </div>
 
         {/* Controlled Non-Diagnostic Assessment Summary */}
-        <div className="p-4 sm:p-5 rounded-xl bg-slate-50/70 border border-slate-200 space-y-2">
+        <div className="p-4 sm:p-5 rounded-[5px] bg-slate-50/70 border border-slate-200 space-y-2">
           <div className="flex items-center gap-2 text-slate-900 font-bold text-xs uppercase tracking-wider">
             <Activity className="w-4 h-4 text-[#0067A1]" />
             ASSESSMENT SUMMARY
           </div>
-          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-950 leading-relaxed">
             {summaryText}
           </p>
         </div>
 
         {/* Suggested Next Steps */}
-        <div className="p-4 sm:p-5 rounded-xl bg-slate-50/70 border border-slate-200 space-y-3">
+        <div className="p-4 sm:p-5 rounded-[5px] bg-slate-50/70 border border-slate-200 space-y-3">
           <div className="flex items-center gap-2 text-slate-900 font-bold text-xs uppercase tracking-wider">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
             SUGGESTED NEXT STEPS
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs text-slate-700">
-            <div className="p-2.5 rounded-lg bg-white border border-slate-200/80">
+            <div className="p-2.5 rounded-[5px] bg-white border border-slate-200/80">
               <span className="font-semibold text-slate-900 block mb-0.5">Diaphragmatic Breathing</span>
-              <span className="text-[11px] text-slate-500">Practice 5–10 minutes of box breathing daily to maintain healthy tidal lung volume.</span>
+              <span className="text-[11px] text-slate-900">Practice 5–10 minutes of box breathing daily to maintain healthy tidal lung volume.</span>
             </div>
-            <div className="p-2.5 rounded-lg bg-white border border-slate-200/80">
+            <div className="p-2.5 rounded-[5px] bg-white border border-slate-200/80">
               <span className="font-semibold text-slate-900 block mb-0.5">Air Quality Precautions</span>
-              <span className="text-[11px] text-slate-500">Monitor local AQI levels before prolonged outdoor cardiovascular exercise.</span>
+              <span className="text-[11px] text-slate-900">Monitor local AQI levels before prolonged outdoor cardiovascular exercise.</span>
             </div>
           </div>
         </div>
 
         {/* Medical Attention Advised Notice */}
-        <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2.5">
+        <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-[5px] text-xs text-amber-900 flex items-start gap-2.5">
           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <div>
             <span className="font-bold">Medical Attention Advised:</span> Seek clinical attention if any new respiratory symptoms develop, such as persistent cough, acute breathlessness, or wheezing.
@@ -256,7 +256,7 @@ export default function LungSnapshotModal({
         </div>
 
         {/* Footer info & Disclaimer */}
-        <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[10px] text-slate-400">
+        <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[10px] text-slate-800">
           <div className="flex items-center gap-1.5">
             <Calendar className="w-3 h-3" />
             Snapshot taken on {new Date(created_at).toLocaleDateString('en-US', {
@@ -267,7 +267,7 @@ export default function LungSnapshotModal({
               minute: '2-digit'
             })} · Serial No: #{formattedSerialNo}
           </div>
-          <p className="text-[9px] text-slate-400 max-w-xs sm:text-right">
+          <p className="text-[9px] text-slate-800 max-w-xs sm:text-right">
             Non-diagnostic wellness artifact. Not a substitute for clinical spirometry.
           </p>
         </div>

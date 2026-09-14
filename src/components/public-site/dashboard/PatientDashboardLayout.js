@@ -166,7 +166,7 @@ const PatientDashboardLayout = ({ children }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50" style={{ fontFamily: "var(--font-poppins), 'Poppins', sans-serif" }}>
       {/* Sidebar */}
       <PatientSidebar
         isOpen={isSidebarOpen}
@@ -186,7 +186,7 @@ const PatientDashboardLayout = ({ children }) => {
         {showDisclaimer && (
           <div className="sticky top-16 z-20 bg-white/80 backdrop-blur-md border-b border-[#0067A1]/10 px-4 py-2.5 flex items-center justify-between gap-3 shadow-sm transition-all duration-300">
             <div className="flex items-center gap-2 mx-auto">
-              <div className="p-1 bg-[#0067A1]/5 rounded-lg shrink-0">
+              <div className="p-1 bg-[#0067A1]/5 rounded-[5px] shrink-0">
                 <FaUserMd className="w-3.5 h-3.5 text-[#0067A1]" />
               </div>
               <span className="text-xs font-semibold text-gray-700 tracking-wide text-center">
@@ -195,7 +195,7 @@ const PatientDashboardLayout = ({ children }) => {
             </div>
             <button 
               onClick={handleDismissDisclaimer}
-              className="text-gray-400 hover:text-gray-600 hover:bg-gray-100/80 p-1.5 rounded-full shrink-0 transition-all duration-200 cursor-pointer"
+              className="text-gray-400 hover:text-gray-600 hover:bg-gray-100/80 p-1.5 rounded-[5px] shrink-0 transition-all duration-200 cursor-pointer"
               aria-label="Dismiss disclaimer"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -212,11 +212,11 @@ const PatientDashboardLayout = ({ children }) => {
       {/* AI Screening Chatbot - Modal + Floating Button */}
       {showChat && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:justify-end sm:p-4 sm:pb-20 sm:pr-6 bg-black/30 sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none">
-          <div className="w-full sm:w-[380px] bg-white sm:rounded-xl sm:shadow-2xl sm:border sm:border-slate-200 flex flex-col overflow-hidden" style={{height: '520px', maxHeight: '90vh'}}>
+          <div className="w-full sm:w-[380px] bg-white sm:rounded-[5px] sm:shadow-2xl sm:border sm:border-slate-200 flex flex-col overflow-hidden" style={{height: '520px', maxHeight: '90vh'}}>
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-white shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#0067A1] flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-[5px] bg-[#0067A1] flex items-center justify-center shrink-0">
                   <FaUserMd className="w-4 h-4 text-white" />
                 </div>
                 <div>
@@ -243,7 +243,7 @@ const PatientDashboardLayout = ({ children }) => {
         <button
           type="button"
           onClick={() => setShowChat(true)}
-          className="w-11 h-11 rounded-lg bg-[#0067A1] text-white shadow-lg hover:shadow-xl flex items-center justify-center hover:bg-[#004F7C] transition-colors"
+          className="w-11 h-11 rounded-[5px] bg-[#0067A1] text-white shadow-lg hover:shadow-xl flex items-center justify-center hover:bg-[#004F7C] transition-colors"
           aria-label="Open Dr. Mediconnect assistant"
         >
           <FaUserMd className="w-4 h-4" />

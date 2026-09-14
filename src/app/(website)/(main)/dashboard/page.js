@@ -188,10 +188,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen ">
       {/* Hero / Greeting */}
-      <div className="relative overflow-hidden bg-[#0067A1] rounded-3xl px-4 sm:px-6 pt-6 pb-10 sm:pb-14 mb-6 shadow-md">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-24 -mb-24" />
-        <div className="absolute top-1/2 right-1/4 w-20 h-20 bg-white/5 rounded-full" />
+      <div className="relative overflow-hidden bg-[#0067A1] rounded-[5px] px-4 sm:px-6 pt-6 pb-10 sm:pb-14 mb-6 shadow-md">
         <div className="relative max-w-full mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div>
@@ -205,7 +202,7 @@ const Dashboard = () => {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => setShowInstantModal(true)}
-              className="flex items-center gap-3 px-5 py-3 bg-white/15 backdrop-blur-sm border border-white/20 rounded-2xl text-white hover:bg-white/25 transition-all self-start sm:self-auto"
+              className="flex items-center gap-3 px-5 py-3 bg-white/15 backdrop-blur-sm border border-white/20 rounded-[5px] text-white hover:bg-white/25 transition-all self-start sm:self-auto"
             >
               <div className="relative">
                 <FaVideo className="w-5 h-5" />
@@ -225,11 +222,10 @@ const Dashboard = () => {
         {/* Engagement CTA Banner */}
         {nextActionData && nextActionData.decision !== "SUPPRESS" && (
           <section>
-            <div className={`p-5 sm:p-6 rounded-2xl text-white shadow-lg relative overflow-hidden ${nextActionData.intensity === "STRONG" ? "bg-red-600 animate-pulse" :
+            <div className={`p-5 sm:p-6 rounded-[5px] text-white shadow-lg relative overflow-hidden ${nextActionData.intensity === "STRONG" ? "bg-red-600 animate-pulse" :
                 nextActionData.intensity === "MEDIUM" ? "bg-amber-500" :
                   "bg-[#0067A1]"
               }`}>
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10" />
               <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-bold flex items-center gap-2">
@@ -273,7 +269,7 @@ const Dashboard = () => {
                       router.push(`/appointments/${nextActionData.consultation_id}/video?userId=${user?.id}&role=patient`);
                     }
                   }}
-                  className="px-6 py-2.5 bg-white text-gray-900 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors shrink-0"
+                  className="px-6 py-2.5 bg-white text-gray-900 rounded-[5px] font-bold text-sm hover:bg-gray-50 transition-colors shrink-0"
                 >
                   {nextActionData.next_action === "WAIT_FOR_DOCTOR" ? "View Status" : "Take Action"}
                 </button>
@@ -291,14 +287,14 @@ const Dashboard = () => {
               const wrapperProps = action.href ? { href: action.href } : { type: "button", onClick: action.onClick };
               return (
                 <Wrapper key={action.label} {...wrapperProps}
-                  className="group relative bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-lg hover:border-gray-200 transition-all duration-300 text-left overflow-hidden">
+                  className="group relative bg-white rounded-[5px] border border-gray-100 p-4 hover:shadow-lg hover:border-gray-200 transition-all duration-300 text-left overflow-hidden">
                   <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${action.gradient} opacity-0 group-hover:opacity-100 transition-opacity rounded-t-2xl`} />
-                  <div className={`w-11 h-11 ${action.bg} rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
+                  <div className={`w-11 h-11 ${action.bg} rounded-[5px] flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
                     <action.icon className={`w-5 h-5 ${action.text}`} />
                     {action.pulse && <span className="absolute top-3.5 right-3.5 w-2 h-2 bg-green-500 rounded-full animate-pulse" />}
                   </div>
                   <h3 className="text-sm font-semibold text-gray-800">{action.label}</h3>
-                  <p className="text-[11px] text-gray-400 mt-0.5">{action.sub}</p>
+                  <p className="text-[11px] text-gray-800 mt-0.5">{action.sub}</p>
                 </Wrapper>
               );
             })}
@@ -320,38 +316,38 @@ const Dashboard = () => {
                 <motion.div
                   key={appt.id}
                   whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)" }}
-                  className="bg-white rounded-2xl border border-gray-100 p-5 flex flex-col justify-between hover:border-teal-200 transition-all duration-300 relative overflow-hidden"
+                  className="bg-white rounded-[5px] border border-gray-100 p-5 flex flex-col justify-between hover:border-teal-200 transition-all duration-300 relative overflow-hidden"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-teal-50 flex items-center justify-center shrink-0">
+                    <div className="w-12 h-12 rounded-[5px] bg-teal-50 flex items-center justify-center shrink-0">
                       <FaStethoscope className="w-5 h-5 text-[#0067A1]" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full mb-1.5 ${appt.status === "approved" ? "bg-green-50 text-green-700" :
+                      <span className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-[5px] mb-1.5 ${appt.status === "approved" ? "bg-green-50 text-green-700" :
                           appt.status === "booked" ? "bg-amber-50 text-amber-700" :
-                            "bg-gray-50 text-gray-600"
+                            "bg-gray-50 text-gray-950"
                         }`}>
                         {appt.status === "approved" ? "Confirmed" : appt.status === "booked" ? "Pending" : appt.status}
                       </span>
                       <h4 className="text-base font-bold text-gray-900 truncate">
                         {appt.doctor?.full_name || appt.doctor_name || "Doctor"}
                       </h4>
-                      <p className="text-xs text-gray-500 font-medium truncate mt-0.5">
+                      <p className="text-xs text-gray-900 font-medium truncate mt-0.5">
                         {appt.doctor?.specialization || appt.appointment_type || "Consultation"}
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between">
-                    <span className="text-xs text-gray-500 font-medium flex items-center gap-1.5">
-                      <FaClock className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-xs text-gray-900 font-medium flex items-center gap-1.5">
+                      <FaClock className="w-3.5 h-3.5 text-gray-800" />
                       {formatTime12h(appt.appointment_time)}
                     </span>
 
                     {activeCallAppointmentId === appt.id ? (
                       <button
                         onClick={() => router.push(`/appointments/${appt.id}/video?userId=${user?.id}&role=patient`)}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-xl animate-pulse shadow-md transition-all"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-[5px] animate-pulse shadow-md transition-all"
                       >
                         <FaVideo className="w-3.5 h-3.5" />
                         Join Call
@@ -371,16 +367,16 @@ const Dashboard = () => {
           ) : (
             <motion.div
               whileHover={{ y: -2 }}
-              className="bg-white rounded-2xl border border-gray-100 border-dashed p-8 text-center flex flex-col items-center justify-center gap-3"
+              className="bg-white rounded-[5px] border border-gray-100 border-dashed p-8 text-center flex flex-col items-center justify-center gap-3"
             >
-              <div className="w-12 h-12 rounded-full bg-teal-50 flex items-center justify-center text-[#0067A1]">
+              <div className="w-12 h-12 rounded-[5px] bg-teal-50 flex items-center justify-center text-[#0067A1]">
                 <FaCalendarAlt className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-800">No Appointments Today</h3>
-                <p className="text-xs text-gray-500 mt-1 max-w-xs mx-auto">Schedule a consultation with our experienced specialists for personalized care.</p>
+                <p className="text-xs text-gray-900 mt-1 max-w-xs mx-auto">Schedule a consultation with our experienced specialists for personalized care.</p>
               </div>
-              <Link href="/website/appointments" className="px-4 py-2 bg-[#0067A1] text-white rounded-xl text-xs font-semibold hover:bg-[#004F7C] transition-colors mt-1">
+              <Link href="/website/appointments" className="px-4 py-2 bg-[#0067A1] text-white rounded-[5px] text-xs font-semibold hover:bg-[#004F7C] transition-colors mt-1">
                 Book Appointment
               </Link>
             </motion.div>
@@ -392,7 +388,7 @@ const Dashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-gray-800">Specialized Health Programs</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Comprehensive lifestyle health tracking and guided assessments</p>
+              <p className="text-xs text-gray-800 mt-0.5">Comprehensive lifestyle health tracking and guided assessments</p>
             </div>
             {assessments.length > 0 && (
               <Link href="/website/dashboard/assessments" className="text-sm text-[#0067A1] hover:text-[#004F7C] font-medium flex items-center gap-1">
@@ -406,24 +402,24 @@ const Dashboard = () => {
             <motion.div
               whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.08)" }}
               transition={{ duration: 0.2 }}
-              className="relative overflow-hidden bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between min-h-[210px]"
+              className="relative overflow-hidden bg-white rounded-[5px] p-6 border border-slate-200 shadow-sm flex flex-col justify-between min-h-[210px]"
             >
               <div>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-[#0067A1] rounded-2xl flex items-center justify-center shrink-0 shadow-md">
+                    <div className="w-14 h-14 bg-[#0067A1] rounded-[5px] flex items-center justify-center shrink-0 shadow-md">
                       <TbLungsFilled className="w-7 h-7 text-white" />
                     </div>
                     <div>
                       <h3 className="text-lg font-extrabold text-gray-900">LungConnect</h3>
-                      <p className="text-xs text-[#0067A1] font-semibold mt-0.5">Respiratory Wellness Assessment</p>
+                      <p className="text-xs text-[#0067A1] font-semibold mt-0.5">Respiratory Wellness & Activity Hub (Open Access)</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold bg-teal-50 text-[#0067A1] border border-teal-200 px-2.5 py-1 rounded-full uppercase tracking-wider">Active</span>
+                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-[5px] uppercase tracking-wider">No Prerequisite</span>
                 </div>
 
-                <p className="text-sm text-gray-600 mt-4 leading-relaxed">
-                  Complete a guided respiratory wellness assessment and review your recorded results.
+                <p className="text-sm text-gray-950 mt-4 leading-relaxed">
+                  All feature activities are open to everyone without prior assessment. Directly launch functional Move sessions, 6-minute walk tests, guided breathing, and monitor live AQI.
                 </p>
               </div>
 
@@ -431,12 +427,12 @@ const Dashboard = () => {
                 {(() => {
                   const la = assessments.filter((a) => a.assessment_type === "lung");
                   return la.length > 0 ? (
-                    <div className="flex items-center gap-1.5 text-xs text-gray-600 font-medium">
+                    <div className="flex items-center gap-1.5 text-xs text-gray-950 font-medium">
                       <FaChartLine className="w-3.5 h-3.5 text-[#0067A1]" />
-                      <span>Last: {new Date(la[0].created_at).toLocaleDateString()} (Score: {la[0].health_score || la[0].overall_score}/100)</span>
+                      <span>Last: {new Date(la[0].created_at).toLocaleDateString()} (Recorded Difference Tracked)</span>
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-400 italic font-medium">No assessment recorded yet</span>
+                    <span className="text-xs text-emerald-600 font-medium">✓ Activities Ready to Launch</span>
                   );
                 })()}
 
@@ -445,26 +441,25 @@ const Dashboard = () => {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => router.push("/website/lung-connect")}
-                    className="px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-bold rounded-xl shadow-sm transition-colors grow text-center whitespace-nowrap"
+                    className="px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-bold rounded-[5px] shadow-sm transition-colors grow text-center whitespace-nowrap"
                   >
-                    Enter LungConnect
+                    Enter Hub
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/website/lung-assessment")}
-                    className="px-3.5 py-2 bg-white hover:bg-slate-50 text-[#0067A1] rounded-xl text-xs font-bold transition-colors border border-slate-200 shadow-2xs text-center whitespace-nowrap"
+                    onClick={() => router.push("/website/lung-connect?action=move")}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[5px] text-xs font-bold transition-colors shadow-2xs text-center whitespace-nowrap"
                   >
-                    Start Assessment
+                    Launch Move
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/website/lung-health-statistics")}
-                    className="p-2 bg-white hover:bg-gray-100 text-gray-600 rounded-xl transition-colors border border-gray-200 shadow-2xs"
-                    title="View Longitudinal Statistics"
+                    onClick={() => router.push("/website/dashboard/breathing")}
+                    className="px-3.5 py-2 bg-white hover:bg-slate-50 text-[#003358] rounded-[5px] text-xs font-bold transition-colors border border-slate-200 shadow-2xs text-center whitespace-nowrap"
                   >
-                    <FaChartLine className="w-3.5 h-3.5" />
+                    Breathing Studio
                   </motion.button>
                 </div>
               </div>
@@ -474,24 +469,24 @@ const Dashboard = () => {
             <motion.div
               whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.08)" }}
               transition={{ duration: 0.2 }}
-              className="relative overflow-hidden bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col justify-between min-h-[210px]"
+              className="relative overflow-hidden bg-white rounded-[5px] p-6 border border-slate-200 shadow-sm flex flex-col justify-between min-h-[210px]"
             >
               <div>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-[#003358] rounded-2xl flex items-center justify-center shrink-0 shadow-md">
+                    <div className="w-14 h-14 bg-[#003358] rounded-[5px] flex items-center justify-center shrink-0 shadow-md">
                       <FaHeartbeat className="w-7 h-7 text-white" />
                     </div>
                     <div>
                       <h3 className="text-lg font-extrabold text-gray-900">CardioConnect</h3>
-                      <p className="text-xs text-[#003358] font-semibold mt-0.5">Cardiovascular Health Assessment</p>
+                      <p className="text-xs text-[#003358] font-semibold mt-0.5">Heart Wellness & Training Hub (Open Access)</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold bg-slate-100 text-[#003358] border border-slate-200 px-2.5 py-1 rounded-full uppercase tracking-wider">Active</span>
+                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-[5px] uppercase tracking-wider">No Prerequisite</span>
                 </div>
 
-                <p className="text-sm text-gray-600 mt-4 leading-relaxed">
-                  Record cardiovascular wellness indicators, view your heart health spectrum, and receive general guidance.
+                <p className="text-sm text-gray-950 mt-4 leading-relaxed">
+                  No compulsory assessment required. Engage directly in Heart Training sessions, 6-minute Walking Performance Tests, track your 11-factor Spectrum, and log longitudinal progress.
                 </p>
               </div>
 
@@ -499,12 +494,12 @@ const Dashboard = () => {
                 {(() => {
                   const ha = assessments.filter((a) => a.assessment_type === "heart");
                   return ha.length > 0 ? (
-                    <div className="flex items-center gap-1.5 text-xs text-gray-600 font-medium">
+                    <div className="flex items-center gap-1.5 text-xs text-gray-950 font-medium">
                       <FaChartLine className="w-3.5 h-3.5 text-[#003358]" />
-                      <span>Last: {new Date(ha[0].created_at).toLocaleDateString()} (Score: {ha[0].health_score || ha[0].overall_score}/100)</span>
+                      <span>Last: {new Date(ha[0].created_at).toLocaleDateString()} (11 Spectrum Factors Tracked)</span>
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-400 italic font-medium">No assessment recorded yet</span>
+                    <span className="text-xs text-emerald-600 font-medium">✓ Training & Walking Tests Ready</span>
                   );
                 })()}
 
@@ -513,26 +508,25 @@ const Dashboard = () => {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => router.push("/website/cardio-connect")}
-                    className="px-4 py-2 bg-[#003358] hover:bg-[#00223d] text-white text-xs font-bold rounded-xl shadow-sm transition-colors grow text-center whitespace-nowrap"
+                    className="px-4 py-2 bg-[#003358] hover:bg-[#00223d] text-white text-xs font-bold rounded-[5px] shadow-sm transition-colors grow text-center whitespace-nowrap"
                   >
                     Enter CardioConnect
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/website/heart-health")}
-                    className="px-3.5 py-2 bg-white hover:bg-slate-50 text-[#003358] rounded-xl text-xs font-bold transition-colors border border-slate-200 shadow-2xs text-center whitespace-nowrap"
+                    onClick={() => router.push("/website/cardio-connect?action=training")}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[5px] text-xs font-bold transition-colors shadow-2xs text-center whitespace-nowrap"
                   >
-                    Start Assessment
+                    Heart Training
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/website/heart-health-statistics")}
-                    className="p-2 bg-white hover:bg-gray-100 text-gray-600 rounded-xl transition-colors border border-gray-200 shadow-2xs"
-                    title="View Cardio Statistics"
+                    onClick={() => router.push("/website/cardio-connect?action=walking")}
+                    className="px-3.5 py-2 bg-white hover:bg-slate-50 text-[#003358] rounded-[5px] text-xs font-bold transition-colors border border-slate-200 shadow-2xs text-center whitespace-nowrap"
                   >
-                    <FaChartLine className="w-3.5 h-3.5" />
+                    Walking Test
                   </motion.button>
                 </div>
               </div>
@@ -545,13 +539,11 @@ const Dashboard = () => {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative overflow-hidden bg-[#0067A1] rounded-2xl p-5 sm:p-6 text-white cursor-pointer hover:shadow-xl transition-shadow"
+            className="relative overflow-hidden bg-[#0067A1] rounded-[5px] p-5 sm:p-6 text-white cursor-pointer hover:shadow-xl transition-shadow"
             onClick={() => setShowInstantModal(true)}>
-            <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20" />
-            <div className="absolute bottom-0 left-1/3 w-24 h-24 bg-white/5 rounded-full -mb-12" />
             <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center shrink-0">
+                <div className="w-14 h-14 bg-white/20 rounded-[5px] flex items-center justify-center shrink-0">
                   <FaVideo className="w-6 h-6 text-white" />
                 </div>
                 <div>
@@ -559,9 +551,9 @@ const Dashboard = () => {
                   <p className="text-white/70 text-sm mt-0.5">Connect instantly with available doctors for a video consultation</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-5 py-3 rounded-xl hover:bg-white/30 transition-colors self-start sm:self-auto">
+              <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-5 py-3 rounded-[5px] hover:bg-white/30 transition-colors self-start sm:self-auto">
                 <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75" />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-[5px] bg-green-300 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-400" />
                 </span>
                 <span className="text-sm font-semibold whitespace-nowrap">Doctors Online</span>
@@ -577,14 +569,10 @@ const Dashboard = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="group relative overflow-hidden rounded-2xl p-5 sm:p-6 cursor-pointer hover:shadow-xl transition-shadow"
+              className="group relative overflow-hidden rounded-[5px] p-5 sm:p-6 cursor-pointer hover:shadow-xl transition-shadow"
               style={{ background: "linear-gradient(135deg, #7c3aed 0%, #a855f7 40%, #c084fc 100%)" }}
             >
               {/* Decorative blobs */}
-              <div className="absolute -top-10 -right-10 w-44 h-44 bg-white/10 rounded-full blur-sm" />
-              <div className="absolute bottom-0 left-1/4 w-28 h-28 bg-white/5 rounded-full -mb-14" />
-              <div className="absolute top-1/2 right-1/3 w-16 h-16 bg-white/5 rounded-full" />
-
               {/* Animated floating crosses */}
               <motion.span
                 className="absolute top-3 right-16 text-white/10 text-2xl font-bold select-none"
@@ -600,7 +588,7 @@ const Dashboard = () => {
               <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <motion.div
-                    className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shrink-0 border border-white/10"
+                    className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-[5px] flex items-center justify-center shrink-0 border border-white/10"
                     animate={{ scale: [1, 1.08, 1] }}
                     transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
                   >
@@ -609,12 +597,12 @@ const Dashboard = () => {
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-lg sm:text-xl font-bold text-white">Nursing & Home Care</h3>
-                      <span className="text-[10px] font-bold bg-white/25 text-white px-2 py-0.5 rounded-full tracking-wide uppercase">New</span>
+                      <span className="text-[10px] font-bold bg-white/25 text-white px-2 py-0.5 rounded-[5px] tracking-wide uppercase">New</span>
                     </div>
                     <p className="text-white/70 text-sm mt-0.5">Request trained caregivers for home visits, elderly care & post-operative support</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-5 py-3 rounded-xl group-hover:bg-white/30 transition-colors self-start sm:self-auto border border-white/10">
+                <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-5 py-3 rounded-[5px] group-hover:bg-white/30 transition-colors self-start sm:self-auto border border-white/10">
                   <span className="text-sm font-semibold text-white whitespace-nowrap">Request Now</span>
                   <motion.span
                     className="text-white text-lg"
@@ -631,26 +619,26 @@ const Dashboard = () => {
         {assessments.length > 0 && (
           <section className="space-y-3">
             <h3 className="text-sm font-semibold text-gray-650 flex items-center gap-2">
-              <FaHistory className="w-3.5 h-3.5 text-gray-400" />
+              <FaHistory className="w-3.5 h-3.5 text-gray-800" />
               Recent Assessments
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {assessments.slice(0, 3).map((a) => (
-                <div key={a.id} className="bg-white rounded-xl p-4 border border-gray-100 hover:shadow-sm transition-all">
+                <div key={a.id} className="bg-white rounded-[5px] p-4 border border-gray-100 hover:shadow-sm transition-all">
                   <div className="flex items-center justify-between mb-2.5">
                     <div className="flex items-center gap-2">
                       {a.assessment_type === "heart" ? (
-                        <div className="w-7 h-7 bg-rose-50 rounded-lg flex items-center justify-center"><FaHeartbeat className="w-3.5 h-3.5 text-rose-500" /></div>
+                        <div className="w-7 h-7 bg-rose-50 rounded-[5px] flex items-center justify-center"><FaHeartbeat className="w-3.5 h-3.5 text-rose-500" /></div>
                       ) : (
-                        <div className="w-7 h-7 bg-teal-50 rounded-lg flex items-center justify-center"><TbLungsFilled className="w-3.5 h-3.5 text-teal-500" /></div>
+                        <div className="w-7 h-7 bg-teal-50 rounded-[5px] flex items-center justify-center"><TbLungsFilled className="w-3.5 h-3.5 text-teal-500" /></div>
                       )}
                       <span className="text-sm font-medium text-gray-700 capitalize">{a.assessment_type} Health</span>
                     </div>
-                    <span className="text-[10px] text-gray-400">{new Date(a.created_at).toLocaleDateString()}</span>
+                    <span className="text-[10px] text-gray-800">{new Date(a.created_at).toLocaleDateString()}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">Risk Level</span>
-                    <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${a.risk_level === "low" ? "bg-green-50 text-green-600" :
+                    <span className="text-xs text-gray-900">Risk Level</span>
+                    <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-[5px] ${a.risk_level === "low" ? "bg-green-50 text-green-600" :
                         a.risk_level === "moderate" ? "bg-amber-50 text-amber-600" :
                           "bg-red-50 text-red-600"
                       }`}>
@@ -659,7 +647,7 @@ const Dashboard = () => {
                   </div>
                   {(a.health_score || a.overall_score) && (
                     <div className="flex items-center justify-between mt-1.5">
-                      <span className="text-xs text-gray-500">Score</span>
+                      <span className="text-xs text-gray-900">Score</span>
                       <span className="text-xs font-semibold text-gray-700">{a.health_score || a.overall_score}/100</span>
                     </div>
                   )}
@@ -671,12 +659,10 @@ const Dashboard = () => {
 
         {/* Health Assistant Banner */}
         <section>
-          <div className="bg-[#003358] rounded-2xl p-5 sm:p-6 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-40 h-40 bg-white/5 rounded-full -mr-20 -mt-20" />
-            <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full -ml-16 -mb-16" />
+          <div className="bg-[#003358] rounded-[5px] p-5 sm:p-6 text-white relative overflow-hidden">
             <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white/15 rounded-xl flex items-center justify-center shrink-0">
+                <div className="w-12 h-12 bg-white/15 rounded-[5px] flex items-center justify-center shrink-0">
                   <FaUserMd className="w-6 h-6 text-white" />
                 </div>
                 <div>
@@ -686,7 +672,7 @@ const Dashboard = () => {
               </div>
               <button type="button"
                 onClick={() => window.dispatchEvent(new CustomEvent("open-dr-mediconnect-chat"))}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-white text-[#0067A1] rounded-xl font-semibold hover:bg-gray-100 transition-all shadow-lg self-start sm:self-auto">
+                className="inline-flex items-center gap-2 px-6 py-3 bg-white text-[#0067A1] rounded-[5px] font-semibold hover:bg-gray-100 transition-all shadow-lg self-start sm:self-auto">
                 Start Chat
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
@@ -935,18 +921,18 @@ function InstantDoctorsModal({ patientId, onClose }) {
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        className="relative w-full max-w-3xl bg-white rounded-[5px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="bg-[#0067A1] px-6 py-5 text-white shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><FaVideo className="w-5 h-5" /></div>
+              <div className="w-10 h-10 bg-white/20 rounded-[5px] flex items-center justify-center"><FaVideo className="w-5 h-5" /></div>
               <div>
                 <h3 className="text-base font-bold">Instant Consultation</h3>
                 <p className="text-[11px] text-white/60">Available doctors right now</p>
               </div>
             </div>
-            <button onClick={onClose} className="p-2 rounded-xl hover:bg-white/20 transition-colors"><FaTimes className="w-4 h-4" /></button>
+            <button onClick={onClose} className="p-2 rounded-[5px] hover:bg-white/20 transition-colors"><FaTimes className="w-4 h-4" /></button>
           </div>
         </div>
         {/* Body */}
@@ -954,28 +940,28 @@ function InstantDoctorsModal({ patientId, onClose }) {
           {booked ? (
             <div className="flex flex-col items-center justify-center p-8 text-center gap-5">
               <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.1 }}
-                className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-lg shadow-green-200">
+                className="w-20 h-20 rounded-[5px] bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-lg shadow-green-200">
                 <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
               </motion.div>
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
                 <h4 className="text-xl font-bold text-gray-900">Booking Confirmed!</h4>
-                <p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">
+                <p className="text-sm text-gray-900 mt-2 max-w-xs mx-auto">
                   Your instant consultation with <span className="font-semibold text-[#0067A1]">{booked.doctor.full_name || booked.doctor.doctor_name || "Doctor"}</span> has been booked. The doctor will be notified immediately.
                 </p>
               </motion.div>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="flex flex-col gap-3 w-full max-w-xs">
                 <button onClick={joinCall}
-                  className="w-full py-3.5 rounded-xl text-sm font-bold text-white bg-[#0067A1] hover:bg-[#004F7C] transition-all shadow-lg flex items-center justify-center gap-2">
+                  className="w-full py-3.5 rounded-[5px] text-sm font-bold text-white bg-[#0067A1] hover:bg-[#004F7C] transition-all shadow-lg flex items-center justify-center gap-2">
                   <FaVideo className="w-4 h-4" />
                   Join Video Call
                 </button>
-                <button onClick={onClose} className="w-full py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors">Close</button>
+                <button onClick={onClose} className="w-full py-2.5 rounded-[5px] text-sm font-medium text-gray-900 hover:text-gray-700 hover:bg-gray-50 transition-colors">Close</button>
               </motion.div>
             </div>
           ) : confirmingDoctor ? (
             <div className="flex flex-col p-6 sm:p-8 gap-5 max-w-lg mx-auto w-full">
-              <div className="flex items-center gap-4 bg-teal-50 rounded-2xl p-4">
-                <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shrink-0">
+              <div className="flex items-center gap-4 bg-teal-50 rounded-[5px] p-4">
+                <div className="w-12 h-12 rounded-[5px] bg-white flex items-center justify-center shrink-0">
                   <FaUserMd className="w-6 h-6 text-[#0067A1]" />
                 </div>
                 <div>
@@ -984,22 +970,22 @@ function InstantDoctorsModal({ patientId, onClose }) {
                 </div>
               </div>
               
-              <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 space-y-3">
+              <div className="bg-gray-50 border border-gray-100 rounded-[5px] p-4 space-y-3">
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">Consultation Fee</span>
+                  <span className="text-gray-900">Consultation Fee</span>
                   <span className="font-bold text-gray-900">{"\u20B9"}{parseFloat(confirmingDoctor.video_consultation_fee ?? confirmingDoctor.consultation_fee ?? confirmingDoctor.clinic_consultation_fee ?? 0).toFixed(2)}</span>
                 </div>
                 <div className="h-px bg-gray-200" />
                 <div className="space-y-3">
                   <label className="flex items-start gap-3 cursor-pointer group">
-                    <input type="checkbox" checked={dataSharingConsent} onChange={(e) => setDataSharingConsent(e.target.checked)} className="mt-1 w-4 h-4 rounded border-gray-300 text-[#0067A1] focus:ring-[#0067A1]" />
-                    <span className="text-xs text-gray-600 group-hover:text-gray-900 transition-colors">
+                    <input type="checkbox" checked={dataSharingConsent} onChange={(e) => setDataSharingConsent(e.target.checked)} className="mt-1 w-4 h-4 rounded-[5px] border-gray-300 text-[#0067A1] focus:ring-[#0067A1]" />
+                    <span className="text-xs text-gray-950 group-hover:text-gray-900 transition-colors">
                       I consent to the sharing of my medical data and previous records with this doctor for consultation purposes under DPDP guidelines.
                     </span>
                   </label>
                   <label className="flex items-start gap-3 cursor-pointer group">
-                    <input type="checkbox" checked={teleconsultConsent} onChange={(e) => setTeleconsultConsent(e.target.checked)} className="mt-1 w-4 h-4 rounded border-gray-300 text-[#0067A1] focus:ring-[#0067A1]" />
-                    <span className="text-xs text-gray-600 group-hover:text-gray-900 transition-colors">
+                    <input type="checkbox" checked={teleconsultConsent} onChange={(e) => setTeleconsultConsent(e.target.checked)} className="mt-1 w-4 h-4 rounded-[5px] border-gray-300 text-[#0067A1] focus:ring-[#0067A1]" />
+                    <span className="text-xs text-gray-950 group-hover:text-gray-900 transition-colors">
                       I consent to a video/audio consultation as per the Telemedicine Practice Guidelines.
                     </span>
                   </label>
@@ -1007,13 +993,13 @@ function InstantDoctorsModal({ patientId, onClose }) {
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button onClick={() => setConfirmingDoctor(null)} className="flex-1 py-3 rounded-xl text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors">
+                <button onClick={() => setConfirmingDoctor(null)} className="flex-1 py-3 rounded-[5px] text-sm font-medium text-gray-950 bg-gray-100 hover:bg-gray-200 transition-colors">
                   Cancel
                 </button>
                 <button 
                   onClick={() => handleBook(confirmingDoctor)} 
                   disabled={!dataSharingConsent || !teleconsultConsent || !!booking}
-                  className="flex-[1.5] py-3 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:from-[#094440] hover:to-[#0a5c56] disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all flex items-center justify-center gap-2"
+                  className="flex-[1.5] py-3 rounded-[5px] text-sm font-bold text-white bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:from-[#094440] hover:to-[#0a5c56] disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all flex items-center justify-center gap-2"
                 >
                   {booking ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Processing...</> : "Proceed to Payment"}
                 </button>
@@ -1022,21 +1008,21 @@ function InstantDoctorsModal({ patientId, onClose }) {
           ) : loading ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <div className="relative">
-                <div className="w-12 h-12 border-4 border-teal-100 rounded-full" />
+                <div className="w-12 h-12 border-4 border-teal-100 rounded-[5px]" />
                 <div className="w-12 h-12 border-4 border-[#0067A1] border-t-transparent rounded-full animate-spin absolute inset-0" />
               </div>
-              <p className="text-sm text-gray-500">Finding available doctors\u2026</p>
+              <p className="text-sm text-gray-900">Finding available doctors\u2026</p>
             </div>
           ) : doctors.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-6 text-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center"><FaUserMd className="w-7 h-7 text-gray-400" /></div>
+              <div className="w-16 h-16 rounded-[5px] bg-gray-100 flex items-center justify-center"><FaUserMd className="w-7 h-7 text-gray-800" /></div>
               <div>
                 <h4 className="text-lg font-semibold text-gray-700">No Doctors Available</h4>
-                <p className="text-sm text-gray-500 mt-1 max-w-xs mx-auto">No doctors are available for instant consultation right now. Please try again in a few minutes.</p>
+                <p className="text-sm text-gray-900 mt-1 max-w-xs mx-auto">No doctors are available for instant consultation right now. Please try again in a few minutes.</p>
               </div>
               <div className="flex gap-3">
-                <button onClick={fetchDoctors} className="px-5 py-2.5 bg-teal-50 text-[#0067A1] rounded-xl text-sm font-semibold hover:bg-teal-100 transition-colors">Refresh</button>
-                <Link href="/find-doctors" onClick={onClose} className="px-5 py-2.5 bg-gray-50 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-100 transition-colors">Book Later</Link>
+                <button onClick={fetchDoctors} className="px-5 py-2.5 bg-teal-50 text-[#0067A1] rounded-[5px] text-sm font-semibold hover:bg-teal-100 transition-colors">Refresh</button>
+                <Link href="/find-doctors" onClick={onClose} className="px-5 py-2.5 bg-gray-50 text-gray-950 rounded-[5px] text-sm font-semibold hover:bg-gray-100 transition-colors">Book Later</Link>
               </div>
             </div>
           ) : (
@@ -1044,42 +1030,42 @@ function InstantDoctorsModal({ patientId, onClose }) {
               {/* Search and Filter */}
               <div className="flex flex-col sm:flex-row gap-2 shrink-0">
                 <div className="relative flex-1">
-                  <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-800 w-4 h-4" />
                   <input
                     type="text"
                     placeholder="Search by doctor name, specialty, or clinic..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent transition-all bg-white text-gray-900 placeholder-gray-400"
+                    className="w-full pl-10 pr-10 py-2.5 text-sm border border-gray-200 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent transition-all bg-white text-gray-900 placeholder-gray-400"
                   />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery("")}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 font-medium text-xs"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-800 hover:text-gray-950 font-medium text-xs"
                     >
                       Clear
                     </button>
                   )}
                 </div>
                 <div className="relative shrink-0 sm:w-48">
-                  <FaFilter className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-3.5 h-3.5" />
+                  <FaFilter className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-800 w-3.5 h-3.5" />
                   <select
                     value={selectedSpecialty}
                     onChange={(e) => setSelectedSpecialty(e.target.value)}
-                    className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent transition-all bg-white text-gray-900 appearance-none cursor-pointer"
+                    className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 rounded-[5px] focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent transition-all bg-white text-gray-900 appearance-none cursor-pointer"
                   >
                     {specialties.map(spec => (
                       <option key={spec} value={spec}>{spec}</option>
                     ))}
                   </select>
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                    <svg className="w-4 h-4 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center justify-between mt-1 shrink-0">
-                <p className="text-xs font-medium text-gray-500">
+                <p className="text-xs font-medium text-gray-900">
                   {searchQuery ? (
                     <>
                       Found <span className="text-[#0067A1] font-bold">{filteredDoctors.length}</span> doctor{filteredDoctors.length !== 1 ? "s" : ""}
@@ -1098,11 +1084,11 @@ function InstantDoctorsModal({ patientId, onClose }) {
 
               <div className="space-y-2.5 max-h-[45vh] sm:max-h-[50vh] overflow-y-auto pr-1 flex-1">
                 {filteredDoctors.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 px-6 text-center text-gray-500 gap-3">
+                  <div className="flex flex-col items-center justify-center py-12 px-6 text-center text-gray-900 gap-3">
                     <FaUserMd className="w-8 h-8 text-gray-350" />
                     <div>
                       <p className="text-sm font-bold text-gray-700">No Online Doctors Match Your Search</p>
-                      <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">There are no doctors online right now matching your criteria. You can book an appointment with them for a later time.</p>
+                      <p className="text-xs text-gray-800 mt-1 max-w-xs mx-auto">There are no doctors online right now matching your criteria. You can book an appointment with them for a later time.</p>
                     </div>
                     <Link
                       href={(() => {
@@ -1116,7 +1102,7 @@ function InstantDoctorsModal({ patientId, onClose }) {
                         return params.length > 0 ? `/find-doctors?${params.join("&")}` : "/find-doctors";
                       })()}
                       onClick={onClose}
-                      className="mt-2 px-5 py-2.5 bg-[#0067A1] hover:bg-[#094440] text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-1.5"
+                      className="mt-2 px-5 py-2.5 bg-[#0067A1] hover:bg-[#094440] text-white rounded-[5px] text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-1.5"
                     >
                       <FaCalendarAlt className="w-3.5 h-3.5" />
                       Book Later {selectedSpecialty && selectedSpecialty !== "All Specialties" ? `for ${selectedSpecialty}` : ""}
@@ -1133,10 +1119,10 @@ function InstantDoctorsModal({ patientId, onClose }) {
                     const isBooking = booking === doc.id;
                     return (
                       <motion.div key={doc.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                        className="bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-md hover:border-teal-200 transition-all">
+                        className="bg-white rounded-[5px] border border-gray-100 p-4 hover:shadow-md hover:border-teal-200 transition-all">
                         <div className="flex items-start gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-100 to-emerald-100 flex items-center justify-center shrink-0 overflow-hidden">
-                            {avatar ? <img src={avatar} alt={name} className="w-full h-full object-cover rounded-xl" /> : <FaUserMd className="w-5 h-5 text-[#0067A1]" />}
+                          <div className="w-12 h-12 rounded-[5px] bg-gradient-to-br from-teal-100 to-emerald-100 flex items-center justify-center shrink-0 overflow-hidden">
+                            {avatar ? <img src={avatar} alt={name} className="w-full h-full object-cover rounded-[5px]" /> : <FaUserMd className="w-5 h-5 text-[#0067A1]" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-2">
@@ -1146,20 +1132,20 @@ function InstantDoctorsModal({ patientId, onClose }) {
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
                                 <span className="relative flex h-2 w-2">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-[5px] bg-green-400 opacity-75" />
                                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
                                 </span>
                                 <span className="text-[10px] text-green-600 font-medium">Online</span>
                               </div>
                             </div>
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-gray-500">
-                              {exp && <span className="flex items-center gap-1"><FaClock className="w-3 h-3 text-gray-400" />{exp} yrs exp</span>}
-                              {fee && <span className="flex items-center gap-1"><span className="text-gray-400 font-medium">{"\u20B9"}</span>{fee}</span>}
-                              {doc.clinic_name && <span className="flex items-center gap-1 truncate"><FaMapMarkerAlt className="w-3 h-3 text-gray-400 shrink-0" /><span className="truncate">{doc.clinic_name}</span></span>}
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px] text-gray-900">
+                              {exp && <span className="flex items-center gap-1"><FaClock className="w-3 h-3 text-gray-800" />{exp} yrs exp</span>}
+                              {fee && <span className="flex items-center gap-1"><span className="text-gray-800 font-medium">{"\u20B9"}</span>{fee}</span>}
+                              {doc.clinic_name && <span className="flex items-center gap-1 truncate"><FaMapMarkerAlt className="w-3 h-3 text-gray-800 shrink-0" /><span className="truncate">{doc.clinic_name}</span></span>}
                             </div>
                             <div className="mt-3.5 grid grid-cols-2 gap-3">
                               <button onClick={() => startBookingFlow(doc)} disabled={!!booking}
-                                className="py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:from-[#094440] hover:to-[#0a5c56] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center gap-1.5">
+                                className="py-2.5 rounded-[5px] text-xs font-bold text-white bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:from-[#094440] hover:to-[#0a5c56] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center gap-1.5">
                                 {isBooking ? (
                                   <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />Connecting{"\u2026"}</>
                                 ) : (
@@ -1167,7 +1153,7 @@ function InstantDoctorsModal({ patientId, onClose }) {
                                 )}
                               </button>
                               <button onClick={() => { onClose(); router.push(`/website/doctor/${doc.id}`); }}
-                                className="py-2.5 rounded-xl text-xs font-bold text-[#0067A1] border border-[#0067A1] hover:bg-teal-50/50 transition-all flex items-center justify-center gap-1.5">
+                                className="py-2.5 rounded-[5px] text-xs font-bold text-[#0067A1] border border-[#0067A1] hover:bg-teal-50/50 transition-all flex items-center justify-center gap-1.5">
                                 <FaCalendarAlt className="w-3 h-3" />Book for Later
                               </button>
                             </div>

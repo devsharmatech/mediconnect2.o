@@ -31,9 +31,11 @@ export default function HeartHealthResult() {
   useEffect(() => {
     const resultData = sessionStorage.getItem('heartAssessmentResult');
     if (resultData) {
-      setAssessmentData(JSON.parse(resultData));
-    } else {
-      router.push('/heart-health');
+      try {
+        setAssessmentData(JSON.parse(resultData));
+      } catch (e) {
+        console.warn("Could not parse heartAssessmentResult", e);
+      }
     }
 
     const userDataRaw = typeof window !== 'undefined' ? localStorage.getItem('userData') : null;
@@ -92,7 +94,7 @@ export default function HeartHealthResult() {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-10 h-10 border-3 border-slate-200 border-t-[#0067A1] rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-xs text-slate-500 font-medium">Loading your heart screening results...</p>
+          <p className="text-xs text-slate-900 font-medium">Loading your heart screening results...</p>
         </div>
       </div>
     );
@@ -101,19 +103,47 @@ export default function HeartHealthResult() {
   if (!assessmentData) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl p-8 border border-slate-200 shadow-sm max-w-md w-full text-center">
-          <Heart className="w-14 h-14 text-rose-500 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-slate-900 mb-2">Assessment Required</h2>
-          <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-            Please complete the non-diagnostic cardiovascular wellness screening to view your personalized health indicators.
+        <div className="bg-white rounded-[5px] p-8 border border-slate-200 shadow-sm max-w-md w-full text-center">
+          <div className="w-14 h-14 rounded-[5px] bg-[#003358]/10 text-[#003358] flex items-center justify-center mx-auto mb-4">
+            <Heart className="w-7 h-7" />
+          </div>
+          <span className="inline-block px-2.5 py-0.5 rounded-[5px] text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 mb-2">
+            Open Access Rule
+          </span>
+          <h2 className="text-lg font-bold text-slate-900 mb-2">No Compulsory Assessment</h2>
+          <p className="text-xs text-slate-900 mb-6 leading-relaxed">
+            CardioConnect wellness activities are open to every patient without requiring a prior assessment. You can launch Heart Training sessions, test functional capacity with the 6-Minute Walking Test, or view the factor spectrum.
           </p>
-          <button
-            type="button"
-            onClick={() => router.push('/heart-health')}
-            className="w-full bg-[#0067A1] hover:bg-[#005584] text-white py-2.5 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            Take Assessment
-          </button>
+          <div className="space-y-2.5">
+            <button
+              type="button"
+              onClick={() => router.push('/website/cardio-connect?action=training')}
+              className="w-full bg-[#003358] hover:bg-[#00223d] text-white py-2.5 rounded-[5px] text-xs font-bold shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Zap className="w-4 h-4" /> Start Heart Training
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/website/cardio-connect?action=walking')}
+              className="w-full bg-[#0067A1] hover:bg-[#005584] text-white py-2.5 rounded-[5px] text-xs font-bold shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Activity className="w-4 h-4" /> Walking Performance Test
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/website/cardio-connect')}
+              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-[5px] text-xs font-semibold transition-colors cursor-pointer"
+            >
+              Enter CardioConnect Home
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/website/heart-health')}
+              className="w-full text-slate-800 hover:text-slate-950 py-1.5 text-[11px] font-medium transition-colors cursor-pointer"
+            >
+              Or complete an optional cardio screening →
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -197,13 +227,13 @@ export default function HeartHealthResult() {
       <div className="max-w-4xl mx-auto space-y-4 sm:space-y-5">
 
         {/* Top Header Card */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs">
+        <div className="bg-white rounded-[5px] border border-slate-200 p-4 sm:p-5 shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
             <div className="flex items-start gap-3">
               <button
                 type="button"
                 onClick={() => router.push('/dashboard')}
-                className="p-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors shrink-0 mt-0.5 cursor-pointer"
+                className="p-2 bg-slate-100 hover:bg-slate-200 rounded-[5px] text-slate-950 transition-colors shrink-0 mt-0.5 cursor-pointer"
                 title="Back to Dashboard"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -212,7 +242,7 @@ export default function HeartHealthResult() {
                 <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
                   Cardiovascular Health Screening Summary
                 </h1>
-                <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 max-w-xl leading-relaxed">
+                <p className="text-[11px] sm:text-xs text-slate-900 mt-0.5 max-w-xl leading-relaxed">
                   This screening summarizes the information entered for this assessment. It does not diagnose cardiovascular disease or determine individual treatment.
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-2 text-[11px]">
@@ -225,7 +255,7 @@ export default function HeartHealthResult() {
                   <span className="bg-sky-50 text-sky-700 font-medium px-2 py-0.5 rounded border border-sky-200">
                     Guideline: 2024 ESC
                   </span>
-                  <span className="flex items-center gap-1 text-slate-400 ml-1">
+                  <span className="flex items-center gap-1 text-slate-800 ml-1">
                     <Calendar className="w-3 h-3" />
                     {new Date(created_at).toLocaleDateString('en-US', {
                       month: 'short',
@@ -242,7 +272,7 @@ export default function HeartHealthResult() {
                 type="button"
                 onClick={handlePrintReport}
                 disabled={printingReport}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-lg text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-[5px] text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
                 title="Print Clinical Report with MediConnect Logo & Watermark"
               >
                 <Printer className="w-3.5 h-3.5 text-[#0067A1]" />
@@ -253,16 +283,16 @@ export default function HeartHealthResult() {
                 type="button"
                 onClick={handleDownloadPDF}
                 disabled={downloadingPDF}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200 disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-[5px] text-xs font-semibold transition-all border border-slate-200 disabled:opacity-50 cursor-pointer"
                 title="Download PDF Report"
               >
-                <Download className="w-3.5 h-3.5 text-slate-600" />
+                <Download className="w-3.5 h-3.5 text-slate-950" />
                 <span>{downloadingPDF ? 'Generating PDF...' : 'PDF Report'}</span>
               </button>
 
               <Link
                 href="/doctors"
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0067A1] hover:bg-[#005584] text-white rounded-lg text-xs font-semibold shadow-xs transition-all"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0067A1] hover:bg-[#005584] text-white rounded-[5px] text-xs font-semibold shadow-xs transition-all"
               >
                 <Stethoscope className="w-3.5 h-3.5" />
                 <span>Consult Doctor</span>
@@ -272,7 +302,7 @@ export default function HeartHealthResult() {
         </div>
 
         {/* Emergency Safety Notice Banner (SP-07 P1-14) */}
-        <div className="bg-amber-50/80 border border-amber-200/80 rounded-lg p-2.5 sm:p-3 flex items-start gap-2.5 text-[11px] sm:text-xs text-amber-900 leading-relaxed shadow-2xs">
+        <div className="bg-amber-50/80 border border-amber-200/80 rounded-[5px] p-2.5 sm:p-3 flex items-start gap-2.5 text-[11px] sm:text-xs text-amber-900 leading-relaxed shadow-2xs">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
           <div>
             <span className="font-semibold">Important Clinical Notice:</span> If you have severe chest pain, sudden breathlessness, fainting, or acute symptoms, seek immediate emergency medical care rather than relying on this wellness screening.
@@ -282,38 +312,52 @@ export default function HeartHealthResult() {
         {/* Primary Health Spectrum & Trend Line Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           
-          {/* Main Score & Risk Overview */}
-          <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-2">
+          {/* Main Spectrum Factor Overview (Replaces legacy 0-100 composite score) */}
+          <div className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
               <div>
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900">Heart Health Index</h2>
-                <p className="text-[11px] text-slate-400">Calculated lifestyle score</p>
+                <h2 className="text-xs sm:text-sm font-bold text-slate-900">Heart Health Spectrum Overview</h2>
+                <p className="text-[11px] text-slate-800">Factor-level cardiovascular wellness observations</p>
               </div>
-              <span className={`px-2.5 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wider border ${currentRiskBadge}`}>
-                {risk_level} Risk
+              <span className="px-2.5 py-1 rounded-[5px] text-[11px] font-semibold uppercase tracking-wider bg-sky-50 text-[#003358] border border-sky-200">
+                11 Factors Tracked
               </span>
             </div>
 
-            <div className="flex items-center justify-center my-3">
-              <div className="relative w-36 h-36 flex items-center justify-center rounded-full border-6 border-slate-100 bg-gradient-to-b from-slate-50 to-white shadow-inner">
-                <div className="text-center">
-                  <span className="text-3xl font-black text-slate-900 block font-mono">{health_score}</span>
-                  <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest block mt-0.5">OUT OF 100</span>
-                </div>
+            <div className="grid grid-cols-2 gap-2.5 my-2">
+              <div className="p-2.5 bg-slate-50/80 rounded-[5px] border border-slate-200/80">
+                <span className="text-[10px] uppercase font-semibold text-slate-800 block">Resting Heart Rate</span>
+                <span className="text-base font-extrabold text-slate-900 font-mono mt-0.5 block">{inputs.resting_heart_rate || 72} bpm</span>
+                <span className="text-[10px] text-emerald-600 font-medium">Recorded Metric</span>
+              </div>
+              <div className="p-2.5 bg-slate-50/80 rounded-[5px] border border-slate-200/80">
+                <span className="text-[10px] uppercase font-semibold text-slate-800 block">Blood Pressure</span>
+                <span className="text-base font-extrabold text-slate-900 font-mono mt-0.5 block">{inputs.systolic_bp || 120}/{inputs.diastolic_bp || 80} mmHg</span>
+                <span className="text-[10px] text-slate-900 font-medium">ESC 2024 Framework</span>
+              </div>
+              <div className="p-2.5 bg-slate-50/80 rounded-[5px] border border-slate-200/80">
+                <span className="text-[10px] uppercase font-semibold text-slate-800 block">Physical Activity</span>
+                <span className="text-base font-extrabold text-slate-900 font-mono mt-0.5 block">{inputs.physical_activity_minutes ? `${inputs.physical_activity_minutes}m` : '150m'}/wk</span>
+                <span className="text-[10px] text-slate-900 font-medium">Ref: 150–300 min/wk</span>
+              </div>
+              <div className="p-2.5 bg-slate-50/80 rounded-[5px] border border-slate-200/80">
+                <span className="text-[10px] uppercase font-semibold text-slate-800 block">Body Mass Index</span>
+                <span className="text-base font-extrabold text-slate-900 font-mono mt-0.5 block">
+                  {inputs.bmi ? Number(inputs.bmi).toFixed(1) : (inputs.height_cm && inputs.weight_kg ? (inputs.weight_kg / ((inputs.height_cm/100)**2)).toFixed(1) : '22.5')}
+                </span>
+                <span className="text-[10px] text-slate-900 font-medium">kg/m²</span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 pt-3 border-t border-slate-100">
-              <div className="bg-slate-50/80 rounded-lg p-2.5 border border-slate-200/80">
-                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Age at Assessment</p>
-                <p className="text-xs sm:text-sm font-bold text-slate-900 mt-0.5 font-mono">{inputs.age || 45} yrs</p>
-              </div>
-              <div className="bg-slate-50/80 rounded-lg p-2.5 border border-slate-200/80">
-                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">Body Mass Index</p>
-                <p className="text-xs sm:text-sm font-bold text-slate-900 mt-0.5 font-mono">
-                  {inputs.bmi ? Number(inputs.bmi).toFixed(1) : (inputs.height_cm && inputs.weight_kg ? (inputs.weight_kg / ((inputs.height_cm/100)**2)).toFixed(1) : '22.5')} <span className="text-[10px] font-normal text-slate-400">kg/m²</span>
-                </p>
-              </div>
+            <div className="mt-2 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+              <span className="text-[10px] text-slate-800 italic">No composite score or risk tiers computed (CC-08).</span>
+              <button
+                type="button"
+                onClick={() => router.push('/website/cardio-connect?action=training')}
+                className="px-3 py-1.5 bg-[#003358] hover:bg-[#00223d] text-white text-[11px] font-bold rounded-[5px] transition-colors cursor-pointer shrink-0"
+              >
+                Heart Training →
+              </button>
             </div>
           </div>
 
@@ -328,13 +372,13 @@ export default function HeartHealthResult() {
         </div>
 
         {/* Vital Sign Observations (Heart Health Spectrum) */}
-        <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+        <div className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
             <h3 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
               <Activity className="w-4 h-4 text-[#0067A1]" />
               Vital Sign Observations & Lipid Spectrum
             </h3>
-            <span className="text-[10px] text-slate-400">Framework: 2024 ESC</span>
+            <span className="text-[10px] text-slate-800">Framework: 2024 ESC</span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
@@ -376,11 +420,11 @@ export default function HeartHealthResult() {
                 badgeClass: (inputs.physical_activity_minutes >= 150 || inputs.physical_activity_level === 'high') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
               }
             ].map((metric, idx) => (
-              <div key={idx} className="p-3 bg-slate-50/80 rounded-lg border border-slate-200/80 flex flex-col justify-between">
-                <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wide">{metric.label}</p>
+              <div key={idx} className="p-3 bg-slate-50/80 rounded-[5px] border border-slate-200/80 flex flex-col justify-between">
+                <p className="text-[10px] uppercase font-semibold text-slate-800 tracking-wide">{metric.label}</p>
                 <div className="my-1.5">
                   <span className="text-sm sm:text-base font-bold text-slate-900 font-mono">{metric.value}</span>{' '}
-                  <span className="text-[10px] text-slate-400 font-normal">{metric.unit}</span>
+                  <span className="text-[10px] text-slate-800 font-normal">{metric.unit}</span>
                 </div>
                 <div>
                   <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${metric.badgeClass}`}>
@@ -392,8 +436,8 @@ export default function HeartHealthResult() {
           </div>
 
           {/* ESC 2024 BP Clinical Integrity Notice (SP-07 CLIN-01) */}
-          <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200 text-[11px] text-slate-600 leading-relaxed flex items-start gap-2">
-            <Info className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+          <div className="mt-3 p-3 bg-slate-50 rounded-[5px] border border-slate-200 text-[11px] text-slate-950 leading-relaxed flex items-start gap-2">
+            <Info className="w-3.5 h-3.5 text-slate-800 shrink-0 mt-0.5" />
             <div>
               <span className="font-semibold text-slate-800">Blood pressure: {inputs.systolic_bp || 120}/{inputs.diastolic_bp || 80} mmHg.</span> This single reading does not diagnose hypertension. Blood-pressure classification depends on the guideline framework and repeated, properly measured clinical readings.
             </div>
@@ -401,7 +445,7 @@ export default function HeartHealthResult() {
         </div>
 
         {/* Narrative Analysis & Observations */}
-        <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3">
+        <div className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3">
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
             <Zap className="w-4 h-4 text-[#0067A1]" />
             <h3 className="text-xs sm:text-sm font-bold text-slate-900">
@@ -409,7 +453,7 @@ export default function HeartHealthResult() {
             </h3>
           </div>
 
-          <div className="p-3.5 bg-slate-50/70 rounded-lg border border-slate-200 text-xs text-slate-700 leading-relaxed space-y-2">
+          <div className="p-3.5 bg-slate-50/70 rounded-[5px] border border-slate-200 text-xs text-slate-700 leading-relaxed space-y-2">
             <p>
               {typeof ai_analysis === 'string'
                 ? ai_analysis
@@ -424,7 +468,7 @@ export default function HeartHealthResult() {
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                 Suggested Cardiovascular Wellness Practices
               </h4>
-              <span className="text-[10px] text-slate-500 font-medium">
+              <span className="text-[10px] text-slate-900 font-medium">
                 Content adapted for common Indian food and activity contexts
               </span>
             </div>
@@ -432,29 +476,29 @@ export default function HeartHealthResult() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {Array.isArray(recommendations) && recommendations.length > 0 ? (
                 recommendations.slice(0, 4).map((rec, idx) => (
-                  <div key={idx} className="p-3 bg-slate-50/70 rounded-lg border border-slate-200/90 text-xs space-y-1">
+                  <div key={idx} className="p-3 bg-slate-50/70 rounded-[5px] border border-slate-200/90 text-xs space-y-1">
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-semibold text-slate-900 text-xs">{rec.title || `Action Plan ${idx + 1}`}</span>
                       <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                         {rec.category || 'Wellness'}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-3">
+                    <p className="text-[11px] text-slate-950 leading-relaxed line-clamp-3">
                       {rec.description || (rec.action_steps && rec.action_steps[0]) || 'Maintain healthy daily activity and balanced diet.'}
                     </p>
                   </div>
                 ))
               ) : (
                 <>
-                  <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-200/90 text-xs space-y-1">
+                  <div className="p-3 bg-slate-50/70 rounded-[5px] border border-slate-200/90 text-xs space-y-1">
                     <span className="font-semibold text-slate-900 text-xs">1. Aerobic Physical Activity</span>
-                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                    <p className="text-[11px] text-slate-950 leading-relaxed">
                       For adults for whom moderate-intensity aerobic activity is appropriate, 150–300 minutes per week is used as a public-health reference band. Increase activity gradually.
                     </p>
                   </div>
-                  <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-200/90 text-xs space-y-1">
+                  <div className="p-3 bg-slate-50/70 rounded-[5px] border border-slate-200/90 text-xs space-y-1">
                     <span className="font-semibold text-slate-900 text-xs">2. Heart-Healthy Nutrition</span>
-                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                    <p className="text-[11px] text-slate-950 leading-relaxed">
                       Choose a dietary pattern rich in vegetables, whole grains, and legumes; prefer unsaturated plant oils and limit excess sodium, saturated fat, and processed foods.
                     </p>
                   </div>
@@ -462,7 +506,7 @@ export default function HeartHealthResult() {
               )}
             </div>
 
-            <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[10px] text-slate-400">
+            <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[10px] text-slate-800">
               <span>Health education content version: V2.4 | Reviewed by: Clinical Team | Framework: 2024 ESC</span>
               <span>Screening generated · Not individualized medical advice</span>
             </div>

@@ -4,6 +4,16 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine
+} from "recharts";
+import {
   ChevronLeft,
   Activity,
   Wind,
@@ -59,8 +69,6 @@ export default function LungHealthStatisticsPage() {
   const [user, setUser] = useState(null);
   const [breathingStats, setBreathingStats] = useState({ totalSessions: 0, totalMinutes: 0 });
 
-  // Hovered data point in chart
-  const [hoveredPoint, setHoveredPoint] = useState(null);
 
   // Modal and print report states
   const [selectedAssessmentForModal, setSelectedAssessmentForModal] = useState(null);
@@ -299,19 +307,19 @@ export default function LungHealthStatisticsPage() {
       <div className="max-w-6xl mx-auto space-y-6">
 
         {/* Top Header Card */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="bg-white rounded-[5px] border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
             <button
               type="button"
               onClick={() => router.push("/dashboard/assessments")}
-              className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors shrink-0 mt-0.5 cursor-pointer"
+              className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-[5px] transition-colors shrink-0 mt-0.5 cursor-pointer"
               title="Back to Assessments"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#0067A1] bg-sky-50 px-2 py-0.5 rounded border border-sky-200/80">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#0067A1] bg-sky-50 px-2 py-0.5 rounded-[5px] border border-sky-200/80">
                   Longitudinal Analytics
                 </span>
                 <span className="text-slate-400 text-xs">·</span>
@@ -329,13 +337,13 @@ export default function LungHealthStatisticsPage() {
 
           <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-center">
             {/* Timeframe Filter Tabs */}
-            <div className="inline-flex rounded-lg bg-slate-100 p-1 border border-slate-200 shadow-2xs">
+            <div className="inline-flex rounded-[5px] bg-slate-100 p-1 border border-slate-200 shadow-2xs">
               {TIMEFRAMES.map((t) => (
                 <button
                   key={t.id}
                   type="button"
                   onClick={() => setTimeframe(t.id)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-[5px] transition-all cursor-pointer ${
                     timeframe === t.id
                       ? "bg-white text-[#0067A1] shadow-2xs"
                       : "text-slate-600 hover:text-slate-900"
@@ -348,7 +356,7 @@ export default function LungHealthStatisticsPage() {
 
             <Link
               href="/lung-assessment"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#0067A1] hover:bg-[#005584] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#0067A1] hover:bg-[#005584] text-white rounded-[5px] text-xs font-semibold shadow-xs transition-colors"
             >
               <Activity className="w-3.5 h-3.5" />
               New Assessment
@@ -358,7 +366,7 @@ export default function LungHealthStatisticsPage() {
 
         {/* Error Alert */}
         {error && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs p-3.5 rounded-lg flex items-start gap-2.5 shadow-2xs">
+          <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs p-3.5 rounded-[5px] flex items-start gap-2.5 shadow-2xs">
             <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">Unable to load statistics</p>
@@ -369,15 +377,15 @@ export default function LungHealthStatisticsPage() {
 
         {/* Loading State */}
         {loading ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs space-y-3">
-            <div className="w-8 h-8 border-3 border-[#0067A1] border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="bg-white rounded-[5px] border border-slate-200 p-12 text-center shadow-xs space-y-3">
+            <div className="w-8 h-8 border-3 border-[#0067A1] border-t-transparent rounded-[5px]-full animate-spin mx-auto" />
             <p className="text-xs font-semibold text-slate-700">Loading physiological statistics...</p>
             <p className="text-[11px] text-slate-400">Aggregating historical assessment records</p>
           </div>
         ) : enrichedTrend.length === 0 ? (
           /* Empty State */
-          <div className="bg-white rounded-xl border border-slate-200 p-10 text-center shadow-xs space-y-4 max-w-md mx-auto">
-            <div className="w-14 h-14 bg-sky-50 rounded-full flex items-center justify-center mx-auto text-[#0067A1]">
+          <div className="bg-white rounded-[5px] border border-slate-200 p-10 text-center shadow-xs space-y-4 max-w-md mx-auto">
+            <div className="w-14 h-14 bg-sky-50 rounded-[5px]-full flex items-center justify-center mx-auto text-[#0067A1]">
               <Wind className="w-7 h-7" />
             </div>
             <div>
@@ -388,7 +396,7 @@ export default function LungHealthStatisticsPage() {
             </div>
             <Link
               href="/lung-assessment"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0067A1] hover:bg-[#005584] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0067A1] hover:bg-[#005584] text-white rounded-[5px] text-xs font-semibold shadow-xs transition-colors"
             >
               <Activity className="w-4 h-4" />
               Start Assessment
@@ -400,7 +408,7 @@ export default function LungHealthStatisticsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
               
               {/* 1. Total Assessments */}
-              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between">
+              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                     Total Assessments
@@ -412,13 +420,13 @@ export default function LungHealthStatisticsPage() {
                     Recorded in time window
                   </p>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-sky-50 flex items-center justify-center text-[#0067A1]">
+                <div className="w-10 h-10 rounded-[5px] bg-sky-50 flex items-center justify-center text-[#0067A1]">
                   <FileText className="w-5 h-5" />
                 </div>
               </div>
 
               {/* 2. Latest Score */}
-              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between">
+              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                     Latest Score
@@ -430,7 +438,7 @@ export default function LungHealthStatisticsPage() {
                     <span className="text-xs text-slate-400">/ 100</span>
                   </div>
                   <div className="mt-1">
-                    <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-semibold uppercase tracking-wider border ${
+                    <span className={`inline-block px-1.5 py-0.2 rounded-[5px] text-[10px] font-semibold uppercase tracking-wider border ${
                       latestScore >= 80 ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                       latestScore >= 60 ? "bg-amber-50 text-amber-700 border-amber-200" :
                       "bg-rose-50 text-rose-700 border-rose-200"
@@ -439,13 +447,13 @@ export default function LungHealthStatisticsPage() {
                     </span>
                   </div>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+                <div className="w-10 h-10 rounded-[5px] bg-emerald-50 flex items-center justify-center text-emerald-600">
                   <Activity className="w-5 h-5" />
                 </div>
               </div>
 
               {/* 3. Average Score */}
-              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between">
+              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                     Average Score
@@ -460,13 +468,13 @@ export default function LungHealthStatisticsPage() {
                     Across {totalAssessments} records
                   </p>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                <div className="w-10 h-10 rounded-[5px] bg-indigo-50 flex items-center justify-center text-indigo-600">
                   <BarChart2 className="w-5 h-5" />
                 </div>
               </div>
 
               {/* 4. Recorded Change (Strictly Sheet 03 / LC-11 non-diagnostic rule) */}
-              <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between">
+              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                     Recorded Change
@@ -487,7 +495,7 @@ export default function LungHealthStatisticsPage() {
                     {hasMultipleTests ? "Between first & latest test" : "First test recorded"}
                   </p>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
+                <div className="w-10 h-10 rounded-[5px] bg-amber-50 flex items-center justify-center text-amber-600">
                   {hasMultipleTests && recordedChange > 0 ? (
                     <TrendingUp className="w-5 h-5 text-emerald-600" />
                   ) : hasMultipleTests && recordedChange < 0 ? (
@@ -503,7 +511,7 @@ export default function LungHealthStatisticsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
               
               {/* Left Column (2/3 width): Interactive Trend Curve */}
-              <div className="lg:col-span-2 bg-white rounded-xl p-4 sm:p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
+              <div className="lg:col-span-2 bg-white rounded-[5px] p-4 sm:p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
                 <div>
                   {/* Metric Switcher Toolbar */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100 mb-4">
@@ -527,7 +535,7 @@ export default function LungHealthStatisticsPage() {
                             key={m.id}
                             type="button"
                             onClick={() => setSelectedMetric(m.id)}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold transition-all cursor-pointer ${
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[5px] text-[11px] font-semibold transition-all cursor-pointer ${
                               isSelected
                                 ? "bg-[#0067A1] text-white shadow-2xs"
                                 : "bg-slate-100 hover:bg-slate-200 text-slate-600"
@@ -541,208 +549,109 @@ export default function LungHealthStatisticsPage() {
                     </div>
                   </div>
 
-                  {/* High-Resolution Dynamic Trend Visualizer */}
-                  <div className="relative w-full h-64 sm:h-72 mt-2 select-none">
-                    {(() => {
-                      const chartW = 700;
-                      const chartH = 260;
-                      const padLeft = 45;
-                      const padRight = 25;
-                      const padTop = 25;
-                      const padBottom = 35;
+                  {/* Professional Recharts Area Chart */}
+                  {(() => {
+                    // Determine metric config
+                    const metricConfig = {
+                      score: { dataKey: "score", domain: [0, 100], ticks: [0, 25, 50, 75, 100], unit: "/100", label: "Health Score" },
+                      breathHold: { dataKey: "breathHold", domain: [0, 60], ticks: [0, 15, 30, 45, 60], unit: " sec", label: "Breath-Hold" },
+                      peakFlow: { dataKey: "peakFlow", domain: [200, 700], ticks: [200, 350, 500, 650], unit: " L/min", label: "Peak Flow" },
+                      aqi: { dataKey: "aqi", domain: [0, 300], ticks: [0, 50, 100, 200, 300], unit: " AQI", label: "Ambient AQI" },
+                    };
+                    const cfg = metricConfig[selectedMetric] || metricConfig.score;
 
-                      // Determine values based on active metric
-                      const pointsData = enrichedTrend.map((p) => {
-                        let val = p.score;
-                        if (selectedMetric === "breathHold") val = p.breathHold;
-                        if (selectedMetric === "peakFlow") val = p.peakFlow;
-                        if (selectedMetric === "aqi") val = p.aqi;
-                        return { ...p, currentVal: Number(val) || 0 };
-                      });
+                    // Prepare chart data
+                    const rechartsData = enrichedTrend.map((p) => ({
+                      ...p,
+                      dateLabel: new Date(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+                      currentVal: Number(p[cfg.dataKey]) || 0,
+                    }));
 
-                      // Y-axis scales
-                      let minVal = 0;
-                      let maxVal = 100;
-                      let ticks = [0, 25, 50, 75, 100];
+                    // Compute average for reference line
+                    const avgVal = rechartsData.length > 0
+                      ? Math.round(rechartsData.reduce((acc, p) => acc + p.currentVal, 0) / rechartsData.length)
+                      : 0;
 
-                      if (selectedMetric === "breathHold") {
-                        minVal = 0;
-                        maxVal = 60;
-                        ticks = [0, 15, 30, 45, 60];
-                      } else if (selectedMetric === "peakFlow") {
-                        minVal = 200;
-                        maxVal = 700;
-                        ticks = [200, 350, 500, 650];
-                      } else if (selectedMetric === "aqi") {
-                        minVal = 0;
-                        maxVal = 300;
-                        ticks = [0, 50, 100, 200, 300];
-                      }
-
-                      const span = Math.max(1, maxVal - minVal);
-                      const toX = (idx) =>
-                        padLeft + (idx / Math.max(1, pointsData.length - 1)) * (chartW - padLeft - padRight);
-                      const toY = (v) =>
-                        padTop + (1 - (Math.min(maxVal, Math.max(minVal, v)) - minVal) / span) * (chartH - padTop - padBottom);
-
-                      // Build smooth cubic Bezier path
-                      let pathD = "";
-                      pointsData.forEach((pt, idx) => {
-                        const x = toX(idx);
-                        const y = toY(pt.currentVal);
-                        if (idx === 0) {
-                          pathD += `M ${x} ${y}`;
-                        } else {
-                          const prevX = toX(idx - 1);
-                          const prevY = toY(pointsData[idx - 1].currentVal);
-                          const cp1x = prevX + (x - prevX) / 2;
-                          const cp1y = prevY;
-                          const cp2x = prevX + (x - prevX) / 2;
-                          const cp2y = y;
-                          pathD += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x} ${y}`;
-                        }
-                      });
-
-                      const areaD = pointsData.length > 1
-                        ? `${pathD} L ${toX(pointsData.length - 1)} ${chartH - padBottom} L ${toX(0)} ${chartH - padBottom} Z`
-                        : "";
-
+                    // Custom tooltip renderer
+                    const CustomTooltip = ({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      const data = payload[0].payload;
                       return (
-                        <svg
-                          viewBox={`0 0 ${chartW} ${chartH}`}
-                          className="w-full h-full overflow-visible"
-                        >
-                          <defs>
-                            <linearGradient id="curveGradient" x1="0" y1="0" x2="1" y2="0">
-                              <stop offset="0%" stopColor="#0067A1" />
-                              <stop offset="100%" stopColor="#0ea5e9" />
-                            </linearGradient>
-                            <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#0067A1" stopOpacity="0.18" />
-                              <stop offset="100%" stopColor="#0067A1" stopOpacity="0.01" />
-                            </linearGradient>
-                          </defs>
-
-                          {/* Grid Lines & Y-ticks */}
-                          {ticks.map((t) => {
-                            const y = toY(t);
-                            return (
-                              <g key={t}>
-                                <line
-                                  x1={padLeft}
-                                  y1={y}
-                                  x2={chartW - padRight}
-                                  y2={y}
-                                  stroke="#f1f5f9"
-                                  strokeDasharray="4 4"
-                                  strokeWidth="1.5"
-                                />
-                                <text
-                                  x={padLeft - 10}
-                                  y={y + 3.5}
-                                  textAnchor="end"
-                                  className="fill-slate-400 font-mono text-[10px]"
-                                >
-                                  {t}
-                                </text>
-                              </g>
-                            );
-                          })}
-
-                          {/* Area Fill */}
-                          {areaD && (
-                            <path d={areaD} fill="url(#areaGradient)" />
-                          )}
-
-                          {/* Smooth Spline Curve */}
-                          {pathD && (
-                            <path
-                              d={pathD}
-                              fill="none"
-                              stroke="url(#curveGradient)"
-                              strokeWidth="3.5"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          )}
-
-                          {/* Data Point Nodes */}
-                          {pointsData.map((pt, idx) => {
-                            const cx = toX(idx);
-                            const cy = toY(pt.currentVal);
-                            const isHovered = hoveredPoint?.id === pt.assessmentId;
-                            const dStr = new Date(pt.date).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric"
-                            });
-
-                            return (
-                              <g
-                                key={pt.assessmentId || idx}
-                                className="cursor-pointer group"
-                                onMouseEnter={() => setHoveredPoint(pt)}
-                                onMouseLeave={() => setHoveredPoint(null)}
-                                onClick={() => handleOpenSnapshot(pt)}
-                              >
-                                <circle
-                                  cx={cx}
-                                  cy={cy}
-                                  r={isHovered ? 8 : 5}
-                                  fill="#ffffff"
-                                  stroke="#0067A1"
-                                  strokeWidth={isHovered ? 3.5 : 2.5}
-                                  className="transition-all duration-150"
-                                />
-                                {/* Bottom Date Label */}
-                                <text
-                                  x={cx}
-                                  y={chartH - 12}
-                                  textAnchor="middle"
-                                  className="fill-slate-400 text-[10px] font-medium"
-                                >
-                                  {dStr}
-                                </text>
-                              </g>
-                            );
-                          })}
-                        </svg>
+                        <div className="bg-slate-900 border border-slate-700 rounded-[5px] p-3 shadow-xl text-xs" style={{ minWidth: 180 }}>
+                          <div className="flex items-center justify-between gap-3 text-[10px] text-slate-400 mb-1.5 border-b border-slate-700 pb-1.5">
+                            <span className="font-mono">{data.serialNo}</span>
+                            <span>{new Date(data.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                            <div><span className="text-slate-400">Score: </span><span className="font-bold text-white font-mono">{data.score}/100</span></div>
+                            <div><span className="text-slate-400">Breath-Hold: </span><span className="font-bold text-white font-mono">{data.breathHold}s</span></div>
+                            <div><span className="text-slate-400">Peak Flow: </span><span className="font-bold text-white font-mono">{data.peakFlow} L/m</span></div>
+                            <div><span className="text-slate-400">AQI: </span><span className="font-bold text-white font-mono">{data.aqi}</span></div>
+                          </div>
+                        </div>
                       );
-                    })()}
+                    };
 
-                    {/* Interactive Tooltip Card on Hover */}
-                    {hoveredPoint && (
-                      <div className="absolute top-2 right-4 bg-slate-900/90 backdrop-blur-xs text-white p-3 rounded-lg text-xs shadow-xl border border-slate-700/60 z-30 pointer-events-none animate-in fade-in duration-150">
-                        <div className="flex items-center justify-between gap-3 text-[10px] text-slate-400 mb-1 border-b border-slate-700/60 pb-1">
-                          <span>{hoveredPoint.serialNo}</span>
-                          <span>
-                            {new Date(hoveredPoint.date).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric"
-                            })}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-[11px]">
-                          <div>
-                            <span className="text-slate-400">Score: </span>
-                            <span className="font-bold text-white font-mono">{hoveredPoint.score}/100</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">Breath-Hold: </span>
-                            <span className="font-bold text-white font-mono">{hoveredPoint.breathHold}s</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">Peak Flow: </span>
-                            <span className="font-bold text-white font-mono">{hoveredPoint.peakFlow} L/m</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-400">AQI: </span>
-                            <span className="font-bold text-white font-mono">{hoveredPoint.aqi}</span>
-                          </div>
-                        </div>
+                    return (
+                      <div className="w-full mt-2" style={{ height: 280 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart
+                            data={rechartsData}
+                            margin={{ top: 10, right: 10, left: -10, bottom: 5 }}
+                          >
+                            <defs>
+                              <linearGradient id="lungMetricGradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#0067A1" stopOpacity={0.15} />
+                                <stop offset="95%" stopColor="#0067A1" stopOpacity={0.01} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                            <XAxis
+                              dataKey="dateLabel"
+                              tick={{ fontSize: 11, fill: "#64748b", fontWeight: 500 }}
+                              tickLine={false}
+                              axisLine={{ stroke: "#e2e8f0" }}
+                              dy={8}
+                            />
+                            <YAxis
+                              domain={cfg.domain}
+                              ticks={cfg.ticks}
+                              tick={{ fontSize: 11, fill: "#94a3b8", fontFamily: "monospace" }}
+                              tickLine={false}
+                              axisLine={false}
+                              width={40}
+                            />
+                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: "#0067A1", strokeWidth: 1, strokeDasharray: "4 4" }} />
+                            <ReferenceLine
+                              y={avgVal}
+                              stroke="#94a3b8"
+                              strokeDasharray="6 4"
+                              strokeWidth={1}
+                              label={{ value: `Avg: ${avgVal}`, position: "right", fontSize: 10, fill: "#94a3b8" }}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="currentVal"
+                              stroke="#0067A1"
+                              strokeWidth={2.5}
+                              fill="url(#lungMetricGradient)"
+                              dot={{ r: 4, fill: "#ffffff", stroke: "#0067A1", strokeWidth: 2, cursor: "pointer" }}
+                              activeDot={{
+                                r: 7,
+                                fill: "#0067A1",
+                                stroke: "#ffffff",
+                                strokeWidth: 2,
+                                cursor: "pointer",
+                                onClick: (_, payload) => {
+                                  if (payload?.payload) handleOpenSnapshot(payload.payload);
+                                }
+                              }}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
                       </div>
-                    )}
-                  </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Bottom Timeline Summary */}
@@ -765,7 +674,7 @@ export default function LungHealthStatisticsPage() {
                 </div>
 
                 {/* Sheet 03 / LC-11 Mandatory Policy Notice */}
-                <div className="mt-3 p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-[11px] text-slate-500 leading-relaxed flex items-start gap-2">
+                <div className="mt-3 p-2.5 bg-slate-50 rounded-[5px] border border-slate-200 text-[11px] text-slate-500 leading-relaxed flex items-start gap-2">
                   <Info className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                   <span>
                     <strong>Clinical Notice:</strong> Recorded movement does not by itself establish clinical improvement. Discuss persistent respiratory concerns with a qualified physician.
@@ -777,7 +686,7 @@ export default function LungHealthStatisticsPage() {
               <div className="space-y-4 flex flex-col justify-between">
                 
                 {/* 1. Risk Level Distribution (LC-11) */}
-                <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+                <div className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-xs">
                   <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
                     <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                       <ShieldAlert className="w-4 h-4 text-[#0067A1]" />
@@ -807,9 +716,9 @@ export default function LungHealthStatisticsPage() {
                               {count} <span className="text-slate-400">({pct}%)</span>
                             </span>
                           </div>
-                          <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+                          <div className="w-full h-2 rounded-[5px]-full bg-slate-100 overflow-hidden">
                             <div
-                              className={`h-full rounded-full transition-all duration-500 ${item.color}`}
+                              className={`h-full rounded-[5px]-full transition-all duration-500 ${item.color}`}
                               style={{ width: `${pct}%` }}
                             />
                           </div>
@@ -820,7 +729,7 @@ export default function LungHealthStatisticsPage() {
                 </div>
 
                 {/* 2. Key Respiratory Benchmark Averages */}
-                <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+                <div className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-xs">
                   <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
                     <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                       <Wind className="w-4 h-4 text-[#0067A1]" />
@@ -830,34 +739,34 @@ export default function LungHealthStatisticsPage() {
                   </div>
 
                   <div className="space-y-2.5 text-xs">
-                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+                    <div className="p-2.5 rounded-[5px] bg-slate-50 border border-slate-200/80 flex items-center justify-between">
                       <div>
                         <span className="text-slate-500 block text-[10px] uppercase font-semibold">Avg Breath-Hold</span>
                         <span className="font-bold text-slate-900 font-mono text-sm">{avgBreathHold} sec</span>
                       </div>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                      <span className={`px-2 py-0.5 rounded-[5px] text-[10px] font-semibold border ${
                         avgBreathHold >= 30 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
                       }`}>
                         {avgBreathHold >= 30 ? "Optimal (≥30s)" : "Below Ref (<30s)"}
                       </span>
                     </div>
 
-                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+                    <div className="p-2.5 rounded-[5px] bg-slate-50 border border-slate-200/80 flex items-center justify-between">
                       <div>
                         <span className="text-slate-500 block text-[10px] uppercase font-semibold">Avg Peak Flow</span>
                         <span className="font-bold text-slate-900 font-mono text-sm">{avgPeakFlow} L/min</span>
                       </div>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-50 text-[#0067A1] border border-sky-200">
+                      <span className="px-2 py-0.5 rounded-[5px] text-[10px] font-semibold bg-sky-50 text-[#0067A1] border border-sky-200">
                         Ref: 400–600
                       </span>
                     </div>
 
-                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+                    <div className="p-2.5 rounded-[5px] bg-slate-50 border border-slate-200/80 flex items-center justify-between">
                       <div>
                         <span className="text-slate-500 block text-[10px] uppercase font-semibold">Avg AQI Exposure</span>
                         <span className="font-bold text-slate-900 font-mono text-sm">{avgAQI} AQI</span>
                       </div>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                      <span className={`px-2 py-0.5 rounded-[5px] text-[10px] font-semibold border ${
                         avgAQI <= 100 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
                       }`}>
                         {avgAQI <= 100 ? "Moderate/Good" : "Elevated"}
@@ -867,7 +776,7 @@ export default function LungHealthStatisticsPage() {
                 </div>
 
                 {/* 3. Breathing Wellness Practice (LC-14) */}
-                <div className="bg-gradient-to-br from-[#0067A1] to-[#005584] text-white rounded-xl p-4 shadow-xs">
+                <div className="bg-gradient-to-br from-[#0067A1] to-[#005584] text-white rounded-[5px] p-4 shadow-xs">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[10px] uppercase font-bold tracking-wider opacity-85">
                       Breathing Consistency
@@ -883,7 +792,7 @@ export default function LungHealthStatisticsPage() {
                   </p>
                   <Link
                     href="/dashboard/breathing"
-                    className="mt-3 block w-full py-1.5 px-3 bg-white text-[#0067A1] hover:bg-sky-50 rounded-lg text-xs font-semibold text-center transition-colors shadow-2xs"
+                    className="mt-3 block w-full py-1.5 px-3 bg-white text-[#0067A1] hover:bg-sky-50 rounded-[5px] text-xs font-semibold text-center transition-colors shadow-2xs"
                   >
                     Start Breathing Exercise
                   </Link>
@@ -892,7 +801,7 @@ export default function LungHealthStatisticsPage() {
             </div>
 
             {/* Historical Assessment Log (LC-12 / Sheet 03) */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="bg-white rounded-[5px] border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
@@ -963,7 +872,7 @@ export default function LungHealthStatisticsPage() {
 
                           {/* Serial No */}
                           <td className="py-3 px-3 whitespace-nowrap">
-                            <span className="font-mono text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                            <span className="font-mono text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-[5px] border border-slate-200">
                               #{record.serialNo}
                             </span>
                           </td>
@@ -978,7 +887,7 @@ export default function LungHealthStatisticsPage() {
 
                           {/* Risk Level */}
                           <td className="py-3 px-3 whitespace-nowrap">
-                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border ${riskClasses[riskStr] || riskClasses.moderate}`}>
+                            <span className={`inline-block px-2 py-0.5 rounded-[5px] text-[10px] font-semibold uppercase tracking-wider border ${riskClasses[riskStr] || riskClasses.moderate}`}>
                               {riskStr}
                             </span>
                           </td>
@@ -1002,7 +911,7 @@ export default function LungHealthStatisticsPage() {
                               <button
                                 type="button"
                                 onClick={() => handleOpenSnapshot(record)}
-                                className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200 rounded text-[11px] font-semibold transition-colors cursor-pointer"
+                                className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200 rounded-[5px] text-[11px] font-semibold transition-colors cursor-pointer"
                                 title="Open Full Report Snapshot (LC-10)"
                               >
                                 <Eye className="w-3.5 h-3.5 inline mr-1" />
@@ -1013,7 +922,7 @@ export default function LungHealthStatisticsPage() {
                                 type="button"
                                 onClick={() => handleDownloadReport(record)}
                                 disabled={downloadingId === record.id}
-                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded text-[11px] font-semibold transition-colors cursor-pointer"
+                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-[5px] text-[11px] font-semibold transition-colors cursor-pointer"
                                 title="Download High-Res PDF (15-Day Gated)"
                               >
                                 <Download className="w-3.5 h-3.5" />
@@ -1023,7 +932,7 @@ export default function LungHealthStatisticsPage() {
                                 type="button"
                                 onClick={() => handlePrintReport(record)}
                                 disabled={downloadingId === record.id}
-                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded text-[11px] font-semibold transition-colors cursor-pointer"
+                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-[5px] text-[11px] font-semibold transition-colors cursor-pointer"
                                 title="Print Clinical Report (with Logo & Watermark)"
                               >
                                 <Printer className="w-3.5 h-3.5" />

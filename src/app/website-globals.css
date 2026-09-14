@@ -1,9 +1,16 @@
 @import "tailwindcss";
 
-/* Apply Poppins only inside the website section */
-.website-root * {
-  font-family: var(--font-poppins), -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+/* Apply Poppins everywhere across the website and dashboard */
+*,
+.website-root,
+.website-root *,
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-poppins), 'Poppins', -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
 }
 
 /* Animation Keyframes */

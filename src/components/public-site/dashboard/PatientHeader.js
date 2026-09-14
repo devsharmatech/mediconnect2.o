@@ -483,8 +483,8 @@ const PatientHeader = ({ user, onMenuClick }) => {
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className="relative flex h-4 w-4">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-4 w-4 bg-white"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-[5px] bg-white opacity-75"></span>
+                <span className="relative inline-flex rounded-[5px] h-4 w-4 bg-white"></span>
               </span>
               <div>
                 <p className="text-sm font-bold">Doctor started your video consultation!</p>
@@ -494,7 +494,7 @@ const PatientHeader = ({ user, onMenuClick }) => {
             <button
               type="button"
               onClick={handleJoinActiveCall}
-              className="shrink-0 px-5 py-2 rounded-xl bg-white text-emerald-700 text-sm font-bold hover:bg-gray-100 transition-colors shadow-md animate-pulse"
+              className="shrink-0 px-5 py-2 rounded-[5px] bg-white text-emerald-700 text-sm font-bold hover:bg-gray-100 transition-colors shadow-md animate-pulse"
             >
               Join Call
             </button>
@@ -507,7 +507,7 @@ const PatientHeader = ({ user, onMenuClick }) => {
           {/* Mobile Menu Button */}
           <button
             onClick={onMenuClick}
-            className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            className="lg:hidden p-2 rounded-[5px] hover:bg-gray-100 transition-colors"
           >
             <FaBars className="w-5 h-5 text-gray-600" />
           </button>
@@ -525,11 +525,11 @@ const PatientHeader = ({ user, onMenuClick }) => {
                   await markAllNotificationsRead();
                 }
               }}
-              className="relative p-2.5 rounded-xl hover:bg-gray-100 transition-colors"
+              className="relative p-2.5 rounded-[5px] hover:bg-gray-100 transition-colors"
             >
               <FaBell className="w-5 h-5 text-gray-600" />
               {unreadCount > 0 && (
-                <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-[5px] flex items-center justify-center">
                   {unreadCount}
                 </span>
               )}
@@ -537,11 +537,11 @@ const PatientHeader = ({ user, onMenuClick }) => {
 
             {/* Notifications Dropdown */}
             {isNotificationOpen && (
-              <div className="absolute -right-[52px] sm:right-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-[320px] max-h-[70vh] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col z-50">
+              <div className="absolute -right-[52px] sm:right-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-[320px] max-h-[70vh] bg-white rounded-[5px] shadow-2xl border border-gray-100 overflow-hidden flex flex-col z-50">
                 <div className="p-4 border-b border-gray-100 flex items-center justify-between">
                   <h3 className="font-semibold text-gray-900">Notifications</h3>
                   {unreadCount > 0 && (
-                    <span className="px-2 py-1 bg-red-100 text-red-600 text-xs font-semibold rounded-full">
+                    <span className="px-2 py-1 bg-red-100 text-red-600 text-xs font-semibold rounded-[5px]">
                       {unreadCount} new
                     </span>
                   )}
@@ -580,7 +580,7 @@ const PatientHeader = ({ user, onMenuClick }) => {
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); handleMarkNotificationRead(notification.id); }}
-                                  className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-[5px] bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
                                 >
                                   <FaCheckCircle className="w-3.5 h-3.5" />
                                 </button>
@@ -588,7 +588,7 @@ const PatientHeader = ({ user, onMenuClick }) => {
                               <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); handleDeleteNotification(notification.id); }}
-                                className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-50 text-red-600 hover:bg-red-100 border border-red-100"
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-[5px] bg-red-50 text-red-600 hover:bg-red-100 border border-red-100"
                               >
                                 <FaTrash className="w-3.5 h-3.5" />
                               </button>
@@ -615,7 +615,7 @@ const PatientHeader = ({ user, onMenuClick }) => {
                       setIsNotificationOpen(false);
                       openNotificationsModal();
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0067A1] text-white font-semibold hover:bg-[#004F7C] transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[5px] bg-[#0067A1] text-white font-semibold hover:bg-[#004F7C] transition-colors"
                   >
                     Show more
                   </button>
@@ -628,14 +628,14 @@ const PatientHeader = ({ user, onMenuClick }) => {
           <div className="relative" ref={profileRef}>
             <button
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-3 p-1.5 pr-3 rounded-xl hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-3 p-1.5 pr-3 rounded-[5px] hover:bg-gray-100 transition-colors"
             >
-              <div className="w-10 h-10 rounded-full bg-[#0067A1] flex items-center justify-center text-white font-semibold shadow-md">
+              <div className="w-10 h-10 rounded-[5px] bg-[#0067A1] flex items-center justify-center text-white font-semibold shadow-md">
                 {user?.avatar ? (
                   <img
                     src={user.avatar}
                     alt={getDisplayName()}
-                    className="w-full h-full rounded-full object-cover"
+                    className="w-full h-full rounded-[5px] object-cover"
                   />
                 ) : (
                   <span className="text-sm">
@@ -659,16 +659,16 @@ const PatientHeader = ({ user, onMenuClick }) => {
 
             {/* Profile Menu */}
             {isProfileOpen && (
-              <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-[5px] shadow-2xl border border-gray-100 overflow-hidden">
                 {/* User Info */}
                 <div className="p-4 bg-[#0067A1]/5 border-b border-gray-100">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-[#0067A1] flex items-center justify-center text-white font-semibold shadow-md">
+                    <div className="w-12 h-12 rounded-[5px] bg-[#0067A1] flex items-center justify-center text-white font-semibold shadow-md">
                       {user?.avatar ? (
                         <img
                           src={user.avatar}
                           alt={getDisplayName()}
-                          className="w-full h-full rounded-full object-cover"
+                          className="w-full h-full rounded-[5px] object-cover"
                         />
                       ) : (
                         <span>{getInitials(getDisplayName())}</span>
@@ -720,10 +720,10 @@ const PatientHeader = ({ user, onMenuClick }) => {
 
       {showNotificationsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-lg sm:max-w-2xl bg-white rounded-2xl shadow-2xl border border-gray-200 max-h-[80vh] flex flex-col overflow-hidden">
+          <div className="w-full max-w-lg sm:max-w-2xl bg-white rounded-[5px] shadow-2xl border border-gray-200 max-h-[80vh] flex flex-col overflow-hidden">
             <div className="px-4 sm:px-6 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-[#0067A1] flex items-center justify-center text-white">
+                <div className="w-8 h-8 rounded-[5px] bg-[#0067A1] flex items-center justify-center text-white">
                   <FaBell className="w-4 h-4" />
                 </div>
                 <div>
@@ -736,7 +736,7 @@ const PatientHeader = ({ user, onMenuClick }) => {
               <button
                 type="button"
                 onClick={() => setShowNotificationsModal(false)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 text-sm font-bold"
+                className="w-8 h-8 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 text-sm font-bold"
               >
                 ✕
               </button>
@@ -779,7 +779,7 @@ const PatientHeader = ({ user, onMenuClick }) => {
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); handleMarkNotificationRead(n.id); }}
-                            className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
+                            className="inline-flex items-center justify-center w-7 h-7 rounded-[5px] bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
                           >
                             <FaCheckCircle className="w-3.5 h-3.5" />
                           </button>
@@ -787,7 +787,7 @@ const PatientHeader = ({ user, onMenuClick }) => {
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); handleDeleteNotification(n.id); }}
-                          className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-50 text-red-600 hover:bg-red-100 border border-red-100"
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-[5px] bg-red-50 text-red-600 hover:bg-red-100 border border-red-100"
                         >
                           <FaTrash className="w-3.5 h-3.5" />
                         </button>
@@ -797,7 +797,7 @@ const PatientHeader = ({ user, onMenuClick }) => {
                 </div>
               ) : (
                 <div className="py-10 text-center flex flex-col items-center justify-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-[5px] bg-gray-100 flex items-center justify-center">
                     <FaBell className="w-5 h-5 text-gray-400" />
                   </div>
                   <p className="text-sm font-medium text-gray-600">
@@ -817,7 +817,7 @@ const PatientHeader = ({ user, onMenuClick }) => {
                   type="button"
                   disabled={modalPage === 1 || modalLoading}
                   onClick={() => loadModalPage(Math.max(1, modalPage - 1))}
-                  className="px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 rounded-[5px] border border-gray-200 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Previous
                 </button>
@@ -825,7 +825,7 @@ const PatientHeader = ({ user, onMenuClick }) => {
                   type="button"
                   disabled={!modalHasMore || modalLoading}
                   onClick={() => loadModalPage(modalPage + 1)}
-                  className="px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 rounded-[5px] border border-gray-200 text-gray-600 bg-white hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>

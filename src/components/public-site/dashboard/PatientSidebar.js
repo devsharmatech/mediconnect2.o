@@ -22,18 +22,21 @@ import {
   FaReceipt,
   FaWind,
   FaUserMd,
+  FaWalking,
+  FaRunning,
+  FaChartLine,
 } from "react-icons/fa";
 import { TbLungsFilled } from "react-icons/tb";
 import Image from "next/image";
 
-const PatientSidebar = ({ 
+export default function PatientSidebar({ 
   isOpen, 
   onClose, 
   user, 
   onOpenAssistant,
   isCollapsed: propCollapsed,
   setIsCollapsed: propSetCollapsed
-}) => {
+}) {
   const pathname = usePathname();
   const router = useRouter();
   
@@ -114,19 +117,29 @@ const PatientSidebar = ({
           icon: TbLungsFilled,
         },
         {
-          name: "Respiratory Assessment",
-          href: "/website/lung-assessment",
-          icon: TbLungsFilled,
+          name: "Move Session",
+          href: "/website/lung-connect?action=move",
+          icon: FaRunning,
         },
         {
-          name: "Longitudinal Statistics",
-          href: "/website/lung-health-statistics",
-          icon: TbLungsFilled,
+          name: "6-Minute Walk Test",
+          href: "/website/lung-connect?action=walking",
+          icon: FaWalking,
         },
         {
-          name: "Breathing Exercises",
+          name: "Breathing Studio",
           href: "/website/dashboard/breathing",
           icon: FaWind,
+        },
+        {
+          name: "Recorded Trends",
+          href: "/website/lung-health-statistics",
+          icon: FaChartLine,
+        },
+        {
+          name: "Respiratory Check",
+          href: "/website/lung-assessment",
+          icon: TbLungsFilled,
         },
       ],
     },
@@ -142,14 +155,34 @@ const PatientSidebar = ({
           icon: FaHeartbeat,
         },
         {
-          name: "Cardio Assessment",
+          name: "Heart Training",
+          href: "/website/cardio-connect?action=training",
+          icon: FaRunning,
+        },
+        {
+          name: "Cardio Walk Test",
+          href: "/website/cardio-connect?action=walking",
+          icon: FaWalking,
+        },
+        {
+          name: "Cardio Spectrum",
+          href: "/website/cardio-connect?action=spectrum",
+          icon: FaHeartbeat,
+        },
+        {
+          name: "My Progress",
+          href: "/website/cardio-connect?action=progress",
+          icon: FaChartLine,
+        },
+        {
+          name: "Cardio Screening",
           href: "/website/heart-health",
           icon: FaHeartbeat,
         },
         {
           name: "Cardio Statistics",
           href: "/website/heart-health-statistics",
-          icon: FaHeartbeat,
+          icon: FaChartLine,
         },
       ],
     },
@@ -324,7 +357,7 @@ const PatientSidebar = ({
                 alt="MediConnect"
                 width={36}
                 height={36}
-                className="object-contain rounded-md"
+                className="object-contain rounded-[5px]"
               />
             ) : (
               <Image
@@ -342,16 +375,16 @@ const PatientSidebar = ({
           <div className="flex items-center gap-1">
             <button
               onClick={onClose}
-              className="lg:hidden p-1.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+              className="lg:hidden p-1.5 rounded-[5px] text-white/50 hover:text-white hover:bg-white/10 transition-colors"
             >
               <FaTimes className="w-5 h-5" />
             </button>
 
             <button
               onClick={() => setIsCollapsed(!isCollapsed)}
-              className={`hidden lg:flex p-1.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors ${
+              className={`hidden lg:flex p-1.5 rounded-[5px] text-white/50 hover:text-white hover:bg-white/10 transition-colors ${
                 isCollapsed 
-                  ? "absolute -right-3.5 top-1/2 -translate-y-1/2 bg-[#003358] border border-white/20 shadow-lg rounded-full z-10 w-7 h-7 items-center justify-center hover:scale-110" 
+                  ? "absolute -right-3.5 top-1/2 -translate-y-1/2 bg-[#003358] border border-white/20 shadow-lg rounded-[5px] z-10 w-7 h-7 items-center justify-center hover:scale-110" 
                   : ""
               }`}
             >
@@ -381,7 +414,7 @@ const PatientSidebar = ({
               const showSection = !isCollapsed && item.section && item.section !== lastSection;
               if (showSection) lastSection = item.section;
 
-              const commonClasses = `relative w-full flex items-center gap-3.5 px-3 py-3 rounded-xl transition-all duration-200 group text-sm font-medium text-left
+              const commonClasses = `relative w-full flex items-center gap-3.5 px-3 py-3 rounded-[5px] transition-all duration-200 group text-sm font-medium text-left
                 ${active
                   ? "bg-white text-[#0067A1] shadow-md"
                   : "text-white/70 hover:bg-white/10 hover:text-white"
@@ -441,7 +474,8 @@ const PatientSidebar = ({
                               key={child.name}
                               href={child.href}
                               onClick={onClose}
-                              className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg text-xs font-medium transition-all
+                              title={child.name}
+                              className={`flex items-center gap-3 w-full px-3 py-2 rounded-[5px] text-xs font-medium transition-all
                                 ${childActive 
                                   ? "text-white bg-white/10" 
                                   : "text-white/50 hover:text-white hover:bg-white/5"
@@ -453,7 +487,7 @@ const PatientSidebar = ({
                                   childActive ? "text-white" : "text-white/40"
                                 }`}
                               />
-                              <span>{child.name}</span>
+                              <span className="whitespace-nowrap truncate">{child.name}</span>
                             </Link>
                           );
                         })}
@@ -505,13 +539,13 @@ const PatientSidebar = ({
         {/* Footer actions */}
         <div className="p-4 shrink-0 border-t border-white/10 bg-black/10">
           {!isCollapsed && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-xl border border-white/10 mb-3 overflow-hidden">
-              <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-400 flex items-center justify-center text-[#003358] font-bold text-sm shadow-md">
+            <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-[5px] border border-white/10 mb-3 overflow-hidden">
+              <div className="w-10 h-10 shrink-0 rounded-[5px] bg-gradient-to-tr from-emerald-400 to-teal-400 flex items-center justify-center text-[#003358] font-bold text-sm shadow-md">
                 {user?.avatar ? (
                   <img
                     src={user.avatar}
                     alt={getDisplayName()}
-                    className="w-full h-full rounded-full object-cover"
+                    className="w-full h-full rounded-[5px] object-cover"
                   />
                 ) : (
                   <span>
@@ -533,7 +567,7 @@ const PatientSidebar = ({
           <button
             onClick={handleLogout}
             title={isCollapsed ? "Logout" : undefined}
-            className={`flex items-center gap-2 px-3 py-3 rounded-xl text-sm transition-all duration-200 w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 font-medium border border-transparent hover:border-rose-500/30
+            className={`flex items-center gap-2 px-3 py-3 rounded-[5px] text-sm transition-all duration-200 w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 font-medium border border-transparent hover:border-rose-500/30
               ${isCollapsed ? "justify-center" : "justify-center"}
             `}
           >
@@ -544,6 +578,4 @@ const PatientSidebar = ({
       </aside>
     </>
   );
-};
-
-export default PatientSidebar;
+}

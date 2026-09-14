@@ -46,10 +46,11 @@ function calculateHeartHealth(inputs) {
     if (inputs.chest_pain) { score -= 25; riskFactors.push("Chest pain – urgent"); }
 
     score = Math.max(0, Math.min(100, score));
-    const heartAge = inputs.age + Math.floor((100 - score) / 3);
+    // Phase-1 Rule (P0-03): Heart Age is NOT an approved Phase-1 output.
+    const calculatedAge = null;
     let riskLevel = score >= 80 ? "low" : score >= 60 ? "moderate" : score >= 40 ? "high" : "critical";
 
-    return { healthScore: Math.round(score), calculatedAge: heartAge, riskLevel, riskFactors };
+    return { healthScore: Math.round(score), calculatedAge, riskLevel, riskFactors };
 }
 
 function calculateLungHealth(inputs) {

@@ -70,18 +70,18 @@ export default function AssessmentTrendChart({
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-slate-900/95 backdrop-blur-sm text-white px-3 py-2 rounded-lg text-xs shadow-lg border border-slate-700/60 z-50">
+        <div className="bg-slate-900/95 backdrop-blur-sm text-white px-3 py-2 rounded-[5px] text-xs shadow-lg border border-slate-700/60 z-50">
           <p className="font-semibold text-slate-200 text-[11px] mb-1 flex items-center gap-1.5">
             <Calendar className="w-3 h-3 text-teal-400" />
             {data.fullDate || data.date}
             {data.isCurrent && (
-              <span className="bg-teal-500/20 text-teal-300 px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider ml-1">
+              <span className="bg-teal-500/20 text-teal-300 px-1.5 py-0.2 rounded-[5px] text-[9px] font-bold uppercase tracking-wider ml-1">
                 Latest
               </span>
             )}
           </p>
           <div className="flex items-center gap-2">
-            <span className="text-slate-400">Recorded Score:</span>
+            <span className="text-slate-800">Recorded Score:</span>
             <span className="font-bold text-sm text-white font-mono">{data.score}/100</span>
           </div>
         </div>
@@ -93,25 +93,25 @@ export default function AssessmentTrendChart({
   const isSinglePoint = formattedPoints.length === 1;
 
   return (
-    <div className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
+    <div className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3 pb-2.5 border-b border-slate-100">
         <div>
           <div className="flex items-center gap-2">
-            <div className={`p-1.5 rounded-md ${isHeart ? "bg-sky-50 text-[#0067A1]" : "bg-teal-50 text-teal-700"}`}>
+            <div className={`p-1.5 rounded-[5px] ${isHeart ? "bg-sky-50 text-[#0067A1]" : "bg-teal-50 text-teal-700"}`}>
               <TrendingUp className="w-3.5 h-3.5" />
             </div>
             <h3 className="text-xs sm:text-sm font-bold text-slate-900">
               Recorded Assessment Trend
             </h3>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5">
+          <p className="text-[11px] text-slate-800 mt-0.5">
             Longitudinal trend from verified assessment database records
           </p>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 font-mono">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[5px] text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 font-mono">
             {formattedPoints.length} {formattedPoints.length === 1 ? "Record" : "Records"}
           </span>
         </div>
@@ -119,8 +119,8 @@ export default function AssessmentTrendChart({
 
       {/* Single Point Baseline Indicator if only 1 assessment exists */}
       {isSinglePoint && (
-        <div className="mb-3 px-3 py-2 bg-slate-50 border border-slate-200/80 rounded-lg flex items-start gap-2 text-[11px] text-slate-600">
-          <Info className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+        <div className="mb-3 px-3 py-2 bg-slate-50 border border-slate-200/80 rounded-[5px] flex items-start gap-2 text-[11px] text-slate-950">
+          <Info className="w-3.5 h-3.5 text-slate-800 shrink-0 mt-0.5" />
           <span>
             Initial baseline recorded. Complete regular assessments over time to track your longitudinal health progression.
           </span>
@@ -186,7 +186,7 @@ export default function AssessmentTrendChart({
       </div>
 
       {/* Footer Info */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-100 text-[10px] text-slate-400">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-100 text-[10px] text-slate-800">
         <span>Framework: ESC 2024 / Longitudinal Factor Model</span>
         <span className="font-mono">Authoritative DB Source</span>
       </div>

@@ -370,18 +370,15 @@ function calculateLungHealth(inputs) {
     score -= 8;
   }
 
-  // AQI Context (Environmental observation)
-  if (inputs.aqi > 200) {
-    score -= 15;
-    riskFactors.push("High environmental pollution exposure");
-  } else if (inputs.aqi > 120) {
-    score -= 8;
-  }
+  // AQI Context (Environmental observation sidecar - strictly does NOT mutate Score/Risk/Lung Age per SP-06 / LC-05)
+  // AQI is an environmental sidecar and does not deduct points or affect clinical category.
 
-  // Symptoms
+  // Symptoms & Safety Precedence (SP-06 / LC-06 / LC-09)
+  let hasConcerningSymptom = false;
   if (inputs.breathlessness === "severe") {
     score -= 20;
     riskFactors.push("Severe breathlessness");
+    hasConcerningSymptom = true;
   } else if (inputs.breathlessness === "moderate") {
     score -= 12;
   }
@@ -389,11 +386,13 @@ function calculateLungHealth(inputs) {
   if (inputs.cough_frequency === "constant") {
     score -= 18;
     riskFactors.push("Frequent cough");
+    hasConcerningSymptom = true;
   }
 
   if (inputs.wheezing) {
     score -= 12;
     riskFactors.push("Wheezing");
+    hasConcerningSymptom = true;
   }
 
   // Breath Holding (Factual input, not diagnostic capacity)
@@ -406,7 +405,12 @@ function calculateLungHealth(inputs) {
 
   score = Math.max(0, Math.min(100, score));
   const lungAge = inputs.age ? Math.round(inputs.age + Math.floor((100 - score) / 2.5)) : null;
+  
+  // Safety precedence: concerning symptoms trigger clinical notice that cannot be overridden by favorable score
   let riskLevel = score >= 80 ? "low" : score >= 60 ? "moderate" : score >= 40 ? "high" : "critical";
+  if (hasConcerningSymptom && riskLevel === "low") {
+    riskLevel = "moderate";
+  }
 
   return {
     healthScore: Math.round(score),
