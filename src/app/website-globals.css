@@ -1,6 +1,14 @@
 @import "tailwindcss";
 
-/* Apply Poppins everywhere across the website and dashboard */
+/* Apply Poppins everywhere across the website and dashboard with crisp antialiasing */
+html,
+body,
+.website-root {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
 *,
 .website-root,
 .website-root *,

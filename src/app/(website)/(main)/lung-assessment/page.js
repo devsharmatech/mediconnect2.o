@@ -10,12 +10,16 @@ import {
   FaExclamationTriangle, FaMapMarkerAlt, FaSync
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
+import { getSavedPatientLocation, savePatientLocation } from "@/lib/patientLocation";
 
 const LoginModal = dynamic(
   () => import("@/components/public-site/auth/LoginModal"),
   { ssr: false }
 );
 
+
+
+/* ── Main Component ────────────────────────────────────────── */
 export default function GamifiedLungAssessment() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
@@ -25,27 +29,34 @@ export default function GamifiedLungAssessment() {
   const [aqiInfo, setAqiInfo] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Pre-filled values (Delhi default per policy)
-  const [formData, setFormData] = useState({
-    sex: 'male',
-    age: 35,
-    height: 172,
-    weight: 70,
-    smokingStatus: 'never',
-    breathHold: 35,
-    smokingPackYears: 0,
-    peakFlow: 450,
-    aqi: 125,
-    breathsPerMinute: 16,
-    pollutionExposure: 'moderate',
-    occupationalRisk: 'none',
-    location: 'Delhi',
-    CoughFrequency: 'none',
-    Breathlessness: 'none',
-    Wheezing: 'false'
+  const [formData, setFormData] = useState(() => {
+    let initialLocation = 'Delhi';
+    let initialAqi = 68;
+    if (typeof window !== 'undefined') {
+      const saved = getSavedPatientLocation();
+      if (saved?.city && saved.city !== 'Delhi') initialLocation = saved.city;
+      if (saved?.aqi) initialAqi = saved.aqi;
+    }
+    return {
+      sex: 'male',
+      age: 35,
+      height: 172,
+      weight: 70,
+      smokingStatus: 'never',
+      breathHold: 35,
+      smokingPackYears: 0,
+      peakFlow: 450,
+      aqi: initialAqi,
+      breathsPerMinute: 16,
+      pollutionExposure: 'moderate',
+      occupationalRisk: 'none',
+      location: initialLocation,
+      CoughFrequency: 'none',
+      Breathlessness: 'none',
+      Wheezing: 'false'
+    };
   });
 
-  // Fetch AQI from free community-cached API
   const fetchAqiForLocation = async (locName, lat = null, lng = null) => {
     try {
       setAqiLoading(true);
@@ -59,41 +70,135 @@ export default function GamifiedLungAssessment() {
       const data = await res.json();
       if (data.success && data.data?.aqi_data) {
         const item = data.data.aqi_data;
+        const resolvedCityName = item.location || locName || "Current Location";
         setFormData(prev => ({
           ...prev,
-          aqi: item.aqi || prev.aqi,
-          location: item.location || prev.location
+          aqi: item.aqi ?? prev.aqi,
+          location: resolvedCityName
         }));
         setAqiInfo(item);
+        
+        // Save to global persistent store across whole patient side
+        savePatientLocation({
+          city: resolvedCityName,
+          lat: lat,
+          lng: lng,
+          aqi: item.aqi,
+          isGps: lat !== null && lng !== null,
+        });
+        return item;
       }
+      return null;
     } catch (e) {
       console.warn("Failed to fetch AQI:", e);
+      return null;
     } finally {
       setAqiLoading(false);
     }
   };
 
-  const handleDetectLocation = () => {
-    if (typeof window === 'undefined' || !navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.");
-      return;
-    }
+  const detectUserLocation = async (showToast = false) => {
     setAqiLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        fetchAqiForLocation(null, pos.coords.latitude, pos.coords.longitude);
-      },
-      (err) => {
-        console.warn("Geolocation denied or error:", err.message);
-        fetchAqiForLocation(formData.location || 'Delhi');
-      },
-      { timeout: 8000 }
-    );
+    let toastId = null;
+    if (showToast) {
+      toastId = toast.loading("Detecting current location & CPCB AQI...");
+    }
+
+    // 0. Prioritize existing saved patient location if set
+    const saved = getSavedPatientLocation();
+    if (saved?.city && saved.city !== 'Delhi') {
+      const item = await fetchAqiForLocation(saved.city, saved.lat, saved.lng);
+      if (item) {
+        if (showToast && toastId) toast.success(`Location: ${item.location} (CPCB AQI: ${item.aqi})`, { id: toastId });
+        return item;
+      }
+    }
+
+    // 1. Try browser GPS first (fast timeout, low accuracy is faster and works across desktop/laptops)
+    if (typeof window !== 'undefined' && navigator.geolocation) {
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: false,
+            timeout: 5000,
+            maximumAge: 120000
+          });
+        });
+        if (pos?.coords) {
+          const item = await fetchAqiForLocation(null, pos.coords.latitude, pos.coords.longitude);
+          if (item) {
+            if (showToast && toastId) toast.success(`Detected: ${item.location} (CPCB AQI: ${item.aqi})`, { id: toastId });
+            return item;
+          }
+        }
+      } catch (gpsErr) {
+        console.warn("Browser GPS unavailable or timed out, trying IP fallback...", gpsErr);
+      }
+    }
+
+    // 2. Fast IP Geolocation fallback (works without prompt across desktop/mobile)
+    try {
+      const ipRes = await fetch('https://ipapi.co/json/').catch(() => null);
+      if (ipRes && ipRes.ok) {
+        const ipData = await ipRes.json();
+        const city = ipData.city || ipData.region || saved?.city || 'Delhi';
+        const item = await fetchAqiForLocation(city, ipData.latitude, ipData.longitude);
+        if (item) {
+          if (showToast && toastId) toast.success(`Region: ${item.location} (CPCB AQI: ${item.aqi})`, { id: toastId });
+          return item;
+        }
+      }
+    } catch (ipErr) {
+      console.warn("IP fallback failed:", ipErr);
+    }
+
+    // 3. Final fallback: Use saved patient location or default to Delhi
+    const fallbackCity = saved?.city || 'Delhi';
+    const fallbackItem = await fetchAqiForLocation(fallbackCity);
+    if (showToast && toastId) {
+      toast.error(`Could not auto-detect location. Using ${fallbackCity}.`, { id: toastId });
+    }
+    return fallbackItem;
   };
 
-  // Canonical Age Derivation from Authoritative DOB (SP-06 LC-02) & Initial Delhi AQI
+  const handleManualLocationUpdate = (customLoc) => {
+    const query = (customLoc !== undefined ? customLoc : formData.location || '').trim();
+    if (!query) {
+      toast.error("Please enter a city name.");
+      return;
+    }
+    const tId = toast.loading(`Checking CPCB AQI for ${query}...`);
+    fetchAqiForLocation(query).then(item => {
+      if (item) {
+        savePatientLocation({
+          city: item.location || query,
+          aqi: item.aqi,
+          forceReset: true,
+        });
+        toast.success(`${item.location} · CPCB AQI: ${item.aqi} (${item.category || 'Satisfactory'})`, { id: tId });
+      } else {
+        toast.error(`Could not update air quality for "${query}"`, { id: tId });
+      }
+    });
+  };
+
   useEffect(() => {
-    fetchAqiForLocation('Delhi');
+    // Automatically detect or sync user location on initial mount
+    detectUserLocation(false);
+
+    // Sync if location updated elsewhere
+    const handleLocationUpdate = (e) => {
+      const loc = e.detail;
+      if (loc?.city) {
+        setFormData(prev => ({
+          ...prev,
+          location: loc.city,
+          aqi: loc.aqi ?? prev.aqi,
+        }));
+      }
+    };
+    window.addEventListener("patient-location-updated", handleLocationUpdate);
+
     try {
       const stored = localStorage.getItem('userData');
       if (stored) {
@@ -103,47 +208,29 @@ export default function GamifiedLungAssessment() {
           const dob = new Date(dobStr);
           if (!isNaN(dob.getTime())) {
             const today = new Date();
-            let calculatedAge = today.getFullYear() - dob.getFullYear();
+            let age = today.getFullYear() - dob.getFullYear();
             const m = today.getMonth() - dob.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-              calculatedAge--;
-            }
-            if (calculatedAge > 0) {
-              setFormData(prev => ({ ...prev, age: calculatedAge }));
-            }
+            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+            if (age > 0) setFormData(prev => ({ ...prev, age }));
           }
         }
       }
-    } catch (e) {
-      console.warn("Could not load DOB for lung assessment:", e);
-    }
+    } catch (e) { console.warn("Could not load DOB:", e); }
+
+    return () => window.removeEventListener("patient-location-updated", handleLocationUpdate);
   }, []);
 
-  const handleSliderChange = (name, value) => {
-    setFormData(prev => ({ ...prev, [name]: parseFloat(value) }));
-  };
-
-  const handleSelect = (name, value) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+  const handleSliderChange = (name, value) => setFormData(prev => ({ ...prev, [name]: parseFloat(value) }));
+  const handleSelect = (name, value) => setFormData(prev => ({ ...prev, [name]: value }));
 
   const handleSubmit = async () => {
     setLoading(true);
     try {
       const userData = typeof window !== 'undefined' ? localStorage.getItem('userData') : null;
-      if (!userData) {
-        setLoading(false);
-        setShowLoginModal(true);
-        toast.error('Please log in to save and calculate your assessment.');
-        return;
-      }
-
+      if (!userData) { setLoading(false); setShowLoginModal(true); toast.error('Please log in to save your assessment.'); return; }
       const user = JSON.parse(userData);
       const userId = user.user_id || user.user?.id || user.id;
-
-      const heightInMeters = formData.height / 100;
-      const bmi = (formData.weight / (heightInMeters * heightInMeters)).toFixed(1);
-
+      const bmi = (formData.weight / ((formData.height / 100) ** 2)).toFixed(1);
       const apiData = {
         user_id: userId,
         assessment_type: 'lung',
@@ -167,13 +254,11 @@ export default function GamifiedLungAssessment() {
           bmi: parseFloat(bmi) || 22.5
         }
       };
-
       const response = await fetch('/api/v2/ai/assessments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(apiData),
       });
-
       const result = await response.json();
       if (result.success) {
         sessionStorage.setItem('lungAssessmentResult', JSON.stringify(result.data));
@@ -189,28 +274,26 @@ export default function GamifiedLungAssessment() {
     }
   };
 
-  // UI Components
-  const RangeSlider = ({ label, name, min, max, step = 1, unit = "", accentClass = "accent-[#0067A1]", subtitle = "" }) => (
-    <div className="bg-slate-50/80 rounded-lg p-3 sm:p-3.5 border border-slate-200/80">
-      <div className="flex justify-between items-center mb-1.5">
+  /* ── Sub-components ── */
+  const RangeSlider = ({ label, name, min, max, step = 1, unit = "", subtitle = "" }) => (
+    <div className="bg-slate-50/70 rounded-md p-2.5 sm:p-3 border border-slate-200">
+      <div className="flex justify-between items-start mb-2">
         <div>
-          <label className="text-[11px] sm:text-xs font-semibold text-slate-700 uppercase tracking-wide">{label}</label>
-          {subtitle && <p className="text-[10px] text-slate-400 mt-0.5">{subtitle}</p>}
+          <label className="text-xs sm:text-sm font-medium text-slate-800 block">{label}</label>
+          {subtitle && <p className="text-[11px] text-slate-400 mt-0.5 font-normal">{subtitle}</p>}
         </div>
-        <div className="text-xs sm:text-sm font-bold text-slate-900 bg-white px-2.5 py-0.5 rounded-md border border-slate-200 shadow-2xs font-mono">
-          {formData[name]} <span className="text-[10px] font-normal text-slate-500 font-sans">{unit}</span>
+        <div className="text-xs sm:text-sm font-semibold text-[#0067A1] bg-white px-2 py-0.5 rounded border border-sky-200 font-mono min-w-[55px] text-center shadow-2xs">
+          {formData[name]} <span className="text-[11px] font-normal text-slate-500">{unit}</span>
         </div>
       </div>
       <input
-        type="range"
-        min={min} max={max} step={step}
+        type="range" min={min} max={max} step={step}
         value={formData[name]}
         onChange={(e) => handleSliderChange(name, e.target.value)}
-        className={`w-full h-1.5 bg-slate-200 rounded-lg cursor-pointer appearance-none ${accentClass}`}
+        className="w-full h-1.5 bg-slate-200 rounded-full cursor-pointer appearance-none accent-[#0067A1]"
       />
-      <div className="flex justify-between text-[10px] text-slate-400 font-medium mt-1">
-        <span>{min} {unit}</span>
-        <span>{max} {unit}</span>
+      <div className="flex justify-between text-[11px] text-slate-400 mt-1 font-normal">
+        <span>{min} {unit}</span><span>{max} {unit}</span>
       </div>
     </div>
   );
@@ -219,25 +302,29 @@ export default function GamifiedLungAssessment() {
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left p-2.5 sm:p-3 rounded-lg border transition-all flex items-center gap-2 sm:gap-2.5 cursor-pointer ${
+      className={`w-full text-left p-2 sm:p-2.5 rounded-md border transition-all flex items-center gap-2 sm:gap-2.5 cursor-pointer select-none ${
         active
-          ? 'border-[#0067A1] bg-[#0067A1]/5 text-[#0067A1] ring-1 ring-[#0067A1]/20 shadow-2xs'
-          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/50'
+          ? 'border-[#0067A1] bg-sky-50 text-[#0067A1] shadow-2xs ring-1 ring-[#0067A1]/20'
+          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
       }`}
     >
-      <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${
-        active ? 'bg-[#0067A1] text-white' : 'bg-slate-100 text-slate-500'
+      <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md flex items-center justify-center shrink-0 transition-all ${
+        active ? 'bg-[#0067A1] text-white shadow-2xs' : 'bg-slate-100 text-slate-500'
       }`}>
         {icon}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold leading-tight">{title}</p>
-        {subtitle && <p className="text-[10px] text-slate-400 truncate mt-0.5">{subtitle}</p>}
+        <p className={`text-xs sm:text-sm font-medium leading-tight ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>
+          {title}
+        </p>
+        {subtitle && (
+          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug font-normal">
+            {subtitle}
+          </p>
+        )}
       </div>
       {active && (
-        <div className="w-4 h-4 rounded-full bg-[#0067A1] text-white flex items-center justify-center shrink-0">
-          <FaCheck className="w-2 h-2" />
-        </div>
+        <FaCheck className="w-3 h-3 text-[#0067A1] shrink-0 ml-1" />
       )}
     </button>
   );
@@ -245,21 +332,18 @@ export default function GamifiedLungAssessment() {
   const ToggleCard = ({ active, onClick, title, subtitle }) => (
     <div
       onClick={onClick}
-      className={`p-2.5 sm:p-3 rounded-lg border cursor-pointer transition-all flex items-center justify-between gap-2.5 ${
-        active
-          ? 'border-[#0067A1] bg-[#0067A1]/5'
-          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+      className={`p-2.5 sm:p-3 rounded-md border cursor-pointer transition-all flex items-center justify-between gap-3 ${
+        active ? 'border-[#0067A1] bg-sky-50' : 'border-slate-200 bg-white hover:border-slate-300'
       }`}
     >
       <div className="flex-1 min-w-0">
-        <p className={`text-xs font-medium ${active ? 'text-[#0067A1] font-semibold' : 'text-slate-800'}`}>{title}</p>
-        {subtitle && <p className="text-[10px] text-slate-400 mt-0.5">{subtitle}</p>}
+        <p className={`text-xs sm:text-sm font-medium ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>{title}</p>
+        {subtitle && <p className="text-[11px] text-slate-400 mt-0.5 font-normal">{subtitle}</p>}
       </div>
-      <div className={`w-9 h-5 rounded-full p-0.5 transition-colors shrink-0 ${active ? 'bg-[#0067A1]' : 'bg-slate-200'}`}>
+      <div className={`w-10 h-5 rounded-full p-0.5 transition-colors shrink-0 ${active ? 'bg-[#0067A1]' : 'bg-slate-200'}`}>
         <motion.div
-          layout
-          className="w-4 h-4 bg-white rounded-full shadow-2xs"
-          animate={{ x: active ? 16 : 0 }}
+          layout className="w-4 h-4 bg-white rounded-full shadow-xs"
+          animate={{ x: active ? 20 : 0 }}
           transition={{ type: "spring", stiffness: 500, damping: 30 }}
         />
       </div>
@@ -270,277 +354,395 @@ export default function GamifiedLungAssessment() {
     { num: 1, name: "Profile" },
     { num: 2, name: "Habits" },
     { num: 3, name: "Function" },
-    { num: 4, name: "Environment" },
+    { num: 4, name: "Environ." },
     { num: 5, name: "Symptoms" }
   ];
 
+  const stepIcons = ["👤", "🚬", "🫁", "🌍", "😮‍💨"];
+
   return (
-    <div className="min-h-screen bg-slate-50/50 py-4 sm:py-6 px-3 sm:px-6 font-sans">
-      <div className="max-w-3xl mx-auto space-y-4 sm:space-y-5">
+    <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-slate-50 py-3 sm:py-6 px-3 sm:px-4 font-sans">
+      <div className="max-w-xl mx-auto space-y-2.5 sm:space-y-3">
 
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pb-2 border-b border-slate-200">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-teal-50 border border-teal-100 text-[#0067A1] flex items-center justify-center shadow-2xs shrink-0">
-              <FaLungs className="w-4 h-4" />
+        {/* ── Page Header ── */}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative overflow-hidden rounded-lg bg-gradient-to-r from-[#003358] via-[#0067A1] to-[#0284c7] p-3.5 sm:p-4 text-white shadow-sm border border-[#005584]"
+        >
+          <div className="absolute inset-0 opacity-[0.06] pointer-events-none" style={{backgroundImage:'repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)',backgroundSize:'12px 12px'}} />
+          <div className="relative flex items-center gap-3">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-md bg-white/15 border border-white/25 flex items-center justify-center shrink-0">
+              <FaLungs className="w-5 h-5 sm:w-6 sm:h-6 text-white drop-shadow-xs" />
             </div>
-            <div>
-              <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                Respiratory Wellness Assessment
-              </h1>
-              <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
-                Standardized non-diagnostic respiratory lifestyle assessment
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <h1 className="text-sm sm:text-base font-semibold tracking-tight text-white leading-snug truncate">
+                  Respiratory Wellness Assessment
+                </h1>
+                <span className="text-[11px] font-medium bg-white/20 border border-white/30 px-2 py-0.5 rounded shrink-0">
+                  Step {currentStep}/{totalSteps}
+                </span>
+              </div>
+              <p className="text-sky-100 text-[11px] sm:text-xs mt-0.5 font-normal">
+                Standardized non-diagnostic respiratory telemetry
               </p>
+              <div className="mt-2 flex gap-1">
+                {Array.from({ length: totalSteps }).map((_, i) => (
+                  <div key={i} className={`h-1 rounded-sm transition-all ${i < currentStep ? 'bg-white w-5' : 'bg-white/30 w-3'}`} />
+                ))}
+              </div>
             </div>
           </div>
-          <div className="text-right self-start sm:self-auto">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-              Step {currentStep} of {totalSteps}
-            </span>
-          </div>
-        </div>
+        </motion.div>
 
-        {/* Safety Notice (SP-06 LC-06) */}
-        <div className="bg-amber-50/80 border border-amber-200/80 rounded-lg p-2.5 sm:p-3 flex items-start gap-2.5 text-[11px] sm:text-xs text-amber-900 leading-relaxed shadow-2xs">
+        {/* ── Safety Notice ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+          className="bg-amber-50/90 border border-amber-200 rounded-md p-2.5 flex items-start gap-2 text-[11px] text-amber-900 leading-relaxed"
+        >
           <FaExclamationTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-semibold">Important Safety Notice:</span> If you have severe breathlessness, chest pain, coughing up blood, or sudden worsening of breathing, seek emergency medical care immediately. This wellness assessment does not provide a clinical diagnosis.
-          </div>
-        </div>
+          <p>
+            <span className="font-semibold text-amber-950">Safety Notice: </span>
+            For sudden breathlessness, chest tightness, or coughing blood, seek immediate emergency medical care. This assessment is not a diagnostic tool.
+          </p>
+        </motion.div>
 
-        {/* Step Progress Tracker */}
-        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-3.5 shadow-xs">
-          <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+        {/* ── Step Progress Indicator ── */}
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}
+          className="bg-white rounded-lg border border-slate-200 p-2 sm:p-2.5 shadow-2xs"
+        >
+          <div className="relative h-1 bg-slate-100 rounded-full mb-2 overflow-hidden">
+            <motion.div
+              className="absolute left-0 top-0 h-full bg-[#0067A1]"
+              animate={{ width: `${((currentStep - 1) / (totalSteps - 1)) * 100}%` }}
+              transition={{ duration: 0.35, ease: "easeInOut" }}
+            />
+          </div>
+          <div className="grid grid-cols-5 gap-1">
             {stepLabels.map((s) => {
               const isDone = currentStep > s.num;
               const isCurrent = currentStep === s.num;
               return (
-                <div key={s.num} className="space-y-1">
-                  <div className={`h-1 sm:h-1.5 rounded-full transition-all ${
-                    isDone ? 'bg-[#0067A1]' : isCurrent ? 'bg-[#0067A1]' : 'bg-slate-100'
-                  }`} />
-                  <p className={`text-[10px] sm:text-[11px] font-medium truncate ${
-                    isCurrent ? 'text-[#0067A1] font-semibold' : isDone ? 'text-slate-700' : 'text-slate-400'
+                <div key={s.num} className="flex flex-col items-center gap-1">
+                  <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center text-[10px] sm:text-xs border transition-all font-medium ${
+                    isDone ? 'bg-[#0067A1] border-[#0067A1] text-white'
+                    : isCurrent ? 'bg-sky-50 border-[#0067A1] text-[#0067A1] font-semibold'
+                    : 'bg-white border-slate-200 text-slate-400'
                   }`}>
-                    {s.num}. {s.name}
+                    {isDone ? <FaCheck className="w-2 h-2" /> : <span>{s.num}</span>}
+                  </div>
+                  <p className={`text-[10px] text-center leading-tight truncate w-full ${
+                    isCurrent ? 'text-[#0067A1] font-medium' : isDone ? 'text-slate-600' : 'text-slate-400 font-normal'
+                  }`}>
+                    {s.name}
                   </p>
                 </div>
               );
             })}
           </div>
-        </div>
+        </motion.div>
 
-        {/* Form Container */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
-          
-          {/* Step Header */}
-          <div className="px-4 sm:px-5 py-3 border-b border-slate-100 bg-slate-50/40">
-            <h2 className="text-xs sm:text-sm font-bold text-slate-900">
-              {currentStep === 1 && "Physical Profile"}
-              {currentStep === 2 && "Habits & Recorded Breathing"}
-              {currentStep === 3 && "Lung Function Measurements"}
-              {currentStep === 4 && "Environmental & Occupational Exposure"}
-              {currentStep === 5 && "Respiratory Symptoms"}
-            </h2>
-            <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-              {currentStep === 1 && "Tell us about your profile."}
-              {currentStep === 2 && "Enter the breath-holding time recorded for this assessment."}
-              {currentStep === 3 && "Airflow and breathing rate measurements."}
-              {currentStep === 4 && "Air quality index and daily environmental dust/fume exposure."}
-              {currentStep === 5 && "Recorded cough frequency, breathlessness scale, and wheezing."}
-            </p>
+        {/* ── Form Card ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+          className="bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden"
+        >
+          {/* Step header */}
+          <div className="px-3.5 py-2.5 border-b border-slate-200 bg-slate-50/70 flex items-center gap-2.5">
+            <div className="w-6 h-6 rounded bg-[#0067A1] text-white flex items-center justify-center shrink-0">
+              <span className="text-xs font-semibold">{currentStep}</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xs sm:text-sm font-semibold text-slate-800 leading-tight">
+                {currentStep === 1 && "Physical Profile"}
+                {currentStep === 2 && "Habits & Breathing"}
+                {currentStep === 3 && "Lung Function Measurements"}
+                {currentStep === 4 && "Environmental & Occupational Exposure"}
+                {currentStep === 5 && "Respiratory Symptoms"}
+              </h2>
+              <p className="text-[11px] text-slate-400 mt-0.5 truncate font-normal">
+                {currentStep === 1 && "Physical measurements and biological factors."}
+                {currentStep === 2 && "Breath-holding time and smoking history."}
+                {currentStep === 3 && "Breathing rate and peak airflow telemetry."}
+                {currentStep === 4 && "Indian CPCB AQI and environmental exposure."}
+                {currentStep === 5 && "Recorded cough frequency and symptom indicators."}
+              </p>
+            </div>
           </div>
 
-          <div className="p-4 sm:p-5 min-h-[300px]">
+          {/* Step content */}
+          <div className="p-3 sm:p-4">
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentStep}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.2 }}
-                className="space-y-4"
+                initial={{ opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -12 }}
+                transition={{ duration: 0.18 }}
+                className="space-y-3"
               >
 
-                {/* LEVEL 1: Profile */}
+                {/* STEP 1: Profile */}
                 {currentStep === 1 && (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div>
-                      <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">Biological Sex</label>
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <ChoiceCard
-                          active={formData.sex === 'male'} onClick={() => handleSelect('sex', 'male')}
-                          icon={<FaMale className="w-3.5 h-3.5" />} title="Male"
-                        />
-                        <ChoiceCard
-                          active={formData.sex === 'female'} onClick={() => handleSelect('sex', 'female')}
-                          icon={<FaFemale className="w-3.5 h-3.5" />} title="Female"
-                        />
+                      <label className="text-[11px] sm:text-xs font-medium text-slate-600 uppercase tracking-wide block mb-1.5">Biological Sex</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <ChoiceCard active={formData.sex === 'male'} onClick={() => handleSelect('sex', 'male')} icon={<FaMale className="w-3.5 h-3.5" />} title="Male" />
+                        <ChoiceCard active={formData.sex === 'female'} onClick={() => handleSelect('sex', 'female')} icon={<FaFemale className="w-3.5 h-3.5" />} title="Female" />
                       </div>
                     </div>
-
                     <RangeSlider label="Age" name="age" min={18} max={100} unit="yrs" subtitle="Derived from your profile date of birth" />
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       <RangeSlider label="Height" name="height" min={120} max={220} unit="cm" />
                       <RangeSlider label="Weight" name="weight" min={40} max={150} unit="kg" />
                     </div>
                   </div>
                 )}
 
-                {/* LEVEL 2: Habits */}
+                {/* STEP 2: Habits */}
                 {currentStep === 2 && (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div>
-                      <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">Smoking Status</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        <ChoiceCard active={formData.smokingStatus === 'never'} onClick={() => handleSelect('smokingStatus', 'never')} icon={<FaWind className="w-3 h-3" />} title="Never" />
-                        <ChoiceCard active={formData.smokingStatus === 'former'} onClick={() => handleSelect('smokingStatus', 'former')} icon={<FaSmoking className="w-3 h-3" />} title="Former" />
-                        <ChoiceCard active={formData.smokingStatus === 'current'} onClick={() => handleSelect('smokingStatus', 'current')} icon={<FaSmoking className="w-3 h-3 text-rose-500" />} title="Current" />
+                      <label className="text-[11px] sm:text-xs font-medium text-slate-600 uppercase tracking-wide block mb-1.5">Smoking Status</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <ChoiceCard active={formData.smokingStatus === 'never'} onClick={() => handleSelect('smokingStatus', 'never')} icon={<FaWind className="w-3.5 h-3.5" />} title="Never" subtitle="Never smoked" />
+                        <ChoiceCard active={formData.smokingStatus === 'former'} onClick={() => handleSelect('smokingStatus', 'former')} icon={<FaSmoking className="w-3.5 h-3.5" />} title="Former" subtitle="Quit smoking" />
+                        <ChoiceCard active={formData.smokingStatus === 'current'} onClick={() => handleSelect('smokingStatus', 'current')} icon={<FaSmoking className="w-3.5 h-3.5 text-rose-500" />} title="Current" subtitle="Active smoker" />
                       </div>
                     </div>
-
-                    <RangeSlider
-                      label="Breath Holding Time" name="breathHold"
-                      min={5} max={120} unit="sec"
-                      subtitle="Enter the breath-holding time recorded for this assessment."
-                    />
-
+                    <RangeSlider label="Breath Holding Time" name="breathHold" min={5} max={120} unit="sec" subtitle="Hold breath after normal inhale" />
                     {(formData.smokingStatus === 'former' || formData.smokingStatus === 'current') && (
-                      <RangeSlider
-                        label="Smoking Pack-Years" name="smokingPackYears"
-                        min={0} max={100} step={0.5} unit="years"
-                        subtitle="Packs per day × years smoked"
-                      />
+                      <RangeSlider label="Smoking Pack-Years" name="smokingPackYears" min={0} max={100} step={0.5} unit="years" subtitle="Packs per day × years smoked" />
                     )}
                   </div>
                 )}
 
-                {/* LEVEL 3: Lung Function */}
+                {/* STEP 3: Lung Function */}
                 {currentStep === 3 && (
-                  <div className="space-y-3.5">
-                    <RangeSlider
-                      label="Peak Flow (Optional)" name="peakFlow"
-                      min={100} max={800} unit="L/min"
-                      subtitle="Measure with a peak flow meter if available"
-                    />
-
-                    <RangeSlider
-                      label="Breaths Per Minute" name="breathsPerMinute"
-                      min={8} max={40} unit="breaths"
-                      subtitle="Count how many times your chest rises in 60 seconds."
-                    />
+                  <div className="space-y-3">
+                    <RangeSlider label="Peak Flow (Optional)" name="peakFlow" min={100} max={800} unit="L/min" subtitle="Measure with peak flow meter if available" />
+                    <RangeSlider label="Breaths Per Minute" name="breathsPerMinute" min={8} max={40} unit="breaths" subtitle="Count chest rises in 60 seconds" />
                   </div>
                 )}
 
-                {/* LEVEL 4: Exposure */}
+                {/* STEP 4: Environment */}
                 {currentStep === 4 && (
-                  <div className="space-y-4">
-                    {/* Location & AQI Detection Card */}
-                    <div className="bg-slate-50/90 rounded-lg p-3 sm:p-3.5 border border-slate-200/90 space-y-2.5">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                        <div>
-                          <label className="text-[11px] sm:text-xs font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
-                            <FaMapMarkerAlt className="w-3 h-3 text-[#0067A1]" /> Location & Local Air Quality
-                          </label>
-                          <p className="text-[10px] text-slate-500 mt-0.5">
-                            Auto-detected via free Open-Meteo API & community cache (Default: Delhi)
-                          </p>
+                  <div className="space-y-2.5">
+                    {/* Location & AQI Station Card */}
+                    <div className="bg-slate-50/70 rounded-md p-2.5 border border-slate-200 space-y-2">
+                      
+                      {/* Search & Action Bar */}
+                      <div className="flex items-center gap-1.5">
+                        <div className="relative flex-1">
+                          <FaMapMarkerAlt className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                          <input
+                            type="text"
+                            placeholder="Enter city (e.g. Khurja, Delhi, Mumbai)..."
+                            value={formData.location}
+                            onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleManualLocationUpdate();
+                              }
+                            }}
+                            className="w-full text-xs font-normal pl-7 pr-2.5 py-1.5 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] bg-white text-slate-800"
+                          />
                         </div>
                         <button
                           type="button"
-                          onClick={handleDetectLocation}
+                          onClick={() => handleManualLocationUpdate()}
+                          disabled={aqiLoading || !formData.location?.trim()}
+                          className="px-2.5 py-1.5 bg-[#0067A1] hover:bg-[#005584] text-white text-xs font-medium rounded-md transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                        >
+                          Update
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => detectUserLocation(true)}
                           disabled={aqiLoading}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#0067A1] hover:bg-[#005584] text-white text-[11px] font-semibold rounded-md shadow-2xs transition-all disabled:opacity-50 cursor-pointer self-start sm:self-auto"
+                          title="Detect GPS Location"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white hover:bg-sky-50 text-[#0067A1] border border-sky-200 text-xs font-medium rounded-md transition-all disabled:opacity-50 cursor-pointer shrink-0"
                         >
                           <FaSync className={`w-2.5 h-2.5 ${aqiLoading ? 'animate-spin' : ''}`} />
-                          {aqiLoading ? 'Detecting...' : 'Detect My Location'}
+                          <span className="hidden sm:inline">GPS</span>
                         </button>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        <div className="flex-1 min-w-[160px]">
-                          <input
-                            type="text"
-                            placeholder="e.g. Delhi, Mumbai, Bengaluru"
-                            value={formData.location}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setFormData(prev => ({ ...prev, location: val }));
+                      {/* Quick City Chips */}
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-[10px] text-slate-400 font-normal mr-0.5">Quick:</span>
+                        {['Khurja', 'Bulandshahr', 'Delhi', 'Noida', 'Meerut', 'Mumbai'].map(city => (
+                          <button
+                            key={city}
+                            type="button"
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, location: city }));
+                              handleManualLocationUpdate(city);
                             }}
-                            onBlur={() => {
-                              if (formData.location && formData.location.trim()) {
-                                fetchAqiForLocation(formData.location.trim());
-                              }
-                            }}
-                            className="w-full text-slate-800 text-xs sm:text-sm font-medium px-3 py-1.5 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0067A1] bg-white"
-                          />
-                        </div>
-                        <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-md border border-slate-200 shadow-2xs">
-                          <span className="text-[10px] text-slate-500 uppercase font-semibold">Live AQI:</span>
-                          <span className="text-xs sm:text-sm font-bold text-slate-900 font-mono">{formData.aqi}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                            {formData.aqi <= 50 ? 'Good' : formData.aqi <= 100 ? 'Moderate' : formData.aqi <= 150 ? 'Sensitive' : 'Unhealthy'}
-                          </span>
-                        </div>
+                            className={`text-[10px] px-2 py-0.5 rounded border transition-all cursor-pointer font-normal ${
+                              formData.location?.toLowerCase() === city.toLowerCase()
+                                ? 'bg-sky-50 text-[#0067A1] border-sky-300 font-medium'
+                                : 'bg-white text-slate-600 hover:bg-slate-100 border-slate-200'
+                            }`}
+                          >
+                            {city}
+                          </button>
+                        ))}
                       </div>
 
-                      {/* Community Cache badge & pollutant details */}
-                      {aqiInfo && (
-                        <div className="text-[10px] text-slate-500 flex flex-wrap items-center justify-between gap-1 pt-0.5">
-                          <span>📍 {aqiInfo.location} ({aqiInfo.source === 'cache' ? 'Sourced from community cache' : 'Live weather station'})</span>
-                          {aqiInfo.pollutant_data?.pm2_5 && (
-                            <span>PM2.5: {aqiInfo.pollutant_data.pm2_5} µg/m³</span>
+                      {/* Live CPCB Telemetry Display */}
+                      <div className="bg-white rounded-md border border-slate-200 p-2 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <div className={`px-2 py-1 rounded text-center border font-mono min-w-[50px] ${
+                              formData.aqi <= 50 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                              formData.aqi <= 100 ? 'bg-teal-50 text-teal-700 border-teal-200' :
+                              formData.aqi <= 200 ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                              formData.aqi <= 300 ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                              formData.aqi <= 400 ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                              'bg-red-50 text-red-900 border-red-300'
+                            }`}>
+                              <span className="text-base font-semibold leading-none">{formData.aqi}</span>
+                              <span className="text-[8px] tracking-wide block uppercase text-slate-400 font-medium">CPCB</span>
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${
+                                  formData.aqi <= 50 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                  formData.aqi <= 100 ? 'bg-teal-50 text-teal-700 border-teal-200' :
+                                  formData.aqi <= 200 ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                  formData.aqi <= 300 ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                                  formData.aqi <= 400 ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                  'bg-red-50 text-red-900 border-red-200'
+                                }`}>
+                                  {aqiInfo?.category || (
+                                    formData.aqi <= 50 ? 'Good' :
+                                    formData.aqi <= 100 ? 'Satisfactory' :
+                                    formData.aqi <= 200 ? 'Moderate' :
+                                    formData.aqi <= 300 ? 'Poor' :
+                                    formData.aqi <= 400 ? 'Very Poor' : 'Severe'
+                                  )}
+                                </span>
+                                <span className="text-xs font-medium text-slate-800">
+                                  {formData.location || 'Current Station'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {aqiInfo?.pollutant_data && (
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-normal">
+                              {aqiInfo.pollutant_data.pm2_5 !== null && aqiInfo.pollutant_data.pm2_5 !== undefined && (
+                                <span className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                                  PM2.5: <span className="text-slate-700 font-medium">{aqiInfo.pollutant_data.pm2_5}</span> µg/m³
+                                </span>
+                              )}
+                              {aqiInfo.pollutant_data.pm10 !== null && aqiInfo.pollutant_data.pm10 !== undefined && (
+                                <span className="bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+                                  PM10: <span className="text-slate-700 font-medium">{aqiInfo.pollutant_data.pm10}</span> µg/m³
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
-                    </div>
 
-                    {/* SP-06 DEC-006 & LC-05 Mandatory Compliance Disclaimer */}
-                    <div className="p-2.5 bg-blue-50/70 rounded-lg border border-blue-200/80 text-[10px] sm:text-[11px] text-blue-900 leading-relaxed">
-                      <span className="font-semibold">Environmental Context Notice:</span> AQI and location are environmental context only. They do not measure your lung exposure or enter your assessment calculation.
-                    </div>
-
-                    <div>
-                      <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">Daily Pollution Exposure</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        <ChoiceCard active={formData.pollutionExposure === 'low'} onClick={() => handleSelect('pollutionExposure', 'low')} icon={<FaCity className="w-3 h-3" />} title="Low" subtitle="Clean air" />
-                        <ChoiceCard active={formData.pollutionExposure === 'moderate'} onClick={() => handleSelect('pollutionExposure', 'moderate')} icon={<FaCloud className="w-3 h-3" />} title="Moderate" subtitle="Urban traffic" />
-                        <ChoiceCard active={formData.pollutionExposure === 'high'} onClick={() => handleSelect('pollutionExposure', 'high')} icon={<FaIndustry className="w-3 h-3" />} title="High" subtitle="Industrial" />
+                        <p className="text-[11px] text-slate-500 font-normal leading-relaxed">
+                          {aqiInfo?.health_advisory || (formData.aqi <= 100 ? "Air quality is Satisfactory. Minor discomfort to sensitive individuals." : "Elevated ambient particulate matter — sensitive groups reduce outdoor exertion.")}
+                        </p>
                       </div>
                     </div>
 
+                    {/* Environmental Notice */}
+                    <div className="p-2 bg-sky-50/50 rounded border border-sky-100 text-[11px] text-sky-900 font-normal leading-relaxed">
+                      <span className="font-medium text-[#0067A1]">Environmental Context:</span> Real-time AQI and geographic telemetry provide localized exposure context. They do not alter your clinical baseline score.
+                    </div>
+
+                    {/* Daily Pollution Exposure */}
                     <div>
-                      <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">Occupational Dust/Fume Exposure</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        <ChoiceCard active={formData.occupationalRisk === 'none'} onClick={() => handleSelect('occupationalRisk', 'none')} icon={<FaCheck className="w-3 h-3" />} title="None" subtitle="Office" />
-                        <ChoiceCard active={formData.occupationalRisk === 'moderate'} onClick={() => handleSelect('occupationalRisk', 'moderate')} icon={<FaExclamationTriangle className="w-3 h-3" />} title="Moderate" subtitle="Dust" />
-                        <ChoiceCard active={formData.occupationalRisk === 'high'} onClick={() => handleSelect('occupationalRisk', 'high')} icon={<FaExclamationTriangle className="w-3 h-3 text-rose-500" />} title="High" subtitle="Factory" />
+                      <label className="text-[11px] sm:text-xs font-medium text-slate-700 uppercase tracking-wide block mb-1">
+                        Daily Pollution Exposure
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <ChoiceCard
+                          active={formData.pollutionExposure === 'low'}
+                          onClick={() => handleSelect('pollutionExposure', 'low')}
+                          icon={<FaCity className="w-3.5 h-3.5" />}
+                          title="Low Exposure"
+                          subtitle="Clean air / rural area"
+                        />
+                        <ChoiceCard
+                          active={formData.pollutionExposure === 'moderate'}
+                          onClick={() => handleSelect('pollutionExposure', 'moderate')}
+                          icon={<FaCloud className="w-3.5 h-3.5" />}
+                          title="Moderate Exposure"
+                          subtitle="Urban / traffic corridor"
+                        />
+                        <ChoiceCard
+                          active={formData.pollutionExposure === 'high'}
+                          onClick={() => handleSelect('pollutionExposure', 'high')}
+                          icon={<FaIndustry className="w-3.5 h-3.5" />}
+                          title="High Exposure"
+                          subtitle="Industrial / heavy smog"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Occupational Dust/Fume Exposure */}
+                    <div>
+                      <label className="text-[11px] sm:text-xs font-medium text-slate-700 uppercase tracking-wide block mb-1">
+                        Occupational Dust/Fume Exposure
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <ChoiceCard
+                          active={formData.occupationalRisk === 'none'}
+                          onClick={() => handleSelect('occupationalRisk', 'none')}
+                          icon={<FaCheck className="w-3.5 h-3.5" />}
+                          title="No Exposure"
+                          subtitle="Office / indoor space"
+                        />
+                        <ChoiceCard
+                          active={formData.occupationalRisk === 'moderate'}
+                          onClick={() => handleSelect('occupationalRisk', 'moderate')}
+                          icon={<FaExclamationTriangle className="w-3.5 h-3.5" />}
+                          title="Moderate Exposure"
+                          subtitle="Dust, construction, trade"
+                        />
+                        <ChoiceCard
+                          active={formData.occupationalRisk === 'high'}
+                          onClick={() => handleSelect('occupationalRisk', 'high')}
+                          icon={<FaExclamationTriangle className="w-3.5 h-3.5 text-rose-500" />}
+                          title="High Exposure"
+                          subtitle="Factory, chemical, welding"
+                        />
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* LEVEL 5: Symptoms */}
+                {/* STEP 5: Symptoms */}
                 {currentStep === 5 && (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div>
-                      <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">Cough Frequency</label>
+                      <label className="text-[11px] sm:text-xs font-medium text-slate-600 uppercase tracking-wide block mb-1.5">Cough Frequency</label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <ChoiceCard active={formData.CoughFrequency === 'none'} onClick={() => handleSelect('CoughFrequency', 'none')} icon={<FaCheck className="w-3 h-3" />} title="None" />
-                        <ChoiceCard active={formData.CoughFrequency === 'occasional'} onClick={() => handleSelect('CoughFrequency', 'occasional')} icon={<FaWind className="w-3 h-3" />} title="Occasional" />
-                        <ChoiceCard active={formData.CoughFrequency === 'daily'} onClick={() => handleSelect('CoughFrequency', 'daily')} icon={<FaWind className="w-3 h-3 text-amber-500" />} title="Daily" />
-                        <ChoiceCard active={formData.CoughFrequency === 'constant'} onClick={() => handleSelect('CoughFrequency', 'constant')} icon={<FaWind className="w-3 h-3 text-rose-500" />} title="Constant" />
+                        <ChoiceCard active={formData.CoughFrequency === 'none'} onClick={() => handleSelect('CoughFrequency', 'none')} icon={<FaCheck className="w-3.5 h-3.5" />} title="None" />
+                        <ChoiceCard active={formData.CoughFrequency === 'occasional'} onClick={() => handleSelect('CoughFrequency', 'occasional')} icon={<FaWind className="w-3.5 h-3.5" />} title="Occasional" />
+                        <ChoiceCard active={formData.CoughFrequency === 'daily'} onClick={() => handleSelect('CoughFrequency', 'daily')} icon={<FaWind className="w-3.5 h-3.5 text-amber-500" />} title="Daily" />
+                        <ChoiceCard active={formData.CoughFrequency === 'constant'} onClick={() => handleSelect('CoughFrequency', 'constant')} icon={<FaWind className="w-3.5 h-3.5 text-rose-500" />} title="Constant" />
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-[11px] sm:text-xs font-semibold text-slate-600 uppercase tracking-wide block mb-1.5">Breathlessness (MRC Scale)</label>
+                      <label className="text-[11px] sm:text-xs font-medium text-slate-600 uppercase tracking-wide block mb-1.5">Breathlessness (MRC Scale)</label>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <ChoiceCard active={formData.Breathlessness === 'none'} onClick={() => handleSelect('Breathlessness', 'none')} icon={<FaCheck className="w-3 h-3" />} title="None" subtitle="Normal breathing" />
-                        <ChoiceCard active={formData.Breathlessness === 'mild'} onClick={() => handleSelect('Breathlessness', 'mild')} icon={<FaExclamationTriangle className="w-3 h-3" />} title="Mild" subtitle="Only with strenuous exercise" />
-                        <ChoiceCard active={formData.Breathlessness === 'moderate'} onClick={() => handleSelect('Breathlessness', 'moderate')} icon={<FaExclamationTriangle className="w-3 h-3 text-amber-500" />} title="Moderate" subtitle="When hurrying or uphill" />
-                        <ChoiceCard active={formData.Breathlessness === 'severe'} onClick={() => handleSelect('Breathlessness', 'severe')} icon={<FaExclamationTriangle className="w-3 h-3 text-rose-500" />} title="Severe" subtitle="Stop for breath after 100m" />
+                        <ChoiceCard active={formData.Breathlessness === 'none'} onClick={() => handleSelect('Breathlessness', 'none')} icon={<FaCheck className="w-3.5 h-3.5" />} title="None" subtitle="Normal breathing" />
+                        <ChoiceCard active={formData.Breathlessness === 'mild'} onClick={() => handleSelect('Breathlessness', 'mild')} icon={<FaExclamationTriangle className="w-3.5 h-3.5" />} title="Mild" subtitle="Only with strenuous exercise" />
+                        <ChoiceCard active={formData.Breathlessness === 'moderate'} onClick={() => handleSelect('Breathlessness', 'moderate')} icon={<FaExclamationTriangle className="w-3.5 h-3.5 text-amber-500" />} title="Moderate" subtitle="When hurrying or uphill" />
+                        <ChoiceCard active={formData.Breathlessness === 'severe'} onClick={() => handleSelect('Breathlessness', 'severe')} icon={<FaExclamationTriangle className="w-3.5 h-3.5 text-rose-500" />} title="Severe" subtitle="Stop for breath after 100m" />
                       </div>
                     </div>
 
@@ -551,12 +753,11 @@ export default function GamifiedLungAssessment() {
                       subtitle="A high-pitched whistling sound while breathing"
                     />
 
-                    {/* LC-06 Mandatory Safety Alert */}
-                    <div className="p-2.5 bg-amber-50/80 rounded-lg border border-amber-200 text-[10px] sm:text-[11px] text-amber-900 leading-relaxed flex items-start gap-2">
+                    <div className="p-2.5 bg-amber-50 rounded-md border border-amber-200 flex items-start gap-2">
                       <FaExclamationTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-                      <div>
+                      <p className="text-xs text-amber-900 leading-relaxed font-normal">
                         <span className="font-semibold">Safety Notice:</span> If you have severe or worsening symptoms, seek medical attention promptly. This assessment does not provide a diagnosis.
-                      </div>
+                      </p>
                     </div>
                   </div>
                 )}
@@ -565,12 +766,12 @@ export default function GamifiedLungAssessment() {
             </AnimatePresence>
           </div>
 
-          {/* Card Footer Navigation */}
-          <div className="px-4 sm:px-5 py-3 bg-slate-50/70 border-t border-slate-200/80 flex items-center justify-between">
+          {/* ── Navigation Footer ── */}
+          <div className="px-3.5 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200/60 transition-all cursor-pointer ${
+              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-200 transition-all cursor-pointer ${
                 currentStep === 1 ? 'opacity-0 pointer-events-none' : ''
               }`}
             >
@@ -581,7 +782,7 @@ export default function GamifiedLungAssessment() {
               <button
                 type="button"
                 onClick={() => setCurrentStep(prev => Math.min(totalSteps, prev + 1))}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#0067A1] hover:bg-[#005584] text-white text-xs font-semibold rounded-lg shadow-xs transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-[#0067A1] hover:bg-[#005584] text-white text-xs sm:text-sm font-medium rounded-md shadow-2xs transition-all cursor-pointer"
               >
                 Next Step <FaArrowRight className="w-3 h-3" />
               </button>
@@ -590,28 +791,26 @@ export default function GamifiedLungAssessment() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={loading}
-                className="flex items-center gap-1.5 px-5 py-2 bg-[#0067A1] hover:bg-[#005584] text-white text-xs font-semibold rounded-lg shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-medium rounded-md shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
               >
-                {loading ? 'Processing...' : 'Calculate Score'}
-                {!loading && <FaLungs className="w-3 h-3" />}
+                {loading ? (
+                  <><FaSync className="w-3 h-3 animate-spin" /> Calculating...</>
+                ) : (
+                  <><FaLungs className="w-3 h-3" /> Calculate Score</>
+                )}
               </button>
             )}
-        </div>
+          </div>
+        </motion.div>
 
       </div>
 
-      {/* Login Modal for Guest Submissions */}
       <LoginModal
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
         initialUserType="patient"
-        onSuccess={() => {
-          setShowLoginModal(false);
-          handleSubmit();
-        }}
+        onSuccess={() => { setShowLoginModal(false); handleSubmit(); }}
       />
-
-      </div>
     </div>
   );
 }

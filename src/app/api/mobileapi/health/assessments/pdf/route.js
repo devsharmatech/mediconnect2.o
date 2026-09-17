@@ -852,8 +852,8 @@ function buildLungHealthHtml(assessment, logoDataUri) {
             <tr>
                 <td><strong>Assessment Score</strong></td>
                 <td class="score" style="color: #0067A1;">${health_score}/100</td>
-                <td><strong>Lung Age Reference</strong></td>
-                <td>${calculated_age ? `${calculated_age} years` : "N/A"}</td>
+                <td><strong>Breath-Holding Capacity</strong></td>
+                <td>${inputs?.breath_holding_time ? `${inputs.breath_holding_time} sec (Ref: ≥30s)` : "Standard Capacity"}</td>
             </tr>
             <tr>
                 <td><strong>Risk Classification</strong></td>

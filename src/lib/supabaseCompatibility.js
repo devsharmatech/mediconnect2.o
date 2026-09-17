@@ -9252,7 +9252,24 @@ export class SupabasePostgresQueryBuilder {
         }
         
         let clause = '';
-        if (f.type === 'eq') {
+        const colName = rawCol.includes('.') ? rawCol.split('.')[1] : rawCol;
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const KNOWN_UUID_COLUMNS = ['user_id', 'patient_id', 'doctor_id', 'appointment_id', 'created_by'];
+        const KNOWN_UUID_TABLES = ['health_assessments', 'care_episodes', 'users', 'patient_details', 'appointments', 'breathing_sessions', 'user_badges', 'auth_sessions'];
+        const isUuidMismatch = KNOWN_UUID_TABLES.includes(this.tableName) &&
+          KNOWN_UUID_COLUMNS.includes(colName) &&
+          typeof val === 'string' &&
+          !UUID_REGEX.test(val);
+
+        if (isUuidMismatch) {
+          if (f.type === 'eq') {
+            clause = '1 = 0';
+          } else if (f.type === 'neq') {
+            clause = '1 = 1';
+          } else {
+            clause = '1 = 0';
+          }
+        } else if (f.type === 'eq') {
           this.parameters.push(val);
           clause = `${sqlCol} = $${this.parameters.length}`;
         } else if (f.type === 'neq') {

@@ -2,6 +2,9 @@ import { supabase } from "@/lib/supabaseAdmin";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
+// RFC-4122 UUID pattern
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
@@ -12,6 +15,12 @@ export async function POST(req) {
 
     if (!user_id)
       return failure("user_id is required.", null, 400, { headers: corsHeaders });
+
+    // Guard: reject non-UUID values before they hit Postgres (prevents 22P02 errors
+    // from stale dev localStorage values like "test-patient-id")
+    if (!UUID_REGEX.test(user_id)) {
+      return success("Notifications fetched successfully.", [], 200, { headers: corsHeaders });
+    }
 
     const limit = 15;
     const offset = (page - 1) * limit;
@@ -35,3 +44,4 @@ export async function POST(req) {
     return failure("Failed to fetch notifications.", error.message, 500, { headers: corsHeaders });
   }
 }
+

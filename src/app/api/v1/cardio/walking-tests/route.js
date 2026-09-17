@@ -10,7 +10,7 @@ const walkingTestRecords = [
   {
     id: "wt-baseline-101",
     protocol_version: "V1.0",
-    date: "12 Jan 2025",
+    date: "12 Sept 2026",
     status: "complete",
     duration_formatted: "06:00",
     duration_seconds: 360,

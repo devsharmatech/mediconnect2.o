@@ -206,7 +206,7 @@ const PatientDashboardLayout = ({ children }) => {
         )}
 
         {/* Page Content */}
-        <main className="p-4 md:p-6">{children}</main>
+        <main className={pathname?.includes("/lung-connect") || pathname?.includes("/cardio-connect") ? "p-0" : "p-4 md:p-6"}>{children}</main>
       </div>
 
       {/* AI Screening Chatbot - Modal + Floating Button */}

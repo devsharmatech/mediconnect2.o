@@ -68,8 +68,12 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const userId = user?.user_id || user?.user?.id || user?.id;
     if (userId) {
+      // Skip if stale / non-UUID value (prevents 22P02 Postgres error)
+      if (!UUID_RE.test(userId)) return;
+
       fetchAssessments(userId);
       fetchUpcomingAppointments(userId);
       fetchNextAction(userId);
@@ -174,14 +178,14 @@ const Dashboard = () => {
   const quickActions = [
     { label: "Appointments", sub: "Book & manage", href: "/website/appointments", icon: FaCalendarAlt, gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50", text: "text-[#004F7C]" },
     { label: "Instant Doctor", sub: "Talk now", onClick: () => setShowInstantModal(true), icon: FaVideo, gradient: "from-[#0067A1] to-[#0080C6]", bg: "bg-teal-50", text: "text-[#004F7C]", pulse: true },
-    { label: "LungConnect", sub: "Respiratory Hub", href: "/website/lung-connect", icon: TbLungsFilled, gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50", text: "text-[#0067A1]" },
+    { label: "LungConnect", sub: "Respiratory Hub", href: "/lung-connect", icon: TbLungsFilled, gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50", text: "text-[#0067A1]" },
     { label: "CardioConnect", sub: "Heart Vitals & Hub", href: "/website/cardio-connect", icon: FaHeartbeat, gradient: "from-rose-500 to-pink-600", bg: "bg-rose-50", text: "text-rose-600" },
     { label: "Medicines", sub: "Order online", href: "/website/medicine-order", icon: FaPills, gradient: "from-amber-500 to-orange-600", bg: "bg-amber-50", text: "text-amber-700" },
     { label: "Lab Reports", sub: "View results", href: "/website/lab-reports", icon: FaFileMedical, gradient: "from-purple-500 to-violet-600", bg: "bg-purple-50", text: "text-purple-700" },
     { label: "Nursing Status", sub: "Track request", href: "/website/nursing-care/status", icon: FaHandHoldingHeart, gradient: "from-fuchsia-500 to-purple-600", bg: "bg-fuchsia-50", text: "text-fuchsia-700" },
     { label: "Digital Locker", sub: "Your records", href: "/website/digital-locker", icon: FaLock, gradient: "from-slate-500 to-gray-700", bg: "bg-slate-50", text: "text-slate-700" },
     { label: "Lab Tests", sub: "Book now", href: "/website/dashboard/lab-booking", icon: FaFlask, gradient: "from-blue-500 to-indigo-600", bg: "bg-blue-50", text: "text-[#004F7C]" },
-    { label: "Breathing Exercises", sub: "Relax & restore", href: "/website/dashboard/breathing", icon: FaWind, gradient: "from-teal-400 to-emerald-500", bg: "bg-emerald-50", text: "text-emerald-700" },
+    { label: "Breathing Exercises", sub: "Relax & restore", href: "/lung-connect?action=breathing", icon: FaWind, gradient: "from-teal-400 to-emerald-500", bg: "bg-emerald-50", text: "text-emerald-700" },
     { label: "Health Assistant", sub: "Chat for help", onClick: () => window.dispatchEvent(new CustomEvent("open-dr-mediconnect-chat")), icon: FaUserMd, gradient: "from-emerald-500 to-teal-600", bg: "bg-emerald-50", text: "text-emerald-700" },
   ];
 
@@ -448,7 +452,7 @@ const Dashboard = () => {
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/website/lung-connect?action=move")}
+                    onClick={() => router.push("/lung-connect?action=move")}
                     className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[5px] text-xs font-bold transition-colors shadow-2xs text-center whitespace-nowrap"
                   >
                     Launch Move
@@ -456,7 +460,7 @@ const Dashboard = () => {
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/website/dashboard/breathing")}
+                    onClick={() => router.push("/lung-connect?action=breathing")}
                     className="px-3.5 py-2 bg-white hover:bg-slate-50 text-[#003358] rounded-[5px] text-xs font-bold transition-colors border border-slate-200 shadow-2xs text-center whitespace-nowrap"
                   >
                     Breathing Studio

@@ -55,6 +55,11 @@ const formatMessageText = (message) => {
   }
 };
 
+// RFC-4122 UUID validation — prevents stale dev localStorage values reaching Postgres
+const isValidUUID = (val) =>
+  typeof val === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
 const PatientHeader = ({ user, onMenuClick }) => {
   const router = useRouter();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -100,16 +105,28 @@ const PatientHeader = ({ user, onMenuClick }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const id = localStorage.getItem("userId");
     const role = localStorage.getItem("userRole");
+
+    // Auto-clear stale / non-UUID values (e.g. "test-patient-id" from dev sessions)
+    if (id && !isValidUUID(id)) {
+      console.warn("[PatientHeader] Clearing invalid userId from localStorage:", id);
+      localStorage.removeItem("userId");
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("userData");
+      return;
+    }
+
     if (id && role === "patient") {
       setUserId(id);
       fetchNotifications(id);
     }
   }, []);
+
 
   // Poll notifications so "Join Call" alert appears quickly
   useEffect(() => {

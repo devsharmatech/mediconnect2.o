@@ -20,7 +20,7 @@ import {
   FaTimes,
   FaFlask,
   FaReceipt,
-  FaWind,
+
   FaUserMd,
   FaWalking,
   FaRunning,
@@ -113,33 +113,19 @@ export default function PatientSidebar({
       children: [
         {
           name: "LungConnect Hub",
-          href: "/website/lung-connect",
+          href: "/lung-connect",
           icon: TbLungsFilled,
         },
+
         {
-          name: "Move Session",
-          href: "/website/lung-connect?action=move",
-          icon: FaRunning,
-        },
-        {
-          name: "6-Minute Walk Test",
-          href: "/website/lung-connect?action=walking",
-          icon: FaWalking,
-        },
-        {
-          name: "Breathing Studio",
-          href: "/website/dashboard/breathing",
-          icon: FaWind,
+          name: "Respiratory Check",
+          href: "/lung-assessment",
+          icon: TbLungsFilled,
         },
         {
           name: "Recorded Trends",
-          href: "/website/lung-health-statistics",
+          href: "/lung-health-statistics",
           icon: FaChartLine,
-        },
-        {
-          name: "Respiratory Check",
-          href: "/website/lung-assessment",
-          icon: TbLungsFilled,
         },
       ],
     },

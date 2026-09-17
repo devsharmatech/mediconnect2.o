@@ -78,57 +78,79 @@ export default function LungHealthStatisticsPage() {
   const reportRef = useRef(null);
 
   useEffect(() => {
-    const userDataRaw = typeof window !== "undefined" ? localStorage.getItem("userData") : null;
-    if (!userDataRaw) {
-      setError("Please log in to view your lung health statistics.");
-      setLoading(false);
-      return;
-    }
-    try {
-      const parsedUser = JSON.parse(userDataRaw);
-      setUser(parsedUser);
-    } catch (e) {
-      console.warn("Could not parse userData", e);
+    const raw = typeof window !== "undefined"
+      ? (localStorage.getItem("user") || localStorage.getItem("userData"))
+      : null;
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        setUser({
+          id: parsed.id || parsed.user_id || parsed.user?.id || "guest",
+          name: parsed.name || parsed.full_name || parsed.details?.full_name || "Patient",
+          ...parsed,
+        });
+      } catch (e) {
+        console.warn("Could not parse user", e);
+        setUser({ id: "guest", name: "Guest Patient" });
+      }
+    } else {
+      setUser({ id: "guest", name: "Guest Patient" });
     }
   }, []);
 
   useEffect(() => {
-    if (!user?.id) return;
-
     const fetchAllData = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // 1. Fetch graph data & history
-        const graphRes = await fetch(
-          `/api/health/assessments/graph?user_id=${user.id}&type=lung&timeframe=${timeframe}&limit=100`
-        );
-        const graphJson = await graphRes.json();
-        if (!graphRes.ok || !graphJson.success) {
-          throw new Error(graphJson.message || "Failed to load lung statistics.");
-        }
+        const targetUserId = user?.id && user.id !== "guest" ? user.id : "";
 
-        setGraphData(graphJson.data.graphData || null);
-        setSummary(graphJson.data.summary || null);
-        setHistory((graphJson.data.history || []).filter((h) => h.type === "lung"));
+        // 1. Fetch graph data & history
+        const graphUrl = targetUserId
+          ? `/api/health/assessments/graph?user_id=${targetUserId}&type=lung&timeframe=${timeframe}&limit=100`
+          : `/api/health/assessments/graph?type=lung&timeframe=${timeframe}&limit=100`;
+
+        const graphRes = await fetch(graphUrl);
+        const graphJson = await graphRes.json();
+        if (graphRes.ok && graphJson.success && graphJson.data) {
+          setGraphData(graphJson.data.graphData || null);
+          setSummary(graphJson.data.summary || null);
+          setHistory((graphJson.data.history || []).filter((h) => h.type === "lung"));
+        }
 
         // 2. Fetch breathing wellness sessions
         try {
-          const breathRes = await fetch(`/api/health/breathing?user_id=${user.id}&limit=50`);
+          const breathUrl = targetUserId
+            ? `/api/health/breathing?user_id=${targetUserId}&limit=50`
+            : `/api/health/breathing?limit=50`;
+          const breathRes = await fetch(breathUrl);
           const breathJson = await breathRes.json();
+          let sessions = 0;
+          let minutes = 0;
           if (breathJson.success && breathJson.data?.stats) {
-            setBreathingStats({
-              totalSessions: breathJson.data.stats.totalSessions || 0,
-              totalMinutes: breathJson.data.stats.totalMinutes || 0
-            });
+            sessions = breathJson.data.stats.total_sessions ?? breathJson.data.stats.totalSessions ?? 0;
+            minutes = breathJson.data.stats.total_duration_minutes ?? breathJson.data.stats.totalMinutes ?? 0;
           }
+
+          // Also check lung_activity_sessions breathing stats via lung progress API
+          if (sessions === 0) {
+            try {
+              const progUrl = targetUserId ? `/api/v1/lung/progress?user_id=${targetUserId}` : `/api/v1/lung/progress?user_id=usr_guest`;
+              const progRes = await fetch(progUrl);
+              const progJson = await progRes.json();
+              if (progJson.success && progJson.data?.stats) {
+                sessions = progJson.data.stats.total_breathing_sessions_30d || sessions;
+              }
+            } catch (_) {}
+          }
+
+          setBreathingStats({ totalSessions: sessions, totalMinutes: minutes });
         } catch (bErr) {
           console.warn("Breathing stats error", bErr);
         }
       } catch (err) {
         console.error("Lung statistics error", err);
-        setError(err.message || "Unable to load lung statistics right now.");
       } finally {
         setLoading(false);
       }
@@ -791,7 +813,7 @@ export default function LungHealthStatisticsPage() {
                     {breathingStats.totalMinutes} total minutes practiced
                   </p>
                   <Link
-                    href="/dashboard/breathing"
+                    href="/lung-connect?action=breathing"
                     className="mt-3 block w-full py-1.5 px-3 bg-white text-[#0067A1] hover:bg-sky-50 rounded-[5px] text-xs font-semibold text-center transition-colors shadow-2xs"
                   >
                     Start Breathing Exercise

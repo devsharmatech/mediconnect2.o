@@ -231,7 +231,7 @@ export default function CardioConnectHome() {
       heartRateBpm: walkingHeartRate,
       stoppedEarly,
       previousComparable: {
-        date: "12 Jan 2025",
+        date: "12 Sept 2026",
         duration: "06:00",
         distanceKm: 0.48,
         paceKmh: 5.1,
@@ -1236,7 +1236,7 @@ export default function CardioConnectHome() {
                 <div>Duration: <strong className="text-slate-800">06:00</strong></div>
                 <div>Distance: <strong className="text-slate-800">0.48 km</strong></div>
                 <div>Pace: <strong className="text-slate-800">5.1 km/h</strong></div>
-                <div>Date: <strong className="text-slate-800">12 Jan 2025</strong></div>
+                <div>Date: <strong className="text-slate-800">12 Sept 2026</strong></div>
               </div>
             </div>
 
