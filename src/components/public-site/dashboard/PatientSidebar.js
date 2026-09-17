@@ -137,37 +137,17 @@ export default function PatientSidebar({
       children: [
         {
           name: "CardioConnect Hub",
-          href: "/website/cardio-connect",
+          href: "/cardio-connect",
           icon: FaHeartbeat,
         },
         {
-          name: "Heart Training",
-          href: "/website/cardio-connect?action=training",
-          icon: FaRunning,
-        },
-        {
-          name: "Cardio Walk Test",
-          href: "/website/cardio-connect?action=walking",
-          icon: FaWalking,
-        },
-        {
-          name: "Cardio Spectrum",
-          href: "/website/cardio-connect?action=spectrum",
-          icon: FaHeartbeat,
-        },
-        {
-          name: "My Progress",
-          href: "/website/cardio-connect?action=progress",
-          icon: FaChartLine,
-        },
-        {
-          name: "Cardio Screening",
-          href: "/website/heart-health",
+          name: "Cardio Assessment",
+          href: "/heart-health",
           icon: FaHeartbeat,
         },
         {
           name: "Cardio Statistics",
-          href: "/website/heart-health-statistics",
+          href: "/heart-health-statistics",
           icon: FaChartLine,
         },
       ],

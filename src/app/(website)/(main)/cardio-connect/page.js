@@ -6,7 +6,8 @@ import {
   Heart, Play, Pause, Footprints, Activity,
   ChevronRight, Info, Shield, AlertTriangle, CheckCircle2,
   X, RotateCcw, Clock, Award, Sparkles, RefreshCw,
-  TrendingUp, TrendingDown, Minus, MapPin, ArrowRight
+  TrendingUp, TrendingDown, Minus, MapPin, ArrowRight,
+  Calendar, WifiOff, Check, Settings
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -33,20 +34,32 @@ export default function CardioConnectHome() {
   const [isTrainingPaused, setIsTrainingPaused] = useState(false);
   const [trainingElapsedSeconds, setTrainingElapsedSeconds] = useState(0);
   const [trainingTargetSeconds, setTrainingTargetSeconds] = useState(1800); // 30 min default
-  const [sessionSteps, setSessionSteps] = useState(1842);
-  const [sessionDistanceKm, setSessionDistanceKm] = useState(1.24);
+  // Start at 0 — only increment when actively moving (not hardcoded)
+  const [sessionSteps, setSessionSteps] = useState(0);
+  const [sessionDistanceKm, setSessionDistanceKm] = useState(0);
   const [lastCompletedSession, setLastCompletedSession] = useState(null);
 
   // Walking Performance Test State (CC-10 -> CC-12)
   const WALKING_TEST_TOTAL_SECONDS = 360; // 6:00 fixed standardized protocol
   const [walkingRemainingSeconds, setWalkingRemainingSeconds] = useState(360);
-  const [walkingDistanceKm, setWalkingDistanceKm] = useState(0.52);
-  const [walkingPaceKmh, setWalkingPaceKmh] = useState(5.2);
-  const [walkingHeartRate, setWalkingHeartRate] = useState(72);
+  // Distance/pace/HR start at 0 — user enters actual value at completion (no GPS simulation)
+  const [walkingDistanceInput, setWalkingDistanceInput] = useState(""); // user-entered km after walk
+  const [walkingHeartRateInput, setWalkingHeartRateInput] = useState(""); // optional HR bpm
   const [walkingTestResult, setWalkingTestResult] = useState(null);
 
   const trainingTimerRef = useRef(null);
   const walkingTimerRef = useRef(null);
+
+  // CC-06 Activity Timeline State
+  const [timelineDate, setTimelineDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [timelineData, setTimelineData] = useState(null);
+  const [isLoadingTimeline, setIsLoadingTimeline] = useState(false);
+
+  // CC-14 Permissions & Data Sources State: 'granted' | 'denied' | 'restricted' | 'unavailable' | 'sync_pending'
+  const [permissionsState, setPermissionsState] = useState("granted");
+
+  // CC-13 AQI Detail State
+  const [aqiDetailData, setAqiDetailData] = useState(null);
 
   // Fetch Authoritative CC-01 Home Data
   const fetchHomeData = async () => {
@@ -92,22 +105,55 @@ export default function CardioConnectHome() {
     }
   };
 
+  // Fetch CC-06 Timeline Data
+  const fetchTimelineData = async (dateStr) => {
+    try {
+      setIsLoadingTimeline(true);
+      const targetDate = dateStr || timelineDate;
+      const res = await fetch(`/api/v1/cardio/activity-timeline?date=${targetDate}`);
+      const json = await res.json();
+      if (json.success && json.data) {
+        setTimelineData(json.data);
+      }
+    } catch (e) {
+      console.warn("Could not fetch timeline:", e);
+    } finally {
+      setIsLoadingTimeline(false);
+    }
+  };
+
+  // Fetch CC-13 AQI Data
+  const fetchAqiData = async () => {
+    try {
+      const res = await fetch("/api/v1/cardio/aqi");
+      const json = await res.json();
+      if (json.success && json.data) {
+        setAqiDetailData(json.data);
+      }
+    } catch (e) {
+      console.warn("Could not fetch AQI:", e);
+    }
+  };
+
   useEffect(() => {
     fetchHomeData();
     fetchSpectrumData();
     fetchProgressData("7D");
+    fetchTimelineData(timelineDate);
 
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const action = params.get("action");
-      if (action === "training") {
-        setActiveModal("training_setup");
+      if (action === "training" || action === "setup") {
+        setActiveModal("setup");
       } else if (action === "walking") {
         setActiveModal("walking_intro");
       } else if (action === "spectrum") {
         setActiveModal("spectrum");
       } else if (action === "progress") {
         setActiveModal("progress");
+      } else if (action === "timeline") {
+        setActiveModal("timeline");
       }
     }
   }, []);
@@ -168,8 +214,9 @@ export default function CardioConnectHome() {
     setTrainingTargetSeconds(targetMin * 60);
     setTrainingElapsedSeconds(0);
     setIsTrainingPaused(false);
-    setSessionSteps(1842);
-    setSessionDistanceKm(1.24);
+    // Reset to zero — metrics start from scratch each session
+    setSessionSteps(0);
+    setSessionDistanceKm(0);
     setActiveModal("active_training");
     toast.success(`Heart Training started: ${targetMin} minutes target`);
   };
@@ -179,15 +226,17 @@ export default function CardioConnectHome() {
     const actualMin = Math.round(trainingElapsedSeconds / 60);
     const targetMin = Math.round(trainingTargetSeconds / 60);
     const isTargetReached = trainingElapsedSeconds >= trainingTargetSeconds;
+    // Only report steps/distance if they were actually accumulated (> 0)
+    const hasMovementData = sessionSteps > 0;
 
     const record = {
       actual_duration_formatted: `${Math.floor(trainingElapsedSeconds / 60)}:${(trainingElapsedSeconds % 60).toString().padStart(2, "0")}`,
       actual_duration_minutes: actualMin,
       target_duration_minutes: targetMin,
       target_status: isTargetReached ? "Target reached" : "Partial session recorded",
-      steps: sessionSteps,
-      distance_km: sessionDistanceKm,
-      estimated_energy: `${Math.round(actualMin * 5.2)} kcal`,
+      steps: hasMovementData ? sessionSteps : null,
+      distance_km: hasMovementData ? sessionDistanceKm : null,
+      estimated_energy: actualMin > 0 ? `${Math.round(actualMin * 5.2)} kcal` : null,
       weekly_reference_update: "Session recorded toward 150-300 min/week reference band",
       milestone: isTargetReached ? "Session Goal Reached" : null,
       is_reached: isTargetReached
@@ -219,28 +268,26 @@ export default function CardioConnectHome() {
   };
 
   // Finish Walking Test (CC-11 -> CC-12)
+  // Called when timer ends OR user stops early; distance/HR come from user input
   const finishWalkingTest = async (stoppedEarly = false) => {
     const elapsed = WALKING_TEST_TOTAL_SECONDS - walkingRemainingSeconds;
     const isComplete = !stoppedEarly && walkingRemainingSeconds === 0;
+    // Use user-entered distance if provided, otherwise null
+    const distanceKm = walkingDistanceInput ? Number(parseFloat(walkingDistanceInput).toFixed(2)) : null;
+    const heartRateBpm = walkingHeartRateInput ? parseInt(walkingHeartRateInput, 10) : null;
+    // Pace computed from entered distance (km per 6 min = km * 10 per hr)
+    const paceKmh = distanceKm ? Number((distanceKm * 10).toFixed(1)) : null;
 
     const resultPayload = {
       isComplete,
       durationFormatted: `${Math.floor(elapsed / 60).toString().padStart(2, "0")}:${(elapsed % 60).toString().padStart(2, "0")}`,
-      distanceKm: stoppedEarly ? Number((walkingDistanceKm * (elapsed / 360)).toFixed(2)) : walkingDistanceKm,
-      paceKmh: walkingPaceKmh,
-      heartRateBpm: walkingHeartRate,
+      distanceKm,
+      paceKmh,
+      heartRateBpm,
       stoppedEarly,
-      previousComparable: {
-        date: "12 Sept 2026",
-        duration: "06:00",
-        distanceKm: 0.48,
-        paceKmh: 5.1,
-        heartRateBpm: 68
-      },
-      comparison: {
-        distanceDiff: stoppedEarly ? "-0.23 km" : "+0.04 km",
-        paceDiff: "+0.1 km/h"
-      }
+      // Previous test data comes from API only — no hardcoded values
+      previousComparable: null,
+      comparison: null
     };
 
     setWalkingTestResult(resultPayload);
@@ -252,9 +299,9 @@ export default function CardioConnectHome() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           duration_seconds: elapsed,
-          distance_km: resultPayload.distanceKm,
-          pace_kmh: walkingPaceKmh,
-          heart_rate_bpm: walkingHeartRate,
+          distance_km: distanceKm,
+          pace_kmh: paceKmh,
+          heart_rate_bpm: heartRateBpm,
           stopped_early: stoppedEarly,
           protocol_version: "V1.0"
         })
@@ -397,8 +444,14 @@ export default function CardioConnectHome() {
             </p>
           </section>
 
-          {/* ── CARD 3: TODAY'S MOVEMENT (Goal reference 10,000 steps) ── */}
-          <section className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs flex flex-col justify-between">
+          {/* ── CARD 3: TODAY'S MOVEMENT (Goal reference 10,000 steps • CC-06 Entry) ── */}
+          <section
+            onClick={() => {
+              fetchTimelineData(timelineDate);
+              setActiveModal("timeline");
+            }}
+            className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs hover:border-[#0067A1]/40 transition-all cursor-pointer flex flex-col justify-between"
+          >
             <div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -412,14 +465,17 @@ export default function CardioConnectHome() {
                     </span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-xs font-bold text-slate-950">Goal reference</span>
-                  <span className="text-xs font-mono text-slate-900 block">10,000 steps &gt;</span>
+                <div className="text-right flex items-center gap-1">
+                  <div>
+                    <span className="text-xs font-bold text-slate-950">Goal reference</span>
+                    <span className="text-xs font-mono text-slate-900 block">10,000 steps</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
                 </div>
               </div>
             </div>
             <p className="text-[10px] text-slate-800 mt-3">
-              Steps remain a separate metric from Heart Training minutes.
+              Steps remain a separate metric from Heart Training minutes. Tap to view Timeline.
             </p>
           </section>
         </div>
@@ -506,8 +562,14 @@ export default function CardioConnectHome() {
             </div>
           </section>
 
-          {/* ── CARD 7: AIR QUALITY (AQI) CONTEXT (Non-blocking) ── */}
-          <section className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs flex items-center justify-between">
+          {/* ── CARD 7: AIR QUALITY (AQI) CONTEXT (CC-13 Non-blocking) ── */}
+          <section
+            onClick={() => {
+              fetchAqiData();
+              setActiveModal("aqi");
+            }}
+            className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs hover:border-[#0067A1]/40 transition-all cursor-pointer flex items-center justify-between"
+          >
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-[5px] bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
                 <MapPin className="w-4 h-4" />
@@ -517,11 +579,14 @@ export default function CardioConnectHome() {
                 <p className="text-[11px] text-slate-900">Environmental context for your activity</p>
               </div>
             </div>
-            <div className="text-right">
-              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[5px] border border-emerald-200">
-                AQI 85 • Moderate
-              </span>
-              <span className="text-[10px] text-slate-800 block mt-0.5">Non-blocking context</span>
+            <div className="text-right flex items-center gap-1.5">
+              <div>
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[5px] border border-emerald-200">
+                  AQI 85 • Moderate
+                </span>
+                <span className="text-[10px] text-slate-800 block mt-0.5">Non-blocking context</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400" />
             </div>
           </section>
         </div>
@@ -564,8 +629,11 @@ export default function CardioConnectHome() {
               Choose your activity type and set a target duration to start your Heart Training.
             </p>
 
-            {/* Activity Type Indicator */}
-            <div className="mt-4 p-3 bg-slate-50 rounded-[5px] border border-slate-200 flex items-center justify-between">
+            {/* Activity Type Indicator (Links to CC-14 Permissions) */}
+            <div
+              onClick={() => setActiveModal("permissions")}
+              className="mt-4 p-3 bg-slate-50 rounded-[5px] border border-slate-200 flex items-center justify-between cursor-pointer hover:border-[#0067A1]/40 transition-colors"
+            >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-[5px] bg-emerald-100 text-emerald-700 flex items-center justify-center">
                   <Footprints className="w-5 h-5" />
@@ -576,9 +644,12 @@ export default function CardioConnectHome() {
                   <p className="text-[10px] text-slate-900">From device (Active)</p>
                 </div>
               </div>
-              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[5px] border border-emerald-200">
-                Connected
-              </span>
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[5px] border border-emerald-200">
+                  Connected
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </div>
             </div>
 
             {/* Duration Selector (CC-07 Embedded Presets) */}
@@ -663,11 +734,11 @@ export default function CardioConnectHome() {
           MODAL 2: CC-03 / CC-04 ACTIVE & PAUSED HEART TRAINING
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "active_training" && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[5px] max-w-md w-full p-6 shadow-2xl border border-slate-200 text-center animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-[8px] sm:rounded-[5px] w-full sm:max-w-md p-5 sm:p-6 shadow-2xl border-0 sm:border border-slate-200 text-center animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 flex flex-col max-h-[95svh] overflow-y-auto">
             
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-white px-2 py-0.5 rounded">
+              <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
                 {isTrainingPaused ? "CC-04 Paused" : "CC-03 Active"}
               </span>
               <span className="text-xs font-bold text-slate-700">Heart Training</span>
@@ -795,24 +866,30 @@ export default function CardioConnectHome() {
                   {lastCompletedSession.target_status}
                 </span>
               </div>
-              <div className="py-2.5 flex justify-between">
-                <span className="text-slate-900">Steps</span>
-                <span className="font-bold text-slate-900 font-mono">
-                  {lastCompletedSession.steps.toLocaleString()}
-                </span>
-              </div>
-              <div className="py-2.5 flex justify-between">
-                <span className="text-slate-900">Distance</span>
-                <span className="font-bold text-slate-900 font-mono">
-                  {lastCompletedSession.distance_km} km
-                </span>
-              </div>
-              <div className="py-2.5 flex justify-between">
-                <span className="text-slate-900">Estimated energy</span>
-                <span className="font-bold text-slate-900">
-                  {lastCompletedSession.estimated_energy}
-                </span>
-              </div>
+              {lastCompletedSession.steps !== null && (
+                <div className="py-2.5 flex justify-between">
+                  <span className="text-slate-900">Steps (estimated)</span>
+                  <span className="font-bold text-slate-900 font-mono">
+                    {lastCompletedSession.steps.toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {lastCompletedSession.distance_km !== null && (
+                <div className="py-2.5 flex justify-between">
+                  <span className="text-slate-900">Distance (estimated)</span>
+                  <span className="font-bold text-slate-900 font-mono">
+                    {lastCompletedSession.distance_km} km
+                  </span>
+                </div>
+              )}
+              {lastCompletedSession.estimated_energy !== null && (
+                <div className="py-2.5 flex justify-between">
+                  <span className="text-slate-900">Estimated energy</span>
+                  <span className="font-bold text-slate-900">
+                    {lastCompletedSession.estimated_energy}
+                  </span>
+                </div>
+              )}
               <div className="py-2.5 flex justify-between">
                 <span className="text-slate-900">Weekly reference update</span>
                 <span className="font-semibold text-emerald-700 text-right">
@@ -1115,6 +1192,8 @@ export default function CardioConnectHome() {
                 type="button"
                 onClick={() => {
                   setWalkingRemainingSeconds(WALKING_TEST_TOTAL_SECONDS);
+                  setWalkingDistanceInput("");
+                  setWalkingHeartRateInput("");
                   setActiveModal("walking_active");
                 }}
                 className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
@@ -1138,28 +1217,28 @@ export default function CardioConnectHome() {
           MODAL 7: CC-11 WALKING PERFORMANCE TEST ACTIVE
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "walking_active" && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[5px] max-w-md w-full p-6 shadow-2xl border border-slate-200 text-center animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-white px-2 py-0.5 rounded">
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-[8px] sm:rounded-[5px] w-full sm:max-w-md p-5 sm:p-6 shadow-2xl border-0 sm:border border-slate-200 text-center animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 flex flex-col max-h-[95svh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
                 CC-11 Active Test
               </span>
               <span className="text-xs font-bold text-slate-700">Standardized 6-Min Test</span>
             </div>
 
             <h2 className="text-xl font-black text-slate-900 mt-4">Walking Performance Test</h2>
-            <p className="text-xs text-slate-900 mt-0.5">Walk at your usual comfortable pace</p>
+            <p className="text-xs text-slate-900 mt-0.5">Walk at your usual comfortable pace for 6 minutes</p>
 
             {/* Clinical Digital Stopwatch Readout */}
-            <div className="my-5 p-4 bg-slate-900 text-white rounded-[5px] border border-slate-800 text-center shadow-inner">
+            <div className="my-4 p-4 bg-slate-900 text-white rounded-[5px] border border-slate-800 text-center shadow-inner">
               <span className="text-[10px] font-mono uppercase tracking-widest text-slate-300 block mb-1">
-                Standardized Test Duration
+                Elapsed / Protocol 06:00
               </span>
               <div className="text-4xl sm:text-5xl font-extrabold font-mono tracking-tight text-white my-1">
                 {formatSeconds(WALKING_TEST_TOTAL_SECONDS - walkingRemainingSeconds)}
               </div>
               <div className="flex items-center justify-center gap-2 text-xs text-slate-300 font-mono mt-1">
-                <span>Protocol: 06:00 Total</span>
+                <span>Remaining: {formatSeconds(walkingRemainingSeconds)}</span>
                 <span>•</span>
                 <span className="text-indigo-400 font-sans flex items-center gap-1">
                   <Clock className="w-3 h-3" /> 6-Min Walk Test
@@ -1167,24 +1246,36 @@ export default function CardioConnectHome() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 text-left mb-6">
-              <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-100">
-                <span className="text-[10px] text-slate-900 font-black font-bold uppercase block">Remaining Time</span>
-                <span className="text-sm font-bold font-mono text-slate-800">
-                  {formatSeconds(walkingRemainingSeconds)}
-                </span>
+            {/* Distance input during test — no GPS, user enters actual */}
+            <div className="text-left space-y-2.5 mb-4">
+              <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-[5px] text-xs text-blue-900">
+                <p className="font-bold text-[11px] mb-0.5">Record your distance (optional)</p>
+                <p className="text-[10px] text-blue-800 leading-relaxed">Use a measured track or route. Enter the actual distance you cover during the 6 minutes.</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-100">
-                <span className="text-[10px] text-slate-900 font-black font-bold uppercase block">Distance</span>
-                <span className="text-sm font-bold font-mono text-slate-800">{walkingDistanceKm} km</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-100">
-                <span className="text-[10px] text-slate-900 font-black font-bold uppercase block">Pace / Speed</span>
-                <span className="text-sm font-bold font-mono text-slate-800">{walkingPaceKmh} km/h</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-100">
-                <span className="text-[10px] text-slate-900 font-black font-bold uppercase block">Heart Rate</span>
-                <span className="text-sm font-bold font-mono text-slate-800">{walkingHeartRate} bpm</span>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">Distance (km)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="e.g. 0.52"
+                    value={walkingDistanceInput}
+                    onChange={(e) => setWalkingDistanceInput(e.target.value)}
+                    className="w-full px-2.5 py-2 border border-slate-200 rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">Heart Rate (bpm)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Optional"
+                    value={walkingHeartRateInput}
+                    onChange={(e) => setWalkingHeartRateInput(e.target.value)}
+                    className="w-full px-2.5 py-2 border border-slate-200 rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1193,7 +1284,7 @@ export default function CardioConnectHome() {
               onClick={() => finishWalkingTest(true)}
               className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors cursor-pointer"
             >
-              STOP EARLY
+              STOP EARLY / FINISH
             </button>
           </div>
         </div>
@@ -1203,8 +1294,8 @@ export default function CardioConnectHome() {
           MODAL 8: CC-12 WALKING PERFORMANCE TEST RESULT
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "walking_result" && walkingTestResult && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[5px] max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 text-center">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-[8px] sm:rounded-[5px] w-full sm:max-w-md p-5 sm:p-6 shadow-2xl border-0 sm:border border-slate-200 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-center max-h-[95svh] overflow-y-auto">
             
             <div className="w-12 h-12 rounded-[5px] bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-2">
               <CheckCircle2 className="w-7 h-7" />
@@ -1217,42 +1308,67 @@ export default function CardioConnectHome() {
               {walkingTestResult.isComplete ? "Test Complete (6 Minutes)" : "Test Stopped Early"}
             </h2>
 
-            {/* Current Result */}
+            {/* Current Result — only display fields that were recorded */}
             <div className="mt-4 p-4 bg-slate-50 rounded-[5px] border border-slate-200 text-left">
               <h4 className="font-bold text-slate-900 text-xs mb-2">Your Result</h4>
-              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                <div>Duration: <strong className="text-slate-900">{walkingTestResult.durationFormatted}</strong></div>
-                <div>Distance: <strong className="text-slate-900">{walkingTestResult.distanceKm} km</strong></div>
-                <div>Pace: <strong className="text-slate-900">{walkingTestResult.paceKmh} km/h</strong></div>
-                <div>Heart Rate: <strong className="text-slate-900">{walkingTestResult.heartRateBpm} bpm</strong></div>
+              <div className="space-y-1.5 text-xs">
+                <div className="flex justify-between font-mono">
+                  <span className="text-slate-800">Duration</span>
+                  <strong className="text-slate-900">{walkingTestResult.durationFormatted}</strong>
+                </div>
+                <div className="flex justify-between font-mono">
+                  <span className="text-slate-800">Distance</span>
+                  <strong className="text-slate-900">
+                    {walkingTestResult.distanceKm !== null ? `${walkingTestResult.distanceKm} km` : "Not recorded"}
+                  </strong>
+                </div>
+                <div className="flex justify-between font-mono">
+                  <span className="text-slate-800">Pace</span>
+                  <strong className="text-slate-900">
+                    {walkingTestResult.paceKmh !== null ? `${walkingTestResult.paceKmh} km/h` : "—"}
+                  </strong>
+                </div>
+                <div className="flex justify-between font-mono">
+                  <span className="text-slate-800">Heart Rate</span>
+                  <strong className="text-slate-900">
+                    {walkingTestResult.heartRateBpm !== null ? `${walkingTestResult.heartRateBpm} bpm` : "Not recorded"}
+                  </strong>
+                </div>
               </div>
             </div>
 
-            {/* Previous Comparable Test (Like-for-like protocol only) */}
-            <div className="mt-3 p-4 bg-slate-50 rounded-[5px] border border-slate-200 text-left text-xs">
-              <h4 className="font-bold text-slate-900 mb-1">Previous Comparable Test</h4>
-              <p className="text-[10px] text-slate-800 mb-2">Like-for-like protocol version (V1.0)</p>
-              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                <div>Duration: <strong className="text-slate-800">06:00</strong></div>
-                <div>Distance: <strong className="text-slate-800">0.48 km</strong></div>
-                <div>Pace: <strong className="text-slate-800">5.1 km/h</strong></div>
-                <div>Date: <strong className="text-slate-800">12 Sept 2026</strong></div>
+            {/* Previous Comparable Test — from API only, not hardcoded */}
+            {walkingTestResult.previousComparable ? (
+              <div className="mt-3 p-4 bg-slate-50 rounded-[5px] border border-slate-200 text-left text-xs">
+                <h4 className="font-bold text-slate-900 mb-1">Previous Comparable Test</h4>
+                <p className="text-[10px] text-slate-800 mb-2">Like-for-like protocol version (V1.0)</p>
+                <div className="space-y-1 font-mono">
+                  <div className="flex justify-between">
+                    <span className="text-slate-700">Distance</span>
+                    <strong className="text-slate-800">{walkingTestResult.previousComparable.distanceKm} km</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-700">Pace</span>
+                    <strong className="text-slate-800">{walkingTestResult.previousComparable.paceKmh} km/h</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-700">Date</span>
+                    <strong className="text-slate-800">{walkingTestResult.previousComparable.date}</strong>
+                  </div>
+                </div>
               </div>
+            ) : (
+              <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-[5px] text-left text-xs text-slate-800">
+                <p className="font-bold text-slate-900 mb-0.5">Previous Test</p>
+                <p className="text-[10px] text-slate-700">No previous test found for like-for-like comparison (V1.0 protocol). Complete more tests to enable comparison.</p>
+              </div>
+            )}
+
+            <div className="mt-3 p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] text-left text-[10px] text-blue-800 leading-relaxed">
+              This test records your walking performance for personal tracking only. It does not diagnose any medical condition or establish cardiac fitness.
             </div>
 
-            {/* Neutral Comparison */}
-            <div className="mt-3 p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] text-left text-xs text-blue-950">
-              <h4 className="font-bold text-[11px] mb-1">Comparison (Like-for-like protocol)</h4>
-              <div className="flex gap-4 font-mono text-xs">
-                <span>Distance: <strong>{walkingTestResult.comparison.distanceDiff}</strong></span>
-                <span>Pace: <strong>{walkingTestResult.comparison.paceDiff}</strong></span>
-              </div>
-              <p className="text-[10px] text-blue-800/80 mt-1 italic">
-                *Neutral comparison presented. No clinical improvement or decline is diagnosed.
-              </p>
-            </div>
-
-            <div className="mt-5 space-y-2">
+            <div className="mt-4 space-y-2">
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
@@ -1266,6 +1382,341 @@ export default function CardioConnectHome() {
                 className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-[5px] cursor-pointer"
               >
                 VIEW PROGRESS
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+          MODAL 9: CC-06 ACTIVITY TIMELINE
+      ══════════════════════════════════════════════════════════════ */}
+      {activeModal === "timeline" && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-[8px] sm:rounded-[5px] w-full sm:max-w-md p-5 sm:p-6 shadow-2xl border-0 sm:border border-slate-200 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 max-h-[95svh] flex flex-col">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+                  CC-06 Activity Timeline
+                </span>
+                <h2 className="text-lg font-bold text-slate-900 mt-1">Activity Timeline</h2>
+              </div>
+              <button
+                onClick={() => setActiveModal(null)}
+                className="p-1.5 text-slate-800 hover:text-slate-950 rounded-[5px]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Date Selector */}
+            <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-[5px] p-2.5 mt-3 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date(timelineDate);
+                  d.setDate(d.getDate() - 1);
+                  const str = d.toISOString().split("T")[0];
+                  setTimelineDate(str);
+                  fetchTimelineData(str);
+                }}
+                className="p-1 hover:bg-slate-200 rounded text-slate-700 font-bold"
+              >
+                ◀
+              </button>
+              <div className="flex items-center gap-2 font-bold text-slate-900">
+                <Calendar className="w-4 h-4 text-[#0067A1]" />
+                <span>
+                  {new Date(timelineDate + "T00:00:00").toLocaleDateString("en-US", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric"
+                  })}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date(timelineDate);
+                  d.setDate(d.getDate() + 1);
+                  const str = d.toISOString().split("T")[0];
+                  setTimelineDate(str);
+                  fetchTimelineData(str);
+                }}
+                className="p-1 hover:bg-slate-200 rounded text-slate-700 font-bold"
+              >
+                ▶
+              </button>
+            </div>
+
+            {/* Daily Total */}
+            <div className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-[5px] text-xs">
+              <h4 className="font-bold text-slate-900 mb-2">Daily Total</h4>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-2 bg-white rounded border border-slate-200">
+                  <span className="text-[10px] text-slate-500 block">Steps</span>
+                  <strong className="text-slate-900 text-sm font-mono">
+                    {timelineData?.daily_total?.steps ? timelineData.daily_total.steps.toLocaleString() : "--"}
+                  </strong>
+                </div>
+                <div className="p-2 bg-white rounded border border-slate-200">
+                  <span className="text-[10px] text-slate-500 block">Distance</span>
+                  <strong className="text-slate-900 text-sm font-mono">
+                    {timelineData?.daily_total?.distance_km ? `${timelineData.daily_total.distance_km} km` : "-- km"}
+                  </strong>
+                </div>
+                <div className="p-2 bg-white rounded border border-slate-200">
+                  <span className="text-[10px] text-slate-500 block">Energy</span>
+                  <strong className="text-slate-900 text-sm font-mono">
+                    {timelineData?.daily_total?.energy_kcal ? `${timelineData.daily_total.energy_kcal} kcal` : "-- kcal"}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Chronological Sessions */}
+            <div className="mt-3 flex-1 overflow-y-auto space-y-2 pr-1 text-xs">
+              <h4 className="font-bold text-slate-900">Sessions</h4>
+              {isLoadingTimeline ? (
+                <div className="p-6 text-center text-slate-500">Loading activity sessions...</div>
+              ) : timelineData?.session_records && timelineData.session_records.length > 0 ? (
+                timelineData.session_records.map((sess, idx) => (
+                  <div
+                    key={sess.id || idx}
+                    className="p-3 bg-white border border-slate-200 rounded-[5px] flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-[5px] bg-blue-50 text-[#0067A1] flex items-center justify-center">
+                        <Footprints className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <strong className="text-slate-900">Session {idx + 1}</strong>
+                          {sess.is_long_session && (
+                            <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-semibold">
+                              Long session
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-600">
+                          {sess.duration_minutes} min • {sess.steps ? `${sess.steps.toLocaleString()} steps` : "Manual time"}
+                          {sess.distance_km ? ` • ${sess.distance_km} km` : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  </div>
+                ))
+              ) : (
+                <div className="p-6 text-center bg-slate-50 border border-slate-200 rounded-[5px] space-y-1.5">
+                  <div className="w-10 h-10 rounded-[5px] bg-slate-200 text-slate-500 flex items-center justify-center mx-auto">
+                    <Footprints className="w-5 h-5" />
+                  </div>
+                  <h5 className="font-bold text-slate-800 text-xs">No sessions yet</h5>
+                  <p className="text-[11px] text-slate-500">No activity sessions recorded for this date.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveModal("progress");
+                }}
+                className="w-full py-2.5 bg-blue-50 hover:bg-blue-100 text-[#0067A1] font-bold text-xs rounded-[5px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <span>Weekly Summary</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-[5px] transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+          MODAL 10: CC-14 PERMISSIONS & DATA SOURCES
+      ══════════════════════════════════════════════════════════════ */}
+      {activeModal === "permissions" && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-[8px] sm:rounded-[5px] w-full sm:max-w-md p-5 sm:p-6 shadow-2xl border-0 sm:border border-slate-200 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-center max-h-[95svh] overflow-y-auto">
+            
+            {/* Dynamic Status Icon */}
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2 ${
+              permissionsState === "granted"
+                ? "bg-emerald-100 text-emerald-600"
+                : permissionsState === "denied"
+                ? "bg-rose-100 text-rose-600"
+                : permissionsState === "restricted"
+                ? "bg-amber-100 text-amber-600"
+                : permissionsState === "unavailable"
+                ? "bg-slate-200 text-slate-600"
+                : "bg-blue-100 text-[#0067A1]"
+            }`}>
+              {permissionsState === "granted" && <Check className="w-8 h-8" />}
+              {permissionsState === "denied" && <Minus className="w-8 h-8" />}
+              {permissionsState === "restricted" && <AlertTriangle className="w-8 h-8" />}
+              {permissionsState === "unavailable" && <WifiOff className="w-8 h-8" />}
+              {permissionsState === "sync_pending" && <RefreshCw className="w-8 h-8 animate-spin" />}
+            </div>
+
+            <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+              CC-14 Permissions
+            </span>
+            <h2 className="text-xl font-black text-slate-900 mt-1 capitalize">
+              {permissionsState.replace("_", " ")}
+            </h2>
+            <p className="text-xs text-slate-600 mt-1">
+              {permissionsState === "granted"
+                ? "Activity tracking and health data source permissions are active."
+                : permissionsState === "denied"
+                ? "Device motion sensor access is currently denied."
+                : permissionsState === "restricted"
+                ? "Device permissions are restricted by system policy."
+                : permissionsState === "unavailable"
+                ? "Health sensor source is currently unavailable."
+                : "Syncing health source data with server..."}
+            </p>
+
+            {/* Permission Rows */}
+            <div className="mt-4 p-3.5 bg-slate-50 border border-slate-200 rounded-[5px] text-left text-xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-slate-600" />
+                  <span className="font-semibold text-slate-800">Activity Permission</span>
+                </div>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                  permissionsState === "granted"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : permissionsState === "denied"
+                    ? "bg-rose-100 text-rose-800"
+                    : "bg-amber-100 text-amber-800"
+                }`}>
+                  {permissionsState === "granted" ? "Granted" : permissionsState === "denied" ? "Denied" : "Restricted"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-slate-600" />
+                  <span className="font-semibold text-slate-800">Health Source</span>
+                </div>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                  permissionsState === "granted"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : permissionsState === "sync_pending"
+                    ? "bg-blue-100 text-blue-800"
+                    : "bg-slate-200 text-slate-700"
+                }`}>
+                  {permissionsState === "granted" ? "Connected" : permissionsState === "sync_pending" ? "Sync Pending" : "Unavailable"}
+                </span>
+              </div>
+            </div>
+
+            {/* Informational Callout: CONTINUE WITHOUT is always non-blocking */}
+            <div className="mt-3 p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] text-left text-[11px] text-blue-900 leading-relaxed">
+              <strong>Non-blocking access:</strong> Heart Training and walking tests can always be performed manually without granting device sensor permissions.
+            </div>
+
+            {/* Actions */}
+            <div className="mt-5 space-y-2">
+              {permissionsState !== "granted" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPermissionsState("granted");
+                    toast.success("Permissions granted");
+                  }}
+                  className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors cursor-pointer"
+                >
+                  Retry / Connect Source
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  // Governed return to previous context
+                  setActiveModal("setup");
+                }}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-[5px] transition-colors cursor-pointer"
+              >
+                Continue Without
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+          MODAL 11: CC-13 AQI CONTEXT DETAIL
+      ══════════════════════════════════════════════════════════════ */}
+      {activeModal === "aqi" && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white rounded-t-[8px] sm:rounded-[5px] w-full sm:max-w-md p-5 sm:p-6 shadow-2xl border-0 sm:border border-slate-200 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 max-h-[95svh] overflow-y-auto">
+            
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+                  CC-13 Environmental Context
+                </span>
+                <h2 className="text-lg font-bold text-slate-900 mt-1">Air Quality (AQI)</h2>
+              </div>
+              <button
+                onClick={() => setActiveModal(null)}
+                className="p-1.5 text-slate-800 hover:text-slate-950 rounded-[5px]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-[5px] text-center">
+              <span className="text-[11px] text-slate-600 block">Current Air Quality Index</span>
+              <div className="text-4xl font-black text-slate-900 font-mono my-1">
+                {aqiDetailData?.aqi_value || 85}
+              </div>
+              <span className="inline-block px-3 py-1 rounded-[5px] text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                {aqiDetailData?.category || "Moderate"}
+              </span>
+              <p className="text-[11px] text-slate-600 mt-2">
+                {aqiDetailData?.description || "Minor breathing discomfort to sensitive individuals on prolonged exertion."}
+              </p>
+            </div>
+
+            <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-[5px] text-xs space-y-1.5">
+              <div className="flex justify-between text-slate-700">
+                <span>Location:</span>
+                <strong className="text-slate-900">{aqiDetailData?.location || "Delhi / NCR, India"}</strong>
+              </div>
+              <div className="flex justify-between text-slate-700">
+                <span>Source:</span>
+                <strong className="text-slate-900">{aqiDetailData?.source || "CPCB Telemetry"}</strong>
+              </div>
+              <div className="flex justify-between text-slate-700">
+                <span>Status:</span>
+                <strong className="text-emerald-700 font-semibold">Fresh • Verified</strong>
+              </div>
+            </div>
+
+            <div className="mt-3 p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] text-left text-[11px] text-blue-900 leading-relaxed">
+              <strong>Non-blocking rule:</strong> AQI provides outdoor air quality context so you can calibrate your activity intensity. It is not a cardiac risk interpretation and never restricts Heart Training.
+            </div>
+
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="w-full py-2.5 bg-[#0067A1] text-white font-bold text-xs rounded-[5px] hover:bg-[#004F7C] cursor-pointer shadow-xs"
+              >
+                Close
               </button>
             </div>
           </div>
