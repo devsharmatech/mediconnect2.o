@@ -90,20 +90,24 @@ export async function generateClientPdf(element, filename = "mediconnect-report.
     // Scale image to fit A4 width
     const imgWidth = pdfWidth;
     const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-    
-    let heightLeft = imgHeight;
-    let position = 0;
 
-    // First page
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight, undefined, "FAST");
-    heightLeft -= pdfHeight;
-
-    // Multi-page handling with small tolerance (5mm) to prevent blank trailing page
-    while (heightLeft > 5) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight, undefined, "FAST");
-      heightLeft -= pdfHeight;
+    // If document is near single-page height (within 15% of A4), auto-fit to 1 page so footer is never clipped or sliced
+    if (imgHeight <= pdfHeight * 1.15) {
+      const scaleFactor = (pdfHeight - 4) / Math.max(imgHeight, pdfHeight);
+      const fittedWidth = imgWidth * scaleFactor;
+      const fittedHeight = imgHeight * scaleFactor;
+      const xOffset = (pdfWidth - fittedWidth) / 2;
+      pdf.addImage(imgData, "PNG", xOffset, 2, fittedWidth, fittedHeight, undefined, "FAST");
+    } else {
+      // True multi-page handling with proper page offsets
+      let heightLeft = imgHeight;
+      let page = 0;
+      while (heightLeft > 3) {
+        if (page > 0) pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, -(page * pdfHeight), imgWidth, imgHeight, undefined, "FAST");
+        heightLeft -= pdfHeight;
+        page++;
+      }
     }
 
     if (options.action === "print") {

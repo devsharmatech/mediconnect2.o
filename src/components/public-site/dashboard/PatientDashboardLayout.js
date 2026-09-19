@@ -211,6 +211,7 @@ const PatientDashboardLayout = ({ children }) => {
           pathname?.includes("/cardio-connect") || 
           pathname?.includes("/heart-health-statistics") ||
           pathname?.includes("/heart-health-result") ||
+          pathname?.includes("/heart-health-history") ||
           pathname?.includes("/heart-health")
             ? "p-0" 
             : "p-4 md:p-6"

@@ -100,7 +100,7 @@ export default function AssessmentPrintReport({
         backgroundColor: "#ffffff",
         color: "#0f172a",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-        padding: "24px 30px",
+        padding: "16px 24px",
         boxSizing: "border-box",
         lineHeight: "1.35",
         overflow: "hidden"
@@ -141,7 +141,7 @@ export default function AssessmentPrintReport({
       <div style={{ position: "relative", zIndex: 1 }}>
 
         {/* ── TOP BRAND HEADER BAR ── */}
-        <div style={{ borderBottom: "2.5px solid #0067A1", paddingBottom: "12px", marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ borderBottom: "2.5px solid #0067A1", paddingBottom: "8px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             {/* Official Circular Logo */}
             <img
@@ -193,7 +193,7 @@ export default function AssessmentPrintReport({
         </div>
 
         {/* Patient Profile Demographics Panel (High Contrast Table) */}
-        <div style={{ backgroundColor: "#f8fafc", border: "1.5px solid #cbd5e1", borderRadius: "6px", padding: "10px 14px", marginBottom: "11px" }}>
+        <div style={{ backgroundColor: "#f8fafc", border: "1.5px solid #cbd5e1", borderRadius: "6px", padding: "8px 12px", marginBottom: "8px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1.5px solid #cbd5e1", paddingBottom: "5px", marginBottom: "7px" }}>
             <span style={{ fontSize: "10.5px", fontWeight: "900", textTransform: "uppercase", color: "#003358", letterSpacing: "0.5px" }}>
               Patient Demographics & Assessment Parameters
@@ -253,8 +253,8 @@ export default function AssessmentPrintReport({
           background: "linear-gradient(135deg, #003358 0%, #004f7c 50%, #0067A1 100%)",
           color: "#ffffff",
           borderRadius: "6px",
-          padding: "10px 18px",
-          marginBottom: "11px",
+          padding: "8px 16px",
+          marginBottom: "8px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -307,7 +307,7 @@ export default function AssessmentPrintReport({
         </div>
 
         {/* Structured Clinical Observations Table (High Contrast) */}
-        <div style={{ marginBottom: "11px" }}>
+        <div style={{ marginBottom: "8px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
             <h2 style={{ fontSize: "11px", fontWeight: "900", textTransform: "uppercase", letterSpacing: "0.5px", color: "#003358", margin: 0 }}>
               {isHeart ? "Cardiovascular Vitals & Spectrum Observations" : "Respiratory Function & Environmental Observations"}
@@ -328,11 +328,11 @@ export default function AssessmentPrintReport({
               {isHeart ? (
                 <>
                   <tr style={{ borderBottom: "1px solid #cbd5e1", backgroundColor: "#ffffff" }}>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "700", color: "#0f172a" }}>Blood Pressure</td>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "800", color: "#0f172a" }}>{inputs?.systolic_bp && inputs?.diastolic_bp ? `${inputs.systolic_bp}/${inputs.diastolic_bp} mmHg` : "120/80 mmHg"}</td>
-                    <td style={{ padding: "4.5px 9px", color: "#1e293b", fontWeight: "600" }}>&lt; 120/80 mmHg (2024 ESC)</td>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "700", color: "#0f172a" }}>Blood Pressure</td>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "800", color: "#0f172a" }}>{inputs?.systolic_bp && inputs?.diastolic_bp ? `${inputs.systolic_bp}/${inputs.diastolic_bp} mmHg` : "120/80 mmHg"}</td>
+                    <td style={{ padding: "3.5px 8px", color: "#1e293b", fontWeight: "600" }}>&lt; 120/80 mmHg (2024 ESC)</td>
                     <td style={{
-                      padding: "4.5px 9px",
+                      padding: "3.5px 8px",
                       color: (inputs?.systolic_bp >= 140 || inputs?.diastolic_bp >= 90) ? "#991b1b" : (inputs?.systolic_bp >= 120 || inputs?.diastolic_bp >= 70) ? "#92400e" : "#065f46",
                       fontWeight: "800"
                     }}>
@@ -344,46 +344,46 @@ export default function AssessmentPrintReport({
                     </td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #cbd5e1", backgroundColor: "#f8fafc" }}>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "700", color: "#0f172a" }}>Resting Heart Rate</td>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "800", color: "#0f172a" }}>{inputs?.resting_heart_rate || 72} bpm</td>
-                    <td style={{ padding: "4.5px 9px", color: "#1e293b", fontWeight: "600" }}>60–80 bpm</td>
-                    <td style={{ padding: "4.5px 9px", color: inputs?.resting_heart_rate > 100 ? "#991b1b" : "#065f46", fontWeight: "800" }}>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "700", color: "#0f172a" }}>Resting Heart Rate</td>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "800", color: "#0f172a" }}>{inputs?.resting_heart_rate || 72} bpm</td>
+                    <td style={{ padding: "3.5px 8px", color: "#1e293b", fontWeight: "600" }}>60–80 bpm</td>
+                    <td style={{ padding: "3.5px 8px", color: inputs?.resting_heart_rate > 100 ? "#991b1b" : "#065f46", fontWeight: "800" }}>
                       {inputs?.resting_heart_rate > 100 ? "Elevated" : "Normal"}
                     </td>
                   </tr>
                   {inputs?.ldl_cholesterol && (
                     <tr style={{ borderBottom: "1px solid #cbd5e1", backgroundColor: "#ffffff" }}>
-                      <td style={{ padding: "4.5px 9px", fontWeight: "700", color: "#0f172a" }}>LDL Cholesterol</td>
-                      <td style={{ padding: "4.5px 9px", fontWeight: "800", color: "#0f172a" }}>{inputs.ldl_cholesterol} mg/dL</td>
-                      <td style={{ padding: "4.5px 9px", color: "#1e293b", fontWeight: "600" }}>&lt; 115 mg/dL</td>
-                      <td style={{ padding: "4.5px 9px", color: inputs.ldl_cholesterol > 160 ? "#991b1b" : inputs.ldl_cholesterol > 115 ? "#92400e" : "#065f46", fontWeight: "800" }}>
+                      <td style={{ padding: "3.5px 8px", fontWeight: "700", color: "#0f172a" }}>LDL Cholesterol</td>
+                      <td style={{ padding: "3.5px 8px", fontWeight: "800", color: "#0f172a" }}>{inputs.ldl_cholesterol} mg/dL</td>
+                      <td style={{ padding: "3.5px 8px", color: "#1e293b", fontWeight: "600" }}>&lt; 115 mg/dL</td>
+                      <td style={{ padding: "3.5px 8px", color: inputs.ldl_cholesterol > 160 ? "#991b1b" : inputs.ldl_cholesterol > 115 ? "#92400e" : "#065f46", fontWeight: "800" }}>
                         {inputs.ldl_cholesterol > 160 ? "High" : inputs.ldl_cholesterol > 115 ? "Elevated" : "Optimal"}
                       </td>
                     </tr>
                   )}
                   {inputs?.hba1c && (
                     <tr style={{ borderBottom: "1px solid #cbd5e1", backgroundColor: "#f8fafc" }}>
-                      <td style={{ padding: "4.5px 9px", fontWeight: "700", color: "#0f172a" }}>HbA1c (Glycated Hb)</td>
-                      <td style={{ padding: "4.5px 9px", fontWeight: "800", color: "#0f172a" }}>{inputs.hba1c} %</td>
-                      <td style={{ padding: "4.5px 9px", color: "#1e293b", fontWeight: "600" }}>&lt; 5.7 %</td>
-                      <td style={{ padding: "4.5px 9px", color: inputs.hba1c >= 6.5 ? "#991b1b" : inputs.hba1c >= 5.7 ? "#92400e" : "#065f46", fontWeight: "800" }}>
+                      <td style={{ padding: "3.5px 8px", fontWeight: "700", color: "#0f172a" }}>HbA1c (Glycated Hb)</td>
+                      <td style={{ padding: "3.5px 8px", fontWeight: "800", color: "#0f172a" }}>{inputs.hba1c} %</td>
+                      <td style={{ padding: "3.5px 8px", color: "#1e293b", fontWeight: "600" }}>&lt; 5.7 %</td>
+                      <td style={{ padding: "3.5px 8px", color: inputs.hba1c >= 6.5 ? "#991b1b" : inputs.hba1c >= 5.7 ? "#92400e" : "#065f46", fontWeight: "800" }}>
                         {inputs.hba1c >= 6.5 ? "Elevated" : inputs.hba1c >= 5.7 ? "Borderline" : "Normal"}
                       </td>
                     </tr>
                   )}
                   <tr style={{ borderBottom: "1px solid #cbd5e1", backgroundColor: "#ffffff" }}>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "700", color: "#0f172a" }}>Physical Activity</td>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "800", color: "#0f172a" }}>{inputs?.physical_activity_minutes ? `${inputs.physical_activity_minutes} mins/wk` : "150 mins/wk"}</td>
-                    <td style={{ padding: "4.5px 9px", color: "#1e293b", fontWeight: "600" }}>150–300 mins/wk (WHO)</td>
-                    <td style={{ padding: "4.5px 9px", color: inputs?.physical_activity_minutes >= 150 ? "#065f46" : "#92400e", fontWeight: "800" }}>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "700", color: "#0f172a" }}>Physical Activity</td>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "800", color: "#0f172a" }}>{inputs?.physical_activity_minutes ? `${inputs.physical_activity_minutes} mins/wk` : "150 mins/wk"}</td>
+                    <td style={{ padding: "3.5px 8px", color: "#1e293b", fontWeight: "600" }}>150–300 mins/wk (WHO)</td>
+                    <td style={{ padding: "3.5px 8px", color: inputs?.physical_activity_minutes >= 150 ? "#065f46" : "#92400e", fontWeight: "800" }}>
                       {inputs?.physical_activity_minutes >= 150 ? "Adequate Band" : "Below Reference"}
                     </td>
                   </tr>
                   <tr style={{ backgroundColor: "#f8fafc" }}>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "700", color: "#0f172a" }}>Smoking Status</td>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "800", color: "#0f172a", textTransform: "capitalize" }}>{inputs?.smoking_status || "Never"}</td>
-                    <td style={{ padding: "4.5px 9px", color: "#1e293b", fontWeight: "600" }}>Non-smoker</td>
-                    <td style={{ padding: "4.5px 9px", color: inputs?.smoking_status === "current" ? "#991b1b" : "#065f46", fontWeight: "800" }}>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "700", color: "#0f172a" }}>Smoking Status</td>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "800", color: "#0f172a", textTransform: "capitalize" }}>{inputs?.smoking_status || "Never"}</td>
+                    <td style={{ padding: "3.5px 8px", color: "#1e293b", fontWeight: "600" }}>Non-smoker</td>
+                    <td style={{ padding: "3.5px 8px", color: inputs?.smoking_status === "current" ? "#991b1b" : "#065f46", fontWeight: "800" }}>
                       {inputs?.smoking_status === "current" ? "High Risk Factor" : "Non-smoker (Optimal)"}
                     </td>
                   </tr>
@@ -391,58 +391,58 @@ export default function AssessmentPrintReport({
               ) : (
                 <>
                   <tr style={{ borderBottom: "1px solid #cbd5e1", backgroundColor: "#ffffff" }}>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "700", color: "#0f172a" }}>Breath Holding Duration</td>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "800", color: "#0f172a" }}>{inputs?.breath_holding_time || 35} seconds</td>
-                    <td style={{ padding: "4.5px 9px", color: "#1e293b", fontWeight: "600" }}>&ge; 30 seconds</td>
-                    <td style={{ padding: "4.5px 9px", color: inputs?.breath_holding_time < 20 ? "#991b1b" : "#065f46", fontWeight: "800" }}>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "700", color: "#0f172a" }}>Breath Holding Duration</td>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "800", color: "#0f172a" }}>{inputs?.breath_holding_time || 35} seconds</td>
+                    <td style={{ padding: "3.5px 8px", color: "#1e293b", fontWeight: "600" }}>&ge; 30 seconds</td>
+                    <td style={{ padding: "3.5px 8px", color: inputs?.breath_holding_time < 20 ? "#991b1b" : "#065f46", fontWeight: "800" }}>
                       {inputs?.breath_holding_time < 20 ? "Below Reference (<20s)" : "Adequate Capacity (≥30s)"}
                     </td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #cbd5e1", backgroundColor: "#f8fafc" }}>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "700", color: "#0f172a" }}>Peak Expiratory Flow (PEFR)</td>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "800", color: "#0f172a" }}>{inputs?.peak_flow || 450} L/min</td>
-                    <td style={{ padding: "4.5px 9px", color: "#1e293b", fontWeight: "600" }}>400–600 L/min</td>
-                    <td style={{ padding: "4.5px 9px", color: inputs?.peak_flow < 350 ? "#991b1b" : "#065f46", fontWeight: "800" }}>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "700", color: "#0f172a" }}>Peak Expiratory Flow (PEFR)</td>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "800", color: "#0f172a" }}>{inputs?.peak_flow || 450} L/min</td>
+                    <td style={{ padding: "3.5px 8px", color: "#1e293b", fontWeight: "600" }}>400–600 L/min</td>
+                    <td style={{ padding: "3.5px 8px", color: inputs?.peak_flow < 350 ? "#991b1b" : "#065f46", fontWeight: "800" }}>
                       {inputs?.peak_flow < 350 ? "Below Reference" : "Normal Ventilatory Range"}
                     </td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #cbd5e1", backgroundColor: "#ffffff" }}>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "700", color: "#0f172a" }}>Breaths Per Minute (Respiration Rate)</td>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "800", color: "#0f172a" }}>{inputs?.breaths_per_minute || 16} bpm</td>
-                    <td style={{ padding: "4.5px 9px", color: "#1e293b", fontWeight: "600" }}>12–20 bpm</td>
-                    <td style={{ padding: "4.5px 9px", color: (inputs?.breaths_per_minute < 12 || inputs?.breaths_per_minute > 20) ? "#991b1b" : "#065f46", fontWeight: "800" }}>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "700", color: "#0f172a" }}>Breaths Per Minute (Respiration Rate)</td>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "800", color: "#0f172a" }}>{inputs?.breaths_per_minute || 16} bpm</td>
+                    <td style={{ padding: "3.5px 8px", color: "#1e293b", fontWeight: "600" }}>12–20 bpm</td>
+                    <td style={{ padding: "3.5px 8px", color: (inputs?.breaths_per_minute < 12 || inputs?.breaths_per_minute > 20) ? "#991b1b" : "#065f46", fontWeight: "800" }}>
                       {(inputs?.breaths_per_minute < 12 || inputs?.breaths_per_minute > 20) ? "Elevated Respiration" : "Normal Resting Rate"}
                     </td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #cbd5e1", backgroundColor: "#f8fafc" }}>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "700", color: "#0f172a" }}>Ambient AQI Exposure</td>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "800", color: "#0067A1" }}>{inputs?.aqi || 60} AQI ({inputs?.pollution_exposure || "moderate"} exposure)</td>
-                    <td style={{ padding: "4.5px 9px", color: "#1e293b", fontWeight: "600" }}>&lt; 50 AQI (Optimal)</td>
-                    <td style={{ padding: "4.5px 9px", color: inputs?.aqi > 150 ? "#991b1b" : inputs?.aqi > 100 ? "#92400e" : "#065f46", fontWeight: "800" }}>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "700", color: "#0f172a" }}>Ambient AQI Exposure</td>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "800", color: "#0067A1" }}>{inputs?.aqi || 60} AQI ({inputs?.pollution_exposure || "moderate"} exposure)</td>
+                    <td style={{ padding: "3.5px 8px", color: "#1e293b", fontWeight: "600" }}>&lt; 50 AQI (Optimal)</td>
+                    <td style={{ padding: "3.5px 8px", color: inputs?.aqi > 150 ? "#991b1b" : inputs?.aqi > 100 ? "#92400e" : "#065f46", fontWeight: "800" }}>
                       {inputs?.aqi > 150 ? "Unhealthy Air Exposure" : inputs?.aqi > 100 ? "Moderate Exposure" : "Good Air Quality"}
                     </td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #cbd5e1", backgroundColor: "#ffffff" }}>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "700", color: "#0f172a" }}>Occupational Dust/Fume Exposure</td>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "800", color: "#0f172a", textTransform: "capitalize" }}>{occupationalExp}</td>
-                    <td style={{ padding: "4.5px 9px", color: "#1e293b", fontWeight: "600" }}>None / Low</td>
-                    <td style={{ padding: "4.5px 9px", color: inputs?.occupational_exposure === "high" ? "#991b1b" : "#065f46", fontWeight: "800" }}>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "700", color: "#0f172a" }}>Occupational Dust/Fume Exposure</td>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "800", color: "#0f172a", textTransform: "capitalize" }}>{occupationalExp}</td>
+                    <td style={{ padding: "3.5px 8px", color: "#1e293b", fontWeight: "600" }}>None / Low</td>
+                    <td style={{ padding: "3.5px 8px", color: inputs?.occupational_exposure === "high" ? "#991b1b" : "#065f46", fontWeight: "800" }}>
                       {inputs?.occupational_exposure === "high" ? "Elevated Occupational Risk" : "Low Risk Environment"}
                     </td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #cbd5e1", backgroundColor: "#f8fafc" }}>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "700", color: "#0f172a" }}>Smoking History</td>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "800", color: "#0f172a", textTransform: "capitalize" }}>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "700", color: "#0f172a" }}>Smoking History</td>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "800", color: "#0f172a", textTransform: "capitalize" }}>
                       {inputs?.smoking_status || "Never"}{inputs?.smoking_pack_years ? ` (${inputs.smoking_pack_years} pk-yrs)` : ""}
                     </td>
-                    <td style={{ padding: "4.5px 9px", color: "#1e293b", fontWeight: "600" }}>Non-smoker</td>
-                    <td style={{ padding: "4.5px 9px", color: inputs?.smoking_status === "current" ? "#991b1b" : "#065f46", fontWeight: "800" }}>
+                    <td style={{ padding: "3.5px 8px", color: "#1e293b", fontWeight: "600" }}>Non-smoker</td>
+                    <td style={{ padding: "3.5px 8px", color: inputs?.smoking_status === "current" ? "#991b1b" : "#065f46", fontWeight: "800" }}>
                       {inputs?.smoking_status === "current" ? "High Risk Factor" : "Non-smoker (Optimal)"}
                     </td>
                   </tr>
                   <tr style={{ backgroundColor: "#ffffff" }}>
-                    <td style={{ padding: "4.5px 9px", fontWeight: "700", color: "#0f172a" }}>Reported Symptoms</td>
-                    <td colSpan={3} style={{ padding: "4.5px 9px", color: "#0f172a", fontWeight: "700" }}>
+                    <td style={{ padding: "3.5px 8px", fontWeight: "700", color: "#0f172a" }}>Reported Symptoms</td>
+                    <td colSpan={3} style={{ padding: "3.5px 8px", color: "#0f172a", fontWeight: "700" }}>
                       Cough: <span style={{ color: "#003358" }}>{inputs?.cough_frequency || "None"}</span> · Breathlessness: <span style={{ color: "#003358" }}>{inputs?.breathlessness || "None"}</span> · Wheezing: <span style={{ color: inputs?.wheezing ? "#991b1b" : "#065f46" }}>{inputs?.wheezing ? "Present" : "Absent"}</span>
                     </td>
                   </tr>
@@ -509,7 +509,7 @@ export default function AssessmentPrintReport({
         </div>
 
         {/* Emergency Clinical Safety Notice (High Contrast Warning) */}
-        <div style={{ borderLeft: "4px solid #d97706", backgroundColor: "#fffbeb", padding: "6px 12px", marginBottom: "11px", fontSize: "9px", color: "#78350f", lineHeight: "1.4" }}>
+        <div style={{ borderLeft: "4px solid #d97706", backgroundColor: "#fffbeb", padding: "6px 12px", marginBottom: "8px", fontSize: "9px", color: "#78350f", lineHeight: "1.4" }}>
           <strong style={{ color: "#451a03" }}>Emergency Clinical Safety Notice:</strong> If you experience acute chest tightness, sudden severe shortness of breath, dizziness, or coughing blood, seek immediate emergency medical care. This wellness assessment does not diagnose medical conditions.
         </div>
 

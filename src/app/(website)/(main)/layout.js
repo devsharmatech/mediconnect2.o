@@ -20,6 +20,7 @@ const dashboardRoutes = [
   "/heart-health",
   "/heart-health-result",
   "/heart-health-statistics",
+  "/heart-health-history",
   "/cardio-connect",
   "/lung-assessment",
   "/lung-health-result",

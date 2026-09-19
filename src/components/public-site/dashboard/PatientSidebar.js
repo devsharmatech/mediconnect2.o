@@ -150,6 +150,11 @@ export default function PatientSidebar({
           href: "/heart-health-statistics",
           icon: FaChartLine,
         },
+        {
+          name: "Assessment History",
+          href: "/heart-health-history",
+          icon: FaFileMedical,
+        },
       ],
     },
     {
