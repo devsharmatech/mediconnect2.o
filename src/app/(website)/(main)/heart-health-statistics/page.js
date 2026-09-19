@@ -1,505 +1,1006 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  AreaChart,
-  Area,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ReferenceLine
+  ReferenceLine,
+  Cell
 } from "recharts";
 import {
   ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Activity,
-  TrendingUp,
+  Footprints,
   Heart,
-  AlertTriangle,
-  BarChart3,
-  CalendarClock,
-  Calendar,
-  Clock,
+  Trophy,
   FileText,
-  ShieldAlert,
+  Clock,
   CheckCircle2,
-  ArrowRight
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Calendar,
+  ShieldCheck,
+  ArrowRight,
+  Sparkles,
+  RefreshCw,
+  BarChart3,
+  Info,
+  Check
 } from "lucide-react";
+import { AnimatedCardioLoader } from "@/components/public-site/health/animations";
 
-const TIMEFRAMES = [
-  { id: "3months", label: "Last 3 months" },
-  { id: "year", label: "Last year" },
-  { id: "all", label: "All time" }
+// Checkpoint tabs as specified in CC-09 / CC-DELTA-IMAGES.pdf Page 15 & 16
+const CHECKPOINTS = [
+  { id: "7D", label: "7D", desc: "Last 7 days", days: 7 },
+  { id: "15D", label: "15D", desc: "Last 15 days", days: 15 },
+  { id: "30D", label: "30D", desc: "Last 30 days", days: 30 },
+  { id: "45D", label: "45D", desc: "Last 45 days", days: 45 },
+  { id: "Later", label: "Later", desc: "Future checkpoint", days: 90, apiKey: "LONG" }
 ];
 
 export default function HeartHealthStatisticsPage() {
   const router = useRouter();
-  const [timeframe, setTimeframe] = useState("year");
+  const [selectedCheckpoint, setSelectedCheckpoint] = useState("7D");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [graphData, setGraphData] = useState(null);
-  const [summary, setSummary] = useState(null);
-  const [history, setHistory] = useState([]);
+  const [progressData, setProgressData] = useState(null);
+
+  // Card expanded states (all open by default on desktop, toggleable on mobile)
+  const [expandedCards, setExpandedCards] = useState({
+    activity: true,
+    steps: true,
+    spectrum: true,
+    milestones: true,
+    summary: true
+  });
+
+  // Selected factor for spectrum trajectory chart view
+  const [selectedFactorKey, setSelectedFactorKey] = useState("systolic");
+
+  const toggleCard = (cardKey) => {
+    setExpandedCards((prev) => ({
+      ...prev,
+      [cardKey]: !prev[cardKey]
+    }));
+  };
+
+  const fetchProgress = async (checkpointId) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get user from localStorage if present (supports userId, patient_id, userData, user)
+      let userId = null;
+      if (typeof window !== "undefined") {
+        try {
+          const directUserId = localStorage.getItem("userId") || localStorage.getItem("patient_id");
+          if (directUserId && directUserId !== "undefined" && directUserId !== "null") {
+            userId = directUserId;
+          } else {
+            const rawUser = localStorage.getItem("userData") || localStorage.getItem("user");
+            if (rawUser) {
+              const parsed = JSON.parse(rawUser);
+              userId = parsed.id || parsed.user_id || parsed.userId;
+            }
+          }
+        } catch (e) {
+          console.warn("Could not read user data from localStorage:", e);
+        }
+      }
+
+      const cpObj = CHECKPOINTS.find((c) => c.id === checkpointId);
+      const apiCheckpoint = cpObj?.apiKey || checkpointId;
+      const url = `/api/v1/cardio/progress?checkpoint=${apiCheckpoint}${userId ? `&user_id=${userId}` : ""}`;
+
+      const res = await fetch(url);
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || "Failed to load progress data");
+      }
+
+      setProgressData(json.data);
+    } catch (err) {
+      console.error("Fetch progress error:", err);
+      setError(err.message || "Failed to load cardiovascular progress.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const userData = typeof window !== "undefined" ? localStorage.getItem("userData") : null;
-    if (!userData) {
-      setError("Please login to view your heart statistics.");
-      setLoading(false);
-      return;
+    fetchProgress(selectedCheckpoint);
+  }, [selectedCheckpoint]);
+
+  const activeCheckpointObj = useMemo(() => {
+    return CHECKPOINTS.find((c) => c.id === selectedCheckpoint) || CHECKPOINTS[0];
+  }, [selectedCheckpoint]);
+
+  const dataState = progressData?.dataState || (selectedCheckpoint === "Later" ? "later" : "available");
+
+  // State styling helper
+  const stateBadgeInfo = useMemo(() => {
+    switch (dataState) {
+      case "available":
+        return {
+          badge: "AVAILABLE",
+          badgeColor: "bg-emerald-50 text-emerald-700 border-emerald-200",
+          dotColor: "bg-emerald-500",
+          title: "Progress data is available for the selected checkpoint.",
+          statusText: "Data available",
+          statusColor: "text-emerald-700"
+        };
+      case "partial":
+        return {
+          badge: "PARTIAL",
+          badgeColor: "bg-sky-50 text-sky-700 border-sky-200",
+          dotColor: "bg-sky-500",
+          title: "Some progress data is unavailable.",
+          statusText: "Partial data",
+          statusColor: "text-sky-700"
+        };
+      case "insufficient":
+        return {
+          badge: "INSUFFICIENT DATA",
+          badgeColor: "bg-amber-50 text-amber-800 border-amber-200",
+          dotColor: "bg-amber-500",
+          title: "Not enough data to show progress for this checkpoint.",
+          statusText: "Insufficient data",
+          statusColor: "text-amber-700"
+        };
+      case "later":
+      default:
+        return {
+          badge: "LATER",
+          badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
+          dotColor: "bg-purple-500",
+          title: "This checkpoint is not yet available.",
+          statusText: "Available later",
+          statusColor: "text-slate-500"
+        };
     }
-
-    const user = JSON.parse(userData);
-
-    const fetchStats = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await fetch(
-          `/api/health/assessments/graph?user_id=${user.id || user.user_id}&type=heart&timeframe=${timeframe}&limit=100`
-        );
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || "Failed to load heart statistics.");
-        }
-        setGraphData(data.data.graphData || null);
-        setSummary(data.data.summary || null);
-        setHistory((data.data.history || []).filter((h) => h.type === "heart"));
-      } catch (err) {
-        console.error("Heart statistics error", err);
-        setError("Unable to load heart statistics right now.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, [timeframe]);
-
-  const trend = graphData?.healthScoreTrend?.filter((p) => p.type === "heart") || [];
-
-  const scores = trend.map((p) => p.score);
-
-  const chartData = trend.map((point, index) => ({
-    id: point.assessmentId || index,
-    score: point.score,
-    dateLabel: new Date(point.date).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    }),
-  }));
-
-  const totalAssessments = summary?.heart?.total || trend.length;
-  const latestScore = summary?.heart?.latestScore || (trend.length ? trend[trend.length - 1].score : "-");
-  const avgScore = summary?.heart?.averageScore || (scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : "-");
-  const recordedChange = trend.length >= 2 ? (summary?.heart?.improvement ?? (trend[trend.length - 1].score - trend[0].score)) : null;
+  }, [dataState]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 py-6 px-4 sm:px-6 lg:px-8 font-sans" style={{ fontFamily: "var(--font-poppins), 'Poppins', sans-serif" }}>
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div
+      className="min-h-screen bg-slate-50 text-slate-800 py-2 sm:py-6 px-1.5 sm:px-4 md:px-6 lg:px-8 font-sans pb-44 sm:pb-28"
+      style={{ fontFamily: "var(--font-poppins), 'Poppins', sans-serif" }}
+    >
+      <div className="max-w-4xl mx-auto space-y-6">
 
-        {/* ─── Top Header Card (No Gradient, Strict rounded-[5px]) ─── */}
-        <div className="bg-white rounded-[5px] border border-slate-200 p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <button
-              type="button"
-              onClick={() => router.push("/cardio-connect")}
-              className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-[5px] transition-colors shrink-0 mt-0.5 cursor-pointer border border-slate-200"
-              title="Back to CardioConnect"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#0067A1] bg-sky-50 px-2 py-0.5 rounded-[5px] border border-sky-200">
-                  Cardiovascular Trends
-                </span>
-                <span className="text-slate-400 text-xs">·</span>
-                <span className="text-xs font-semibold text-slate-600">CardioConnect Analytics</span>
+        {/* ─── Top Header Card (Strict CC-09 Design) ─── */}
+        <div className="bg-white rounded-[5px] border border-slate-200 p-3 sm:p-5 md:p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex items-start gap-3 min-w-0">
+              <button
+                type="button"
+                onClick={() => router.push("/cardio-connect")}
+                className="p-2 sm:p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-[5px] transition-colors shrink-0 mt-0.5 cursor-pointer border border-slate-200"
+                title="Back to CardioConnect"
+              >
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-slate-700" />
+              </button>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                  <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#0067A1] bg-sky-50 px-2 py-0.5 rounded-[5px] border border-sky-200 shrink-0 whitespace-nowrap">
+                    Cardiovascular Progress
+                  </span>
+                  <span className="text-slate-300 text-xs hidden sm:inline">•</span>
+                  <span className="text-[11px] sm:text-xs font-semibold text-slate-500 truncate">Longitudinal Telemetry</span>
+                </div>
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 tracking-tight mt-1 flex items-center gap-2">
+                  My Progress
+                </h1>
+                <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-xl leading-relaxed">
+                  Longitudinal checkpoint progress experience. Track your activity, steps and key heart health factors over time.
+                </p>
               </div>
-              <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight mt-1 flex items-center gap-2">
-                <Heart className="w-5 h-5 text-[#0067A1]" />
-                Heart Health Statistics
-              </h1>
-              <p className="text-xs text-slate-600 mt-0.5">
-                Detailed physiological scores and risk trajectory across your recorded heart assessments
-              </p>
+            </div>
+
+            {/* State Indicator Banner */}
+            <div className="self-start sm:self-center shrink-0">
+              <div className={`inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-[5px] border text-[11px] sm:text-xs font-bold ${stateBadgeInfo.badgeColor} whitespace-nowrap`}>
+                <span className={`w-2 h-2 rounded-full ${stateBadgeInfo.dotColor} animate-pulse`} />
+                <span>{stateBadgeInfo.badge}</span>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-center">
-            {/* Timeframe Filter Tabs */}
-            <div className="inline-flex rounded-[5px] bg-slate-100 p-1 border border-slate-200">
-              {TIMEFRAMES.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setTimeframe(t.id)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-[5px] transition-all cursor-pointer ${
-                    timeframe === t.id
-                      ? "bg-white text-[#0067A1] shadow-sm font-bold"
-                      : "text-slate-700 hover:text-slate-900"
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
+          {/* ─── Checkpoint Selector Bar (7D, 15D, 30D, 45D, Later) ─── */}
+          <div className="mt-6 pt-5 border-t border-slate-100">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Checkpoint Options
+              </span>
+              <span className="text-xs font-medium text-[#0067A1]">
+                {activeCheckpointObj.desc}
+              </span>
             </div>
 
-            <Link
-              href="/cardio-connect"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#0067A1] hover:bg-[#005584] text-white rounded-[5px] text-xs font-semibold shadow-sm transition-colors"
-            >
-              <Activity className="w-3.5 h-3.5" />
-              Cardio Hub
-            </Link>
+            {/* Checkpoint Pills */}
+            <div className="grid grid-cols-5 gap-1 sm:gap-2 bg-slate-100 p-1 sm:p-1.5 rounded-[5px] border border-slate-200">
+              {CHECKPOINTS.map((cp) => {
+                const isActive = selectedCheckpoint === cp.id;
+                return (
+                  <button
+                    key={cp.id}
+                    type="button"
+                    onClick={() => setSelectedCheckpoint(cp.id)}
+                    className={`py-1.5 sm:py-2 px-0.5 sm:px-1 text-center rounded-[5px] text-[11px] sm:text-xs md:text-sm font-bold transition-all cursor-pointer truncate ${
+                      isActive
+                        ? "bg-[#0067A1] text-white shadow-sm"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                    }`}
+                  >
+                    <span>{cp.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="grid grid-cols-5 gap-1 sm:gap-2 mt-1 px-1">
+              {CHECKPOINTS.map((cp) => (
+                <div key={cp.id} className="text-center">
+                  <span className="text-[9px] sm:text-[10px] text-slate-500 hidden sm:inline-block truncate">
+                    {cp.desc}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* ─── Error Alert ─── */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 text-xs font-medium px-4 py-3 rounded-[5px] flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+          <div className="bg-red-50 border border-red-200 text-red-800 text-xs font-medium px-4 py-3.5 rounded-[5px] flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold">Unable to load statistics</p>
-              <p className="mt-0.5">{error}</p>
+              <p className="font-bold text-sm">Unable to Load Progress</p>
+              <p className="mt-0.5 text-xs text-red-700">{error}</p>
+              <button
+                onClick={() => fetchProgress(selectedCheckpoint)}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded-[5px] text-xs font-bold transition-colors cursor-pointer"
+              >
+                <RefreshCw className="w-3 h-3" /> Retry Checkpoint
+              </button>
             </div>
           </div>
         )}
 
         {/* ─── Loading State ─── */}
         {loading ? (
-          <div className="bg-white rounded-[5px] border border-slate-200 p-12 text-center shadow-sm space-y-3">
-            <div className="w-8 h-8 border-2 border-[#0067A1] border-t-transparent rounded-[5px] animate-spin mx-auto" />
-            <p className="text-xs font-bold text-slate-800">Loading cardiovascular statistics...</p>
-            <p className="text-[11px] text-slate-600">Aggregating historical assessment records</p>
-          </div>
-        ) : !summary || !trend.length ? (
-          /* ─── Empty State ─── */
-          <div className="bg-white rounded-[5px] border border-slate-200 p-10 text-center shadow-sm space-y-4 max-w-md mx-auto">
-            <div className="w-12 h-12 bg-sky-50 rounded-[5px] border border-sky-100 flex items-center justify-center mx-auto text-[#0067A1]">
-              <Heart className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">No Heart Assessment Records Found</h2>
-              <p className="text-xs text-slate-600 mt-1 max-w-sm mx-auto leading-relaxed">
-                Take an assessment or complete a guided CardioConnect session to unlock longitudinal scores and functional analysis.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => router.push("/cardio-connect")}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#0067A1] hover:bg-[#005584] text-white rounded-[5px] text-xs font-bold shadow-sm transition-colors cursor-pointer"
-            >
-              <Activity className="w-4 h-4" />
-              Open CardioConnect
-            </button>
+          <div className="bg-white rounded-[5px] border border-slate-200 shadow-sm p-6 overflow-hidden">
+            <AnimatedCardioLoader
+              title="Aggregating Longitudinal Telemetry..."
+              subtitle={`Querying certified database records for checkpoint ${selectedCheckpoint}`}
+            />
           </div>
         ) : (
-          <>
-            {/* ─── 4 Executive KPI Metric Cards (Clean, High Contrast, rounded-[5px]) ─── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {/* Card 1: Total Assessments */}
-              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                    Total Assessments
-                  </p>
-                  <p className="text-2xl font-black text-slate-900 font-mono mt-1">
-                    {totalAssessments}
-                  </p>
-                  <p className="text-[11px] text-slate-600 mt-0.5">
-                    Completed in time window
-                  </p>
-                </div>
-                <div className="w-10 h-10 rounded-[5px] bg-sky-50 border border-sky-100 flex items-center justify-center text-[#0067A1] shrink-0">
-                  <BarChart3 className="w-5 h-5" />
-                </div>
-              </div>
+          <div className="space-y-4">
 
-              {/* Card 2: Latest Score */}
-              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                    Latest Score
-                  </p>
-                  <div className="flex items-baseline gap-1 mt-1">
-                    <span className="text-2xl font-black text-[#0067A1] font-mono">
-                      {latestScore}
-                    </span>
-                    <span className="text-xs font-mono text-slate-500">/ 100</span>
-                  </div>
-                  <div className="mt-1">
-                    <span className={`inline-block px-2 py-0.5 rounded-[5px] text-[10px] font-bold uppercase tracking-wider border ${
-                      Number(latestScore) >= 80
-                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                        : Number(latestScore) >= 60
-                        ? "bg-amber-50 text-amber-800 border-amber-200"
-                        : "bg-rose-50 text-rose-800 border-rose-200"
-                    }`}>
-                      {Number(latestScore) >= 80 ? "Low Risk" : Number(latestScore) >= 60 ? "Moderate Risk" : "High Risk"}
-                    </span>
-                  </div>
-                </div>
-                <div className="w-10 h-10 rounded-[5px] bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
-                  <Activity className="w-5 h-5" />
-                </div>
-              </div>
-
-              {/* Card 3: Average Score */}
-              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                    Average Score
-                  </p>
-                  <div className="flex items-baseline gap-1 mt-1">
-                    <span className="text-2xl font-black text-slate-900 font-mono">
-                      {avgScore}
-                    </span>
-                    <span className="text-xs font-mono text-slate-500">/ 100</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 mt-0.5">
-                    Across assessment history
-                  </p>
-                </div>
-                <div className="w-10 h-10 rounded-[5px] bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 shrink-0">
-                  <TrendingUp className="w-5 h-5" />
-                </div>
-              </div>
-
-              {/* Card 4: Recorded Change */}
-              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-sm flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                    Recorded Change
-                  </p>
-                  <p className={`text-2xl font-black font-mono mt-1 ${
-                    recordedChange === null
-                      ? "text-slate-500"
-                      : recordedChange > 0
-                      ? "text-emerald-700"
-                      : recordedChange < 0
-                      ? "text-amber-700"
-                      : "text-slate-700"
-                  }`}>
-                    {recordedChange === null ? "—" : `${recordedChange > 0 ? "+" : ""}${recordedChange} pts`}
-                  </p>
-                  <p className="text-[11px] text-slate-600 mt-0.5">
-                    Between first and latest
-                  </p>
-                </div>
-                <div className="w-10 h-10 rounded-[5px] bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 shrink-0">
-                  <Heart className="w-5 h-5" />
-                </div>
-              </div>
-            </div>
-
-            {/* ─── Main Trend Chart (Solid Colors, No Gradient, rounded-[5px]) ─── */}
-            <div className="bg-white rounded-[5px] border border-slate-200 p-5 sm:p-6 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 mb-4 border-b border-slate-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-[5px] bg-sky-50 border border-sky-100 flex items-center justify-center text-[#0067A1]">
-                    <Activity className="w-4 h-4" />
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* 1. ACTIVITY TREND CARD (Running Figure Icon)                    */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <div className="bg-white rounded-[5px] border border-slate-200 shadow-sm overflow-hidden transition-all hover:border-sky-200">
+              {/* Card Header */}
+              <div
+                onClick={() => toggleCard("activity")}
+                className="p-3 sm:p-4 md:p-5 flex items-center justify-between gap-3 cursor-pointer select-none bg-white hover:bg-slate-50/70 transition-colors"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-[5px] bg-sky-50 border border-sky-100 flex items-center justify-center text-[#0067A1] shrink-0">
+                    <Activity className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="text-sm sm:text-base font-bold text-slate-900">Recorded Assessment Trend</h2>
-                    <p className="text-xs text-slate-600">Score movement across completed heart assessments</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 text-xs font-semibold text-slate-700">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-[2px] bg-[#0067A1]" /> Health Score
-                  </span>
-                </div>
-              </div>
-
-              {/* Recharts Area Chart */}
-              <div className="w-full" style={{ height: 280 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={chartData}
-                    margin={{ top: 10, right: 10, left: -10, bottom: 5 }}
-                  >
-                    <defs>
-                      <linearGradient id="heartScoreGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#0067A1" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="#0067A1" stopOpacity={0.01} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                    <XAxis
-                      dataKey="dateLabel"
-                      tick={{ fontSize: 11, fill: "#64748b", fontWeight: 500 }}
-                      tickLine={false}
-                      axisLine={{ stroke: "#e2e8f0" }}
-                      dy={8}
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      ticks={[0, 25, 50, 75, 100]}
-                      tick={{ fontSize: 11, fill: "#94a3b8", fontFamily: "monospace" }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={40}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#0f172a",
-                        border: "1px solid #334155",
-                        borderRadius: "5px",
-                        padding: "10px 14px",
-                        boxShadow: "0 10px 25px rgba(0,0,0,0.25)",
-                      }}
-                      labelStyle={{ color: "#94a3b8", fontSize: 11, fontWeight: 600, marginBottom: 4 }}
-                      itemStyle={{ color: "#ffffff", fontSize: 12, fontWeight: 700, fontFamily: "monospace" }}
-                      formatter={(value) => [`${value}/100`, "Health Score"]}
-                      cursor={{ stroke: "#0067A1", strokeWidth: 1, strokeDasharray: "4 4" }}
-                    />
-                    <ReferenceLine y={avgScore !== "-" ? avgScore : 0} stroke="#94a3b8" strokeDasharray="6 4" strokeWidth={1} label={{ value: `Avg: ${avgScore}`, position: "right", fontSize: 10, fill: "#94a3b8" }} />
-                    <Area
-                      type="monotone"
-                      dataKey="score"
-                      stroke="#0067A1"
-                      strokeWidth={2.5}
-                      fill="url(#heartScoreGradient)"
-                      dot={{ r: 4, fill: "#ffffff", stroke: "#0067A1", strokeWidth: 2 }}
-                      activeDot={{ r: 6, fill: "#0067A1", stroke: "#ffffff", strokeWidth: 2 }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Quick Summary Strip */}
-              <div className="mt-3.5 p-3 rounded-[5px] bg-slate-50 border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs font-bold text-slate-800">
-                <span>First: <span className="font-mono text-[#003358]">{trend[0]?.score}/100</span></span>
-                <span>
-                  Change:{" "}
-                  <span className={`font-mono ${
-                    recordedChange > 0 ? "text-emerald-700" : recordedChange < 0 ? "text-amber-700" : "text-slate-700"
-                  }`}>
-                    {recordedChange > 0 ? "+" : ""}{recordedChange ?? 0} pts
-                  </span>
-                </span>
-                <span>Latest: <span className="font-mono text-[#0067A1]">{trend[trend.length - 1]?.score}/100</span></span>
-              </div>
-
-              <p className="text-[11px] text-slate-600 mt-3 leading-relaxed border-t border-slate-100 pt-2">
-                *Recorded movement reflects historical input differences and does not by itself establish clinical improvement. Discuss persistent concerns with a qualified physician.
-              </p>
-            </div>
-
-            {/* ─── Risk Distribution Card (rounded-[5px]) ─── */}
-            <div className="bg-white rounded-[5px] border border-slate-200 p-5 sm:p-6 shadow-sm">
-              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-slate-100">
-                <div className="w-8 h-8 rounded-[5px] bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-700">
-                  <AlertTriangle className="w-4 h-4" />
-                </div>
-                <div>
-                  <h2 className="text-sm sm:text-base font-bold text-slate-900">Risk Distribution</h2>
-                  <p className="text-xs text-slate-600">Distribution of completed assessments across clinical risk categories</p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {(graphData?.riskLevelDistribution || []).map((item) => (
-                  <div key={item.level} className="flex items-center gap-3 text-xs">
-                    <span className="w-20 capitalize font-bold text-slate-800">{item.level}</span>
-                    <div className="flex-1 h-3 rounded-[5px] bg-slate-100 overflow-hidden border border-slate-200">
-                      <div
-                        className={`h-full rounded-[5px] ${
-                          item.level === "low"
-                            ? "bg-emerald-600"
-                            : item.level === "moderate"
-                            ? "bg-amber-500"
-                            : item.level === "high"
-                            ? "bg-orange-600"
-                            : "bg-red-600"
-                        }`}
-                        style={{ width: `${item.percentage}%` }}
-                      />
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold text-slate-900">Activity Trend</h2>
+                      {dataState !== "later" && progressData?.activity?.trend && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-[5px] bg-slate-100 text-slate-600 border border-slate-200">
+                          {progressData.activity.trend}
+                        </span>
+                      )}
                     </div>
-                    <span className="w-16 text-right font-mono font-bold text-slate-900">{item.count} ({item.percentage}%)</span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {dataState === "later" ? (
+                        <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-slate-600" /> Available later
+                        </span>
+                      ) : dataState === "insufficient" ? (
+                        <span className="text-xs font-semibold text-amber-600">
+                          Insufficient data
+                        </span>
+                      ) : (
+                        <span className={`text-xs font-bold ${dataState === "available" ? "text-emerald-700" : "text-sky-700"}`}>
+                          {progressData?.activity?.status || "Data available"}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
 
-            {/* ─── Recent Assessments List (Clean Table/Cards, rounded-[5px]) ─── */}
-            <div className="bg-white rounded-[5px] border border-slate-200 p-5 sm:p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-[5px] bg-sky-50 border border-sky-100 flex items-center justify-center text-[#0067A1]">
-                    <FileText className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm sm:text-base font-bold text-slate-900">Recent Heart Assessments</h2>
-                    <p className="text-xs text-slate-600">Authoritatively logged assessment snapshots</p>
-                  </div>
+                {/* Right Preview & Chevron */}
+                <div className="flex items-center gap-3">
+                  {/* Micro Bar Chart Preview with real data points */}
+                  {dataState !== "later" && dataState !== "insufficient" && progressData?.activity?.dataPoints?.length > 0 && (
+                    <div className="hidden sm:flex items-end gap-1 h-7 px-2 py-1 bg-slate-50 rounded-[5px] border border-slate-100">
+                      {progressData.activity.dataPoints.slice(-7).map((pt, idx) => (
+                        <div
+                          key={idx}
+                          className="w-1.5 bg-[#0067A1] rounded-t-sm"
+                          style={{ height: `${Math.max(2, Math.min(24, Math.round((pt.minutes / 60) * 24)))}px` }}
+                          title={`${pt.dayLabel}: ${pt.minutes} min`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="p-1 text-slate-600 hover:text-slate-900 rounded-[5px]"
+                    aria-label="Toggle Activity Trend details"
+                  >
+                    {expandedCards.activity ? (
+                      <ChevronUp className="w-5 h-5" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5" />
+                    )}
+                  </button>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                {history.slice(0, 5).map((item) => {
-                  let aiSnippet = "";
-                  if (typeof item.aiAnalysis === "string") {
-                    aiSnippet = item.aiAnalysis;
-                  } else if (item.aiAnalysis && typeof item.aiAnalysis === "object") {
-                    aiSnippet = item.aiAnalysis.analysis || "";
-                  }
-                  return (
-                    <div
-                      key={item.id}
-                      className="border border-slate-200 rounded-[5px] p-4 bg-slate-50/60 hover:bg-slate-50 transition-colors flex flex-col lg:flex-row lg:items-start justify-between gap-4"
-                    >
-                      <div className="lg:w-1/3 shrink-0">
-                        <p className="text-xs font-semibold text-slate-500">
-                          {new Date(item.date).toLocaleString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit"
-                          })}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-base font-black font-mono text-slate-900">
-                            {item.healthScore || item.score}/100
+              {/* Card Body (Expanded) */}
+              {expandedCards.activity && (
+                <div className="px-3 pb-3 sm:px-5 sm:pb-5 pt-1 border-t border-slate-100">
+                  {dataState === "later" ? (
+                    <div className="py-6 text-center text-slate-600 space-y-1">
+                      <Clock className="w-8 h-8 mx-auto text-purple-400 mb-2" />
+                      <p className="text-sm font-bold text-slate-700">Available at later checkpoint</p>
+                      <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                        This checkpoint requires extended longitudinal tracking beyond the current observation window.
+                      </p>
+                    </div>
+                  ) : dataState === "insufficient" ? (
+                    <div className="py-6 text-center text-slate-600 space-y-2">
+                      <Info className="w-8 h-8 mx-auto text-amber-500 mb-1" />
+                      <p className="text-sm font-bold text-slate-700">No Activity Recorded Yet</p>
+                      <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                        Complete your Heart Training session or record walking activity in CardioConnect to build your activity curve.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Metric Summary Bar */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                        <div className="p-3 bg-sky-50/60 rounded-[5px] border border-sky-100">
+                          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                            Total Recorded Activity
                           </span>
-                          <span className={`px-2 py-0.5 rounded-[5px] text-[10px] font-bold uppercase border ${
-                            (item.riskLevel || "").toLowerCase() === "low"
-                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                              : (item.riskLevel || "").toLowerCase() === "moderate"
-                              ? "bg-amber-50 text-amber-800 border-amber-200"
-                              : "bg-rose-50 text-rose-800 border-rose-200"
-                          }`}>
-                            {item.riskLevel || "Standard"} Risk
-                          </span>
+                          <div className="flex items-baseline gap-1 mt-0.5">
+                            <span className="text-xl font-bold font-mono text-[#0067A1]">
+                              {progressData?.activity?.totalMinutes || 0}
+                            </span>
+                            <span className="text-xs text-slate-500 font-semibold">minutes</span>
+                          </div>
                         </div>
-                        {item.inputs?.demographics && (
-                          <p className="text-[11px] text-slate-600 mt-1 font-medium">
-                            Age {item.inputs.demographics.age} · BMI {item.inputs.demographics.bmi ?? "N/A"}
-                          </p>
-                        )}
+                        <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-200">
+                          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                            Neutral Reference Standard
+                          </span>
+                          <div className="flex items-baseline gap-1 mt-0.5">
+                            <span className="text-xl font-bold font-mono text-slate-800">
+                              {progressData?.activity?.referenceBand || "150 - 300 min/week"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      {aiSnippet && (
-                        <div className="flex-1 border-t lg:border-t-0 lg:border-l border-slate-200 pt-3 lg:pt-0 lg:pl-4">
-                          <p className="text-xs text-slate-700 leading-relaxed">
-                            <strong className="text-slate-900">Clinical Note: </strong>
-                            {aiSnippet}
+                      {/* Interactive Bar Chart */}
+                      {progressData?.activity?.dataPoints?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-slate-700 mb-2">
+                            Daily Movement Breakdown (Minutes)
                           </p>
+                          <div className="h-44 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart
+                                data={progressData.activity.dataPoints}
+                                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                                <XAxis dataKey="dayLabel" tick={{ fontSize: 11, fill: "#64748b" }} />
+                                <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
+                                <Tooltip
+                                  formatter={(value) => [`${value} min`, "Activity Duration"]}
+                                  labelFormatter={(label, payload) => payload?.[0]?.payload?.fullDate || label}
+                                  contentStyle={{
+                                    backgroundColor: "#ffffff",
+                                    borderRadius: "8px",
+                                    border: "1px solid #e2e8f0",
+                                    fontSize: "12px",
+                                    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)"
+                                  }}
+                                />
+                                <Bar dataKey="minutes" fill="#0067A1" radius={[4, 4, 0, 0]}>
+                                  {progressData.activity.dataPoints.map((entry, index) => (
+                                    <Cell
+                                      key={`cell-${index}`}
+                                      fill={entry.minutes >= 30 ? "#0067A1" : entry.minutes > 0 ? "#38bdf8" : "#e2e8f0"}
+                                    />
+                                  ))}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
                         </div>
                       )}
                     </div>
-                  );
-                })}
-              </div>
+                  )}
+                </div>
+              )}
             </div>
-          </>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* 2. STEPS TREND CARD (Footprints Icon)                           */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <div className="bg-white rounded-[5px] border border-slate-200 shadow-sm overflow-hidden transition-all hover:border-sky-200">
+              <div
+                onClick={() => toggleCard("steps")}
+                className="p-3 sm:p-4 md:p-5 flex items-center justify-between gap-3 cursor-pointer select-none bg-white hover:bg-slate-50/70 transition-colors"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-[5px] bg-cyan-50 border border-cyan-100 flex items-center justify-center text-cyan-700 shrink-0">
+                    <Footprints className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold text-slate-900">Steps Trend</h2>
+                      {dataState !== "later" && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-[5px] bg-slate-100 text-slate-600 border border-slate-200">
+                          Independent Metric
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {dataState === "later" ? (
+                        <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-slate-600" /> Available later
+                        </span>
+                      ) : dataState === "insufficient" ? (
+                        <span className="text-xs font-semibold text-amber-600">
+                          Insufficient data
+                        </span>
+                      ) : (
+                        <span className={`text-xs font-bold ${dataState === "available" ? "text-emerald-700" : "text-cyan-700"}`}>
+                          {progressData?.steps?.status || "Data available"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {dataState !== "later" && dataState !== "insufficient" && progressData?.steps?.dataPoints?.length > 0 && (
+                    <div className="hidden sm:flex items-end gap-1 h-7 px-2 py-1 bg-slate-50 rounded-[5px] border border-slate-100">
+                      {progressData.steps.dataPoints.slice(-7).map((pt, idx) => (
+                        <div
+                          key={idx}
+                          className="w-1.5 bg-cyan-600 rounded-t-sm"
+                          style={{ height: `${Math.max(2, Math.min(24, Math.round((pt.steps / 10000) * 24)))}px` }}
+                          title={`${pt.dayLabel}: ${pt.steps} steps`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="p-1 text-slate-600 hover:text-slate-900 rounded-[5px]"
+                    aria-label="Toggle Steps Trend details"
+                  >
+                    {expandedCards.steps ? (
+                      <ChevronUp className="w-5 h-5" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {expandedCards.steps && (
+                <div className="px-3 pb-3 sm:px-5 sm:pb-5 pt-1 border-t border-slate-100">
+                  {dataState === "later" ? (
+                    <div className="py-6 text-center text-slate-600 space-y-1">
+                      <Clock className="w-8 h-8 mx-auto text-purple-400 mb-2" />
+                      <p className="text-sm font-bold text-slate-700">Available at later checkpoint</p>
+                      <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                        Daily step logs will populate across subsequent longitudinal evaluations.
+                      </p>
+                    </div>
+                  ) : dataState === "insufficient" ? (
+                    <div className="py-6 text-center text-slate-600 space-y-2">
+                      <Footprints className="w-8 h-8 mx-auto text-amber-500 mb-1" />
+                      <p className="text-sm font-bold text-slate-700">No Step Records Found</p>
+                      <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                        Connect mobile device sensors or log walking sessions to record steps.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                        <div className="p-3 bg-cyan-50/60 rounded-[5px] border border-cyan-100">
+                          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                            Daily Average
+                          </span>
+                          <div className="flex items-baseline gap-1 mt-0.5">
+                            <span className="text-xl font-bold font-mono text-cyan-800">
+                              {(progressData?.steps?.averageDailySteps || 0).toLocaleString()}
+                            </span>
+                            <span className="text-xs text-slate-500 font-semibold">steps / day</span>
+                          </div>
+                        </div>
+                        <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-200">
+                          <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                            Neutral Reference Target
+                          </span>
+                          <div className="flex items-baseline gap-1 mt-0.5">
+                            <span className="text-xl font-bold font-mono text-slate-800">
+                              10,000 steps
+                            </span>
+                            <span className="text-[10px] text-slate-600 ml-1">(Non-prescriptive reference)</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {progressData?.steps?.dataPoints?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-bold text-slate-700 mb-2">
+                            Step Counts vs 10,000 Reference Target
+                          </p>
+                          <div className="h-44 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart
+                                data={progressData.steps.dataPoints}
+                                margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                                <XAxis dataKey="dayLabel" tick={{ fontSize: 11, fill: "#64748b" }} />
+                                <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
+                                <Tooltip
+                                  formatter={(value) => [`${value.toLocaleString()} steps`, "Daily Movement"]}
+                                  labelFormatter={(label, payload) => payload?.[0]?.payload?.fullDate || label}
+                                  contentStyle={{
+                                    backgroundColor: "#ffffff",
+                                    borderRadius: "8px",
+                                    border: "1px solid #e2e8f0",
+                                    fontSize: "12px",
+                                    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)"
+                                  }}
+                                />
+                                <ReferenceLine y={10000} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "10k Ref", fill: "#d97706", fontSize: 10, position: "top" }} />
+                                <Bar dataKey="steps" fill="#06b6d4" radius={[4, 4, 0, 0]}>
+                                  {progressData.steps.dataPoints.map((entry, index) => (
+                                    <Cell
+                                      key={`cell-step-${index}`}
+                                      fill={entry.steps >= 10000 ? "#0284c7" : entry.steps >= 6000 ? "#06b6d4" : "#94a3b8"}
+                                    />
+                                  ))}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* 3. SPECTRUM TRENDS CARD (Heart Icon, 11 Factors)                */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <div className="bg-white rounded-[5px] border border-slate-200 shadow-sm overflow-hidden transition-all hover:border-rose-200">
+              <div
+                onClick={() => toggleCard("spectrum")}
+                className="p-3 sm:p-4 md:p-5 flex items-center justify-between gap-3 cursor-pointer select-none bg-white hover:bg-slate-50/70 transition-colors"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-[5px] bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                    <Heart className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold text-slate-900">Spectrum Trends</h2>
+                      {dataState !== "later" && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-[5px] bg-rose-50 text-rose-700 border border-rose-200">
+                          11 Key Markers
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {dataState === "later" ? (
+                        <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-slate-600" /> Available later
+                        </span>
+                      ) : dataState === "insufficient" ? (
+                        <span className="text-xs font-semibold text-amber-600">
+                          Insufficient data · Not enough data for trends
+                        </span>
+                      ) : (
+                        <span className={`text-xs font-bold ${dataState === "available" ? "text-emerald-700" : "text-rose-700"}`}>
+                          {progressData?.spectrum?.status || "Data available"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {dataState !== "later" && dataState !== "insufficient" && (
+                    <div className="hidden sm:flex items-center gap-1 h-7 px-2 bg-rose-50/60 rounded-[5px] border border-rose-100">
+                      <span className="text-[11px] font-bold text-rose-700">
+                        {progressData?.spectrum?.availableCount || 0}/11 factors
+                      </span>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="p-1 text-slate-600 hover:text-slate-900 rounded-[5px]"
+                    aria-label="Toggle Spectrum Trends details"
+                  >
+                    {expandedCards.spectrum ? (
+                      <ChevronUp className="w-5 h-5" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {expandedCards.spectrum && (
+                <div className="px-3 pb-3 sm:px-5 sm:pb-5 pt-1 border-t border-slate-100 space-y-4">
+                  {dataState === "later" ? (
+                    <div className="py-6 text-center text-slate-600 space-y-1">
+                      <Clock className="w-8 h-8 mx-auto text-purple-400 mb-2" />
+                      <p className="text-sm font-bold text-slate-700">Available at later checkpoint</p>
+                      <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                        Biochemical spectrum trends require serial assessments across extended intervals.
+                      </p>
+                    </div>
+                  ) : dataState === "insufficient" ? (
+                    <div className="py-6 text-center text-slate-600 space-y-2">
+                      <Heart className="w-8 h-8 mx-auto text-rose-400 mb-1" />
+                      <p className="text-sm font-bold text-slate-700">No Assessment Spectrum Data</p>
+                      <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                        Complete your clinical heart assessment to generate your personalized 11-factor cardiovascular spectrum.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Longitudinal Trajectory Chart across assessments */}
+                      {progressData?.spectrum?.trajectory?.length > 0 && (
+                        <div className="pt-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                            <p className="text-xs font-bold text-slate-700">
+                              Longitudinal Physiological Marker Trajectory
+                            </p>
+                            {/* Factor Toggle Chips */}
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                              {[
+                                { key: "systolic", label: "Systolic BP" },
+                                { key: "diastolic", label: "Diastolic BP" },
+                                { key: "heartRate", label: "Heart Rate" },
+                                { key: "score", label: "Health Score" }
+                              ].map((f) => (
+                                <button
+                                  key={f.key}
+                                  type="button"
+                                  onClick={() => setSelectedFactorKey(f.key)}
+                                  className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                                    selectedFactorKey === f.key
+                                      ? "bg-[#0067A1] text-white shadow-xs"
+                                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                  }`}
+                                >
+                                  {f.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="h-44 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart
+                                data={progressData.spectrum.trajectory}
+                                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#64748b" }} />
+                                <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
+                                <Tooltip
+                                  formatter={(value) => [
+                                    `${value} ${
+                                      selectedFactorKey.includes("BP") || selectedFactorKey === "systolic" || selectedFactorKey === "diastolic"
+                                        ? "mmHg"
+                                        : selectedFactorKey === "heartRate"
+                                        ? "bpm"
+                                        : "/ 100"
+                                    }`,
+                                    selectedFactorKey.toUpperCase()
+                                  ]}
+                                  labelFormatter={(label, payload) => payload?.[0]?.payload?.fullDate || label}
+                                  contentStyle={{
+                                    backgroundColor: "#ffffff",
+                                    borderRadius: "8px",
+                                    border: "1px solid #e2e8f0",
+                                    fontSize: "12px",
+                                    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)"
+                                  }}
+                                />
+                                <Line
+                                  type="monotone"
+                                  dataKey={selectedFactorKey}
+                                  stroke="#0067A1"
+                                  strokeWidth={2.5}
+                                  dot={{ fill: "#0067A1", r: 4 }}
+                                  activeDot={{ r: 6, fill: "#0284c7" }}
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 11 Factor Clinical Status Grid */}
+                      {progressData?.spectrum?.factors?.length > 0 && (
+                        <div className="pt-2 border-t border-slate-100">
+                          <p className="text-xs font-bold text-slate-700 mb-2.5">
+                            Authoritative 11-Factor Spectrum Profile (ESC 2024 Criteria)
+                          </p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 sm:gap-2.5">
+                            {progressData.spectrum.factors.map((factor) => (
+                              <div
+                                key={factor.key}
+                                className={`p-2 sm:p-2.5 rounded-[5px] border transition-all ${
+                                  factor.available
+                                    ? "bg-slate-50/80 border-slate-200"
+                                    : "bg-slate-50/30 border-dashed border-slate-200 opacity-60"
+                                }`}
+                              >
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block truncate">
+                                  {factor.shortLabel || factor.label}
+                                </span>
+                                <div className="flex items-baseline gap-1 mt-1">
+                                  <span className="text-xs sm:text-sm font-bold font-mono text-slate-900">
+                                    {factor.available
+                                      ? typeof factor.value === "number"
+                                        ? factor.key === "bmi" || factor.key === "hba1c"
+                                          ? factor.value.toFixed(1)
+                                          : Math.round(factor.value)
+                                        : factor.value
+                                      : "—"}
+                                  </span>
+                                  <span className="text-[9px] sm:text-[10px] text-slate-500 font-semibold">{factor.unit}</span>
+                                </div>
+                                <span className="text-[9px] text-slate-600 block mt-0.5">
+                                  Ref: {factor.optimal}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* 4. MILESTONES CARD (Trophy Icon)                                */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <div className="bg-white rounded-[5px] border border-slate-200 shadow-sm overflow-hidden transition-all hover:border-amber-200">
+              <div
+                onClick={() => toggleCard("milestones")}
+                className="p-3 sm:p-4 md:p-5 flex items-center justify-between gap-3 cursor-pointer select-none bg-white hover:bg-slate-50/70 transition-colors"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-[5px] bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                    <Trophy className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold text-slate-900">Milestones</h2>
+                      {dataState !== "later" && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-[5px] bg-amber-50 text-amber-700 border border-amber-200">
+                          Checkpoints
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {dataState === "later" ? (
+                        <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-slate-600" /> Available later
+                        </span>
+                      ) : dataState === "insufficient" ? (
+                        <span className="text-xs font-semibold text-amber-600">
+                          Insufficient data
+                        </span>
+                      ) : (
+                        <span className={`text-xs font-bold ${progressData?.milestones?.achievedCount > 0 ? "text-emerald-700" : "text-amber-700"}`}>
+                          {progressData?.milestones?.status || "Milestones tracking"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {/* Progress Bar Preview matching page_15.png */}
+                  {dataState !== "later" && dataState !== "insufficient" && (
+                    <div className="hidden sm:block w-24">
+                      <div className="w-full bg-slate-100 rounded-[5px] h-2 overflow-hidden border border-slate-200">
+                        <div
+                          className="bg-emerald-500 h-full rounded-[5px] transition-all duration-500"
+                          style={{
+                            width: `${Math.round(
+                              ((progressData?.milestones?.achievedCount || 0) /
+                                (progressData?.milestones?.totalCount || 4)) *
+                                100
+                            )}%`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="p-1 text-slate-600 hover:text-slate-900 rounded-[5px]"
+                    aria-label="Toggle Milestones details"
+                  >
+                    {expandedCards.milestones ? (
+                      <ChevronUp className="w-5 h-5" />
+                    ) : (
+                      <ChevronRight className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {expandedCards.milestones && (
+                <div className="px-3 pb-3 sm:px-5 sm:pb-5 pt-1 border-t border-slate-100">
+                  {dataState === "later" ? (
+                    <div className="py-6 text-center text-slate-600 space-y-1">
+                      <Clock className="w-8 h-8 mx-auto text-purple-400 mb-2" />
+                      <p className="text-sm font-bold text-slate-700">Available at later checkpoint</p>
+                      <p className="text-xs text-slate-600 max-w-sm mx-auto">
+                        Milestone unlocks will appear as activity and follow-ups are completed.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 pt-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {(progressData?.milestones?.items || []).map((m) => (
+                          <div
+                            key={m.id}
+                            className={`p-3 rounded-[5px] border flex items-start gap-2.5 transition-colors ${
+                              m.achieved
+                                ? "bg-emerald-50/50 border-emerald-200"
+                                : "bg-slate-50 border-slate-200"
+                            }`}
+                          >
+                            <div
+                              className={`w-5 h-5 rounded-[5px] flex items-center justify-center shrink-0 mt-0.5 ${
+                                m.achieved
+                                  ? "bg-emerald-600 text-white"
+                                  : "bg-slate-200 text-slate-400"
+                              }`}
+                            >
+                              <Check className="w-3 h-3" />
+                            </div>
+                            <div>
+                              <p className={`text-xs font-bold ${m.achieved ? "text-emerald-900" : "text-slate-700"}`}>
+                                {m.title}
+                              </p>
+                              <p className="text-[11px] text-slate-600 mt-0.5">
+                                {m.description}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* 5. SUMMARY CARD (Document Icon)                                 */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <div className="bg-white rounded-[5px] border border-slate-200 shadow-sm overflow-hidden transition-all hover:border-blue-200">
+              <div
+                onClick={() => toggleCard("summary")}
+                className="p-3 sm:p-4 md:p-5 flex items-center justify-between gap-3 cursor-pointer select-none bg-white hover:bg-slate-50/70 transition-colors"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-[5px] bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700 shrink-0">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Summary</h2>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      {dataState === "later" ? (
+                        <span className="text-xs font-medium text-slate-600 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-slate-600" /> Available later
+                        </span>
+                      ) : dataState === "insufficient" ? (
+                        <span className="text-xs font-semibold text-amber-600">
+                          Insufficient data
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold text-emerald-700">
+                          {progressData?.summary?.status || "Data available"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="p-1 text-slate-600 hover:text-slate-900 rounded-[5px]"
+                  aria-label="Toggle Summary details"
+                >
+                  {expandedCards.summary ? (
+                    <ChevronUp className="w-5 h-5" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+
+              {expandedCards.summary && (
+                <div className="px-3 pb-3 sm:px-5 sm:pb-5 pt-1 border-t border-slate-100">
+                  <div className="p-3.5 bg-slate-50 rounded-[5px] border border-slate-200 text-xs sm:text-sm text-slate-700 leading-relaxed font-sans">
+                    {progressData?.summary?.text || (
+                      dataState === "later"
+                        ? "This checkpoint is not yet available. Continue recording regular activity and screenings to unlock longitudinal projections."
+                        : "Longitudinal checkpoint progress: physiological markers and physical activity duration logged in accordance with ESC 2024 standards."
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            {/* PRIMARY ACTION: VIEW SPECTRUM                                   */}
+            {/* ═══════════════════════════════════════════════════════════════ */}
+            <div className="pt-4 text-center">
+              <button
+                type="button"
+                onClick={() => router.push("/heart-health-result")}
+                className="w-full sm:max-w-md mx-auto py-3.5 px-6 bg-[#0067A1] hover:bg-[#005282] text-white rounded-[5px] font-bold text-sm sm:text-base tracking-wide uppercase transition-all shadow-md hover:shadow-lg cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span>VIEW SPECTRUM</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+
+          </div>
         )}
+
       </div>
     </div>
   );

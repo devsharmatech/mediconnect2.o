@@ -12,6 +12,7 @@ import { motion } from 'framer-motion';
 import AssessmentTrendChart from '@/components/public-site/health/AssessmentTrendChart';
 import AssessmentPrintReport from '@/components/public-site/health/AssessmentPrintReport';
 import { generateClientPdf, printClientReport } from '@/lib/clientPdfGenerator';
+import { AnimatedCardioLoader } from '@/components/public-site/health/animations';
 
 export default function HeartHealthResult() {
   const [assessmentData, setAssessmentData] = useState(null);
@@ -91,10 +92,12 @@ export default function HeartHealthResult() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-10 h-10 border-3 border-slate-200 border-t-[#0067A1] rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-xs text-slate-900 font-medium">Loading your heart screening results...</p>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-[5px] border border-slate-200 shadow-sm max-w-md w-full overflow-hidden">
+          <AnimatedCardioLoader
+            title="Loading your heart screening results..."
+            subtitle="Analyzing cardiovascular markers & risk indicators"
+          />
         </div>
       </div>
     );

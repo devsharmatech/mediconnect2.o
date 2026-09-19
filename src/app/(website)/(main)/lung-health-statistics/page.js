@@ -41,6 +41,7 @@ import toast from "react-hot-toast";
 import LungSnapshotModal from "@/components/public-site/health/LungSnapshotModal";
 import AssessmentPrintReport from "@/components/public-site/health/AssessmentPrintReport";
 import { generateClientPdf, printClientReport } from "@/lib/clientPdfGenerator";
+import { AnimatedRespiratoryLoader } from "@/components/public-site/health/animations";
 
 const TIMEFRAMES = [
   { id: "7d", label: "7 Days" },
@@ -399,15 +400,16 @@ export default function LungHealthStatisticsPage() {
 
         {/* Loading State */}
         {loading ? (
-          <div className="bg-white rounded-[5px] border border-slate-200 p-12 text-center shadow-xs space-y-3">
-            <div className="w-8 h-8 border-3 border-[#0067A1] border-t-transparent rounded-[5px]-full animate-spin mx-auto" />
-            <p className="text-xs font-semibold text-slate-700">Loading physiological statistics...</p>
-            <p className="text-[11px] text-slate-400">Aggregating historical assessment records</p>
+          <div className="bg-white rounded-[5px] border border-slate-200 shadow-xs overflow-hidden">
+            <AnimatedRespiratoryLoader
+              title="Loading physiological statistics..."
+              subtitle="Aggregating historical lung capacity & respiratory analytics"
+            />
           </div>
         ) : enrichedTrend.length === 0 ? (
           /* Empty State */
           <div className="bg-white rounded-[5px] border border-slate-200 p-10 text-center shadow-xs space-y-4 max-w-md mx-auto">
-            <div className="w-14 h-14 bg-sky-50 rounded-[5px]-full flex items-center justify-center mx-auto text-[#0067A1]">
+            <div className="w-14 h-14 bg-sky-50 rounded-full flex items-center justify-center mx-auto text-[#0067A1]">
               <Wind className="w-7 h-7" />
             </div>
             <div>
@@ -738,9 +740,9 @@ export default function LungHealthStatisticsPage() {
                               {count} <span className="text-slate-400">({pct}%)</span>
                             </span>
                           </div>
-                          <div className="w-full h-2 rounded-[5px]-full bg-slate-100 overflow-hidden">
+                          <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
                             <div
-                              className={`h-full rounded-[5px]-full transition-all duration-500 ${item.color}`}
+                              className={`h-full rounded-full transition-all duration-500 ${item.color}`}
                               style={{ width: `${pct}%` }}
                             />
                           </div>

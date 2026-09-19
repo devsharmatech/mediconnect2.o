@@ -2,16 +2,46 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Heart, Play, Pause, Footprints, Activity,
   ChevronRight, Info, Shield, AlertTriangle, CheckCircle2,
   X, RotateCcw, Clock, Award, Sparkles, RefreshCw,
   TrendingUp, TrendingDown, Minus, MapPin, ArrowRight,
-  Calendar, WifiOff, Check, Settings
+  Calendar, WifiOff, Check, Settings, Navigation,
+  Search, CloudSun, Wind, Droplets, Database, Compass
 } from "lucide-react";
 import toast from "react-hot-toast";
 
+import RealGpsMap from "@/components/public-site/health/RealGpsMap";
+import {
+  AnimatedHeartbeat,
+  AnimatedWalkingFigure,
+  AnimatedStopwatch,
+  AnimatedCheckmark,
+} from "@/components/public-site/health/animations";
+import {
+  getSavedPatientLocation,
+  savePatientLocation,
+  reverseGeocodeCoords,
+} from "@/lib/patientLocation";
+
+function getHaversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 export default function CardioConnectHome() {
+  const router = useRouter();
   // CC-01 Home States: 'populated' | 'loading' | 'no-data' | 'partial' | 'stale' | 'offline' | 'error'
   const [uiState, setUiState] = useState("loading");
   const [homeData, setHomeData] = useState(null);
@@ -34,32 +64,50 @@ export default function CardioConnectHome() {
   const [isTrainingPaused, setIsTrainingPaused] = useState(false);
   const [trainingElapsedSeconds, setTrainingElapsedSeconds] = useState(0);
   const [trainingTargetSeconds, setTrainingTargetSeconds] = useState(1800); // 30 min default
-  // Start at 0 — only increment when actively moving (not hardcoded)
   const [sessionSteps, setSessionSteps] = useState(0);
   const [sessionDistanceKm, setSessionDistanceKm] = useState(0);
   const [lastCompletedSession, setLastCompletedSession] = useState(null);
 
+  // Real GPS & Sensor Telemetry State
+  const [gpsStatus, setGpsStatus] = useState("prompt"); // 'prompt' | 'granted' | 'denied' | 'unsupported'
+  const [gpsPoints, setGpsPoints] = useState([]); // [{ lat, lng, time, speed }]
+  const [realGpsDistanceKm, setRealGpsDistanceKm] = useState(0);
+  const [currentSpeedKmH, setCurrentSpeedKmH] = useState(0);
+  const [pedometerSteps, setPedometerSteps] = useState(0);
+  const [gpsAccuracy, setGpsAccuracy] = useState(null);
+  const [trainingViewMode, setTrainingViewMode] = useState("gauge"); // 'gauge' | 'map' | 'split'
+  const [walkingGpsEnabled, setWalkingGpsEnabled] = useState(false);
+  const [savedUserCity, setSavedUserCity] = useState("Your Location");
+  const watchIdRef = useRef(null);
+
   // Walking Performance Test State (CC-10 -> CC-12)
   const WALKING_TEST_TOTAL_SECONDS = 360; // 6:00 fixed standardized protocol
   const [walkingRemainingSeconds, setWalkingRemainingSeconds] = useState(360);
-  // Distance/pace/HR start at 0 — user enters actual value at completion (no GPS simulation)
-  const [walkingDistanceInput, setWalkingDistanceInput] = useState(""); // user-entered km after walk
+  const [walkingDistanceInput, setWalkingDistanceInput] = useState(""); // user-entered km or auto GPS
   const [walkingHeartRateInput, setWalkingHeartRateInput] = useState(""); // optional HR bpm
   const [walkingTestResult, setWalkingTestResult] = useState(null);
 
   const trainingTimerRef = useRef(null);
   const walkingTimerRef = useRef(null);
 
-  // CC-06 Activity Timeline State
+  // Activity History State
   const [timelineDate, setTimelineDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [timelineData, setTimelineData] = useState(null);
   const [isLoadingTimeline, setIsLoadingTimeline] = useState(false);
 
-  // CC-14 Permissions & Data Sources State: 'granted' | 'denied' | 'restricted' | 'unavailable' | 'sync_pending'
+  // Device Permissions & Data Sources State: 'granted' | 'denied' | 'restricted' | 'unavailable' | 'sync_pending'
   const [permissionsState, setPermissionsState] = useState("granted");
 
-  // CC-13 AQI Detail State
+  // CC-13 AQI & Patient Location Selector State
   const [aqiDetailData, setAqiDetailData] = useState(null);
+  const [isAqiLoading, setIsAqiLoading] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [citySearchInput, setCitySearchInput] = useState("");
+  const POPULAR_CITIES = [
+    "Bulandshahr", "Delhi NCR", "Noida", "Greater Noida",
+    "Ghaziabad", "Gurugram", "Meerut", "Lucknow",
+    "Mumbai", "Bengaluru", "Pune", "Jaipur", "Chandigarh"
+  ];
 
   // Fetch Authoritative CC-01 Home Data
   const fetchHomeData = async () => {
@@ -79,7 +127,7 @@ export default function CardioConnectHome() {
     }
   };
 
-  // Fetch CC-08 Spectrum Data
+  // Fetch Heart Health Spectrum Data
   const fetchSpectrumData = async () => {
     try {
       const res = await fetch("/api/v1/cardio/spectrum");
@@ -122,26 +170,150 @@ export default function CardioConnectHome() {
     }
   };
 
-  // Fetch CC-13 AQI Data
-  const fetchAqiData = async () => {
+  // Fetch CC-13 Real AQI Data & Persist to Database
+  const fetchAqiData = async (cityOverride, latOverride, lngOverride, forceRefresh = false) => {
     try {
-      const res = await fetch("/api/v1/cardio/aqi");
+      setIsAqiLoading(true);
+      const targetCity = cityOverride || savedUserCity || "Bulandshahr, Uttar Pradesh";
+      const targetLat = latOverride !== undefined ? latOverride : (gpsPoints?.[0]?.lat || null);
+      const targetLng = lngOverride !== undefined ? lngOverride : (gpsPoints?.[0]?.lng || null);
+
+      let url = `/api/v1/cardio/aqi?city=${encodeURIComponent(targetCity)}`;
+      if (targetLat && targetLng) {
+        url += `&lat=${targetLat}&lng=${targetLng}`;
+      }
+      if (forceRefresh) {
+        url += `&refresh=true`;
+      }
+
+      const res = await fetch(url);
       const json = await res.json();
       if (json.success && json.data) {
         setAqiDetailData(json.data);
+        if (json.data.location) {
+          setSavedUserCity(json.data.location);
+          savePatientLocation({
+            city: json.data.location,
+            lat: json.data.latitude || targetLat,
+            lng: json.data.longitude || targetLng,
+            aqi: json.data.aqi_value,
+          });
+        }
       }
     } catch (e) {
       console.warn("Could not fetch AQI:", e);
+    } finally {
+      setIsAqiLoading(false);
     }
   };
 
+  const handleSelectCity = async (cityName) => {
+    setSavedUserCity(cityName);
+    setShowLocationPicker(false);
+    toast.loading(`Updating telemetry for ${cityName}...`, { id: "city-sel" });
+    savePatientLocation({ city: cityName, isGps: false, forceReset: true });
+    await fetchAqiData(cityName, null, null, true);
+    toast.dismiss("city-sel");
+    toast.success(`Location updated to ${cityName}`);
+  };
+
+  const handleCitySearchSubmit = async (e) => {
+    e?.preventDefault();
+    if (!citySearchInput.trim()) return;
+    const q = citySearchInput.trim();
+    setCitySearchInput("");
+    await handleSelectCity(q);
+  };
+
+  // GPS Location Request & Geocoding
+  const requestGps = () => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      setGpsStatus("unsupported");
+      toast.error("GPS location is not supported on this device/browser.");
+      return;
+    }
+    toast.loading("Acquiring GPS fix...", { id: "gps-req" });
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude, accuracy, speed } = pos.coords;
+        toast.dismiss("gps-req");
+        setGpsStatus("granted");
+        setGpsAccuracy(Math.round(accuracy));
+        setGpsPoints([{ lat: latitude, lng: longitude, time: Date.now(), speed }]);
+        toast.success(`GPS Location active (${Math.round(accuracy)}m accuracy)`);
+
+        try {
+          const clientResolvedCity = await reverseGeocodeCoords(latitude, longitude);
+          const finalCity = (clientResolvedCity && clientResolvedCity !== "Current Location")
+            ? clientResolvedCity
+            : "Bulandshahr, Uttar Pradesh";
+          setSavedUserCity(finalCity);
+          savePatientLocation({
+            city: finalCity,
+            lat: latitude,
+            lng: longitude,
+            isGps: true,
+            forceReset: true,
+          });
+          toast.success(`GPS locked to ${finalCity} (±${Math.round(accuracy)}m)`);
+          fetchAqiData(finalCity, latitude, longitude, true);
+        } catch (e) {
+          toast.success(`GPS Location active (±${Math.round(accuracy)}m)`);
+        }
+      },
+      (err) => {
+        toast.dismiss("gps-req");
+        setGpsStatus("denied");
+        if (err.code === 1) {
+          toast.error("Location permission denied. Please allow GPS access in browser.");
+        } else {
+          toast.error("Unable to acquire GPS signal. Check device location.");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
+  // Check saved location and permissions on mount
   useEffect(() => {
     fetchHomeData();
     fetchSpectrumData();
     fetchProgressData("7D");
     fetchTimelineData(timelineDate);
 
+    let initialCity = "Bulandshahr, Uttar Pradesh";
+    let initialLat = 28.4069;
+    let initialLng = 77.8498;
+
     if (typeof window !== "undefined") {
+      const savedLoc = getSavedPatientLocation();
+      if (savedLoc?.city && savedLoc.city !== "Current Location") {
+        initialCity = savedLoc.city;
+        setSavedUserCity(savedLoc.city);
+      }
+      if (savedLoc?.lat && savedLoc?.lng) {
+        initialLat = savedLoc.lat;
+        initialLng = savedLoc.lng;
+        setGpsPoints([{ lat: savedLoc.lat, lng: savedLoc.lng, time: Date.now() }]);
+        if (savedLoc.isGps) setGpsStatus("granted");
+      } else if (navigator.geolocation && navigator.permissions?.query) {
+        navigator.permissions.query({ name: "geolocation" }).then((p) => {
+          if (p.state === "granted") setGpsStatus("granted");
+          else if (p.state === "denied") setGpsStatus("denied");
+          else setGpsStatus("prompt");
+        }).catch(() => {});
+      }
+
+      fetchAqiData(initialCity, initialLat, initialLng, false);
+
+      const handleLocationEvent = (e) => {
+        if (e.detail?.city) {
+          setSavedUserCity(e.detail.city);
+          fetchAqiData(e.detail.city, e.detail.lat, e.detail.lng, false);
+        }
+      };
+      window.addEventListener("patient-location-updated", handleLocationEvent);
+
       const params = new URLSearchParams(window.location.search);
       const action = params.get("action");
       if (action === "training" || action === "setup") {
@@ -154,9 +326,111 @@ export default function CardioConnectHome() {
         setActiveModal("progress");
       } else if (action === "timeline") {
         setActiveModal("timeline");
+      } else if (action === "aqi") {
+        setActiveModal("aqi");
       }
+
+      return () => {
+        window.removeEventListener("patient-location-updated", handleLocationEvent);
+      };
     }
   }, []);
+
+  // Device motion accelerometer step detection
+  useEffect(() => {
+    const isTracking = (activeModal === "active_training" && !isTrainingPaused) ||
+                       (activeModal === "walking_active");
+    if (!isTracking || typeof window === "undefined") return;
+
+    let lastStepTime = 0;
+    const handleDeviceMotion = (event) => {
+      const acc = event.accelerationIncludingGravity || event.acceleration;
+      if (!acc) return;
+      const x = acc.x || 0;
+      const y = acc.y || 0;
+      const z = acc.z || 0;
+      const magnitude = Math.sqrt(x * x + y * y + z * z);
+      const now = Date.now();
+      if (magnitude > 12.2 && now - lastStepTime > 330) {
+        lastStepTime = now;
+        setPedometerSteps((prev) => prev + 1);
+        setSessionSteps((prev) => prev + 1);
+      }
+    };
+
+    if (window.DeviceMotionEvent) {
+      window.addEventListener("devicemotion", handleDeviceMotion, { passive: true });
+    }
+    return () => {
+      if (window.DeviceMotionEvent) {
+        window.removeEventListener("devicemotion", handleDeviceMotion);
+      }
+    };
+  }, [activeModal, isTrainingPaused]);
+
+  // Live GPS Coordinates Watcher
+  useEffect(() => {
+    const isLive = (activeModal === "active_training" && !isTrainingPaused) ||
+                   (activeModal === "walking_active" && walkingGpsEnabled);
+
+    if (isLive && gpsStatus === "granted" && typeof window !== "undefined" && navigator.geolocation) {
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude, accuracy, speed } = pos.coords;
+          setGpsAccuracy(Math.round(accuracy));
+
+          if (typeof speed === "number" && !isNaN(speed) && speed > 0.2) {
+            setCurrentSpeedKmH(parseFloat((speed * 3.6).toFixed(1)));
+          }
+
+          setGpsPoints((prev) => {
+            if (prev.length > 0) {
+              const prevPoint = prev[prev.length - 1];
+              const dist = getHaversineDistance(prevPoint.lat, prevPoint.lng, latitude, longitude);
+              if (dist >= 0.003 && dist < 0.2) {
+                const newDist = parseFloat((realGpsDistanceKm + dist).toFixed(3));
+                setRealGpsDistanceKm(newDist);
+                setSessionDistanceKm(newDist);
+
+                if (activeModal === "walking_active") {
+                  setWalkingDistanceInput(newDist.toFixed(2));
+                }
+
+                if (typeof speed !== "number" || isNaN(speed)) {
+                  const timeDeltaSec = (Date.now() - prevPoint.time) / 1000;
+                  if (timeDeltaSec > 0) {
+                    const calcSpd = dist / (timeDeltaSec / 3600);
+                    setCurrentSpeedKmH(parseFloat(Math.min(calcSpd, 30).toFixed(1)));
+                  }
+                }
+                return [...prev, { lat: latitude, lng: longitude, time: Date.now(), speed }];
+              } else {
+                if (Date.now() - prevPoint.time > 3500) {
+                  setCurrentSpeedKmH(0);
+                }
+                return prev;
+              }
+            }
+            return [{ lat: latitude, lng: longitude, time: Date.now(), speed }];
+          });
+        },
+        (err) => console.warn("CardioConnect GPS watch error:", err),
+        { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+      );
+    } else {
+      if (watchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    }
+
+    return () => {
+      if (watchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+  }, [activeModal, isTrainingPaused, gpsStatus, walkingGpsEnabled, realGpsDistanceKm]);
 
   // Timer loop for Active Heart Training (CC-03 / CC-04)
   useEffect(() => {
@@ -164,8 +438,8 @@ export default function CardioConnectHome() {
       trainingTimerRef.current = setInterval(() => {
         setTrainingElapsedSeconds((prev) => {
           const next = prev + 1;
-          // Increment simulated steps and distance as time advances
-          if (next % 3 === 0) {
+          // Increment fallback steps and distance if no real hardware sensor is detected
+          if (pedometerSteps === 0 && realGpsDistanceKm === 0 && next % 3 === 0) {
             setSessionSteps((s) => s + 4);
             setSessionDistanceKm((d) => Number((d + 0.003).toFixed(3)));
           }
@@ -178,7 +452,7 @@ export default function CardioConnectHome() {
     return () => {
       if (trainingTimerRef.current) clearInterval(trainingTimerRef.current);
     };
-  }, [activeModal, isTrainingPaused]);
+  }, [activeModal, isTrainingPaused, pedometerSteps, realGpsDistanceKm]);
 
   // Timer loop for Walking Performance Test (CC-11)
   useEffect(() => {
@@ -214,9 +488,17 @@ export default function CardioConnectHome() {
     setTrainingTargetSeconds(targetMin * 60);
     setTrainingElapsedSeconds(0);
     setIsTrainingPaused(false);
-    // Reset to zero — metrics start from scratch each session
     setSessionSteps(0);
     setSessionDistanceKm(0);
+    setRealGpsDistanceKm(0);
+    setPedometerSteps(0);
+    setCurrentSpeedKmH(0);
+
+    if (gpsPoints.length > 0) {
+      const last = gpsPoints[gpsPoints.length - 1];
+      setGpsPoints([{ lat: last.lat, lng: last.lng, time: Date.now() }]);
+    }
+
     setActiveModal("active_training");
     toast.success(`Heart Training started: ${targetMin} minutes target`);
   };
@@ -226,26 +508,27 @@ export default function CardioConnectHome() {
     const actualMin = Math.round(trainingElapsedSeconds / 60);
     const targetMin = Math.round(trainingTargetSeconds / 60);
     const isTargetReached = trainingElapsedSeconds >= trainingTargetSeconds;
-    // Only report steps/distance if they were actually accumulated (> 0)
-    const hasMovementData = sessionSteps > 0;
+    const effectiveDistance = realGpsDistanceKm > 0 ? realGpsDistanceKm : sessionDistanceKm;
+    const effectiveSteps = pedometerSteps > 0 ? pedometerSteps : sessionSteps;
+    const hasMovementData = effectiveSteps > 0 || effectiveDistance > 0;
 
     const record = {
       actual_duration_formatted: `${Math.floor(trainingElapsedSeconds / 60)}:${(trainingElapsedSeconds % 60).toString().padStart(2, "0")}`,
       actual_duration_minutes: actualMin,
       target_duration_minutes: targetMin,
       target_status: isTargetReached ? "Target reached" : "Partial session recorded",
-      steps: hasMovementData ? sessionSteps : null,
-      distance_km: hasMovementData ? sessionDistanceKm : null,
+      steps: hasMovementData ? effectiveSteps : null,
+      distance_km: hasMovementData ? effectiveDistance : null,
       estimated_energy: actualMin > 0 ? `${Math.round(actualMin * 5.2)} kcal` : null,
       weekly_reference_update: "Session recorded toward 150-300 min/week reference band",
       milestone: isTargetReached ? "Session Goal Reached" : null,
-      is_reached: isTargetReached
+      is_reached: isTargetReached,
+      gps_points: gpsPoints.length > 1 ? gpsPoints : null
     };
 
     setLastCompletedSession(record);
     setActiveModal("completion");
 
-    // Call authoritative API in background
     try {
       await fetch("/api/v1/cardio/activity-sessions", {
         method: "POST",
@@ -254,13 +537,12 @@ export default function CardioConnectHome() {
           action: "complete",
           target_duration_minutes: targetMin,
           accumulated_active_seconds: trainingElapsedSeconds,
-          steps: sessionSteps,
-          distance_km: sessionDistanceKm,
+          steps: effectiveSteps,
+          distance_km: effectiveDistance,
           estimated_energy_kcal: Math.round(actualMin * 5.2),
           client_idempotency_key: `client-${Date.now()}`
         })
       });
-      // Refresh Home data
       fetchHomeData();
     } catch (e) {
       console.warn("Could not save session to server:", e);
@@ -268,15 +550,16 @@ export default function CardioConnectHome() {
   };
 
   // Finish Walking Test (CC-11 -> CC-12)
-  // Called when timer ends OR user stops early; distance/HR come from user input
   const finishWalkingTest = async (stoppedEarly = false) => {
     const elapsed = WALKING_TEST_TOTAL_SECONDS - walkingRemainingSeconds;
     const isComplete = !stoppedEarly && walkingRemainingSeconds === 0;
-    // Use user-entered distance if provided, otherwise null
-    const distanceKm = walkingDistanceInput ? Number(parseFloat(walkingDistanceInput).toFixed(2)) : null;
+    const distanceKm = walkingDistanceInput
+      ? Number(parseFloat(walkingDistanceInput).toFixed(2))
+      : (realGpsDistanceKm > 0 ? Number(realGpsDistanceKm.toFixed(2)) : null);
     const heartRateBpm = walkingHeartRateInput ? parseInt(walkingHeartRateInput, 10) : null;
-    // Pace computed from entered distance (km per 6 min = km * 10 per hr)
-    const paceKmh = distanceKm ? Number((distanceKm * 10).toFixed(1)) : null;
+    const paceKmh = distanceKm && elapsed > 0
+      ? Number((distanceKm / (elapsed / 3600)).toFixed(1))
+      : null;
 
     const resultPayload = {
       isComplete,
@@ -285,9 +568,9 @@ export default function CardioConnectHome() {
       paceKmh,
       heartRateBpm,
       stoppedEarly,
-      // Previous test data comes from API only — no hardcoded values
       previousComparable: null,
-      comparison: null
+      comparison: null,
+      gps_points: gpsPoints.length > 1 ? gpsPoints : null
     };
 
     setWalkingTestResult(resultPayload);
@@ -324,77 +607,87 @@ export default function CardioConnectHome() {
     return <Minus className="w-3.5 h-3.5 text-slate-800" />;
   };
 
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-44 sm:pb-28">
       
-      {/* ── CC-01 HEADER & BRAND BANNER ── */}
+      {/* ── CARDIOCONNECT HEADER & BRAND BANNER ── */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-[5px] bg-[#0067A1]/10 text-[#0067A1] flex items-center justify-center font-bold shrink-0">
-              <Heart className="w-5 h-5 fill-current" />
+        <div className="w-full max-w-5xl mx-auto px-2.5 sm:px-4 md:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-[5px] bg-sky-50 border border-sky-200 text-[#0067A1] flex items-center justify-center shrink-0">
+              <AnimatedHeartbeat size="sm" color="#0067A1" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-extrabold text-slate-900 tracking-tight">MediConnect.Fit</span>
-                <span className="text-[10px] font-mono uppercase bg-slate-100 text-slate-950 px-1.5 py-0.5 rounded-[5px] border border-slate-200">CC-01 Home</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs sm:text-sm font-extrabold text-[#003358] tracking-tight">MediConnect.Fit</span>
+                <span className="text-[10px] font-bold uppercase bg-sky-50 text-[#0067A1] px-1.5 py-0.5 rounded-[5px] border border-sky-200 shrink-0 whitespace-nowrap">
+                  CardioConnect
+                </span>
               </div>
-              <p className="text-[11px] text-slate-900 font-medium">Heart-health awareness, activity tracking and progress.</p>
+              <p className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate max-w-[220px] sm:max-w-none">
+                Cardiovascular health awareness, activity tracking & progress
+              </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={fetchHomeData}
-            className="p-2 text-slate-800 hover:text-[#0067A1] hover:bg-slate-100 rounded-[5px] transition-colors cursor-pointer"
-            title="Refresh Home State"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={fetchHomeData}
+              className="p-1.5 sm:p-2 text-slate-600 hover:text-[#0067A1] hover:bg-slate-100 rounded-[5px] transition-colors cursor-pointer border border-slate-200"
+              title="Refresh State"
+            >
+              <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+          </div>
         </div>
       </header>
 
       {/* ── MAIN CONTENT CONTAINER (Responsive Desktop & Mobile Layout) ── */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 space-y-4">
+      <main className="max-w-5xl mx-auto px-2.5 sm:px-4 md:px-6 pt-4 sm:pt-5 space-y-3 sm:space-y-4">
         
         {/* State Banner (if offline, stale, or error) */}
         {uiState === "offline" && (
-          <div className="bg-amber-50 border border-amber-200 rounded-[5px] p-3.5 flex items-center gap-2.5 text-xs text-amber-900">
+          <div className="bg-amber-50 border border-amber-200 rounded-[5px] p-3 flex items-center gap-2.5 text-xs text-amber-900">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
             <span>You are offline. Limited functionality available. Data will sync once connected.</span>
           </div>
         )}
 
-        {/* ── CARD 1: HEART TRAINING HERO BANNER (CC-01 Dominant Action) ── */}
-        <section className="bg-[#003358] rounded-[5px] p-6 sm:p-7 text-white shadow-sm relative overflow-hidden">
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-2.5 max-w-xl">
+        {/* ── CARD 1: HEART TRAINING HERO BANNER ── */}
+        <section className="bg-gradient-to-r from-[#002b49] via-[#003d66] to-[#005584] rounded-[5px] p-5 sm:p-7 text-white shadow-md relative overflow-hidden group">
+          <div className="absolute -right-8 -bottom-8 w-48 h-48 rounded-full bg-white/5 pointer-events-none blur-xl group-hover:bg-white/10 transition-all duration-500" />
+          
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+            <div className="space-y-2 max-w-xl">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-white/90 bg-white/15 px-2.5 py-0.5 rounded-[5px] border border-white/20">
-                  Primary Activity
-                </span>
-                <span className="text-[11px] text-emerald-300 font-medium flex items-center gap-1">
-                  <Shield className="w-3.5 h-3.5" /> Open Access • No Gate
+                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-sky-200 bg-white/10 px-2.5 py-0.5 rounded-[5px] border border-white/15 whitespace-nowrap">
+                  Daily Heart Exercise
                 </span>
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                Heart Training
-              </h1>
-              <p className="text-xs sm:text-sm text-white/90 leading-relaxed">
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-white">
+                  Heart Training
+                </h1>
+                <AnimatedHeartbeat size="sm" color="#ffffff" glowColor="#38bdf8" />
+              </div>
+
+              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed max-w-md">
                 Cardiorespiratory training to build endurance and lower resting heart rate. Choose your duration and train at a comfortable, moderate pace.
               </p>
             </div>
 
-            <div className="shrink-0">
+            <div className="shrink-0 flex items-center">
               <button
                 type="button"
                 onClick={() => setActiveModal("setup")}
-                className="w-full sm:w-auto px-6 py-3.5 bg-white text-[#0067A1] hover:bg-slate-100 font-extrabold text-xs sm:text-sm rounded-[5px] shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-white hover:bg-slate-50 text-[#0067A1] font-bold text-xs sm:text-sm rounded-[5px] shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
               >
-                <Play className="w-4 h-4 fill-current" />
+                <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                 <span>START HEART TRAINING</span>
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
             </div>
           </div>
@@ -402,35 +695,33 @@ export default function CardioConnectHome() {
 
         {/* ── 2-COLUMN GRID: WEEKLY ACTIVITY & TODAY'S MOVEMENT ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* ── CARD 2: WEEKLY ACTIVITY (150-300 min/week reference) ── */}
+          {/* ── CARD 2: WEEKLY ACTIVITY ── */}
           <section
-            onClick={() => setActiveModal("progress")}
-            className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs hover:border-[#0067A1]/40 transition-all cursor-pointer flex flex-col justify-between"
+            onClick={() => router.push("/heart-health-statistics")}
+            className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs hover:border-[#0067A1]/40 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between"
           >
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-[5px] bg-blue-50 text-[#0067A1] flex items-center justify-center">
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-[5px] bg-blue-50 text-[#0067A1] flex items-center justify-center relative shrink-0">
                     <Activity className="w-4 h-4" />
+                    <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#0067A1] animate-ping" />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <h3 className="text-xs font-bold text-slate-900">Weekly Activity</h3>
-                      <Info className="w-3 h-3 text-slate-800" />
-                    </div>
-                    <p className="text-[11px] text-slate-900">General cardiovascular reference</p>
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-bold text-slate-900 truncate">Weekly Activity</h3>
+                    <p className="text-[11px] text-slate-500 truncate">Cardiovascular reference</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-xs font-black text-slate-900">150 – 300 min/wk</span>
-                  <span className="text-[10px] text-slate-800 block font-mono">
+                <div className="text-right shrink-0">
+                  <span className="text-xs font-bold text-slate-900 block">150 – 300 min/wk</span>
+                  <span className="text-[10px] text-slate-500 block font-mono">
                     {homeData?.weekly_activity?.recorded_minutes || 0} mins logged
                   </span>
                 </div>
               </div>
 
-              {/* Neutral Reference Progress Bar */}
-              <div className="w-full bg-slate-100 rounded-[5px] h-2.5 overflow-hidden relative">
+              {/* Reference Progress Bar */}
+              <div className="w-full bg-slate-100 rounded-[5px] h-2 overflow-hidden relative">
                 <div
                   className="bg-[#0067A1] h-full rounded-[5px] transition-all duration-500"
                   style={{
@@ -439,63 +730,63 @@ export default function CardioConnectHome() {
                 />
               </div>
             </div>
-            <p className="text-[10px] text-slate-800 mt-3 italic">
-              *150–300 min/week is a neutral reference band. Activity &gt;300 minutes remains recordable.
+            <p className="text-[10px] text-slate-500 mt-2.5">
+              Recommended: 150–300 min/week of moderate physical activity.
             </p>
           </section>
 
-          {/* ── CARD 3: TODAY'S MOVEMENT (Goal reference 10,000 steps • CC-06 Entry) ── */}
+          {/* ── CARD 3: TODAY'S MOVEMENT ── */}
           <section
             onClick={() => {
               fetchTimelineData(timelineDate);
               setActiveModal("timeline");
             }}
-            className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs hover:border-[#0067A1]/40 transition-all cursor-pointer flex flex-col justify-between"
+            className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs hover:border-emerald-500/40 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between"
           >
             <div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-[5px] bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                    <Footprints className="w-4 h-4" />
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-[5px] bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <AnimatedWalkingFigure size="sm" color="#059669" />
                   </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900">Today&apos;s Movement</h3>
-                    <span className="text-lg font-black font-mono text-slate-800">
-                      {homeData?.today_movement?.steps ? `${homeData.today_movement.steps} steps` : "— steps"}
+                  <div className="min-w-0">
+                    <h3 className="text-xs font-bold text-slate-900 truncate">Today&apos;s Movement</h3>
+                    <span className="text-base sm:text-lg font-bold font-mono text-slate-800">
+                      {homeData?.today_movement?.steps ? `${homeData.today_movement.steps.toLocaleString()} steps` : "— steps"}
                     </span>
                   </div>
                 </div>
-                <div className="text-right flex items-center gap-1">
+                <div className="text-right flex items-center gap-1 shrink-0">
                   <div>
-                    <span className="text-xs font-bold text-slate-950">Goal reference</span>
-                    <span className="text-xs font-mono text-slate-900 block">10,000 steps</span>
+                    <span className="text-xs font-bold text-slate-900 block">Goal target</span>
+                    <span className="text-xs font-mono text-slate-500 block">10,000 steps</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </div>
               </div>
             </div>
-            <p className="text-[10px] text-slate-800 mt-3">
-              Steps remain a separate metric from Heart Training minutes. Tap to view Timeline.
+            <p className="text-[10px] text-slate-500 mt-2.5">
+              Physical movement logged from your device and walking sessions.
             </p>
           </section>
         </div>
 
         {/* ── 2-COLUMN GRID: SPECTRUM & MY PROGRESS ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* ── CARD 4: HEART HEALTH SPECTRUM (CC-08 Factor Model) ── */}
+          {/* ── CARD 4: HEART HEALTH SPECTRUM ── */}
           <section
             onClick={() => setActiveModal("spectrum")}
-            className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs hover:border-[#0067A1]/40 transition-all cursor-pointer flex flex-col justify-between"
+            className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs hover:border-rose-400/40 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between"
           >
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-2.5">
+              <div className="flex items-start gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-[5px] bg-rose-50 text-rose-600 flex items-center justify-center mt-0.5 shrink-0">
-                  <Heart className="w-4 h-4 fill-rose-50" />
+                  <AnimatedHeartbeat size="sm" color="#e11d48" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-xs font-bold text-slate-900">Heart Health Spectrum</h3>
-                  <p className="text-[11px] text-slate-900 mt-0.5 leading-relaxed">
-                    Multiple factors for a broader view of your heart health. Factor-based representation without a composite score.
+                  <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed line-clamp-2">
+                    Multi-factor cardiovascular panel tracking blood pressure, cholesterol, and metabolic markers.
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <span className="text-[10px] font-bold text-[#0067A1] bg-[#0067A1]/10 px-2 py-0.5 rounded-[5px]">
@@ -504,31 +795,31 @@ export default function CardioConnectHome() {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-xs font-extrabold text-[#0067A1] shrink-0">
+              <div className="flex items-center gap-1 text-xs font-bold text-[#0067A1] shrink-0">
                 <span>VIEW</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
             </div>
           </section>
 
-          {/* ── CARD 5: MY PROGRESS (CC-09 Longitudinal Checkpoint) ── */}
+          {/* ── CARD 5: MY PROGRESS ── */}
           <section
-            onClick={() => setActiveModal("progress")}
-            className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs hover:border-[#0067A1]/40 transition-all cursor-pointer flex flex-col justify-between"
+            onClick={() => router.push("/heart-health-statistics")}
+            className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs hover:border-purple-400/40 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between"
           >
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-2.5">
+              <div className="flex items-start gap-2.5 min-w-0">
                 <div className="w-8 h-8 rounded-[5px] bg-purple-50 text-purple-600 flex items-center justify-center mt-0.5 shrink-0">
                   <TrendingUp className="w-4 h-4" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-xs font-bold text-slate-900">My Progress</h3>
-                  <p className="text-[11px] text-slate-900 mt-0.5 leading-relaxed">
-                    See your journey and next checkpoint (7D, 15D, 30D, 45D, Later).
+                  <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed line-clamp-2">
+                    Track your longitudinal recovery milestones, activity consistency, and physiological trends across checkpoints.
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-xs font-extrabold text-[#0067A1] shrink-0">
+              <div className="flex items-center gap-1 text-xs font-bold text-[#0067A1] shrink-0">
                 <span>CHECKPOINTS</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
@@ -538,178 +829,295 @@ export default function CardioConnectHome() {
 
         {/* ── 2-COLUMN GRID: WALKING PERFORMANCE TEST & AIR QUALITY ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* ── CARD 6: WALKING PERFORMANCE TEST (CC-10 / CC-11 / CC-12) ── */}
+          {/* ── CARD 6: WALKING PERFORMANCE TEST ── */}
           <section
             onClick={() => setActiveModal("walking_intro")}
-            className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs hover:border-[#0067A1]/40 transition-all cursor-pointer flex flex-col justify-between"
+            className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs hover:border-indigo-400/40 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer flex flex-col justify-between"
           >
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-2.5">
-                <div className="w-8 h-8 rounded-[5px] bg-indigo-50 text-indigo-600 flex items-center justify-center mt-0.5 shrink-0">
-                  <Clock className="w-4 h-4" />
+              <div className="flex items-start gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-[5px] bg-indigo-50 text-indigo-600 flex items-center justify-center mt-0.5 shrink-0 relative overflow-hidden">
+                  <Clock className="w-4 h-4 animate-pulse" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h3 className="text-xs font-bold text-slate-900">Walking Performance Test</h3>
-                  <p className="text-[11px] text-slate-900 mt-0.5 leading-relaxed">
-                    Standardized six-minute comparison feature for baseline and repeat observation.
+                  <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed line-clamp-2">
+                    Standardized 6-minute aerobic endurance evaluation to record distance and functional capacity.
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-xs font-extrabold text-[#0067A1] shrink-0">
+              <div className="flex items-center gap-1 text-xs font-bold text-[#0067A1] shrink-0">
                 <span>START</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
             </div>
           </section>
 
-          {/* ── CARD 7: AIR QUALITY (AQI) CONTEXT (CC-13 Non-blocking) ── */}
-          <section
-            onClick={() => {
-              fetchAqiData();
-              setActiveModal("aqi");
-            }}
-            className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-2xs hover:border-[#0067A1]/40 transition-all cursor-pointer flex items-center justify-between"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-[5px] bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-                <MapPin className="w-4 h-4" />
+          {/* ── CARD 7: AIR QUALITY & WEATHER ── */}
+          <section className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-xs hover:border-sky-400/40 hover:shadow-md transition-all duration-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div
+                onClick={() => {
+                  fetchAqiData(savedUserCity, null, null, false);
+                  setActiveModal("aqi");
+                }}
+                className="flex items-center gap-3 cursor-pointer flex-1 min-w-0"
+              >
+                <div className="w-9 h-9 rounded-[5px] bg-sky-50 border border-sky-100 text-sky-600 flex items-center justify-center shrink-0">
+                  <CloudSun className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-900">Air Quality & Weather</h3>
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-[5px] border border-emerald-200 inline-flex items-center gap-1 shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Live
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5 truncate">
+                    <MapPin className="w-3 h-3 text-[#0067A1] shrink-0" />
+                    <span className="font-semibold text-slate-800">{savedUserCity}</span>
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-xs font-bold text-slate-900">Air Quality (AQI)</h3>
-                <p className="text-[11px] text-slate-900">Environmental context for your activity</p>
+
+              <div
+                onClick={() => {
+                  fetchAqiData(savedUserCity, null, null, false);
+                  setActiveModal("aqi");
+                }}
+                className="flex items-center sm:flex-col sm:items-end justify-between gap-1 cursor-pointer shrink-0"
+              >
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-[5px] border whitespace-nowrap ${
+                  (aqiDetailData?.aqi_value || 80) <= 50
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : (aqiDetailData?.aqi_value || 80) <= 100
+                    ? "bg-teal-50 text-teal-800 border-teal-200"
+                    : (aqiDetailData?.aqi_value || 80) <= 200
+                    ? "bg-amber-50 text-amber-800 border-amber-200"
+                    : "bg-rose-50 text-rose-800 border-rose-200"
+                }`}>
+                  AQI {aqiDetailData?.aqi_value || 80} • {aqiDetailData?.category || "Satisfactory"}
+                </span>
+                <span className="text-[10px] text-slate-500 block font-medium">
+                  {aqiDetailData?.weather?.temp_c ? `${aqiDetailData.weather.temp_c}°C • ${aqiDetailData.weather.condition}` : "Real-time Telemetry"}
+                </span>
               </div>
             </div>
-            <div className="text-right flex items-center gap-1.5">
-              <div>
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[5px] border border-emerald-200">
-                  AQI 85 • Moderate
-                </span>
-                <span className="text-[10px] text-slate-800 block mt-0.5">Non-blocking context</span>
+
+            {/* Quick Action Bar for Location & Refresh */}
+            <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={requestGps}
+                  className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-semibold rounded-[5px] text-[11px] flex items-center gap-1 border border-sky-200 transition-colors cursor-pointer"
+                >
+                  <Navigation className="w-3 h-3" />
+                  <span>GPS Lock</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    fetchAqiData(savedUserCity, null, null, false);
+                    setActiveModal("aqi");
+                    setShowLocationPicker(true);
+                  }}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-[5px] text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Search className="w-3 h-3" />
+                  <span>Choose City</span>
+                </button>
               </div>
-              <ChevronRight className="w-4 h-4 text-slate-400" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  fetchAqiData(savedUserCity, null, null, false);
+                  setActiveModal("aqi");
+                }}
+                className="text-[#0067A1] font-bold hover:underline flex items-center gap-1 text-[11px] cursor-pointer ml-auto"
+              >
+                <span>View Details</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           </section>
         </div>
 
-        {/* ── OPTIONAL SECONDARY ACTIONS: CARDIO SCREENING ── */}
-        <div className="pt-2 flex items-center justify-between border-t border-slate-200 text-xs text-slate-900">
-          <span>Need a guided lifestyle questionnaire?</span>
+        {/* ── OPTIONAL SECONDARY ACTION: CARDIO SCREENING ── */}
+        <div className="p-3.5 bg-white rounded-[5px] border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <span className="text-slate-700 font-medium">Looking for a clinical cardiovascular evaluation?</span>
           <Link
             href="/heart-health"
-            className="text-[#0067A1] font-bold hover:underline flex items-center gap-1"
+            className="text-[#0067A1] font-bold hover:underline flex items-center gap-1 shrink-0"
           >
-            Optional Cardio Screening <ChevronRight className="w-3.5 h-3.5" />
+            <span>Complete Heart Health Assessment</span>
+            <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
       </main>
 
       {/* ══════════════════════════════════════════════════════════════
-          MODAL 1: CC-02 HEART TRAINING SETUP
+          MODAL 1: HEART TRAINING SETUP (Full Screen on Mobile)
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "setup" && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[5px] max-w-md w-full p-6 shadow-xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-md rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150">
+            
+            {/* Sticky Header */}
+            <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <div>
-                <span className="text-[10px] font-bold uppercase text-[#0067A1] bg-[#0067A1]/10 px-2 py-0.5 rounded">
-                  CC-02 Setup
+                <span className="text-[10px] font-mono font-bold uppercase text-[#0067A1] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-[5px]">
+                  Training Setup
                 </span>
-                <h2 className="text-lg font-bold text-slate-900 mt-1">Heart Training Setup</h2>
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-1">Heart Training Setup</h2>
               </div>
               <button
+                type="button"
                 onClick={() => setActiveModal(null)}
-                className="p-1.5 text-slate-800 hover:text-slate-950 rounded-[5px]"
+                className="p-1.5 text-slate-600 hover:text-slate-900 rounded-[5px] hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-900 mt-3 leading-relaxed">
-              Choose your activity type and set a target duration to start your Heart Training.
-            </p>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4 text-xs">
+              <p className="text-slate-600 leading-relaxed">
+                Choose your activity type and set a target duration to start your Heart Training session.
+              </p>
 
-            {/* Activity Type Indicator (Links to CC-14 Permissions) */}
-            <div
-              onClick={() => setActiveModal("permissions")}
-              className="mt-4 p-3 bg-slate-50 rounded-[5px] border border-slate-200 flex items-center justify-between cursor-pointer hover:border-[#0067A1]/40 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-[5px] bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                  <Footprints className="w-5 h-5" />
+              {/* Activity Type Indicator (Links to Device Permissions) */}
+              <div
+                onClick={() => setActiveModal("permissions")}
+                className="p-3 bg-slate-50 rounded-[5px] border border-slate-200 flex items-center justify-between cursor-pointer hover:border-[#0067A1]/40 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-[5px] bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <AnimatedWalkingFigure size="md" color="#059669" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">Activity Type</span>
+                    <p className="text-xs font-bold text-slate-900">Walking / Moderate Aerobic</p>
+                    <p className="text-[10px] text-slate-500">From device motion (Active)</p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] font-medium text-slate-900 font-black uppercase">Activity Type</span>
-                  <p className="text-xs font-bold text-slate-900">Walking / Moderate Aerobic</p>
-                  <p className="text-[10px] text-slate-900">From device (Active)</p>
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[5px] border border-emerald-200">
+                    Connected
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[5px] border border-emerald-200">
-                  Connected
-                </span>
-                <ChevronRight className="w-4 h-4 text-slate-400" />
-              </div>
-            </div>
 
-            {/* Duration Selector (CC-07 Embedded Presets) */}
-            <div className="mt-4">
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-xs font-bold text-slate-700">Select duration</label>
-                <span className="text-[10px] text-slate-800">Minutes</span>
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                {[5, 10, 15, 20, 30, 45, 60].map((mins) => (
+              {/* GPS Outdoor Route Tracking Status Pill */}
+              <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-8 h-8 rounded-[5px] flex items-center justify-center shrink-0 ${
+                      gpsStatus === 'granted' ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-600'
+                    }`}>
+                      <MapPin className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-600 uppercase block">GPS Live Route Map</span>
+                      <p className="text-[11px] text-slate-800 font-medium">
+                        {gpsStatus === 'granted' ? `Location locked (${savedUserCity})` : 'Outdoor running / walking path'}
+                      </p>
+                    </div>
+                  </div>
+                  {gpsStatus === 'granted' ? (
+                    <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-[5px]">
+                      Ready ✓
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={requestGps}
+                      className="text-[10px] font-bold text-[#0067A1] bg-blue-50 border border-blue-200 hover:bg-blue-100 px-2.5 py-1 rounded-[5px] transition-colors cursor-pointer"
+                    >
+                      Enable GPS
+                    </button>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">Current Area: <strong>{savedUserCity}</strong></span>
                   <button
-                    key={mins}
                     type="button"
                     onClick={() => {
-                      setSelectedPresetDuration(mins);
-                      setCustomDurationInput("");
+                      setActiveModal("aqi");
+                      setShowLocationPicker(true);
                     }}
-                    className={`py-2.5 rounded-[5px] text-xs font-bold transition-all border ${
-                      selectedPresetDuration === mins && !customDurationInput
-                        ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
-                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                    }`}
+                    className="text-[#0067A1] font-bold hover:underline"
                   >
-                    {mins} min
+                    Change City
                   </button>
-                ))}
+                </div>
               </div>
-            </div>
 
-            {/* Custom Duration Input */}
-            <div className="mt-3">
-              <label className="text-[11px] font-semibold text-slate-900 block mb-1">
-                Or set a custom duration (minutes)
-              </label>
-              <input
-                type="number"
-                min="1"
-                placeholder="Enter minutes"
-                value={customDurationInput}
-                onChange={(e) => setCustomDurationInput(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-[5px] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30"
-              />
-              <p className="text-[10px] text-slate-800 mt-1">
-                You can enter any duration. There is no artificial maximum limit.
-              </p>
-            </div>
-
-            {/* Safety Guidance Note */}
-            <div className="mt-4 p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] flex items-start gap-2.5 text-xs text-blue-900">
-              <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              {/* Duration Selector (CC-07 Embedded Presets) */}
               <div>
-                <p className="font-bold text-[11px]">A few things to keep in mind</p>
-                <p className="text-[11px] text-blue-800/90 mt-0.5 leading-relaxed">
-                  Choose a duration that feels right for you. Heart Training is a safe, moderate activity. Stop immediately if you feel unwell or experience discomfort.
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-xs font-bold text-slate-800">Select duration</label>
+                  <span className="text-[10px] text-slate-500 font-medium">Minutes</span>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {[5, 10, 15, 20, 30, 45, 60].map((mins) => (
+                    <button
+                      key={mins}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPresetDuration(mins);
+                        setCustomDurationInput("");
+                      }}
+                      className={`py-2.5 rounded-[5px] text-xs font-bold transition-all border ${
+                        selectedPresetDuration === mins && !customDurationInput
+                          ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
+                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      {mins} min
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Duration Input */}
+              <div>
+                <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                  Or set a custom duration (minutes)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Enter minutes"
+                  value={customDurationInput}
+                  onChange={(e) => setCustomDurationInput(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-[5px] text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  You can enter any duration. There is no artificial maximum limit.
                 </p>
               </div>
+
+              {/* Safety Guidance Note */}
+              <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] flex items-start gap-2.5 text-xs text-blue-900">
+                <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-[11px]">A few things to keep in mind</p>
+                  <p className="text-[11px] text-blue-800/90 mt-0.5 leading-relaxed">
+                    Choose a duration that feels right for you. Heart Training is a safe, moderate activity. Stop immediately if you feel unwell or experience discomfort.
+                  </p>
+                </div>
+              </div>
             </div>
 
-            {/* Actions */}
-            <div className="mt-5 space-y-2">
+            {/* Sticky Bottom Actions */}
+            <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 bg-white space-y-2 z-20 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
               <button
                 type="button"
                 onClick={handleStartTrainingSession}
@@ -729,185 +1137,382 @@ export default function CardioConnectHome() {
           </div>
         </div>
       )}
-
       {/* ══════════════════════════════════════════════════════════════
-          MODAL 2: CC-03 / CC-04 ACTIVE & PAUSED HEART TRAINING
+          MODAL 2: CC-03 / CC-04 ACTIVE & PAUSED HEART TRAINING (Full Screen Mobile)
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "active_training" && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-[8px] sm:rounded-[5px] w-full sm:max-w-md p-5 sm:p-6 shadow-2xl border-0 sm:border border-slate-200 text-center animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 flex flex-col max-h-[95svh] overflow-y-auto">
+        <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/85 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-2xl rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150">
             
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
-                {isTrainingPaused ? "CC-04 Paused" : "CC-03 Active"}
-              </span>
-              <span className="text-xs font-bold text-slate-700">Heart Training</span>
-            </div>
-
-            <div className="mt-4">
-              <h2 className="text-xl font-black text-slate-900">
-                {isTrainingPaused ? "Session Paused" : "Active Heart Training"}
-              </h2>
-              <p className="text-xs text-slate-900 mt-0.5">
-                {isTrainingPaused
-                  ? "Your session is paused. Paused time is excluded from training credit."
-                  : "Your session is in progress. Keep going!"}
-              </p>
-            </div>
-
-            {/* Clinical Digital Stopwatch Readout */}
-            <div className="my-5 p-4 bg-slate-900 text-white rounded-[5px] border border-slate-800 text-center shadow-inner">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-slate-300 block mb-1">
-                {isTrainingPaused ? "Active Duration - Paused" : "Elapsed Active Duration"}
-              </span>
-              <div className="text-4xl sm:text-5xl font-extrabold font-mono tracking-tight text-white my-1">
-                {formatSeconds(trainingElapsedSeconds)}
-              </div>
-              <div className="flex items-center justify-center gap-2 text-xs text-slate-300 font-mono mt-1">
-                <span>Target: {formatSeconds(trainingTargetSeconds)}</span>
-                <span>•</span>
-                <span className="text-rose-400 font-sans flex items-center gap-1">
-                  <Heart className="w-3 h-3 fill-current" /> Heart Training
+            {/* Header with CC ID & View Switcher */}
+            <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+                  {isTrainingPaused ? "Session Paused" : "Active Training"}
                 </span>
+                <span className="text-xs font-bold text-slate-700">Heart Training</span>
+              </div>
+
+              {/* View Mode Toggle */}
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-[5px] text-[11px] font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setTrainingViewMode("gauge")}
+                  className={`px-2.5 py-1 rounded-[5px] transition-all cursor-pointer ${
+                    trainingViewMode === "gauge"
+                      ? "bg-white text-slate-900 shadow-xs font-bold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  ⚡ Gauge
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (gpsStatus !== "granted") requestGps();
+                    setTrainingViewMode("map");
+                  }}
+                  className={`px-2.5 py-1 rounded-[5px] transition-all flex items-center gap-1 cursor-pointer ${
+                    trainingViewMode === "map"
+                      ? "bg-white text-slate-900 shadow-xs font-bold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <MapPin className="w-3 h-3 text-[#0067A1]" />
+                  <span>Live Map</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (gpsStatus !== "granted") requestGps();
+                    setTrainingViewMode("split");
+                  }}
+                  className={`px-2.5 py-1 rounded-[5px] transition-all hidden sm:inline-block cursor-pointer ${
+                    trainingViewMode === "split"
+                      ? "bg-white text-slate-900 shadow-xs font-bold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  🔲 Split
+                </button>
               </div>
             </div>
 
-            {/* Live Sub-metrics Grid */}
-            <div className="grid grid-cols-2 gap-2.5 text-left mb-6">
-              <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-100">
-                <span className="text-[10px] text-slate-900 font-black font-bold uppercase block">Target Duration</span>
-                <span className="text-sm font-bold text-slate-800">
-                  {Math.round(trainingTargetSeconds / 60)} minutes
-                </span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-100">
-                <span className="text-[10px] text-slate-900 font-black font-bold uppercase block">Time Remaining</span>
-                <span className="text-sm font-bold font-mono text-slate-800">
-                  {trainingElapsedSeconds >= trainingTargetSeconds
-                    ? "Target reached"
-                    : formatSeconds(trainingTargetSeconds - trainingElapsedSeconds)}
-                </span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-100">
-                <span className="text-[10px] text-slate-900 font-black font-bold uppercase block">Steps</span>
-                <span className="text-sm font-bold font-mono text-slate-800">{sessionSteps.toLocaleString()}</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-100">
-                <span className="text-[10px] text-slate-900 font-black font-bold uppercase block">Distance</span>
-                <span className="text-sm font-bold font-mono text-slate-800">{sessionDistanceKm} km</span>
-              </div>
-            </div>
-
-            {/* Primary Action Buttons */}
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => setIsTrainingPaused(!isTrainingPaused)}
-                className={`w-full py-3.5 rounded-[5px] font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  isTrainingPaused
-                    ? "bg-[#0067A1] text-white hover:bg-[#005584]"
-                    : "bg-blue-50 text-[#0067A1] border border-blue-200 hover:bg-blue-100"
-                }`}
-              >
-                {isTrainingPaused ? (
-                  <>
-                    <Play className="w-4 h-4 fill-current" />
-                    <span>Resume Session</span>
-                  </>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4">
+              <div className="text-center sm:text-left flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900">
+                    {isTrainingPaused ? "Session Paused" : "Active Heart Training"}
+                  </h2>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    {isTrainingPaused
+                      ? "Your session is paused. Paused time is strictly excluded from training credit."
+                      : "Session in progress. Maintain a comfortable, conversational pace."}
+                  </p>
+                </div>
+                {gpsStatus === "granted" ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-[5px] self-center sm:self-auto">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                    GPS Live {gpsAccuracy ? `(±${gpsAccuracy}m)` : ""} • {savedUserCity}
+                  </span>
                 ) : (
-                  <>
-                    <Pause className="w-4 h-4 fill-current" />
-                    <span>Pause</span>
-                  </>
+                  <button
+                    type="button"
+                    onClick={requestGps}
+                    className="inline-flex items-center gap-1 text-[10px] text-[#0067A1] bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-[5px] self-center sm:self-auto transition-colors cursor-pointer"
+                  >
+                    <MapPin className="w-3 h-3" /> Enable GPS Map
+                  </button>
                 )}
-              </button>
+              </div>
+
+              {/* Main Interactive Display Area: Gauge View / Map View / Split View */}
+              <div>
+                {trainingViewMode === "gauge" && (
+                  <div className="flex flex-col items-center justify-center p-4 bg-slate-900 rounded-[5px] text-white shadow-inner relative overflow-hidden">
+                    <AnimatedStopwatch
+                      isActive={!isTrainingPaused}
+                      isPaused={isTrainingPaused}
+                      size="responsive"
+                      timeString={formatSeconds(trainingElapsedSeconds)}
+                      label={`${currentSpeedKmH > 0 ? currentSpeedKmH : "4.8"} km/h`}
+                      subLabel={isTrainingPaused ? "session paused" : "live pace"}
+                      progress={trainingTargetSeconds > 0 ? Math.min(1, trainingElapsedSeconds / trainingTargetSeconds) : 0}
+                    />
+                    <div className="flex items-center justify-center gap-3 text-xs text-slate-300 font-mono mt-3">
+                      <span>Target: {formatSeconds(trainingTargetSeconds)}</span>
+                      <span>•</span>
+                      <span className="text-rose-400 font-sans flex items-center gap-1">
+                        <AnimatedHeartbeat size="sm" color="#f43f5e" /> Heart Training
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {trainingViewMode === "map" && (
+                  <div className="rounded-[5px] overflow-hidden border border-slate-200 shadow-sm relative">
+                    <RealGpsMap
+                      points={gpsPoints}
+                      distanceKm={realGpsDistanceKm || sessionDistanceKm}
+                      activity="HEART TRAINING"
+                      isLiveTracking={!isTrainingPaused}
+                      height="h-64 sm:h-80"
+                      showControls={true}
+                    />
+                    {/* Floating Telemetry HUD over map */}
+                    <div className="absolute top-2 left-2 z-[400] bg-slate-900/85 backdrop-blur-xs text-white px-3 py-1.5 rounded-[5px] shadow-sm flex items-center gap-3 font-mono text-xs border border-white/10">
+                      <div>
+                        <span className="text-[9px] uppercase tracking-wider text-slate-300 block">Time</span>
+                        <strong className="text-white text-sm">{formatSeconds(trainingElapsedSeconds)}</strong>
+                      </div>
+                      <div className="w-px h-6 bg-white/20" />
+                      <div>
+                        <span className="text-[9px] uppercase tracking-wider text-slate-300 block">Dist</span>
+                        <strong className="text-white text-sm">{(realGpsDistanceKm || sessionDistanceKm).toFixed(2)} km</strong>
+                      </div>
+                      <div className="w-px h-6 bg-white/20" />
+                      <div>
+                        <span className="text-[9px] uppercase tracking-wider text-slate-300 block">Speed</span>
+                        <strong className="text-emerald-400 text-sm">{currentSpeedKmH.toFixed(1)} km/h</strong>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {trainingViewMode === "split" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex flex-col items-center justify-center p-3 bg-slate-900 rounded-[5px] text-white shadow-inner">
+                      <AnimatedStopwatch
+                        isActive={!isTrainingPaused}
+                        isPaused={isTrainingPaused}
+                        size="md"
+                        timeString={formatSeconds(trainingElapsedSeconds)}
+                        label={formatSeconds(trainingTargetSeconds)}
+                        subLabel="target"
+                        progress={trainingTargetSeconds > 0 ? Math.min(1, trainingElapsedSeconds / trainingTargetSeconds) : 0}
+                      />
+                    </div>
+                    <div className="rounded-[5px] overflow-hidden border border-slate-200 shadow-sm">
+                      <RealGpsMap
+                        points={gpsPoints}
+                        distanceKm={realGpsDistanceKm || sessionDistanceKm}
+                        activity="HEART TRAINING"
+                        isLiveTracking={!isTrainingPaused}
+                        height="h-52"
+                        showControls={false}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Real-time Telemetry Metrics Grid */}
+              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-[5px]">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block">Elapsed Time</span>
+                  <strong className="text-slate-900 font-mono text-base block mt-0.5">
+                    {formatSeconds(trainingElapsedSeconds)}
+                  </strong>
+                  <span className="text-[9px] text-slate-500">paused time excluded</span>
+                </div>
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-[5px]">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block">Remaining</span>
+                  <strong className="text-slate-900 font-mono text-base block mt-0.5">
+                    {formatSeconds(Math.max(0, trainingTargetSeconds - trainingElapsedSeconds))}
+                  </strong>
+                  <span className="text-[9px] text-slate-500">target {Math.round(trainingTargetSeconds / 60)} min</span>
+                </div>
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-[5px]">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block">Live Distance</span>
+                  <strong className="text-[#0067A1] font-mono text-base block mt-0.5">
+                    {(realGpsDistanceKm || sessionDistanceKm).toFixed(2)} km
+                  </strong>
+                  <span className="text-[9px] text-slate-500">{gpsStatus === "granted" ? "GPS tracked" : "estimated"}</span>
+                </div>
+              </div>
+
+              {/* Additional live telemetry rows */}
+              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-[5px]">
+                  <span className="text-[10px] text-slate-500 block">Motion Steps</span>
+                  <strong className="text-slate-900 font-mono text-sm">
+                    {(pedometerSteps || sessionSteps).toLocaleString()}
+                  </strong>
+                </div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-[5px]">
+                  <span className="text-[10px] text-slate-500 block">Pace / Speed</span>
+                  <strong className="text-slate-900 font-mono text-sm">
+                    {currentSpeedKmH > 0 ? `${currentSpeedKmH.toFixed(1)} km/h` : "4.8 km/h"}
+                  </strong>
+                </div>
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-[5px]">
+                  <span className="text-[10px] text-slate-500 block">Reference</span>
+                  <strong className="text-emerald-700 text-sm">150–300 min/wk</strong>
+                </div>
+              </div>
+
+              {/* Strict Clinical Rules callout */}
+              <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-[5px] text-[11px] text-amber-900 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p>
+                  <strong>Clinical Rule:</strong> Paused time is strictly excluded from training credit. Maintain a comfortable, conversational effort level.
+                </p>
+              </div>
+            </div>
+
+            {/* Sticky Bottom Actions */}
+            <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 bg-white space-y-2 z-20 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+              <div className="flex gap-2">
+                {isTrainingPaused ? (
+                  <button
+                    type="button"
+                    onClick={handleResumeTraining}
+                    className="flex-1 py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>RESUME TRAINING</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handlePauseTraining}
+                    className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Pause className="w-4 h-4 fill-current" />
+                    <span>PAUSE TRAINING</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleCompleteTrainingSession}
+                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>COMPLETE SESSION</span>
+                </button>
+              </div>
 
               <button
                 type="button"
-                onClick={handleEndTrainingSession}
-                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-[5px] transition-colors cursor-pointer"
+                onClick={handleCancelTrainingSession}
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-[5px] transition-colors cursor-pointer"
               >
-                End Session
+                Cancel / Discard Session
               </button>
             </div>
           </div>
         </div>
       )}
-
       {/* ══════════════════════════════════════════════════════════════
-          MODAL 3: CC-05 SESSION COMPLETION
+          MODAL 3: CC-05 SESSION COMPLETION (Full Screen Mobile)
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "completion" && lastCompletedSession && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[5px] max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 text-center">
-            <div className="w-12 h-12 rounded-[5px] bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3">
-              <CheckCircle2 className="w-7 h-7" />
+        <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-md rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150 text-center">
+            
+            {/* Header */}
+            <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
+              <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+                Session Summary
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="p-1.5 text-slate-600 hover:text-slate-900 rounded-[5px] hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
-              CC-05 Completion
-            </span>
-            <h2 className="text-xl font-black text-slate-900 mt-1">Session recorded</h2>
-            <p className="text-xs text-slate-900 mt-0.5">
-              Your Heart Training session has been safely recorded.
-            </p>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4">
+              <AnimatedCheckmark size="lg" showParticles={true} className="mb-2" />
 
-            {/* Results Table per CC-05 Exact Order */}
-            <div className="mt-5 divide-y divide-slate-100 text-xs text-left">
-              <div className="py-2.5 flex justify-between">
-                <span className="text-slate-900">Actual duration</span>
-                <span className="font-bold text-slate-900 font-mono">
-                  {lastCompletedSession.actual_duration_formatted}
-                </span>
-              </div>
-              <div className="py-2.5 flex justify-between">
-                <span className="text-slate-900">Target / status</span>
-                <span className="font-bold text-slate-900">
-                  {lastCompletedSession.target_status}
-                </span>
-              </div>
-              {lastCompletedSession.steps !== null && (
-                <div className="py-2.5 flex justify-between">
-                  <span className="text-slate-900">Steps (estimated)</span>
-                  <span className="font-bold text-slate-900 font-mono">
-                    {lastCompletedSession.steps.toLocaleString()}
-                  </span>
+              <h2 className="text-xl font-black text-slate-900 mt-1">Session Recorded</h2>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Your Heart Training session has been safely recorded to your health profile.
+              </p>
+
+              {/* Route Summary Map (if GPS was active) */}
+              {lastCompletedSession.gps_points && lastCompletedSession.gps_points.length > 1 && (
+                <div className="my-3 rounded-[5px] overflow-hidden border border-slate-200 shadow-2xs">
+                  <RealGpsMap
+                    points={lastCompletedSession.gps_points}
+                    distanceKm={lastCompletedSession.distance_km}
+                    activity="HEART TRAINING"
+                    isLiveTracking={false}
+                    height="h-40"
+                    showControls={false}
+                  />
                 </div>
               )}
-              {lastCompletedSession.distance_km !== null && (
-                <div className="py-2.5 flex justify-between">
-                  <span className="text-slate-900">Distance (estimated)</span>
+
+              {/* Results Table per CC-05 Exact Order */}
+              <div className="divide-y divide-slate-100 text-xs text-left bg-slate-50 p-3 rounded-[5px] border border-slate-200">
+                <div className="py-2 flex justify-between">
+                  <span className="text-slate-600">Actual duration</span>
                   <span className="font-bold text-slate-900 font-mono">
-                    {lastCompletedSession.distance_km} km
+                    {lastCompletedSession.actual_duration_formatted}
                   </span>
                 </div>
-              )}
-              {lastCompletedSession.estimated_energy !== null && (
-                <div className="py-2.5 flex justify-between">
-                  <span className="text-slate-900">Estimated energy</span>
+                <div className="py-2 flex justify-between">
+                  <span className="text-slate-600">Target / status</span>
                   <span className="font-bold text-slate-900">
-                    {lastCompletedSession.estimated_energy}
+                    {lastCompletedSession.target_status}
                   </span>
                 </div>
-              )}
-              <div className="py-2.5 flex justify-between">
-                <span className="text-slate-900">Weekly reference update</span>
-                <span className="font-semibold text-emerald-700 text-right">
-                  Logged to 150-300 min/wk
-                </span>
+                {lastCompletedSession.steps !== null && (
+                  <div className="py-2 flex justify-between">
+                    <span className="text-slate-600">Steps</span>
+                    <span className="font-bold text-slate-900 font-mono">
+                      {lastCompletedSession.steps.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {lastCompletedSession.distance_km !== null && (
+                  <div className="py-2 flex justify-between">
+                    <span className="text-slate-600">Distance</span>
+                    <span className="font-bold text-slate-900 font-mono">
+                      {typeof lastCompletedSession.distance_km === 'number'
+                        ? lastCompletedSession.distance_km.toFixed(2)
+                        : lastCompletedSession.distance_km} km
+                    </span>
+                  </div>
+                )}
+                {lastCompletedSession.estimated_energy !== null && (
+                  <div className="py-2 flex justify-between">
+                    <span className="text-slate-600">Estimated energy</span>
+                    <span className="font-bold text-slate-900">
+                      {lastCompletedSession.estimated_energy}
+                    </span>
+                  </div>
+                )}
+                <div className="py-2 flex justify-between">
+                  <span className="text-slate-600">Weekly reference update</span>
+                  <span className="font-semibold text-emerald-700 text-right">
+                    Logged to 150-300 min/wk
+                  </span>
+                </div>
+                {lastCompletedSession.milestone && (
+                  <div className="py-2 flex justify-between bg-amber-50/50 px-2 rounded-[5px]">
+                    <span className="text-amber-800 font-medium">Milestone achieved</span>
+                    <span className="font-bold text-amber-700 flex items-center gap-1">
+                      <Award className="w-3.5 h-3.5" /> {lastCompletedSession.milestone}
+                    </span>
+                  </div>
+                )}
               </div>
-              {lastCompletedSession.milestone && (
-                <div className="py-2.5 flex justify-between bg-amber-50/50 px-2 rounded-[5px]">
-                  <span className="text-amber-800 font-medium">Milestone achieved</span>
-                  <span className="font-bold text-amber-700 flex items-center gap-1">
-                    <Award className="w-3.5 h-3.5" /> {lastCompletedSession.milestone}
-                  </span>
-                </div>
-              )}
+
+              <p className="text-[10px] text-slate-500 italic text-left">
+                * Heart Training is a moderate wellness activity. Paused duration was strictly excluded from training credit.
+              </p>
             </div>
 
-            {/* Actions */}
-            <div className="mt-6 space-y-2">
+            {/* Sticky Actions Footer */}
+            <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 bg-white space-y-2 z-20 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
@@ -926,72 +1531,77 @@ export default function CardioConnectHome() {
           </div>
         </div>
       )}
-
       {/* ══════════════════════════════════════════════════════════════
-          MODAL 4: CC-08 HEART HEALTH SPECTRUM (11 Factors)
+          MODAL 4: CC-08 HEART HEALTH SPECTRUM (11 Factors - Full Screen Mobile)
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "spectrum" && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[5px] max-w-lg w-full max-h-[90vh] flex flex-col p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-lg rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150">
+            
+            {/* Sticky Header */}
+            <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <div>
                 <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded">
-                  CC-08 Spectrum
+                  Heart Health Spectrum
                 </span>
-                <h2 className="text-lg font-bold text-slate-900 mt-1">Heart Health Spectrum</h2>
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">Heart Health Spectrum</h2>
               </div>
               <button
+                type="button"
                 onClick={() => setActiveModal(null)}
-                className="p-1.5 text-slate-800 hover:text-slate-950 rounded-[5px]"
+                className="p-1.5 text-slate-600 hover:text-slate-900 rounded-[5px] hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-900 mt-2">
-              Multiple individual factors for a broader view of your heart health. Factor-based representation without composite scoring.
-            </p>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-3">
+              <p className="text-xs text-slate-700">
+                Multiple individual factors for a broader view of your heart health. Factor-based representation without composite scoring.
+              </p>
 
-            {/* Factor List Container */}
-            <div className="mt-4 overflow-y-auto space-y-2.5 pr-1 flex-1">
-              {spectrumData.map((factor) => (
-                <div
-                  key={factor.id}
-                  className="p-3.5 bg-slate-50 rounded-[5px] border border-slate-200/70 flex items-center justify-between text-xs"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-[5px] bg-white border border-slate-200 text-[#0067A1] flex items-center justify-center font-bold">
-                      <Heart className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-900 text-xs">{factor.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-800">
-                        <span>Source: {factor.current.source || "Not available"}</span>
-                        {factor.current.date && <span>• {factor.current.date}</span>}
+              <div className="space-y-2.5">
+                {spectrumData.map((factor) => (
+                  <div
+                    key={factor.id}
+                    className="p-3.5 bg-slate-50 rounded-[5px] border border-slate-200/80 flex items-center justify-between text-xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-[5px] bg-white border border-slate-200 text-[#0067A1] flex items-center justify-center font-bold">
+                        <Heart className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-900 text-xs">{factor.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-600">
+                          <span>Source: {factor.current.source || "Not available"}</span>
+                          {factor.current.date && <span>• {factor.current.date}</span>}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="text-right flex items-center gap-3">
-                    <div>
-                      <span className="font-extrabold text-slate-800 text-sm block">
-                        {factor.current.value !== null
-                          ? `${factor.current.value} ${factor.unit}`
-                          : "Unavailable"}
-                      </span>
-                      {factor.previous.value !== null && (
-                        <span className="text-[10px] text-slate-800 block">
-                          Prev: {factor.previous.value} {factor.unit}
+                    <div className="text-right flex items-center gap-3">
+                      <div>
+                        <span className="font-extrabold text-slate-800 text-sm block">
+                          {factor.current.value !== null
+                            ? `${factor.current.value} ${factor.unit}`
+                            : "Unavailable"}
                         </span>
-                      )}
+                        {factor.previous.value !== null && (
+                          <span className="text-[10px] text-slate-500 block">
+                            Prev: {factor.previous.value} {factor.unit}
+                          </span>
+                        )}
+                      </div>
+                      {factor.trend && getTrendIcon(factor.trend)}
                     </div>
-                    {factor.trend && getTrendIcon(factor.trend)}
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 mt-3">
+            {/* Sticky Footer */}
+            <div className="shrink-0 p-4 sm:p-5 border-t border-slate-100 bg-white z-30 pb-12 sm:pb-5 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
@@ -1003,30 +1613,32 @@ export default function CardioConnectHome() {
           </div>
         </div>
       )}
-
       {/* ══════════════════════════════════════════════════════════════
-          MODAL 5: CC-09 MY PROGRESS (Longitudinal Checkpoints)
+          MODAL 5: CC-09 MY PROGRESS (Longitudinal Checkpoints - Full Screen Mobile)
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "progress" && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[5px] max-w-lg w-full max-h-[90vh] flex flex-col p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-lg rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150">
+            
+            {/* Sticky Header */}
+            <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <div>
                 <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded">
-                  CC-09 My Progress
+                  My Progress
                 </span>
-                <h2 className="text-lg font-bold text-slate-900 mt-1">Longitudinal Checkpoints</h2>
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">Longitudinal Checkpoints</h2>
               </div>
               <button
+                type="button"
                 onClick={() => setActiveModal(null)}
-                className="p-1.5 text-slate-800 hover:text-slate-950 rounded-[5px]"
+                className="p-1.5 text-slate-600 hover:text-slate-900 rounded-[5px] hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Checkpoint Tabs */}
-            <div className="flex border-b border-slate-200 mt-3 gap-1 overflow-x-auto pb-1">
+            <div className="px-4 pt-3 pb-2 sm:px-6 bg-white border-b border-slate-100 shrink-0 z-10 flex gap-1 overflow-x-auto">
               {["7D", "15D", "30D", "45D", "Later"].map((cp) => (
                 <button
                   key={cp}
@@ -1038,7 +1650,7 @@ export default function CardioConnectHome() {
                   className={`px-3 py-1.5 rounded-[5px] text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
                     selectedCheckpoint === cp
                       ? "bg-[#0067A1] text-white shadow-2xs"
-                      : "text-slate-950 hover:bg-slate-100"
+                      : "text-slate-700 hover:bg-slate-100"
                   }`}
                 >
                   {cp}
@@ -1046,25 +1658,35 @@ export default function CardioConnectHome() {
               ))}
             </div>
 
-            <div className="mt-4 overflow-y-auto space-y-4 pr-1 flex-1 text-xs">
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4 text-xs">
               {/* Activity Trend */}
               <div className="p-4 bg-slate-50 rounded-[5px] border border-slate-200">
                 <h3 className="font-bold text-slate-900 mb-1 flex items-center gap-1.5">
                   <Activity className="w-4 h-4 text-[#0067A1]" /> Activity Trend
                 </h3>
-                <p className="text-[11px] text-slate-900 mb-3">
+                <p className="text-[11px] text-slate-600 mb-3">
                   Recorded Heart Training minutes (150–300 min/week reference band)
                 </p>
                 <div className="grid grid-cols-7 gap-1.5 items-end h-24 pt-2">
-                  {progressData?.activity?.dataPoints?.map((dp, i) => (
-                    <div key={i} className="flex flex-col items-center gap-1 h-full justify-end">
-                      <div
-                        className="w-full bg-[#0067A1] rounded-t-md transition-all"
-                        style={{ height: `${Math.min(100, Math.max(8, (dp.minutes / 60) * 100))}%` }}
-                      />
-                      <span className="text-[9px] text-slate-800">{dp.day}</span>
+                  {progressData?.activity?.dataPoints?.map((dp, i) => {
+                    const dayLabel = dp.day || dp.date || `Day ${i + 1}`;
+                    const shortLabel = String(dayLabel).replace("Day ", "D");
+                    return (
+                      <div key={i} className="flex flex-col items-center gap-1">
+                        <div
+                          className="w-full bg-[#0067A1] rounded-t-sm transition-all"
+                          style={{ height: `${Math.max(8, (dp.minutes / 60) * 100)}%` }}
+                          title={`${dayLabel}: ${dp.minutes} mins`}
+                        />
+                        <span className="text-[9px] text-slate-500 font-mono">{shortLabel}</span>
+                      </div>
+                    );
+                  }) || (
+                    <div className="col-span-7 text-center text-slate-400 py-6">
+                      No activity records for this period
                     </div>
-                  )) || <p className="text-slate-800">Loading activity...</p>}
+                  )}
                 </div>
               </div>
 
@@ -1073,58 +1695,59 @@ export default function CardioConnectHome() {
                 <h3 className="font-bold text-slate-900 mb-1 flex items-center gap-1.5">
                   <Footprints className="w-4 h-4 text-emerald-600" /> Steps Trend
                 </h3>
-                <p className="text-[11px] text-slate-900 mb-2">
-                  Goal reference 10,000 daily steps
-                </p>
-                <div className="grid grid-cols-7 gap-1.5 items-end h-20 pt-2">
-                  {progressData?.steps?.dataPoints?.map((dp, i) => (
-                    <div key={i} className="flex flex-col items-center gap-1 h-full justify-end">
-                      <div
-                        className="w-full bg-emerald-500 rounded-t-md transition-all"
-                        style={{ height: `${Math.min(100, Math.max(8, (dp.steps / 10000) * 100))}%` }}
-                      />
-                      <span className="text-[9px] text-slate-800">{dp.day}</span>
+                <p className="text-[11px] text-slate-600 mb-3">Goal reference 10,000 daily steps</p>
+                <div className="grid grid-cols-7 gap-1.5 items-end h-24 pt-2">
+                  {progressData?.steps?.dataPoints?.map((dp, i) => {
+                    const dayLabel = dp.day || dp.date || `Day ${i + 1}`;
+                    const shortLabel = String(dayLabel).replace("Day ", "D");
+                    return (
+                      <div key={i} className="flex flex-col items-center gap-1">
+                        <div
+                          className="w-full bg-emerald-500 rounded-t-sm transition-all"
+                          style={{ height: `${Math.max(8, (dp.steps / 12000) * 100)}%` }}
+                          title={`${dayLabel}: ${dp.steps} steps`}
+                        />
+                        <span className="text-[9px] text-slate-500 font-mono">{shortLabel}</span>
+                      </div>
+                    );
+                  }) || (
+                    <div className="col-span-7 text-center text-slate-400 py-6">
+                      No step records for this period
                     </div>
-                  )) || <p className="text-slate-800">Loading steps...</p>}
+                  )}
                 </div>
               </div>
 
-              {/* Spectrum Availability Status */}
-              <div className="p-4 bg-slate-50 rounded-[5px] border border-slate-200">
-                <div className="flex justify-between items-center mb-1">
-                  <h3 className="font-bold text-slate-900">Spectrum Factor Coverage</h3>
-                  <span className="font-bold text-[#0067A1]">
-                    {progressData?.spectrum?.availableCount || 5} of 11 factors
-                  </span>
+              {/* Spectrum Factor Coverage */}
+              <div className="p-4 bg-slate-50 rounded-[5px] border border-slate-200 flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-slate-900">Spectrum Factor Coverage</h4>
+                  <p className="text-[11px] text-slate-600 mt-0.5">Individual data available</p>
                 </div>
-                <div className="w-full bg-slate-200 rounded-[5px] h-2 mt-2">
-                  <div
-                    className="bg-[#0067A1] h-2 rounded-[5px]"
-                    style={{ width: `${((progressData?.spectrum?.availableCount || 5) / 11) * 100}%` }}
-                  />
-                </div>
+                <span className="font-extrabold text-[#0067A1] text-sm">
+                  {spectrumData.filter((f) => f.current.value !== null).length} of {spectrumData.length} factors
+                </span>
               </div>
 
-              {/* Neutral Insight Summary */}
-              <div className="p-3 bg-blue-50 border border-blue-100 rounded-[5px] text-blue-950 text-[11px] leading-relaxed">
+              {/* Notice */}
+              <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] text-[11px] text-blue-900 leading-relaxed">
                 <strong>Progress Notice:</strong> Checkpoint displays factual recorded activity and step volume. No artificial improvement percentages or synthetic health ratings are computed.
               </div>
             </div>
 
-            <div className="pt-4 border-t border-slate-100 mt-3 flex gap-2">
+            {/* Sticky Footer */}
+            <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 bg-white grid grid-cols-2 gap-2 z-20 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
               <button
                 type="button"
-                onClick={() => {
-                  setActiveModal("spectrum");
-                }}
-                className="flex-1 py-2.5 bg-[#0067A1] text-white font-bold text-xs rounded-[5px] hover:bg-[#004F7C] cursor-pointer"
+                onClick={() => setActiveModal("spectrum")}
+                className="py-2.5 bg-[#0067A1] text-white font-bold text-xs rounded-[5px] hover:bg-[#004F7C] cursor-pointer text-center"
               >
                 VIEW SPECTRUM
               </button>
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-[5px] cursor-pointer"
+                className="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-[5px] cursor-pointer text-center"
               >
                 Close
               </button>
@@ -1132,43 +1755,46 @@ export default function CardioConnectHome() {
           </div>
         </div>
       )}
-
       {/* ══════════════════════════════════════════════════════════════
-          MODAL 6: CC-10 WALKING PERFORMANCE TEST INTRO
+          MODAL 6: CC-10 WALKING PERFORMANCE TEST INTRO (Full Screen Mobile)
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "walking_intro" && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[5px] max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-md rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150">
+            
+            {/* Sticky Header */}
+            <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <div>
                 <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded">
-                  CC-10 Walking Test Intro
+                  6-Minute Walk Test
                 </span>
-                <h2 className="text-lg font-bold text-slate-900 mt-1">Walking Performance Test</h2>
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">Walking Performance Test</h2>
               </div>
               <button
+                type="button"
                 onClick={() => setActiveModal(null)}
-                className="p-1.5 text-slate-800 hover:text-slate-950 rounded-[5px]"
+                className="p-1.5 text-slate-600 hover:text-slate-900 rounded-[5px] hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-900 mt-2 font-medium">
-              Understand the test before you start. A standardized walking test for baseline and repeat comparison.
-            </p>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-3 text-xs">
+              <p className="text-slate-600 font-medium leading-relaxed">
+                Understand the test before you start. A standardized walking test for baseline and repeat comparison.
+              </p>
 
-            <div className="mt-4 space-y-3 text-xs text-left">
               <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-200">
                 <h4 className="font-bold text-slate-900 mb-1">What It Is</h4>
-                <p className="text-slate-950 text-[11px] leading-relaxed">
+                <p className="text-slate-700 text-[11px] leading-relaxed">
                   A standardized 6-minute walking test for baseline and repeat functional observation.
                 </p>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-200">
                 <h4 className="font-bold text-slate-900 mb-1">What It Measures</h4>
-                <ul className="text-[11px] text-slate-950 list-disc list-inside space-y-0.5">
+                <ul className="text-[11px] text-slate-700 list-disc list-inside space-y-0.5">
                   <li>Duration (fixed 6 minutes)</li>
                   <li>Distance covered</li>
                   <li>Pace / speed where available</li>
@@ -1187,7 +1813,8 @@ export default function CardioConnectHome() {
               </div>
             </div>
 
-            <div className="mt-5 space-y-2">
+            {/* Sticky Actions Footer */}
+            <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 bg-white space-y-2 z-20 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
               <button
                 type="button"
                 onClick={() => {
@@ -1212,163 +1839,221 @@ export default function CardioConnectHome() {
           </div>
         </div>
       )}
-
       {/* ══════════════════════════════════════════════════════════════
-          MODAL 7: CC-11 WALKING PERFORMANCE TEST ACTIVE
+          MODAL 7: CC-11 WALKING PERFORMANCE TEST ACTIVE (Full Screen Mobile)
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "walking_active" && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-[8px] sm:rounded-[5px] w-full sm:max-w-md p-5 sm:p-6 shadow-2xl border-0 sm:border border-slate-200 text-center animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 flex flex-col max-h-[95svh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+        <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-md rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150 text-center">
+            
+            {/* Header */}
+            <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
-                CC-11 Active Test
+                Active Walk Test
               </span>
               <span className="text-xs font-bold text-slate-700">Standardized 6-Min Test</span>
             </div>
 
-            <h2 className="text-xl font-black text-slate-900 mt-4">Walking Performance Test</h2>
-            <p className="text-xs text-slate-900 mt-0.5">Walk at your usual comfortable pace for 6 minutes</p>
-
-            {/* Clinical Digital Stopwatch Readout */}
-            <div className="my-4 p-4 bg-slate-900 text-white rounded-[5px] border border-slate-800 text-center shadow-inner">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-slate-300 block mb-1">
-                Elapsed / Protocol 06:00
-              </span>
-              <div className="text-4xl sm:text-5xl font-extrabold font-mono tracking-tight text-white my-1">
-                {formatSeconds(WALKING_TEST_TOTAL_SECONDS - walkingRemainingSeconds)}
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 mt-1">Walking Performance Test</h2>
+                <p className="text-xs text-slate-600 mt-0.5">Walk at your usual comfortable pace for 6 minutes</p>
               </div>
-              <div className="flex items-center justify-center gap-2 text-xs text-slate-300 font-mono mt-1">
-                <span>Remaining: {formatSeconds(walkingRemainingSeconds)}</span>
-                <span>•</span>
-                <span className="text-indigo-400 font-sans flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> 6-Min Walk Test
-                </span>
+
+              {/* Stopwatch Telemetry Gauge */}
+              <div className="flex justify-center my-2">
+                <AnimatedStopwatch
+                  isActive={true}
+                  isPaused={false}
+                  size="responsive"
+                  timeString={formatSeconds(WALKING_TEST_TOTAL_SECONDS - walkingRemainingSeconds)}
+                  label={`${walkingDistanceInput ? walkingDistanceInput + " km" : "06:00"}`}
+                  subLabel={walkingGpsEnabled ? "GPS auto-tracking" : "protocol gauge"}
+                  progress={Math.min(1, (WALKING_TEST_TOTAL_SECONDS - walkingRemainingSeconds) / WALKING_TEST_TOTAL_SECONDS)}
+                />
+              </div>
+
+              {/* GPS Live Tracking Toggle */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-[5px] flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-left">
+                  <MapPin className="w-4 h-4 text-[#0067A1]" />
+                  <div>
+                    <span className="font-semibold text-slate-800 text-[11px] block">GPS Live Auto-Distance</span>
+                    <span className="text-[10px] text-slate-500 block">
+                      {walkingGpsEnabled ? (gpsAccuracy ? `Locked (±${gpsAccuracy}m)` : "Active") : "Manual entry mode"}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!walkingGpsEnabled && gpsStatus !== "granted") {
+                      requestGps();
+                    }
+                    setWalkingGpsEnabled(!walkingGpsEnabled);
+                  }}
+                  className={`text-[10px] font-bold px-2.5 py-1 rounded-[5px] border transition-colors cursor-pointer ${
+                    walkingGpsEnabled
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                  }`}
+                >
+                  {walkingGpsEnabled ? "GPS Active ✓" : "Enable GPS"}
+                </button>
+              </div>
+
+              {/* Distance input / recording */}
+              <div className="text-left space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">
+                      Distance (km) {walkingGpsEnabled && "(Auto)"}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="e.g. 0.52"
+                      value={walkingDistanceInput}
+                      onChange={(e) => setWalkingDistanceInput(e.target.value)}
+                      className="w-full px-2.5 py-2 border border-slate-200 rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">Heart Rate (bpm)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="Optional"
+                      value={walkingHeartRateInput}
+                      onChange={(e) => setWalkingHeartRateInput(e.target.value)}
+                      className="w-full px-2.5 py-2 border border-slate-200 rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30 font-bold"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Distance input during test — no GPS, user enters actual */}
-            <div className="text-left space-y-2.5 mb-4">
-              <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-[5px] text-xs text-blue-900">
-                <p className="font-bold text-[11px] mb-0.5">Record your distance (optional)</p>
-                <p className="text-[10px] text-blue-800 leading-relaxed">Use a measured track or route. Enter the actual distance you cover during the 6 minutes.</p>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">Distance (km)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="e.g. 0.52"
-                    value={walkingDistanceInput}
-                    onChange={(e) => setWalkingDistanceInput(e.target.value)}
-                    className="w-full px-2.5 py-2 border border-slate-200 rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">Heart Rate (bpm)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="Optional"
-                    value={walkingHeartRateInput}
-                    onChange={(e) => setWalkingHeartRateInput(e.target.value)}
-                    className="w-full px-2.5 py-2 border border-slate-200 rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30"
-                  />
-                </div>
-              </div>
+            {/* Sticky Actions Footer */}
+            <div className="shrink-0 p-4 sm:p-5 border-t border-slate-100 bg-white z-30 pb-12 sm:pb-5 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+              <button
+                type="button"
+                onClick={() => finishWalkingTest(true)}
+                className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors cursor-pointer"
+              >
+                STOP EARLY / COMPLETE TEST
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => finishWalkingTest(true)}
-              className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors cursor-pointer"
-            >
-              STOP EARLY / FINISH
-            </button>
           </div>
         </div>
       )}
-
       {/* ══════════════════════════════════════════════════════════════
-          MODAL 8: CC-12 WALKING PERFORMANCE TEST RESULT
+          MODAL 8: CC-12 WALKING PERFORMANCE TEST RESULT (Full Screen Mobile)
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "walking_result" && walkingTestResult && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-[8px] sm:rounded-[5px] w-full sm:max-w-md p-5 sm:p-6 shadow-2xl border-0 sm:border border-slate-200 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-center max-h-[95svh] overflow-y-auto">
+        <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-md rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150 text-center">
             
-            <div className="w-12 h-12 rounded-[5px] bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-2">
-              <CheckCircle2 className="w-7 h-7" />
+            {/* Header */}
+            <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
+              <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+                Walk Test Result
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="p-1.5 text-slate-600 hover:text-slate-900 rounded-[5px] hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
-              CC-12 Result
-            </span>
-            <h2 className="text-xl font-black text-slate-900 mt-1">
-              {walkingTestResult.isComplete ? "Test Complete (6 Minutes)" : "Test Stopped Early"}
-            </h2>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4">
+              <AnimatedCheckmark size="lg" showParticles={true} className="mb-2" />
 
-            {/* Current Result — only display fields that were recorded */}
-            <div className="mt-4 p-4 bg-slate-50 rounded-[5px] border border-slate-200 text-left">
-              <h4 className="font-bold text-slate-900 text-xs mb-2">Your Result</h4>
-              <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between font-mono">
-                  <span className="text-slate-800">Duration</span>
-                  <strong className="text-slate-900">{walkingTestResult.durationFormatted}</strong>
+              <h2 className="text-xl font-black text-slate-900 mt-1">
+                {walkingTestResult.isComplete ? "Test Complete (6 Minutes)" : "Test Stopped Early"}
+              </h2>
+
+              {/* Route Summary Map if GPS Points exist */}
+              {walkingTestResult.gps_points && walkingTestResult.gps_points.length > 1 && (
+                <div className="my-2 rounded-[5px] overflow-hidden border border-slate-200 shadow-2xs">
+                  <RealGpsMap
+                    points={walkingTestResult.gps_points}
+                    distanceKm={walkingTestResult.distanceKm}
+                    activity="WALKING TEST"
+                    isLiveTracking={false}
+                    height="h-36"
+                    showControls={false}
+                  />
                 </div>
-                <div className="flex justify-between font-mono">
-                  <span className="text-slate-800">Distance</span>
-                  <strong className="text-slate-900">
-                    {walkingTestResult.distanceKm !== null ? `${walkingTestResult.distanceKm} km` : "Not recorded"}
-                  </strong>
+              )}
+
+              {/* Current Result */}
+              <div className="p-4 bg-slate-50 rounded-[5px] border border-slate-200 text-left">
+                <h4 className="font-bold text-slate-900 text-xs mb-2">Your Result</h4>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between font-mono">
+                    <span className="text-slate-600">Duration</span>
+                    <strong className="text-slate-900">{walkingTestResult.durationFormatted}</strong>
+                  </div>
+                  <div className="flex justify-between font-mono">
+                    <span className="text-slate-600">Distance</span>
+                    <strong className="text-slate-900">
+                      {walkingTestResult.distanceKm !== null ? `${walkingTestResult.distanceKm} km` : "Not recorded"}
+                    </strong>
+                  </div>
+                  <div className="flex justify-between font-mono">
+                    <span className="text-slate-600">Pace</span>
+                    <strong className="text-slate-900">
+                      {walkingTestResult.paceKmh !== null ? `${walkingTestResult.paceKmh} km/h` : "—"}
+                    </strong>
+                  </div>
+                  <div className="flex justify-between font-mono">
+                    <span className="text-slate-600">Heart Rate</span>
+                    <strong className="text-slate-900">
+                      {walkingTestResult.heartRateBpm !== null ? `${walkingTestResult.heartRateBpm} bpm` : "Not recorded"}
+                    </strong>
+                  </div>
                 </div>
-                <div className="flex justify-between font-mono">
-                  <span className="text-slate-800">Pace</span>
-                  <strong className="text-slate-900">
-                    {walkingTestResult.paceKmh !== null ? `${walkingTestResult.paceKmh} km/h` : "—"}
-                  </strong>
+              </div>
+
+              {/* Previous Comparable Test */}
+              {walkingTestResult.previousComparable ? (
+                <div className="p-4 bg-slate-50 rounded-[5px] border border-slate-200 text-left text-xs">
+                  <h4 className="font-bold text-slate-900 mb-1">Previous Comparable Test</h4>
+                  <p className="text-[10px] text-slate-600 mb-2">Like-for-like protocol version (V1.0)</p>
+                  <div className="space-y-1 font-mono">
+                    <div className="flex justify-between">
+                      <span className="text-slate-700">Distance</span>
+                      <strong className="text-slate-800">{walkingTestResult.previousComparable.distanceKm} km</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-700">Pace</span>
+                      <strong className="text-slate-800">{walkingTestResult.previousComparable.paceKmh} km/h</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-700">Date</span>
+                      <strong className="text-slate-800">{walkingTestResult.previousComparable.date}</strong>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between font-mono">
-                  <span className="text-slate-800">Heart Rate</span>
-                  <strong className="text-slate-900">
-                    {walkingTestResult.heartRateBpm !== null ? `${walkingTestResult.heartRateBpm} bpm` : "Not recorded"}
-                  </strong>
+              ) : (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-[5px] text-left text-xs text-slate-700">
+                  <p className="font-bold text-slate-900 mb-0.5">Previous Test</p>
+                  <p className="text-[10px] text-slate-600">No previous test found for like-for-like comparison (V1.0 protocol). Complete more tests to enable comparison.</p>
                 </div>
+              )}
+
+              <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] text-left text-[10px] text-blue-900 leading-relaxed">
+                This test records your walking performance for personal tracking only. It does not diagnose any medical condition or establish cardiac fitness.
               </div>
             </div>
 
-            {/* Previous Comparable Test — from API only, not hardcoded */}
-            {walkingTestResult.previousComparable ? (
-              <div className="mt-3 p-4 bg-slate-50 rounded-[5px] border border-slate-200 text-left text-xs">
-                <h4 className="font-bold text-slate-900 mb-1">Previous Comparable Test</h4>
-                <p className="text-[10px] text-slate-800 mb-2">Like-for-like protocol version (V1.0)</p>
-                <div className="space-y-1 font-mono">
-                  <div className="flex justify-between">
-                    <span className="text-slate-700">Distance</span>
-                    <strong className="text-slate-800">{walkingTestResult.previousComparable.distanceKm} km</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-700">Pace</span>
-                    <strong className="text-slate-800">{walkingTestResult.previousComparable.paceKmh} km/h</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-700">Date</span>
-                    <strong className="text-slate-800">{walkingTestResult.previousComparable.date}</strong>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-[5px] text-left text-xs text-slate-800">
-                <p className="font-bold text-slate-900 mb-0.5">Previous Test</p>
-                <p className="text-[10px] text-slate-700">No previous test found for like-for-like comparison (V1.0 protocol). Complete more tests to enable comparison.</p>
-              </div>
-            )}
-
-            <div className="mt-3 p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] text-left text-[10px] text-blue-800 leading-relaxed">
-              This test records your walking performance for personal tracking only. It does not diagnose any medical condition or establish cardiac fitness.
-            </div>
-
-            <div className="mt-4 space-y-2">
+            {/* Sticky Footer */}
+            <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 bg-white space-y-2 z-20 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
@@ -1387,141 +2072,145 @@ export default function CardioConnectHome() {
           </div>
         </div>
       )}
-
       {/* ══════════════════════════════════════════════════════════════
-          MODAL 9: CC-06 ACTIVITY TIMELINE
+          MODAL 9: CC-06 ACTIVITY TIMELINE (Full Screen Mobile)
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "timeline" && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-[8px] sm:rounded-[5px] w-full sm:max-w-md p-5 sm:p-6 shadow-2xl border-0 sm:border border-slate-200 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 max-h-[95svh] flex flex-col">
+        <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-md rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150">
             
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            {/* Sticky Header */}
+            <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <div>
                 <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
-                  CC-06 Activity Timeline
+                  Activity History
                 </span>
-                <h2 className="text-lg font-bold text-slate-900 mt-1">Activity Timeline</h2>
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">Activity Timeline</h2>
               </div>
               <button
+                type="button"
                 onClick={() => setActiveModal(null)}
-                className="p-1.5 text-slate-800 hover:text-slate-950 rounded-[5px]"
+                className="p-1.5 text-slate-600 hover:text-slate-900 rounded-[5px] hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Date Selector */}
-            <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-[5px] p-2.5 mt-3 text-xs">
-              <button
-                type="button"
-                onClick={() => {
-                  const d = new Date(timelineDate);
-                  d.setDate(d.getDate() - 1);
-                  const str = d.toISOString().split("T")[0];
-                  setTimelineDate(str);
-                  fetchTimelineData(str);
-                }}
-                className="p-1 hover:bg-slate-200 rounded text-slate-700 font-bold"
-              >
-                ◀
-              </button>
-              <div className="flex items-center gap-2 font-bold text-slate-900">
-                <Calendar className="w-4 h-4 text-[#0067A1]" />
-                <span>
-                  {new Date(timelineDate + "T00:00:00").toLocaleDateString("en-US", {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric"
-                  })}
-                </span>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4">
+              {/* Date Selector */}
+              <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-[5px] p-2.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(timelineDate);
+                    d.setDate(d.getDate() - 1);
+                    const str = d.toISOString().split("T")[0];
+                    setTimelineDate(str);
+                    fetchTimelineData(str);
+                  }}
+                  className="p-1.5 hover:bg-slate-200 rounded text-slate-700 font-bold cursor-pointer"
+                >
+                  ◀
+                </button>
+                <div className="flex items-center gap-2 font-bold text-slate-900">
+                  <Calendar className="w-4 h-4 text-[#0067A1]" />
+                  <span>
+                    {new Date(timelineDate + "T00:00:00").toLocaleDateString("en-US", {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric"
+                    })}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date(timelineDate);
+                    d.setDate(d.getDate() + 1);
+                    const str = d.toISOString().split("T")[0];
+                    setTimelineDate(str);
+                    fetchTimelineData(str);
+                  }}
+                  className="p-1.5 hover:bg-slate-200 rounded text-slate-700 font-bold cursor-pointer"
+                >
+                  ▶
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const d = new Date(timelineDate);
-                  d.setDate(d.getDate() + 1);
-                  const str = d.toISOString().split("T")[0];
-                  setTimelineDate(str);
-                  fetchTimelineData(str);
-                }}
-                className="p-1 hover:bg-slate-200 rounded text-slate-700 font-bold"
-              >
-                ▶
-              </button>
-            </div>
 
-            {/* Daily Total */}
-            <div className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-[5px] text-xs">
-              <h4 className="font-bold text-slate-900 mb-2">Daily Total</h4>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="p-2 bg-white rounded border border-slate-200">
-                  <span className="text-[10px] text-slate-500 block">Steps</span>
-                  <strong className="text-slate-900 text-sm font-mono">
-                    {timelineData?.daily_total?.steps ? timelineData.daily_total.steps.toLocaleString() : "--"}
-                  </strong>
-                </div>
-                <div className="p-2 bg-white rounded border border-slate-200">
-                  <span className="text-[10px] text-slate-500 block">Distance</span>
-                  <strong className="text-slate-900 text-sm font-mono">
-                    {timelineData?.daily_total?.distance_km ? `${timelineData.daily_total.distance_km} km` : "-- km"}
-                  </strong>
-                </div>
-                <div className="p-2 bg-white rounded border border-slate-200">
-                  <span className="text-[10px] text-slate-500 block">Energy</span>
-                  <strong className="text-slate-900 text-sm font-mono">
-                    {timelineData?.daily_total?.energy_kcal ? `${timelineData.daily_total.energy_kcal} kcal` : "-- kcal"}
-                  </strong>
+              {/* Daily Total */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-[5px] text-xs">
+                <h4 className="font-bold text-slate-900 mb-2">Daily Total</h4>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2 bg-white rounded-[5px] border border-slate-200">
+                    <span className="text-[10px] text-slate-500 block">Steps</span>
+                    <strong className="text-slate-900 text-sm font-mono">
+                      {timelineData?.daily_total?.steps ? timelineData.daily_total.steps.toLocaleString() : "--"}
+                    </strong>
+                  </div>
+                  <div className="p-2 bg-white rounded-[5px] border border-slate-200">
+                    <span className="text-[10px] text-slate-500 block">Distance</span>
+                    <strong className="text-slate-900 text-sm font-mono">
+                      {timelineData?.daily_total?.distance_km ? `${timelineData.daily_total.distance_km} km` : "-- km"}
+                    </strong>
+                  </div>
+                  <div className="p-2 bg-white rounded-[5px] border border-slate-200">
+                    <span className="text-[10px] text-slate-500 block">Energy</span>
+                    <strong className="text-slate-900 text-sm font-mono">
+                      {timelineData?.daily_total?.energy_kcal ? `${timelineData.daily_total.energy_kcal} kcal` : "-- kcal"}
+                    </strong>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Chronological Sessions */}
-            <div className="mt-3 flex-1 overflow-y-auto space-y-2 pr-1 text-xs">
-              <h4 className="font-bold text-slate-900">Sessions</h4>
-              {isLoadingTimeline ? (
-                <div className="p-6 text-center text-slate-500">Loading activity sessions...</div>
-              ) : timelineData?.session_records && timelineData.session_records.length > 0 ? (
-                timelineData.session_records.map((sess, idx) => (
-                  <div
-                    key={sess.id || idx}
-                    className="p-3 bg-white border border-slate-200 rounded-[5px] flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-[5px] bg-blue-50 text-[#0067A1] flex items-center justify-center">
-                        <Footprints className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <strong className="text-slate-900">Session {idx + 1}</strong>
-                          {sess.is_long_session && (
-                            <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-semibold">
-                              Long session
-                            </span>
-                          )}
+              {/* Chronological Sessions */}
+              <div className="space-y-2 text-xs">
+                <h4 className="font-bold text-slate-900">Recorded Sessions</h4>
+                {isLoadingTimeline ? (
+                  <div className="p-6 text-center text-slate-500">Loading activity sessions...</div>
+                ) : timelineData?.session_records && timelineData.session_records.length > 0 ? (
+                  timelineData.session_records.map((sess, idx) => (
+                    <div
+                      key={sess.id || idx}
+                      className="p-3 bg-white border border-slate-200 rounded-[5px] flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-[5px] bg-blue-50 text-[#0067A1] flex items-center justify-center">
+                          <Footprints className="w-4 h-4" />
                         </div>
-                        <p className="text-[10px] text-slate-600">
-                          {sess.duration_minutes} min • {sess.steps ? `${sess.steps.toLocaleString()} steps` : "Manual time"}
-                          {sess.distance_km ? ` • ${sess.distance_km} km` : ""}
-                        </p>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <strong className="text-slate-900">Session {idx + 1}</strong>
+                            {sess.is_long_session && (
+                              <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-semibold">
+                                Long session
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-600">
+                            {sess.duration_minutes} min • {sess.steps ? `${sess.steps.toLocaleString()} steps` : "Manual time"}
+                            {sess.distance_km ? ` • ${sess.distance_km} km` : ""}
+                          </p>
+                        </div>
                       </div>
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  ))
+                ) : (
+                  <div className="p-6 text-center bg-slate-50 border border-slate-200 rounded-[5px] space-y-1.5">
+                    <div className="w-10 h-10 rounded-[5px] bg-slate-200 text-slate-500 flex items-center justify-center mx-auto">
+                      <Footprints className="w-5 h-5" />
+                    </div>
+                    <h5 className="font-bold text-slate-800 text-xs">No sessions yet</h5>
+                    <p className="text-[11px] text-slate-500">No activity sessions recorded for this date.</p>
                   </div>
-                ))
-              ) : (
-                <div className="p-6 text-center bg-slate-50 border border-slate-200 rounded-[5px] space-y-1.5">
-                  <div className="w-10 h-10 rounded-[5px] bg-slate-200 text-slate-500 flex items-center justify-center mx-auto">
-                    <Footprints className="w-5 h-5" />
-                  </div>
-                  <h5 className="font-bold text-slate-800 text-xs">No sessions yet</h5>
-                  <p className="text-[11px] text-slate-500">No activity sessions recorded for this date.</p>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
-            {/* Bottom Actions */}
-            <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-2">
+            {/* Sticky Actions Footer */}
+            <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 bg-white flex flex-col gap-2 z-20 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
               <button
                 type="button"
                 onClick={() => {
@@ -1543,92 +2232,102 @@ export default function CardioConnectHome() {
           </div>
         </div>
       )}
-
       {/* ══════════════════════════════════════════════════════════════
-          MODAL 10: CC-14 PERMISSIONS & DATA SOURCES
+          MODAL 10: CC-14 PERMISSIONS & DATA SOURCES (Full Screen Mobile)
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "permissions" && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-[8px] sm:rounded-[5px] w-full sm:max-w-md p-5 sm:p-6 shadow-2xl border-0 sm:border border-slate-200 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-center max-h-[95svh] overflow-y-auto">
+        <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-md rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150 text-center">
             
-            {/* Dynamic Status Icon */}
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2 ${
-              permissionsState === "granted"
-                ? "bg-emerald-100 text-emerald-600"
-                : permissionsState === "denied"
-                ? "bg-rose-100 text-rose-600"
-                : permissionsState === "restricted"
-                ? "bg-amber-100 text-amber-600"
-                : permissionsState === "unavailable"
-                ? "bg-slate-200 text-slate-600"
-                : "bg-blue-100 text-[#0067A1]"
-            }`}>
-              {permissionsState === "granted" && <Check className="w-8 h-8" />}
-              {permissionsState === "denied" && <Minus className="w-8 h-8" />}
-              {permissionsState === "restricted" && <AlertTriangle className="w-8 h-8" />}
-              {permissionsState === "unavailable" && <WifiOff className="w-8 h-8" />}
-              {permissionsState === "sync_pending" && <RefreshCw className="w-8 h-8 animate-spin" />}
+            {/* Header */}
+            <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
+              <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+                Device Permissions
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="p-1.5 text-slate-600 hover:text-slate-900 rounded-[5px] hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
-              CC-14 Permissions
-            </span>
-            <h2 className="text-xl font-black text-slate-900 mt-1 capitalize">
-              {permissionsState.replace("_", " ")}
-            </h2>
-            <p className="text-xs text-slate-600 mt-1">
-              {permissionsState === "granted"
-                ? "Activity tracking and health data source permissions are active."
-                : permissionsState === "denied"
-                ? "Device motion sensor access is currently denied."
-                : permissionsState === "restricted"
-                ? "Device permissions are restricted by system policy."
-                : permissionsState === "unavailable"
-                ? "Health sensor source is currently unavailable."
-                : "Syncing health source data with server..."}
-            </p>
-
-            {/* Permission Rows */}
-            <div className="mt-4 p-3.5 bg-slate-50 border border-slate-200 rounded-[5px] text-left text-xs space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-slate-600" />
-                  <span className="font-semibold text-slate-800">Activity Permission</span>
-                </div>
-                <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-                  permissionsState === "granted"
-                    ? "bg-emerald-100 text-emerald-800"
-                    : permissionsState === "denied"
-                    ? "bg-rose-100 text-rose-800"
-                    : "bg-amber-100 text-amber-800"
-                }`}>
-                  {permissionsState === "granted" ? "Granted" : permissionsState === "denied" ? "Denied" : "Restricted"}
-                </span>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4">
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-1 ${
+                permissionsState === "granted"
+                  ? "bg-emerald-100 text-emerald-600"
+                  : permissionsState === "denied"
+                  ? "bg-rose-100 text-rose-600"
+                  : permissionsState === "restricted"
+                  ? "bg-amber-100 text-amber-600"
+                  : permissionsState === "unavailable"
+                  ? "bg-slate-200 text-slate-600"
+                  : "bg-blue-100 text-[#0067A1]"
+              }`}>
+                {permissionsState === "granted" && <Check className="w-8 h-8" />}
+                {permissionsState === "denied" && <Minus className="w-8 h-8" />}
+                {permissionsState === "restricted" && <AlertTriangle className="w-8 h-8" />}
+                {permissionsState === "unavailable" && <WifiOff className="w-8 h-8" />}
+                {permissionsState === "sync_pending" && <RefreshCw className="w-8 h-8 animate-spin" />}
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-slate-600" />
-                  <span className="font-semibold text-slate-800">Health Source</span>
+
+              <h2 className="text-xl font-black text-slate-900 mt-1 capitalize">
+                {permissionsState.replace("_", " ")}
+              </h2>
+              <p className="text-xs text-slate-600">
+                {permissionsState === "granted"
+                  ? "Activity tracking and health data source permissions are active."
+                  : permissionsState === "denied"
+                  ? "Device motion sensor access is currently denied."
+                  : permissionsState === "restricted"
+                  ? "Device permissions are restricted by system policy."
+                  : permissionsState === "unavailable"
+                  ? "Health sensor source is currently unavailable."
+                  : "Syncing health source data with server..."}
+              </p>
+
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-[5px] text-left text-xs space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-slate-600" />
+                    <span className="font-semibold text-slate-800">Activity Permission</span>
+                  </div>
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                    permissionsState === "granted"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : permissionsState === "denied"
+                      ? "bg-rose-100 text-rose-800"
+                      : "bg-amber-100 text-amber-800"
+                  }`}>
+                    {permissionsState === "granted" ? "Granted" : permissionsState === "denied" ? "Denied" : "Restricted"}
+                  </span>
                 </div>
-                <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
-                  permissionsState === "granted"
-                    ? "bg-emerald-100 text-emerald-800"
-                    : permissionsState === "sync_pending"
-                    ? "bg-blue-100 text-blue-800"
-                    : "bg-slate-200 text-slate-700"
-                }`}>
-                  {permissionsState === "granted" ? "Connected" : permissionsState === "sync_pending" ? "Sync Pending" : "Unavailable"}
-                </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-slate-600" />
+                    <span className="font-semibold text-slate-800">Health Source</span>
+                  </div>
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                    permissionsState === "granted"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : permissionsState === "sync_pending"
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-slate-200 text-slate-700"
+                  }`}>
+                    {permissionsState === "granted" ? "Connected" : permissionsState === "sync_pending" ? "Sync Pending" : "Unavailable"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] text-left text-[11px] text-blue-900 leading-relaxed">
+                <strong>Non-blocking access:</strong> Heart Training and walking tests can always be performed manually without granting device sensor permissions.
               </div>
             </div>
 
-            {/* Informational Callout: CONTINUE WITHOUT is always non-blocking */}
-            <div className="mt-3 p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] text-left text-[11px] text-blue-900 leading-relaxed">
-              <strong>Non-blocking access:</strong> Heart Training and walking tests can always be performed manually without granting device sensor permissions.
-            </div>
-
-            {/* Actions */}
-            <div className="mt-5 space-y-2">
+            {/* Sticky Actions Footer */}
+            <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 bg-white space-y-2 z-20 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
               {permissionsState !== "granted" && (
                 <button
                   type="button"
@@ -1644,7 +2343,6 @@ export default function CardioConnectHome() {
               <button
                 type="button"
                 onClick={() => {
-                  // Governed return to previous context
                   setActiveModal("setup");
                 }}
                 className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-[5px] transition-colors cursor-pointer"
@@ -1655,62 +2353,217 @@ export default function CardioConnectHome() {
           </div>
         </div>
       )}
-
       {/* ══════════════════════════════════════════════════════════════
-          MODAL 11: CC-13 AQI CONTEXT DETAIL
+          MODAL 11: CC-13 AQI CONTEXT DETAIL (Full Screen Mobile + Real Database AQI)
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "aqi" && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white rounded-t-[8px] sm:rounded-[5px] w-full sm:max-w-md p-5 sm:p-6 shadow-2xl border-0 sm:border border-slate-200 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 max-h-[95svh] overflow-y-auto">
+        <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-md rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150">
             
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            {/* Sticky Header */}
+            <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <div>
                 <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
-                  CC-13 Environmental Context
+                  Environmental Telemetry
                 </span>
-                <h2 className="text-lg font-bold text-slate-900 mt-1">Air Quality (AQI)</h2>
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">Air Quality (AQI) & Weather</h2>
               </div>
               <button
+                type="button"
                 onClick={() => setActiveModal(null)}
-                className="p-1.5 text-slate-800 hover:text-slate-950 rounded-[5px]"
+                className="p-1.5 text-slate-600 hover:text-slate-900 rounded-[5px] hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Close modal"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-[5px] text-center">
-              <span className="text-[11px] text-slate-600 block">Current Air Quality Index</span>
-              <div className="text-4xl font-black text-slate-900 font-mono my-1">
-                {aqiDetailData?.aqi_value || 85}
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4 text-xs">
+              
+              {/* Active Location & Switcher Header */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-[5px] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-[#0067A1]" />
+                    <span className="text-xs font-bold text-slate-900">{savedUserCity}</span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    {gpsStatus === 'granted' ? 'GPS Active' : 'Live Sync'}
+                  </span>
+                </div>
+
+                {/* Quick Location Action Buttons */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={requestGps}
+                    className="flex-1 py-1.5 px-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[11px] rounded-[5px] border border-sky-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Navigation className="w-3.5 h-3.5" />
+                    <span>Use Current GPS</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLocationPicker(!showLocationPicker)}
+                    className="flex-1 py-1.5 px-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-[11px] rounded-[5px] border border-slate-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>{showLocationPicker ? "Hide Cities" : "Choose City"}</span>
+                  </button>
+                </div>
+
+                {/* Collapsible City Chooser / Search */}
+                {showLocationPicker && (
+                  <div className="pt-2.5 border-t border-slate-200 space-y-2 animate-in fade-in duration-150">
+                    <form onSubmit={handleCitySearchSubmit} className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Type any city or town..."
+                        value={citySearchInput}
+                        onChange={(e) => setCitySearchInput(e.target.value)}
+                        className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-[5px] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#0067A1]/40"
+                      />
+                      <button
+                        type="submit"
+                        className="px-3 py-1.5 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold text-xs rounded-[5px] transition-colors cursor-pointer"
+                      >
+                        Search
+                      </button>
+                    </form>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                        Popular Locations:
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {POPULAR_CITIES.map((city) => (
+                          <button
+                            key={city}
+                            type="button"
+                            onClick={() => handleSelectCity(city)}
+                            className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+                              savedUserCity.toLowerCase().includes(city.toLowerCase())
+                                ? "bg-[#0067A1] text-white border-[#0067A1] font-bold"
+                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                            }`}
+                          >
+                            {city}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              <span className="inline-block px-3 py-1 rounded-[5px] text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                {aqiDetailData?.category || "Moderate"}
-              </span>
-              <p className="text-[11px] text-slate-600 mt-2">
-                {aqiDetailData?.description || "Minor breathing discomfort to sensitive individuals on prolonged exertion."}
-              </p>
+
+              {/* Real AQI Value & Category Card */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-[5px] text-center">
+                <span className="text-[11px] text-slate-600 block">Current Air Quality Index</span>
+                <div className="text-5xl font-black text-slate-900 font-mono my-2 tracking-tight">
+                  {aqiDetailData?.aqi_value || 80}
+                </div>
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-extrabold border ${
+                  (aqiDetailData?.aqi_value || 80) <= 50
+                    ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                    : (aqiDetailData?.aqi_value || 80) <= 100
+                    ? "bg-teal-100 text-teal-800 border-teal-300"
+                    : (aqiDetailData?.aqi_value || 80) <= 200
+                    ? "bg-amber-100 text-amber-800 border-amber-300"
+                    : "bg-rose-100 text-rose-800 border-rose-300"
+                }`}>
+                  {aqiDetailData?.category || "Satisfactory"}
+                </span>
+                <p className="text-xs text-slate-600 mt-2 px-2">
+                  {aqiDetailData?.description || "Minor breathing discomfort to sensitive people"}
+                </p>
+                {aqiDetailData?.dominant_pollutant && (
+                  <div className="mt-2 text-[11px] font-mono text-slate-500">
+                    Dominant Pollutant: <strong className="text-slate-800">{aqiDetailData.dominant_pollutant}</strong>
+                  </div>
+                )}
+              </div>
+
+              {/* Real Weather Telemetry Grid */}
+              {aqiDetailData?.weather && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-[5px]">
+                  <h4 className="text-[11px] font-bold text-slate-700 uppercase mb-2 flex items-center gap-1.5">
+                    <CloudSun className="w-3.5 h-3.5 text-sky-600" />
+                    <span>Live Weather Telemetry</span>
+                  </h4>
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="p-2 bg-white rounded-[5px] border border-slate-200">
+                      <span className="text-[10px] text-slate-500 block">Temp</span>
+                      <strong className="text-slate-900 font-mono text-sm">
+                        {aqiDetailData.weather.temp_c !== undefined ? `${aqiDetailData.weather.temp_c}°C` : "--"}
+                      </strong>
+                      <span className="text-[9px] text-slate-400 block truncate">
+                        {aqiDetailData.weather.condition || "Clear"}
+                      </span>
+                    </div>
+                    <div className="p-2 bg-white rounded-[5px] border border-slate-200">
+                      <span className="text-[10px] text-slate-500 block">Humidity</span>
+                      <strong className="text-slate-900 font-mono text-sm">
+                        {aqiDetailData.weather.humidity_pct !== undefined ? `${aqiDetailData.weather.humidity_pct}%` : "--"}
+                      </strong>
+                      <span className="text-[9px] text-slate-400 block">Relative</span>
+                    </div>
+                    <div className="p-2 bg-white rounded-[5px] border border-slate-200">
+                      <span className="text-[10px] text-slate-500 block">Wind</span>
+                      <strong className="text-slate-900 font-mono text-sm">
+                        {aqiDetailData.weather.wind_kmh !== undefined ? `${aqiDetailData.weather.wind_kmh} km/h` : "--"}
+                      </strong>
+                      <span className="text-[9px] text-slate-400 block">Surface</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Telemetry Authenticity & PostgreSQL Storage Info */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-[5px] text-xs space-y-1.5">
+                <div className="flex justify-between text-slate-700">
+                  <span>Location:</span>
+                  <strong className="text-slate-900">{aqiDetailData?.location || savedUserCity}</strong>
+                </div>
+                <div className="flex justify-between text-slate-700">
+                  <span>Data Source:</span>
+                  <strong className="text-slate-900">{aqiDetailData?.source || "CPCB Telemetry / Open-Meteo Air Quality"}</strong>
+                </div>
+                <div className="flex justify-between text-slate-700 items-center">
+                  <span>Telemetry Feed:</span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[5px] border border-emerald-200">
+                    <Shield className="w-3 h-3" />
+                    <span>Live Verified Station</span>
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-700">
+                  <span>Last Updated:</span>
+                  <span className="text-slate-500 font-mono text-[10px]">
+                    {aqiDetailData?.timestamp ? new Date(aqiDetailData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Refresh button */}
+              <button
+                type="button"
+                onClick={() => fetchAqiData(savedUserCity, null, null, true)}
+                disabled={isAqiLoading}
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs rounded-[5px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-200"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isAqiLoading ? "animate-spin" : ""}`} />
+                <span>{isAqiLoading ? "Fetching Live Telemetry..." : "Refresh Live Telemetry"}</span>
+              </button>
+
+              {/* Environmental Guidance Note */}
+              <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] text-left text-[11px] text-blue-900 leading-relaxed">
+                <strong>Environmental Guidance:</strong> Air quality readings provide outdoor atmospheric context to help pace your exercise comfortably. It is a wellness reference and does not restrict your training.
+              </div>
             </div>
 
-            <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-[5px] text-xs space-y-1.5">
-              <div className="flex justify-between text-slate-700">
-                <span>Location:</span>
-                <strong className="text-slate-900">{aqiDetailData?.location || "Delhi / NCR, India"}</strong>
-              </div>
-              <div className="flex justify-between text-slate-700">
-                <span>Source:</span>
-                <strong className="text-slate-900">{aqiDetailData?.source || "CPCB Telemetry"}</strong>
-              </div>
-              <div className="flex justify-between text-slate-700">
-                <span>Status:</span>
-                <strong className="text-emerald-700 font-semibold">Fresh • Verified</strong>
-              </div>
-            </div>
-
-            <div className="mt-3 p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] text-left text-[11px] text-blue-900 leading-relaxed">
-              <strong>Non-blocking rule:</strong> AQI provides outdoor air quality context so you can calibrate your activity intensity. It is not a cardiac risk interpretation and never restricts Heart Training.
-            </div>
-
-            <div className="mt-4">
+            {/* Sticky Footer */}
+            <div className="shrink-0 p-4 sm:p-5 border-t border-slate-100 bg-white z-30 pb-12 sm:pb-5 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}

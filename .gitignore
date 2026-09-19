@@ -62,6 +62,7 @@ artifacts/
 scratch/
 dev-helpers/
 help-development/
+client-docs-lungsconnect-cardioconnect/
 *_SPEC.md
 *_SUMMARY.md
 *_DIAGRAMS.md

@@ -14,6 +14,7 @@ import AssessmentTrendChart from '@/components/public-site/health/AssessmentTren
 import AssessmentPrintReport from '@/components/public-site/health/AssessmentPrintReport';
 import LungSnapshotModal from '@/components/public-site/health/LungSnapshotModal';
 import { generateClientPdf, printClientReport } from '@/lib/clientPdfGenerator';
+import { AnimatedRespiratoryLoader } from '@/components/public-site/health/animations';
 
 /* ─── Modern Score Ring ──────────────────────────────────────── */
 function ScoreRing({ score, color = "#ffffff", size = 110 }) {
@@ -139,13 +140,12 @@ export default function LungHealthResult() {
   /* ── Loading state ── */
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="w-12 h-12 mx-auto rounded-full bg-sky-50 border border-sky-100 flex items-center justify-center text-[#0067A1]">
-            <FaLungs className="w-6 h-6 animate-pulse" />
-          </div>
-          <div className="w-6 h-6 border-2 border-slate-200 border-t-[#0067A1] rounded-full animate-spin mx-auto" />
-          <p className="text-xs text-slate-500 font-medium">Loading your respiratory summary…</p>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-[5px] border border-slate-200 shadow-sm max-w-md w-full overflow-hidden">
+          <AnimatedRespiratoryLoader
+            title="Loading your respiratory summary…"
+            subtitle="Analyzing breath-hold metrics & lung capacity indicators"
+          />
         </div>
       </div>
     );

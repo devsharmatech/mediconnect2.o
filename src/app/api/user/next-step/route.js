@@ -51,13 +51,13 @@ export async function GET(req) {
                 .eq("patient_id", user_id)
                 .gte("created_at", episode.created_at),
             supabase.from("lab_test_orders").select("id, status").eq("care_episode_id", care_episode_id),
-            supabase.from("appointments").select("id, payment_status, amount").eq("care_episode_id", care_episode_id)
+            supabase.from("appointments").select("id, payment_status, status").eq("care_episode_id", care_episode_id)
         ]);
 
         const latestConsultation = consultations?.[0];
         if (latestConsultation && appointments) {
             const appt = appointments.find(a => a.id === latestConsultation.appointment_id);
-            const isFreeOrPaid = appt && (Number(appt.amount || 0) === 0 || ["paid", "completed", "free"].includes(String(appt.payment_status || "").toLowerCase()));
+            const isFreeOrPaid = appt && ["paid", "completed", "free"].includes(String(appt.payment_status || "").toLowerCase());
             latestConsultation.payment_status = isFreeOrPaid ? "paid" : (appt ? appt.payment_status : "pending");
         }
         const latestPayment = payments?.[0];

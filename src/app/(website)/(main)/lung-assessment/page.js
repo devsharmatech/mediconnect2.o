@@ -791,7 +791,7 @@ export default function GamifiedLungAssessment() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={loading}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-medium rounded-md shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-[#0067A1] hover:bg-[#005584] text-white text-xs sm:text-sm font-medium rounded-md shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
                   <><FaSync className="w-3 h-3 animate-spin" /> Calculating...</>

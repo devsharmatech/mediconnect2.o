@@ -1,4 +1,9 @@
+@import "./poppins.css";
 @import "tailwindcss";
+
+:root {
+  --font-poppins: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
 
 /* Apply Poppins everywhere across the website and dashboard with crisp antialiasing */
 html,
@@ -7,6 +12,7 @@ body,
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
 }
 
 *,
