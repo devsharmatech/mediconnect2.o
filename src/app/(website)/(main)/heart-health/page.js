@@ -55,12 +55,14 @@ export default function GamifiedHeartHealthAssessment() {
     }
   }, [currentStep]);
 
-  // Canonical Age Derivation from Authoritative DOB (SP-07 P0-02)
+  // Auto-fill Age & Gender from Profile (SP-07 P0-02)
   useEffect(() => {
     try {
       const stored = localStorage.getItem('userData');
       if (stored) {
         const u = JSON.parse(stored);
+
+        // ── Age from DOB ──
         const dobStr = u.user?.details?.date_of_birth || u.details?.date_of_birth || u.date_of_birth;
         if (dobStr) {
           const dob = new Date(dobStr);
@@ -71,14 +73,57 @@ export default function GamifiedHeartHealthAssessment() {
             if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
               calculatedAge--;
             }
-            if (calculatedAge > 0) {
-              setFormData(prev => ({ ...prev, age: calculatedAge }));
+            // Clamp to slider range (18–100)
+            const clampedAge = Math.max(18, Math.min(100, calculatedAge));
+            if (clampedAge > 0) {
+              setFormData(prev => ({ ...prev, age: clampedAge }));
             }
           }
         }
+
+        // ── Gender from profile ──
+        const profileGender =
+          u.details?.gender ||
+          u.profile?.gender ||
+          u.user?.details?.gender ||
+          u.user?.profile?.gender ||
+          u.gender ||
+          u.user?.gender;
+        if (profileGender) {
+          const normalized = String(profileGender).toLowerCase().trim();
+          if (normalized.startsWith('f') || normalized === 'female') {
+            setFormData(prev => ({ ...prev, gender: 'female' }));
+          } else if (normalized.startsWith('m') || normalized === 'male') {
+            setFormData(prev => ({ ...prev, gender: 'male' }));
+          }
+        }
+      }
+
+      const userId = localStorage.getItem('userId');
+      if (userId) {
+        fetch(`/api/patient/profile?id=${userId}`)
+          .then(r => r.json())
+          .then(res => {
+            if (res.success && res.data) {
+              const fresh = res.data;
+              const g =
+                fresh.gender ||
+                fresh.details?.gender ||
+                fresh.profile?.gender;
+              if (g) {
+                const lower = String(g).toLowerCase().trim();
+                if (lower.startsWith('f') || lower === 'female') {
+                  setFormData(prev => ({ ...prev, gender: 'female' }));
+                } else if (lower.startsWith('m') || lower === 'male') {
+                  setFormData(prev => ({ ...prev, gender: 'male' }));
+                }
+              }
+            }
+          })
+          .catch(err => console.warn("Failed background profile fetch in heart-health:", err));
       }
     } catch (e) {
-      console.warn("Could not load DOB:", e);
+      console.warn("Could not load profile data:", e);
     }
   }, []);
 
@@ -197,31 +242,33 @@ export default function GamifiedHeartHealthAssessment() {
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left p-2 sm:p-2.5 rounded-md border transition-all flex items-center justify-between gap-1.5 cursor-pointer select-none ${
+      className={`w-full text-left p-2.5 sm:p-3.5 rounded-xl border-2 transition-all flex items-center justify-between gap-2.5 sm:gap-3 cursor-pointer select-none group ${
         active
-          ? 'border-[#0067A1] bg-sky-50 text-[#0067A1] shadow-2xs ring-1 ring-[#0067A1]/20'
-          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+          ? 'border-[#0067A1] bg-sky-50/70 text-[#0067A1] shadow-2xs'
+          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/80 shadow-2xs'
       }`}
     >
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md flex items-center justify-center shrink-0 transition-all ${
-          active ? 'bg-[#0067A1] text-white shadow-2xs' : 'bg-slate-100 text-slate-500'
+      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+        <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0 transition-all ${
+          active ? 'bg-[#0067A1] text-white shadow-2xs' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80'
         }`}>
           {icon}
         </div>
         <div className="min-w-0 flex-1">
-          <p className={`text-xs sm:text-sm font-semibold leading-tight truncate ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>
+          <p className={`text-xs sm:text-sm font-bold leading-snug ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>
             {title}
           </p>
           {subtitle && (
-            <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 leading-tight font-normal truncate">
+            <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 leading-normal font-normal">
               {subtitle}
             </p>
           )}
         </div>
       </div>
       {active && (
-        <FaCheck className="w-2.5 h-2.5 text-[#0067A1] shrink-0 ml-1" />
+        <div className="w-5 h-5 rounded-full bg-[#0067A1] flex items-center justify-center shrink-0 shadow-2xs">
+          <FaCheck className="w-2.5 h-2.5 text-white" />
+        </div>
       )}
     </button>
   );
@@ -229,18 +276,18 @@ export default function GamifiedHeartHealthAssessment() {
   const ToggleCard = ({ active, onClick, title, subtitle }) => (
     <div
       onClick={onClick}
-      className={`p-2.5 sm:p-3 rounded-md border cursor-pointer transition-all flex items-center justify-between gap-3 ${
-        active ? 'border-[#0067A1] bg-sky-50' : 'border-slate-200 bg-white hover:border-slate-300'
+      className={`p-3 sm:p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between gap-3 shadow-2xs ${
+        active ? 'border-[#0067A1] bg-sky-50/70' : 'border-slate-200 bg-white hover:border-slate-300'
       }`}
     >
       <div className="flex-1 min-w-0">
-        <p className={`text-xs sm:text-sm font-semibold ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>{title}</p>
-        {subtitle && <p className="text-[11px] text-slate-400 mt-0.5 font-normal leading-tight">{subtitle}</p>}
+        <p className={`text-xs sm:text-sm font-bold leading-snug ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>{title}</p>
+        {subtitle && <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 font-normal leading-normal">{subtitle}</p>}
       </div>
-      <div className={`w-10 h-5 rounded-full p-0.5 transition-colors shrink-0 ${active ? 'bg-[#0067A1]' : 'bg-slate-200'}`}>
+      <div className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 ${active ? 'bg-[#0067A1]' : 'bg-slate-200'}`}>
         <motion.div
           layout
-          className="w-4 h-4 bg-white rounded-full shadow-xs"
+          className="w-5 h-5 bg-white rounded-full shadow-xs"
           animate={{ x: active ? 20 : 0 }}
           transition={{ type: "spring", stiffness: 500, damping: 30 }}
         />
@@ -249,55 +296,55 @@ export default function GamifiedHeartHealthAssessment() {
   );
 
   const stepLabels = [
-    { num: 1, name: "Profile" },
-    { num: 2, name: "Vitals" },
-    { num: 3, name: "Lipids" },
-    { num: 4, name: "Lifestyle" },
-    { num: 5, name: "History" }
+    { num: 1, name: "Profile", shortName: "Profile", title: "Demographic Profile", desc: "Physical measurements and biological factors." },
+    { num: 2, name: "Vitals", shortName: "Vitals", title: "Vital Signs & Blood Pressure", desc: "Recorded blood pressure and resting heart rate." },
+    { num: 3, name: "Lipids", shortName: "Lipids", title: "Lipid Profile Markers", desc: "Optional blood lipid measurements from lab reports." },
+    { num: 4, name: "Lifestyle", shortName: "Lifestyle", title: "Blood Sugar & Lifestyle Habits", desc: "Fasting glucose, physical activity, and smoking status." },
+    { num: 5, name: "History", shortName: "History", title: "Cardiac History & Symptoms", desc: "Relevant personal and family medical history indicators." }
   ];
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-sky-50/60 via-white to-slate-50/80 pt-2 pb-12 px-3 sm:px-4 font-sans">
-      <div className="max-w-2xl mx-auto space-y-2.5 sm:space-y-3">
+    <div className="min-h-screen bg-slate-50/70 pt-3 sm:pt-6 pb-48 sm:pb-28 px-3 sm:px-6 font-sans">
+      <div className="max-w-2xl sm:max-w-3xl mx-auto space-y-3 sm:space-y-4">
 
-        {/* ── Page Header (Identical to LungConnect) ── */}
+        {/* ── Page Header (Original Blue Gradient Header Restored & Responsive) ── */}
         <motion.div
-          initial={{ opacity: 0, y: -8 }}
+          initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden rounded-lg bg-gradient-to-r from-[#003358] via-[#0067A1] to-[#0284c7] p-3.5 sm:p-4 text-white shadow-sm border border-[#005584]"
+          className="relative overflow-hidden rounded-xl bg-gradient-to-r from-[#003358] via-[#0067A1] to-[#0284c7] p-3.5 sm:p-5 text-white shadow-sm border border-[#005584]"
         >
           <div className="absolute inset-0 opacity-[0.06] pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)', backgroundSize: '12px 12px' }} />
-          <div className="relative flex items-center gap-3">
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-md bg-white/15 border border-white/25 flex items-center justify-center shrink-0">
+          <div className="relative flex items-center gap-3 sm:gap-3.5">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-white/15 border border-white/25 flex items-center justify-center shrink-0 shadow-sm">
               <FaHeart className="w-5 h-5 sm:w-6 sm:h-6 text-white drop-shadow-xs" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <h1 className="text-sm sm:text-base font-semibold tracking-tight text-white leading-snug truncate">
+              <div className="flex items-start sm:items-center justify-between gap-2">
+                <h1 className="text-xs sm:text-base md:text-lg font-bold tracking-tight text-white leading-snug">
                   Cardiovascular Wellness Screening
                 </h1>
-                <span className="text-[11px] font-medium bg-white/20 border border-white/30 px-2 py-0.5 rounded shrink-0">
+                <span className="text-[10px] sm:text-xs font-semibold bg-white/20 border border-white/30 px-2 sm:px-2.5 py-0.5 rounded-full shrink-0">
                   Step {currentStep}/{totalSteps}
                 </span>
               </div>
-              <p className="text-sky-100 text-[11px] sm:text-xs mt-0.5 font-normal">
+              <p className="text-sky-100 text-[10px] sm:text-sm mt-0.5 font-normal leading-normal">
                 Standardized non-diagnostic cardiovascular telemetry
               </p>
-              <div className="mt-2 flex gap-1">
+              <div className="mt-2 sm:mt-2.5 flex gap-1 sm:gap-1.5">
                 {Array.from({ length: totalSteps }).map((_, i) => (
-                  <div key={i} className={`h-1 rounded-sm transition-all ${i < currentStep ? 'bg-white w-5' : 'bg-white/30 w-3'}`} />
+                  <div key={i} className={`h-1.5 rounded-full transition-all ${i < currentStep ? 'bg-white w-4 sm:w-6' : 'bg-white/30 w-2 sm:w-3'}`} />
                 ))}
               </div>
             </div>
           </div>
         </motion.div>
 
-        {/* ── Safety Notice (Identical to LungConnect) ── */}
+        {/* ── Safety Notice ── */}
         <motion.div
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="bg-amber-50/90 border border-amber-200 rounded-md p-2.5 flex items-start gap-2 text-[11px] text-amber-900 leading-relaxed"
+          className="bg-amber-50/90 border border-amber-200/90 rounded-lg p-2.5 sm:p-3 flex items-start gap-2 sm:gap-2.5 text-[11px] sm:text-xs text-amber-900 leading-relaxed shadow-2xs"
         >
           <FaExclamationTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
           <p>
@@ -306,92 +353,86 @@ export default function GamifiedHeartHealthAssessment() {
           </p>
         </motion.div>
 
-        {/* ── Step Progress Indicator (Identical to LungConnect) ── */}
+        {/* ── Step Progress Indicator (Connected Circular Stepper) ── */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.1 }}
-          className="bg-white rounded-lg border border-slate-200 p-2 sm:p-2.5 shadow-2xs"
+          className="bg-white rounded-xl border border-slate-200 p-2.5 sm:p-4 shadow-2xs"
         >
-          <div className="relative h-1 bg-slate-100 rounded-full mb-2 overflow-hidden">
-            <motion.div
-              className="absolute left-0 top-0 h-full bg-[#0067A1]"
-              animate={{ width: `${((currentStep - 1) / (totalSteps - 1)) * 100}%` }}
-              transition={{ duration: 0.35, ease: "easeInOut" }}
-            />
-          </div>
-          <div className="grid grid-cols-5 gap-1">
-            {stepLabels.map((s) => {
-              const isDone = currentStep > s.num;
-              const isCurrent = currentStep === s.num;
-              return (
-                <div
-                  key={s.num}
-                  onClick={() => s.num < currentStep && setCurrentStep(s.num)}
-                  className={`flex flex-col items-center gap-1 ${
-                    s.num < currentStep ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''
-                  }`}
-                >
-                  <div
-                    className={`w-6 h-6 sm:w-7 sm:h-7 rounded flex items-center justify-center text-[10px] sm:text-xs border transition-all font-medium ${
+          <div className="relative">
+            {/* Progress track */}
+            <div className="absolute left-[10%] right-[10%] top-3.5 sm:top-4 h-0.5 bg-slate-100 rounded-full overflow-hidden pointer-events-none -z-0">
+              <div
+                className="h-full bg-[#0067A1] transition-all duration-300 rounded-full"
+                style={{ width: `${((currentStep - 1) / (totalSteps - 1)) * 100}%` }}
+              />
+            </div>
+            <div className="grid grid-cols-5 gap-0.5 sm:gap-1 relative z-10">
+              {stepLabels.map((s) => {
+                const isDone = currentStep > s.num;
+                const isCurrent = currentStep === s.num;
+                return (
+                  <button
+                    key={s.num}
+                    type="button"
+                    onClick={() => s.num < currentStep && setCurrentStep(s.num)}
+                    disabled={s.num > currentStep}
+                    className={`flex flex-col items-center gap-1 sm:gap-1.5 transition-all group ${
+                      s.num < currentStep ? 'cursor-pointer' : 'cursor-default'
+                    }`}
+                  >
+                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs transition-all ${
                       isDone
-                        ? 'bg-[#0067A1] border-[#0067A1] text-white'
+                        ? 'bg-[#0067A1] text-white shadow-2xs font-semibold'
                         : isCurrent
-                        ? 'bg-sky-50 border-[#0067A1] text-[#0067A1] font-semibold ring-2 ring-[#0067A1]/20'
-                        : 'bg-white border-slate-200 text-slate-400'
-                    }`}
-                  >
-                    {isDone ? <FaCheck className="w-2.5 h-2.5" /> : <span>{s.num}</span>}
-                  </div>
-                  <p
-                    className={`text-[10px] sm:text-[11px] text-center leading-tight truncate w-full ${
-                      isCurrent
-                        ? 'text-[#0067A1] font-semibold'
-                        : isDone
-                        ? 'text-slate-600 font-medium'
-                        : 'text-slate-400 font-normal'
-                    }`}
-                  >
-                    {s.name}
-                  </p>
-                </div>
-              );
-            })}
+                        ? 'bg-sky-50 border-2 border-[#0067A1] text-[#0067A1] font-bold ring-2 sm:ring-4 ring-[#0067A1]/15 shadow-xs'
+                        : 'bg-white border-2 border-slate-200 text-slate-400 font-medium group-hover:border-slate-300'
+                    }`}>
+                      {isDone ? <FaCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" /> : <span>{s.num}</span>}
+                    </div>
+                    <p className={`text-[10px] sm:text-xs text-center font-medium leading-tight truncate max-w-full px-0.5 ${
+                      isCurrent ? 'text-[#0067A1] font-bold' : isDone ? 'text-slate-700' : 'text-slate-400'
+                    }`}>
+                      <span className="hidden sm:inline">{s.name}</span>
+                      <span className="sm:hidden">{s.shortName || s.name}</span>
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </motion.div>
 
-        {/* ── Form Card (Identical to LungConnect) ── */}
+        {/* ── Form Card ── */}
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="bg-white rounded-lg border border-slate-200 shadow-2xs overflow-hidden"
+          className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden"
         >
           {/* Step header */}
-          <div className="px-3.5 py-2.5 border-b border-slate-200 bg-slate-50/70 flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded bg-[#0067A1] text-white flex items-center justify-center shrink-0">
-              <span className="text-xs font-semibold">{currentStep}</span>
+          <div className="px-3.5 sm:px-5 py-3 sm:py-3.5 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between gap-2.5 sm:gap-3">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#0067A1] text-white flex items-center justify-center shrink-0 font-bold text-xs shadow-xs">
+                {currentStep}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-xs sm:text-base font-bold text-slate-900 leading-tight">
+                  {stepLabels[currentStep - 1]?.title}
+                </h2>
+                <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 leading-snug">
+                  {stepLabels[currentStep - 1]?.desc}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-xs sm:text-sm font-semibold text-slate-800 leading-tight">
-                {currentStep === 1 && "Demographic Profile"}
-                {currentStep === 2 && "Vital Signs & Blood Pressure"}
-                {currentStep === 3 && "Lipid Profile Markers"}
-                {currentStep === 4 && "Blood Sugar & Lifestyle Habits"}
-                {currentStep === 5 && "Cardiac History & Symptoms"}
-              </h2>
-              <p className="text-[11px] text-slate-400 mt-0.5 truncate font-normal">
-                {currentStep === 1 && "Physical measurements and biological factors."}
-                {currentStep === 2 && "Recorded blood pressure and resting heart rate."}
-                {currentStep === 3 && "Optional blood lipid measurements from lab reports."}
-                {currentStep === 4 && "Fasting glucose, physical activity, and smoking status."}
-                {currentStep === 5 && "Relevant personal and family medical history indicators."}
-              </p>
-            </div>
+            <span className="text-[10px] sm:text-xs font-medium text-slate-500 bg-slate-100 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md shrink-0">
+              Step {currentStep}/{totalSteps}
+            </span>
           </div>
 
           {/* Step content */}
-          <div className="p-3 sm:p-4">
+          <div className="p-3.5 sm:p-6">
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentStep}
@@ -431,7 +472,7 @@ export default function GamifiedHeartHealthAssessment() {
                       min={18}
                       max={100}
                       unit="yrs"
-                      subtitle="Derived from your profile date of birth"
+                      subtitle="Pre-filled from your profile — adjust if needed"
                     />
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -548,12 +589,12 @@ export default function GamifiedHeartHealthAssessment() {
             </AnimatePresence>
           </div>
 
-          {/* Step footer (Identical to LungConnect) */}
-          <div className="px-3.5 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
+          {/* ── Navigation Footer ── */}
+          <div className="px-3.5 sm:px-6 py-3 sm:py-4 bg-slate-50/90 border-t border-slate-200 flex items-center justify-between gap-3">
             <button
               type="button"
               onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
-              className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-md hover:bg-slate-200 transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200/70 transition-all cursor-pointer ${
                 currentStep === 1 ? 'opacity-0 pointer-events-none' : ''
               }`}
             >
@@ -564,7 +605,7 @@ export default function GamifiedHeartHealthAssessment() {
               <button
                 type="button"
                 onClick={() => setCurrentStep(prev => Math.min(totalSteps, prev + 1))}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-[#0067A1] hover:bg-[#005584] text-white text-xs sm:text-sm font-medium rounded-md shadow-2xs transition-all cursor-pointer"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#0067A1] hover:bg-[#005584] text-white text-xs sm:text-sm font-semibold rounded-lg shadow-xs transition-all cursor-pointer"
               >
                 Next Step <FaArrowRight className="w-3 h-3" />
               </button>
@@ -573,12 +614,12 @@ export default function GamifiedHeartHealthAssessment() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={loading}
-                className="flex items-center gap-1.5 px-4 py-1.5 bg-[#0067A1] hover:bg-[#005584] text-white text-xs sm:text-sm font-medium rounded-md shadow-2xs transition-all disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-2 px-5 py-2.5 bg-[#0067A1] hover:bg-[#005584] text-white text-xs sm:text-sm font-semibold rounded-lg shadow-xs transition-all disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
-                  <><FaSync className="w-3 h-3 animate-spin" /> Calculating...</>
+                  <><FaSync className="w-3.5 h-3.5 animate-spin" /> Calculating...</>
                 ) : (
-                  <><FaHeart className="w-3 h-3" /> Calculate Screening</>
+                  <><FaHeart className="w-3.5 h-3.5" /> Calculate Screening</>
                 )}
               </button>
             )}

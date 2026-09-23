@@ -56,6 +56,9 @@ const ProfileDropdown = ({ user, userRole, onLogout }) => {
   const getDisplayName = () => {
     return (
       user?.details?.full_name ||
+      user?.profile?.full_name ||
+      user?.user?.details?.full_name ||
+      user?.user?.full_name ||
       user?.full_name ||
       user?.name ||
       "User"
@@ -63,8 +66,37 @@ const ProfileDropdown = ({ user, userRole, onLogout }) => {
   };
 
   const getDisplayEmail = () => {
-    return user?.details?.email || user?.email || "user@example.com";
+    return (
+      user?.details?.email ||
+      user?.profile?.email ||
+      user?.user?.details?.email ||
+      user?.user?.email ||
+      user?.email ||
+      "user@example.com"
+    );
   };
+
+  const getAvatarUrl = () => {
+    return (
+      user?.profile_picture ||
+      user?.avatar ||
+      user?.image ||
+      user?.details?.profile_picture ||
+      user?.details?.avatar ||
+      user?.user?.profile_picture ||
+      user?.user?.avatar ||
+      user?.profile?.profile_picture ||
+      user?.profile?.avatar ||
+      null
+    );
+  };
+
+  const avatarUrl = getAvatarUrl();
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [avatarUrl]);
 
   const isDoctor = userRole === "doctor";
 
@@ -78,12 +110,13 @@ const ProfileDropdown = ({ user, userRole, onLogout }) => {
         aria-haspopup="true"
       >
         {/* Avatar */}
-        <div className="w-10 h-10 rounded-full bg-[#0067A1] flex items-center justify-center text-white font-semibold shadow-sm">
-          {user?.avatar ? (
+        <div className="w-10 h-10 rounded-full bg-[#0067A1] flex items-center justify-center text-white font-semibold shadow-sm overflow-hidden">
+          {avatarUrl && !imageError ? (
             <img
-              src={user.avatar}
+              src={avatarUrl}
               alt={getDisplayName()}
               className="w-full h-full rounded-full object-cover"
+              onError={() => setImageError(true)}
             />
           ) : (
             <span className="text-sm">{getInitials(getDisplayName())}</span>
@@ -109,12 +142,13 @@ const ProfileDropdown = ({ user, userRole, onLogout }) => {
         {/* User Info Section */}
         <div className="px-4 py-3 bg-[#F6F8FA] border-b border-gray-100">
           <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 rounded-full bg-[#0067A1] flex items-center justify-center text-white font-semibold shadow-sm">
-              {user?.avatar ? (
+            <div className="w-12 h-12 rounded-full bg-[#0067A1] flex items-center justify-center text-white font-semibold shadow-sm overflow-hidden">
+              {avatarUrl && !imageError ? (
                 <img
-                  src={user.avatar}
+                  src={avatarUrl}
                   alt={getDisplayName()}
                   className="w-full h-full rounded-full object-cover"
+                  onError={() => setImageError(true)}
                 />
               ) : (
                 <span>{getInitials(getDisplayName())}</span>

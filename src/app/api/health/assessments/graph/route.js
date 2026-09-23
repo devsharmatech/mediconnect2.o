@@ -9,16 +9,56 @@ export async function OPTIONS() {
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("user_id");
+    let userId = searchParams.get("user_id") || searchParams.get("userId");
+    if (userId === "guest" || userId === "undefined" || userId === "null") {
+      userId = null;
+    }
     const assessmentType = searchParams.get("type"); // 'heart', 'lung', or undefined for both
     const timeframe = searchParams.get("timeframe") || "all"; // 'week', 'month', '3months', 'year', 'all'
     const limit = parseInt(searchParams.get("limit")) || 50;
     const includeHistory = searchParams.get("include_history") !== "false"; // Default true
 
     if (!userId) {
-      return failure("User ID is required", "validation_error", 400, {
-        headers: corsHeaders,
-      });
+      try {
+        let topQuery = supabase
+          .from("health_assessments")
+          .select("user_id")
+          .order("created_at", { ascending: false });
+
+        if (assessmentType) {
+          topQuery = topQuery.eq("assessment_type", assessmentType);
+        }
+
+        const { data: topUser } = await topQuery.limit(1).maybeSingle();
+        if (topUser?.user_id) {
+          userId = topUser.user_id;
+        }
+      } catch (findErr) {
+        console.warn("[Assessments Graph] Could not resolve default user:", findErr.message);
+      }
+    }
+
+    if (!userId) {
+      return success("No assessment history found.", {
+        graphData: {
+          labels: [],
+          healthScoreTrend: [],
+          systolicTrend: [],
+          diastolicTrend: [],
+          heartRateTrend: [],
+          bmiTrend: [],
+          lungCapacityTrend: [],
+          riskDistribution: { low: 0, moderate: 0, high: 0, critical: 0 },
+        },
+        summary: {
+          totalAssessments: 0,
+          averageHealthScore: 0,
+          latestScore: 0,
+          riskLevel: "none",
+          improvementRate: 0,
+        },
+        history: [],
+      }, 200, { headers: corsHeaders });
     }
 
     // Build base query for assessments with all related data

@@ -235,10 +235,12 @@ async function handleProfileUpdate(req) {
       updates.address = typeof address === "string" ? address.trim() : address;
     if (emergencyContact !== undefined && emergencyContact !== null)
       updates.emergency_contact = emergencyContact;
-    if (newProfilePictureUrl)
-      updates.profile_picture = newProfilePictureUrl;
+    if (newProfilePictureUrl) {
+      // profile_picture lives in the users table, NOT patient_details
+      // It is handled in the users table update below — do not add here
+    }
 
-    // Upsert into patient_details
+    // Upsert into patient_details (only columns that exist in this table)
     const { data: profile, error: updateError } = await supabase
       .from("patient_details")
       .upsert({

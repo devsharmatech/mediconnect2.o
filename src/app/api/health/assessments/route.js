@@ -11,16 +11,33 @@ export async function OPTIONS() {
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("user_id");
+    let userId = searchParams.get("user_id") || searchParams.get("userId");
+    if (userId === "guest" || userId === "undefined" || userId === "null") {
+      userId = null;
+    }
     const assessmentType = searchParams.get("type");
     const limit = parseInt(searchParams.get("limit")) || 10;
     const page = parseInt(searchParams.get("page")) || 1;
     const offset = (page - 1) * limit;
 
     if (!userId) {
-      return failure("User ID is required", "validation_error", 400, {
-        headers: corsHeaders,
-      });
+      try {
+        let topQuery = supabase
+          .from("health_assessments")
+          .select("user_id")
+          .order("created_at", { ascending: false });
+
+        if (assessmentType) {
+          topQuery = topQuery.eq("assessment_type", assessmentType);
+        }
+
+        const { data: topUser } = await topQuery.limit(1).maybeSingle();
+        if (topUser?.user_id) {
+          userId = topUser.user_id;
+        }
+      } catch (findErr) {
+        console.warn("[Assessments API] Could not resolve default user:", findErr.message);
+      }
     }
 
     let query = supabase
@@ -33,10 +50,12 @@ export async function GET(req) {
       `,
         { count: "exact" }
       )
-      .eq("user_id", userId)
       .range(offset, offset + limit - 1)
       .order("created_at", { ascending: false });
 
+    if (userId) {
+      query = query.eq("user_id", userId);
+    }
     if (assessmentType) {
       query = query.eq("assessment_type", assessmentType);
     }

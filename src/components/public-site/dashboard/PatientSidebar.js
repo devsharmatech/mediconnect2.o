@@ -80,11 +80,36 @@ export default function PatientSidebar({
   const getDisplayName = () => {
     return (
       user?.details?.full_name ||
+      user?.profile?.full_name ||
+      user?.user?.details?.full_name ||
+      user?.user?.full_name ||
       user?.full_name ||
       user?.name ||
       "User"
     );
   };
+
+  const getAvatarUrl = () => {
+    return (
+      user?.profile_picture ||
+      user?.avatar ||
+      user?.image ||
+      user?.details?.profile_picture ||
+      user?.details?.avatar ||
+      user?.user?.profile_picture ||
+      user?.user?.avatar ||
+      user?.profile?.profile_picture ||
+      user?.profile?.avatar ||
+      null
+    );
+  };
+
+  const avatarUrl = getAvatarUrl();
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [avatarUrl]);
 
   const menuItems = [
     {
@@ -511,12 +536,13 @@ export default function PatientSidebar({
         <div className="p-4 shrink-0 border-t border-white/10 bg-black/10">
           {!isCollapsed && (
             <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-[5px] border border-white/10 mb-3 overflow-hidden">
-              <div className="w-10 h-10 shrink-0 rounded-[5px] bg-gradient-to-tr from-emerald-400 to-teal-400 flex items-center justify-center text-[#003358] font-bold text-sm shadow-md">
-                {user?.avatar ? (
+              <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-400 flex items-center justify-center text-[#003358] font-bold text-sm shadow-md overflow-hidden">
+                {avatarUrl && !imageError ? (
                   <img
-                    src={user.avatar}
+                    src={avatarUrl}
                     alt={getDisplayName()}
-                    className="w-full h-full rounded-[5px] object-cover"
+                    className="w-full h-full rounded-full object-cover"
+                    onError={() => setImageError(true)}
                   />
                 ) : (
                   <span>
@@ -525,7 +551,7 @@ export default function PatientSidebar({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">
+                <p className="text-sm font-medium text-white truncate">
                   {getDisplayName()}
                 </p>
                 <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">

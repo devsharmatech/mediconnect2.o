@@ -44,9 +44,77 @@ const PatientDashboardLayout = ({ children }) => {
     }
     setLoading(false);
 
+    // Fetch fresh user profile in background to ensure latest profile_picture & details are synced
+    if (userId) {
+      fetch(`/api/patient/profile?id=${userId}`)
+        .then((res) => res.json())
+        .then((res) => {
+          if (res.success && res.data) {
+            const freshUser = res.data;
+            setUser((prev) => ({
+              ...prev,
+              ...freshUser,
+              profile_picture:
+                freshUser.profile_picture ||
+                freshUser.profile?.profile_picture ||
+                freshUser.user?.profile_picture ||
+                prev?.profile_picture,
+            }));
+            try {
+              const current = JSON.parse(localStorage.getItem("userData") || "{}");
+              localStorage.setItem(
+                "userData",
+                JSON.stringify({
+                  ...current,
+                  ...freshUser,
+                  profile_picture:
+                    freshUser.profile_picture ||
+                    freshUser.profile?.profile_picture ||
+                    freshUser.user?.profile_picture ||
+                    current.profile_picture,
+                })
+              );
+            } catch (e) {}
+          }
+        })
+        .catch((err) => console.warn("Background profile fetch:", err));
+    }
+
     // Register FCM device token + foreground listener
     initNotifications(userId);
   }, [router]);
+
+  // Listen for user profile updates from EditProfileModal or ProfilePage
+  useEffect(() => {
+    const handleProfileUpdate = (e) => {
+      if (e?.detail) {
+        setUser((prev) => ({
+          ...prev,
+          ...e.detail,
+          profile_picture:
+            e.detail.profile_picture ||
+            e.detail.profile?.profile_picture ||
+            e.detail.user?.profile_picture ||
+            prev?.profile_picture,
+        }));
+      } else {
+        const stored = localStorage.getItem("userData");
+        if (stored) {
+          try {
+            setUser(JSON.parse(stored));
+          } catch (err) {}
+        }
+      }
+    };
+
+    window.addEventListener("userProfileUpdated", handleProfileUpdate);
+    window.addEventListener("storage", handleProfileUpdate);
+
+    return () => {
+      window.removeEventListener("userProfileUpdated", handleProfileUpdate);
+      window.removeEventListener("storage", handleProfileUpdate);
+    };
+  }, []);
 
   const handleDismissDisclaimer = () => {
     localStorage.setItem("mediconnect_doctor_disclaimer_dismissed", "true");
@@ -208,6 +276,8 @@ const PatientDashboardLayout = ({ children }) => {
         {/* Page Content */}
         <main className={
           pathname?.includes("/lung-connect") || 
+          pathname?.includes("/lung-assessment") || 
+          pathname?.includes("/lung-health") || 
           pathname?.includes("/cardio-connect") || 
           pathname?.includes("/heart-health-statistics") ||
           pathname?.includes("/heart-health-result") ||

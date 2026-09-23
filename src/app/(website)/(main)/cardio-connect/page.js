@@ -9,7 +9,7 @@ import {
   X, RotateCcw, Clock, Award, Sparkles, RefreshCw,
   TrendingUp, TrendingDown, Minus, MapPin, ArrowRight,
   Calendar, WifiOff, Check, Settings, Navigation,
-  Search, CloudSun, Wind, Droplets, Database, Compass
+  Search, CloudSun, Wind, Droplets, Database, Compass, FileText
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -612,7 +612,7 @@ export default function CardioConnectHome() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-44 sm:pb-28">
       
       {/* ── CARDIOCONNECT HEADER & BRAND BANNER ── */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
+      <header className="bg-white border-b border-slate-200 sticky top-16 z-20 shadow-2xs">
         <div className="w-full max-w-5xl mx-auto px-2.5 sm:px-4 md:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="w-8 h-8 rounded-[5px] bg-sky-50 border border-sky-200 text-[#0067A1] flex items-center justify-center shrink-0">
@@ -632,6 +632,15 @@ export default function CardioConnectHome() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/heart-health-history"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-sky-50 hover:bg-sky-100 text-[#0067A1] rounded-[5px] text-xs font-bold border border-sky-200 transition-colors shadow-2xs cursor-pointer"
+              title="View History & Download Reports (F1, F2, F3, F4)"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="hidden xs:inline">Reports (F1–F4)</span>
+            </Link>
+
             <button
               type="button"
               onClick={fetchHomeData}

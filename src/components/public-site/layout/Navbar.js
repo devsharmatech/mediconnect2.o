@@ -104,6 +104,35 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
     }
 
     setMounted(true);
+
+    const handleProfileUpdate = (e) => {
+      if (e?.detail) {
+        setUser((prev) => ({
+          ...prev,
+          ...e.detail,
+          profile_picture:
+            e.detail.profile_picture ||
+            e.detail.profile?.profile_picture ||
+            e.detail.user?.profile_picture ||
+            prev?.profile_picture,
+        }));
+      } else {
+        const stored = localStorage.getItem("userData");
+        if (stored) {
+          try {
+            setUser(JSON.parse(stored));
+          } catch (err) {}
+        }
+      }
+    };
+
+    window.addEventListener("userProfileUpdated", handleProfileUpdate);
+    window.addEventListener("storage", handleProfileUpdate);
+
+    return () => {
+      window.removeEventListener("userProfileUpdated", handleProfileUpdate);
+      window.removeEventListener("storage", handleProfileUpdate);
+    };
   }, []);
 
   const handleOpenSignup = useCallback((e) => {

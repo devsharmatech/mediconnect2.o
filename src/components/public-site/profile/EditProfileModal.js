@@ -30,17 +30,63 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
   const [previewImage, setPreviewImage] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Initialize form data when modal opens
+  // Initialize form data when modal opens — normalize all fields
   useEffect(() => {
     if (isOpen && userData) {
+      const details = userData.user?.details || {};
+      const rawDob =
+        details.date_of_birth ||
+        userData.date_of_birth ||
+        userData.user?.date_of_birth ||
+        "";
+
+      // Normalize DOB to YYYY-MM-DD (HTML date input requirement)
+      let normalizedDob = "";
+      if (rawDob) {
+        try {
+          const d = new Date(rawDob);
+          if (!isNaN(d.getTime())) {
+            // Format as YYYY-MM-DD
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const dd = String(d.getDate()).padStart(2, "0");
+            normalizedDob = `${yyyy}-${mm}-${dd}`;
+          }
+        } catch {
+          normalizedDob = rawDob;
+        }
+      }
+
       setFormData({
-        full_name: userData.user.details?.full_name || "",
-        email: userData.user.details?.email || "",
-        phone_number: userData.user.phone_number || "",
-        gender: userData.user.details?.gender || "",
-        blood_group: userData.user.details?.blood_group || "",
-        date_of_birth: userData.user.details?.date_of_birth || "",
-        address: userData.user.details?.address || "",
+        full_name:
+          details.full_name ||
+          userData.full_name ||
+          userData.user?.full_name ||
+          "",
+        email:
+          details.email ||
+          userData.email ||
+          userData.user?.email ||
+          "",
+        phone_number:
+          userData.user?.phone_number ||
+          userData.phone_number ||
+          details.phone_number ||
+          "",
+        gender:
+          details.gender ||
+          userData.gender ||
+          userData.user?.gender ||
+          "",
+        blood_group:
+          details.blood_group ||
+          userData.blood_group ||
+          "",
+        date_of_birth: normalizedDob,
+        address:
+          details.address ||
+          userData.address ||
+          "",
       });
       setErrors({});
       setPreviewImage(null);
@@ -165,7 +211,7 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
       {/* Modal */}
       <div className="flex h-full items-center justify-center p-4">
         <div
-          className="relative flex flex-col w-full max-w-2xl bg-white rounded-xl shadow-2xl overflow-hidden border border-gray-100 max-h-[90vh]"
+          className="relative flex flex-col w-full max-w-2xl bg-white rounded-[5px] shadow-2xl overflow-hidden border border-slate-200 max-h-[90vh]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -271,7 +317,7 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
                       value={formData.gender}
                       onChange={handleChange}
                       className={`w-full px-3.5 py-2.5 text-sm border ${errors.gender ? "border-red-300 bg-red-50" : "border-slate-300 bg-white"
-                        } rounded-lg focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 appearance-none text-slate-800`}
+                        } rounded-[5px] focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 appearance-none text-slate-800`}
                     >
                       <option value="">Select gender</option>
                       <option value="male">Male</option>
@@ -298,7 +344,7 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
                       name="blood_group"
                       value={formData.blood_group}
                       onChange={handleChange}
-                      className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 bg-white appearance-none text-slate-800"
+                      className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-[5px] focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 bg-white appearance-none text-slate-800"
                     >
                       <option value="">Select Group (Optional)</option>
                       <option value="A+">A+</option>
@@ -339,7 +385,7 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
                     onChange={handleChange}
                     rows={2}
                     className={`w-full px-3.5 py-2.5 text-sm border ${errors.address ? "border-red-300 bg-red-50" : "border-slate-300 bg-white"
-                      } rounded-lg focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 resize-none text-slate-800`}
+                      } rounded-[5px] focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 resize-none text-slate-800`}
                     placeholder="Enter your address"
                   />
                   {errors.address && (
@@ -354,14 +400,14 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-2 text-sm border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-all duration-200 cursor-pointer"
+                className="px-5 py-2 text-sm border border-slate-300 text-slate-700 font-medium rounded-[5px] hover:bg-slate-50 transition-all duration-200 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-6 py-2 text-sm bg-[#0067A1] text-white font-medium rounded-lg hover:bg-[#004F7C] transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center shadow-xs cursor-pointer"
+                className="px-6 py-2 text-sm bg-[#0067A1] text-white font-medium rounded-[5px] hover:bg-[#004F7C] transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center shadow-xs cursor-pointer"
               >
                 {isSaving ? (
                   <>
@@ -406,7 +452,7 @@ const FormField = ({
       disabled={disabled}
       placeholder={placeholder}
       className={`w-full px-3.5 py-2.5 text-sm border ${error ? "border-red-300 bg-red-50" : "border-slate-300 bg-white"
-        } rounded-lg focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 text-slate-800 ${disabled ? "bg-slate-100 text-slate-400 cursor-not-allowed border-dashed" : ""
+        } rounded-[5px] focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 text-slate-800 ${disabled ? "bg-slate-100 text-slate-400 cursor-not-allowed border-dashed" : ""
         }`}
     />
     {error && <p className="text-xs text-red-500 ml-0.5">{error}</p>}

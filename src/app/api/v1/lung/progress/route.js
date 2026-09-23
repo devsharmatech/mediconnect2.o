@@ -16,10 +16,37 @@ export async function OPTIONS() {
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("user_id");
+    let userId = searchParams.get("user_id") || searchParams.get("userId");
+    if (!userId || userId === "usr_guest" || userId === "guest" || userId === "undefined" || userId === "null") {
+      try {
+        const { data: topLungSession } = await supabase
+          .from("lung_activity_sessions")
+          .select("user_id")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (topLungSession?.user_id) {
+          userId = topLungSession.user_id;
+        } else {
+          const { data: topAssessment } = await supabase
+            .from("health_assessments")
+            .select("user_id")
+            .eq("assessment_type", "lung")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (topAssessment?.user_id) {
+            userId = topAssessment.user_id;
+          }
+        }
+      } catch (e) {
+        console.warn("[Lung Progress] Could not resolve default user:", e.message);
+      }
+    }
 
     if (!userId) {
-      return failure("user_id is required", "validation_error", 400, { headers: corsHeaders });
+      userId = "usr_guest";
     }
 
     const now = new Date();

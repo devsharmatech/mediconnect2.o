@@ -65,8 +65,11 @@ export default function ProfilePage() {
                 }
               }
             };
-            setUserData(freshUserData);
+        setUserData(freshUserData);
             localStorage.setItem("userData", JSON.stringify(apiUser));
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("userProfileUpdated", { detail: apiUser }));
+            }
           } else {
             throw new Error("Failed to fetch fresh data");
           }
@@ -149,6 +152,7 @@ export default function ProfilePage() {
       data.append("gender", formData.gender || "");
       data.append("date_of_birth", formData.date_of_birth || "");
       data.append("address", formData.address || "");
+      if (formData.blood_group) data.append("blood_group", formData.blood_group);
       if (formData.phone_number) data.append("phone_number", formData.phone_number);
 
       if (formData.profile_picture_file) {
@@ -158,22 +162,67 @@ export default function ProfilePage() {
       const response = await api.put("/patient/profile", data);
 
       if (response.success) {
+        const newPic = response.data.profile_picture || response.data.profile?.profile_picture || formData.profile_picture_preview;
+        const newFullName = response.data.full_name || response.data.profile?.full_name || formData.full_name;
+        const newEmail = response.data.email || response.data.profile?.email || formData.email;
+        const newGender = response.data.gender || response.data.profile?.gender || formData.gender;
+        const newDob = response.data.date_of_birth || response.data.profile?.date_of_birth || formData.date_of_birth;
+        const newAddress = response.data.address || response.data.profile?.address || formData.address;
+        const newBloodGroup = response.data.blood_group || response.data.profile?.blood_group || formData.blood_group;
+
         setUserData((prev) => ({
           ...prev,
           user: {
             ...prev.user,
-            profile_picture: response.data.profile_picture || response.data.profile?.profile_picture || prev?.user?.profile_picture,
+            profile_picture: newPic || prev?.user?.profile_picture,
             phone_number: formData.phone_number || prev?.user?.phone_number,
             details: {
               ...prev.user.details,
-              full_name: response.data.full_name || response.data.profile?.full_name || formData.full_name,
-              email: response.data.email || response.data.profile?.email || formData.email,
-              gender: response.data.gender || response.data.profile?.gender || formData.gender,
-              date_of_birth: response.data.date_of_birth || response.data.profile?.date_of_birth || formData.date_of_birth,
-              address: response.data.address || response.data.profile?.address || formData.address,
+              full_name: newFullName,
+              email: newEmail,
+              gender: newGender,
+              date_of_birth: newDob,
+              address: newAddress,
+              blood_group: newBloodGroup || prev?.user?.details?.blood_group,
             },
           },
         }));
+
+        // Keep localStorage and other components (like navbar/sidebar) in sync
+        try {
+          const currentStored = JSON.parse(localStorage.getItem("userData") || "{}");
+          const updatedStored = {
+            ...currentStored,
+            profile_picture: newPic || currentStored.profile_picture,
+            full_name: newFullName || currentStored.full_name,
+            profile: {
+              ...(currentStored.profile || {}),
+              profile_picture: newPic || currentStored.profile?.profile_picture,
+              full_name: newFullName || currentStored.profile?.full_name,
+              email: newEmail || currentStored.profile?.email,
+              gender: newGender || currentStored.profile?.gender,
+              date_of_birth: newDob || currentStored.profile?.date_of_birth,
+              address: newAddress || currentStored.profile?.address,
+              blood_group: newBloodGroup || currentStored.profile?.blood_group,
+            },
+            details: {
+              ...(currentStored.details || {}),
+              full_name: newFullName || currentStored.details?.full_name,
+              email: newEmail || currentStored.details?.email,
+              gender: newGender || currentStored.details?.gender,
+              date_of_birth: newDob || currentStored.details?.date_of_birth,
+              address: newAddress || currentStored.details?.address,
+              blood_group: newBloodGroup || currentStored.details?.blood_group,
+            },
+          };
+          localStorage.setItem("userData", JSON.stringify(updatedStored));
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("userProfileUpdated", { detail: updatedStored }));
+          }
+        } catch (storageErr) {
+          console.error("Failed to update localStorage after profile save", storageErr);
+        }
+
         toast.success("Profile updated successfully!", { id: toastId });
       } else {
         throw new Error(response.message || "Failed to update profile");
@@ -295,7 +344,7 @@ export default function ProfilePage() {
           <div className="space-y-6 lg:col-span-1">
 
             {/* Main Profile Card */}
-            <div className="bg-white rounded-3xl shadow-sm border border-emerald-100/40 overflow-hidden relative">
+            <div className="bg-white rounded-[5px] shadow-xs border border-slate-200 overflow-hidden relative">
               {/* Cover Banner Area */}
               <div className="h-24 bg-gradient-to-r from-[#0067A1] via-[#0080C6] to-[#053733] relative">
                 <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/medical-icons.png')]"></div>
@@ -327,7 +376,7 @@ export default function ProfilePage() {
                   {userData.user.details.full_name}
                 </h2>
 
-                <span className="mt-1.5 bg-emerald-50 text-emerald-700 px-3 py-0.5 rounded-full text-[11px] font-bold border border-emerald-100/65 uppercase tracking-wider">
+                <span className="mt-1.5 bg-emerald-50 text-emerald-700 px-3 py-0.5 rounded-[5px] text-[11px] font-bold border border-emerald-200 uppercase tracking-wider">
                   {userData.role}
                 </span>
 
@@ -346,7 +395,7 @@ export default function ProfilePage() {
                 {/* Edit Button */}
                 <button
                   onClick={() => setIsEditModalOpen(true)}
-                  className="w-full px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold rounded-xl transition-all border border-gray-200 text-xs shadow-xs"
+                  className="w-full px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded-[5px] transition-all border border-slate-200 text-xs shadow-xs cursor-pointer"
                 >
                   Edit Profile
                 </button>
@@ -354,7 +403,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Account Status Card */}
-            <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
+            <div className="bg-white rounded-[5px] p-5 shadow-xs border border-slate-200">
               <h3 className="text-xs font-bold text-gray-900 mb-3.5 uppercase tracking-wider">Account Verification</h3>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
@@ -374,18 +423,18 @@ export default function ProfilePage() {
           <div className="lg:col-span-2 space-y-6">
 
             {/* ABHA Integration Stripe */}
-            <div className="bg-gradient-to-r from-[#FFF8E1] to-[#FFECB3] rounded-3xl p-4 sm:p-5 shadow-sm border border-orange-100 relative overflow-hidden group hover:shadow-md transition-shadow">
+            <div className="bg-gradient-to-r from-[#FFF8E1] to-[#FFECB3] rounded-[5px] p-4 sm:p-5 shadow-xs border border-orange-100 relative overflow-hidden">
               <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-orange-200 rounded-full opacity-50 blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
 
               <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm p-2 shrink-0">
+                  <div className="w-12 h-12 bg-white rounded-[5px] flex items-center justify-center shadow-xs p-2 shrink-0">
                     <img src="https://abdm.gov.in/static/media/Ayushman-logo.d6e0ea533c09466a0598ccb56c7ef652.svg" alt="ABHA" className="w-full h-full" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-base sm:text-lg font-bold text-gray-900">ABHA Integration</h3>
-                      <span className="px-2.5 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-bold uppercase tracking-wider rounded-full shrink-0">
+                      <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-bold uppercase tracking-wider rounded-[5px] shrink-0">
                         Official
                       </span>
                     </div>
@@ -396,7 +445,7 @@ export default function ProfilePage() {
                 </div>
                 <button
                   disabled
-                  className="w-full md:w-auto px-5 py-2.5 bg-orange-100 text-orange-600 font-bold rounded-xl transition-all shrink-0 text-xs sm:text-sm flex items-center justify-center cursor-not-allowed"
+                  className="w-full md:w-auto px-5 py-2 bg-orange-100 text-orange-600 font-bold rounded-[5px] transition-all shrink-0 text-xs sm:text-sm flex items-center justify-center cursor-not-allowed"
                 >
                   Coming Soon
                 </button>
@@ -404,7 +453,7 @@ export default function ProfilePage() {
             </div>
 
             {/* Personal Information Card */}
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-150/40 overflow-hidden">
+            <div className="bg-white rounded-[5px] shadow-xs border border-slate-200 overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-150/40 flex items-center justify-between">
                 <h3 className="text-base sm:text-lg font-bold text-[#003358] flex items-center gap-2">
                   <span className="w-1 h-5 bg-[#0067A1] rounded-full"></span>
@@ -463,13 +512,13 @@ export default function ProfilePage() {
             </div>
 
             {/* Privacy & Data Rights Hub (DPDP Compliance) */}
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-150/40 overflow-hidden">
+            <div className="bg-white rounded-[5px] shadow-xs border border-slate-200 overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-150/40 flex items-center justify-between gap-2">
                 <h3 className="text-base sm:text-lg font-bold text-[#003358] flex items-center gap-2">
                   <span className="w-1 h-5 bg-purple-600 rounded-full"></span>
                   Privacy & Data Rights (DPDP)
                 </h3>
-                <span className="bg-purple-50 text-purple-700 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-purple-100 flex items-center gap-1 shrink-0">
+                <span className="bg-purple-50 text-purple-700 text-[10px] font-bold px-2 py-0.5 rounded-[5px] border border-purple-100 flex items-center gap-1 shrink-0">
                   <FaShieldAlt className="w-3 h-3" /> <span className="hidden sm:inline">Secured</span>
                 </span>
               </div>
@@ -480,7 +529,7 @@ export default function ProfilePage() {
                 </p>
 
                 <div className="space-y-3.5">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-2xl bg-gray-50 border border-gray-150/40 hover:border-gray-200 transition-all gap-3">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-[5px] bg-slate-50 border border-slate-200 hover:border-slate-300 transition-all gap-3">
                     <div className="flex-1">
                       <h4 className="font-bold text-gray-900 flex items-center gap-2 text-sm">
                         <FaDownload className="text-blue-500 shrink-0" /> Export Medical Data
@@ -489,13 +538,13 @@ export default function ProfilePage() {
                     </div>
                     <button
                       onClick={handleExportData}
-                      className="w-full md:w-auto px-4 py-2 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 hover:text-[#0067A1] transition-all text-xs whitespace-nowrap shadow-xs"
+                      className="w-full md:w-auto px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold rounded-[5px] hover:bg-slate-50 hover:text-[#0067A1] transition-all text-xs whitespace-nowrap shadow-xs cursor-pointer"
                     >
                       Export Archive
                     </button>
                   </div>
 
-                  <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-2xl bg-orange-55/40 border border-orange-100 hover:border-orange-200 transition-all gap-3">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-[5px] bg-orange-50/40 border border-orange-100 hover:border-orange-200 transition-all gap-3">
                     <div className="flex-1">
                       <h4 className="font-bold text-orange-900 flex items-center gap-2 text-sm">
                         <FaUserSecret className="text-orange-500 shrink-0" /> Anonymize My PII
@@ -504,13 +553,13 @@ export default function ProfilePage() {
                     </div>
                     <button
                       onClick={handleAnonymizeData}
-                      className="w-full md:w-auto px-4 py-2 bg-orange-100 border border-orange-200 text-orange-700 font-bold rounded-xl hover:bg-orange-500 hover:text-white transition-all text-xs whitespace-nowrap shadow-xs"
+                      className="w-full md:w-auto px-4 py-2 bg-orange-100 border border-orange-200 text-orange-700 font-bold rounded-[5px] hover:bg-orange-500 hover:text-white transition-all text-xs whitespace-nowrap shadow-xs cursor-pointer"
                     >
                       Anonymize Profile
                     </button>
                   </div>
 
-                  <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-2xl bg-red-55/40 border border-red-100 hover:border-red-200 transition-all gap-3">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-[5px] bg-red-50/40 border border-red-100 hover:border-red-200 transition-all gap-3">
                     <div className="flex-1">
                       <h4 className="font-bold text-red-900 flex items-center gap-2 text-sm">
                         <FaBan className="text-red-500 shrink-0" /> Withdraw Telemedicine Consent
@@ -519,7 +568,7 @@ export default function ProfilePage() {
                     </div>
                     <button
                       onClick={handleWithdrawConsent}
-                      className="w-full md:w-auto px-4 py-2 bg-red-100 border border-red-200 text-red-700 font-bold rounded-xl hover:bg-red-500 hover:text-white transition-all text-xs whitespace-nowrap shadow-xs"
+                      className="w-full md:w-auto px-4 py-2 bg-red-100 border border-red-200 text-red-700 font-bold rounded-[5px] hover:bg-red-500 hover:text-white transition-all text-xs whitespace-nowrap shadow-xs cursor-pointer"
                     >
                       Withdraw Consent
                     </button>
@@ -538,7 +587,7 @@ export default function ProfilePage() {
 // Helper Components
 const InfoItem = ({ icon: Icon, label, value }) => (
   <div className="flex items-start gap-4">
-    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#E6FFFA] flex items-center justify-center text-[#0067A1]">
+    <div className="flex-shrink-0 w-9 h-9 rounded-[5px] bg-sky-50 flex items-center justify-center text-[#0067A1]">
       <Icon className="h-5 w-5" />
     </div>
     <div>

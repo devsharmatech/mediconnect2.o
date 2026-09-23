@@ -46,10 +46,14 @@ const SafeChatbot = () => {
         setUserId(uId);
     }, []);
 
-    // ── Check if patient route ─────────────────
-    const patientRoutes = ["/dashboard", "/doctor", "/lab-reports", "/appointments",
-        "/medicine-order", "/digital-locker", "/nursing-care", "/heart-health", "/lung-assessment",
-        "/lung-health", "/profile", "/settings", "/lab-booking", "/find-doctors"];
+    // ── Check if patient route (suppress public website chatbot) ──
+    const patientRoutes = [
+        "/dashboard", "/doctor", "/lab-reports", "/appointments",
+        "/medicine-order", "/digital-locker", "/nursing-care", "/heart-health",
+        "/cardio-connect", "/lung-assessment", "/lung-health", "/lung-connect",
+        "/profile", "/settings", "/lab-booking", "/find-doctors",
+        "/prescriptions", "/patient", "/consultation"
+    ];
     const isPatientRoute = patientRoutes.some(r => pathname?.includes(r));
 
 

@@ -6,12 +6,14 @@ import Link from 'next/link';
 import {
   Activity, Wind, ChevronLeft, Download,
   AlertTriangle, Stethoscope, Calendar,
-  Zap, Info, CheckCircle2, FileText, History, Printer, Eye
+  Zap, Info, CheckCircle2, FileText, History, Printer, Eye, X
 } from 'lucide-react';
 import { FaLungs, FaWalking } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import AssessmentTrendChart from '@/components/public-site/health/AssessmentTrendChart';
 import AssessmentPrintReport from '@/components/public-site/health/AssessmentPrintReport';
+import LungConnectV99Report from '@/components/public-site/health/reports/LungConnectV99Report';
+import LungConnectFullReport from '@/components/public-site/health/reports/LungConnectFullReport';
 import LungSnapshotModal from '@/components/public-site/health/LungSnapshotModal';
 import { generateClientPdf, printClientReport } from '@/lib/clientPdfGenerator';
 import { AnimatedRespiratoryLoader } from '@/components/public-site/health/animations';
@@ -76,6 +78,8 @@ export default function LungHealthResult() {
   const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [printingReport, setPrintingReport] = useState(false);
   const [showSnapshotModal, setShowSnapshotModal] = useState(false);
+  const [showReportViewer, setShowReportViewer] = useState(false);
+  const [selectedLungFormat, setSelectedLungFormat] = useState("lung-v9.9");
 
   const reportRef = useRef(null);
   const router = useRouter();
@@ -250,26 +254,35 @@ export default function LungHealthResult() {
         ? (Number(inputs.weight_kg) / ((Number(inputs.height_cm) / 100) ** 2)).toFixed(1)
         : '22.5');
 
-  const handleDownloadPDF = async () => {
-    if (!isEligibleForPDF) {
-      alert(`Full report sharing is available after 15 complete days (${remainingDaysForPDF} days remaining).`);
-      return;
-    }
+  const handleDownloadPDF = async (format = selectedLungFormat) => {
     try {
       setDownloadingPDF(true);
-      const filename = `mediconnect-lung-summary-${formattedSerialNo.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-      await generateClientPdf(reportRef.current, filename);
-    } catch (err) { console.error(err); window.print(); }
-    finally { setDownloadingPDF(false); }
+      setSelectedLungFormat(format);
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      if (!reportRef.current) throw new Error("Report element not found");
+      const filename = `mediconnect-lung-${format === "lung-full" ? "full-clinical" : "v99-summary"}-${formattedSerialNo.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      await generateClientPdf(reportRef.current, filename, { scale: 2, action: "download" });
+    } catch (err) {
+      console.error(err);
+      window.print();
+    } finally {
+      setDownloadingPDF(false);
+    }
   };
 
-  const handlePrintReport = async () => {
+  const handlePrintReport = async (format = selectedLungFormat) => {
     try {
       setPrintingReport(true);
+      setSelectedLungFormat(format);
+      await new Promise((resolve) => setTimeout(resolve, 350));
       if (!reportRef.current) throw new Error("Report element not found");
       await printClientReport(reportRef.current);
-    } catch (err) { console.error(err); window.print(); }
-    finally { setPrintingReport(false); }
+    } catch (err) {
+      console.error(err);
+      window.print();
+    } finally {
+      setPrintingReport(false);
+    }
   };
 
   const trendPoints = graphData?.healthScoreTrend?.filter(p => p.type === 'lung') || [];
@@ -310,7 +323,13 @@ export default function LungHealthResult() {
     <div className="min-h-screen bg-slate-50 text-slate-800 py-3 sm:py-6 px-3 sm:px-4 font-sans pb-32 sm:pb-16">
 
       {/* Hidden print template */}
-      <AssessmentPrintReport assessmentType="lung" assessmentData={assessmentData} patientData={patientData} reportRef={reportRef} />
+      <AssessmentPrintReport
+        assessmentType="lung"
+        formatType={selectedLungFormat}
+        assessmentData={assessmentData}
+        patientData={patientData}
+        reportRef={reportRef}
+      />
 
       <div className="max-w-3xl mx-auto space-y-2.5 sm:space-y-3.5">
 
@@ -343,6 +362,14 @@ export default function LungHealthResult() {
           <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap shrink-0">
             <button
               type="button"
+              onClick={() => setShowReportViewer(true)}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[#0b3b60] hover:bg-[#07243c] text-white rounded-md text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+              title="Open Clinical Report Viewer"
+            >
+              <FileText className="w-3.5 h-3.5" /> View Report
+            </button>
+            <button
+              type="button"
               onClick={() => setShowSnapshotModal(true)}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200 rounded-md text-xs font-medium transition-colors cursor-pointer"
             >
@@ -350,7 +377,7 @@ export default function LungHealthResult() {
             </button>
             <button
               type="button"
-              onClick={handlePrintReport}
+              onClick={() => handlePrintReport(selectedLungFormat)}
               disabled={printingReport}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-md text-xs font-medium transition-colors cursor-pointer"
             >
@@ -358,14 +385,9 @@ export default function LungHealthResult() {
             </button>
             <button
               type="button"
-              onClick={handleDownloadPDF}
-              disabled={downloadingPDF || !isEligibleForPDF}
-              title={!isEligibleForPDF ? `Available in ${remainingDaysForPDF} days` : 'Download PDF'}
-              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                isEligibleForPDF
-                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 cursor-pointer'
-                  : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-70'
-              }`}
+              onClick={() => handleDownloadPDF(selectedLungFormat)}
+              disabled={downloadingPDF}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-md text-xs font-medium transition-colors cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" /> {downloadingPDF ? 'Generating…' : 'PDF'}
             </button>
@@ -611,6 +633,109 @@ export default function LungHealthResult() {
         trendPoints={trendPoints}
         patientData={patientData}
       />
+
+      {/* ─── Detail Modal (Full Multi-Format Report Viewer Workbench) ─── */}
+      {showReportViewer && (
+        <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-5xl max-h-[96vh] rounded-[6px] shadow-2xl flex flex-col overflow-hidden text-slate-900 border border-slate-700/50 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
+              <div className="flex items-center gap-2.5">
+                <span className="text-[10px] font-mono font-bold uppercase text-[#007a8c] bg-teal-50 border border-teal-200 px-2.5 py-0.5 rounded-[4px]">
+                  {formattedSerialNo}
+                </span>
+                <span className="text-xs font-bold text-slate-300">•</span>
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">
+                  LungConnect Authoritative Clinical Report
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReportViewer(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-[5px] transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Format Selection Tab Bar */}
+            <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex items-center gap-2 overflow-x-auto shrink-0">
+              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider shrink-0 mr-1">
+                Official Format:
+              </span>
+              {[
+                { id: "lung-v9.9", label: "V9.9 • Wellness Summary", badge: "Frozen 1-Page A4 Fixed" },
+                { id: "lung-full", label: "Full • Clinical Assessment", badge: "Comprehensive Matrix" }
+              ].map((fmt) => (
+                <button
+                  key={fmt.id}
+                  type="button"
+                  onClick={() => setSelectedLungFormat(fmt.id)}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-[4px] transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    selectedLungFormat === fmt.id
+                      ? "bg-[#007a8c] text-white shadow-sm ring-1 ring-slate-900"
+                      : "bg-white text-slate-700 hover:bg-slate-200 border border-slate-300"
+                  }`}
+                >
+                  <span>{fmt.label}</span>
+                  <span className={`text-[9px] px-1.5 py-0.2 rounded font-normal ${selectedLungFormat === fmt.id ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
+                    {fmt.badge}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Modal Body: Sleek dark inspection workbench with centered A4 document */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-900/90 flex justify-center items-start">
+              <div className="bg-white shadow-2xl ring-1 ring-black/20 overflow-x-auto max-w-full rounded-[2px]">
+                {selectedLungFormat === "lung-v9.9" ? (
+                  <LungConnectV99Report
+                    assessmentData={assessmentData}
+                    patientData={patientData}
+                  />
+                ) : (
+                  <LungConnectFullReport
+                    assessmentData={assessmentData}
+                    patientData={patientData}
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 sm:p-4 border-t border-slate-200 bg-white flex items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowReportViewer(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-[5px] text-xs font-semibold transition-colors cursor-pointer border border-slate-200"
+              >
+                Close
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handlePrintReport(selectedLungFormat)}
+                  disabled={printingReport}
+                  className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 rounded-[5px] text-xs font-bold border border-slate-300 transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5 text-[#007a8c]" />
+                  <span>Print Report</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPDF(selectedLungFormat)}
+                  disabled={downloadingPDF}
+                  className="px-4 py-2 bg-[#007a8c] hover:bg-[#005e6c] text-white rounded-[5px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download {selectedLungFormat === "lung-full" ? "Full Clinical" : "V9.9"} PDF</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -483,6 +483,9 @@ const PatientHeader = ({ user, onMenuClick }) => {
   const getDisplayName = () => {
     return (
       user?.details?.full_name ||
+      user?.profile?.full_name ||
+      user?.user?.details?.full_name ||
+      user?.user?.full_name ||
       user?.full_name ||
       user?.name ||
       "User"
@@ -490,11 +493,40 @@ const PatientHeader = ({ user, onMenuClick }) => {
   };
 
   const getDisplayEmail = () => {
-    return user?.details?.email || user?.email || "user@example.com";
+    return (
+      user?.details?.email ||
+      user?.profile?.email ||
+      user?.user?.details?.email ||
+      user?.user?.email ||
+      user?.email ||
+      "user@example.com"
+    );
   };
 
+  const getAvatarUrl = () => {
+    return (
+      user?.profile_picture ||
+      user?.avatar ||
+      user?.image ||
+      user?.details?.profile_picture ||
+      user?.details?.avatar ||
+      user?.user?.profile_picture ||
+      user?.user?.avatar ||
+      user?.profile?.profile_picture ||
+      user?.profile?.avatar ||
+      null
+    );
+  };
+
+  const avatarUrl = getAvatarUrl();
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [avatarUrl]);
+
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
+    <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
       {activeVideoCall && showActiveCallBanner && (
         <div className="bg-emerald-600 text-white px-4 lg:px-6 py-3 shadow-lg">
           <div className="flex items-center justify-between gap-4">
@@ -647,12 +679,13 @@ const PatientHeader = ({ user, onMenuClick }) => {
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               className="flex items-center gap-3 p-1.5 pr-3 rounded-[5px] hover:bg-gray-100 transition-colors"
             >
-              <div className="w-10 h-10 rounded-[5px] bg-[#0067A1] flex items-center justify-center text-white font-semibold shadow-md">
-                {user?.avatar ? (
+              <div className="w-10 h-10 rounded-full bg-[#0067A1] flex items-center justify-center text-white font-semibold shadow-sm overflow-hidden">
+                {avatarUrl && !imageError ? (
                   <img
-                    src={user.avatar}
+                    src={avatarUrl}
                     alt={getDisplayName()}
-                    className="w-full h-full rounded-[5px] object-cover"
+                    className="w-full h-full rounded-full object-cover"
+                    onError={() => setImageError(true)}
                   />
                 ) : (
                   <span className="text-sm">
@@ -661,11 +694,8 @@ const PatientHeader = ({ user, onMenuClick }) => {
                 )}
               </div>
               <div className="hidden md:block text-left">
-                <p className="text-sm font-semibold text-gray-900 truncate max-w-[120px]">
+                <p className="text-sm font-medium text-slate-700 truncate max-w-[150px]">
                   {getDisplayName()}
-                </p>
-                <p className="text-xs text-gray-500 truncate max-w-[120px]">
-                  {getDisplayEmail()}
                 </p>
               </div>
               <FaChevronDown
@@ -676,23 +706,24 @@ const PatientHeader = ({ user, onMenuClick }) => {
 
             {/* Profile Menu */}
             {isProfileOpen && (
-              <div className="absolute right-0 mt-2 w-64 bg-white rounded-[5px] shadow-2xl border border-gray-100 overflow-hidden">
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden z-50">
                 {/* User Info */}
                 <div className="p-4 bg-[#0067A1]/5 border-b border-gray-100">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-[5px] bg-[#0067A1] flex items-center justify-center text-white font-semibold shadow-md">
-                      {user?.avatar ? (
+                    <div className="w-12 h-12 rounded-full bg-[#0067A1] flex items-center justify-center text-white font-semibold shadow-sm overflow-hidden">
+                      {avatarUrl && !imageError ? (
                         <img
-                          src={user.avatar}
+                          src={avatarUrl}
                           alt={getDisplayName()}
-                          className="w-full h-full rounded-[5px] object-cover"
+                          className="w-full h-full rounded-full object-cover"
+                          onError={() => setImageError(true)}
                         />
                       ) : (
                         <span>{getInitials(getDisplayName())}</span>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">
+                      <p className="text-sm font-medium text-slate-800 truncate">
                         {getDisplayName()}
                       </p>
                       <p className="text-xs text-gray-500 truncate">

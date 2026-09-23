@@ -154,10 +154,11 @@ export async function POST(req) {
         }
 
         // 0. Canonical Age Derivation (SP-07 P0-02 & SP-06 LC-02): Age derives from canonical DOB
+        // If user explicitly entered age via slider, respect it. Fall back to DOB only if missing.
         try {
             const { data: profile } = await supabase
                 .from("patient_details")
-                .select("date_of_birth")
+                .select("date_of_birth, gender")
                 .eq("id", user_id)
                 .maybeSingle();
 
@@ -170,14 +171,16 @@ export async function POST(req) {
                     if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
                         canonicalAge--;
                     }
-                    if (canonicalAge > 0) {
-                        inputs.age = canonicalAge;
+                    // Only override if user did not provide a valid age
+                    if (!inputs.age || inputs.age <= 0) {
+                        if (canonicalAge > 0) inputs.age = canonicalAge;
                     }
                 }
             }
         } catch (dobErr) {
             console.warn("Could not query DOB for canonical age:", dobErr.message);
         }
+
 
         // 1. Calculate health score (SP-06 & SP-07 compliant)
         let healthScore, calculatedAge, riskLevel, riskFactors;

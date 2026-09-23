@@ -29,6 +29,10 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import AssessmentPrintReport from "@/components/public-site/health/AssessmentPrintReport";
+import CardioConnectF1Report from "@/components/public-site/health/reports/CardioConnectF1Report";
+import CardioConnectF2Report from "@/components/public-site/health/reports/CardioConnectF2Report";
+import CardioConnectF3Report from "@/components/public-site/health/reports/CardioConnectF3Report";
+import CardioConnectF4Report from "@/components/public-site/health/reports/CardioConnectF4Report";
 import { generateClientPdf, printClientReport } from "@/lib/clientPdfGenerator";
 import { AnimatedCardioLoader } from "@/components/public-site/health/animations";
 
@@ -42,6 +46,10 @@ export default function HeartHealthHistoryPage() {
   const [selectedAssessmentForPrint, setSelectedAssessmentForPrint] = useState(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+
+  // Client Report Format Selection: F1, F2, F3, F4
+  const [selectedReportFormat, setSelectedReportFormat] = useState("F4");
+  const [formatChooserModal, setFormatChooserModal] = useState({ isOpen: false, item: null, action: "choose" });
 
   const reportRef = useRef(null);
 
@@ -116,23 +124,31 @@ export default function HeartHealthHistoryPage() {
     fetchHistory();
   }, []);
 
-  // Handle PDF Download
-  const handleDownloadPdf = async (item) => {
+  // Handle PDF Download (Supports F1, F2, F3, F4)
+  const handleDownloadPdf = async (item, format = selectedReportFormat) => {
     try {
-      const assessmentData = item.rawAssessment || item;
+      const assessmentData = {
+        ...(item.rawAssessment || item),
+        serialNo: item.serialNo || item.serial_no || item.rawAssessment?.serial_no,
+        inputs: item.inputs || item.rawAssessment?.inputs || item.rawAssessment?.heart_health_inputs?.[0],
+        heart_health_inputs: item.rawAssessment?.heart_health_inputs || item.heart_health_inputs,
+        date: item.date || item.created_at,
+        created_at: item.date || item.created_at
+      };
       setSelectedAssessmentForPrint(assessmentData);
+      setSelectedReportFormat(format);
       setIsDownloading(true);
-      toast.loading("Preparing high-resolution clinical PDF...", { id: "download-pdf" });
+      toast.loading(`Preparing ${format === 'F4' ? 'Clinical Assessment' : format === 'F1' ? 'Activity' : format === 'F2' ? 'Progress' : 'Walking'} PDF...`, { id: "download-pdf" });
 
-      // Small delay to ensure the hidden template renders with the chosen item
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Allow DOM to update hidden template with the chosen item and format
+      await new Promise((resolve) => setTimeout(resolve, 350));
 
       if (!reportRef.current) {
         throw new Error("Report element not ready");
       }
 
       const serial = item.serialNo || item.serial_no || "CARDIO_REPORT";
-      const filename = `MediConnect_CardioReport_${serial}.pdf`;
+      const filename = `MediConnect_Cardio_${format}_${serial}.pdf`;
 
       await generateClientPdf(reportRef.current, filename, {
         scale: 2,
@@ -140,7 +156,7 @@ export default function HeartHealthHistoryPage() {
       });
 
       toast.dismiss("download-pdf");
-      toast.success("Cardio assessment report downloaded!");
+      toast.success(`Report downloaded successfully!`);
     } catch (err) {
       console.error("PDF download error:", err);
       toast.dismiss("download-pdf");
@@ -150,15 +166,23 @@ export default function HeartHealthHistoryPage() {
     }
   };
 
-  // Handle Print
-  const handlePrint = async (item) => {
+  // Handle Print (Supports F1, F2, F3, F4)
+  const handlePrint = async (item, format = selectedReportFormat) => {
     try {
-      const assessmentData = item.rawAssessment || item;
+      const assessmentData = {
+        ...(item.rawAssessment || item),
+        serialNo: item.serialNo || item.serial_no || item.rawAssessment?.serial_no,
+        inputs: item.inputs || item.rawAssessment?.inputs || item.rawAssessment?.heart_health_inputs?.[0],
+        heart_health_inputs: item.rawAssessment?.heart_health_inputs || item.heart_health_inputs,
+        date: item.date || item.created_at,
+        created_at: item.date || item.created_at
+      };
       setSelectedAssessmentForPrint(assessmentData);
+      setSelectedReportFormat(format);
       setIsPrinting(true);
-      toast.loading("Preparing report for print...", { id: "print-report" });
+      toast.loading(`Preparing report for printing...`, { id: "print-report" });
 
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await new Promise((resolve) => setTimeout(resolve, 350));
 
       if (!reportRef.current) {
         throw new Error("Report element not ready");
@@ -166,7 +190,7 @@ export default function HeartHealthHistoryPage() {
 
       await printClientReport(reportRef.current);
       toast.dismiss("print-report");
-      toast.success("Print dialog opened!");
+      toast.success(`Format ${format} print dialog opened!`);
     } catch (err) {
       console.error("Print error:", err);
       toast.dismiss("print-report");
@@ -441,24 +465,37 @@ export default function HeartHealthHistoryPage() {
                     </div>
                   )}
 
-                  {/* Action Bar: View Details, Print, Download PDF */}
+                  {/* Action Bar: View Details, Formats Modal, Print, Download PDF */}
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
                     <button
                       type="button"
-                      onClick={() => setSelectedAssessment(item)}
+                      onClick={() => {
+                        setSelectedAssessment(item);
+                        setSelectedReportFormat("F4");
+                      }}
                       className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-[5px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
                     >
                       <Eye className="w-3.5 h-3.5" />
                       <span>View Report</span>
                     </button>
 
-                    <div className="flex items-center gap-1.5 ml-auto">
+                    <div className="flex items-center gap-1.5 ml-auto flex-wrap">
                       <button
                         type="button"
-                        onClick={() => handlePrint(item)}
+                        onClick={() => setFormatChooserModal({ isOpen: true, item, action: "choose" })}
+                        className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-[5px] text-xs font-bold border border-indigo-200 transition-colors cursor-pointer flex items-center gap-1"
+                        title="Choose your preferred official clinical report"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Select Report</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handlePrint(item, "F4")}
                         disabled={isPrinting}
                         className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-[5px] text-xs font-semibold border border-slate-200 transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                        title="Print this assessment"
+                        title="Print default F4 Assessment Report"
                       >
                         <Printer className="w-3.5 h-3.5 text-slate-600" />
                         <span className="hidden sm:inline">Print</span>
@@ -466,10 +503,10 @@ export default function HeartHealthHistoryPage() {
 
                       <button
                         type="button"
-                        onClick={() => handleDownloadPdf(item)}
+                        onClick={() => handleDownloadPdf(item, "F4")}
                         disabled={isDownloading}
                         className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] rounded-[5px] text-xs font-bold border border-sky-200 transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                        title="Download official PDF report"
+                        title="Download F4 Master Report"
                       >
                         <Download className="w-3.5 h-3.5" />
                         <span>Download PDF</span>
@@ -484,18 +521,19 @@ export default function HeartHealthHistoryPage() {
 
       </div>
 
-      {/* ─── Detail Modal (Full Report View) ─── */}
+      {/* ─── Detail Modal (Full Multi-Format Report View) ─── */}
       {selectedAssessment && (
-        <div className="fixed inset-0 z-[99999] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-          <div className="bg-white w-full max-w-2xl max-h-[92vh] rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-5xl max-h-[96vh] rounded-[6px] shadow-2xl flex flex-col overflow-hidden text-slate-900 border border-slate-700/50 animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
-              <div>
-                <span className="text-[10px] font-mono font-bold uppercase text-[#0067A1] bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-[5px]">
+            <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
+              <div className="flex items-center gap-2.5">
+                <span className="text-[10px] font-mono font-bold uppercase text-[#0067A1] bg-sky-50 border border-sky-200 px-2.5 py-0.5 rounded-[4px]">
                   {selectedAssessment.serialNo || "CARDIO REPORT"}
                 </span>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-1">
-                  Cardiovascular Screening Report
+                <span className="text-xs font-bold text-slate-300">•</span>
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">
+                  CardioConnect Authoritative Clinical Report
                 </h2>
               </div>
               <button
@@ -507,160 +545,65 @@ export default function HeartHealthHistoryPage() {
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 text-xs sm:text-sm">
-              {/* Score & Risk Banner */}
-              <div className="p-3.5 bg-slate-50 rounded-[5px] border border-slate-200 flex items-center justify-between gap-3">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    Cardiovascular Health Score
+            {/* Format Selection Tab Bar */}
+            <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex items-center gap-2 overflow-x-auto shrink-0">
+              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider shrink-0 mr-1">
+                Report Format:
+              </span>
+              {[
+                { id: "F4", label: "Clinical Assessment", badge: "Master" },
+                { id: "F1", label: "Home & Activity", badge: "Training" },
+                { id: "F2", label: "Progress & Trends", badge: "Spectrum" },
+                { id: "F3", label: "Walking Test", badge: "6-Min WPT" }
+              ].map((fmt) => (
+                <button
+                  key={fmt.id}
+                  type="button"
+                  onClick={() => setSelectedReportFormat(fmt.id)}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-[4px] transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    selectedReportFormat === fmt.id
+                      ? "bg-[#0b3b60] text-white shadow-sm ring-1 ring-slate-900"
+                      : "bg-white text-slate-700 hover:bg-slate-200 border border-slate-300"
+                  }`}
+                >
+                  <span>{fmt.label}</span>
+                  <span className={`text-[9px] px-1.5 py-0.2 rounded font-normal ${selectedReportFormat === fmt.id ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
+                    {fmt.badge}
                   </span>
-                  <span className="text-2xl font-bold font-mono text-[#0067A1]">
-                    {selectedAssessment.healthScore}/100
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                    Risk Category
-                  </span>
-                  <span className={`inline-block text-xs font-bold uppercase px-2.5 py-0.5 rounded-[5px] border mt-0.5 ${getRiskBadge(selectedAssessment.riskLevel).bg}`}>
-                    {selectedAssessment.riskLevel} Risk
-                  </span>
-                </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Modal Body: Sleek dark inspection workbench with centered A4 document */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-900/90 flex justify-center items-start">
+              <div className="bg-white shadow-2xl ring-1 ring-black/20 overflow-x-auto max-w-full rounded-[2px]">
+                {(() => {
+                  const unifiedAssessmentData = {
+                    ...(selectedAssessment.rawAssessment || selectedAssessment),
+                    serialNo: selectedAssessment.serialNo || selectedAssessment.serial_no || selectedAssessment.rawAssessment?.serial_no,
+                    inputs: selectedAssessment.inputs || selectedAssessment.rawAssessment?.inputs || selectedAssessment.rawAssessment?.heart_health_inputs?.[0],
+                    heart_health_inputs: selectedAssessment.rawAssessment?.heart_health_inputs || selectedAssessment.heart_health_inputs,
+                    date: selectedAssessment.date || selectedAssessment.created_at,
+                    created_at: selectedAssessment.date || selectedAssessment.created_at
+                  };
+                  return (
+                    <>
+                      {selectedReportFormat === "F1" && <CardioConnectF1Report assessmentData={unifiedAssessmentData} patientData={patientData || {}} />}
+                      {selectedReportFormat === "F2" && <CardioConnectF2Report assessmentData={unifiedAssessmentData} patientData={patientData || {}} />}
+                      {selectedReportFormat === "F3" && <CardioConnectF3Report assessmentData={unifiedAssessmentData} patientData={patientData || {}} />}
+                      {selectedReportFormat === "F4" && <CardioConnectF4Report assessmentData={unifiedAssessmentData} patientData={patientData || {}} />}
+                    </>
+                  );
+                })()}
               </div>
-
-              {/* Summary Narrative */}
-              {selectedAssessment.aiAnalysis?.analysis && (
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-1">
-                    Clinical Summary
-                  </h4>
-                  <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-[5px] border border-slate-100">
-                    {selectedAssessment.aiAnalysis.analysis}
-                  </p>
-                </div>
-              )}
-
-              {/* Key Findings */}
-              {selectedAssessment.aiAnalysis?.key_findings?.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-1.5">
-                    Key Observations
-                  </h4>
-                  <ul className="space-y-1 text-xs text-slate-700">
-                    {selectedAssessment.aiAnalysis.key_findings.map((finding, fIdx) => (
-                      <li key={fIdx} className="flex items-start gap-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                        <span>{finding}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Detailed Metrics Table */}
-              <div>
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-1.5">
-                  Recorded Clinical Parameters
-                </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                  <div className="p-2 bg-slate-50 rounded-[5px] border border-slate-100">
-                    <span className="text-[10px] text-slate-500 font-bold block">Blood Pressure</span>
-                    <span className="font-bold font-mono text-slate-800">
-                      {selectedAssessment.inputs?.vitals?.systolicBP
-                        ? `${selectedAssessment.inputs.vitals.systolicBP}/${selectedAssessment.inputs.vitals.diastolicBP} mmHg`
-                        : "—"}
-                    </span>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-[5px] border border-slate-100">
-                    <span className="text-[10px] text-slate-500 font-bold block">Resting Heart Rate</span>
-                    <span className="font-bold font-mono text-slate-800">
-                      {selectedAssessment.inputs?.vitals?.restingHeartRate
-                        ? `${selectedAssessment.inputs.vitals.restingHeartRate} bpm`
-                        : "—"}
-                    </span>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-[5px] border border-slate-100">
-                    <span className="text-[10px] text-slate-500 font-bold block">BMI</span>
-                    <span className="font-bold font-mono text-slate-800">
-                      {selectedAssessment.inputs?.demographics?.bmi
-                        ? `${Number(selectedAssessment.inputs.demographics.bmi).toFixed(1)} kg/m²`
-                        : "—"}
-                    </span>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-[5px] border border-slate-100">
-                    <span className="text-[10px] text-slate-500 font-bold block">Total Cholesterol</span>
-                    <span className="font-bold font-mono text-slate-800">
-                      {selectedAssessment.inputs?.lipids?.totalCholesterol
-                        ? `${selectedAssessment.inputs.lipids.totalCholesterol} mg/dL`
-                        : "—"}
-                    </span>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-[5px] border border-slate-100">
-                    <span className="text-[10px] text-slate-500 font-bold block">LDL Cholesterol</span>
-                    <span className="font-bold font-mono text-slate-800">
-                      {selectedAssessment.inputs?.lipids?.ldlCholesterol
-                        ? `${selectedAssessment.inputs.lipids.ldlCholesterol} mg/dL`
-                        : "—"}
-                    </span>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-[5px] border border-slate-100">
-                    <span className="text-[10px] text-slate-500 font-bold block">Fasting Glucose</span>
-                    <span className="font-bold font-mono text-slate-800">
-                      {selectedAssessment.inputs?.bloodSugar?.fastingGlucose
-                        ? `${selectedAssessment.inputs.bloodSugar.fastingGlucose} mg/dL`
-                        : "—"}
-                    </span>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-[5px] border border-slate-100">
-                    <span className="text-[10px] text-slate-500 font-bold block">HbA1c</span>
-                    <span className="font-bold font-mono text-slate-800">
-                      {selectedAssessment.inputs?.bloodSugar?.hba1c
-                        ? `${Number(selectedAssessment.inputs.bloodSugar.hba1c).toFixed(1)} %`
-                        : "—"}
-                    </span>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-[5px] border border-slate-100">
-                    <span className="text-[10px] text-slate-500 font-bold block">Physical Activity</span>
-                    <span className="font-bold font-mono text-slate-800">
-                      {selectedAssessment.inputs?.lifestyle?.physicalActivity
-                        ? `${selectedAssessment.inputs.lifestyle.physicalActivity} min/wk`
-                        : "—"}
-                    </span>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-[5px] border border-slate-100">
-                    <span className="text-[10px] text-slate-500 font-bold block">Smoking Status</span>
-                    <span className="font-bold capitalize text-slate-800">
-                      {selectedAssessment.inputs?.lifestyle?.smokingStatus || "—"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Recommendations */}
-              {selectedAssessment.recommendations?.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">
-                    Personalized Guidance
-                  </h4>
-                  <div className="space-y-2">
-                    {selectedAssessment.recommendations.map((rec, rIdx) => (
-                      <div key={rIdx} className="p-3 bg-sky-50/50 rounded-[5px] border border-sky-100">
-                        <span className="text-xs font-bold text-slate-900 block">{rec.title}</span>
-                        <p className="text-[11px] text-slate-600 mt-0.5">{rec.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Modal Footer */}
-            <div className="p-3.5 sm:p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2 shrink-0">
+            <div className="p-3.5 sm:p-4 border-t border-slate-200 bg-white flex items-center justify-between gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setSelectedAssessment(null)}
-                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-[5px] text-xs font-semibold transition-colors cursor-pointer"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-[5px] text-xs font-semibold transition-colors cursor-pointer border border-slate-200"
               >
                 Close
               </button>
@@ -668,21 +611,143 @@ export default function HeartHealthHistoryPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => handlePrint(selectedAssessment)}
+                  onClick={() => handlePrint(selectedAssessment, selectedReportFormat)}
                   disabled={isPrinting}
-                  className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-800 rounded-[5px] text-xs font-bold border border-slate-300 transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 rounded-[5px] text-xs font-bold border border-slate-300 transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5 text-[#0067A1]" />
+                  <span>Print Report</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPdf(selectedAssessment, selectedReportFormat)}
+                  disabled={isDownloading}
+                  className="px-4 py-2 bg-[#0b3b60] hover:bg-[#082944] text-white rounded-[5px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Report PDF</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Format Chooser Quick Modal ─── */}
+      {formatChooserModal.isOpen && formatChooserModal.item && (
+        <div className="fixed inset-0 z-[99999] bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-lg rounded-[5px] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 border border-slate-200 flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#0067A1] bg-sky-50 px-2 py-0.5 rounded-[5px] border border-sky-200">
+                  Official Clinical Report
+                </span>
+                <h3 className="text-base font-bold text-slate-900 mt-1">
+                  Choose Report Type
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormatChooserModal({ isOpen: false, item: null, action: "choose" })}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-[5px] transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-2.5 max-h-[70vh] overflow-y-auto">
+              {[
+                {
+                  id: "F4",
+                  name: "Comprehensive Clinical Assessment",
+                  desc: "Complete clinical overview synthesizing recorded cardiovascular factors, vital markers, active training minutes, and care navigation.",
+                  tag: "Master Summary"
+                },
+                {
+                  id: "F1",
+                  name: "Home & Physical Activity Report",
+                  desc: "Dedicated physical activity record detailing weekly training, daily step distribution, and completed exercise sessions.",
+                  tag: "Activity & Workouts"
+                },
+                {
+                  id: "F2",
+                  name: "Progress & Longitudinal Wellness",
+                  desc: "Longitudinal health factor registry with recorded trends (Decreased / Increased / Stable) across milestone checkpoints.",
+                  tag: "Longitudinal Trends"
+                },
+                {
+                  id: "F3",
+                  name: "6-Minute Walking Performance Test (WPT)",
+                  desc: "Objective functional capacity assessment with distance, pace, step metrics, and energy calculation.",
+                  tag: "Walking Endurance"
+                }
+              ].map((f) => (
+                <div
+                  key={f.id}
+                  onClick={() => setSelectedReportFormat(f.id)}
+                  className={`p-3 rounded-[5px] border transition-all cursor-pointer flex items-start gap-3 ${
+                    selectedReportFormat === f.id
+                      ? "bg-sky-50/70 border-[#0067A1] shadow-2xs"
+                      : "bg-white hover:bg-slate-50 border-slate-200"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="report-format-select"
+                    checked={selectedReportFormat === f.id}
+                    onChange={() => setSelectedReportFormat(f.id)}
+                    className="mt-1 text-[#0067A1] focus:ring-[#0067A1] cursor-pointer"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-900">{f.name}</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                        {f.tag}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">{f.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-3.5 sm:p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedAssessment(formatChooserModal.item);
+                  setFormatChooserModal({ isOpen: false, item: null, action: "choose" });
+                }}
+                className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-800 rounded-[5px] text-xs font-bold border border-slate-300 transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Preview</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const item = formatChooserModal.item;
+                    setFormatChooserModal({ isOpen: false, item: null, action: "choose" });
+                    handlePrint(item, selectedReportFormat);
+                  }}
+                  className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-[5px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Print</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDownloadPdf(selectedAssessment)}
-                  disabled={isDownloading}
+                  onClick={() => {
+                    const item = formatChooserModal.item;
+                    setFormatChooserModal({ isOpen: false, item: null, action: "choose" });
+                    handleDownloadPdf(item, selectedReportFormat);
+                  }}
                   className="px-4 py-2 bg-[#0067A1] hover:bg-[#005282] text-white rounded-[5px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download PDF</span>
+                  <span>Download Report PDF</span>
                 </button>
               </div>
             </div>
@@ -691,14 +756,13 @@ export default function HeartHealthHistoryPage() {
       )}
 
       {/* ─── Hidden Printable Template for Canvas/PDF Generation ─── */}
-      {selectedAssessmentForPrint && (
-        <AssessmentPrintReport
-          assessmentType="heart"
-          assessmentData={selectedAssessmentForPrint}
-          patientData={patientData || {}}
-          reportRef={reportRef}
-        />
-      )}
+      <AssessmentPrintReport
+        assessmentType="heart"
+        formatType={selectedReportFormat}
+        assessmentData={selectedAssessmentForPrint || {}}
+        patientData={patientData || {}}
+        reportRef={reportRef}
+      />
 
     </div>
   );

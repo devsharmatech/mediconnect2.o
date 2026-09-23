@@ -35,11 +35,14 @@ import {
   BarChart2,
   Flame,
   Info,
-  Printer
+  Printer,
+  X
 } from "lucide-react";
 import toast from "react-hot-toast";
 import LungSnapshotModal from "@/components/public-site/health/LungSnapshotModal";
 import AssessmentPrintReport from "@/components/public-site/health/AssessmentPrintReport";
+import LungConnectV99Report from "@/components/public-site/health/reports/LungConnectV99Report";
+import LungConnectFullReport from "@/components/public-site/health/reports/LungConnectFullReport";
 import { generateClientPdf, printClientReport } from "@/lib/clientPdfGenerator";
 import { AnimatedRespiratoryLoader } from "@/components/public-site/health/animations";
 
@@ -74,29 +77,42 @@ export default function LungHealthStatisticsPage() {
   // Modal and print report states
   const [selectedAssessmentForModal, setSelectedAssessmentForModal] = useState(null);
   const [isSnapshotOpen, setIsSnapshotOpen] = useState(false);
-  const [printingAssessment, setPrintingAssessment] = useState(null);
-  const [downloadingId, setDownloadingId] = useState(null);
+  const [selectedReportForViewer, setSelectedReportForViewer] = useState(null);
+  const [selectedLungFormat, setSelectedLungFormat] = useState("lung-v9.9");
+  const [selectedAssessmentForPrint, setSelectedAssessmentForPrint] = useState(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const reportRef = useRef(null);
 
   useEffect(() => {
-    const raw = typeof window !== "undefined"
-      ? (localStorage.getItem("user") || localStorage.getItem("userData"))
-      : null;
-    if (raw) {
+    let resolvedId = null;
+    let resolvedName = "Patient";
+    let extraUser = {};
+
+    if (typeof window !== "undefined") {
       try {
-        const parsed = JSON.parse(raw);
-        setUser({
-          id: parsed.id || parsed.user_id || parsed.user?.id || "guest",
-          name: parsed.name || parsed.full_name || parsed.details?.full_name || "Patient",
-          ...parsed,
-        });
+        const directId = localStorage.getItem("userId") || localStorage.getItem("patient_id");
+        if (directId && directId !== "undefined" && directId !== "null" && directId !== "guest") {
+          resolvedId = directId;
+        }
+
+        const raw = localStorage.getItem("user") || localStorage.getItem("userData");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          extraUser = parsed;
+          resolvedId = resolvedId || parsed.id || parsed.user_id || parsed.user?.id;
+          resolvedName = parsed.name || parsed.full_name || parsed.details?.full_name || resolvedName;
+        }
       } catch (e) {
-        console.warn("Could not parse user", e);
-        setUser({ id: "guest", name: "Guest Patient" });
+        console.warn("Could not read user data:", e);
       }
-    } else {
-      setUser({ id: "guest", name: "Guest Patient" });
     }
+
+    setUser({
+      id: resolvedId || "guest",
+      name: resolvedName,
+      ...extraUser,
+    });
   }, []);
 
   useEffect(() => {
@@ -137,7 +153,7 @@ export default function LungHealthStatisticsPage() {
           // Also check lung_activity_sessions breathing stats via lung progress API
           if (sessions === 0) {
             try {
-              const progUrl = targetUserId ? `/api/v1/lung/progress?user_id=${targetUserId}` : `/api/v1/lung/progress?user_id=usr_guest`;
+              const progUrl = targetUserId ? `/api/v1/lung/progress?user_id=${targetUserId}` : `/api/v1/lung/progress`;
               const progRes = await fetch(progUrl);
               const progJson = await progRes.json();
               if (progJson.success && progJson.data?.stats) {
@@ -253,52 +269,49 @@ export default function LungHealthStatisticsPage() {
     setIsSnapshotOpen(true);
   };
 
-  // Trigger Client-Side PDF Download with 15-day disclosure check
-  const handleDownloadReport = async (record) => {
-    const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
-    const createdAt = record.date || record.created_at;
-    const elapsedMs = Date.now() - new Date(createdAt).getTime();
+  // Open Full Multi-Format Report Viewer
+  const handleOpenReportViewer = (record, format = "lung-v9.9") => {
+    const raw = buildAssessmentObject(record);
+    setSelectedReportForViewer(raw);
+    setSelectedLungFormat(format);
+    setSelectedAssessmentForPrint(raw);
+  };
 
-    if (elapsedMs < FIFTEEN_DAYS_MS) {
-      const remainingDays = Math.max(0, Math.ceil((FIFTEEN_DAYS_MS - elapsedMs) / (24 * 60 * 60 * 1000)));
-      toast.error(
-        `Full report sharing is available after 15 complete days from the assessment date (${remainingDays} days remaining).`,
-        { duration: 5000 }
-      );
-      return;
-    }
-
+  // Trigger Client-Side PDF Download with professional formatting
+  const handleDownloadReport = async (record, format = selectedLungFormat) => {
     try {
-      setDownloadingId(record.id);
-      toast.loading("Generating professional PDF report...", { id: "stats-pdf" });
-
       const raw = buildAssessmentObject(record);
-      setPrintingAssessment(raw);
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      setSelectedAssessmentForPrint(raw);
+      setSelectedLungFormat(format);
+      setIsDownloading(true);
+      toast.loading(`Preparing ${format === "lung-full" ? "Full Clinical" : "V9.9 Wellness"} PDF...`, { id: "stats-pdf" });
+
+      await new Promise((resolve) => setTimeout(resolve, 350));
 
       if (!reportRef.current) throw new Error("Report element not found");
 
-      const filename = `mediconnect-lung-report-${(record.serialNo || record.id).replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
-      await generateClientPdf(reportRef.current, filename);
+      const serial = record.serialNo || record.id || "LCN_REPORT";
+      const filename = `MediConnect_Lung_${format === "lung-full" ? "Full" : "V9.9"}_${serial.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+      await generateClientPdf(reportRef.current, filename, { scale: 2, action: "download" });
       toast.success("PDF Report downloaded successfully!", { id: "stats-pdf" });
     } catch (err) {
       console.error("PDF generation failed:", err);
       toast.error("Failed to generate PDF report", { id: "stats-pdf" });
     } finally {
-      setPrintingAssessment(null);
-      setDownloadingId(null);
+      setIsDownloading(false);
     }
   };
 
   // Direct Print handler (with official MediConnect Logo & Watermark)
-  const handlePrintReport = async (record) => {
+  const handlePrintReport = async (record, format = selectedLungFormat) => {
     try {
-      setDownloadingId(record.id);
+      const raw = buildAssessmentObject(record);
+      setSelectedAssessmentForPrint(raw);
+      setSelectedLungFormat(format);
+      setIsPrinting(true);
       toast.loading("Opening print layout...", { id: "stats-print" });
 
-      const raw = buildAssessmentObject(record);
-      setPrintingAssessment(raw);
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 350));
 
       if (!reportRef.current) throw new Error("Report element not found");
 
@@ -308,24 +321,12 @@ export default function LungHealthStatisticsPage() {
       console.error("Print layout failed:", err);
       toast.error("Failed to open print layout", { id: "stats-print" });
     } finally {
-      setPrintingAssessment(null);
-      setDownloadingId(null);
+      setIsPrinting(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-50/70 text-slate-800 py-5 sm:py-8 px-3 sm:px-6 lg:px-8 font-sans">
-      
-      {/* Hidden Off-Screen Report Target for High-Res Client PDF Generation */}
-      {printingAssessment && (
-        <AssessmentPrintReport
-          assessmentType="lung"
-          assessmentData={printingAssessment}
-          patientData={user || {}}
-          reportRef={reportRef}
-        />
-      )}
-
       {/* Main Container */}
       <div className="max-w-6xl mx-auto space-y-6">
 
@@ -437,7 +438,7 @@ export default function LungHealthStatisticsPage() {
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                     Total Assessments
                   </p>
-                  <p className="text-2xl font-black text-slate-900 font-mono mt-1">
+                  <p className="text-2xl font-bold text-slate-900 font-mono mt-1">
                     {totalAssessments}
                   </p>
                   <p className="text-[11px] text-slate-500 mt-0.5">
@@ -456,7 +457,7 @@ export default function LungHealthStatisticsPage() {
                     Latest Score
                   </p>
                   <div className="flex items-baseline gap-1 mt-1">
-                    <span className="text-2xl font-black text-[#0067A1] font-mono">
+                    <span className="text-2xl font-bold text-[#0067A1] font-mono">
                       {latestScore}
                     </span>
                     <span className="text-xs text-slate-400">/ 100</span>
@@ -483,7 +484,7 @@ export default function LungHealthStatisticsPage() {
                     Average Score
                   </p>
                   <div className="flex items-baseline gap-1 mt-1">
-                    <span className="text-2xl font-black text-slate-900 font-mono">
+                    <span className="text-2xl font-bold text-slate-900 font-mono">
                       {averageScore}
                     </span>
                     <span className="text-xs text-slate-400">/ 100</span>
@@ -505,7 +506,7 @@ export default function LungHealthStatisticsPage() {
                   </p>
                   <div className="flex items-baseline gap-1 mt-1">
                     {hasMultipleTests ? (
-                      <span className="text-2xl font-black text-slate-900 font-mono">
+                      <span className="text-2xl font-bold text-slate-900 font-mono">
                         {recordedChange > 0 ? `+${recordedChange}` : recordedChange}
                       </span>
                     ) : (
@@ -808,7 +809,7 @@ export default function LungHealthStatisticsPage() {
                     <Sparkles className="w-3.5 h-3.5 text-sky-200" />
                   </div>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-black font-mono">{breathingStats.totalSessions}</span>
+                    <span className="text-2xl font-bold font-mono">{breathingStats.totalSessions}</span>
                     <span className="text-xs text-sky-200">completed sessions</span>
                   </div>
                   <p className="text-[11px] text-sky-100 mt-1">
@@ -903,7 +904,7 @@ export default function LungHealthStatisticsPage() {
 
                           {/* Score */}
                           <td className="py-3 px-3 whitespace-nowrap">
-                            <span className="text-base font-black text-slate-900 font-mono">
+                            <span className="text-base font-bold text-slate-900 font-mono">
                               {scoreVal}
                             </span>
                             <span className="text-[10px] text-slate-400 ml-0.5">/100</span>
@@ -934,30 +935,40 @@ export default function LungHealthStatisticsPage() {
                             <div className="inline-flex items-center gap-1.5">
                               <button
                                 type="button"
-                                onClick={() => handleOpenSnapshot(record)}
-                                className="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200 rounded-[5px] text-[11px] font-semibold transition-colors cursor-pointer"
-                                title="Open Full Report Snapshot (LC-10)"
+                                onClick={() => handleOpenReportViewer(record, "lung-v9.9")}
+                                className="px-2.5 py-1.5 bg-[#0b3b60] hover:bg-[#07243c] text-white rounded-[5px] text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                                title="Open Full Clinical Report Viewer"
                               >
-                                <Eye className="w-3.5 h-3.5 inline mr-1" />
-                                Snapshot
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>View Report</span>
                               </button>
 
                               <button
                                 type="button"
-                                onClick={() => handleDownloadReport(record)}
-                                disabled={downloadingId === record.id}
+                                onClick={() => handleOpenSnapshot(record)}
+                                className="px-2 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200 rounded-[5px] text-[11px] font-semibold transition-colors cursor-pointer"
+                                title="Open Quick Snapshot (LC-10)"
+                              >
+                                <Eye className="w-3.5 h-3.5 inline mr-0.5" />
+                                <span>Snapshot</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadReport(record, "lung-v9.9")}
+                                disabled={isDownloading}
                                 className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-[5px] text-[11px] font-semibold transition-colors cursor-pointer"
-                                title="Download High-Res PDF (15-Day Gated)"
+                                title="Download V9.9 Wellness Summary PDF"
                               >
                                 <Download className="w-3.5 h-3.5" />
                               </button>
 
                               <button
                                 type="button"
-                                onClick={() => handlePrintReport(record)}
-                                disabled={downloadingId === record.id}
+                                onClick={() => handlePrintReport(record, "lung-v9.9")}
+                                disabled={isPrinting}
                                 className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-[5px] text-[11px] font-semibold transition-colors cursor-pointer"
-                                title="Print Clinical Report (with Logo & Watermark)"
+                                title="Print Report"
                               >
                                 <Printer className="w-3.5 h-3.5" />
                               </button>
@@ -975,6 +986,103 @@ export default function LungHealthStatisticsPage() {
 
       </div>
 
+      {/* ─── Detail Modal (Full Multi-Format Report Viewer Workbench) ─── */}
+      {selectedReportForViewer && (
+        <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-5xl max-h-[96vh] rounded-[6px] shadow-2xl flex flex-col overflow-hidden text-slate-900 border border-slate-700/50 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
+              <div className="flex items-center gap-2.5">
+                <span className="text-[10px] font-mono font-bold uppercase text-[#007a8c] bg-teal-50 border border-teal-200 px-2.5 py-0.5 rounded-[4px]">
+                  {selectedReportForViewer.serial_no || selectedReportForViewer.serialNo || "LUNG REPORT"}
+                </span>
+                <span className="text-xs font-bold text-slate-300">•</span>
+                <h2 className="text-sm sm:text-base font-bold text-slate-900">
+                  LungConnect Authoritative Clinical Report
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedReportForViewer(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-[5px] transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Format Selection Tab Bar */}
+            <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex items-center gap-2 overflow-x-auto shrink-0">
+              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider shrink-0 mr-1">
+                Official Format:
+              </span>
+              {[
+                { id: "lung-v9.9", label: "V9.9 • Wellness Summary", badge: "Frozen 1-Page A4 Fixed" },
+                { id: "lung-full", label: "Full • Clinical Assessment", badge: "Comprehensive Matrix" }
+              ].map((fmt) => (
+                <button
+                  key={fmt.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedLungFormat(fmt.id);
+                    setSelectedAssessmentForPrint(selectedReportForViewer);
+                  }}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-[4px] transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    selectedLungFormat === fmt.id
+                      ? "bg-[#007a8c] text-white shadow-sm ring-1 ring-slate-900"
+                      : "bg-white text-slate-700 hover:bg-slate-200 border border-slate-300"
+                  }`}
+                >
+                  <span>{fmt.label}</span>
+                  <span className={`text-[9px] px-1.5 py-0.2 rounded font-normal ${selectedLungFormat === fmt.id ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
+                    {fmt.badge}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Modal Body: Sleek dark inspection workbench with centered A4 document */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-900/90 flex justify-center items-start">
+              <div className="bg-white shadow-2xl ring-1 ring-black/20 overflow-x-auto max-w-full rounded-[2px]">
+                {selectedLungFormat === "lung-v9.9" && <LungConnectV99Report assessmentData={selectedReportForViewer} patientData={user || {}} />}
+                {selectedLungFormat === "lung-full" && <LungConnectFullReport assessmentData={selectedReportForViewer} patientData={user || {}} />}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 sm:p-4 border-t border-slate-200 bg-white flex items-center justify-between gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedReportForViewer(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-[5px] text-xs font-semibold transition-colors cursor-pointer border border-slate-200"
+              >
+                Close
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handlePrintReport(selectedReportForViewer, selectedLungFormat)}
+                  disabled={isPrinting}
+                  className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 rounded-[5px] text-xs font-bold border border-slate-300 transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5 text-[#007a8c]" />
+                  <span>Print Report</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadReport(selectedReportForViewer, selectedLungFormat)}
+                  disabled={isDownloading}
+                  className="px-4 py-2 bg-[#007a8c] hover:bg-[#005e6c] text-white rounded-[5px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download {selectedLungFormat === "lung-full" ? "Full Clinical" : "V9.9"} PDF</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* LC-10: Full Lung Report Snapshot Modal */}
       {selectedAssessmentForModal && (
         <LungSnapshotModal
@@ -988,6 +1096,16 @@ export default function LungHealthStatisticsPage() {
           patientData={user || {}}
         />
       )}
+
+      {/* ─── Hidden Printable Template for Canvas/PDF Generation ─── */}
+      <AssessmentPrintReport
+        assessmentType="lung"
+        formatType={selectedLungFormat}
+        assessmentData={selectedAssessmentForPrint || (selectedReportForViewer || (history[0] ? buildAssessmentObject(history[0]) : {}))}
+        patientData={user || {}}
+        reportRef={reportRef}
+      />
     </div>
   );
 }
+
