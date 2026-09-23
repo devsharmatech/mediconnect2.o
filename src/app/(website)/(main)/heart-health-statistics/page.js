@@ -58,6 +58,11 @@ export default function HeartHealthStatisticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [progressData, setProgressData] = useState(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Card expanded states (all open by default on desktop, toggleable on mobile)
   const [expandedCards, setExpandedCards] = useState({
@@ -129,6 +134,24 @@ export default function HeartHealthStatisticsPage() {
   const activeCheckpointObj = useMemo(() => {
     return CHECKPOINTS.find((c) => c.id === selectedCheckpoint) || CHECKPOINTS[0];
   }, [selectedCheckpoint]);
+
+  // Validated and sanitized trajectory data points
+  const validTrajectory = useMemo(() => {
+    const traj = progressData?.spectrum?.trajectory;
+    if (!traj || !Array.isArray(traj) || traj.length === 0) return [];
+    return traj
+      .map((item, idx) => {
+        const rawVal = item?.[selectedFactorKey];
+        const numVal = Number(rawVal);
+        const val = (!isNaN(numVal) && isFinite(numVal)) ? numVal : 0;
+        return {
+          ...item,
+          date: item?.date || `P${idx + 1}`,
+          [selectedFactorKey]: val
+        };
+      })
+      .filter((item) => typeof item[selectedFactorKey] === "number" && !isNaN(item[selectedFactorKey]));
+  }, [progressData?.spectrum?.trajectory, selectedFactorKey]);
 
   const dataState = progressData?.dataState || (selectedCheckpoint === "Later" ? "later" : "available");
 
@@ -413,35 +436,41 @@ export default function HeartHealthStatisticsPage() {
                             Daily Movement Breakdown (Minutes)
                           </p>
                           <div className="h-44 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart
-                                data={progressData.activity.dataPoints}
-                                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                                <XAxis dataKey="dayLabel" tick={{ fontSize: 11, fill: "#64748b" }} />
-                                <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
-                                <Tooltip
-                                  formatter={(value) => [`${value} min`, "Activity Duration"]}
-                                  labelFormatter={(label, payload) => payload?.[0]?.payload?.fullDate || label}
-                                  contentStyle={{
-                                    backgroundColor: "#ffffff",
-                                    borderRadius: "8px",
-                                    border: "1px solid #e2e8f0",
-                                    fontSize: "12px",
-                                    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)"
-                                  }}
-                                />
-                                <Bar dataKey="minutes" fill="#0067A1" radius={[4, 4, 0, 0]}>
-                                  {progressData.activity.dataPoints.map((entry, index) => (
-                                    <Cell
-                                      key={`cell-${index}`}
-                                      fill={entry.minutes >= 30 ? "#0067A1" : entry.minutes > 0 ? "#38bdf8" : "#e2e8f0"}
-                                    />
-                                  ))}
-                                </Bar>
-                              </BarChart>
-                            </ResponsiveContainer>
+                            {!isMounted ? (
+                              <div className="w-full h-full flex items-center justify-center bg-slate-50/50 rounded-[6px] border border-dashed border-slate-200">
+                                <div className="w-4 h-4 border-2 border-slate-300 border-t-[#0067A1] rounded-full animate-spin" />
+                              </div>
+                            ) : (
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                  data={progressData.activity.dataPoints}
+                                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                                  <XAxis dataKey="dayLabel" tick={{ fontSize: 11, fill: "#64748b" }} />
+                                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
+                                  <Tooltip
+                                    formatter={(value) => [`${value} min`, "Activity Duration"]}
+                                    labelFormatter={(label, payload) => payload?.[0]?.payload?.fullDate || label}
+                                    contentStyle={{
+                                      backgroundColor: "#ffffff",
+                                      borderRadius: "8px",
+                                      border: "1px solid #e2e8f0",
+                                      fontSize: "12px",
+                                      boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)"
+                                    }}
+                                  />
+                                  <Bar dataKey="minutes" fill="#0067A1" radius={[4, 4, 0, 0]}>
+                                    {progressData.activity.dataPoints.map((entry, index) => (
+                                      <Cell
+                                        key={`cell-${index}`}
+                                        fill={entry.minutes >= 30 ? "#0067A1" : entry.minutes > 0 ? "#38bdf8" : "#e2e8f0"}
+                                      />
+                                    ))}
+                                  </Bar>
+                                </BarChart>
+                              </ResponsiveContainer>
+                            )}
                           </div>
                         </div>
                       )}
@@ -568,36 +597,42 @@ export default function HeartHealthStatisticsPage() {
                             Step Counts vs 10,000 Reference Target
                           </p>
                           <div className="h-44 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart
-                                data={progressData.steps.dataPoints}
-                                margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                                <XAxis dataKey="dayLabel" tick={{ fontSize: 11, fill: "#64748b" }} />
-                                <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
-                                <Tooltip
-                                  formatter={(value) => [`${value.toLocaleString()} steps`, "Daily Movement"]}
-                                  labelFormatter={(label, payload) => payload?.[0]?.payload?.fullDate || label}
-                                  contentStyle={{
-                                    backgroundColor: "#ffffff",
-                                    borderRadius: "8px",
-                                    border: "1px solid #e2e8f0",
-                                    fontSize: "12px",
-                                    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)"
-                                  }}
-                                />
-                                <ReferenceLine y={10000} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "10k Ref", fill: "#d97706", fontSize: 10, position: "top" }} />
-                                <Bar dataKey="steps" fill="#06b6d4" radius={[4, 4, 0, 0]}>
-                                  {progressData.steps.dataPoints.map((entry, index) => (
-                                    <Cell
-                                      key={`cell-step-${index}`}
-                                      fill={entry.steps >= 10000 ? "#0284c7" : entry.steps >= 6000 ? "#06b6d4" : "#94a3b8"}
-                                    />
-                                  ))}
-                                </Bar>
-                              </BarChart>
-                            </ResponsiveContainer>
+                            {!isMounted ? (
+                              <div className="w-full h-full flex items-center justify-center bg-slate-50/50 rounded-[6px] border border-dashed border-slate-200">
+                                <div className="w-4 h-4 border-2 border-slate-300 border-t-[#0067A1] rounded-full animate-spin" />
+                              </div>
+                            ) : (
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                  data={progressData.steps.dataPoints}
+                                  margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                                  <XAxis dataKey="dayLabel" tick={{ fontSize: 11, fill: "#64748b" }} />
+                                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
+                                  <Tooltip
+                                    formatter={(value) => [`${value.toLocaleString()} steps`, "Daily Movement"]}
+                                    labelFormatter={(label, payload) => payload?.[0]?.payload?.fullDate || label}
+                                    contentStyle={{
+                                      backgroundColor: "#ffffff",
+                                      borderRadius: "8px",
+                                      border: "1px solid #e2e8f0",
+                                      fontSize: "12px",
+                                      boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)"
+                                    }}
+                                  />
+                                  <ReferenceLine y={10000} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "10k Ref", fill: "#d97706", fontSize: 10, position: "top" }} />
+                                  <Bar dataKey="steps" fill="#06b6d4" radius={[4, 4, 0, 0]}>
+                                    {progressData.steps.dataPoints.map((entry, index) => (
+                                      <Cell
+                                        key={`cell-step-${index}`}
+                                        fill={entry.steps >= 10000 ? "#0284c7" : entry.steps >= 6000 ? "#06b6d4" : "#94a3b8"}
+                                      />
+                                    ))}
+                                  </Bar>
+                                </BarChart>
+                              </ResponsiveContainer>
+                            )}
                           </div>
                         </div>
                       )}
@@ -689,7 +724,7 @@ export default function HeartHealthStatisticsPage() {
                   ) : (
                     <>
                       {/* Longitudinal Trajectory Chart across assessments */}
-                      {progressData?.spectrum?.trajectory?.length > 0 && (
+                      {validTrajectory.length > 0 && (
                         <div className="pt-2">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                             <p className="text-xs font-bold text-slate-700">
@@ -720,44 +755,69 @@ export default function HeartHealthStatisticsPage() {
                           </div>
 
                           <div className="h-44 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <LineChart
-                                data={progressData.spectrum.trajectory}
-                                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                              >
-                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#64748b" }} />
-                                <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
-                                <Tooltip
-                                  formatter={(value) => [
-                                    `${value} ${
+                            {!isMounted ? (
+                              <div className="w-full h-full flex items-center justify-center bg-slate-50/50 rounded-[6px] border border-dashed border-slate-200">
+                                <div className="w-4 h-4 border-2 border-slate-300 border-t-[#0067A1] rounded-full animate-spin" />
+                              </div>
+                            ) : validTrajectory.length === 1 ? (
+                              <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50/70 border border-slate-200/80 rounded-lg p-4 text-center">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-[#0067A1]" />
+                                  <span className="text-xs font-bold text-slate-700">Baseline Recording:</span>
+                                  <span className="text-sm font-bold text-[#0067A1] font-mono">
+                                    {validTrajectory[0][selectedFactorKey]} {
                                       selectedFactorKey.includes("BP") || selectedFactorKey === "systolic" || selectedFactorKey === "diastolic"
                                         ? "mmHg"
                                         : selectedFactorKey === "heartRate"
                                         ? "bpm"
                                         : "/ 100"
-                                    }`,
-                                    selectedFactorKey.toUpperCase()
-                                  ]}
-                                  labelFormatter={(label, payload) => payload?.[0]?.payload?.fullDate || label}
-                                  contentStyle={{
-                                    backgroundColor: "#ffffff",
-                                    borderRadius: "8px",
-                                    border: "1px solid #e2e8f0",
-                                    fontSize: "12px",
-                                    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)"
-                                  }}
-                                />
-                                <Line
-                                  type="monotone"
-                                  dataKey={selectedFactorKey}
-                                  stroke="#0067A1"
-                                  strokeWidth={2.5}
-                                  dot={{ fill: "#0067A1", r: 4 }}
-                                  activeDot={{ r: 6, fill: "#0284c7" }}
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
+                                    }
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 max-w-sm">
+                                  Baseline recorded on {validTrajectory[0].date}. Complete your next assessment to view the longitudinal trendline.
+                                </p>
+                              </div>
+                            ) : (
+                              <ResponsiveContainer width="100%" height="100%">
+                                <LineChart
+                                  data={validTrajectory}
+                                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#64748b" }} />
+                                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} />
+                                  <Tooltip
+                                    formatter={(value) => [
+                                      `${value} ${
+                                        selectedFactorKey.includes("BP") || selectedFactorKey === "systolic" || selectedFactorKey === "diastolic"
+                                          ? "mmHg"
+                                          : selectedFactorKey === "heartRate"
+                                          ? "bpm"
+                                          : "/ 100"
+                                      }`,
+                                      selectedFactorKey.toUpperCase()
+                                    ]}
+                                    labelFormatter={(label, payload) => payload?.[0]?.payload?.fullDate || label}
+                                    contentStyle={{
+                                      backgroundColor: "#ffffff",
+                                      borderRadius: "8px",
+                                      border: "1px solid #e2e8f0",
+                                      fontSize: "12px",
+                                      boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)"
+                                    }}
+                                  />
+                                  <Line
+                                    type="monotone"
+                                    dataKey={selectedFactorKey}
+                                    stroke="#0067A1"
+                                    strokeWidth={2.5}
+                                    dot={{ fill: "#0067A1", r: 4 }}
+                                    activeDot={{ r: 6, fill: "#0284c7" }}
+                                  />
+                                </LineChart>
+                              </ResponsiveContainer>
+                            )}
                           </div>
                         </div>
                       )}

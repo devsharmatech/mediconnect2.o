@@ -52,7 +52,9 @@ import {
   Heart,
   Activity,
   Pill,
+  Home,
 } from "lucide-react";
+import Papa from "papaparse";
 
 // Terms and Conditions Modal Component
 function TermsModal({ isOpen, onClose, onAccept }) {
@@ -998,26 +1000,492 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
   );
 }
 
-function LabTestsContent({ labId }) {
+// Admin CSV Bulk Upload Modal Component with PapaParse Preview & Collection Type Support
+function AdminCsvUploadModal({ isOpen, onClose, preselectedLabId, onUploaded }) {
+  const [labs, setLabs] = useState([]);
+  const [selectedLabId, setSelectedLabId] = useState(preselectedLabId || "");
+  const [loadingLabs, setLoadingLabs] = useState(false);
+  const [csvData, setCsvData] = useState([]);
+  const [csvErrors, setCsvErrors] = useState([]);
+  const [csvFileName, setCsvFileName] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (preselectedLabId) {
+        setSelectedLabId(preselectedLabId);
+      }
+      fetchLabOptions();
+    } else {
+      setCsvData([]);
+      setCsvErrors([]);
+      setCsvFileName("");
+    }
+  }, [isOpen, preselectedLabId]);
+
+  const fetchLabOptions = async () => {
+    setLoadingLabs(true);
+    try {
+      const res = await fetch("/api/lab/web?limit=1000");
+      const json = await res.json();
+      if (json.success && json.data?.labs) {
+        setLabs(json.data.labs);
+        if (!selectedLabId && json.data.labs.length > 0 && !preselectedLabId) {
+          setSelectedLabId(json.data.labs[0].id);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load labs dropdown", e);
+    } finally {
+      setLoadingLabs(false);
+    }
+  };
+
+  const CSV_HEADERS = [
+    "Test Name", "Price", "Category", "Collection Type", "Sample Type", "Container",
+    "Temperature", "Turnaround Time", "Schedule", "Reporting Schedule",
+    "Remarks", "Clinical History Required", "Active"
+  ];
+
+  const downloadSampleTemplate = () => {
+    const sampleRows = [
+      [
+        "Complete Blood Count (CBC)", "450", "Hematology", "both", "EDTA Blood", "EDTA Tube",
+        "Room Temp", "Same Day", "Daily by 3 PM", "Same day by 7 PM",
+        "10-12 hrs overnight fasting advised", "No", "Yes"
+      ],
+      [
+        "Lipid Profile Extended", "950", "Biochemistry", "home", "Serum", "Red top / Plain",
+        "2-8°C", "Same Day", "Daily by 11 AM", "Same day by 6 PM",
+        "12 hrs strict fasting required", "Yes", "Yes"
+      ],
+      [
+        "Digital Chest X-Ray", "600", "Radiology", "lab", "Patient Visit", "N/A",
+        "Room Temp", "1-2 Hours", "Daily by 4 PM", "Same day in 2 hours",
+        "Walk-in test center only", "No", "Yes"
+      ],
+      [
+        "HbA1c Glycated Hemoglobin", "550", "Endocrinology", "both", "EDTA Blood", "Lavender top",
+        "Room Temp", "Same Day", "Daily by 3 PM", "Same day by 6 PM",
+        "Non-fasting acceptable", "No", "Yes"
+      ]
+    ];
+    const csvContent = [CSV_HEADERS.join(","), ...sampleRows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "sample_lab_tests_template.csv";
+    link.click();
+    URL.revokeObjectURL(link.href);
+    toast.success("Sample CSV template downloaded!");
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvFileName(file.name);
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const rows = [];
+        const errs = [];
+
+        results.data.forEach((row, idx) => {
+          const testName = (row["Test Name"] || row["test_name"] || "").trim();
+          const price = (row["Price"] || row["price"] || "").trim();
+          const rawCol = (row["Collection Type"] || row["collection_type"] || "").trim().toLowerCase();
+          const collectionType = ["home", "lab", "both"].includes(rawCol) ? rawCol : "lab";
+
+          const rowErrors = [];
+          if (!testName) rowErrors.push("Missing Test Name");
+          if (!price || isNaN(parseFloat(price))) rowErrors.push("Invalid Price");
+
+          const parsed = {
+            test_name: testName,
+            price: price,
+            category_name: (row["Category"] || row["category"] || "").trim() || "General",
+            collection_type: collectionType,
+            specimen_type: (row["Sample Type"] || row["specimen_type"] || "").trim() || null,
+            container: (row["Container"] || row["container"] || "").trim() || null,
+            temperature: (row["Temperature"] || row["temperature"] || "").trim() || null,
+            turnaround_time: (row["Turnaround Time"] || row["turnaround_time"] || "").trim() || null,
+            schedule: (row["Schedule"] || row["schedule"] || "").trim() || null,
+            reporting_schedule: (row["Reporting Schedule"] || row["reporting_schedule"] || "").trim() || null,
+            remarks: (row["Remarks"] || row["remarks"] || "").trim() || null,
+            clinical_history_required: ["yes", "true", "1"].includes((row["Clinical History Required"] || "").trim().toLowerCase()),
+            is_active: !["no", "false", "0"].includes((row["Active"] || "").trim().toLowerCase()),
+            _errors: rowErrors,
+            _rowNum: idx + 2
+          };
+
+          if (rowErrors.length > 0) errs.push(parsed);
+          rows.push(parsed);
+        });
+
+        setCsvData(rows);
+        setCsvErrors(errs);
+      },
+      error: () => {
+        toast.error("Failed to parse CSV file with PapaParse");
+      }
+    });
+
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleRowEdit = (index, field, value) => {
+    const updated = [...csvData];
+    updated[index][field] = value;
+    const rowErrors = [];
+    if (!updated[index].test_name?.trim()) rowErrors.push("Missing Test Name");
+    if (!updated[index].price || isNaN(parseFloat(updated[index].price))) rowErrors.push("Invalid Price");
+    updated[index]._errors = rowErrors;
+    setCsvData(updated);
+    setCsvErrors(updated.filter(r => r._errors.length > 0));
+  };
+
+  const handleRowDelete = (index) => {
+    const updated = [...csvData];
+    updated.splice(index, 1);
+    setCsvData(updated);
+    setCsvErrors(updated.filter(r => r._errors.length > 0));
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!selectedLabId) {
+      toast.error("Please select a target Lab diagnostic center");
+      return;
+    }
+    const validRows = csvData.filter(r => r._errors.length === 0);
+    if (validRows.length === 0) {
+      toast.error("No valid tests to import");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const payload = validRows.map(({ _errors, _rowNum, ...clean }) => clean);
+      const res = await fetch("/api/admin/labs/tests/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lab_id: selectedLabId,
+          tests: payload
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const targetLab = labs.find(l => l.id === selectedLabId);
+        toast.success(data.message || `Imported ${validRows.length} tests to ${targetLab?.lab_name || 'Lab'}!`);
+        if (onUploaded) onUploaded(selectedLabId);
+        onClose();
+      } else {
+        toast.error(data.message || "Failed to import tests");
+      }
+    } catch (err) {
+      console.error("Bulk upload error:", err);
+      toast.error("Server error importing tests");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const validCount = csvData.filter(r => r._errors.length === 0).length;
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[94vh] flex flex-col border border-gray-200 dark:border-gray-700 overflow-hidden">
+        {/* Modal Header */}
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/80 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-50 dark:bg-blue-900/40 text-[#0067A1] dark:text-blue-300 rounded-xl">
+              <Upload className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Admin Bulk Upload Lab Tests</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Select any diagnostic center, preview CSV with PapaParse, and bulk import test catalog</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+          {/* Target Lab Selector & Sample Download Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                Target Diagnostic Lab *
+              </label>
+              {loadingLabs ? (
+                <div className="h-11 bg-gray-100 dark:bg-gray-700 rounded-xl animate-pulse flex items-center px-4 text-xs text-gray-500">Loading labs...</div>
+              ) : (
+                <select
+                  value={selectedLabId}
+                  onChange={(e) => setSelectedLabId(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-[#0067A1] focus:outline-none transition-all"
+                >
+                  <option value="" disabled>Select Target Diagnostic Lab...</option>
+                  {labs.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.lab_name} {l.address ? `— ${l.address.slice(0, 45)}...` : ""} ({l.status || 'approved'})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div>
+              <button
+                type="button"
+                onClick={downloadSampleTemplate}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700 rounded-xl font-medium text-sm transition-colors cursor-pointer shadow-xs"
+              >
+                <Download size={16} />
+                Download Sample CSV
+              </button>
+            </div>
+          </div>
+
+          {/* Instructions Banner */}
+          <div className="p-3.5 bg-blue-50/60 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-xl text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <span className="font-semibold">Format Guidelines:</span>
+              <p>
+                Columns supported: <code className="font-mono bg-blue-100/60 dark:bg-blue-800/40 px-1 py-0.5 rounded">Test Name</code>, <code className="font-mono bg-blue-100/60 dark:bg-blue-800/40 px-1 py-0.5 rounded">Price</code>, <code className="font-mono bg-blue-100/60 dark:bg-blue-800/40 px-1 py-0.5 rounded">Category</code>, <code className="font-mono bg-blue-100/60 dark:bg-blue-800/40 px-1 py-0.5 rounded">Collection Type</code> (<span className="text-emerald-700 dark:text-emerald-300 font-semibold">home</span>, <span className="text-blue-700 dark:text-blue-300 font-semibold">lab</span>, or <span className="text-teal-700 dark:text-teal-300 font-semibold">both</span>), <code className="font-mono bg-blue-100/60 dark:bg-blue-800/40 px-1 py-0.5 rounded">Sample Type</code>, <code className="font-mono bg-blue-100/60 dark:bg-blue-800/40 px-1 py-0.5 rounded">Turnaround Time</code>.
+              </p>
+            </div>
+          </div>
+
+          {/* File Dropzone */}
+          <label className="flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl cursor-pointer hover:border-[#0067A1] dark:hover:border-blue-400 hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-all group">
+            <Upload className="w-8 h-8 text-gray-400 group-hover:text-[#0067A1] transition-colors" />
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">
+              {csvFileName ? (
+                <span className="font-semibold text-[#0067A1] dark:text-blue-400">{csvFileName}</span>
+              ) : (
+                "Click or drag to select your CSV file"
+              )}
+            </span>
+            <span className="text-xs text-gray-400">Accepted format: .csv (Parsed instantly in-browser using PapaParse)</span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+          </label>
+
+          {/* PapaParse Live Preview Table */}
+          {csvData.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                  <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg text-xs font-semibold">
+                    Total Rows: {csvData.length}
+                  </span>
+                  <span className="px-3 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-1">
+                    <CheckCircle size={13} />
+                    Valid: {validCount}
+                  </span>
+                  {csvErrors.length > 0 && (
+                    <span className="px-3 py-1 bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 rounded-lg text-xs font-semibold flex items-center gap-1">
+                      <XCircle size={13} />
+                      Errors: {csvErrors.length}
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-400 italic">Click any cell below to edit before final import</span>
+              </div>
+
+              <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-x-auto max-h-72">
+                <table className="w-full text-left text-xs min-w-[750px]">
+                  <thead className="bg-gray-50 dark:bg-gray-700/80 sticky top-0 border-b border-gray-200 dark:border-gray-700">
+                    <tr>
+                      <th className="px-3 py-2.5 text-center w-10 text-gray-500">#</th>
+                      <th className="px-3 py-2.5 text-center w-12 text-gray-500">Status</th>
+                      <th className="px-3 py-2.5 text-gray-700 dark:text-gray-200">Test Name *</th>
+                      <th className="px-3 py-2.5 w-24 text-gray-700 dark:text-gray-200">Price (₹) *</th>
+                      <th className="px-3 py-2.5 w-32 text-gray-700 dark:text-gray-200">Category</th>
+                      <th className="px-3 py-2.5 w-32 text-gray-700 dark:text-gray-200">Collection Type</th>
+                      <th className="px-3 py-2.5 text-gray-700 dark:text-gray-200">Sample</th>
+                      <th className="px-3 py-2.5 w-24 text-gray-700 dark:text-gray-200">TAT</th>
+                      <th className="px-3 py-2.5 w-12 text-center"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {csvData.map((row, i) => (
+                      <tr
+                        key={i}
+                        className={row._errors.length > 0 ? "bg-red-50/30 dark:bg-red-900/10" : "hover:bg-gray-50 dark:hover:bg-gray-700/30"}
+                      >
+                        <td className="px-3 py-2 text-center text-gray-400 font-mono">{row._rowNum}</td>
+                        <td className="px-3 py-2 text-center">
+                          {row._errors.length === 0 ? (
+                            <CheckCircle size={16} className="text-emerald-500 mx-auto" />
+                          ) : (
+                            <XCircle size={16} className="text-red-500 mx-auto" title={row._errors.join(", ")} />
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="text"
+                            value={row.test_name}
+                            onChange={(e) => handleRowEdit(i, "test_name", e.target.value)}
+                            className={`w-full px-2 py-1 bg-transparent rounded border ${
+                              row._errors.includes("Missing Test Name") ? "border-red-400 bg-red-50/50 text-red-900" : "border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-[#0067A1]"
+                            }`}
+                            placeholder="Test name"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">₹</span>
+                            <input
+                              type="number"
+                              value={row.price}
+                              onChange={(e) => handleRowEdit(i, "price", e.target.value)}
+                              className={`w-full pl-5 pr-2 py-1 bg-transparent rounded border ${
+                                row._errors.includes("Invalid Price") ? "border-red-400 bg-red-50/50 text-red-900" : "border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-[#0067A1]"
+                              }`}
+                              placeholder="0"
+                            />
+                          </div>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="text"
+                            value={row.category_name}
+                            onChange={(e) => handleRowEdit(i, "category_name", e.target.value)}
+                            className="w-full px-2 py-1 bg-transparent rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-[#0067A1]"
+                            placeholder="Category"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <select
+                            value={row.collection_type || "lab"}
+                            onChange={(e) => handleRowEdit(i, "collection_type", e.target.value)}
+                            className="w-full px-2 py-1 rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-xs"
+                          >
+                            <option value="lab">Lab Visit</option>
+                            <option value="home">Home Collection</option>
+                            <option value="both">Both (Home & Lab)</option>
+                          </select>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="text"
+                            value={row.specimen_type || ""}
+                            onChange={(e) => handleRowEdit(i, "specimen_type", e.target.value)}
+                            className="w-full px-2 py-1 bg-transparent rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-[#0067A1]"
+                            placeholder="Sample"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="text"
+                            value={row.turnaround_time || ""}
+                            onChange={(e) => handleRowEdit(i, "turnaround_time", e.target.value)}
+                            className="w-full px-2 py-1 bg-transparent rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-[#0067A1]"
+                            placeholder="TAT"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRowDelete(i)}
+                            className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors cursor-pointer"
+                            title="Remove row"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer */}
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/80 flex items-center justify-between shrink-0">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {selectedLabId ? (
+              <span>Target: <strong>{labs.find(l => l.id === selectedLabId)?.lab_name || 'Selected Lab'}</strong></span>
+            ) : (
+              <span className="text-amber-600 dark:text-amber-400 font-medium">Please select a target lab first</span>
+            )}
+          </p>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmUpload}
+              disabled={uploading || !selectedLabId || validCount === 0}
+              className="px-5 py-2 bg-[#0067A1] hover:bg-[#004F7C] disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-xl text-sm font-semibold transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+            >
+              {uploading ? (
+                <>
+                  <RefreshCw size={14} className="animate-spin" />
+                  Importing Tests...
+                </>
+              ) : (
+                <>
+                  <Upload size={14} />
+                  Import {validCount} Tests to Lab
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LabTestsContent({ labId, onOpenUploadCsv }) {
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchTests = async () => {
-      try {
-        const res = await fetch(`/api/lab/tests?lab_id=${labId}`);
-        const data = await res.json();
-        if (data.success) {
-          setTests(data.data || []);
-        } else {
-          toast.error(data.message || "Failed to fetch lab tests");
-        }
-      } catch (err) {
-        toast.error("Error fetching lab tests");
-      } finally {
-        setLoading(false);
+  const fetchTests = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/lab/tests?lab_id=${labId}`);
+      const data = await res.json();
+      if (data.success) {
+        setTests(data.data || []);
+      } else {
+        toast.error(data.message || "Failed to fetch lab tests");
       }
-    };
+    } catch (err) {
+      toast.error("Error fetching lab tests");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (labId) {
       fetchTests();
     }
@@ -1031,73 +1499,119 @@ function LabTestsContent({ labId }) {
     );
   }
 
-  if (tests.length === 0) {
-    return (
-      <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700">
-        <TestTube className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white">No Tests Found</h3>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">This lab hasn't added any diagnostic tests yet.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      {tests.map((test) => (
-        <div key={test.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-start">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded">
-                  {test.test_code || "N/A"}
-                </span>
-                {test.category && (
-                  <span className="text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-[#0067A1] dark:text-blue-400 px-2 py-0.5 rounded-full flex items-center">
-                    {test.category.name}
-                  </span>
-                )}
-                {!test.is_active && (
-                  <span className="text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">
-                    Inactive
-                  </span>
-                )}
-              </div>
-              <h4 className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
-                {test.test_name}
-              </h4>
-            </div>
-            <div className="text-right">
-              <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                ₹{test.price}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <span className="block text-gray-500 dark:text-gray-400 text-xs mb-1">Sample Type</span>
-              <span className="font-medium text-gray-900 dark:text-white">{test.specimen_type || "Not specified"}</span>
-            </div>
-            <div>
-              <span className="block text-gray-500 dark:text-gray-400 text-xs mb-1">Container</span>
-              <span className="font-medium text-gray-900 dark:text-white">{test.container || "Not specified"}</span>
-            </div>
-            <div>
-              <span className="block text-gray-500 dark:text-gray-400 text-xs mb-1">Temperature</span>
-              <span className="font-medium text-gray-900 dark:text-white">{test.temperature || "Not specified"}</span>
-            </div>
-            <div>
-              <span className="block text-gray-500 dark:text-gray-400 text-xs mb-1">TAT</span>
-              <span className="font-medium text-gray-900 dark:text-white">{test.turnaround_time || "Not specified"}</span>
-            </div>
-          </div>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h4 className="text-base font-semibold text-gray-900 dark:text-white">Diagnostic Tests Catalog ({tests.length})</h4>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Available tests and collection options for this diagnostic center</p>
         </div>
-      ))}
+        <button
+          type="button"
+          onClick={() => onOpenUploadCsv && onOpenUploadCsv(labId)}
+          className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg transition-colors shadow-sm cursor-pointer"
+        >
+          <Upload size={14} />
+          Upload CSV Tests
+        </button>
+      </div>
+
+      {tests.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700">
+          <TestTube className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">No Tests Found</h3>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 mb-4">This lab hasn't added any diagnostic tests yet.</p>
+          <button
+            type="button"
+            onClick={() => onOpenUploadCsv && onOpenUploadCsv(labId)}
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg transition-colors cursor-pointer shadow-sm"
+          >
+            <Upload size={14} />
+            Upload CSV for this Lab
+          </button>
+        </div>
+      ) : (
+        tests.map((test) => (
+          <div key={test.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 hover:shadow-md transition-shadow">
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded">
+                    {test.test_code || "N/A"}
+                  </span>
+                  {test.category && (
+                    <span className="text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-[#0067A1] dark:text-blue-400 px-2 py-0.5 rounded-full flex items-center">
+                      {test.category.name}
+                    </span>
+                  )}
+                  {/* Collection Type Badge */}
+                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 border ${
+                    test.collection_type === 'home'
+                      ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800'
+                      : test.collection_type === 'both'
+                      ? 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800'
+                      : 'bg-blue-50 text-[#0067A1] border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
+                  }`}>
+                    {test.collection_type === 'home' ? (
+                      <>
+                        <Home size={11} />
+                        Home Collection
+                      </>
+                    ) : test.collection_type === 'both' ? (
+                      <>
+                        <RefreshCw size={11} />
+                        Home & Lab
+                      </>
+                    ) : (
+                      <>
+                        <Microscope size={11} />
+                        Lab Visit
+                      </>
+                    )}
+                  </span>
+                  {!test.is_active && (
+                    <span className="text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">
+                      Inactive
+                    </span>
+                  )}
+                </div>
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white capitalize">
+                  {test.test_name}
+                </h4>
+              </div>
+              <div className="text-right">
+                <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                  ₹{test.price}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="block text-gray-500 dark:text-gray-400 text-xs mb-1">Sample Type</span>
+                <span className="font-medium text-gray-900 dark:text-white">{test.specimen_type || "Not specified"}</span>
+              </div>
+              <div>
+                <span className="block text-gray-500 dark:text-gray-400 text-xs mb-1">Container</span>
+                <span className="font-medium text-gray-900 dark:text-white">{test.container || "Not specified"}</span>
+              </div>
+              <div>
+                <span className="block text-gray-500 dark:text-gray-400 text-xs mb-1">Temperature</span>
+                <span className="font-medium text-gray-900 dark:text-white">{test.temperature || "Not specified"}</span>
+              </div>
+              <div>
+                <span className="block text-gray-500 dark:text-gray-400 text-xs mb-1">TAT</span>
+                <span className="font-medium text-gray-900 dark:text-white">{test.turnaround_time || "Not specified"}</span>
+              </div>
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }
 
-function LabDetailsModal({ lab, isOpen, onClose }) {
+function LabDetailsModal({ lab, isOpen, onClose, onOpenUploadCsv }) {
   if (!isOpen || !lab) {
     return null;
   }
@@ -1105,13 +1619,13 @@ function LabDetailsModal({ lab, isOpen, onClose }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50">
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-6xl border border-gray-200 dark:border-gray-700">
-        <ModalContent lab={lab} onClose={onClose} />
+        <ModalContent lab={lab} onClose={onClose} onOpenUploadCsv={onOpenUploadCsv} />
       </div>
     </div>
   );
 }
 
-function ModalContent({ lab, onClose }) {
+function ModalContent({ lab, onClose, onOpenUploadCsv }) {
   const [activeTab, setActiveTab] = useState("details");
   const [mapLoaded, setMapLoaded] = useState(false);
   const mapContainerRef = useRef(null);
@@ -1799,7 +2313,7 @@ function ModalContent({ lab, onClose }) {
           {activeTab === "services" && renderServicesContent()}
           {activeTab === "location" && renderLocationContent()}
           {activeTab === "documents" && renderDocumentsContent()}
-          {activeTab === "tests" && <LabTestsContent labId={lab.id} />}
+          {activeTab === "tests" && <LabTestsContent labId={lab.id} onOpenUploadCsv={onOpenUploadCsv} />}
         </div>
       </div>
       <div className="p-6 border-t rounded-b-2xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
@@ -1836,6 +2350,13 @@ export default function LabsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [summary, setSummary] = useState({ total: 0, approved: 0, pending: 0, homeCollection: 0 });
+  const [csvUploadModalOpen, setCsvUploadModalOpen] = useState(false);
+  const [csvTargetLabId, setCsvTargetLabId] = useState(null);
+
+  const handleOpenCsvModal = (labId = null) => {
+    setCsvTargetLabId(labId);
+    setCsvUploadModalOpen(true);
+  };
 
   const [pagination, setPagination] = useState({
     currentPage: 1,
@@ -2084,18 +2605,29 @@ export default function LabsPage() {
                       Showing {((pagination.currentPage - 1) * pagination.itemsPerPage) + 1} to {Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)} of {pagination.totalItems} labs
                     </motion.p>
                   </div>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      setEditLab(null);
-                      setOnboardingOpen(true);
-                    }}
-                    className="flex items-center px-4 py-2 text-sm bg-black text-white font-semibold rounded-lg transition-all duration-300 mt-4 sm:mt-0 cursor-pointer shadow-sm border border-gray-300 dark:border-gray-700 hover:bg-gray-800"
-                  >
-                    <Plus size={20} className="mr-2" />
-                    Onboard Lab
-                  </motion.button>
+                  <div className="flex items-center gap-3 flex-wrap mt-4 sm:mt-0">
+                    <motion.button
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => handleOpenCsvModal(null)}
+                      className="flex items-center px-4 py-2 text-sm bg-white dark:bg-gray-800 text-[#0067A1] dark:text-blue-400 font-semibold rounded-lg transition-all duration-300 cursor-pointer shadow-xs border border-[#0067A1]/30 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                    >
+                      <Upload size={18} className="mr-2" />
+                      Upload Tests (CSV)
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        setEditLab(null);
+                        setOnboardingOpen(true);
+                      }}
+                      className="flex items-center px-4 py-2 text-sm bg-black text-white font-semibold rounded-lg transition-all duration-300 cursor-pointer shadow-sm border border-gray-300 dark:border-gray-700 hover:bg-gray-800"
+                    >
+                      <Plus size={20} className="mr-2" />
+                      Onboard Lab
+                    </motion.button>
+                  </div>
                 </div>
               </motion.div>
 
@@ -2661,6 +3193,17 @@ export default function LabsPage() {
         onClose={() => {
           setDetailsModalOpen(false);
           setViewLab(null);
+        }}
+        onOpenUploadCsv={(labId) => handleOpenCsvModal(labId)}
+      />
+
+      {/* Admin Bulk CSV Upload Modal */}
+      <AdminCsvUploadModal
+        isOpen={csvUploadModalOpen}
+        onClose={() => setCsvUploadModalOpen(false)}
+        preselectedLabId={csvTargetLabId}
+        onUploaded={() => {
+          fetchLabs(pagination.currentPage);
         }}
       />
 

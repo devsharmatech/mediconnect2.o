@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabaseAdmin";
+import { broadcastEmitter } from "@/lib/broadcastEmitter";
+import admin from "@/lib/firebaseAdmin";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -14,19 +16,7 @@ export async function POST(req) {
       return failure("broadcast_id and quote_id are required", null, 400, { headers: corsHeaders });
     }
 
-    // 1. Fetch the selected quote to get the chemist details
-    const { data: quote, error: quoteErr } = await supabase
-      .from("medicine_order_quotes")
-      .select("*")
-      .eq("id", quote_id)
-      .eq("broadcast_id", broadcast_id)
-      .single();
-
-    if (quoteErr || !quote) {
-      return failure("Selected quote not found", null, 404, { headers: corsHeaders });
-    }
-
-    // 2. Fetch the broadcast details to get prescription/patient info
+    // 1. Fetch the broadcast details and validate active status
     const { data: broadcast, error: broadcastErr } = await supabase
       .from("medicine_order_broadcasts")
       .select("*")
@@ -37,26 +27,73 @@ export async function POST(req) {
       return failure("Broadcast not found", null, 404, { headers: corsHeaders });
     }
 
-    // 3. Mark the chosen quote as 'selected'
+    if (broadcast.status === "completed") {
+      return failure("An offer has already been selected for this broadcast", null, 409, { headers: corsHeaders });
+    }
+
+    if (broadcast.expires_at && new Date(broadcast.expires_at) < new Date()) {
+      return failure("Bidding window has expired. Expired offers cannot be selected.", null, 400, { headers: corsHeaders });
+    }
+
+    // 2. Fetch the selected quote to lock in pricing and chemist details
+    const { data: quote, error: quoteErr } = await supabase
+      .from("medicine_order_quotes")
+      .select(`
+        *,
+        chemist:chemist_id(
+          pharmacy_name,
+          address,
+          mobile,
+          payment_qr_url,
+          payment_qr_payload,
+          payment_qr_label
+        )
+      `)
+      .eq("id", quote_id)
+      .eq("broadcast_id", broadcast_id)
+      .single();
+
+    if (quoteErr || !quote) {
+      return failure("Selected quote not found", null, 404, { headers: corsHeaders });
+    }
+
+    // 3. Calculate SLA commitment timestamps (promised, warning at 80%, breach)
+    const now = new Date();
+    const deliveryMins = Number(quote.delivery_time_minutes || 60);
+    const promisedDeliveryAt = new Date(now.getTime() + deliveryMins * 60 * 1000);
+    const warningAt = new Date(now.getTime() + Math.floor(deliveryMins * 0.8) * 60 * 1000);
+    const breachAt = promisedDeliveryAt;
+
+    const finalAmount = Number(quote.final_amount || quote.estimated_cost);
+    const medicineSubtotal = Number(quote.medicine_subtotal || quote.estimated_cost);
+    const deliveryCharge = Number(quote.delivery_charge || 0);
+    const discount = Number(quote.discount || 0);
+
+    // 4. Atomically mark the chosen quote as 'selected' and all others as 'not_selected'
     await supabase
       .from("medicine_order_quotes")
       .update({ status: "selected" })
       .eq("id", quote_id);
 
-    // 4. Mark all other quotes as 'ignored'
-    await supabase
+    const { data: ignoredQuotes } = await supabase
       .from("medicine_order_quotes")
-      .update({ status: "ignored" })
+      .update({ status: "not_selected" })
       .eq("broadcast_id", broadcast_id)
-      .neq("id", quote_id);
+      .neq("id", quote_id)
+      .select("chemist_id");
 
-    // 5. Complete the broadcast status
+    // 5. Complete the broadcast status and push SSE event
     await supabase
       .from("medicine_order_broadcasts")
       .update({ status: "completed" })
       .eq("id", broadcast_id);
 
-    // 6. Create the final order row in medicine_orders
+    broadcastEmitter.emit(`status:${broadcast_id}`, {
+      status: "completed",
+      selected_quote_id: quote_id
+    });
+
+    // 6. Create the order in canonical state 'payment_pending' with locked financial breakdown
     const { data: order, error: orderErr } = await supabase
       .from("medicine_orders")
       .insert([
@@ -64,9 +101,18 @@ export async function POST(req) {
           prescription_id: broadcast.prescription_id,
           patient_id: broadcast.patient_id,
           chemist_id: quote.chemist_id,
-          status: "waiting_for_bill",
-          total_amount: quote.estimated_cost, // Estimated cost acts as initial total
-          patient_notes: `Order created from broadcast selection. Estimated delivery: ${quote.delivery_time_minutes} mins.`,
+          status: "payment_pending", // V3 canonical state: ready for payment review & disclosure
+          medicine_subtotal: medicineSubtotal,
+          delivery_charge: deliveryCharge,
+          discount: discount,
+          total_amount: finalAmount,
+          payment_qr_url: quote.chemist?.payment_qr_url || null,
+          payment_qr_payload: quote.chemist?.payment_qr_payload || null,
+          promised_delivery_at: promisedDeliveryAt,
+          warning_at: warningAt,
+          breach_at: breachAt,
+          sla_status: "ON_TRACK",
+          patient_notes: `V3 Offer Selected - Promised Delivery: ${deliveryMins} mins.`,
         },
       ])
       .select()
@@ -104,34 +150,57 @@ export async function POST(req) {
       }
     }
 
-    // 8. Notify the selected chemist to finalize the bill
+    // 8. Notifications per Section 10 Notification Event Matrix
     try {
-      const { data: patientUser } = await supabase
-        .from("users")
-        .select("phone_number")
-        .eq("id", broadcast.patient_id)
-        .single();
+      const pharmacyName = quote.chemist?.pharmacy_name || "Selected Pharmacy";
 
-      const { data: patientDetails } = await supabase
-        .from("patient_details")
-        .select("full_name")
-        .eq("id", broadcast.patient_id)
-        .maybeSingle();
-
-      const patientName = patientDetails?.full_name || patientUser?.phone_number || "Patient";
-
+      // 8a. Notify Selected Pharmacy (Offer Selected)
       await supabase.from("notifications").insert({
         user_id: quote.chemist_id,
-        title: "Order Request Confirmed 🎉",
-        message: `You were selected by ${patientName}! Please prepare and send the final bill.`,
+        title: "Offer Selected 🎉",
+        message: `Your offer of ₹${finalAmount} was selected! Waiting for patient verified payment before releasing full delivery address.`,
         type: "medicine_order",
-        metadata: { order_id: order.id },
+        metadata: { order_id: order.id, broadcast_id },
       });
+
+      // Firebase Push to Selected Chemist
+      const { data: chemistUser } = await supabase
+        .from("users")
+        .select("fcm_token")
+        .eq("id", quote.chemist_id)
+        .maybeSingle();
+
+      if (chemistUser?.fcm_token) {
+        await admin.messaging().send({
+          token: chemistUser.fcm_token,
+          notification: {
+            title: "Offer Selected 🎉",
+            body: `Your offer of ₹${finalAmount} was chosen! Awaiting verified payment.`,
+          },
+          data: {
+            type: "offer_selected",
+            order_id: order.id,
+            broadcast_id,
+          },
+        }).catch(() => null);
+      }
+
+      // 8b. Notify Non-selected Pharmacies (Offer Not Selected)
+      if (Array.isArray(ignoredQuotes) && ignoredQuotes.length > 0) {
+        const unselectedNotifs = ignoredQuotes.map((q) => ({
+          user_id: q.chemist_id,
+          title: "Bidding Concluded",
+          message: "Another pharmacy offer was selected by the patient for this broadcast.",
+          type: "medicine_order",
+          metadata: { broadcast_id },
+        }));
+        await supabase.from("notifications").insert(unselectedNotifs).catch(() => null);
+      }
     } catch (notifErr) {
-      console.error("Failed to notify chemist of selection:", notifErr.message);
+      console.warn("Notification dispatch warning in select-quote:", notifErr?.message);
     }
 
-    return success("Quote selected, order created", order, 201, { headers: corsHeaders });
+    return success("Offer selected and locked successfully", order, 201, { headers: corsHeaders });
 
   } catch (err) {
     console.error("Error selecting quote:", err);

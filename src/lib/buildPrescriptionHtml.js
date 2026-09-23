@@ -100,7 +100,7 @@ export const buildPrescriptionHtml = (rec, options = {}) => {
     return String(q);
   })();
 
-  const isChemistView = options.isChemistView || options.mode === 'chemist' || options.type === 'chemist';
+  const isChemistView = Boolean(options.isChemistView || options.mode === 'chemist' || options.type === 'chemist' || options.forChemist || options.forDispensing);
 
   const calculateQty = (m) => {
     if (m.quantity || m.qty) return String(m.quantity || m.qty);
@@ -386,7 +386,7 @@ ${vitalsHtml}
 <div class="field">DOB: <span class="value">${escapeHtml(pDetails.date_of_birth ? dayjs(pDetails.date_of_birth).format("DD MMM YYYY") : "-")}</span></div>
 <div class="field">Address: <span class="value">${escapeHtml(pDetails.address || "-")}</span></div>
 
-<div class="badge">PRESCRIPTION</div>
+<div class="badge">${isChemistView ? 'PHARMACY DISPENSING COPY' : 'PRESCRIPTION'}</div>
 
 <h3>Medicines</h3>
 ${medicinesHtml}
@@ -409,6 +409,12 @@ ${labTestsHtml}
 
 </tr>
 </table>
+
+${isChemistView ? `
+<div style="margin-top: 25px; padding: 12px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11px; color: #475569; text-align: center;">
+  <strong>DPDP Act 2023 &amp; Pharmacy Practice Compliance:</strong> This is an official Pharmacy Dispensing Copy containing only authorized medication and prescriber data. Patient clinical history, diagnostic notes, and non-dispensing medical records have been redacted per data minimization regulations.
+</div>
+` : ''}
 
 </div>
 </body>

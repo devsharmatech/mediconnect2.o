@@ -56,20 +56,32 @@ export async function POST(req) {
       });
     }
 
-    // 3. Map broadcasts, indicating if already quoted
-    const result = broadcasts.map(b => ({
-      id: b.id,
-      delivery_address: b.delivery_address || "Not provided",
-      created_at: b.created_at,
-      expires_at: b.expires_at,
-      medicines: typeof b.prescription?.medicines === "string" 
-        ? JSON.parse(b.prescription.medicines) 
-        : b.prescription?.medicines || [],
-      patient_name: b.patient?.patient_details?.full_name || b.patient?.phone_number || "Patient",
-      already_quoted: !!quotesMap[b.id],
-      submitted_quote: quotesMap[b.id] || null,
-      seconds_remaining: Math.max(0, Math.floor((new Date(b.expires_at) - new Date()) / 1000))
-    }));
+    // 3. Map broadcasts, masking exact delivery address & shielding phone number (V3 DPDP Rule)
+    const result = broadcasts.map(b => {
+      const rawAddr = b.delivery_address || "";
+      const pinMatch = rawAddr.match(/\b\d{6}\b/);
+      const delivery_pincode = pinMatch ? pinMatch[0] : null;
+      const parts = rawAddr.split(',').map(s => s.trim()).filter(Boolean);
+      const delivery_area = parts.length > 1 ? parts.slice(-2).join(', ') : (parts[0] || "Local Delivery Area");
+
+      return {
+        id: b.id,
+        delivery_area: delivery_area,
+        delivery_pincode: delivery_pincode,
+        // Shielded address representation for bidding pharmacies
+        delivery_address: delivery_pincode ? `${delivery_area} (PIN: ${delivery_pincode})` : delivery_area,
+        created_at: b.created_at,
+        expires_at: b.expires_at,
+        medicines: typeof b.prescription?.medicines === "string" 
+          ? JSON.parse(b.prescription.medicines) 
+          : b.prescription?.medicines || [],
+        // Shield patient phone number completely during bidding phase
+        patient_name: b.patient?.patient_details?.full_name || "Patient",
+        already_quoted: !!quotesMap[b.id],
+        submitted_quote: quotesMap[b.id] || null,
+        seconds_remaining: Math.max(0, Math.floor((new Date(b.expires_at) - new Date()) / 1000))
+      };
+    });
 
     return success("Broadcasts fetched successfully", result, 200, { headers: corsHeaders });
   } catch (err) {

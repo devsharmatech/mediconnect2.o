@@ -13,7 +13,7 @@ export async function PUT(req, { params }) {
     try {
         const { id } = await params;
         const body = await req.json();
-        const { lab_id, category_id, test_code, test_name, price, specimen_type, clinical_history_required, turnaround_time, is_active, container, temperature, remarks, schedule, reporting_schedule } = body;
+        const { lab_id, category_id, test_code, test_name, price, specimen_type, clinical_history_required, turnaround_time, is_active, container, temperature, remarks, schedule, reporting_schedule, collection_type } = body;
 
         if (!id || !lab_id) {
             return failure("Test ID and lab_id are required", null, 400, { headers: corsHeaders });
@@ -56,6 +56,11 @@ export async function PUT(req, { params }) {
         if (remarks !== undefined) updateData.remarks = remarks || null;
         if (schedule !== undefined) updateData.schedule = schedule || null;
         if (reporting_schedule !== undefined) updateData.reporting_schedule = reporting_schedule || null;
+        if (collection_type !== undefined) {
+            updateData.collection_type = ['home', 'lab', 'both'].includes((collection_type || '').toLowerCase())
+                ? collection_type.toLowerCase()
+                : 'lab';
+        }
 
         const { data, error } = await supabase
             .from("lab_tests")

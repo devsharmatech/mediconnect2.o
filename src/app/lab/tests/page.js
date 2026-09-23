@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Plus, Edit2, Trash2, Search, Thermometer, Microscope, Dna, Syringe, Biohazard, Bone, Activity as ActivityIcon, Droplet, Users, FileText, TestTube, Eye, Upload, Download, CheckCircle2, XCircle, AlertTriangle, X } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Thermometer, Microscope, Dna, Syringe, Biohazard, Bone, Activity as ActivityIcon, Droplet, Users, FileText, TestTube, Eye, Upload, Download, CheckCircle2, XCircle, AlertTriangle, X, Home, RefreshCw } from "lucide-react";
 import toast from "react-hot-toast";
 import Papa from "papaparse";
 import { getLoggedInUser } from "@/lib/authHelpers";
@@ -43,6 +43,7 @@ export default function LabTestCatalogPage() {
         test_name: "",
         category_id: "",
         price: "",
+        collection_type: "lab",
         specimen_type: "",
         specimen_type_custom: "",
         container: "",
@@ -113,6 +114,7 @@ export default function LabTestCatalogPage() {
                 test_name: testItem.test_name,
                 category_id: testItem.category_id || "",
                 price: testItem.price,
+                collection_type: testItem.collection_type || "lab",
                 specimen_type: isCustomSpecimen ? "Other" : (testItem.specimen_type || ""),
                 specimen_type_custom: isCustomSpecimen ? testItem.specimen_type : "",
                 container: testItem.container || "",
@@ -131,6 +133,7 @@ export default function LabTestCatalogPage() {
                 test_name: "",
                 category_id: "",
                 price: "",
+                collection_type: "lab",
                 specimen_type: "",
                 specimen_type_custom: "",
                 container: "",
@@ -145,6 +148,35 @@ export default function LabTestCatalogPage() {
             setEditingId(null);
         }
         setIsModalOpen(true);
+    };
+
+    const handleQuickCycleCollectionType = async (test, e) => {
+        if (e) e.stopPropagation();
+        const cycle = { 'lab': 'home', 'home': 'both', 'both': 'lab' };
+        const nextType = cycle[test.collection_type || 'lab'] || 'lab';
+
+        try {
+            const res = await fetch(`/api/lab/tests/${test.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    lab_id: labId,
+                    collection_type: nextType
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success(`Collection set to: ${nextType === 'home' ? 'Home Collection' : nextType === 'both' ? 'Both (Home & Lab)' : 'Lab Visit'}`);
+                setTests(prev => prev.map(t => t.id === test.id ? { ...t, collection_type: nextType } : t));
+            } else if (res.status === 403 && data.error?.code === "CONSENT_REQUIRED") {
+                setPendingAction(() => () => handleQuickCycleCollectionType(test, e));
+                setIsOtpModalOpen(true);
+            } else {
+                toast.error(data.message || "Failed to update collection type");
+            }
+        } catch {
+            toast.error("Network error updating collection type");
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -224,7 +256,7 @@ export default function LabTestCatalogPage() {
     // ─── CSV Bulk Upload Functions ────────────────────────────────
 
     const CSV_HEADERS = [
-        "Test Name", "Price", "Category", "Sample Type", "Container",
+        "Test Name", "Price", "Category", "Collection Type", "Sample Type", "Container",
         "Temperature", "Turnaround Time", "Schedule", "Reporting Schedule",
         "Remarks", "Clinical History Required", "Active"
     ];
@@ -232,14 +264,19 @@ export default function LabTestCatalogPage() {
     const downloadTemplate = () => {
         const sampleRows = [
             [
-                "Complete Blood Count", "450", "Hematology", "EDTA Blood", "EDTA Tube",
+                "Complete Blood Count", "450", "Hematology", "both", "EDTA Blood", "EDTA Tube",
                 "Room Temp", "Same Day", "Daily by 3 PM", "Same day by 6 PM",
                 "12 hrs fasting required", "No", "Yes"
             ],
             [
-                "Thyroid Profile", "850", "Endocrinology", "Serum", "Red top/Plain",
+                "Thyroid Profile", "850", "Endocrinology", "home", "Serum", "Red top/Plain",
                 "2-8°C", "Next Working Day", "Mon-Sat by 11 AM", "Next day by 5 PM",
                 "", "Yes", "Yes"
+            ],
+            [
+                "ECG / Radiology Screening", "350", "Cardiology", "lab", "Patient Visit", "N/A",
+                "Room Temp", "1 Hour", "Mon-Sun by 5 PM", "Same day in 2 hrs",
+                "Walk-in lab screening", "No", "Yes"
             ],
         ];
         const csvContent = [CSV_HEADERS.join(","), ...sampleRows.map(r => r.join(","))].join("\n");
@@ -267,6 +304,8 @@ export default function LabTestCatalogPage() {
                     const testName = (row["Test Name"] || "").trim();
                     const price = (row["Price"] || "").trim();
                     const catName = (row["Category"] || "").trim();
+                    const rawColType = (row["Collection Type"] || row["collection_type"] || "").trim().toLowerCase();
+                    const collectionType = ["home", "lab", "both"].includes(rawColType) ? rawColType : "lab";
 
                     // Find category ID by name (case-insensitive)
                     const matchedCat = categories.find(
@@ -282,6 +321,7 @@ export default function LabTestCatalogPage() {
                         price: price,
                         category_id: matchedCat?.id || null,
                         category_name: matchedCat?.name || catName || "—",
+                        collection_type: collectionType,
                         specimen_type: (row["Sample Type"] || "").trim() || null,
                         container: (row["Container"] || "").trim() || null,
                         temperature: (row["Temperature"] || "").trim() || null,
@@ -400,6 +440,7 @@ export default function LabTestCatalogPage() {
             "Test Name": t.test_name || "",
             "Price": t.price || "",
             "Category": t.category?.name || "Uncategorized",
+            "Collection Type": t.collection_type || "lab",
             "Sample Type": t.specimen_type || "",
             "Container": t.container || "",
             "Temperature": t.temperature || "",
@@ -505,6 +546,7 @@ export default function LabTestCatalogPage() {
                                         <th className="pb-3 px-4 font-semibold text-gray-600 dark:text-gray-300">Test Details</th>
                                         <th className="pb-3 px-4 font-semibold text-gray-600 dark:text-gray-300">Category</th>
                                         <th className="pb-3 px-4 font-semibold text-gray-600 dark:text-gray-300">Price (₹)</th>
+                                        <th className="pb-3 px-4 font-semibold text-gray-600 dark:text-gray-300 text-center">Collection</th>
                                         <th className="pb-3 px-4 font-semibold text-gray-600 dark:text-gray-300 text-center">Status</th>
                                         <th className="pb-3 px-4 font-semibold text-gray-600 dark:text-gray-300 text-right">Actions</th>
                                     </tr>
@@ -512,7 +554,7 @@ export default function LabTestCatalogPage() {
                                 <tbody>
                                     {filteredTests.length === 0 ? (
                                         <tr>
-                                            <td colSpan="5" className="py-8 text-center text-gray-500">
+                                            <td colSpan="6" className="py-8 text-center text-gray-500">
                                                 No tests found in your catalog. Add a test to start receiving patients!
                                             </td>
                                         </tr>
@@ -523,7 +565,7 @@ export default function LabTestCatalogPage() {
                                                     <div className="flex flex-col">
                                                         <span className="font-semibold text-gray-900 dark:text-white">{test.test_name}</span>
                                                         {test.test_code && (
-                                                            <span className="text-xs font-mono text-gray-500 mt-0.5">{test.test_code}</span>
+                                                             <span className="text-xs font-mono text-gray-500 mt-0.5">{test.test_code}</span>
                                                         )}
                                                     </div>
                                                 </td>
@@ -539,6 +581,37 @@ export default function LabTestCatalogPage() {
                                                 </td>
                                                 <td className="py-4 px-4 font-semibold text-gray-800 dark:text-gray-200">
                                                     ₹{test.price}
+                                                </td>
+                                                <td className="py-4 px-4 text-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => handleQuickCycleCollectionType(test, e)}
+                                                        title="Click to cycle: Lab Visit → Home Collection → Both"
+                                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all hover:scale-105 cursor-pointer shadow-xs ${
+                                                            test.collection_type === 'home'
+                                                                ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800'
+                                                                : test.collection_type === 'both'
+                                                                ? 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800'
+                                                                : 'bg-blue-50 text-[#0067A1] border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
+                                                        }`}
+                                                    >
+                                                        {test.collection_type === 'home' ? (
+                                                            <>
+                                                                <Home size={12} className="text-purple-600 dark:text-purple-400" />
+                                                                <span>Home Only</span>
+                                                            </>
+                                                        ) : test.collection_type === 'both' ? (
+                                                            <>
+                                                                <RefreshCw size={12} className="text-teal-600 dark:text-teal-400" />
+                                                                <span>Home & Lab</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Microscope size={12} className="text-[#0067A1] dark:text-blue-400" />
+                                                                <span>Lab Visit</span>
+                                                            </>
+                                                        )}
+                                                    </button>
                                                 </td>
                                                 <td className="py-4 px-4 text-center">
                                                     <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${test.is_active
@@ -659,6 +732,39 @@ export default function LabTestCatalogPage() {
                                                 className="w-full pl-8 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all dark:text-white font-medium text-lg"
                                             />
                                         </div>
+                                    </div>
+                                </div>
+
+                                {/* Collection Type Selector */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                                        Collection Availability *
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {[
+                                            { id: "lab", label: "Lab Visit", desc: "Patient visits lab", icon: Microscope },
+                                            { id: "home", label: "Home Collection", desc: "Phlebotomist visits home", icon: Home },
+                                            { id: "both", label: "Both (Lab & Home)", desc: "Flexible for patient", icon: RefreshCw },
+                                        ].map(item => {
+                                            const Icon = item.icon;
+                                            const isSelected = (formData.collection_type || "lab") === item.id;
+                                            return (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    onClick={() => setFormData({ ...formData, collection_type: item.id })}
+                                                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                                                        isSelected 
+                                                            ? 'bg-blue-50/80 border-[#0067A1] text-[#0067A1] dark:bg-blue-900/30 dark:border-blue-400 dark:text-blue-300 shadow-sm ring-1 ring-[#0067A1]'
+                                                            : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600 text-gray-600 dark:text-gray-400'
+                                                    }`}
+                                                >
+                                                    <Icon className="w-5 h-5 mb-1" />
+                                                    <span className="text-xs font-semibold">{item.label}</span>
+                                                    <span className="text-[10px] opacity-75 mt-0.5">{item.desc}</span>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
@@ -884,6 +990,34 @@ export default function LabTestCatalogPage() {
 
                                 {/* Grid of details */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-6">
+                                    <div>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Collection Availability</p>
+                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold ${
+                                            viewingTest.collection_type === 'home'
+                                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'
+                                                : viewingTest.collection_type === 'both'
+                                                ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300'
+                                                : 'bg-blue-100 text-[#0067A1] dark:bg-blue-900/40 dark:text-blue-300'
+                                        }`}>
+                                            {viewingTest.collection_type === 'home' ? (
+                                                <>
+                                                    <Home size={12} />
+                                                    Home Collection Only
+                                                </>
+                                            ) : viewingTest.collection_type === 'both' ? (
+                                                <>
+                                                    <RefreshCw size={12} />
+                                                    Both (Home & Lab)
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Microscope size={12} />
+                                                    Lab Visit Only
+                                                </>
+                                            )}
+                                        </span>
+                                    </div>
+
                                     {viewingTest.category && (
                                         <div>
                                             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Category</p>
@@ -1090,6 +1224,7 @@ export default function LabTestCatalogPage() {
                                                         <th className="px-3 py-3 font-semibold text-gray-600 dark:text-gray-300">Test Name *</th>
                                                         <th className="px-3 py-3 font-semibold text-gray-600 dark:text-gray-300 w-28">Price *</th>
                                                         <th className="px-3 py-3 font-semibold text-gray-600 dark:text-gray-300">Category</th>
+                                                        <th className="px-3 py-3 font-semibold text-gray-600 dark:text-gray-300 w-28">Collection</th>
                                                         <th className="px-3 py-3 font-semibold text-gray-600 dark:text-gray-300">Sample</th>
                                                         <th className="px-3 py-3 font-semibold text-gray-600 dark:text-gray-300">TAT</th>
                                                         <th className="px-3 py-3 font-semibold text-gray-600 dark:text-gray-300 w-24">Issues</th>
@@ -1139,6 +1274,17 @@ export default function LabTestCatalogPage() {
                                                                     className="w-full px-2 py-1.5 text-sm bg-transparent border-b border-transparent hover:border-gray-300 focus:border-emerald-500 text-gray-700 dark:text-gray-300 outline-none transition-colors"
                                                                     placeholder="Category"
                                                                 />
+                                                            </td>
+                                                            <td className="px-2 py-2">
+                                                                <select
+                                                                    value={row.collection_type || "lab"}
+                                                                    onChange={(e) => handleCsvRowEdit(i, 'collection_type', e.target.value)}
+                                                                    className="w-full px-1.5 py-1 text-xs rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                                                                >
+                                                                    <option value="lab">Lab Visit</option>
+                                                                    <option value="home">Home</option>
+                                                                    <option value="both">Both</option>
+                                                                </select>
                                                             </td>
                                                             <td className="px-2 py-2">
                                                                 <input 

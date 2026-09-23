@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FaSync, FaInfoCircle, FaShieldAlt } from 'react-icons/fa';
 import { RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 
@@ -12,6 +12,12 @@ const AirQualityCard = ({
   onDetails = () => {}, 
   onInsurance = () => {} 
 }) => {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const getAqiColor = (aqiValue) => {
     const val = Number(aqiValue);
     if (val <= 50) return '#10B981';   // Green (Good)
@@ -48,39 +54,47 @@ const AirQualityCard = ({
       {/* Main Content */}
       <div className="flex items-center justify-between">
         {/* AQI Value */}
-        <div className="w-24 h-24 relative">
-          <ResponsiveContainer width="100%" height="100%">
-            <RadialBarChart 
-              innerRadius="70%" 
-              outerRadius="90%" 
-              barSize={8}
-              data={chartData}
-              startAngle={90}
-              endAngle={-270}
-            >
-              <PolarAngleAxis 
-                type="number" 
-                domain={[0, 100]} 
-                angleAxisId={0} 
-                tick={false} 
-              />
-              <RadialBar
-                background
-                dataKey="value"
-                cornerRadius={4}
-                className="fill-current"
-              />
-              <text
-                x="50%"
-                y="50%"
-                textAnchor="middle"
-                dominantBaseline="middle"
-                style={{ fill: fillColor, fontSize: '1.25rem', fontWeight: 'bold' }}
-              >
+        <div className="w-24 h-24 relative flex items-center justify-center">
+          {!isMounted ? (
+            <div className="w-20 h-20 rounded-full border-4 border-slate-100 flex items-center justify-center">
+              <span style={{ color: fillColor, fontSize: '1.25rem', fontWeight: 'bold' }}>
                 {currentAqi}
-              </text>
-            </RadialBarChart>
-          </ResponsiveContainer>
+              </span>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <RadialBarChart 
+                innerRadius="70%" 
+                outerRadius="90%" 
+                barSize={8}
+                data={chartData}
+                startAngle={90}
+                endAngle={-270}
+              >
+                <PolarAngleAxis 
+                  type="number" 
+                  domain={[0, 100]} 
+                  angleAxisId={0} 
+                  tick={false} 
+                />
+                <RadialBar
+                  background
+                  dataKey="value"
+                  cornerRadius={4}
+                  className="fill-current"
+                />
+                <text
+                  x="50%"
+                  y="50%"
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  style={{ fill: fillColor, fontSize: '1.25rem', fontWeight: 'bold' }}
+                >
+                  {currentAqi}
+                </text>
+              </RadialBarChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Status */}

@@ -39,6 +39,7 @@ export async function GET(req, { params }) {
                 test_code,
                 test_name,
                 price,
+                collection_type,
                 specimen_type,
                 container,
                 temperature,

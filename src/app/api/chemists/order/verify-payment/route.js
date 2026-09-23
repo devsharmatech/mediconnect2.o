@@ -19,12 +19,12 @@ export async function POST(req) {
     }
 
     /* --------------------------------------------------
-       1️⃣ UPDATE ORDER STATUS → COMPLETED
+       1️⃣ UPDATE ORDER STATUS → FULFILMENT_RELEASED
     -------------------------------------------------- */
     const { data: order, error } = await supabase
       .from("medicine_orders")
       .update({
-        status: "payment_verified",
+        status: "fulfilment_released", // V3 canonical state: verified payment releases fulfilment
         payment_verified_at: new Date(),
         updated_at: new Date(),
       })
@@ -49,21 +49,34 @@ export async function POST(req) {
       .single();
 
     /* --------------------------------------------------
-       3️⃣ SEND FIREBASE PUSH TO PATIENT
+       3️⃣ SEND FIREBASE PUSH TO PATIENT & NOTIFICATION TO CHEMIST
     -------------------------------------------------- */
     if (patient?.fcm_token) {
       await admin.messaging().send({
         token: patient.fcm_token,
         notification: {
           title: "Payment Verified ✅",
-          body: `Your payment of ₹${order.total_amount} has been verified successfully.`,
+          body: `Your payment of ₹${order.total_amount} has been verified successfully. Medicines are being prepared for dispatch.`,
         },
         data: {
           type: "payment_verified",
           order_id: order.id,
           amount: String(order.total_amount),
         },
+      }).catch(() => null);
+    }
+
+    // In-app notification to chemist unlocking full delivery address
+    try {
+      await supabase.from("notifications").insert({
+        user_id: chemist_id,
+        title: "Fulfilment Released 🚀",
+        message: `Payment verified for Order ${order.id.slice(0, 8).toUpperCase()}. Full delivery address and contact are now available. Please dispense and dispatch.`,
+        type: "medicine_order",
+        metadata: { order_id: order.id },
       });
+    } catch (notifErr) {
+      console.warn("Chemist notification error:", notifErr?.message);
     }
 
     /* --------------------------------------------------

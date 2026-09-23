@@ -54,24 +54,73 @@ function SharePrescriptionModal({
 
   const items = itemsState;
   const [showPaymentConsentConfirm, setShowPaymentConsentConfirm] = useState(false);
+  const [quoteToConfirm, setQuoteToConfirm] = useState(null);
+  const [disclosureAccepted, setDisclosureAccepted] = useState(false);
 
-  // Poll responses for broadcast
+  // Real-time SSE Stream for broadcast quotes (0 DB polling load)
   useEffect(() => {
     if (step !== "broadcast" || !broadcastId) return;
-    const fetchQuotes = async () => {
+
+    let es = null;
+    let sseActive = false;
+
+    try {
+      es = new EventSource(`/api/patients/orders/medicine/broadcast/stream?broadcast_id=${broadcastId}`);
+
+      es.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === "INITIAL_QUOTES" && Array.isArray(payload.quotes)) {
+            sseActive = true;
+            setQuotes(payload.quotes);
+            if (payload.seconds_remaining !== undefined) {
+              setTimeLeft(payload.seconds_remaining);
+            }
+          } else if (payload.type === "NEW_QUOTE" && payload.quote) {
+            sseActive = true;
+            setQuotes((prev) => {
+              const exists = prev.some((q) => q.id === payload.quote.id);
+              if (exists) return prev.map((q) => (q.id === payload.quote.id ? payload.quote : q));
+              return [payload.quote, ...prev];
+            });
+            toast.success(`New offer: ₹${payload.quote.final_amount || payload.quote.estimated_cost} from ${payload.quote.chemist?.pharmacy_name || "Pharmacy"}`);
+          } else if (payload.type === "BROADCAST_STATUS" && payload.status === "completed") {
+            toast("Bidding window closed", { icon: "ℹ️" });
+          }
+        } catch (e) {
+          console.warn("SSE parse error:", e);
+        }
+      };
+
+      es.onerror = (err) => {
+        console.warn("SSE connection error or interrupted, will use gentle fallback sync:", err);
+      };
+    } catch (e) {
+      console.warn("EventSource not supported or failed to initialize:", e);
+    }
+
+    // Graceful background fallback: gentle 20s sync only if SSE is disconnected
+    const fallbackSync = async () => {
+      if (sseActive) return; // SSE is healthy, 0 DB poll
       try {
         const res = await fetch(`/api/patients/orders/medicine/broadcast/responses?broadcast_id=${broadcastId}`);
         const data = await res.json();
-        if (data?.success) {
-          setQuotes(data.data.quotes || []);
+        if (data?.success && Array.isArray(data.data?.quotes)) {
+          setQuotes(data.data.quotes);
         }
       } catch (err) {
-        console.error("Error fetching broadcast quotes:", err);
+        console.warn("Fallback fetch error:", err);
       }
     };
-    fetchQuotes();
-    const interval = setInterval(fetchQuotes, 3000);
-    return () => clearInterval(interval);
+
+    const fallbackTimer = setInterval(fallbackSync, 20000);
+
+    return () => {
+      if (es) {
+        es.close();
+      }
+      clearInterval(fallbackTimer);
+    };
   }, [step, broadcastId]);
 
   // Countdown timer for broadcast
@@ -828,11 +877,14 @@ function SharePrescriptionModal({
                       </div>
                       <div className="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 pt-3 sm:pt-0">
                         <div className="text-left sm:text-right shrink-0">
-                          <span className="text-xs text-slate-400 block">Total cost</span>
-                          <span className="text-lg font-extrabold text-slate-900">₹{q.estimated_cost}</span>
+                          <span className="text-[11px] text-slate-400 block font-medium">Final Amount</span>
+                          <span className="text-lg font-extrabold text-slate-900">₹{q.final_amount || q.estimated_cost}</span>
                         </div>
                         <button
-                          onClick={() => handleSelectQuote(q.id)}
+                          onClick={() => {
+                            setQuoteToConfirm(q);
+                            setDisclosureAccepted(false);
+                          }}
                           className="px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-bold rounded-xl transition-all shadow-sm"
                         >
                           Select Pharmacy
@@ -843,6 +895,128 @@ function SharePrescriptionModal({
                 </div>
               )}
             </div>
+
+            {/* V3 PAYMENT & PHARMACY DISCLOSURE MODAL (Page 5 Step 2 & 3) */}
+            {quoteToConfirm && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95 duration-200 text-left">
+                  
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+                        🛡️
+                      </div>
+                      <div>
+                        <h4 className="text-base font-bold text-slate-900">Payment & Pharmacy Disclosure</h4>
+                        <p className="text-[11px] text-slate-400">Step 2 & 3 • Final Review & Consent</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setQuoteToConfirm(null)}
+                      className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Selected Offer Breakdown Card */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-blue-50/30 border border-slate-200/80 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h5 className="text-sm font-bold text-slate-900">
+                          {quoteToConfirm.pharmacy_name || quoteToConfirm.chemist?.pharmacy_name || "Partner Pharmacy"}
+                        </h5>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {quoteToConfirm.address || quoteToConfirm.chemist?.address || "Registered Pharmacy Partner"}
+                        </p>
+                      </div>
+                      <span className="text-[11px] font-semibold text-[#0067A1] bg-[#0067A1]/10 px-2.5 py-1 rounded-full shrink-0">
+                        ⚡ {quoteToConfirm.delivery_time_minutes || 45} mins ETA
+                      </span>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200/60 space-y-1.5 text-xs text-slate-600">
+                      <div className="flex justify-between">
+                        <span>Medicine Subtotal:</span>
+                        <span className="font-semibold text-slate-800">
+                          ₹{Number(quoteToConfirm.medicine_subtotal || quoteToConfirm.estimated_cost).toFixed(2)}
+                        </span>
+                      </div>
+                      {quoteToConfirm.delivery_charge !== undefined && (
+                        <div className="flex justify-between">
+                          <span>Delivery Charge:</span>
+                          <span className="font-semibold text-slate-800">₹{Number(quoteToConfirm.delivery_charge || 0).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {Number(quoteToConfirm.discount || 0) > 0 && (
+                        <div className="flex justify-between text-emerald-600">
+                          <span>Discount Applied:</span>
+                          <span className="font-semibold">-₹{Number(quoteToConfirm.discount).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between pt-2 border-t border-slate-200/60 text-sm font-bold text-slate-900">
+                        <span>Total Payable Amount:</span>
+                        <span className="text-emerald-700 text-base font-extrabold">
+                          ₹{Number(quoteToConfirm.final_amount || quoteToConfirm.estimated_cost).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mandatory V3 Step 3 Disclosure Notice */}
+                  <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80 text-xs text-amber-900 leading-relaxed space-y-1.5">
+                    <p className="font-bold flex items-center gap-1.5 text-amber-800">
+                      <span>⚠️</span> Important Service Disclosure:
+                    </p>
+                    <p className="text-[11px] text-amber-800/90 leading-normal">
+                      &ldquo;You are proceeding to pay for your selected pharmacy order. The selected pharmacy is responsible for dispensing and fulfilling the medicines. MediConnect.fit facilitates pharmacy offer discovery, comparison and order coordination. Payment will be processed for the selected pharmacy transaction through the configured payment service.&rdquo;
+                    </p>
+                  </div>
+
+                  {/* Mandatory V3 Step 2 Confirmation Checkbox */}
+                  <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100/70 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={disclosureAccepted}
+                      onChange={(e) => setDisclosureAccepted(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded text-[#0067A1] focus:ring-[#0067A1] cursor-pointer"
+                    />
+                    <span className="text-xs text-slate-700 font-medium leading-relaxed select-none">
+                      &ldquo;I have reviewed the selected pharmacy, medicines, delivery address, estimated delivery time and total payable amount, and I wish to proceed with payment.&rdquo;
+                    </span>
+                  </label>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setQuoteToConfirm(null)}
+                      className="flex-1 py-3 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold rounded-xl text-xs transition-colors"
+                    >
+                      GO BACK
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!disclosureAccepted || sharing}
+                      onClick={() => {
+                        const qId = quoteToConfirm.id;
+                        setQuoteToConfirm(null);
+                        handleSelectQuote(qId);
+                      }}
+                      className={`flex-[1.5] py-3 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center justify-center gap-2 ${
+                        disclosureAccepted && !sharing
+                          ? "bg-[#0067A1] hover:bg-[#004F7C] cursor-pointer"
+                          : "bg-slate-300 text-slate-500 cursor-not-allowed"
+                      }`}
+                    >
+                      <span>PROCEED TO SECURE PAYMENT</span>
+                      <span>➔</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : step === "consent" ? (
           <div className="p-5 space-y-4">

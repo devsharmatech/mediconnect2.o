@@ -29,16 +29,16 @@ export async function POST(req) {
       return failure("Order not found", null, 404, { headers: corsHeaders });
     }
 
-    if (order.status !== "payment_pending") {
+    if (!['payment_pending', 'waiting_for_payment'].includes(order.status)) {
       return failure(
-        "Payment upload allowed only after payment request",
+        "Payment upload allowed only when order is in payment pending state",
         null,
         409,
         { headers: corsHeaders }
       );
     }
 
-
+    const utr = formData.get("utr_number") || formData.get("utr") || "";
     const path = `payments/${order.id}/${Date.now()}-${file.name}`;
 
     const { url } = await uploadToS3(file, `payment_proofs/${path}`, "application/octet-stream");
@@ -50,6 +50,7 @@ export async function POST(req) {
       amount: order.total_amount,
       payment_method: "upi",
       payment_proof_url: publicUrl,
+      utr_number: utr || null,
       status: "submitted",
     });
 
@@ -57,16 +58,42 @@ export async function POST(req) {
       .from("medicine_orders")
       .update({
         status: "payment_submitted",
+        utr_number: utr || null,
+        payment_declaration_by_patient: true,
         updated_at: new Date(),
       })
       .eq("id", order.id);
 
+    // Notify the Chemist with the UTR detail
+    try {
+      const { data: patientDetails } = await supabase
+        .from("patient_details")
+        .select("full_name")
+        .eq("id", order.patient_id)
+        .maybeSingle();
+
+      const patientName = patientDetails?.full_name || "Patient";
+      const utrText = utr ? `(UTR: ${utr})` : "with receipt screenshot";
+
+      await supabase.from("notifications").insert({
+        user_id: order.chemist_id,
+        title: "Payment Proof Submitted 💳",
+        message: `${patientName} paid ₹${order.total_amount} via UPI ${utrText}. Please verify in your dashboard!`,
+        type: "medicine_payment",
+        metadata: { order_id: order.id, utr },
+      });
+    } catch (notifErr) {
+      console.warn("Chemist notification error:", notifErr?.message);
+    }
+
     return success(
-      "Payment proof uploaded successfully",
+      "Payment proof and UTR uploaded successfully",
       {
         order_id: order.id,
         chemist_id: order.chemist_id, 
         amount: order.total_amount,
+        utr_number: utr || null,
+        payment_proof_url: publicUrl
       },
       200,
       { headers: corsHeaders }

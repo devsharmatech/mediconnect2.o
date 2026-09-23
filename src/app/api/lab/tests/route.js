@@ -44,11 +44,15 @@ export async function GET(req) {
 export async function POST(req) {
     try {
         const body = await req.json();
-        const { lab_id, category_id, test_code, test_name, price, specimen_type, clinical_history_required, turnaround_time, is_active, container, temperature, remarks, schedule, reporting_schedule } = body;
+        const { lab_id, category_id, test_code, test_name, price, specimen_type, clinical_history_required, turnaround_time, is_active, container, temperature, remarks, schedule, reporting_schedule, collection_type } = body;
 
         if (!lab_id || !test_name || price === undefined) {
             return failure("lab_id, test_name, and price are required", null, 400, { headers: corsHeaders });
         }
+
+        const normalizedCollectionType = ['home', 'lab', 'both'].includes((collection_type || '').toLowerCase())
+            ? collection_type.toLowerCase()
+            : 'lab';
 
         // --- OTP Consent Verification ---
         const cookieStore = await cookies();
@@ -90,6 +94,7 @@ export async function POST(req) {
                 test_code: generatedTestCode,
                 test_name,
                 price,
+                collection_type: normalizedCollectionType,
                 specimen_type,
                 clinical_history_required: clinical_history_required || false,
                 turnaround_time,

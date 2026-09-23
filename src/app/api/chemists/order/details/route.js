@@ -26,10 +26,17 @@ export async function POST(req) {
         unid,
         status,
         total_amount,
+        medicine_subtotal,
         delivery_charge,
+        discount,
         payment_qr_url,
         payment_qr_payload,
         payment_requested_at,
+        payment_verified_at,
+        promised_delivery_at,
+        warning_at,
+        breach_at,
+        sla_status,
         created_at,
         updated_at,
         chemist_notes,
@@ -38,6 +45,7 @@ export async function POST(req) {
         chemist_id,
         delivery_type,
         patient_notes,
+        utr_number,
 
         medicine_order_items(*),
 
@@ -115,6 +123,7 @@ export async function POST(req) {
         amount,
         payment_method,
         payment_proof_url,
+        utr_number,
         status,
         created_at
       `)
@@ -171,16 +180,53 @@ export async function POST(req) {
     }
 
     /* =====================================================
-       5️⃣ TRANSFORM PRESCRIPTION DATA FOR HTML TEMPLATE
+       4.5 DPDP COMPLIANCE & FULFILMENT RELEASE GATING
+       (Page 5 & 8 of V3 Master Specification)
+    ===================================================== */
+    const isPaymentVerified = [
+      'payment_verified',
+      'fulfilment_released',
+      'fulfilment_confirmed',
+      'confirmed',
+      'processing',
+      'packing',
+      'packed',
+      'ready_for_dispatch',
+      'out_for_delivery',
+      'delivered',
+      'completed'
+    ].includes(String(order.status).toLowerCase());
+
+    const maskAddress = (addr) => {
+      if (!addr) return "Delivery Area Restricted (Released after payment verification)";
+      if (typeof addr === "string") {
+        const pinMatch = addr.match(/\b\d{6}\b/);
+        return pinMatch 
+          ? `Area / PIN: ${pinMatch[0]} (Full address released upon verified payment)`
+          : "Delivery Area (Full address released upon verified payment)";
+      }
+      if (typeof addr === "object") {
+        const area = addr.area || addr.city || addr.district || "";
+        const pincode = addr.pincode || addr.postal_code || "";
+        return `Area: ${area} ${pincode ? `(${pincode})` : ""} (Full address released upon verified payment)`;
+      }
+      return "Delivery Area (Full address released upon verified payment)";
+    };
+
+    const maskPhone = (phone) => {
+      if (!phone) return "";
+      const str = String(phone);
+      if (str.length <= 4) return "****";
+      return str.slice(0, 3) + "******" + str.slice(-2);
+    };
+
+    /* =====================================================
+       5️⃣ TRANSFORM PRESCRIPTION DATA FOR DISPENSING COPY
+       (Clinical diagnosis/history redacted per V3 spec)
     ===================================================== */
     let prescriptionFormatted = null;
     if (order.prescription) {
-      // Parse JSON strings if needed
       let medicines = [];
-      let lab_tests = [];
-      let investigations = [];
-      let ai_analysis = null;
-
       try {
         medicines = typeof order.prescription.medicines === 'string' 
           ? JSON.parse(order.prescription.medicines) 
@@ -190,49 +236,22 @@ export async function POST(req) {
         medicines = [];
       }
 
-      try {
-        lab_tests = typeof order.prescription.lab_tests === 'string'
-          ? JSON.parse(order.prescription.lab_tests)
-          : order.prescription.lab_tests || [];
-      } catch (e) {
-        console.error("Error parsing lab_tests:", e);
-        lab_tests = [];
-      }
-
-      try {
-        investigations = typeof order.prescription.investigations === 'string'
-          ? JSON.parse(order.prescription.investigations)
-          : order.prescription.investigations || [];
-      } catch (e) {
-        console.error("Error parsing investigations:", e);
-        investigations = [];
-      }
-
-      try {
-        ai_analysis = typeof order.prescription.ai_analysis === 'string'
-          ? JSON.parse(order.prescription.ai_analysis)
-          : order.prescription.ai_analysis;
-      } catch (e) {
-        console.error("Error parsing ai_analysis:", e);
-        ai_analysis = null;
-      }
-
       prescriptionFormatted = {
         id: order.prescription.id,
         pid: order.prescription.pid || order.prescription.id?.slice(0, 8) || 'N/A',
         created_at: order.prescription.created_at,
         updated_at: order.prescription.updated_at,
         medicines: medicines,
-        lab_tests: lab_tests,
-        investigations: investigations,
-        special_message: order.prescription.special_message,
-        ai_analysis: ai_analysis,
+        lab_tests: [], // Redacted: Minimum-necessary dispensing rule (V3 DPDP)
+        investigations: [], // Redacted: Minimum-necessary dispensing rule (V3 DPDP)
+        special_message: order.prescription.special_message || "",
+        ai_analysis: null, // Redacted: Minimum-necessary dispensing rule (V3 DPDP)
         signed_at: order.prescription.signed_at,
-        vital_signs: order.prescription.vital_signs,
-        follow_up: order.prescription.follow_up,
-        diagnosis: order.prescription.diagnosis,
+        vital_signs: null, // Redacted: Minimum-necessary dispensing rule (V3 DPDP)
+        follow_up: null,
+        diagnosis: null, // Redacted: Minimum-necessary dispensing rule (V3 DPDP)
         
-        // Doctor details - flatten for template
+        // Doctor details - required for dispensing legal validation
         doctor_details: order.prescription.doctor ? {
           full_name: order.prescription.doctor.full_name,
           specialization: order.prescription.doctor.specialization,
@@ -244,25 +263,20 @@ export async function POST(req) {
           consultation_fee: order.prescription.doctor.consultation_fee
         } : null,
         
-        // Patient details
+        // Patient details - gated and sanitized
         patient_details: patientWithDetails?.patient_details ? {
           full_name: patientWithDetails.patient_details.full_name,
           gender: patientWithDetails.patient_details.gender,
           date_of_birth: patientWithDetails.patient_details.date_of_birth,
-          address: patientWithDetails.patient_details.address,
-          email: patientWithDetails.patient_details.email,
-          blood_group: patientWithDetails.patient_details.blood_group
+          address: isPaymentVerified
+            ? patientWithDetails.patient_details.address
+            : maskAddress(patientWithDetails.patient_details.address),
+          email: isPaymentVerified ? patientWithDetails.patient_details.email : null,
+          blood_group: null
         } : null,
         
-        // Appointment details
-        appointments: order.prescription.appointment ? {
-          id: order.prescription.appointment.id,
-          appointment_date: order.prescription.appointment.appointment_date,
-          appointment_time: order.prescription.appointment.appointment_time,
-          status: order.prescription.appointment.status,
-          disease_info: order.prescription.appointment.disease_info,
-          created_at: order.prescription.appointment.created_at
-        } : null
+        // Appointments - clinical context redacted
+        appointments: null
       };
     }
 
@@ -316,10 +330,18 @@ export async function POST(req) {
       unid: order.unid,
       status: order.status,
       total_amount: order.total_amount,
+      medicine_subtotal: order.medicine_subtotal,
       delivery_charge: order.delivery_charge,
+      discount: order.discount,
       payment_qr_url: order.payment_qr_url,
       payment_qr_payload: order.payment_qr_payload,
       payment_requested_at: order.payment_requested_at,
+      payment_verified_at: order.payment_verified_at,
+      promised_delivery_at: order.promised_delivery_at,
+      warning_at: order.warning_at,
+      breach_at: order.breach_at,
+      sla_status: order.sla_status || "ON_TRACK",
+      utr_number: order.utr_number || null,
       created_at: order.created_at,
       updated_at: order.updated_at,
       chemist_notes: order.chemist_notes,
@@ -333,8 +355,18 @@ export async function POST(req) {
       
       patient: {
         id: patientWithDetails?.id || order.patient_id,
-        phone_number: patientWithDetails?.phone_number,
-        patient_details: patientWithDetails?.patient_details
+        phone_number: isPaymentVerified
+          ? patientWithDetails?.phone_number
+          : maskPhone(patientWithDetails?.phone_number),
+        patient_details: patientWithDetails?.patient_details ? {
+          full_name: patientWithDetails.patient_details.full_name,
+          gender: patientWithDetails.patient_details.gender,
+          date_of_birth: patientWithDetails.patient_details.date_of_birth,
+          address: isPaymentVerified
+            ? patientWithDetails.patient_details.address
+            : maskAddress(patientWithDetails.patient_details.address),
+          email: isPaymentVerified ? patientWithDetails.patient_details.email : null,
+        } : null
       },
       
       prescription: prescriptionFormatted,

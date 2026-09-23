@@ -124,12 +124,16 @@ export async function POST(req) {
             const generatedTestCode = `MGR${String(nextNumber).padStart(4, '0')}`;
             nextNumber++;
 
+            const rawColType = String(t.collection_type || t["Collection Type"] || "lab").trim().toLowerCase();
+            const collection_type = ['home', 'lab', 'both'].includes(rawColType) ? rawColType : 'lab';
+
             insertRows.push({
                 lab_id,
                 test_code: generatedTestCode,
                 test_name: t.test_name?.trim(),
                 category_id: resolvedCatId,
                 price: parseFloat(t.price),
+                collection_type,
                 specimen_type: t.specimen_type?.trim() || null,
                 container: t.container?.trim() || null,
                 temperature: t.temperature?.trim() || null,

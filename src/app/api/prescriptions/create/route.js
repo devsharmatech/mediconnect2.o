@@ -72,14 +72,18 @@ export async function POST(req) {
     /* -------------------------------------------------
        VALIDATE DOCTOR & ONBOARDING GATE
     -------------------------------------------------- */
-    const { data: doctor } = await supabase
+    const { data: doctor, error: docErr } = await supabase
       .from("doctor_details")
       .select("id, onboarding_status")
       .eq("id", doctor_id)
       .maybeSingle();
 
+    if (docErr) {
+      console.error("[prescriptions/create] doctor lookup error:", docErr);
+    }
+
     if (!doctor) {
-      return failure("Invalid doctor_id", null, 404, {
+      return failure(`Invalid doctor_id (${docErr ? docErr.message : 'not found in doctor_details'})`, null, 404, {
         headers: corsHeaders
       });
     }

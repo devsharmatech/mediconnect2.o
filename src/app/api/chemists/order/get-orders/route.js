@@ -56,17 +56,79 @@ export async function POST(req) {
       throw error;
     }
 
-    // Transform patient data structure for easier access
-    const transformedData = data.map(order => ({
-      ...order,
-      patient: order.patient ? {
+    const maskAddress = (addr) => {
+      if (!addr) return "Delivery Area Restricted (Released after payment verification)";
+      if (typeof addr === "string") {
+        const pinMatch = addr.match(/\b\d{6}\b/);
+        return pinMatch 
+          ? `Area / PIN: ${pinMatch[0]} (Full address released upon verified payment)`
+          : "Delivery Area (Full address released upon verified payment)";
+      }
+      if (typeof addr === "object") {
+        const area = addr.area || addr.city || addr.district || "";
+        const pincode = addr.pincode || addr.postal_code || "";
+        return `Area: ${area} ${pincode ? `(${pincode})` : ""} (Full address released upon verified payment)`;
+      }
+      return "Delivery Area (Full address released upon verified payment)";
+    };
+
+    const maskPhone = (phone) => {
+      if (!phone) return "";
+      const str = String(phone);
+      if (str.length <= 4) return "****";
+      return str.slice(0, 3) + "******" + str.slice(-2);
+    };
+
+    // Transform patient data structure with DPDP compliance & address gating
+    const transformedData = data.map(order => {
+      const isPaymentVerified = [
+        'payment_verified',
+        'fulfilment_released',
+        'fulfilment_confirmed',
+        'confirmed',
+        'processing',
+        'packing',
+        'packed',
+        'ready_for_dispatch',
+        'out_for_delivery',
+        'delivered',
+        'completed'
+      ].includes(String(order.status).toLowerCase());
+
+      const rawDetails = order.patient?.patient_details && order.patient.patient_details.length > 0 
+        ? order.patient.patient_details[0] 
+        : (order.patient?.patient_details || {});
+
+      const sanitizedPatient = order.patient ? {
         ...order.patient,
-        // Flatten patient_details if it exists
-        ...(order.patient.patient_details && order.patient.patient_details.length > 0 
-          ? order.patient.patient_details[0] 
-          : {})
-      } : null
-    }));
+        ...rawDetails,
+        phone_number: isPaymentVerified ? order.patient.phone_number : maskPhone(order.patient.phone_number),
+        address: isPaymentVerified ? rawDetails.address : maskAddress(rawDetails.address),
+        email: isPaymentVerified ? rawDetails.email : null,
+        blood_group: null // Redacted per DPDP minimum disclosure
+      } : null;
+
+      // Redact clinical diagnosis, lab tests, vitals, AI notes from prescription object
+      const sanitizedPrescription = order.prescription ? {
+        id: order.prescription.id,
+        doctor_id: order.prescription.doctor_id,
+        created_at: order.prescription.created_at,
+        signed_at: order.prescription.signed_at,
+        medicines: order.prescription.medicines,
+        lab_tests: [],
+        investigations: [],
+        vital_signs: null,
+        diagnosis: null,
+        ai_analysis: null
+      } : null;
+
+      return {
+        ...order,
+        sla_status: order.sla_status || "ON_TRACK",
+        patient: sanitizedPatient,
+        prescription: sanitizedPrescription
+      };
+    });
 
     // Calculate pagination metadata
     const totalItems = count;

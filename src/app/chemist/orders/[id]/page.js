@@ -440,6 +440,41 @@ export default function OrderDetailsPage() {
       icon: <Clock className="w-4 h-4" />,
       text: "Payment Declared",
     },
+    fulfilment_released: {
+      color: "bg-blue-600",
+      bgColor: "bg-blue-50 dark:bg-blue-900/20",
+      textColor: "text-blue-800 dark:text-blue-400",
+      icon: <CheckCircle2 className="w-4 h-4" />,
+      text: "Fulfilment Released",
+    },
+    fulfilment_confirmed: {
+      color: "bg-teal-600",
+      bgColor: "bg-teal-50 dark:bg-teal-900/20",
+      textColor: "text-teal-800 dark:text-teal-400",
+      icon: <CheckCircle2 className="w-4 h-4" />,
+      text: "Fulfilment Confirmed",
+    },
+    packing: {
+      color: "bg-amber-600",
+      bgColor: "bg-amber-50 dark:bg-amber-900/20",
+      textColor: "text-amber-800 dark:text-amber-400",
+      icon: <Package className="w-4 h-4" />,
+      text: "Packing Medicines",
+    },
+    ready_for_dispatch: {
+      color: "bg-purple-600",
+      bgColor: "bg-purple-50 dark:bg-purple-900/20",
+      textColor: "text-purple-800 dark:text-purple-400",
+      icon: <Package className="w-4 h-4" />,
+      text: "Ready for Dispatch",
+    },
+    delivered: {
+      color: "bg-emerald-600",
+      bgColor: "bg-emerald-50 dark:bg-emerald-900/20",
+      textColor: "text-emerald-800 dark:text-emerald-400",
+      icon: <CheckCircle2 className="w-4 h-4" />,
+      text: "Delivered",
+    },
     payment_verified: {
       color: "bg-emerald-500",
       bgColor: "bg-emerald-50 dark:bg-emerald-900/20",
@@ -604,14 +639,58 @@ export default function OrderDetailsPage() {
  </div>
 
   {/* Action Buttons based on status */}
-  {!invoice && ['approved', 'payment_pending', 'payment_submitted', 'payment_verified', 'waiting_for_bill', 'out_for_delivery', 'completed'].includes(order.status) && (
+  {order.status === "fulfilment_released" && (
     <button
-      onClick={checkAndGenerateInvoice}
+      onClick={() => updateOrderStatus("fulfilment_confirmed")}
       disabled={updating}
-      className="px-4 py-2.5 bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] transition-all duration-200 shadow-lg flex items-center space-x-2 disabled:opacity-50 font-bold"
+      className="px-4 py-2.5 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-all duration-200 shadow-lg flex items-center space-x-2 disabled:opacity-50 font-bold"
     >
-      <Receipt className="w-4 h-4" />
-      <span>{updating ? "Generating Bill..." : "Generate Final Bill"}</span>
+      <CheckCircle2 className="w-4 h-4" />
+      <span>{updating ? "Confirming..." : "Confirm Fulfilment & Accept"}</span>
+    </button>
+  )}
+
+  {order.status === "fulfilment_confirmed" && (
+    <button
+      onClick={() => updateOrderStatus("packing")}
+      disabled={updating}
+      className="px-4 py-2.5 bg-amber-600 text-white rounded-xl hover:bg-amber-700 transition-all duration-200 shadow-lg flex items-center space-x-2 disabled:opacity-50 font-bold"
+    >
+      <Package className="w-4 h-4" />
+      <span>{updating ? "Updating..." : "Start Packing Medicines"}</span>
+    </button>
+  )}
+
+  {order.status === "packing" && (
+    <button
+      onClick={() => updateOrderStatus("ready_for_dispatch")}
+      disabled={updating}
+      className="px-4 py-2.5 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all duration-200 shadow-lg flex items-center space-x-2 disabled:opacity-50 font-bold"
+    >
+      <Package className="w-4 h-4" />
+      <span>{updating ? "Updating..." : "Ready for Dispatch"}</span>
+    </button>
+  )}
+
+  {['ready_for_dispatch', 'payment_verified'].includes(order.status) && (
+    <button
+      onClick={() => updateOrderStatus("out_for_delivery")}
+      disabled={updating}
+      className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all duration-200 shadow-lg flex items-center space-x-2 disabled:opacity-50 font-bold"
+    >
+      <Truck className="w-4 h-4" />
+      <span>{updating ? "Updating..." : "Handover / Out for Delivery"}</span>
+    </button>
+  )}
+
+  {order.status === "out_for_delivery" && (
+    <button
+      onClick={() => updateOrderStatus("completed")}
+      disabled={updating}
+      className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all duration-200 shadow-lg flex items-center space-x-2 disabled:opacity-50 font-bold"
+    >
+      <CheckCircle2 className="w-4 h-4" />
+      <span>{updating ? "Completing..." : "Mark Delivered"}</span>
     </button>
   )}
 
@@ -636,25 +715,27 @@ export default function OrderDetailsPage() {
     </>
   )}
 
-  {order.status === "payment_verified" && (
-    <button
-      onClick={() => updateOrderStatus("out_for_delivery")}
-      disabled={updating}
-      className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all duration-200 shadow-lg flex items-center space-x-2 disabled:opacity-50 font-bold"
-    >
-      <Truck className="w-4 h-4" />
-      <span>{updating ? "Updating..." : "Mark Out for Delivery"}</span>
-    </button>
-  )}
+  {/* Dedicated Legal Pharmacy Dispensing Copy Button (Section 11 V3 Spec) */}
+  <button
+    onClick={() => {
+      const url = `/api/chemists/order/dispensing-copy?order_id=${order.id}&chemist_id=${order.chemist_id || chemist?.id}&format=html`;
+      window.open(url, "_blank");
+    }}
+    className="px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all duration-200 shadow-lg flex items-center space-x-2 font-bold"
+    title="Open official DPDP-compliant dispensing copy"
+  >
+    <Printer className="w-4 h-4" />
+    <span>Dispensing Copy</span>
+  </button>
 
-  {order.status === "out_for_delivery" && (
+  {!invoice && ['approved', 'payment_pending', 'payment_submitted', 'payment_verified', 'waiting_for_bill', 'out_for_delivery', 'completed'].includes(order.status) && (
     <button
-      onClick={() => updateOrderStatus("completed")}
+      onClick={checkAndGenerateInvoice}
       disabled={updating}
-      className="px-4 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all duration-200 shadow-lg flex items-center space-x-2 disabled:opacity-50 font-bold"
+      className="px-4 py-2.5 bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] transition-all duration-200 shadow-lg flex items-center space-x-2 disabled:opacity-50 font-bold"
     >
-      <CheckCircle2 className="w-4 h-4" />
-      <span>{updating ? "Completing..." : "Mark Delivered"}</span>
+      <Receipt className="w-4 h-4" />
+      <span>{updating ? "Generating Bill..." : "Generate Final Bill"}</span>
     </button>
   )}
 
@@ -669,6 +750,47 @@ export default function OrderDetailsPage() {
   )}
  </div>
  </div>
+
+ {/* SLA Live Status Indicator Banner (Section 9 V3 Spec) */}
+ {order.sla_status === "SLA_BREACHED" && (
+   <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border-2 border-red-500/40 text-red-800 dark:text-red-300 flex items-center justify-between shadow-md">
+     <div className="flex items-center space-x-3">
+       <AlertCircle className="w-6 h-6 text-red-600 animate-pulse flex-shrink-0" />
+       <div>
+         <p className="font-bold text-base text-red-700 dark:text-red-400">Delivery Commitment Missed (SLA Breached) 🚨</p>
+         <p className="text-sm opacity-90">
+           The promised delivery time ({order.promised_delivery_at ? dayjs(order.promised_delivery_at).format('hh:mm A, DD MMM') : 'Expired'}) has been missed. Immediate action required to dispatch or complete delivery.
+         </p>
+       </div>
+     </div>
+     <span className="px-3 py-1 bg-red-600 text-white font-bold text-xs rounded-full uppercase tracking-wider">Breached</span>
+   </div>
+ )}
+
+ {order.sla_status === "SLA_AT_RISK" && (
+   <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border-2 border-amber-500/40 text-amber-800 dark:text-amber-300 flex items-center justify-between shadow-md">
+     <div className="flex items-center space-x-3">
+       <Clock className="w-6 h-6 text-amber-600 flex-shrink-0" />
+       <div>
+         <p className="font-bold text-base text-amber-700 dark:text-amber-400">Delivery Commitment Approaching (SLA at Risk) ⚠️</p>
+         <p className="text-sm opacity-90">
+           80% of the delivery window has elapsed. Promised by {order.promised_delivery_at ? dayjs(order.promised_delivery_at).format('hh:mm A') : 'soon'}. Please expedite packing and dispatch.
+         </p>
+       </div>
+     </div>
+     <span className="px-3 py-1 bg-amber-600 text-white font-bold text-xs rounded-full uppercase tracking-wider">At Risk</span>
+   </div>
+ )}
+
+ {order.sla_status === "ON_TRACK" && order.promised_delivery_at && (
+   <div className="mb-6 p-3 rounded-2xl bg-teal-500/10 border border-teal-500/30 text-teal-800 dark:text-teal-300 flex items-center justify-between">
+     <div className="flex items-center space-x-2 text-sm">
+       <Clock className="w-4 h-4 text-teal-600" />
+       <span>Delivery SLA: Promised delivery by <strong className="font-semibold">{dayjs(order.promised_delivery_at).format('hh:mm A, DD MMM')}</strong></span>
+     </div>
+     <span className="px-2.5 py-0.5 bg-teal-600 text-white font-semibold text-xs rounded-full">On Track</span>
+   </div>
+ )}
 
  {/* Tabs */}
  <div className="flex border-b border-[#0067A1]/20 dark:border-gray-700 mb-8 overflow-x-auto">
@@ -1485,6 +1607,27 @@ export default function OrderDetailsPage() {
  ).toLocaleDateString("en-IN")}
  </span>
  </div>
+ {order.utr_number && (
+   <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700">
+     <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+       UTR / Ref No:
+     </span>
+     <span className="font-mono font-bold text-xs text-emerald-900 dark:text-white">
+       {order.utr_number}
+     </span>
+   </div>
+ )}
+
+ {order.payment?.proofs?.[0]?.payment_proof_url && (
+   <div className="pt-2">
+     <button
+       onClick={() => window.open(order.payment.proofs[0].payment_proof_url, "_blank")}
+       className="w-full px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 flex items-center justify-center space-x-1.5 shadow-sm"
+     >
+       <Eye className="w-3.5 h-3.5" />
+       <span>View Payment Screenshot (Proof)</span>
+     </button>
+   </div>
  )}
 
  {order.payment_qr_url && (

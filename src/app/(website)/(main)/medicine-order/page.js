@@ -66,6 +66,7 @@ const MedicineOrderPage = () => {
   const [orderError, setOrderError] = useState('');
 
   const [paymentProofFile, setPaymentProofFile] = useState(null);
+  const [utrNumber, setUtrNumber] = useState('');
   const [paymentUploading, setPaymentUploading] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
   const [isDeclining, setIsDeclining] = useState(false);
@@ -81,6 +82,7 @@ const MedicineOrderPage = () => {
   const [qrError, setQrError] = useState('');
   const [showLargeQR, setShowLargeQR] = useState(false);
   const [showPaymentNotice, setShowPaymentNotice] = useState(false);
+  const [paymentNoticeAgreed, setPaymentNoticeAgreed] = useState(false);
 
   // Load patient id from localStorage
   useEffect(() => {
@@ -277,6 +279,52 @@ const MedicineOrderPage = () => {
     } catch (err) {
       console.error('Confirm payment error:', err);
       toast.error(err.message || 'Failed to confirm payment.');
+    } finally {
+      setPaymentUploading(false);
+    }
+  };
+
+  const handleUploadProofAndUtr = async () => {
+    if (!currentOrder) {
+      toast.error('No order selected.');
+      return;
+    }
+
+    if (!paymentProofFile && !utrNumber.trim()) {
+      toast.error('Please enter the UTR / Reference number or select a screenshot proof.');
+      return;
+    }
+
+    try {
+      setPaymentUploading(true);
+
+      const formData = new FormData();
+      formData.append('order_id', currentOrder.id);
+      if (paymentProofFile) {
+        formData.append('payment_proof', paymentProofFile);
+      }
+      if (utrNumber.trim()) {
+        formData.append('utr_number', utrNumber.trim());
+      }
+
+      const res = await fetch('/api/patients/orders/medicine/upload-payment-proof', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || 'Failed to upload payment proof');
+      }
+
+      toast.success('Payment proof & UTR submitted successfully! Waiting for chemist confirmation.');
+      setPaymentProofFile(null);
+      setUtrNumber('');
+      setCurrentOrder((prev) => (prev ? { ...prev, status: 'payment_submitted', utr_number: utrNumber } : prev));
+      fetchAllOrders(true);
+    } catch (err) {
+      console.error('Payment proof upload error:', err);
+      toast.error(err.message || 'Failed to upload payment proof.');
     } finally {
       setPaymentUploading(false);
     }
@@ -738,18 +786,48 @@ const MedicineOrderPage = () => {
 
                         {/* Confirm Payment & Decline */}
                         <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-                            <h4 className="font-semibold text-slate-800 mb-2">Confirm Payment</h4>
-                            <p className="text-sm text-slate-600 mb-3">
-                              Did you successfully complete the payment via your UPI app?
+                            <h4 className="font-semibold text-slate-800 mb-1">Submit Payment Details</h4>
+                            <p className="text-xs text-slate-600 mb-2">
+                              After completing payment via your UPI app, fill in the UTR number and attach screenshot for fast verification.
                             </p>
-                            <div className="flex gap-3">
+
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                  UPI Reference / UTR Number <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. 528912384910"
+                                  value={utrNumber}
+                                  onChange={(e) => setUtrNumber(e.target.value)}
+                                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0067A1]"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                                  Payment Screenshot Proof
+                                </label>
+                                <input
+                                  type="file"
+                                  accept="image/jpeg,image/png,application/pdf"
+                                  onChange={handlePaymentProofSelect}
+                                  className="w-full text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#0067A1]/10 file:text-[#0067A1] hover:file:bg-[#0067A1]/20 cursor-pointer"
+                                />
+                                {paymentProofFile && (
+                                  <p className="text-xs text-emerald-600 mt-1 font-medium">Selected: {paymentProofFile.name}</p>
+                                )}
+                              </div>
+
                               <button
                                 type="button"
-                                onClick={handleConfirmPayment}
+                                onClick={handleUploadProofAndUtr}
                                 disabled={paymentUploading}
-                                className="flex-1 py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold rounded-lg transition-colors text-sm"
+                                className="w-full py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold rounded-lg transition-colors text-sm shadow-sm flex items-center justify-center gap-2"
                               >
-                                {paymentUploading ? 'Confirming...' : 'Yes, Payment Successful'}
+                                <FaFileUpload className="w-4 h-4" />
+                                <span>{paymentUploading ? 'Submitting Proof...' : 'Submit Payment Proof & UTR'}</span>
                               </button>
                             </div>
 
@@ -988,39 +1066,70 @@ const MedicineOrderPage = () => {
         </div>
       )}
 
-      {/* PAYMENT NOTICE MODAL */}
+      {/* V3 PAYMENT & PHARMACY DISCLOSURE MODAL (Page 5 Step 2 & 3) */}
       {showPaymentNotice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mx-auto">
               <FaShieldAlt className="w-6 h-6" />
             </div>
 
-            <div className="text-center space-y-2">
-              <h3 className="text-xl font-bold text-slate-900 tracking-tight">PAYMENT NOTICE</h3>
-              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                You are about to make a payment directly to the selected pharmacy.
+            <div className="text-center space-y-1.5">
+              <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">Payment &amp; Pharmacy Disclosure</h3>
+              <p className="text-xs text-slate-500 font-medium">
+                Mandatory Regulatory &amp; Fulfillment Disclosure
               </p>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2.5 text-xs text-slate-700 leading-relaxed">
-              <p className="flex items-start gap-2">
-                <span className="text-emerald-600 font-bold">•</span>
-                <span>MediConnect facilitates your connection with the pharmacy but <span className="font-semibold text-slate-900">does not receive, process, or hold your payment</span>.</span>
+            {/* Price & Pharmacy Summary */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-xs text-slate-700">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <span className="font-medium text-slate-500">Selected Pharmacy:</span>
+                <span className="font-bold text-slate-900">{chemistInfo?.pharmacy_name || 'Selected Pharmacy Partner'}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-slate-500">Total Payable Amount:</span>
+                <span className="font-extrabold text-emerald-700 text-sm">₹{getOrderTotal(currentOrder).toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* V3 Step 3 Mandatory Disclosure text */}
+            <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 leading-relaxed space-y-1">
+              <p className="font-bold flex items-center gap-1.5 text-amber-800">
+                <span>⚠️</span> Disclosure Statement:
               </p>
-              <p className="flex items-start gap-2">
-                <span className="text-emerald-600 font-bold">•</span>
-                <span>The selected pharmacy (<span className="font-bold text-slate-900">{chemistInfo?.pharmacy_name || 'Partner Pharmacy'}</span>) is responsible for payment confirmation and order fulfilment.</span>
-              </p>
-              <p className="flex items-start gap-2">
-                <span className="text-emerald-600 font-bold">•</span>
-                <span>Please verify the pharmacy details and amount (<span className="font-bold text-emerald-700">₹{getOrderTotal(currentOrder).toFixed(2)}</span>) before proceeding.</span>
+              <p className="text-[11px] text-amber-800/90 leading-normal">
+                &ldquo;You are proceeding to pay for your selected pharmacy order. The selected pharmacy is responsible for dispensing and fulfilling the medicines. MediConnect.fit facilitates pharmacy offer discovery, comparison and order coordination. Payment will be processed for the selected pharmacy transaction through the configured payment service.&rdquo;
               </p>
             </div>
 
-            <div className="flex flex-col gap-2.5 pt-2">
+            {/* V3 Step 2 Mandatory Review Agreement Checkbox */}
+            <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100/70 transition-colors">
+              <input
+                type="checkbox"
+                checked={paymentNoticeAgreed}
+                onChange={(e) => setPaymentNoticeAgreed(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded text-[#0067A1] focus:ring-[#0067A1] cursor-pointer"
+              />
+              <span className="text-xs text-slate-700 font-medium leading-relaxed select-none">
+                &ldquo;I have reviewed the selected pharmacy, medicines, delivery address, estimated delivery time and total payable amount, and I wish to proceed with payment.&rdquo;
+              </span>
+            </label>
+
+            <div className="flex items-center gap-3 pt-2">
               <button
                 type="button"
+                onClick={() => {
+                  setShowPaymentNotice(false);
+                  setPaymentNoticeAgreed(false);
+                }}
+                className="flex-1 py-3 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold rounded-xl text-xs transition-colors"
+              >
+                GO BACK
+              </button>
+              <button
+                type="button"
+                disabled={!paymentNoticeAgreed}
                 onClick={() => {
                   setShowPaymentNotice(false);
                   const upiId = chemistInfo?.upi_id;
@@ -1030,16 +1139,14 @@ const MedicineOrderPage = () => {
                   }
                   document.getElementById('payment-qr-section')?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2"
+                className={`flex-[1.5] py-3 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center justify-center gap-2 ${
+                  paymentNoticeAgreed
+                    ? "bg-[#0067A1] hover:bg-[#004F7C] cursor-pointer"
+                    : "bg-slate-300 text-slate-500 cursor-not-allowed"
+                }`}
               >
-                <span>Proceed to Pay</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowPaymentNotice(false)}
-                className="w-full py-2.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold rounded-xl text-xs transition-colors"
-              >
-                Cancel (Return to Bill)
+                <span>PROCEED TO SECURE PAYMENT</span>
+                <span>➔</span>
               </button>
             </div>
           </div>

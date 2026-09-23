@@ -72,6 +72,11 @@ export default function LungHealthStatisticsPage() {
   const [history, setHistory] = useState([]);
   const [user, setUser] = useState(null);
   const [breathingStats, setBreathingStats] = useState({ totalSessions: 0, totalMinutes: 0 });
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
 
   // Modal and print report states
@@ -585,12 +590,23 @@ export default function LungHealthStatisticsPage() {
                     };
                     const cfg = metricConfig[selectedMetric] || metricConfig.score;
 
-                    // Prepare chart data
-                    const rechartsData = enrichedTrend.map((p) => ({
-                      ...p,
-                      dateLabel: new Date(p.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-                      currentVal: Number(p[cfg.dataKey]) || 0,
-                    }));
+                    // Prepare sanitized chart data
+                    const rechartsData = (enrichedTrend || [])
+                      .map((p, idx) => {
+                        const rawVal = Number(p?.[cfg.dataKey]);
+                        const currentVal = (!isNaN(rawVal) && isFinite(rawVal)) ? rawVal : 0;
+                        const d = p?.date ? new Date(p.date) : null;
+                        const dateLabel = d && !isNaN(d.getTime())
+                          ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                          : `Record ${idx + 1}`;
+
+                        return {
+                          ...p,
+                          dateLabel,
+                          currentVal,
+                        };
+                      })
+                      .filter((p) => typeof p.currentVal === "number" && !isNaN(p.currentVal));
 
                     // Compute average for reference line
                     const avgVal = rechartsData.length > 0
@@ -619,61 +635,84 @@ export default function LungHealthStatisticsPage() {
 
                     return (
                       <div className="w-full mt-2" style={{ height: 280 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart
-                            data={rechartsData}
-                            margin={{ top: 10, right: 10, left: -10, bottom: 5 }}
-                          >
-                            <defs>
-                              <linearGradient id="lungMetricGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#0067A1" stopOpacity={0.15} />
-                                <stop offset="95%" stopColor="#0067A1" stopOpacity={0.01} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                            <XAxis
-                              dataKey="dateLabel"
-                              tick={{ fontSize: 11, fill: "#64748b", fontWeight: 500 }}
-                              tickLine={false}
-                              axisLine={{ stroke: "#e2e8f0" }}
-                              dy={8}
-                            />
-                            <YAxis
-                              domain={cfg.domain}
-                              ticks={cfg.ticks}
-                              tick={{ fontSize: 11, fill: "#94a3b8", fontFamily: "monospace" }}
-                              tickLine={false}
-                              axisLine={false}
-                              width={40}
-                            />
-                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: "#0067A1", strokeWidth: 1, strokeDasharray: "4 4" }} />
-                            <ReferenceLine
-                              y={avgVal}
-                              stroke="#94a3b8"
-                              strokeDasharray="6 4"
-                              strokeWidth={1}
-                              label={{ value: `Avg: ${avgVal}`, position: "right", fontSize: 10, fill: "#94a3b8" }}
-                            />
-                            <Area
-                              type="monotone"
-                              dataKey="currentVal"
-                              stroke="#0067A1"
-                              strokeWidth={2.5}
-                              fill="url(#lungMetricGradient)"
-                              dot={{ r: 4, fill: "#ffffff", stroke: "#0067A1", strokeWidth: 2, cursor: "pointer" }}
-                              activeDot={{
-                                r: 7,
-                                fill: "#0067A1",
-                                stroke: "#ffffff",
-                                strokeWidth: 2,
-                                cursor: "pointer",
-                                onClick: (_, payload) => {
-                                  if (payload?.payload) handleOpenSnapshot(payload.payload);
-                                }
-                              }}
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
+                        {!isMounted ? (
+                          <div className="w-full h-full flex items-center justify-center bg-slate-50/50 rounded-[6px] border border-dashed border-slate-200">
+                            <div className="w-5 h-5 border-2 border-slate-300 border-t-[#0067A1] rounded-full animate-spin" />
+                          </div>
+                        ) : rechartsData.length === 1 ? (
+                          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50/70 border border-slate-200/80 rounded-[6px] p-6 text-center">
+                            <div className="flex items-center justify-center gap-2 mb-2">
+                              <span className="w-3 h-3 rounded-full bg-[#0067A1]" />
+                              <span className="text-sm font-bold text-slate-800">{cfg.label} Baseline:</span>
+                              <span className="text-lg font-black text-[#0067A1] font-mono">
+                                {rechartsData[0].currentVal}{cfg.unit}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 max-w-md mx-auto mb-3">
+                              Recorded on {rechartsData[0].dateLabel} ({rechartsData[0].serialNo}). Complete additional lung wellness tests to activate your multi-point longitudinal area chart.
+                            </p>
+                            <div className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Baseline 1 of 1 Verified in Authoritative Database</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart
+                              data={rechartsData}
+                              margin={{ top: 10, right: 10, left: -10, bottom: 5 }}
+                            >
+                              <defs>
+                                <linearGradient id="lungMetricGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#0067A1" stopOpacity={0.15} />
+                                  <stop offset="95%" stopColor="#0067A1" stopOpacity={0.01} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                              <XAxis
+                                dataKey="dateLabel"
+                                tick={{ fontSize: 11, fill: "#64748b", fontWeight: 500 }}
+                                tickLine={false}
+                                axisLine={{ stroke: "#e2e8f0" }}
+                                dy={8}
+                              />
+                              <YAxis
+                                domain={cfg.domain}
+                                ticks={cfg.ticks}
+                                tick={{ fontSize: 11, fill: "#94a3b8", fontFamily: "monospace" }}
+                                tickLine={false}
+                                axisLine={false}
+                                width={40}
+                              />
+                              <Tooltip content={<CustomTooltip />} cursor={{ stroke: "#0067A1", strokeWidth: 1, strokeDasharray: "4 4" }} />
+                              <ReferenceLine
+                                y={avgVal}
+                                stroke="#94a3b8"
+                                strokeDasharray="6 4"
+                                strokeWidth={1}
+                                label={{ value: `Avg: ${avgVal}`, position: "right", fontSize: 10, fill: "#94a3b8" }}
+                              />
+                              <Area
+                                type="monotone"
+                                dataKey="currentVal"
+                                stroke="#0067A1"
+                                strokeWidth={2.5}
+                                fill="url(#lungMetricGradient)"
+                                dot={{ r: 4, fill: "#ffffff", stroke: "#0067A1", strokeWidth: 2, cursor: "pointer" }}
+                                activeDot={{
+                                  r: 7,
+                                  fill: "#0067A1",
+                                  stroke: "#ffffff",
+                                  strokeWidth: 2,
+                                  cursor: "pointer",
+                                  onClick: (_, payload) => {
+                                    if (payload?.payload) handleOpenSnapshot(payload.payload);
+                                  }
+                                }}
+                              />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        )}
                       </div>
                     );
                   })()}
