@@ -1607,7 +1607,8 @@ export default function OrderDetailsPage() {
  ).toLocaleDateString("en-IN")}
  </span>
  </div>
- {order.utr_number && (
+  )}
+  {order.utr_number && (
    <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700">
      <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
        UTR / Ref No:
