@@ -129,14 +129,19 @@ const Dashboard = () => {
           if (a.status === "rejected" || a.status === "cancelled") return false;
           if (!a.appointment_date || !a.appointment_time) return true;
 
-          const datePart = a.appointment_date.includes("T")
-            ? a.appointment_date.split("T")[0]
-            : a.appointment_date;
+          const rawDateStr = typeof a.appointment_date === "string" 
+            ? a.appointment_date 
+            : a.appointment_date instanceof Date 
+            ? a.appointment_date.toISOString().split("T")[0]
+            : String(a.appointment_date || "");
+          const datePart = rawDateStr.includes("T")
+            ? rawDateStr.split("T")[0]
+            : rawDateStr;
           const apptDateTime = new Date(`${datePart}T${a.appointment_time}`);
 
           // Filter out appointments that started more than 1 hour in the past
           const diffMs = now.getTime() - apptDateTime.getTime();
-          return diffMs <= 60 * 60 * 1000;
+          return isNaN(diffMs) || diffMs <= 60 * 60 * 1000;
         });
         setUpcomingAppointments(filtered.slice(0, 3));
       }

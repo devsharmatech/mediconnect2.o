@@ -319,10 +319,17 @@ export default function DoctorAppointmentsPage() {
   function isAppointmentExpired(apt) {
     if (!apt?.appointment_date) return false;
     try {
-      const timePart = apt.appointment_time ? apt.appointment_time.slice(0, 5) : "23:59";
-      const [year, month, day] = apt.appointment_date.split("-").map(Number);
+      const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "23:59";
+      const dateStr = typeof apt.appointment_date === "string" 
+        ? apt.appointment_date 
+        : apt.appointment_date instanceof Date 
+        ? apt.appointment_date.toISOString().split("T")[0]
+        : String(apt.appointment_date || "");
+      const dateOnly = dateStr.split("T")[0];
+      const [year, month, day] = dateOnly.split("-").map(Number);
       const [hours, minutes] = timePart.split(":").map(Number);
-      const aptDateTime = new Date(year, month - 1, day, hours, minutes, 0);
+      if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
+      const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
       const now = new Date();
       // If appointment slot start was more than 30 mins ago, it's expired
       return now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000;
@@ -331,12 +338,19 @@ export default function DoctorAppointmentsPage() {
     }
   }
 
-  function isExpiredOneDayBefore(dateStr) {
-    if (!dateStr) return false;
+  function isExpiredOneDayBefore(dateVal) {
+    if (!dateVal) return false;
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const [year, month, day] = dateStr.split("-").map(Number);
+      const dateStr = typeof dateVal === "string" 
+        ? dateVal 
+        : dateVal instanceof Date 
+        ? dateVal.toISOString().split("T")[0]
+        : String(dateVal || "");
+      const dateOnly = dateStr.split("T")[0];
+      const [year, month, day] = dateOnly.split("-").map(Number);
+      if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
       const aptDate = new Date(year, month - 1, day);
       aptDate.setHours(0, 0, 0, 0);
       return aptDate < today;

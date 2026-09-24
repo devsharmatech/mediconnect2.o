@@ -26,13 +26,21 @@ export async function POST(req) {
         .maybeSingle();
 
       if (apt?.appointment_date) {
-        const timeStr = (apt.appointment_time || "23:59").slice(0, 5);
-        const [year, month, day] = apt.appointment_date.split("-").map(Number);
+        const timeStr = String(apt.appointment_time || "23:59").slice(0, 5);
+        const dateStr = typeof apt.appointment_date === "string" 
+          ? apt.appointment_date 
+          : apt.appointment_date instanceof Date 
+          ? apt.appointment_date.toISOString().split("T")[0]
+          : String(apt.appointment_date || "");
+        const dateOnly = dateStr.split("T")[0];
+        const [year, month, day] = dateOnly.split("-").map(Number);
         const [hours, minutes] = timeStr.split(":").map(Number);
-        const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
-        const now = new Date();
-        if (now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000) {
-          return failure("This appointment slot has expired and can no longer be approved.", null, 400, { headers: corsHeaders });
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
+          const now = new Date();
+          if (now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000) {
+            return failure("This appointment slot has expired and can no longer be approved.", null, 400, { headers: corsHeaders });
+          }
         }
       }
     }

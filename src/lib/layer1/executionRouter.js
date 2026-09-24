@@ -447,13 +447,21 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
 
   if (status === "approved" && appointment.appointment_date) {
     try {
-      const timePart = appointment.appointment_time ? appointment.appointment_time.slice(0, 5) : "23:59";
-      const [year, month, day] = appointment.appointment_date.split("-").map(Number);
+      const timePart = appointment.appointment_time ? String(appointment.appointment_time).slice(0, 5) : "23:59";
+      const dateStr = typeof appointment.appointment_date === "string" 
+        ? appointment.appointment_date 
+        : appointment.appointment_date instanceof Date 
+        ? appointment.appointment_date.toISOString().split("T")[0]
+        : String(appointment.appointment_date || "");
+      const dateOnly = dateStr.split("T")[0];
+      const [year, month, day] = dateOnly.split("-").map(Number);
       const [hours, minutes] = timePart.split(":").map(Number);
-      const aptDateTime = new Date(year, month - 1, day, hours, minutes, 0);
-      const now = new Date();
-      if (now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000) {
-        throw new Error("Cannot approve an expired appointment slot.");
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
+        const now = new Date();
+        if (now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000) {
+          throw new Error("Cannot approve an expired appointment slot.");
+        }
       }
     } catch (err) {
       if (err.message.includes("expired")) throw err;
