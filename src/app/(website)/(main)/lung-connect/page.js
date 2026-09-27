@@ -259,15 +259,15 @@ function LungConnectHubContent() {
   // Milestone History modal
   const [showMilestoneHistoryModal, setShowMilestoneHistoryModal] = useState(false);
 
-  // URL-driven tab switcher: updates state and syncs URL query parameter
+  // URL-driven tab switcher: updates state and syncs URL query parameter silently
   const handleTabChange = (tabId) => {
-    if (!VALID_TABS.includes(tabId)) return;
+    if (!VALID_TABS.includes(tabId) || activeTab === tabId) return;
     setActiveTab(tabId);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("tab", tabId);
-      url.searchParams.delete("action"); // Clear any one-time modal actions
-      window.history.pushState({ tab: tabId }, "", url.toString());
+      url.searchParams.delete("action");
+      window.history.replaceState({ tab: tabId }, "", `${url.pathname}?${url.searchParams.toString()}`);
     }
   };
 
@@ -278,7 +278,7 @@ function LungConnectHubContent() {
       const url = new URL(window.location.href);
       if (url.searchParams.has("action")) {
         url.searchParams.delete("action");
-        window.history.replaceState({ tab: activeTab }, "", url.toString());
+        window.history.replaceState({ tab: activeTab }, "", `${url.pathname}?${url.searchParams.toString()}`);
       }
     }
   };
@@ -322,13 +322,6 @@ function LungConnectHubContent() {
 
         setActiveTab(resolvedTab);
 
-        // Ensure current URL always has ?tab= so refresh permanently remembers it
-        const currentUrl = new URL(window.location.href);
-        if (currentUrl.searchParams.get("tab") !== resolvedTab && !action) {
-          currentUrl.searchParams.set("tab", resolvedTab);
-          window.history.replaceState({ tab: resolvedTab }, "", currentUrl.toString());
-        }
-
         if (action === "move") {
           setIsMoveModalOpen(true);
         } else if (action === "walking") {
@@ -340,26 +333,7 @@ function LungConnectHubContent() {
     } catch (_) {}
   }, []);
 
-  // Sync tab state whenever URL searchParams change (browser back/forward or external navigation)
-  useEffect(() => {
-    const currentTabParam = searchParams.get("tab");
-    if (currentTabParam && VALID_TABS.includes(currentTabParam) && currentTabParam !== activeTab) {
-      setActiveTab(currentTabParam);
-    }
-  }, [searchParams, activeTab]);
-
-  // Ensure the browser URL always reflects activeTab for persistent reload support
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      if (url.searchParams.get("tab") !== activeTab && !url.searchParams.get("action")) {
-        url.searchParams.set("tab", activeTab);
-        window.history.replaceState({ tab: activeTab }, "", url.toString());
-      }
-    }
-  }, [activeTab]);
-
-  // Handle browser popstate (back/forward buttons)
+  // Handle browser popstate (back/forward buttons) cleanly without infinite re-render loops
   useEffect(() => {
     const handlePopState = () => {
       if (typeof window !== "undefined") {
