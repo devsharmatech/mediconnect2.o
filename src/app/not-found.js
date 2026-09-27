@@ -47,7 +47,7 @@ export default function NotFound() {
           </button>
           
           <Link 
-            href="/website" 
+            href="/" 
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-[#0067A1] text-white hover:bg-[#073A37] rounded-xl font-semibold shadow-xl shadow-[#0067A1]/20 transition-all duration-200 hover:-translate-y-0.5"
           >
             <FaHome className="w-4 h-4" />
