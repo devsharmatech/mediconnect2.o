@@ -14,7 +14,6 @@ export default function LungConnectFullReport({
   reportRef
 }) {
   const inputs = assessmentData?.lung_health_inputs?.[0] || {};
-  const score = Number(assessmentData?.health_score || 66);
   const createdAt = assessmentData?.created_at || new Date().toISOString();
 
   const serialNo = assessmentData?.serial_no || (
@@ -56,21 +55,15 @@ export default function LungConnectFullReport({
       style={{
         position: "relative",
         width: "794px",
-        height: "1123px",
-        maxHeight: "1123px",
+        minHeight: "auto",
         backgroundColor: "#ffffff",
         color: "#0f2d4a",
         fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif",
-        padding: "36px 40px 30px 40px",
+        padding: "36px 40px 24px 40px",
         boxSizing: "border-box",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        lineHeight: "1.4",
-        overflow: "hidden"
+        lineHeight: "1.4"
       }}
     >
-      <div>
         {/* Header with Official Logo */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", borderBottom: "2px solid #007a8c", paddingBottom: "10px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
@@ -138,21 +131,12 @@ export default function LungConnectFullReport({
         </table>
 
         {/* Executive Summary Card */}
-        <div style={{ backgroundColor: "#f0f6f8", border: "1px solid #cbd5e1", borderRadius: "2px", padding: "12px 18px", marginBottom: "14px", display: "flex", gap: "20px", alignItems: "center" }}>
-          <div style={{ textAlign: "center", minWidth: "140px", borderRight: "1px solid #cbd5e1", paddingRight: "18px" }}>
-            <div style={{ fontSize: "10px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>LUNG HEALTH SCORE</div>
-            <div style={{ fontSize: "36px", fontWeight: "900", color: "#007a8c", lineHeight: "1", marginTop: "4px" }}>
-              {score} <span style={{ fontSize: "18px", fontWeight: "700" }}>/ 100</span>
-            </div>
-            <div style={{ fontSize: "10px", color: "#475569", marginTop: "4px" }}>Controlled Result</div>
+        <div style={{ backgroundColor: "#f0f6f8", border: "1px solid #cbd5e1", borderLeft: "4px solid #007a8c", borderRadius: "2px", padding: "12px 18px", marginBottom: "14px" }}>
+          <div style={{ fontSize: "12px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", marginBottom: "4px", letterSpacing: "0.5px" }}>
+            EXECUTIVE CLINICAL SYNTHESIS
           </div>
-          <div>
-            <div style={{ fontSize: "12px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", marginBottom: "4px" }}>
-              EXECUTIVE CLINICAL SYNTHESIS
-            </div>
-            <div style={{ fontSize: "11px", color: "#334155", lineHeight: "1.45" }}>
-              Patient demonstrates consistent spirometric parameters ({pefr} L/min) and healthy breath-holding capacity ({breathHold}s). {hasWheezing ? "Wheezing was flagged during clinical symptom intake; medical evaluation is recommended to confirm etiology." : "No active wheezing, cough, or exertional dyspnea reported."} Environmental air quality in {city} is {aqiCat} (AQI {aqi}).
-            </div>
+          <div style={{ fontSize: "11px", color: "#334155", lineHeight: "1.45" }}>
+            Patient demonstrates consistent spirometric parameters ({pefr} L/min) and healthy breath-holding capacity ({breathHold}s, respiratory rate {rr} bpm). {hasWheezing ? "Wheezing was flagged during clinical symptom intake; medical evaluation is recommended to confirm etiology." : "No active wheezing, cough, or exertional dyspnea reported."} Environmental air quality in {city} is {aqiCat} (AQI {aqi}).
           </div>
         </div>
 
@@ -217,7 +201,7 @@ export default function LungConnectFullReport({
             ASSISTIVE CLINICAL PRECEDENCE NOTICE (LC-09)
           </div>
           <div style={{ fontSize: "10.5px", color: "#78350f", lineHeight: "1.4" }}>
-            Under MediConnect clinical governance rules, subjective or active respiratory symptoms (e.g. wheezing or dyspnea) supersede favorable numeric scores. Patients experiencing new or worsening chest tightness or respiratory sounds should promptly consult a registered medical practitioner.
+            Under MediConnect clinical governance rules, subjective or active respiratory symptoms (e.g. wheezing or dyspnea) require prompt clinical evaluation. Patients experiencing new or worsening chest tightness or respiratory sounds should promptly consult a registered medical practitioner.
           </div>
         </div>
 
@@ -241,11 +225,8 @@ export default function LungConnectFullReport({
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Pinned Bottom Footer */}
-      <div>
-        <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "8px", fontSize: "9.5px", color: "#64748b", lineHeight: "1.4" }}>
+        {/* Bottom Footer */}
+        <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "8px", marginTop: "16px", fontSize: "9.5px", color: "#64748b", lineHeight: "1.4" }}>
           <div>Keep this clinical assessment record with your permanent MediConnect health locker.</div>
           <div style={{ marginTop: "2px" }}>
             <span style={{ fontWeight: "800", color: "#0d3b66" }}>CARE & SAFETY</span> LungConnect is a digital wellness screening and symptom monitoring instrument; it does not constitute formal diagnostic spirometry or individualized medical prescription.
@@ -255,7 +236,6 @@ export default function LungConnectFullReport({
           <span>MediConnect.fit • LungConnect • Full Clinical Assessment Report • Authoritative Record</span>
           <span>ISO A4 • Page 1 of 1</span>
         </div>
-      </div>
     </div>
   );
 }
