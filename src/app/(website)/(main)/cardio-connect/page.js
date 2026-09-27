@@ -1558,8 +1558,19 @@ export default function CardioConnectHome() {
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  setActiveModal(null);
+                  router.push("/heart-health-history");
+                }}
+                className="w-full py-2.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200 font-bold text-xs rounded-[5px] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>VIEW HISTORY & PRINT PDF REPORT (F1–F4)</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveModal("progress")}
-                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-[5px] transition-colors cursor-pointer"
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-[5px] transition-colors cursor-pointer"
               >
                 VIEW PROGRESS
               </button>

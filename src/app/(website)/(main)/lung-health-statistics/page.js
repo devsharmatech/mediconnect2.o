@@ -749,25 +749,25 @@ export default function LungHealthStatisticsPage() {
               {/* Right Column (1/3 width): Risk Breakdown & Respiratory Benchmarks */}
               <div className="space-y-4 flex flex-col justify-between">
                 
-                {/* 1. Risk Level Distribution (LC-11) */}
+                {/* 1. Category Distribution (LC-11) */}
                 <div className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-xs">
                   <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
                     <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                       <ShieldAlert className="w-4 h-4 text-[#0067A1]" />
-                      Risk Distribution
+                      Status Breakdown
                     </h3>
                     <span className="text-[10px] text-slate-400">Product Categories</span>
                   </div>
 
                   <div className="space-y-3">
                     {[
-                      { level: "Low", color: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50" },
-                      { level: "Moderate", color: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50" },
-                      { level: "High", color: "bg-rose-500", text: "text-rose-700", bg: "bg-rose-50" },
-                      { level: "Critical", color: "bg-red-600", text: "text-red-700", bg: "bg-red-50" }
+                      { level: "Optimal", key: "low", color: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50" },
+                      { level: "Moderate", key: "moderate", color: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50" },
+                      { level: "Priority Care", key: "high", color: "bg-rose-500", text: "text-rose-700", bg: "bg-rose-50" },
+                      { level: "Urgent Care", key: "critical", color: "bg-red-600", text: "text-red-700", bg: "bg-red-50" }
                     ].map((item) => {
                       const dist = (graphData?.riskLevelDistribution || []).find(
-                        (d) => d.level?.toLowerCase() === item.level.toLowerCase()
+                        (d) => d.level?.toLowerCase() === item.key || d.level?.toLowerCase() === item.level.toLowerCase()
                       );
                       const count = dist?.count || 0;
                       const pct = totalAssessments > 0 ? Math.round((count / totalAssessments) * 100) : 0;
@@ -775,7 +775,7 @@ export default function LungHealthStatisticsPage() {
                       return (
                         <div key={item.level} className="space-y-1">
                           <div className="flex items-center justify-between text-xs">
-                            <span className="font-semibold text-slate-700">{item.level} Risk</span>
+                            <span className="font-semibold text-slate-700">{item.level}</span>
                             <span className="font-mono text-[11px] text-slate-500">
                               {count} <span className="text-slate-400">({pct}%)</span>
                             </span>
@@ -889,7 +889,7 @@ export default function LungHealthStatisticsPage() {
                       <th className="py-2.5 px-3 font-semibold">Date & Time</th>
                       <th className="py-2.5 px-3 font-semibold">Serial No</th>
                       <th className="py-2.5 px-3 font-semibold">Score</th>
-                      <th className="py-2.5 px-3 font-semibold">Risk Level</th>
+                      <th className="py-2.5 px-3 font-semibold">Status Category</th>
                       <th className="py-2.5 px-3 font-semibold">Vitals Recorded</th>
                       <th className="py-2.5 px-3 font-semibold">Recorded Assessment Summary</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Actions</th>
@@ -949,10 +949,10 @@ export default function LungHealthStatisticsPage() {
                             <span className="text-[10px] text-slate-400 ml-0.5">/100</span>
                           </td>
 
-                          {/* Risk Level */}
+                          {/* Status Category */}
                           <td className="py-3 px-3 whitespace-nowrap">
                             <span className={`inline-block px-2 py-0.5 rounded-[5px] text-[10px] font-semibold uppercase tracking-wider border ${riskClasses[riskStr] || riskClasses.moderate}`}>
-                              {riskStr}
+                              {riskStr === "low" ? "Optimal" : riskStr === "high" ? "Priority Care" : riskStr === "critical" ? "Urgent Care" : "Moderate"}
                             </span>
                           </td>
 

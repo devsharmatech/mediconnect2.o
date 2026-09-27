@@ -218,25 +218,25 @@ export default function LungHealthResult() {
     low: {
       hero: 'from-[#004f7c] via-[#005f94] to-[#0067A1]',
       ring: '#38bdf8',
-      label: 'Low Risk',
+      label: 'Optimal Status',
       pill: 'bg-emerald-500/20 text-emerald-100 border-emerald-300/30'
     },
     moderate: {
       hero: 'from-[#5a3a0e] via-[#7c4d12] to-[#925a16]',
       ring: '#f59e0b',
-      label: 'Moderate Risk',
+      label: 'Moderate Status',
       pill: 'bg-amber-500/20 text-amber-100 border-amber-300/30'
     },
     high: {
       hero: 'from-[#6e1d24] via-[#88242d] to-[#9f1239]',
       ring: '#f43f5e',
-      label: 'High Risk',
+      label: 'Priority Care',
       pill: 'bg-rose-500/20 text-rose-100 border-rose-300/30'
     },
     critical: {
       hero: 'from-[#5e1319] via-[#74171f] to-[#881337]',
       ring: '#dc2626',
-      label: 'Critical Risk',
+      label: 'Urgent Care',
       pill: 'bg-red-500/25 text-red-100 border-red-300/30'
     },
   };

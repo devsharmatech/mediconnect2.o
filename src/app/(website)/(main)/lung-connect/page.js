@@ -10,7 +10,7 @@ import {
   CheckCircle2, ChevronRight, X, ArrowRight, MapPin, ExternalLink,
   Flame, Info, Sliders, ChevronDown, Check, Compass, Play,
   Pause, RotateCcw, Lock, ChevronUp, Share2, HelpCircle, Eye,
-  CloudRain, Sun, Cloud, Droplets, Navigation, ThumbsUp, Search, Compass as WindIcon
+  CloudRain, Sun, Cloud, Droplets, Navigation, ThumbsUp, Search, Compass as WindIcon, FileText
 } from "lucide-react";
 import { FaLungs } from "react-icons/fa";
 import toast from "react-hot-toast";
@@ -868,6 +868,15 @@ function LungConnectHubContent() {
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               <span>Episode: LCE-2026-0842</span>
             </div>
+
+            <Link
+              href="/lung-health-statistics"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-sky-50 hover:bg-sky-100 text-[#0067A1] rounded-[5px] text-xs font-bold border border-sky-200 transition-colors shadow-2xs cursor-pointer"
+              title="View History & Print PDF Reports"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>History & Reports</span>
+            </Link>
 
             <button
               onClick={() => {

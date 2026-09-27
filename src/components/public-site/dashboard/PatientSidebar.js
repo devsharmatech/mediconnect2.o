@@ -152,6 +152,11 @@ export default function PatientSidebar({
           href: "/lung-health-statistics",
           icon: FaChartLine,
         },
+        {
+          name: "Assessment History",
+          href: "/respiratory-history",
+          icon: FaFileMedical,
+        },
       ],
     },
     {
