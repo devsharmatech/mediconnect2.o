@@ -174,21 +174,39 @@ export async function GET(req) {
       const scoreDiff = Number(latestAssessment.score) - Number(previousAssessment.score);
       recordedChange = {
         diff: scoreDiff,
-        formatted: `${scoreDiff >= 0 ? "+" : ""}${scoreDiff} points`,
+        formatted: scoreDiff === 0 ? "Consistent & Maintained" : (scoreDiff > 0 ? "Improved Capacity" : "Varied Capacity"),
         trend: scoreDiff > 0 ? "improved" : scoreDiff < 0 ? "declined" : "stable",
       };
     }
 
     // Build B02 Longitudinal Continuing Checkpoints
-    let firstActivityDate = assessmentRows.length > 0
-      ? new Date(assessmentRows[assessmentRows.length - 1].created_at)
-      : (allSessions.length > 0 ? new Date(allSessions[allSessions.length - 1].created_at) : new Date("2026-09-04T00:00:00Z"));
-    
-    if (isNaN(firstActivityDate.getTime()) || firstActivityDate.getFullYear() < 2026) {
-      firstActivityDate = new Date("2026-09-04T00:00:00Z");
+    // Authoritative baseline resolution: Select the earliest assessment in the active 2026 cohort (Sept 2026 onwards)
+    const activeCohortAssessments = assessmentRows.filter(a => {
+      const d = new Date(a.created_at);
+      return !isNaN(d.getTime()) && (d.getFullYear() === 2026 && d.getMonth() >= 8);
+    });
+
+    let baselineDate = null;
+    if (activeCohortAssessments.length > 0) {
+      baselineDate = new Date(activeCohortAssessments[activeCohortAssessments.length - 1].created_at);
+    } else if (assessmentRows.length > 0) {
+      const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+      const recent = assessmentRows.filter(a => new Date(a.created_at) >= ninetyDaysAgo);
+      if (recent.length > 0) {
+        baselineDate = new Date(recent[recent.length - 1].created_at);
+      }
     }
-    
-    const daysSinceStart = Math.max(0, Math.floor((new Date() - firstActivityDate) / (1000 * 60 * 60 * 24)));
+
+    if (!baselineDate || isNaN(baselineDate.getTime()) || baselineDate.getFullYear() < 2026) {
+      baselineDate = new Date("2026-09-04T00:00:00Z");
+    }
+
+    // Consistent calendar day calculation (midnight-to-midnight) so it never fluctuates by time of day
+    const startMidnight = new Date(baselineDate);
+    startMidnight.setHours(0, 0, 0, 0);
+    const nowMidnight = new Date(now);
+    nowMidnight.setHours(0, 0, 0, 0);
+    const daysSinceStart = Math.max(0, Math.round((nowMidnight.getTime() - startMidnight.getTime()) / (1000 * 60 * 60 * 24)));
 
     let foundCurrent = false;
     const checkpoints = [

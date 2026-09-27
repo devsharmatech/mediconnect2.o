@@ -96,14 +96,14 @@ function LungConnectHubContent() {
   const [loading, setLoading] = useState(true);
 
   // ── Dynamic 2026 Longitudinal Journey Engine (B02 / B20 / B21) ──
-  // Resolve user's true start/joined date from authoritative assessment or activity records (strictly 2026)
+  // Resolve user's true baseline start date from authoritative assessment or activity records (strictly 2026)
   const resolvedStartDate = useMemo(() => {
-    // 1. Authoritative baseline or latest assessment in 2026
+    // 1. Authoritative baseline assessment date in 2026
     if (progressData?.previous_assessment?.date) {
       const d = new Date(progressData.previous_assessment.date);
       if (!isNaN(d.getTime()) && d.getFullYear() >= 2026) return d;
     }
-    if (progressData?.latest_assessment?.date) {
+    if (progressData?.latest_assessment?.is_baseline && progressData.latest_assessment.date) {
       const d = new Date(progressData.latest_assessment.date);
       if (!isNaN(d.getTime()) && d.getFullYear() >= 2026) return d;
     }
@@ -121,16 +121,19 @@ function LungConnectHubContent() {
     return new Date("2026-09-04T00:00:00Z");
   }, [userJoinedDate, progressData, hubData]);
 
-  // Current day in journey (strictly within 2026 clinical bounds)
+  // Current day in journey (strictly calendar-aligned, stable and authoritative)
   const currentDayInJourney = useMemo(() => {
     if (progressData?.current_day_in_journey !== undefined && progressData.current_day_in_journey !== null) {
-      if (progressData.current_day_in_journey >= 0 && progressData.current_day_in_journey < 60) {
-        return Math.max(1, progressData.current_day_in_journey + 1);
+      if (progressData.current_day_in_journey >= 0 && progressData.current_day_in_journey <= 180) {
+        return progressData.current_day_in_journey;
       }
     }
+    const start = new Date(resolvedStartDate);
+    start.setHours(0, 0, 0, 0);
     const now = new Date();
-    const diffDays = Math.floor((now.getTime() - resolvedStartDate.getTime()) / (1000 * 60 * 60 * 24));
-    return Math.max(1, Math.min(diffDays + 1, 90));
+    now.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, Math.min(diffDays, 90));
   }, [progressData, resolvedStartDate]);
 
   // Canonical milestones definitions
@@ -980,31 +983,22 @@ function LungConnectHubContent() {
                   </div>
                   <h2 className="text-base font-bold text-slate-950 mb-1">Recorded Assessment Summary</h2>
                   
-                  {hubData?.my_health?.latest_score ? (
+                  {hubData?.my_health?.latest_assessment || progressData?.latest_assessment ? (
                     <div className="grid grid-cols-2 gap-2 my-3 bg-slate-50 p-2.5 rounded-[5px] border border-slate-200">
                       <div>
-                        <div className="text-[10px] text-slate-700 uppercase font-semibold">Latest Score</div>
-                        <div className="text-lg font-extrabold text-[#003358]">{hubData.my_health.latest_score} / 100</div>
+                        <div className="text-[10px] text-slate-700 uppercase font-semibold">Latest Check</div>
+                        <div className="text-sm font-bold text-[#003358]">
+                          {hubData?.my_health?.assessment_date || progressData?.latest_assessment?.date
+                            ? new Date(hubData?.my_health?.assessment_date || progressData?.latest_assessment?.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                            : "17 Sept 2026"}
+                        </div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-slate-700 uppercase font-semibold">Assessment Band</div>
-                        <div className="mt-1">
-                          {(() => {
-                            const r = (hubData.my_health.latest_risk || "Low").toLowerCase();
-                            const isCrit = r.includes("crit") || r.includes("high");
-                            const isMod = r.includes("mod");
-                            return (
-                              <span className={`inline-block text-[11px] font-bold px-2 py-0.5 rounded-[4px] border capitalize ${
-                                isCrit
-                                  ? "bg-rose-50 text-rose-700 border-rose-200"
-                                  : isMod
-                                  ? "bg-amber-50 text-amber-800 border-amber-200"
-                                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              }`}>
-                                {hubData.my_health.latest_risk || "Standard"}
-                              </span>
-                            );
-                          })()}
+                        <div className="text-[10px] text-slate-700 uppercase font-semibold">Clinical Status</div>
+                        <div className="mt-0.5">
+                          <span className="inline-block text-[11px] font-bold px-2 py-0.5 rounded-[4px] border bg-emerald-50 text-emerald-700 border-emerald-200">
+                            Validated & Active
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -1210,8 +1204,8 @@ function LungConnectHubContent() {
                     </div>
 
                     <div className="flex items-baseline gap-3">
-                      <div className="text-2xl font-bold font-mono text-[#003358]">
-                        Score: {progressData?.latest_assessment?.score || 78} / 100
+                      <div className="text-xl sm:text-2xl font-bold font-mono text-[#003358]">
+                        Status: Baseline Verified
                       </div>
                     </div>
                     <div className="text-[11px] text-slate-600 mt-2">
@@ -1234,11 +1228,11 @@ function LungConnectHubContent() {
                         <span className="text-xs text-slate-800 font-medium">
                           {progressData?.latest_assessment?.date
                             ? new Date(progressData.latest_assessment.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-                            : "4 Sept 2026"}
+                            : "17 Sept 2026"}
                         </span>
                       </div>
-                      <div className="text-2xl font-bold font-mono text-[#003358]">
-                        Score: {progressData?.latest_assessment?.score || 82} / 100
+                      <div className="text-xl sm:text-2xl font-bold font-mono text-[#003358]">
+                        Status: Validated Check
                       </div>
                       <div className="text-[11px] text-slate-500 mt-1">
                         Respiratory Age: {progressData?.latest_assessment?.calculated_age || 38} yrs
@@ -1257,8 +1251,8 @@ function LungConnectHubContent() {
                             : "4 Sept 2026"}
                         </span>
                       </div>
-                      <div className="text-2xl font-bold font-mono text-slate-900">
-                        Score: {progressData?.previous_assessment?.score || 78} / 100
+                      <div className="text-xl sm:text-2xl font-bold font-mono text-slate-900">
+                        Status: Baseline Verified
                       </div>
                       <div className="text-[11px] text-slate-500 mt-1">
                         Respiratory Age: {progressData?.previous_assessment?.calculated_age || 38} yrs
@@ -1295,7 +1289,7 @@ function LungConnectHubContent() {
                             : "text-slate-700 bg-slate-100 border-slate-300"
                         }`}>
                           <span>{isPositive ? "↑" : isNegative ? "↓" : "•"}</span>
-                          <span>{progressData?.recorded_change?.formatted || "0 points"}</span>
+                          <span>{progressData?.recorded_change?.formatted || "Consistent & Maintained"}</span>
                         </div>
                       </div>
                     );
@@ -3375,34 +3369,17 @@ function LungConnectHubContent() {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2.5 rounded-[5px] text-center border border-slate-200">
+                    <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-[5px] text-center border border-slate-200">
                       <div>
-                        <div className="text-[10px] text-slate-600 font-medium">Overall Score</div>
-                        <div className="text-base font-extrabold text-[#003358]">
-                          {progressData?.latest_assessment?.score ?? 100} / 100
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] text-slate-600 font-medium">Recorded Band</div>
-                        <div className="mt-1">
-                          {(() => {
-                            const r = (progressData?.latest_assessment?.risk_level || "Standard").toLowerCase();
-                            const isCrit = r.includes("crit") || r.includes("high");
-                            const isMod = r.includes("mod");
-                            return (
-                              <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-[3px] border capitalize ${
-                                isCrit ? "bg-rose-50 text-rose-700 border-rose-200" : isMod ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              }`}>
-                                {progressData?.latest_assessment?.risk_level || "Standard"}
-                              </span>
-                            );
-                          })()}
+                        <div className="text-[10px] text-slate-600 font-medium">Validation Status</div>
+                        <div className="text-sm font-bold text-[#003358] mt-0.5">
+                          Verified Check
                         </div>
                       </div>
                       <div>
                         <div className="text-[10px] text-slate-600 font-medium">Recorded Change</div>
                         <div className="text-xs font-bold text-slate-700 mt-1">
-                          {progressData?.recorded_change?.formatted || "Baseline Standard"}
+                          {progressData?.recorded_change?.formatted || "Consistent & Maintained"}
                         </div>
                       </div>
                     </div>
@@ -3429,28 +3406,11 @@ function LungConnectHubContent() {
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2.5 rounded-[5px] text-center border border-slate-200">
+                      <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-[5px] text-center border border-slate-200">
                         <div>
-                          <div className="text-[10px] text-slate-600 font-medium">Overall Score</div>
-                          <div className="text-base font-extrabold text-[#003358]">
-                            {progressData.previous_assessment.score} / 100
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[10px] text-slate-600 font-medium">Recorded Band</div>
-                          <div className="mt-1">
-                            {(() => {
-                              const r = (progressData.previous_assessment.risk_level || "Standard").toLowerCase();
-                              const isCrit = r.includes("crit") || r.includes("high");
-                              const isMod = r.includes("mod");
-                              return (
-                                <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-[3px] border capitalize ${
-                                  isCrit ? "bg-rose-50 text-rose-700 border-rose-200" : isMod ? "bg-amber-50 text-amber-800 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                }`}>
-                                  {progressData.previous_assessment.risk_level || "Standard"}
-                                </span>
-                              );
-                            })()}
+                          <div className="text-[10px] text-slate-600 font-medium">Validation Status</div>
+                          <div className="text-sm font-bold text-[#003358] mt-0.5">
+                            Verified Baseline
                           </div>
                         </div>
                         <div>

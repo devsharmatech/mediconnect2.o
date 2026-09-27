@@ -97,7 +97,7 @@ export async function GET(req) {
       try {
         const { data: assessments, count } = await supabase
           .from("health_assessments")
-          .select("id, created_at, lung_health_inputs(*)", { count: "exact" })
+          .select("id, created_at, health_score, calculated_age, risk_level, lung_health_inputs(*)", { count: "exact" })
           .eq("user_id", userId)
           .eq("assessment_type", "lung")
           .order("created_at", { ascending: false })
@@ -109,9 +109,9 @@ export async function GET(req) {
           hubState.my_health = {
             latest_assessment: latest.id,
             total_assessments: count || 1,
-            latest_score: inputs.score ?? null,
-            latest_risk: inputs.risk_level ?? null,
-            latest_lung_age: inputs.lung_age ?? null,
+            latest_score: latest.health_score ?? inputs.score ?? null,
+            latest_risk: latest.risk_level ?? inputs.risk_level ?? null,
+            latest_lung_age: latest.calculated_age ?? inputs.lung_age ?? null,
             assessment_date: latest.created_at,
           };
           hubState.state = "partial";
