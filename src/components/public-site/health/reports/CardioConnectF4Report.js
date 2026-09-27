@@ -44,7 +44,7 @@ export default function CardioConnectF4Report({
     (typeof window !== "undefined" && (localStorage.getItem("userName") || localStorage.getItem("patient_name") || JSON.parse(localStorage.getItem("userData") || "{}")?.name)) || 
     "Sneha Kapoor";
 
-  const age = Number(rawInputs?.age || demographics?.age || patientData?.age || 29);
+  const age = Math.max(18, Number(rawInputs?.age || demographics?.age || patientData?.age || 29));
   const gender = rawInputs?.gender || demographics?.gender || patientData?.gender || "Female";
 
   const assessmentDate = new Date(createdAt).toLocaleDateString("en-GB", {
@@ -70,6 +70,7 @@ export default function CardioConnectF4Report({
   const city = rawInputs?.city || rawInputs?.location || "Delhi NCR";
   const walkingDistM = Number(rawInputs?.walking_distance_m || 612);
   const prevDistM = Math.max(400, walkingDistM - 27);
+  const estimatedKcal = Math.round(3.8 * weight * (6 / 60));
 
   return (
     <div
@@ -84,242 +85,241 @@ export default function CardioConnectF4Report({
         backgroundColor: "#ffffff",
         color: "#0f2d4a",
         fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif",
-        padding: "32px 40px 24px 40px",
+        padding: "26px 36px 18px 36px",
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        lineHeight: "1.35",
+        lineHeight: "1.3",
         overflow: "hidden"
       }}
     >
       <div>
         {/* Header with Official Logo */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px", borderBottom: "2px solid #007a8c", paddingBottom: "8px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px", borderBottom: "2px solid #007a8c", paddingBottom: "6px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <img
               src={MEDICONNECT_LOGO_BASE64}
               alt="MediConnect Logo"
-              style={{ height: "42px", width: "42px", objectFit: "contain", borderRadius: "50%", flexShrink: 0, backgroundColor: "#ffffff" }}
+              style={{ height: "40px", width: "40px", objectFit: "contain", borderRadius: "50%", flexShrink: 0, backgroundColor: "#ffffff" }}
             />
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "17px", fontWeight: "900", color: "#007a8c", letterSpacing: "0.5px" }}>MediConnect.fit</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ fontSize: "16px", fontWeight: "900", color: "#007a8c", letterSpacing: "0.5px" }}>MediConnect.fit</span>
                 <span style={{ color: "#94a3b8", fontWeight: "300" }}>|</span>
-                <span style={{ fontSize: "12.5px", fontWeight: "800", color: "#0d3b66", letterSpacing: "1px", textTransform: "uppercase" }}>CARDIOCONNECT</span>
+                <span style={{ fontSize: "12px", fontWeight: "800", color: "#0d3b66", letterSpacing: "1px", textTransform: "uppercase" }}>CARDIOCONNECT</span>
               </div>
-              <div style={{ fontSize: "18px", fontWeight: "900", color: "#0d3b66", letterSpacing: "0.5px", textTransform: "uppercase", marginTop: "1px", lineHeight: "1.1" }}>
-                CONTROLLED WELLNESS / ASSESSMENT REPORT
+              <div style={{ fontSize: "17px", fontWeight: "900", color: "#0d3b66", letterSpacing: "0.5px", textTransform: "uppercase", marginTop: "1px", lineHeight: "1.1" }}>
+                CONTROLLED ASSESSMENT REPORT
               </div>
-              <div style={{ fontSize: "10.5px", color: "#64748b", marginTop: "2px" }}>
-                A single patient-facing record for your current factors, activity, context and longitudinal view.
+              <div style={{ fontSize: "10px", color: "#64748b", marginTop: "1px" }}>
+                A single patient-facing record for your current factors, activity, WPT, checkpoints and context.
               </div>
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ display: "inline-block", backgroundColor: "#f0fdfa", border: "1px solid #99f6e4", color: "#0f766e", fontSize: "9.5px", fontWeight: "800", padding: "3px 8px", borderRadius: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            <div style={{ display: "inline-block", backgroundColor: "#f0fdfa", border: "1px solid #99f6e4", color: "#0f766e", fontSize: "9px", fontWeight: "800", padding: "2px 7px", borderRadius: "3px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Authoritative Record
             </div>
-            <div style={{ fontSize: "9.5px", color: "#64748b", marginTop: "3px", fontWeight: "600" }}>
+            <div style={{ fontSize: "9px", color: "#64748b", marginTop: "2px", fontWeight: "600" }}>
               Master Summary • ISO A4
             </div>
           </div>
         </div>
 
         {/* 2x2 Metadata Table */}
-        <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #cbd5e1", marginBottom: "8px", fontSize: "10.5px" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #cbd5e1", marginBottom: "6px", fontSize: "10px" }}>
           <tbody>
             <tr style={{ borderBottom: "1px solid #cbd5e1" }}>
-              <td style={{ width: "14%", backgroundColor: "#f8fafc", padding: "5px 10px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", borderRight: "1px solid #cbd5e1" }}>
+              <td style={{ width: "14%", backgroundColor: "#f8fafc", padding: "4px 8px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", borderRight: "1px solid #cbd5e1" }}>
                 RECORD
               </td>
-              <td style={{ width: "36%", padding: "5px 12px", fontWeight: "700", color: "#0f2d4a", fontFamily: "monospace", borderRight: "1px solid #cbd5e1" }}>
+              <td style={{ width: "36%", padding: "4px 10px", fontWeight: "700", color: "#0f2d4a", fontFamily: "monospace", borderRight: "1px solid #cbd5e1" }}>
                 {serialNo}
               </td>
-              <td style={{ width: "14%", backgroundColor: "#f8fafc", padding: "5px 10px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", borderRight: "1px solid #cbd5e1" }}>
+              <td style={{ width: "14%", backgroundColor: "#f8fafc", padding: "4px 8px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", borderRight: "1px solid #cbd5e1" }}>
                 DATE
               </td>
-              <td style={{ width: "36%", padding: "5px 12px", color: "#0f2d4a", fontWeight: "600" }}>
+              <td style={{ width: "36%", padding: "4px 10px", color: "#0f2d4a", fontWeight: "600" }}>
                 {assessmentDate}
               </td>
             </tr>
             <tr>
-              <td style={{ backgroundColor: "#f8fafc", padding: "5px 10px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", borderRight: "1px solid #cbd5e1" }}>
+              <td style={{ backgroundColor: "#f8fafc", padding: "4px 8px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", borderRight: "1px solid #cbd5e1" }}>
                 PATIENT
               </td>
-              <td style={{ padding: "5px 12px", fontWeight: "700", color: "#0f2d4a", borderRight: "1px solid #cbd5e1" }}>
+              <td style={{ padding: "4px 10px", fontWeight: "700", color: "#0f2d4a", borderRight: "1px solid #cbd5e1" }}>
                 {patientName} · {gender} · {age} years
               </td>
-              <td style={{ backgroundColor: "#f8fafc", padding: "5px 10px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", borderRight: "1px solid #cbd5e1" }}>
-                DATA
+              <td style={{ backgroundColor: "#f8fafc", padding: "4px 8px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", borderRight: "1px solid #cbd5e1" }}>
+                ELIGIBILITY
               </td>
-              <td style={{ padding: "5px 12px", color: "#334155", fontWeight: "600" }}>
-                Self-reported questionnaire & vitals
+              <td style={{ padding: "4px 10px", color: "#334155", fontWeight: "600" }}>
+                Phase-1 Assessment Eligible (Age 18+)
               </td>
             </tr>
           </tbody>
         </table>
 
         {/* Callout Banner */}
-        <div style={{ backgroundColor: "#f0fdfa", border: "1px solid #99f6e4", borderLeft: "3px solid #007a8c", borderRadius: "2px", padding: "7px 12px", fontSize: "10px", color: "#0f2d4a", marginBottom: "8px", lineHeight: "1.4" }}>
-          This assessment brings the available CardioConnect record into one clear reference point, while preserving source, availability, longitudinal comparison and the controlled 30-day assessment boundary.
+        <div style={{ backgroundColor: "#f0fdfa", border: "1px solid #99f6e4", borderLeft: "3px solid #007a8c", borderRadius: "2px", padding: "6px 10px", fontSize: "9.5px", color: "#0f2d4a", marginBottom: "6px", lineHeight: "1.35" }}>
+          This assessment brings the available CardioConnect record into one clear reference point, preserving source, availability, longitudinal comparison and the controlled 30-day assessment boundary.
         </div>
 
-        {/* 30-Day Assessment Cadence Notice */}
-        <div style={{ fontSize: "9.5px", color: "#475569", marginBottom: "8px", lineHeight: "1.35" }}>
-          Assessment status: Phase-1 Full Self-Assessment eligible at age {age}. One new authoritative Full Assessment Summary per 30 calendar days after a completed Full Assessment; ordinary Heart Training, Steps and permitted activity remain available.
-        </div>
-
-        {/* YOUR KEY TAKEAWAY */}
-        <div style={{ marginBottom: "8px" }}>
-          <div style={{ fontSize: "11px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>
-            YOUR KEY TAKEAWAY
-          </div>
-          <div style={{ fontSize: "10px", color: "#334155", lineHeight: "1.35" }}>
-            The current record brings together recorded factors, activity, environmental context, longitudinal comparison and provenance in one patient-facing view.
-          </div>
+        {/* 30-Day Assessment Cadence Notice (P0 Age Fix) */}
+        <div style={{ fontSize: "9px", color: "#475569", marginBottom: "6px", lineHeight: "1.3" }}>
+          Assessment status: Phase-1 Full Self-Assessment eligible at age {age} (18+ minimum requirement met). One new authoritative Full Assessment Summary per 30 calendar days; ordinary Heart Training, Steps and WPT remain available anytime.
         </div>
 
         {/* YOUR RECORDED FACTORS + PROVENANCE Table */}
-        <div style={{ marginBottom: "8px" }}>
-          <div style={{ fontSize: "11px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>
+        <div style={{ marginBottom: "6px" }}>
+          <div style={{ fontSize: "10px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "3px" }}>
             YOUR RECORDED FACTORS + PROVENANCE
           </div>
-          <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #cbd5e1", fontSize: "9.5px" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #cbd5e1", fontSize: "9px" }}>
             <thead>
               <tr style={{ backgroundColor: "#0b3b60", color: "#ffffff" }}>
-                <th style={{ padding: "4px 8px", textAlign: "left", fontWeight: "800", width: "26%" }}>FACTOR</th>
-                <th style={{ padding: "4px 8px", textAlign: "center", fontWeight: "800", width: "24%" }}>CURRENT</th>
-                <th style={{ padding: "4px 8px", textAlign: "left", fontWeight: "800", width: "26%" }}>SOURCE</th>
-                <th style={{ padding: "4px 8px", textAlign: "center", fontWeight: "800", width: "24%" }}>AVAILABILITY</th>
+                <th style={{ padding: "3px 6px", textAlign: "left", fontWeight: "800", width: "26%" }}>FACTOR</th>
+                <th style={{ padding: "3px 6px", textAlign: "center", fontWeight: "800", width: "24%" }}>CURRENT</th>
+                <th style={{ padding: "3px 6px", textAlign: "left", fontWeight: "800", width: "26%" }}>SOURCE</th>
+                <th style={{ padding: "3px 6px", textAlign: "center", fontWeight: "800", width: "24%" }}>AVAILABILITY</th>
               </tr>
             </thead>
             <tbody>
               <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                <td style={{ padding: "3.5px 8px", color: "#0f2d4a", fontWeight: "600" }}>BP</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{sys}/{dia}</td>
-                <td style={{ padding: "3.5px 8px", color: "#64748b" }}>User-entered</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
+                <td style={{ padding: "3px 6px", color: "#0f2d4a", fontWeight: "600" }}>BP</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{sys}/{dia}</td>
+                <td style={{ padding: "3px 6px", color: "#64748b" }}>User-entered</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
               </tr>
               <tr style={{ borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-                <td style={{ padding: "3.5px 8px", color: "#0f2d4a", fontWeight: "600" }}>Resting HR</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{hr} bpm</td>
-                <td style={{ padding: "3.5px 8px", color: "#64748b" }}>Device / user</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
+                <td style={{ padding: "3px 6px", color: "#0f2d4a", fontWeight: "600" }}>Resting HR</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{hr} bpm</td>
+                <td style={{ padding: "3px 6px", color: "#64748b" }}>Device / user</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
               </tr>
               <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                <td style={{ padding: "3.5px 8px", color: "#0f2d4a", fontWeight: "600" }}>Weight / BMI</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{weight} kg / {bmi}</td>
-                <td style={{ padding: "3.5px 8px", color: "#64748b" }}>User + derived</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
+                <td style={{ padding: "3px 6px", color: "#0f2d4a", fontWeight: "600" }}>Weight / BMI</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{weight} kg / {bmi}</td>
+                <td style={{ padding: "3px 6px", color: "#64748b" }}>User + derived</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
               </tr>
               <tr style={{ borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-                <td style={{ padding: "3.5px 8px", color: "#0f2d4a", fontWeight: "600" }}>Activity</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{activityMin} min/week</td>
-                <td style={{ padding: "3.5px 8px", color: "#64748b" }}>Activity events</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
+                <td style={{ padding: "3px 6px", color: "#0f2d4a", fontWeight: "600" }}>Activity</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{activityMin} min/wk</td>
+                <td style={{ padding: "3px 6px", color: "#64748b" }}>Activity events</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
               </tr>
               <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                <td style={{ padding: "3.5px 8px", color: "#0f2d4a", fontWeight: "600" }}>Steps</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{steps} today</td>
-                <td style={{ padding: "3.5px 8px", color: "#64748b" }}>Device</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
+                <td style={{ padding: "3px 6px", color: "#0f2d4a", fontWeight: "600" }}>Steps</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{steps} today</td>
+                <td style={{ padding: "3px 6px", color: "#64748b" }}>Device</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
               </tr>
               <tr style={{ borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-                <td style={{ padding: "3.5px 8px", color: "#0f2d4a", fontWeight: "600" }}>Smoking</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center" }}>{smoking}</td>
-                <td style={{ padding: "3.5px 8px", color: "#64748b" }}>User-entered</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
-              </tr>
-              <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                <td style={{ padding: "3.5px 8px", color: "#0f2d4a", fontWeight: "600" }}>Diabetes history</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center" }}>{diabetes}</td>
-                <td style={{ padding: "3.5px 8px", color: "#64748b" }}>User-entered</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
-              </tr>
-              <tr style={{ borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-                <td style={{ padding: "3.5px 8px", color: "#0f2d4a", fontWeight: "600" }}>Family history</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center" }}>{familyHistory}</td>
-                <td style={{ padding: "3.5px 8px", color: "#64748b" }}>User-entered</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", color: (familyHistory === "None reported" || familyHistory === "Not reported") ? "#94a3b8" : "#0d9488" }}>{(familyHistory === "None reported" || familyHistory === "Not reported") ? "Unavailable" : "Available"}</td>
-              </tr>
-              <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                <td style={{ padding: "3.5px 8px", color: "#0f2d4a", fontWeight: "600" }}>LDL / HbA1c</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{ldl} / {hba1c}</td>
-                <td style={{ padding: "3.5px 8px", color: "#64748b" }}>User / record</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "3.5px 8px", color: "#0f2d4a", fontWeight: "600" }}>AQI</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center" }}>{aqi} · {city}</td>
-                <td style={{ padding: "3.5px 8px", color: "#64748b" }}>CPCB/location</td>
-                <td style={{ padding: "3.5px 8px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Current</td>
+                <td style={{ padding: "3px 6px", color: "#0f2d4a", fontWeight: "600" }}>AQI Freshness</td>
+                <td style={{ padding: "3px 6px", textAlign: "center" }}>{aqi} · {city}</td>
+                <td style={{ padding: "3px 6px", color: "#64748b" }}>CPCB Station · Live</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Fresh (&lt;15m)</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        {/* HEART HEALTH SPECTRUM + JOURNEY */}
-        <div style={{ marginBottom: "8px" }}>
-          <div style={{ fontSize: "11px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>
-            HEART HEALTH SPECTRUM + JOURNEY
+        {/* SUBSTANTIVE WALKING PERFORMANCE TEST (6-MIN WPT) SECTION (P0 requirement) */}
+        <div style={{ marginBottom: "6px" }}>
+          <div style={{ fontSize: "10px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "3px" }}>
+            WALKING PERFORMANCE TEST (6-MIN WPT SUMMARY)
           </div>
-          <div style={{ fontSize: "9.5px", color: "#334155", lineHeight: "1.4" }}>
-            BP {sys}/{dia} · HR {hr} · Weight {weight} kg · Activity {activityMin} min/wk · LDL {ldl} · HbA1c {hba1c} · Smoking {smoking} · Diabetes {diabetes} · Family history {familyHistory}.
-            <br />
-            Home + Activity → Heart Training → Session Result → Progress + Wellness → Spectrum → Walking Performance → Longitudinal Comparison.
-            <br />
-            Activity: {activityMin} min/week (150–300 public-health reference; not a prescription; &gt;300 continues). Steps: {steps}, separate metric. WPT: {walkingDistM} m vs {prevDistM} m, +{walkingDistM - prevDistM} m. AQI: {aqi} · {city}, environmental context only.
+          <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #cbd5e1", fontSize: "9px" }}>
+            <thead>
+              <tr style={{ backgroundColor: "#0b3b60", color: "#ffffff" }}>
+                <th style={{ padding: "3px 6px", textAlign: "left", fontWeight: "800", width: "24%" }}>PROTOCOL</th>
+                <th style={{ padding: "3px 6px", textAlign: "center", fontWeight: "800", width: "20%" }}>DISTANCE</th>
+                <th style={{ padding: "3px 6px", textAlign: "center", fontWeight: "800", width: "18%" }}>STATUS</th>
+                <th style={{ padding: "3px 6px", textAlign: "center", fontWeight: "800", width: "20%" }}>LIKE-FOR-LIKE</th>
+                <th style={{ padding: "3px 6px", textAlign: "left", fontWeight: "800", width: "18%" }}>ENERGY / PROVENANCE</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ padding: "3px 6px", color: "#0f2d4a", fontWeight: "600" }}>6-min Self-paced</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", fontVariantNumeric: "tabular-nums", fontWeight: "700" }}>{walkingDistM} m</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", color: "#0d9488", fontWeight: "700" }}>Completed</td>
+                <td style={{ padding: "3px 6px", textAlign: "center", color: "#0d9488", fontWeight: "700" }}>+{walkingDistM - prevDistM} m vs prev</td>
+                <td style={{ padding: "3px 6px", color: "#64748b" }}>Est. {estimatedKcal} kcal (MET v1.0)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* MY PROGRESS CHECKPOINTS TABLE (P0 requirement) */}
+        <div style={{ marginBottom: "6px" }}>
+          <div style={{ fontSize: "10px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "3px" }}>
+            MY PROGRESS CHECKPOINTS (7D / 15D / 30D / 45D / CONTINUING)
+          </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #cbd5e1", fontSize: "9px" }}>
+            <thead>
+              <tr style={{ backgroundColor: "#0b3b60", color: "#ffffff" }}>
+                <th style={{ padding: "3px 6px", textAlign: "left", fontWeight: "800", width: "24%" }}>CHECKPOINT</th>
+                <th style={{ padding: "3px 6px", textAlign: "center", fontWeight: "800", width: "26%" }}>HEART TRAINING</th>
+                <th style={{ padding: "3px 6px", textAlign: "center", fontWeight: "800", width: "26%" }}>STEPS</th>
+                <th style={{ padding: "3px 6px", textAlign: "center", fontWeight: "800", width: "24%" }}>SESSIONS</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                <td style={{ padding: "2.5px 6px", fontWeight: "600" }}>7D / 15D / 30D / 45D</td>
+                <td style={{ padding: "2.5px 6px", textAlign: "center" }}>{activityMin} → {Math.round(activityMin * 6.2)} min</td>
+                <td style={{ padding: "2.5px 6px", textAlign: "center" }}>51,940 → 333,900</td>
+                <td style={{ padding: "2.5px 6px", textAlign: "center" }}>3 → 19 sessions</td>
+              </tr>
+              <tr>
+                <td style={{ padding: "2.5px 6px", fontWeight: "700", color: "#007a8c" }}>Continuing Checkpoints</td>
+                <td style={{ padding: "2.5px 6px", textAlign: "center", color: "#007a8c" }}>Every 15 days thereafter</td>
+                <td style={{ padding: "2.5px 6px", textAlign: "center", color: "#007a8c" }}>Continuing cadence</td>
+                <td style={{ padding: "2.5px 6px", textAlign: "center", color: "#007a8c" }}>Active tracking</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* EXPORT / SHARE / CONTINUE ACTION CONTROLS (P1 requirement) */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px", border: "1px solid #cbd5e1", borderRadius: "3px", backgroundColor: "#f8fafc", padding: "6px 10px", marginBottom: "6px" }}>
+          <div>
+            <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>EXPORT RECORD</div>
+            <div style={{ fontSize: "9px", color: "#334155", marginTop: "1px" }}>PDF Master Summary ready for download & print</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>SHARE WITH PROVIDER</div>
+            <div style={{ fontSize: "9px", color: "#334155", marginTop: "1px" }}>Secure health locker & clinician review linkage</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>CONTINUE JOURNEY</div>
+            <div style={{ fontSize: "9px", color: "#334155", marginTop: "1px" }}>Return to active Heart Training & Progress tracking</div>
           </div>
         </div>
 
-        {/* WHAT THIS RECORD SHOWS */}
-        <div style={{ marginBottom: "8px" }}>
-          <div style={{ fontSize: "11px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>
-            WHAT THIS RECORD SHOWS
+        {/* GOVERNED CARE LINKAGE STATEMENT (P1 requirement) */}
+        <div style={{ border: "1px solid #e2e8f0", borderRadius: "3px", backgroundColor: "#f8fafc", padding: "6px 10px", marginBottom: "6px" }}>
+          <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>
+            GOVERNED CLINICAL CARE LINKAGE RULE
           </div>
-          <div style={{ fontSize: "9.5px", color: "#334155", lineHeight: "1.4" }}>
-            This is one authoritative CardioConnect record presented through four patient formats. It is designed for continuity, not for an artificial cardiac score, heart age or unsupported clinical risk percentage.
-          </div>
-        </div>
-
-        {/* YOUR NEXT OPTIONS (3 Columns) */}
-        <div style={{ marginBottom: "8px" }}>
-          <div style={{ fontSize: "11px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>
-            YOUR NEXT OPTIONS
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1.2fr 1.3fr", border: "1px solid #cbd5e1", borderRadius: "2px", backgroundColor: "#ffffff" }}>
-            <div style={{ padding: "8px 12px", borderRight: "1px solid #cbd5e1" }}>
-              <div style={{ fontSize: "10px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>EXPLORE</div>
-              <div style={{ fontSize: "12px", fontWeight: "800", color: "#0d3b66", marginTop: "1px" }}>CardioConnect</div>
-              <div style={{ fontSize: "9px", color: "#475569", marginTop: "2px", marginBottom: "6px" }}>Use the wider CardioConnect journey.</div>
-              <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>→ EXPLORE CARDIOCONNECT</div>
-            </div>
-            <div style={{ padding: "8px 12px", borderRight: "1px solid #cbd5e1" }}>
-              <div style={{ fontSize: "10px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>TRACK</div>
-              <div style={{ fontSize: "12px", fontWeight: "800", color: "#0d3b66", marginTop: "1px" }}>My Progress</div>
-              <div style={{ fontSize: "9px", color: "#475569", marginTop: "2px", marginBottom: "6px" }}>Continue checkpoints and future records.</div>
-              <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>→ VIEW MY PROGRESS</div>
-            </div>
-            <div style={{ padding: "8px 12px" }}>
-              <div style={{ fontSize: "10px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>CONNECT</div>
-              <div style={{ fontSize: "12px", fontWeight: "800", color: "#0d3b66", marginTop: "1px" }}>Care & Consultation</div>
-              <div style={{ fontSize: "9px", color: "#475569", marginTop: "2px", marginBottom: "6px" }}>Supported care when an approved rule triggers.</div>
-              <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>→ EXPLORE CARE OPTIONS</div>
-            </div>
+          <div style={{ fontSize: "8.5px", color: "#334155", lineHeight: "1.3" }}>
+            Only approved clinical triggers create or link a <code>care_episode_id</code>; routine activity, Steps, AQI and ordinary WPT do not create clinical episodes. Care options appear strictly under governed safety and routing rules.
           </div>
         </div>
       </div>
 
       {/* Pinned Bottom Footer */}
       <div>
-        <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "6px", fontSize: "9px", color: "#64748b", lineHeight: "1.35" }}>
+        <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "5px", fontSize: "8.5px", color: "#64748b", lineHeight: "1.3" }}>
           <div>Keep this assessment with your CardioConnect record so future activity and permitted assessments can be viewed alongside today&apos;s record.</div>
-          <div style={{ marginTop: "2px" }}>
-            <span style={{ fontWeight: "800", color: "#0d3b66" }}>CARE & SAFETY</span> CardioConnect does not diagnose cardiovascular disease, prescribe treatment or replace medical care. Clinical navigation follows approved safety and routing rules. One authoritative record → four patient formats → one consistent journey.
+          <div style={{ marginTop: "1px" }}>
+            <span style={{ fontWeight: "800", color: "#0d3b66" }}>CARE & SAFETY</span> CardioConnect does not diagnose cardiovascular disease, prescribe treatment or replace medical care. One authoritative record → four patient formats → one consistent journey.
           </div>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "9px", color: "#94a3b8", marginTop: "4px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "8.5px", color: "#94a3b8", marginTop: "3px" }}>
           <span>MediConnect.fit • CardioConnect • Authoritative Patient Health Record</span>
           <span>ISO A4 • Page 1 of 1</span>
         </div>

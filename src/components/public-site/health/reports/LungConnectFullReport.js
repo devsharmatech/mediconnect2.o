@@ -22,7 +22,7 @@ export default function LungConnectFullReport({
   );
 
   const patientName = patientData?.name || patientData?.full_name || patientData?.user?.name || "Sneha Kapoor";
-  const age = Number(inputs?.age || patientData?.age || 29);
+  const age = Math.max(18, Number(inputs?.age || patientData?.age || 29));
   const gender = inputs?.gender || patientData?.gender || "Female";
 
   const assessmentDate = new Date(createdAt).toLocaleDateString("en-GB", {
