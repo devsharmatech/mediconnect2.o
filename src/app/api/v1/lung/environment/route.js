@@ -69,29 +69,70 @@ export async function GET(req) {
 
     const isGpsCoordinates = latParam !== null && lngParam !== null && !isNaN(parseFloat(latParam)) && !isNaN(parseFloat(lngParam));
     const forceRefresh = searchParams.get("refresh") === "true";
+    const googleApiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
     if (isGpsCoordinates) {
       lat = parseFloat(latParam);
       lng = parseFloat(lngParam);
       let resolvedGpsName = null;
-      try {
-        const revRes = await fetch(
-          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`,
-          { next: { revalidate: 3600 } }
-        );
-        if (revRes.ok) {
-          const revData = await revRes.json();
-          const cityPart = revData.city || revData.locality || revData.principalSubdivision;
-          const statePart = revData.principalSubdivision;
-          if (cityPart) {
-            resolvedGpsName = statePart && statePart !== cityPart ? `${cityPart}, ${statePart}` : cityPart;
+
+      // 1. Primary: Google Maps Geocoding API (if key configured)
+      if (googleApiKey) {
+        try {
+          const gRevRes = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${googleApiKey}&language=en`,
+            { next: { revalidate: 3600 } }
+          );
+          if (gRevRes.ok) {
+            const gRevJson = await gRevRes.json();
+            if (gRevJson.status === "OK" && gRevJson.results && gRevJson.results.length > 0) {
+              const bestResult = gRevJson.results[0];
+              let locality = "";
+              let state = "";
+              for (const comp of bestResult.address_components || []) {
+                if (comp.types.includes("locality") || comp.types.includes("sublocality")) {
+                  if (!locality) locality = comp.long_name;
+                }
+                if (comp.types.includes("administrative_area_level_2")) {
+                  if (!locality) locality = comp.long_name;
+                }
+                if (comp.types.includes("administrative_area_level_1")) {
+                  state = comp.long_name;
+                }
+              }
+              if (locality) {
+                resolvedGpsName = state && state !== locality ? `${locality}, ${state}` : locality;
+              } else if (bestResult.formatted_address) {
+                resolvedGpsName = bestResult.formatted_address;
+              }
+            }
           }
+        } catch (gRevErr) {
+          console.warn("[Lung Env] Google Reverse Geocode warning:", gRevErr.message);
         }
-      } catch (revErr) {
-        console.warn("[Lung Env] Reverse geocode lookup warning:", revErr.message);
       }
 
-      // Fallback to Nominatim OpenStreetMap if BigDataCloud didn't return a city
+      // 2. Fallback: BigDataCloud Reverse Geocoding
+      if (!resolvedGpsName) {
+        try {
+          const revRes = await fetch(
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`,
+            { next: { revalidate: 3600 } }
+          );
+          if (revRes.ok) {
+            const revData = await revRes.json();
+            const cityPart = revData.city || revData.locality || revData.principalSubdivision;
+            const statePart = revData.principalSubdivision;
+            if (cityPart) {
+              resolvedGpsName = statePart && statePart !== cityPart ? `${cityPart}, ${statePart}` : cityPart;
+            }
+          }
+        } catch (revErr) {
+          console.warn("[Lung Env] BigDataCloud reverse geocode lookup warning:", revErr.message);
+        }
+      }
+
+      // 3. Fallback: Nominatim OpenStreetMap
       if (!resolvedGpsName) {
         try {
           const nomRes = await fetch(
@@ -120,28 +161,55 @@ export async function GET(req) {
         locationName = `Current Location (${lat.toFixed(2)}°N, ${lng.toFixed(2)}°E)`;
       }
     } else {
-      // 1. Resolve coordinates from predefined map or geocoding
+      // 1. Check predefined city coordinates
       const mapped = CITY_COORDINATES[cityParam] || CITY_COORDINATES[cityParam.trim()];
       if (mapped) {
         lat = mapped.lat;
         lng = mapped.lng;
         locationName = mapped.name;
       } else {
-        try {
-          const geoRes = await fetch(
-            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityParam)}&count=1&language=en&format=json`,
-            { next: { revalidate: 86400 } }
-          );
-          if (geoRes.ok) {
-            const geoJson = await geoRes.json();
-            if (geoJson.results && geoJson.results.length > 0) {
-              lat = geoJson.results[0].latitude;
-              lng = geoJson.results[0].longitude;
-              locationName = `${geoJson.results[0].name}, ${geoJson.results[0].country || ""}`.trim();
+        let cityResolved = false;
+
+        // Try Google Geocoding API if key configured
+        if (googleApiKey) {
+          try {
+            const gSearchRes = await fetch(
+              `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(cityParam)}&key=${googleApiKey}&language=en`,
+              { next: { revalidate: 86400 } }
+            );
+            if (gSearchRes.ok) {
+              const gSearchJson = await gSearchRes.json();
+              if (gSearchJson.status === "OK" && gSearchJson.results && gSearchJson.results.length > 0) {
+                const first = gSearchJson.results[0];
+                lat = first.geometry.location.lat;
+                lng = first.geometry.location.lng;
+                locationName = first.formatted_address;
+                cityResolved = true;
+              }
             }
+          } catch (gSearchErr) {
+            console.warn("[Lung Env] Google Geocoding search warning:", gSearchErr.message);
           }
-        } catch (geoErr) {
-          console.warn("[Lung Env] Geocoding lookup error:", geoErr.message);
+        }
+
+        // Fallback: Open-Meteo Geocoding
+        if (!cityResolved) {
+          try {
+            const geoRes = await fetch(
+              `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityParam)}&count=1&language=en&format=json`,
+              { next: { revalidate: 86400 } }
+            );
+            if (geoRes.ok) {
+              const geoJson = await geoRes.json();
+              if (geoJson.results && geoJson.results.length > 0) {
+                lat = geoJson.results[0].latitude;
+                lng = geoJson.results[0].longitude;
+                locationName = `${geoJson.results[0].name}, ${geoJson.results[0].country || ""}`.trim();
+              }
+            }
+          } catch (geoErr) {
+            console.warn("[Lung Env] Geocoding lookup error:", geoErr.message);
+          }
         }
       }
     }
@@ -187,8 +255,9 @@ export async function GET(req) {
       visibility_km: 10,
       last_updated: new Date().toISOString()
     };
-    let sourceName = "Open-Meteo Air Quality & CPCB Telemetry";
+    let sourceName = googleApiKey ? "Google Air Quality API" : "Open-Meteo Air Quality & CPCB Telemetry";
     let lastUpdated = new Date().toISOString();
+    let googleAqiLoaded = false;
 
     if (cachedAqi) {
       aqiVal = Number(cachedAqi.aqi_value) || aqiVal;
@@ -200,20 +269,75 @@ export async function GET(req) {
         weather = { ...weather, ...cachedAqi.weather_json, last_updated: lastUpdated };
       }
     } else {
-      // 3. Fetch Live from External Open-Meteo APIs (Parallel)
+      // 3. Try Google Air Quality API if key is available
+      if (googleApiKey) {
+        try {
+          const gAqiRes = await fetch(
+            `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleApiKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                location: {
+                  latitude: lat,
+                  longitude: lng,
+                },
+                extraComputations: [
+                  "LOCAL_AQI",
+                  "HEALTH_RECOMMENDATIONS",
+                  "POLLUTANT_ADDITIONAL_INFO"
+                ],
+                languageCode: "en"
+              }),
+              next: { revalidate: 1800 }
+            }
+          );
+
+          if (gAqiRes.ok) {
+            const gAqiJson = await gAqiRes.json();
+            const indexes = gAqiJson.indexes || [];
+            // Prefer Indian CPCB AQI or Universal AQI (uaqi)
+            const resolvedIndex = indexes.find(i => i.code?.toLowerCase().includes("cpcb") || i.code?.toLowerCase().includes("ind"))
+              || indexes.find(i => i.code?.toLowerCase() === "uaqi")
+              || indexes[0];
+
+            if (resolvedIndex && resolvedIndex.aqi !== undefined) {
+              aqiVal = resolvedIndex.aqi;
+              aqiCat = resolvedIndex.category || aqiCategory(aqiVal);
+              dominantPollutant = (resolvedIndex.dominantPollutant || gAqiJson.dominantPollutant || dominantPollutant).toUpperCase();
+              sourceName = "Google Air Quality API";
+              lastUpdated = gAqiJson.dateTime || new Date().toISOString();
+              googleAqiLoaded = true;
+            }
+          } else {
+            console.warn("[Lung Env] Google Air Quality API returned status:", gAqiRes.status);
+          }
+        } catch (gAqiErr) {
+          console.warn("[Lung Env] Google Air Quality API error:", gAqiErr.message);
+        }
+      }
+
+      // 4. Fetch Live from External Open-Meteo APIs (Fallback if Google is offline/unconfigured, plus Live Weather)
       try {
-        const [aqiFetchRes, weatherFetchRes] = await Promise.all([
-          fetch(
-            `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=pm10,pm2_5,us_aqi,european_aqi,nitrogen_dioxide,sulphur_dioxide,ozone`,
-            { next: { revalidate: 3600 } }
-          ),
+        const fetchPromises = [
           fetch(
             `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,visibility`,
             { next: { revalidate: 1800 } }
           )
-        ]);
+        ];
 
-        if (aqiFetchRes.ok) {
+        if (!googleAqiLoaded) {
+          fetchPromises.push(
+            fetch(
+              `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=pm10,pm2_5,us_aqi,european_aqi,nitrogen_dioxide,sulphur_dioxide,ozone`,
+              { next: { revalidate: 3600 } }
+            )
+          );
+        }
+
+        const [weatherFetchRes, aqiFetchRes] = await Promise.all(fetchPromises);
+
+        if (aqiFetchRes && aqiFetchRes.ok) {
           const aqiJson = await aqiFetchRes.json();
           const currentAqi = aqiJson.current || {};
           const pm25 = currentAqi.pm2_5 || 25;
