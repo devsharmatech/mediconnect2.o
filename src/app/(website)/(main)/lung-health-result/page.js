@@ -444,17 +444,20 @@ export default function LungHealthResult() {
                 Respiratory Wellness Profile
               </span>
             </div>
-            <span className={`px-2.5 py-0.5 rounded text-[11px] font-medium border ${cfg.pill}`}>
-              {cfg.label}
+            <span className="px-2.5 py-0.5 rounded text-[11px] font-medium bg-white/20 text-white border border-white/25">
+              Clinical Evaluation
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-center">
-            {/* Score Ring / Gauge */}
-            <div className="sm:col-span-4 flex flex-col items-center justify-center text-center p-2.5 bg-white/10 rounded-md border border-white/15">
-              <ScoreRing score={health_score} color={cfg.ring} size={110} />
-              <p className="text-[10px] text-white/80 mt-1 font-normal">
-                {isGoodResult ? "Optimal Capacity Band" : "Lifestyle Monitoring Band"}
+            {/* Functional Capacity Gauge */}
+            <div className="sm:col-span-4 flex flex-col items-center justify-center text-center p-3.5 bg-white/10 rounded-md border border-white/15">
+              <span className="text-3xl sm:text-4xl font-black font-mono text-white tracking-tight">
+                {inputs.breath_holding_time || 35}s
+              </span>
+              <span className="text-[10px] uppercase font-bold text-sky-200 mt-1">Breath-Holding</span>
+              <p className="text-[10px] text-white/80 mt-0.5 font-normal">
+                {inputs.peak_flow ? `Peak Flow: ${inputs.peak_flow} L/min` : "Functional Capacity Recorded"}
               </p>
             </div>
 

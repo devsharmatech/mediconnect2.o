@@ -55,7 +55,6 @@ const TIMEFRAMES = [
 ];
 
 const METRICS = [
-  { id: "score", label: "Health Score", unit: "/100", icon: Activity },
   { id: "breathHold", label: "Breath-Holding", unit: "sec", icon: Clock },
   { id: "peakFlow", label: "Peak Flow (PEFR)", unit: "L/min", icon: Wind },
   { id: "aqi", label: "Ambient AQI", unit: "AQI", icon: Flame }
@@ -64,7 +63,7 @@ const METRICS = [
 export default function LungHealthStatisticsPage() {
   const router = useRouter();
   const [timeframe, setTimeframe] = useState("year");
-  const [selectedMetric, setSelectedMetric] = useState("score");
+  const [selectedMetric, setSelectedMetric] = useState("breathHold");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [graphData, setGraphData] = useState(null);
@@ -455,84 +454,72 @@ export default function LungHealthStatisticsPage() {
                 </div>
               </div>
 
-              {/* 2. Latest Score */}
+              {/* 2. Avg Breath-Hold */}
               <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Latest Score
+                    Avg Breath-Hold
                   </p>
                   <div className="flex items-baseline gap-1 mt-1">
                     <span className="text-2xl font-bold text-[#0067A1] font-mono">
-                      {latestScore}
+                      {avgBreathHold}
                     </span>
-                    <span className="text-xs text-slate-400">/ 100</span>
+                    <span className="text-xs text-slate-400">sec</span>
                   </div>
                   <div className="mt-1">
                     <span className={`inline-block px-1.5 py-0.2 rounded-[5px] text-[10px] font-semibold uppercase tracking-wider border ${
-                      latestScore >= 80 ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                      latestScore >= 60 ? "bg-amber-50 text-amber-700 border-amber-200" :
-                      "bg-rose-50 text-rose-700 border-rose-200"
+                      avgBreathHold >= 30 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
                     }`}>
-                      {latestScore >= 80 ? "Optimal Status" : latestScore >= 60 ? "Moderate Status" : "Priority Care"}
+                      {avgBreathHold >= 30 ? "Optimal (≥30s)" : "Below Ref (<30s)"}
                     </span>
                   </div>
                 </div>
                 <div className="w-10 h-10 rounded-[5px] bg-emerald-50 flex items-center justify-center text-emerald-600">
-                  <Activity className="w-5 h-5" />
+                  <Clock className="w-5 h-5" />
                 </div>
               </div>
 
-              {/* 3. Average Score */}
+              {/* 3. Avg Peak Flow */}
               <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Average Score
+                    Avg Peak Flow
                   </p>
                   <div className="flex items-baseline gap-1 mt-1">
                     <span className="text-2xl font-bold text-slate-900 font-mono">
-                      {averageScore}
+                      {avgPeakFlow}
                     </span>
-                    <span className="text-xs text-slate-400">/ 100</span>
+                    <span className="text-xs text-slate-400">L/min</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Across {totalAssessments} records
-                  </p>
+                  <div className="mt-1">
+                    <span className="inline-block px-1.5 py-0.2 rounded-[5px] text-[10px] font-semibold uppercase tracking-wider bg-sky-50 text-[#0067A1] border border-sky-200">
+                      Ref: 400–600 L/m
+                    </span>
+                  </div>
                 </div>
-                <div className="w-10 h-10 rounded-[5px] bg-indigo-50 flex items-center justify-center text-indigo-600">
-                  <BarChart2 className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-[5px] bg-blue-50 flex items-center justify-center text-[#0067A1]">
+                  <Wind className="w-5 h-5" />
                 </div>
               </div>
 
-              {/* 4. Recorded Change (Strictly Sheet 03 / LC-11 non-diagnostic rule) */}
+              {/* 4. Breathing Wellness Sessions */}
               <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Recorded Change
+                    Breathing Sessions
                   </p>
                   <div className="flex items-baseline gap-1 mt-1">
-                    {hasMultipleTests ? (
-                      <span className="text-2xl font-bold text-slate-900 font-mono">
-                        {recordedChange > 0 ? `+${recordedChange}` : recordedChange}
-                      </span>
-                    ) : (
-                      <span className="text-base font-bold text-slate-500">
-                        Baseline
-                      </span>
-                    )}
-                    {hasMultipleTests && <span className="text-xs text-slate-400">pts</span>}
+                    <span className="text-2xl font-bold text-slate-900 font-mono">
+                      {breathingStats.totalSessions}
+                    </span>
+                    <span className="text-xs text-slate-400">completed</span>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    {hasMultipleTests ? "Between first & latest test" : "First test recorded"}
+                    {breathingStats.totalMinutes} total minutes logged
                   </p>
                 </div>
-                <div className="w-10 h-10 rounded-[5px] bg-amber-50 flex items-center justify-center text-amber-600">
-                  {hasMultipleTests && recordedChange > 0 ? (
-                    <TrendingUp className="w-5 h-5 text-emerald-600" />
-                  ) : hasMultipleTests && recordedChange < 0 ? (
-                    <TrendingDown className="w-5 h-5 text-amber-600" />
-                  ) : (
-                    <Minus className="w-5 h-5 text-slate-400" />
-                  )}
+                <div className="w-10 h-10 rounded-[5px] bg-purple-50 flex items-center justify-center text-purple-600">
+                  <Sparkles className="w-5 h-5" />
                 </div>
               </div>
             </div>
@@ -721,16 +708,11 @@ export default function LungHealthStatisticsPage() {
                 {/* Bottom Timeline Summary */}
                 <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
                   <div className="flex items-center gap-4 text-[11px]">
-                    <span>First: <strong className="text-slate-900 font-mono">{firstScore}/100</strong></span>
+                    <span>Trend Records: <strong className="text-slate-900 font-mono">{enrichedTrend.length}</strong></span>
                     <span>·</span>
-                    <span>
-                      Change:{" "}
-                      <strong className={`font-mono ${recordedChange > 0 ? "text-emerald-600" : recordedChange < 0 ? "text-amber-600" : "text-slate-700"}`}>
-                        {hasMultipleTests ? (recordedChange > 0 ? `+${recordedChange}` : recordedChange) : "0"} pts
-                      </strong>
-                    </span>
+                    <span>Evaluation Period: <strong className="text-slate-700 font-medium capitalize">{timeframe}</strong></span>
                     <span>·</span>
-                    <span>Latest: <strong className="text-[#0067A1] font-mono">{latestScore}/100</strong></span>
+                    <span>Active Metric: <strong className="text-[#0067A1] font-semibold">{METRICS.find(m => m.id === selectedMetric)?.label || "Breath-Holding"}</strong></span>
                   </div>
                   <span className="text-[10px] text-slate-400">
                     Click any point to view snapshot
@@ -749,46 +731,21 @@ export default function LungHealthStatisticsPage() {
               {/* Right Column (1/3 width): Risk Breakdown & Respiratory Benchmarks */}
               <div className="space-y-4 flex flex-col justify-between">
                 
-                {/* 1. Category Distribution (LC-11) */}
-                <div className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-xs">
-                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+                {/* 1. Clinical Observation Standards */}
+                <div className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-xs space-y-2.5">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <ShieldAlert className="w-4 h-4 text-[#0067A1]" />
-                      Status Breakdown
+                      <CheckCircle2 className="w-4 h-4 text-[#0067A1]" />
+                      Clinical Standards
                     </h3>
-                    <span className="text-[10px] text-slate-400">Product Categories</span>
+                    <span className="text-[10px] text-slate-400">Reference Range</span>
                   </div>
-
-                  <div className="space-y-3">
-                    {[
-                      { level: "Optimal", key: "low", color: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50" },
-                      { level: "Moderate", key: "moderate", color: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50" },
-                      { level: "Priority Care", key: "high", color: "bg-rose-500", text: "text-rose-700", bg: "bg-rose-50" },
-                      { level: "Urgent Care", key: "critical", color: "bg-red-600", text: "text-red-700", bg: "bg-red-50" }
-                    ].map((item) => {
-                      const dist = (graphData?.riskLevelDistribution || []).find(
-                        (d) => d.level?.toLowerCase() === item.key || d.level?.toLowerCase() === item.level.toLowerCase()
-                      );
-                      const count = dist?.count || 0;
-                      const pct = totalAssessments > 0 ? Math.round((count / totalAssessments) * 100) : 0;
-
-                      return (
-                        <div key={item.level} className="space-y-1">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-semibold text-slate-700">{item.level}</span>
-                            <span className="font-mono text-[11px] text-slate-500">
-                              {count} <span className="text-slate-400">({pct}%)</span>
-                            </span>
-                          </div>
-                          <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-500 ${item.color}`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Evaluations track non-diagnostic functional capacity, daily breath-holding intervals, and peak expiratory flow.
+                  </p>
+                  <div className="p-2.5 bg-sky-50/70 border border-sky-200/80 rounded-[5px] text-[11px] text-sky-950 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[#0067A1] shrink-0" />
+                    <span>Non-diagnostic wellness tracking under ATS/ERS clinical functional guidelines.</span>
                   </div>
                 </div>
 
@@ -888,9 +845,9 @@ export default function LungHealthStatisticsPage() {
                     <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 text-[11px] uppercase tracking-wide">
                       <th className="py-2.5 px-3 font-semibold">Date & Time</th>
                       <th className="py-2.5 px-3 font-semibold">Serial No</th>
-                      <th className="py-2.5 px-3 font-semibold">Score</th>
-                      <th className="py-2.5 px-3 font-semibold">Status Category</th>
-                      <th className="py-2.5 px-3 font-semibold">Vitals Recorded</th>
+                      <th className="py-2.5 px-3 font-semibold">Breath-Holding</th>
+                      <th className="py-2.5 px-3 font-semibold">Peak Flow</th>
+                      <th className="py-2.5 px-3 font-semibold">Evaluation Status</th>
                       <th className="py-2.5 px-3 font-semibold">Recorded Assessment Summary</th>
                       <th className="py-2.5 px-3 font-semibold text-right">Actions</th>
                     </tr>
@@ -907,16 +864,6 @@ export default function LungHealthStatisticsPage() {
                         hour: "2-digit",
                         minute: "2-digit"
                       });
-
-                      const scoreVal = record.healthScore ?? 75;
-                      const riskStr = String(record.riskLevel || "moderate").toLowerCase();
-
-                      const riskClasses = {
-                        low: "bg-emerald-50 text-emerald-700 border-emerald-200",
-                        moderate: "bg-amber-50 text-amber-700 border-amber-200",
-                        high: "bg-rose-50 text-rose-700 border-rose-200",
-                        critical: "bg-red-50 text-red-700 border-red-200"
-                      };
 
                       // Clean non-diagnostic summary
                       let summaryText = "";
@@ -941,25 +888,27 @@ export default function LungHealthStatisticsPage() {
                             </span>
                           </td>
 
-                          {/* Score */}
+                          {/* Breath-Holding */}
                           <td className="py-3 px-3 whitespace-nowrap">
-                            <span className="text-base font-bold text-slate-900 font-mono">
-                              {scoreVal}
+                            <span className="text-sm font-bold text-slate-900 font-mono">
+                              {record.inputs?.respiratoryTests?.breathHoldingTime || record.breathHold || 35}
                             </span>
-                            <span className="text-[10px] text-slate-400 ml-0.5">/100</span>
+                            <span className="text-[10px] text-slate-400 ml-0.5">sec</span>
                           </td>
 
-                          {/* Status Category */}
+                          {/* Peak Flow */}
                           <td className="py-3 px-3 whitespace-nowrap">
-                            <span className={`inline-block px-2 py-0.5 rounded-[5px] text-[10px] font-semibold uppercase tracking-wider border ${riskClasses[riskStr] || riskClasses.moderate}`}>
-                              {riskStr === "low" ? "Optimal" : riskStr === "high" ? "Priority Care" : riskStr === "critical" ? "Urgent Care" : "Moderate"}
+                            <span className="text-sm font-bold text-slate-900 font-mono">
+                              {record.inputs?.respiratoryTests?.peakFlow || record.peakFlow || 450}
                             </span>
+                            <span className="text-[10px] text-slate-400 ml-0.5">L/min</span>
                           </td>
 
-                          {/* Vitals */}
-                          <td className="py-3 px-3 text-[11px] text-slate-600 whitespace-nowrap">
-                            <div>Hold: <strong className="font-mono">{record.inputs?.respiratoryTests?.breathHoldingTime || 35}s</strong></div>
-                            <div className="text-slate-400">Peak: <span className="font-mono">{record.inputs?.respiratoryTests?.peakFlow || 450} L/m</span></div>
+                          {/* Evaluation Status */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <span className="inline-block px-2 py-0.5 rounded-[5px] text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              Clinical Evaluation
+                            </span>
                           </td>
 
                           {/* Recorded Summary */}

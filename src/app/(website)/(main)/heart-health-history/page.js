@@ -200,33 +200,6 @@ export default function HeartHealthHistoryPage() {
     }
   };
 
-  const getRiskBadge = (risk) => {
-    const r = (risk || "low").toLowerCase();
-    if (r === "high" || r === "critical") {
-      return {
-        label: "HIGH RISK",
-        bg: "bg-rose-50 text-rose-700 border-rose-200"
-      };
-    }
-    if (r === "moderate") {
-      return {
-        label: "MODERATE RISK",
-        bg: "bg-amber-50 text-amber-800 border-amber-200"
-      };
-    }
-    return {
-      label: "LOW RISK",
-      bg: "bg-emerald-50 text-emerald-700 border-emerald-200"
-    };
-  };
-
-  const getScoreColor = (score) => {
-    const s = Number(score) || 0;
-    if (s >= 80) return "text-emerald-700 bg-emerald-50 border-emerald-200";
-    if (s >= 60) return "text-amber-800 bg-amber-50 border-amber-200";
-    return "text-rose-800 bg-rose-50 border-rose-200";
-  };
-
   return (
     <div
       className="min-h-screen bg-slate-50 text-slate-800 py-3 sm:py-6 px-2.5 sm:px-4 md:px-6 lg:px-8 font-sans pb-44 sm:pb-28"
@@ -291,20 +264,22 @@ export default function HeartHealthHistoryPage() {
               </div>
               <div className="p-2.5 bg-slate-50 rounded-[5px] border border-slate-200">
                 <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Latest Score
+                  Blood Pressure
                 </span>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-lg sm:text-xl font-bold font-mono text-[#0067A1]">
-                    {history[0]?.healthScore || 0}/100
+                  <span className="text-sm sm:text-base font-bold font-mono text-[#0067A1]">
+                    {history[0]?.inputs?.vitals?.systolicBP && history[0]?.inputs?.vitals?.diastolicBP
+                      ? `${history[0]?.inputs?.vitals?.systolicBP}/${history[0]?.inputs?.vitals?.diastolicBP} mmHg`
+                      : "120/80 mmHg"}
                   </span>
                 </div>
               </div>
               <div className="p-2.5 bg-slate-50 rounded-[5px] border border-slate-200">
                 <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                  Latest Risk
+                  Resting Heart Rate
                 </span>
-                <span className="text-xs sm:text-sm font-bold text-slate-800 capitalize mt-1 block truncate">
-                  {history[0]?.riskLevel || "Low"} Risk
+                <span className="text-sm sm:text-base font-bold font-mono text-slate-800 mt-0.5 block truncate">
+                  {history[0]?.inputs?.vitals?.restingHeartRate ? `${history[0]?.inputs?.vitals?.restingHeartRate} bpm` : "72 bpm"}
                 </span>
               </div>
               <div className="p-2.5 bg-slate-50 rounded-[5px] border border-slate-200">
@@ -375,8 +350,6 @@ export default function HeartHealthHistoryPage() {
           /* ─── Assessment Records List ─── */
           <div className="space-y-3 sm:space-y-4">
             {history.map((item, idx) => {
-              const riskBadge = getRiskBadge(item.riskLevel);
-              const scoreColor = getScoreColor(item.healthScore);
               const inp = item.inputs || {};
               const vitals = inp.vitals || {};
               const lipids = inp.lipids || {};
@@ -415,11 +388,8 @@ export default function HeartHealthHistoryPage() {
                     </div>
 
                     <div className="flex items-center gap-2 self-start sm:self-auto">
-                      <span className={`text-xs font-bold font-mono px-2.5 py-0.5 rounded-[5px] border ${scoreColor}`}>
-                        Score {item.healthScore}/100
-                      </span>
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-[5px] border ${riskBadge.bg}`}>
-                        {riskBadge.label}
+                      <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-[5px]">
+                        Clinical Evaluation
                       </span>
                     </div>
                   </div>
