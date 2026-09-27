@@ -473,7 +473,7 @@ export default function LungHealthStatisticsPage() {
                       latestScore >= 60 ? "bg-amber-50 text-amber-700 border-amber-200" :
                       "bg-rose-50 text-rose-700 border-rose-200"
                     }`}>
-                      {latestScore >= 80 ? "Low Risk" : latestScore >= 60 ? "Moderate Risk" : "High Risk"}
+                      {latestScore >= 80 ? "Optimal Status" : latestScore >= 60 ? "Moderate Status" : "Priority Care"}
                     </span>
                   </div>
                 </div>

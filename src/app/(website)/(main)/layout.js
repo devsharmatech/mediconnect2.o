@@ -26,6 +26,7 @@ const dashboardRoutes = [
   "/lung-health-result",
   "/lung-health-statistics",
   "/lung-connect",
+  "/respiratory-history",
   "/medicine-order",
   "/nursing-care/status",
   "/find-doctors",

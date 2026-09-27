@@ -278,6 +278,7 @@ const PatientDashboardLayout = ({ children }) => {
           pathname?.includes("/lung-connect") || 
           pathname?.includes("/lung-assessment") || 
           pathname?.includes("/lung-health") || 
+          pathname?.includes("/respiratory-history") || 
           pathname?.includes("/cardio-connect") || 
           pathname?.includes("/heart-health-statistics") ||
           pathname?.includes("/heart-health-result") ||
