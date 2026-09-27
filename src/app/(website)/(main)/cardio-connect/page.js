@@ -549,6 +549,33 @@ export default function CardioConnectHome() {
     }
   };
 
+  // Handlers for Active / Paused Heart Training Controls (CC-03 / CC-04)
+  const handlePauseTraining = () => {
+    setIsTrainingPaused(true);
+    toast.info("Heart Training session paused");
+  };
+
+  const handleResumeTraining = () => {
+    setIsTrainingPaused(false);
+    toast.success("Heart Training session resumed");
+  };
+
+  const handleCompleteTrainingSession = () => {
+    handleEndTrainingSession();
+  };
+
+  const handleCancelTrainingSession = () => {
+    if (trainingTimerRef.current) clearInterval(trainingTimerRef.current);
+    setActiveModal(null);
+    setIsTrainingPaused(false);
+    setTrainingElapsedSeconds(0);
+    setSessionSteps(0);
+    setSessionDistanceKm(0);
+    setRealGpsDistanceKm(0);
+    setPedometerSteps(0);
+    toast("Training session canceled", { icon: "ℹ️" });
+  };
+
   // Finish Walking Test (CC-11 -> CC-12)
   const finishWalkingTest = async (stoppedEarly = false) => {
     const elapsed = WALKING_TEST_TOTAL_SECONDS - walkingRemainingSeconds;
