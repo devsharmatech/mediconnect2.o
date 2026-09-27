@@ -1266,7 +1266,7 @@ export default function CardioConnectHome() {
               {/* Main Interactive Display Area: Gauge View / Map View / Split View */}
               <div>
                 {trainingViewMode === "gauge" && (
-                  <div className="flex flex-col items-center justify-center p-4 bg-slate-900 rounded-[5px] text-white shadow-inner relative overflow-hidden">
+                  <div className="flex flex-col items-center justify-center p-5 bg-gradient-to-b from-[#f0f7ff] via-white to-[#f4f9ff] border border-sky-100 rounded-[5px] shadow-xs relative overflow-hidden">
                     <AnimatedStopwatch
                       isActive={!isTrainingPaused}
                       isPaused={isTrainingPaused}
@@ -1276,11 +1276,11 @@ export default function CardioConnectHome() {
                       subLabel={isTrainingPaused ? "session paused" : "live pace"}
                       progress={trainingTargetSeconds > 0 ? Math.min(1, trainingElapsedSeconds / trainingTargetSeconds) : 0}
                     />
-                    <div className="flex items-center justify-center gap-3 text-xs text-slate-300 font-mono mt-3">
-                      <span>Target: {formatSeconds(trainingTargetSeconds)}</span>
-                      <span>•</span>
-                      <span className="text-rose-400 font-sans flex items-center gap-1">
-                        <AnimatedHeartbeat size="sm" color="#f43f5e" /> Heart Training
+                    <div className="flex items-center justify-center gap-3 text-xs text-slate-600 font-mono mt-3">
+                      <span className="font-semibold text-[#003358]">Target: {formatSeconds(trainingTargetSeconds)}</span>
+                      <span className="text-slate-300">•</span>
+                      <span className="text-rose-600 font-sans font-medium flex items-center gap-1">
+                        <AnimatedHeartbeat size="sm" color="#e11d48" /> Heart Training
                       </span>
                     </div>
                   </div>
@@ -1297,7 +1297,7 @@ export default function CardioConnectHome() {
                       showControls={true}
                     />
                     {/* Floating Telemetry HUD over map */}
-                    <div className="absolute top-2 left-2 z-[400] bg-slate-900/85 backdrop-blur-xs text-white px-3 py-1.5 rounded-[5px] shadow-sm flex items-center gap-3 font-mono text-xs border border-white/10">
+                    <div className="absolute top-2 left-2 z-[400] bg-[#003358]/90 backdrop-blur-md text-white px-3 py-1.5 rounded-[5px] shadow-md flex items-center gap-3 font-mono text-xs border border-white/15">
                       <div>
                         <span className="text-[9px] uppercase tracking-wider text-slate-300 block">Time</span>
                         <strong className="text-white text-sm">{formatSeconds(trainingElapsedSeconds)}</strong>
@@ -1318,7 +1318,7 @@ export default function CardioConnectHome() {
 
                 {trainingViewMode === "split" && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="flex flex-col items-center justify-center p-3 bg-slate-900 rounded-[5px] text-white shadow-inner">
+                    <div className="flex flex-col items-center justify-center p-3 bg-gradient-to-b from-[#f0f7ff] via-white to-[#f4f9ff] border border-sky-100 rounded-[5px] shadow-xs">
                       <AnimatedStopwatch
                         isActive={!isTrainingPaused}
                         isPaused={isTrainingPaused}
