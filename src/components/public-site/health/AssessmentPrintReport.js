@@ -35,10 +35,9 @@ export default function AssessmentPrintReport({
     left: "-9999px",
     top: 0,
     width: "794px",
-    height: "1123px",
+    minHeight: "auto",
     backgroundColor: "#ffffff",
-    boxSizing: "border-box",
-    overflow: "hidden"
+    boxSizing: "border-box"
   };
 
   if (rawFormat === "F1") {

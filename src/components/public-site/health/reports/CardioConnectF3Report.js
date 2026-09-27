@@ -65,21 +65,15 @@ export default function CardioConnectF3Report({
       style={{
         position: "relative",
         width: "794px",
-        height: "1123px",
-        maxHeight: "1123px",
+        minHeight: "auto",
         backgroundColor: "#ffffff",
         color: "#0f2d4a",
         fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif",
-        padding: "32px 40px 26px 40px",
+        padding: "32px 40px 24px 40px",
         boxSizing: "border-box",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        lineHeight: "1.4",
-        overflow: "hidden"
+        lineHeight: "1.4"
       }}
     >
-      <div>
         {/* Header with Official Logo */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", borderBottom: "2px solid #007a8c", paddingBottom: "10px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
@@ -311,11 +305,8 @@ export default function CardioConnectF3Report({
             Generated: {assessmentDate.replace(" · Completed", "")}
           </div>
         </div>
-      </div>
-
-      {/* Pinned Bottom Footer */}
-      <div>
-        <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "8px", fontSize: "9.5px", color: "#64748b", lineHeight: "1.45" }}>
+        {/* Bottom Footer */}
+        <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "8px", marginTop: "16px", fontSize: "9.5px", color: "#64748b", lineHeight: "1.45" }}>
           <div>Keep this result with your CardioConnect history so a future like-for-like test can be viewed alongside it.</div>
           <div style={{ marginTop: "2px" }}>
             <span style={{ fontWeight: "800", color: "#0d3b66" }}>ENERGY</span> Estimated kcal = MET × weight kg × active duration hours. CARDIO_MET_ESTIMATE v1.0 is server-authoritative and versioned; missing input = Unavailable. This is not a clinical 6-minute walk test, stress test or cardiac diagnostic test.
@@ -325,7 +316,6 @@ export default function CardioConnectF3Report({
           <span>MediConnect.fit • CardioConnect • Authoritative Patient Health Record</span>
           <span>ISO A4 • Page 1 of 1</span>
         </div>
-      </div>
     </div>
   );
 }

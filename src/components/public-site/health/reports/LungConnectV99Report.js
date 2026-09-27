@@ -14,7 +14,6 @@ export default function LungConnectV99Report({
   reportRef
 }) {
   const inputs = assessmentData?.lung_health_inputs?.[0] || {};
-  const score = Number(assessmentData?.health_score || 66);
   const createdAt = assessmentData?.created_at || new Date().toISOString();
 
   const serialNo = assessmentData?.serial_no || (
@@ -63,18 +62,13 @@ export default function LungConnectV99Report({
       style={{
         position: "relative",
         width: "794px",
-        height: "1123px",
-        maxHeight: "1123px",
+        minHeight: "auto",
         backgroundColor: "#ffffff",
         color: "#0f2d4a",
         fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif",
-        padding: "46px 48px 36px 48px",
+        padding: "36px 44px 28px 44px",
         boxSizing: "border-box",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        lineHeight: "1.45",
-        overflow: "hidden"
+        lineHeight: "1.4"
       }}
     >
       {/* Top Header & Content Body */}
@@ -94,7 +88,7 @@ export default function LungConnectV99Report({
                 <span style={{ fontSize: "13px", fontWeight: "800", color: "#0d3b66", letterSpacing: "1px", textTransform: "uppercase" }}>LUNGCONNECT</span>
               </div>
               <div style={{ fontSize: "18px", fontWeight: "900", color: "#0d3b66", letterSpacing: "0.5px", textTransform: "uppercase", marginTop: "1px", lineHeight: "1.1" }}>
-                YOUR LUNGCONNECT WELLNESS SUMMARY
+                YOUR LUNGCONNECT HEALTH SUMMARY
               </div>
               <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
                 Authoritative respiratory wellness and vital capacity record.
@@ -157,25 +151,28 @@ export default function LungConnectV99Report({
 
         {/* Main Unified Wellness Panel */}
         <div style={{ backgroundColor: "#f0f7f9", border: "1px solid #cbd5e1", borderRadius: "2px", marginBottom: "20px", overflow: "hidden" }}>
-          {/* Row 1: Score & Snapshot */}
-          <div style={{ display: "flex", padding: "16px 20px", borderBottom: "1px solid #cbd5e1" }}>
-            <div style={{ width: "40%", paddingRight: "20px", borderRight: "1px solid #cbd5e1" }}>
-              <div style={{ fontSize: "11px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>
-                LUNGCONNECT WELLNESS INDEX
+          {/* Row 1: Objective Respiratory Snapshot */}
+          <div style={{ display: "flex", padding: "14px 20px", borderBottom: "1px solid #cbd5e1", backgroundColor: "#f0fdfa", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontSize: "12.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "3px" }}>
+                YOUR RESPIRATORY HEALTH SNAPSHOT
               </div>
-              <div style={{ fontSize: "44px", fontWeight: "900", color: "#007a8c", lineHeight: "1", letterSpacing: "-0.5px" }}>
-                {score} <span style={{ fontSize: "22px", fontWeight: "700", color: "#007a8c" }}>/ 100</span>
-              </div>
-              <div style={{ fontSize: "10.5px", color: "#475569", marginTop: "6px" }}>
-                Your recorded wellness index for this check-in.
+              <div style={{ fontSize: "11px", color: "#334155", lineHeight: "1.4" }}>
+                A single reference point from today&apos;s check-in, combining genuine vitals, recorded symptoms, and personal context.
               </div>
             </div>
-            <div style={{ width: "60%", paddingLeft: "20px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-              <div style={{ fontSize: "13px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>
-                YOUR WELLNESS SNAPSHOT
+            <div style={{ display: "flex", gap: "10px" }}>
+              <div style={{ backgroundColor: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "3px", padding: "5px 12px", textAlign: "center", minWidth: "75px" }}>
+                <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>PEFR</div>
+                <div style={{ fontSize: "15px", fontWeight: "900", color: "#0d3b66" }}>{pefr} <span style={{ fontSize: "9.5px", fontWeight: "600", color: "#64748b" }}>L/min</span></div>
               </div>
-              <div style={{ fontSize: "11.5px", color: "#334155", lineHeight: "1.5" }}>
-                A single reference point from today&apos;s check-in. The information below adds the personal context behind your recorded result.
+              <div style={{ backgroundColor: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "3px", padding: "5px 12px", textAlign: "center", minWidth: "75px" }}>
+                <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>BREATH HOLD</div>
+                <div style={{ fontSize: "15px", fontWeight: "900", color: "#0d3b66" }}>{breathHold} <span style={{ fontSize: "9.5px", fontWeight: "600", color: "#64748b" }}>sec</span></div>
+              </div>
+              <div style={{ backgroundColor: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "3px", padding: "5px 12px", textAlign: "center", minWidth: "75px" }}>
+                <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>RESP. RATE</div>
+                <div style={{ fontSize: "15px", fontWeight: "900", color: "#0d3b66" }}>{rr} <span style={{ fontSize: "9.5px", fontWeight: "600", color: "#64748b" }}>bpm</span></div>
               </div>
             </div>
           </div>
@@ -186,9 +183,9 @@ export default function LungConnectV99Report({
               YOUR KEY TAKEAWAY
             </div>
             <div style={{ fontSize: "11.5px", color: "#334155", lineHeight: "1.55" }}>
-              Today&apos;s check-in brings your recorded responses into one clear view. Your wellness index is {score}/100; {hasWheezing ? "wheezing is the symptom to keep in view" : "no persistent wheezing reported"}, while {hasCough ? "cough was reported" : "no cough"} or {hasBreathless ? "breathlessness was reported" : "breathlessness was reported"}.
+              Today&apos;s check-in brings your recorded responses into one clear view. {hasWheezing ? "Wheezing is the symptom to keep in view" : "No persistent wheezing reported"}, while {hasCough ? "cough was reported" : "no persistent cough reported"} and {hasBreathless ? "breathlessness was reported" : "no severe breathlessness reported"}.
               <br />
-              Keep this record as a reference for your next check-in, when you can see what has changed, stayed the same or newly appeared. If wheezing is new, persistent, worsening or concerning, consider a healthcare consultation.
+              Keep this record as a reference for your next check-in, when you can see what has changed, stayed the same or newly appeared. If symptoms are new, persistent, worsening or concerning, consider a healthcare consultation.
             </div>
           </div>
 
@@ -324,12 +321,12 @@ export default function LungConnectV99Report({
 
         {/* Footnote Notice */}
         <div style={{ fontSize: "10px", color: "#64748b", lineHeight: "1.4" }}>
-          * AQI is shown as local air-quality context. It does not alter the LungConnect Wellness Index or controlled Risk/Age fields. This report uses one authoritative result record.
+          * AQI is shown as local air-quality context. It provides environmental reference for your recorded vitals. This report uses one authoritative result record.
         </div>
       </div>
 
-      {/* Pinned Bottom Page Footer */}
-      <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10px", color: "#94a3b8" }}>
+      {/* Bottom Page Footer */}
+      <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "10px", marginTop: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10px", color: "#94a3b8" }}>
         <span>MediConnect.fit • LungConnect • Patient Summary</span>
         <span>ISO A4 • Page 1 of 1</span>
       </div>

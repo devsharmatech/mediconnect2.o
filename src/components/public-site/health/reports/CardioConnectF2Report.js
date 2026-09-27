@@ -58,7 +58,8 @@ export default function CardioConnectF2Report({
   const hr = rawInputs?.resting_heart_rate || vitals?.restingHeartRate || 72;
   const weight = rawInputs?.weight_kg || demographics?.weight || 62;
   const height = rawInputs?.height_cm || demographics?.height || 165;
-  const bmi = rawInputs?.bmi || demographics?.bmi || (height ? (weight / ((height/100)*(height/100))).toFixed(1) : "22.8");
+  const rawBmi = rawInputs?.bmi ?? demographics?.bmi ?? (height ? (weight / ((height/100)*(height/100))) : 22.8);
+  const bmi = !isNaN(Number(rawBmi)) ? Number(rawBmi).toFixed(1) : "22.8";
   const activityMin = Number(rawInputs?.physical_activity_minutes || lifestyle?.physicalActivity || 150);
   const steps = Number(rawInputs?.daily_steps || 7420).toLocaleString("en-IN");
   const smoking = rawInputs?.smoking_status || lifestyle?.smokingStatus || "Never";
@@ -92,21 +93,15 @@ export default function CardioConnectF2Report({
       style={{
         position: "relative",
         width: "794px",
-        height: "1123px",
-        maxHeight: "1123px",
+        minHeight: "auto",
         backgroundColor: "#ffffff",
         color: "#0f2d4a",
         fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif",
         padding: "28px 36px 20px 36px",
         boxSizing: "border-box",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        lineHeight: "1.32",
-        overflow: "hidden"
+        lineHeight: "1.32"
       }}
     >
-      <div>
         {/* Header with Official Logo */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px", borderBottom: "2px solid #007a8c", paddingBottom: "6px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -207,7 +202,7 @@ export default function CardioConnectF2Report({
               </tr>
               <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
                 <td style={{ padding: "3px 8px", color: "#0f2d4a", fontWeight: "600" }}>Weight / BMI</td>
-                <td style={{ padding: "3px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{weight} kg / {bmi}</td>
+                <td style={{ padding: "3px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{weight} kg / {bmi} kg/m²</td>
                 <td style={{ padding: "3px 8px", color: "#64748b" }}>User + derived</td>
                 <td style={{ padding: "3px 8px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
               </tr>
@@ -383,11 +378,8 @@ export default function CardioConnectF2Report({
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Pinned Bottom Footer */}
-      <div>
-        <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "5px", fontSize: "8.5px", color: "#64748b", lineHeight: "1.3" }}>
+        {/* Bottom Footer */}
+        <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "8px", marginTop: "14px", fontSize: "8.5px", color: "#64748b", lineHeight: "1.3" }}>
           <div>Keep this record with your CardioConnect history so future checkpoints can be viewed alongside the current record.</div>
           <div style={{ marginTop: "1px" }}>
             <span style={{ fontWeight: "800", color: "#0d3b66" }}>CARE & SAFETY</span> Engagement and recorded change are not clinical outcomes. Care options appear only under approved safety and routing rules.
@@ -397,7 +389,6 @@ export default function CardioConnectF2Report({
           <span>MediConnect.fit • CardioConnect • Authoritative Patient Health Record</span>
           <span>ISO A4 • Page 1 of 1</span>
         </div>
-      </div>
     </div>
   );
 }

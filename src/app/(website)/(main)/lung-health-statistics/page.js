@@ -1004,7 +1004,7 @@ export default function LungHealthStatisticsPage() {
                 Official Format:
               </span>
               {[
-                { id: "lung-v9.9", label: "V9.9 • Wellness Summary", badge: "Frozen 1-Page A4 Fixed" },
+                { id: "lung-v9.9", label: "V9.9 • Health Summary", badge: "Frozen 1-Page A4 Fixed" },
                 { id: "lung-full", label: "Full • Clinical Assessment", badge: "Comprehensive Matrix" }
               ].map((fmt) => (
                 <button
