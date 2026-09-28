@@ -87,14 +87,16 @@ const formatArrayOrString = (value, fallback = "N/A") => {
   }
 };
 
-const formatDoctorUnId = (unId) => {
+const formatDoctorUnId = (unId, specialization = "") => {
   if (!unId && unId !== 0) return "N/A";
   const clean = String(unId).toUpperCase().trim();
-  if (clean.startsWith("DMC-")) return clean;
+  const isDental = String(specialization).toLowerCase().includes("dent");
+  const prefix = isDental ? "DDC" : "DMC";
+  if (clean.startsWith("DDC-") || clean.startsWith("DMC-")) return clean;
   if (/^\d+$/.test(clean)) {
-    return `DMC-${clean.padStart(4, "0")}`;
+    return `${prefix}-${clean.padStart(4, "0")}`;
   }
-  return `DMC-${clean}`;
+  return `${prefix}-${clean}`;
 };
 
 // Onboarding Modal Component
@@ -1837,7 +1839,7 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
       <div className="space-y-4 sm:space-y-6">
         <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-gray-50/30 dark:bg-gray-800/10">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            DMC/MCI/NMC Certificates *
+            DDC/DMC/MCI/NMC Certificates *
           </label>
           <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 sm:p-6 text-center hover:border-gray-400 dark:hover:border-gray-500 transition-colors relative cursor-pointer bg-white dark:bg-gray-800">
             <Upload className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400 mx-auto mb-2" />
@@ -2902,7 +2904,7 @@ function DoctorDetailsModal({ doctor, isOpen, onClose }) {
                         {/* DMC / MCI / NMC */}
                         <div className="flex justify-between items-start py-2 border-b border-gray-200 dark:border-gray-700">
                           <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                            DMC/MCI/NMC Certificates
+                            {String(details.specialization || "").toLowerCase().includes("dent") ? "DDC Certificates" : "DMC/MCI/NMC Certificates"}
                           </span>
                           <div className="text-right space-y-1">
                             {Array.isArray(details.dmc_mci_certificate) && details.dmc_mci_certificate.length > 0 ? (

@@ -63,9 +63,49 @@ export async function POST(req) {
       .eq("users.is_verified", true)
       .eq("onboarding_status", "approved");
 
-    if (specialization) {
-      if (specialization.toLowerCase() === "urology") {
-        query = query.ilike("specialization", "%urology%").not("specialization", "ilike", "%neurology%");
+    if (specialization && specialization !== "All Specialties" && specialization !== "all") {
+      const specLower = specialization.toLowerCase().trim();
+      if (
+        specLower === "uro/neuro" ||
+        specLower === "uro / neuro" ||
+        specLower === "urology/neurology" ||
+        specLower === "urology / neurology" ||
+        (specLower.includes("uro") && specLower.includes("neuro"))
+      ) {
+        query = query
+          .or("specialization.ilike.%urology%,specialization.ilike.%neurology%,specialization.ilike.%urologist%,specialization.ilike.%neurologist%,specialization.ilike.%neurosurg%")
+          .not("specialization", "ilike", "%psychiat%");
+      } else if (specLower === "urology" || specLower.includes("urolog")) {
+        query = query
+          .or("specialization.ilike.%urology%,specialization.ilike.%urologist%")
+          .not("specialization", "ilike", "%neurology%")
+          .not("specialization", "ilike", "%psychiat%");
+      } else if (specLower === "neurology" || (specLower.includes("neuro") && !specLower.includes("uro"))) {
+        query = query
+          .or("specialization.ilike.%neurology%,specialization.ilike.%neurologist%,specialization.ilike.%neurosurg%,specialization.ilike.%pediatric neurology%")
+          .not("specialization", "ilike", "%urology%")
+          .not("specialization", "ilike", "%psychiat%");
+      } else if (
+        specLower === "ent" ||
+        specLower === "ent doctor" ||
+        specLower.includes("otorhinolaryngol") ||
+        specLower.includes("otolaryngol") ||
+        specLower.includes("ear, nose") ||
+        specLower.includes("ear nose")
+      ) {
+        query = query
+          .or("specialization.ilike.%ENT%,specialization.ilike.%Otorhinolaryngol%,specialization.ilike.%Otolaryngol%")
+          .not("specialization", "ilike", "%dent%")
+          .not("specialization", "ilike", "%cardio%")
+          .not("specialization", "ilike", "%heart%")
+          .not("specialization", "ilike", "%derma%")
+          .not("specialization", "ilike", "%psychiat%")
+          .not("specialization", "ilike", "%gastro%");
+      } else if (specLower.includes("psychiat") || specLower.includes("mental")) {
+        query = query
+          .or("specialization.ilike.%psychiat%,specialization.ilike.%mental%")
+          .not("specialization", "ilike", "%urology%")
+          .not("specialization", "ilike", "%neurology%");
       } else {
         query = query.ilike("specialization", `%${specialization}%`);
       }
@@ -89,7 +129,9 @@ export async function POST(req) {
       });
     }
 
-    if (filteredDoctors.length === 0) {
+    const hasAnyFilter = Boolean(specialization || city || min_rating || available_day);
+
+    if (filteredDoctors.length === 0 && !hasAnyFilter) {
       const { data: allDoctors, error: allError } = await supabase
         .from("doctor_details")
         .select(`

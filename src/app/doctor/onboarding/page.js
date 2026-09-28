@@ -2918,7 +2918,11 @@ function DoctorOnboardingForm({
 
                         <FileUploadBox
                           field="dmc_mci_nmc_certificates"
-                          label="DMC/MCI/NMC Certificates"
+                          label={
+                            (formData.speciality || []).some(s => String(s).toLowerCase().includes("dent"))
+                              ? "DDC (Delhi Dental Council) Certificates"
+                              : "DMC/MCI/NMC Certificates"
+                          }
                           accept="image/*,.pdf"
                           multiple={true}
                         />

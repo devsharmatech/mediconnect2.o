@@ -55,9 +55,27 @@ export async function GET(request) {
 
       // Specialization filter
       if (specialization && specialization !== 'All Specialties' && specialization !== 'all') {
-        const specLower = specialization.toLowerCase();
-        if (specLower === 'urology') {
-          detailsQuery = detailsQuery.ilike('specialization', '%urology%').not('specialization', 'ilike', '%neurology%');
+        const specLower = specialization.toLowerCase().trim();
+        if (
+          specLower === 'uro/neuro' ||
+          specLower === 'uro / neuro' ||
+          specLower === 'urology/neurology' ||
+          specLower === 'urology / neurology' ||
+          (specLower.includes('uro') && specLower.includes('neuro'))
+        ) {
+          detailsQuery = detailsQuery
+            .or('specialization.ilike.%urology%,specialization.ilike.%neurology%,specialization.ilike.%urologist%,specialization.ilike.%neurologist%,specialization.ilike.%neurosurg%')
+            .not('specialization', 'ilike', '%psychiat%');
+        } else if (specLower === 'urology' || specLower.includes('urolog')) {
+          detailsQuery = detailsQuery
+            .or('specialization.ilike.%urology%,specialization.ilike.%urologist%')
+            .not('specialization', 'ilike', '%neurology%')
+            .not('specialization', 'ilike', '%psychiat%');
+        } else if (specLower === 'neurology' || (specLower.includes('neuro') && !specLower.includes('uro'))) {
+          detailsQuery = detailsQuery
+            .or('specialization.ilike.%neurology%,specialization.ilike.%neurologist%,specialization.ilike.%neurosurg%,specialization.ilike.%pediatric neurology%')
+            .not('specialization', 'ilike', '%urology%')
+            .not('specialization', 'ilike', '%psychiat%');
         } else if (specLower.includes('dentist') || specLower.includes('dental') || specLower.includes('dentistry')) {
           detailsQuery = detailsQuery.or('specialization.ilike.%dentist%,specialization.ilike.%dental%,specialization.ilike.%dentistry%');
         } else if (specLower.includes('physician') || specLower.includes('gp') || specLower.includes('general')) {
@@ -68,10 +86,29 @@ export async function GET(request) {
           detailsQuery = detailsQuery.or('specialization.ilike.%pediatr%,specialization.ilike.%paediatr%,specialization.ilike.%child%');
         } else if (specLower.includes('orthoped') || specLower.includes('orthopaed')) {
           detailsQuery = detailsQuery.or('specialization.ilike.%orthoped%,specialization.ilike.%orthopaed%,specialization.ilike.%bone%');
-        } else if (specLower.includes('ent') || specLower.includes('throat') || specLower.includes('ear')) {
-          detailsQuery = detailsQuery.or('specialization.ilike.%ent%,specialization.ilike.%throat%,specialization.ilike.%ear%');
+        } else if (
+          specLower === 'ent' ||
+          specLower === 'ent doctor' ||
+          specLower.includes('otorhinolaryngol') ||
+          specLower.includes('otolaryngol') ||
+          specLower.includes('ear, nose') ||
+          specLower.includes('ear nose')
+        ) {
+          detailsQuery = detailsQuery
+            .or('specialization.ilike.%ENT%,specialization.ilike.%Otorhinolaryngol%,specialization.ilike.%Otolaryngol%')
+            .not('specialization', 'ilike', '%dent%')
+            .not('specialization', 'ilike', '%cardio%')
+            .not('specialization', 'ilike', '%heart%')
+            .not('specialization', 'ilike', '%derma%')
+            .not('specialization', 'ilike', '%psychiat%')
+            .not('specialization', 'ilike', '%gastro%');
         } else if (specLower.includes('cardio') || specLower.includes('heart')) {
           detailsQuery = detailsQuery.or('specialization.ilike.%cardio%,specialization.ilike.%heart%');
+        } else if (specLower.includes('psychiat') || specLower.includes('mental')) {
+          detailsQuery = detailsQuery
+            .or('specialization.ilike.%psychiat%,specialization.ilike.%mental%')
+            .not('specialization', 'ilike', '%urology%')
+            .not('specialization', 'ilike', '%neurology%');
         } else {
           detailsQuery = detailsQuery.ilike('specialization', `%${specialization}%`);
         }
@@ -79,7 +116,27 @@ export async function GET(request) {
 
       // Search filter
       if (search) {
-        detailsQuery = detailsQuery.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,specialization.ilike.%${search}%,license_number.ilike.%${search}%,clinic_name.ilike.%${search}%,clinic_address.ilike.%${search}%`);
+        const cleanSearch = search.trim();
+        const searchLower = cleanSearch.toLowerCase();
+        if (searchLower === 'ent' || searchLower === 'ent doctor' || searchLower === 'ent specialist') {
+          detailsQuery = detailsQuery
+            .or('specialization.ilike.%ENT%,specialization.ilike.%Otorhinolaryngol%,specialization.ilike.%Otolaryngol%')
+            .not('specialization', 'ilike', '%dent%')
+            .not('specialization', 'ilike', '%cardio%')
+            .not('specialization', 'ilike', '%heart%')
+            .not('specialization', 'ilike', '%derma%')
+            .not('specialization', 'ilike', '%psychiat%');
+        } else if (
+          searchLower === 'uro/neuro' ||
+          searchLower === 'uro / neuro' ||
+          (searchLower.includes('uro') && searchLower.includes('neuro'))
+        ) {
+          detailsQuery = detailsQuery
+            .or('specialization.ilike.%urology%,specialization.ilike.%neurology%,specialization.ilike.%urologist%,specialization.ilike.%neurologist%')
+            .not('specialization', 'ilike', '%psychiat%');
+        } else {
+          detailsQuery = detailsQuery.or(`full_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%,specialization.ilike.%${cleanSearch}%,license_number.ilike.%${cleanSearch}%,clinic_name.ilike.%${cleanSearch}%`);
+        }
       }
 
       // Fee filter

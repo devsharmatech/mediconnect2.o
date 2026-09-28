@@ -16,6 +16,7 @@ import {
   ArrowLeftIcon,
   PlusIcon,
   TrashIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import {
   MicrophoneIcon as MicrophoneSolidIcon,
@@ -131,12 +132,108 @@ function VideoCall({ appointmentId, userId, role }) {
     return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   };
 
+  /* ── dedicated time slot state & alerts ───────── */
+  const [slotAllottedSeconds, setSlotAllottedSeconds] = useState(600); // 10 minutes default
+  const [isSlotConsumed, setIsSlotConsumed] = useState(false);
+  const [showSlotConsumedModal, setShowSlotConsumedModal] = useState(false);
+  const hasNotifiedSlotConsumed = useRef(false);
+  const warning1MinShown = useRef(false);
+
+  // Fetch appointment duration if configured
+  useEffect(() => {
+    if (!appointmentId) return;
+    fetch(`/api/appointment/web/${appointmentId}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (json?.success && json?.data?.appointment) {
+          const apt = json.data.appointment;
+          const dur = Number(apt.duration_minutes || apt.slot_duration || 0);
+          if (dur > 0) {
+            setSlotAllottedSeconds(dur * 60);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [appointmentId]);
+
   /* ── call timer ──────────────────────────────── */
   useEffect(() => {
     if (!joined) return;
     const id = setInterval(() => setCallDuration((p) => p + 1), 1000);
     return () => clearInterval(id);
   }, [joined]);
+
+  /* ── slot consumption watcher ─────────────────── */
+  useEffect(() => {
+    if (!joined) return;
+
+    // 1-minute warning
+    if (
+      slotAllottedSeconds > 60 &&
+      callDuration >= slotAllottedSeconds - 60 &&
+      callDuration < slotAllottedSeconds &&
+      !warning1MinShown.current
+    ) {
+      warning1MinShown.current = true;
+      toast("⚠️ 1 minute remaining in dedicated consultation slot.", {
+        duration: 4000,
+        style: {
+          background: "#1e293b",
+          color: "#f59e0b",
+          border: "1px solid #f59e0b",
+        },
+      });
+    }
+
+    // Slot consumed alert
+    if (callDuration >= slotAllottedSeconds && !hasNotifiedSlotConsumed.current) {
+      hasNotifiedSlotConsumed.current = true;
+      setIsSlotConsumed(true);
+      setShowSlotConsumedModal(true);
+
+      // Play soft alert tone
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.8);
+      } catch {}
+
+      toast.error("Dedicated consultation time slot has been consumed!", {
+        duration: 6000,
+        style: {
+          background: "#450a0a",
+          color: "#fca5a5",
+          border: "1px solid #ef4444",
+        },
+      });
+
+      // Dispatch RDS notification via API
+      fetch("/api/appointment/slot-consumed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          appointment_id: appointmentId,
+          duration_seconds: callDuration,
+        }),
+      }).catch((err) => console.warn("Slot consumed API error:", err));
+    }
+  }, [callDuration, slotAllottedSeconds, joined, appointmentId]);
+
+  const extendSlotTime = (extraMinutes = 5) => {
+    setSlotAllottedSeconds((prev) => prev + extraMinutes * 60);
+    hasNotifiedSlotConsumed.current = false;
+    setIsSlotConsumed(false);
+    setShowSlotConsumedModal(false);
+    toast.success(`Consultation time slot extended by ${extraMinutes} minutes.`);
+  };
 
   /* ── pre-call: probe devices ─────────────────── */
   const probeDevices = useCallback(async () => {
@@ -834,12 +931,27 @@ function VideoCall({ appointmentId, userId, role }) {
             </div>
 
             {/* Call status bar */}
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm text-white px-4 py-1.5 rounded-full z-10">
+            <div
+              className={`absolute top-3 left-1/2 -translate-x-1/2 backdrop-blur-md px-4 py-1.5 rounded-full z-10 border transition-all ${
+                isSlotConsumed
+                  ? "bg-red-950/80 border-red-500/60 text-red-200 shadow-lg shadow-red-950/50"
+                  : callDuration >= slotAllottedSeconds - 60
+                  ? "bg-amber-950/80 border-amber-500/60 text-amber-200"
+                  : "bg-black/60 border-white/10 text-white"
+              }`}
+            >
               <div className="flex items-center gap-3 text-xs font-medium">
                 <div className="flex items-center gap-1.5">
-                  <ClockIcon className="w-3.5 h-3.5" />
-                  <span className="font-mono tabular-nums">{formatDuration(callDuration)}</span>
+                  <ClockIcon className={`w-3.5 h-3.5 ${isSlotConsumed ? "text-red-400 animate-pulse" : ""}`} />
+                  <span className="font-mono tabular-nums">
+                    {formatDuration(callDuration)} / {formatDuration(slotAllottedSeconds)}
+                  </span>
                 </div>
+                {isSlotConsumed && (
+                  <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+                    Slot Consumed
+                  </span>
+                )}
                 <div className="w-px h-3 bg-white/30" />
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
@@ -977,6 +1089,93 @@ function VideoCall({ appointmentId, userId, role }) {
             onOrdersUpdated={refreshOrders}
             onClose={() => setIsPrescriptionOpen(false)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* ── Dedicated Time Slot Consumed Modal ── */}
+      <AnimatePresence>
+        {showSlotConsumedModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 15 }}
+              className="bg-gray-900 border border-red-500/40 rounded-2xl p-6 max-w-md w-full shadow-2xl text-white relative overflow-hidden"
+            >
+              <div className="absolute -top-10 -right-10 w-32 h-32 bg-red-600/10 rounded-full blur-2xl pointer-events-none" />
+
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-red-500/20 border border-red-500/30 flex items-center justify-center shrink-0">
+                  <ExclamationTriangleIcon className="w-7 h-7 text-red-400 animate-pulse" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30">
+                      Time Slot Consumed
+                    </span>
+                    <button
+                      onClick={() => setShowSlotConsumedModal(false)}
+                      className="text-gray-400 hover:text-white p-1 rounded-lg transition-colors"
+                      aria-label="Close"
+                    >
+                      <XMarkIcon className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <h3 className="text-lg font-bold text-white mt-1.5">
+                    Dedicated Time Slot Consumed
+                  </h3>
+                  <p className="text-sm text-gray-300 mt-2 leading-relaxed">
+                    {role === "doctor"
+                      ? `The allotted consultation time slot (${Math.round(
+                          slotAllottedSeconds / 60
+                        )} minutes) for this session has been consumed. You can conclude the consultation, write the prescription, or extend the session by 5 minutes.`
+                      : `The allotted consultation time slot (${Math.round(
+                          slotAllottedSeconds / 60
+                        )} minutes) has completed. Your doctor may be wrapping up the prescription or extending the discussion.`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-col sm:flex-row gap-2.5 sm:justify-end">
+                {role === "doctor" ? (
+                  <>
+                    <button
+                      onClick={() => extendSlotTime(5)}
+                      className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-medium text-sm transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      Extend 5 Mins
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowSlotConsumedModal(false);
+                        openPrescription();
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium text-sm transition-colors shadow-sm"
+                    >
+                      Write Prescription
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowSlotConsumedModal(false);
+                        leaveCall(true);
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium text-sm transition-colors shadow-sm"
+                    >
+                      End Call
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setShowSlotConsumedModal(false)}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm transition-colors shadow-sm"
+                  >
+                    Understood
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

@@ -246,7 +246,9 @@ const AppointmentDetailsModal = ({ isOpen, onClose, appointment }) => {
                     <p className="font-medium text-gray-800 text-sm">{qualification}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Reg. Number (DMC/MCI)</p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">
+                      {specialty?.toLowerCase()?.includes("dent") ? "Reg. Number (DDC)" : "Reg. Number (DMC/MCI)"}
+                    </p>
                     <p className="font-medium text-gray-800 text-sm">{licenseNumber}</p>
                   </div>
                 </div>

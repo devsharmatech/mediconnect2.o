@@ -615,7 +615,7 @@ export default function DoctorProfilePage() {
                   {fullName}
                 </h1>
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200/60">
-                  <FaShieldAlt className="w-3 h-3 text-emerald-500" /> DMC Verified
+                  <FaShieldAlt className="w-3 h-3 text-emerald-500" /> {specialty?.toLowerCase()?.includes("dent") ? "DDC Verified" : (details.council_name || "DMC Verified")}
                 </span>
               </div>
               
