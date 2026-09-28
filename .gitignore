@@ -60,6 +60,8 @@ coverage/
 brain/
 artifacts/
 scratch/
+scratch*
+scratch_*
 dev-helpers/
 help-development/
 client-docs-lungsconnect-cardioconnect/
@@ -80,10 +82,16 @@ implementation_plan.md
 # Helper, Debug & Development Scripts
 # ==========================================
 *.py
+*.mjs
+!next.config.mjs
+!postcss.config.mjs
+!eslint.config.mjs
 check_*.js
 check_*.mjs
+check-*
 test_*.js
 test_*.mjs
+test-*
 fix_*.py
 fix_*.js
 add_*.py
@@ -93,6 +101,7 @@ replace_*.js
 replace_*.py
 find_*.js
 find_*.py
+find-*
 get_*.js
 temp.js
 build_modal.js
@@ -107,9 +116,10 @@ mediconnect-api-collection.json
 test-*.js
 test-*.mjs
 scratch_*.js
+scratch*
 
 # ==========================================
-# Documents & Issue Files
+# Documents, Archives & Issue Files
 # ==========================================
 client-document/
 database-sql/
@@ -118,6 +128,12 @@ database-sql/
 *.docx
 *.doc
 *.xlsx
+*.csv
+*.zip
+*.tar
+*.gz
+*.7z
+*.rar
 
 # ==========================================
 # Build, Server & Debug Logs
