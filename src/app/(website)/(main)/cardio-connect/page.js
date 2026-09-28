@@ -5,11 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Heart, Play, Pause, Footprints, Activity,
-  ChevronRight, Info, Shield, AlertTriangle, CheckCircle2,
+  ChevronRight, ChevronLeft, Info, Shield, AlertTriangle, CheckCircle2,
   X, RotateCcw, Clock, Award, Sparkles, RefreshCw,
   TrendingUp, TrendingDown, Minus, MapPin, ArrowRight,
   Calendar, WifiOff, Check, Settings, Navigation,
-  Search, CloudSun, Wind, Droplets, Database, Compass, FileText
+  Search, CloudSun, Wind, Droplets, Database, Compass, FileText,
+  Gauge, Columns
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -1076,8 +1077,9 @@ export default function CardioConnectHome() {
                     </div>
                   </div>
                   {gpsStatus === 'granted' ? (
-                    <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-[5px]">
-                      Ready ✓
+                    <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-[5px] inline-flex items-center gap-1">
+                      <Check className="w-3 h-3 text-sky-600" />
+                      <span>Ready</span>
                     </span>
                   ) : (
                     <button
@@ -1204,13 +1206,14 @@ export default function CardioConnectHome() {
                 <button
                   type="button"
                   onClick={() => setTrainingViewMode("gauge")}
-                  className={`px-2.5 py-1 rounded-[5px] transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-[5px] transition-all flex items-center gap-1 cursor-pointer ${
                     trainingViewMode === "gauge"
                       ? "bg-white text-slate-900 shadow-xs font-bold"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  ⚡ Gauge
+                  <Gauge className="w-3 h-3 text-amber-500" />
+                  <span>Gauge</span>
                 </button>
                 <button
                   type="button"
@@ -1233,13 +1236,14 @@ export default function CardioConnectHome() {
                     if (gpsStatus !== "granted") requestGps();
                     setTrainingViewMode("split");
                   }}
-                  className={`px-2.5 py-1 rounded-[5px] transition-all hidden sm:inline-block cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-[5px] transition-all hidden sm:flex items-center gap-1 cursor-pointer ${
                     trainingViewMode === "split"
                       ? "bg-white text-slate-900 shadow-xs font-bold"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  🔲 Split
+                  <Columns className="w-3 h-3 text-slate-600" />
+                  <span>Split</span>
                 </button>
               </div>
             </div>
@@ -1956,7 +1960,14 @@ export default function CardioConnectHome() {
                       : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
                   }`}
                 >
-                  {walkingGpsEnabled ? "GPS Active ✓" : "Enable GPS"}
+                  {walkingGpsEnabled ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Check className="w-3 h-3" />
+                      <span>GPS Active</span>
+                    </span>
+                  ) : (
+                    "Enable GPS"
+                  )}
                 </button>
               </div>
 
@@ -2167,8 +2178,9 @@ export default function CardioConnectHome() {
                     fetchTimelineData(str);
                   }}
                   className="p-1.5 hover:bg-slate-200 rounded text-slate-700 font-bold cursor-pointer"
+                  title="Previous Day"
                 >
-                  ◀
+                  <ChevronLeft className="w-4 h-4" />
                 </button>
                 <div className="flex items-center gap-2 font-bold text-slate-900">
                   <Calendar className="w-4 h-4 text-[#0067A1]" />
@@ -2191,8 +2203,9 @@ export default function CardioConnectHome() {
                     fetchTimelineData(str);
                   }}
                   className="p-1.5 hover:bg-slate-200 rounded text-slate-700 font-bold cursor-pointer"
+                  title="Next Day"
                 >
-                  ▶
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
 
