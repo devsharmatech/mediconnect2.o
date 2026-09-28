@@ -63,7 +63,7 @@ export async function POST(req) {
               duration_minutes: actualDurationMin,
               steps: Number(steps) || 0,
               distance_km: Number(distance_km) || 0,
-              calories: estimated_energy_kcal ? Number(estimated_energy_kcal) : null,
+              calories: typeof estimated_energy_kcal === 'number' ? estimated_energy_kcal : (Number(estimated_energy_kcal) || 0),
               created_at: new Date().toISOString()
             }
           ]);
@@ -81,7 +81,7 @@ export async function POST(req) {
         target_status: isTargetReached ? "Target achieved" : "Partial session recorded",
         steps: Number(steps) || 0,
         distance_km: Number(distance_km) || 0,
-        estimated_energy_kcal: estimated_energy_kcal ? `${estimated_energy_kcal} kcal` : "Not available",
+        estimated_energy_kcal: `${Number(estimated_energy_kcal) || 0} kcal`,
         weekly_reference_update: "Activity logged toward 150-300 min/week reference band",
         milestone: isTargetReached ? "Session Goal Reached" : null,
         completed_at: new Date().toISOString()

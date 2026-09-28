@@ -523,6 +523,16 @@ export default function CardioConnectHome() {
     const effectiveSteps = pedometerSteps > 0 ? pedometerSteps : sessionSteps;
     const hasMovementData = effectiveSteps > 0 || effectiveDistance > 0;
 
+    // Energy / Calories computation:
+    // Strictly 0 kcal if stationary (no physical movement, 0 distance and 0 steps)!
+    // If movement detected: ~60 kcal per km walked or ~0.04 kcal per step
+    let burnedKcal = 0;
+    if (effectiveDistance > 0) {
+      burnedKcal = Math.round(effectiveDistance * 60);
+    } else if (effectiveSteps > 0) {
+      burnedKcal = Math.round(effectiveSteps * 0.04);
+    }
+
     const record = {
       actual_duration_formatted: `${Math.floor(trainingElapsedSeconds / 60)}:${(trainingElapsedSeconds % 60).toString().padStart(2, "0")}`,
       actual_duration_minutes: actualMin,
@@ -530,7 +540,7 @@ export default function CardioConnectHome() {
       target_status: isTargetReached ? "Target reached" : "Partial session recorded",
       steps: hasMovementData ? effectiveSteps : null,
       distance_km: hasMovementData ? effectiveDistance : null,
-      estimated_energy: actualMin > 0 ? `${Math.round(actualMin * 5.2)} kcal` : null,
+      estimated_energy: `${burnedKcal} kcal`,
       weekly_reference_update: "Session recorded toward 150-300 min/week reference band",
       milestone: isTargetReached ? "Session Goal Reached" : null,
       is_reached: isTargetReached,
@@ -550,7 +560,7 @@ export default function CardioConnectHome() {
           accumulated_active_seconds: trainingElapsedSeconds,
           steps: effectiveSteps,
           distance_km: effectiveDistance,
-          estimated_energy_kcal: Math.round(actualMin * 5.2),
+          estimated_energy_kcal: burnedKcal,
           client_idempotency_key: `client-${Date.now()}`
         })
       });
@@ -584,7 +594,7 @@ export default function CardioConnectHome() {
     setSessionDistanceKm(0);
     setRealGpsDistanceKm(0);
     setPedometerSteps(0);
-    toast("Training session canceled", { icon: "ℹ️" });
+    toast.info("Training session canceled");
   };
 
   // Finish Walking Test (CC-11 -> CC-12)
