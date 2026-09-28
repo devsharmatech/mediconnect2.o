@@ -909,8 +909,7 @@ function LungConnectHubContent() {
         {/* ══════════════════════════════════════════════════════════════
             TAB 1: MY HEALTH (B01, B02, B11, B21, LC-01..LC-13)
         ══════════════════════════════════════════════════════════════ */}
-        {activeTab === "my-health" && (
-          <div className="space-y-6">
+        <div className={activeTab === "my-health" ? "space-y-6 block" : "hidden"}>
 
             {/* Open Access Banner */}
             <div className="bg-blue-50/70 border border-blue-200 rounded-[5px] p-3.5 flex items-start gap-3 text-xs text-slate-900">
@@ -1371,14 +1370,12 @@ function LungConnectHubContent() {
 
             </div>
 
-          </div>
-        )}
+        </div>
 
         {/* ══════════════════════════════════════════════════════════════
             TAB 2: MY ACTIVITIES (B03, B04, B05, B09, B10, LC-14..17)
         ══════════════════════════════════════════════════════════════ */}
-        {activeTab === "my-activities" && (
-          <div className="space-y-6">
+        <div className={activeTab === "my-activities" ? "space-y-6 block" : "hidden"}>
 
             {/* 3 Activity Hero Launchers (Move, 6MWT, Breathing Studio) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1715,14 +1712,12 @@ function LungConnectHubContent() {
 
             </div>
 
-          </div>
-        )}
+        </div>
 
         {/* ══════════════════════════════════════════════════════════════
-            TAB 3: MY ENVIRONMENT (B06, B07, B08, B18)
+            TAB 3: MY ENVIRONMENT (B06, B07, B08, B18, LC-18..20)
         ══════════════════════════════════════════════════════════════ */}
-        {activeTab === "my-environment" && (
-          <div className="space-y-4 sm:space-y-5">
+        <div className={activeTab === "my-environment" ? "space-y-6 block" : "hidden"}>
 
             {/* Disclaimer Banner */}
             <div className="bg-blue-50/70 border border-blue-200 rounded-[5px] p-3 flex items-start gap-2.5 text-xs text-slate-900">
@@ -1801,7 +1796,6 @@ function LungConnectHubContent() {
               </div>
             )}
 
-            {/* Real Location Search & City Quick Navigation */}
             <div className="bg-white border border-slate-200 rounded-[5px] p-3.5 sm:p-4 shadow-xs space-y-3">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                 
@@ -2156,14 +2150,12 @@ function LungConnectHubContent() {
               </div>
             </div>
 
-          </div>
-        )}
+        </div>
 
         {/* ══════════════════════════════════════════════════════════════
             TAB 4: MY CARE & SERVICES (B11, B12, B13, B14, B15, B16, B17)
         ══════════════════════════════════════════════════════════════ */}
-        {activeTab === "my-care" && (
-          <div className="space-y-6">
+        <div className={activeTab === "my-care" ? "space-y-6 block" : "hidden"}>
 
             {/* Care Episode Continuity (ui17.png) */}
             <div className="bg-white border border-slate-200 rounded-[5px] p-5 sm:p-6 shadow-xs space-y-4">
@@ -2184,9 +2176,18 @@ function LungConnectHubContent() {
 
               {/* Animated Care Episode Pulse Continuity Line (ui17.png B11-S01) */}
               <AnimatedCarePulse
-                episodeId="LCE-2026-0842"
+                episodeId={hubData?.care_episode?.id ? `LCE-2026-${String(hubData.care_episode.id).slice(-4).toUpperCase()}` : "LCE-2026-0842"}
                 activeStage={2}
-                startDate="12 May 2024"
+                startDate={
+                  hubData?.care_episode?.created_at
+                    ? new Date(hubData.care_episode.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                    : "4 Sep 2026"
+                }
+                recordedDate={
+                  recentActivities?.[0]?.created_at
+                    ? new Date(recentActivities[0].created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+                    : "28 Sep 2026"
+                }
               />
 
               <div className="text-xs text-slate-800 bg-slate-50 border border-slate-200 p-3 rounded-[5px] space-y-1">
@@ -2429,8 +2430,7 @@ function LungConnectHubContent() {
               </div>
             </div>
 
-          </div>
-        )}
+        </div>
 
       </section>
 

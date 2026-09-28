@@ -43,13 +43,15 @@ import {
 } from "lucide-react";
 import { AnimatedCardioLoader } from "@/components/public-site/health/animations";
 
-// Checkpoint tabs as specified in CC-09 / CC-DELTA-IMAGES.pdf Page 15 & 16
+// Checkpoint tabs as specified in CC-09 / CC-DELTA-IMAGES.pdf Page 15 & 16 (DOCX Issue #4)
 const CHECKPOINTS = [
   { id: "7D", label: "7D", desc: "Last 7 days", days: 7 },
   { id: "15D", label: "15D", desc: "Last 15 days", days: 15 },
   { id: "30D", label: "30D", desc: "Last 30 days", days: 30 },
   { id: "45D", label: "45D", desc: "Last 45 days", days: 45 },
-  { id: "Later", label: "Later", desc: "Future checkpoint", days: 90, apiKey: "LONG" }
+  { id: "60D", label: "60D", desc: "Last 60 days", days: 60 },
+  { id: "90D", label: "90D", desc: "Last 90 days", days: 90 },
+  { id: "Later", label: "Later", desc: "Extended longitudinal trajectory", days: 120, apiKey: "LONG" }
 ];
 
 export default function HeartHealthStatisticsPage() {

@@ -10,12 +10,13 @@ import { motion } from "framer-motion";
 export default function AnimatedCarePulse({
   activeStage = 2, // 0: Started, 1: Recorded, 2: In Progress, 3: Resolved
   episodeId = "LCE-2026-0842",
-  startDate = "12 May 2024",
+  startDate = "4 Sep 2026",
+  recordedDate = "28 Sep 2026",
   className = "",
 }) {
   const stages = [
     { title: "Episode Started", date: startDate, desc: "Episode created" },
-    { title: "Data Recorded", date: "18 May 2024", desc: "Activities synchronized" },
+    { title: "Data Recorded", date: recordedDate, desc: "Activities synchronized" },
     { title: "Care In Progress", date: "Ongoing", desc: "Longitudinal monitoring" },
     { title: "Episode Resolved", date: "--", desc: "Formal resolution" },
   ];

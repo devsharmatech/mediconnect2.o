@@ -527,29 +527,7 @@ const PatientHeader = ({ user, onMenuClick }) => {
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-      {activeVideoCall && showActiveCallBanner && (
-        <div className="bg-emerald-600 text-white px-4 lg:px-6 py-3 shadow-lg">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-4 w-4">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-[5px] bg-white opacity-75"></span>
-                <span className="relative inline-flex rounded-[5px] h-4 w-4 bg-white"></span>
-              </span>
-              <div>
-                <p className="text-sm font-bold">Doctor started your video consultation!</p>
-                <p className="text-xs opacity-90">Tap &quot;Join Call&quot; to connect immediately</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleJoinActiveCall}
-              className="shrink-0 px-5 py-2 rounded-[5px] bg-white text-emerald-700 text-sm font-bold hover:bg-gray-100 transition-colors shadow-md animate-pulse"
-            >
-              Join Call
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Active call strip hidden per user request */}
       <div className="flex items-center justify-between h-16 px-4 lg:px-6">
         {/* Left Section */}
         <div className="flex items-center gap-4">

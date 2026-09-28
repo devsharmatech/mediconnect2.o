@@ -1,0 +1,261 @@
+Test Case ID,Module / Feature,Test Type,Test Nature,Priority,Test Title / Scenario,Pre-conditions,Test Data,Test Steps,Expected Result,Execution Status,Actual Result,Tested By,Tested Date,Environment,Device
+TC-001,My Appointments,Smoke,Positive,Critical," Appointments page should be Open
+ successfully.","Valid Patient is logged in and Appointment page is
+ accessible.",To Valid patient account,"1.Open the MediConnect application.
+2.Enter valid Patient login credentials.
+3.Click on Login.
+4.Verify that the Patient Dashboard is displayed.
+5.Click on Appointments from the sidebar.",Appointments page should open successfully.,Pass,"Appointments page should open 
+successfully.",Muskan,09-14-26,Chrome,Windows
+TC-002,Instant Doctor,Functional,Positive,High,"Verify that a patient can successfully 
+create an appointment for later.","Patient should be logged in and  doctor should 
+be available for booking.","Valid patient account, available doctor,
+available consultation date and time slot","1. Login as a Patient.
+2. Click on Instant Doctor.
+3. Click on Book for Later for the required doctor.
+4. Select an available Consultation Date.
+5. Select an available Time Slot.
+6. Select the required Consultation Mode.
+7. Select the required consent checkboxes.
+8. Click on Book Appointment.
+9. Verify the appointment confirmation.","The appointment should be successfully 
+created for the selected doctor, consultation 
+mode, date and time slot. Appointment 
+confirmation/details should be displayed, 
+and the appointment should be listed under 
+the patient's Appointments section.",Pass,"Appointment should be successfully 
+created for the selected doctor, 
+consultation date and time slot, and 
+the appointment should be displayed 
+under the Upcoming section.",Muskan,09-14-26,Chrome,Windows
+TC-003,Appointments – Today,Functional,Positive,High,Verify Today tab displays only today's appointments,"Patient is logged in and has appointments scheduled
+ for different dates","Past, today's and future appointments","1. Login as Patient.
+2. Click On Appointments.
+3. Click Today tab.",Today tab should open successfully and only today's appointments should be displayed. Past and future appointments should not be displayed.,Pass,"Today tab should open successfully 
+and only today's appointments should 
+be displayed. Past and future 
+appointments should not be 
+displayed.",Muskan,09-14-26,Chrome,Windows
+TC-004,Appointments – Today,Functional,Negative,High,"Verify empty-state message when no 
+appointment is scheduled for today.","Patient is logged in and has no appointment scheduled 
+for today.",No appointment for today,"1. Login as Patient.
+2. Click on Appointments.
+3. Click Today tab.","Nothing scheduled today message should be
+displayed and no appointment card should be
+ shown.",Pass,"Nothing scheduled today message should be
+displayed and no appointment card should 
+be shown.",Muskan,09-14-26,Chrome,
+TC-005,Appointments – Today,Functional,Positive,High,Verify today's appointment details,"Patient is logged in and has an appointment booked 
+for today","Doctor name, today's date, appointment time, 
+consultation type","1. Login as Patient.
+2. Click on Appointments.
+3. Click Today tab.
+4. View the appointment details.","Correct doctor, date, time and consultation 
+information should be displayed.",Pass,Correct details should be displyed.,Muskan,09-14-26,Chrome,Windows
+TC-006,Appointments – Today,Functional,Positive,High,"Verify multiple today's appointments are 
+displayed in In sequence order","Patient is logged in and has multiple appointments 
+scheduled for today","Appointments at 10:00 AM, 2:00 PM and 
+5:00 PM","1. Login as Patient.
+2. Book multiple appointments for today
+    at different times.
+3. Click to Appointments → Today. ","All today's appointments should be displayed 
+and arranged in the expected Sequence
+ based on appointment time.",Pass,"All today's appointments were displayed 
+in the correct Sequence.",Muskan,09-14-26,Chrome,Windows
+TC-007,Appointments – Today,UI,Positive,Medium,Verify Today tab after switching and refresh,Patient has today's appointments.,Today's appointments,"1. Open Appointments.
+2. Click Today tab.
+3. Verify the selected tab and appointment layout.
+4. Switch to another appointment tab.
+5. Return to Today.
+6. Refresh the page.","Today tab should remain correctly selected 
+when opened, appointment information should 
+be properly readable, and today's 
+appointments should remain correctly 
+displayed after tab switching and page 
+refresh.",Pass,"Today’s appointments remained correctly 
+displayed after tab switching and page refresh",Muskan,09-14-26,Chrome,Windows
+TC-008,Appointments – Upcoming,Functional,Positive,High,"Verify Upcoming tab displays only future 
+appointments",Patient has Upcoming appointments., Upcoming appointments.,"1. Login as Patient.
+2. Click on Appointments.
+3. Click Upcoming tab.","Upcoming tab should open successfully and 
+only future appointments should be displayed.
+Past and today's appointments should not be 
+displayed.",Pass,"Only future appointments were displayed in 
+the Upcoming tab",Muskan,09-14-26,Chrome,Windows
+TC-009,Appointments – Upcoming,Functional,Negative,High,"Verify empty-state message when no 
+upcoming appointments are available",Patient is logged in and has no future appointments,No upcoming appointment,"1. Login as Patient.
+2. Click on  Appointments.
+3. Click Upcoming tab.","No upcoming appointments message should 
+be displayed and no appointment card should 
+be shown.",Pass,"No upcoming appointments were displayed, 
+and the empty-state message was shown",Muskan,09-14-26,Chrome,
+TC-010,Appointments – Upcoming,Functional,Positive,High,Verify upcoming appointment details,"Patient is logged in and has an appointment scheduled 
+for a future date","Doctor name, future date, time, consultation type","1. Login as Patient.
+2. Click on Appointments.
+3. Click Upcoming tab.
+4. View the appointment details.","Correct doctor, appointment date, time and applicable appointment/consultation information should be displayed.",Pass,All appointment details were displayed correctly.,Muskan,09-14-26,Chrome,Windows
+TC-011,Appointments – Upcoming,Functional,Positive,High,Verify multiple upcoming appointments are displayed in Sequence.,Patient is logged in and has multiple future appointments,Appointments on different future dates/times,"1. Login as Patient.
+2. Book multiple appointments for different future dates/times.
+3. Click on  Appointments → Upcoming.",All upcoming appointments should be displayed and arranged in the expected sequence based on appointment date/time.,Pass,"All upcoming appointments were displayed 
+in the correct Sequence.",Muskan,09-14-26,Chrome,Windows
+TC-012,Appointments – Upcoming,Functional,Positive,Medium,Verify Today tab after switching and refresh,Patient has at least one upcoming appointment,Upcoming appointment,"1. Open Appointments.
+2. Click Upcoming tab.
+3. Verify the selected tab and appointment layout.
+4. Switch to another appointment tab.
+5. Return to Upcoming.
+6. Refresh the page.","Upcoming tab should remain correctly selected when opened, appointment information should be properly readable, and upcoming appointments should remain correctly displayed after tab switching and page refresh.",Pass,"Correct doctor, appointment date, time and consultation information were displayed",Muskan,09-14-26,Chrome,Windows
+TC-013,Appointments – Cancelled,Functional,Positive,High,"Verify Cancelled tab displays only cancelled 
+appointments","Patient is logged in and has cancelled, active and completed appointments",Cancelled + active appointments,"1. Login as Patient.
+2. Navigate to Appointments.
+3. Click Cancelled tab.","Only cancelled appointments should be displayed. Active, today's and past completed appointments should not be displayed.",Pass,Only cancelled appointments should be displayed. ,Muskan,09-15-2026,Chrome,Windows
+TC-014,Appointments – Cancelled,Functional,Positive,High,Verify cancelled appointment details and status,Patient has at least one cancelled appointment,"Doctor, date, time, consultation type","1. Open Appointments → Cancelled.
+2. View the cancelled appointment.","Correct doctor, appointment date, time and 
+consultation information should be displayed 
+along with Cancelled status.",Pass,"Correct doctor, appointment date, time and 
+consultation information should be displayed.
+",Muskan,09-15-2026,Chrome,Windows
+TC-015,Appointments – Cancelled,Functional,Positive,High,Verify multiple cancelled appointments and their order,Patient has multiple cancelled appointments,Multiple cancelled appointments with different dates/times,"1. Open Appointments → Cancelled.
+2. View all cancelled appointments.",All cancelled appointments should be displayed and arranged in the expected sequence based on appointment date/time.,Pass,All cancelled appointments should be displayed with correct sequence.,Muskan,09-15-2026,Chrome,Windows
+TC-016,Appointments – Cancelled,Functional,Negative,High,Verify empty state when no cancelled appointments are available,Patient has no cancelled appointments,No cancelled appointments,"1. Login as Patient.
+2. Open Appointments.
+3. Click Cancelled tab.", Empty-state message should be displayed and no appointment card should be shown.,Pass, Empty-state message should be displayed,Muskan,09-15-2026,Chrome,
+TC-017,Appointments – Cancelled,UI,Positive,Medium,Verify Cancelled tab after tab switching and refresh,Patient has cancelled appointments.,Cancelled appointment,"1. Open Cancelled tab.
+2. Switch to another appointment tab.
+3. Return to Cancelled.
+4. Refresh the page.",Cancelled appointments should remain correctly displayed after tab switching and page refresh.,Pass,Cancelled appointments should remain correctly displayed after tab switching and page refresh.,Muskan,09-15-2026,Chrome,Windows
+TC-018,Appointments – All,Functional,Positive,High,Verify All tab displays all appointments,Patient is logged in and has appointments in different categories,"Today, Upcoming, Past and Cancelled appointments","1. Login as Patient.
+2. Navigate to Appointments.
+3. Click All tab.",All applicable appointments should be displayed in the All section.,Pass,All applicable appointments were displayed correctly.,Muskan,09-15-2026,Chrome,Windows
+TC-019,Appointments – All,Functional,Positive,High,Verify appointment details and status in All tab,Patient has multiple appointments,"Doctor, date, time, consultation type and status","1. Open Appointments → All.
+2. View the appointment cards.","Correct doctor, date, time, consultation information and appointment status should be displayed for each appointment.",Pass,All appointment details and statuses were displayed correctly,Muskan,09-15-2026,Chrome,Windows
+TC-020,Appointments – All,Functional,Positive,High,Verify appointment ordering in All tab,Patient has multiple appointments with different dates/times,Multiple appointments with different dates/times,"1. Open Appointments → All.
+2. View the appointments.",All appointments should be displayed in the expected order based on appointment date and time.,Pass,All appointments were displayed in the expected order based on date and time.,Muskan,09-15-2026,Chrome,Windows
+TC-021,Appointments – All,Functional,Positive,Medium,Verify All tab UI and appointment cards,Patient has appointments,Appointment data,"1. Open All tab.
+2. Observe the tab and appointment cards.","All tab should be highlighted correctly, and appointment cards should be properly aligned, readable and displayed without UI.",Pass,All tab and appointment cards were displayed correctly without any UI issues,Muskan,09-15-2026,Chrome,Windows
+TC-022,Appointments – All,Functional,Positive,High,Verify empty state when no appointments are available,Patient has no appointments,No appointment data,"1. Login as Patient.
+2. Open Appointments.
+3. Click All tab.",Empty-state message should be displayed and no appointment card should be shown.,Pass,"Empty-state message was displayed with no
+ appointment cards.",Muskan,09-15-2026,Chrome,Windows
+TC-023,Appointments – Today Tab,Functional,Negative,High,Verify that past-date appointments are not displayed under Today,Patient is logged in and has appointments,Appointment with past date,"1. Open My Appointments
+2. Click Today tab",Past-date appointments should not be displayed in Today tab.,Pass,Past-date appointments should not be displayed in Today tab.,Muskan,09-15-2026,Chrome,Windows
+TC-024,Appointments – Today Tab,Functional,Negative,High,Verify that future appointments are not displayed under Today,Patient is logged in and has future appointments,Future appointment,"1. Open My Appointments
+2. Click Today tab",Future-date appointments should not displayed in Today tab.,Pass,Future-date appointments should not displayed in Today tab.,Muskan,09-15-2026,Chrome,Windows
+TC-025,Appointments – Today Tab,Functional,Negative,High,Verify that cancelled appointments are not incorrectly displayed as active Today appointments,Patient has a cancelled appointment for today,Cancelled today's appointment,"1. Open Today tab
+2. Check appointment status",Cancelled appointment should not be shown as an active appointment; it should follow the application's cancelled-status rules.,Pass,Cancelled appointment is not displayed as an active appointment and is shown under the Cancelled section as expected,Muskan,09-16-2026,,Windows
+TC-026,Appointments – Today Tab,Functional,Negative,High,Verify behavior when no appointment exists for today,Patient has no appointment today,No appointment,1. Open Today tab,Empty-state message should be displayed and no appointment card should be shown.,Pass,Empty-state message should be displayed as expected.,Muskan,09-16-2026,Chrome,Windows
+TC-027,Appointments – Today Tab,Functional,Negative,High,Verify that duplicate appointments are not displayed,Patient has one appointment record,Duplicate appointment data,"1. Open Today tab
+2. Check appointment cards",Same appointment should not be displayed multiple times.,Pass,The same appointment is displayed only once in the appointment list. No duplicate entries are observed,Muskan,09-16-2026,Chrome,Windows
+TC-028,Appointments – Upcoming,Functional,Negative,High,Verify that past appointments are not displayed in Upcoming,Patient has past appointment,Past-date appointment,"1. Open My Appointments
+2. Click Upcoming",Past appointments should not be displayed in Upcoming tab.,Pass,Past appointments should not be displayed in Upcoming tab as expected.,Muskan,09-16-2026,Chrome,Windows
+TC-029,Appointments – Upcoming,Functional,Negative,High,Verify that cancelled appointments are not incorrectly displayed as upcoming active appointments,Patient has cancelled future appointment,Cancelled future appointment,"1. Open Upcoming tab
+2. Check appointment status",Cancelled appointment should not appear as an active upcoming appointment.,Pass,Cancelled appointment should not appear as an active upcoming appointment.,Muskan,09-16-2026,Chrome,Windows
+TC-030,Appointments – Upcoming,Functional,Negative,High,Verify that today's completed appointment is not displayed as Upcoming,Appointment is already completed,Today's completed appointment,"1. Open My Appointments
+2. Click Upcoming",Past appointments should not be displayed in Upcoming tab.,Pass,Past appointments should not be displayed in Upcoming tab as expected.,Muskan,09-16-2026,Chrome,Windows
+TC-031,Appointments – Upcoming,UI,Negative,Medium,Verify that long doctor names/details do not break appointment card UI,Upcoming appointment exists,Very long doctor name/details,"1. Open Upcoming
+2. View appointment card","Text should not overlap, get cut incorrectly, or break the layout.",Pass,"Text should not overlap, get cut incorrectly, or break the layout as expected.",Muskan,09-16-2026,Chrome,Windows
+TC-032,Appointments – Cancelled,Functional,Negative,High,Verify that active appointments are not displayed in Cancelled tab,Patient has active appointment,Active appointment,"1. Open My Appointments
+2. Click on Cancelled tab",Active appointment should not be displayed in Cancelled tab.,Pass,Active appointment should not be displayed in Cancelled tab as expected.,Muskan,09-21-2026,Chrome,Windows
+TC-033,Appointments – Cancelled,Functional,Negative,High,Verify that completed appointments are not displayed in Cancelled tab,Patient has completed appointment,Completed appointment,"1. Open My Appointments
+2. Click on Cancelled tab",Completed appointment should not display under Cancelled.,Pass,Completed appointment should not display under Cancelled as expected.,Muskan,09-21-2026,Chrome,Windows
+TC-034,Appointments – Cancelled,Functional,Negative,High,Verify that upcoming active appointment is not incorrectly marked as cancelled,Patient has upcoming active appointment,Upcoming appointment and Active status,"1. Open My Appointments
+2. Click on Cancelled tab",Active upcoming appointment should not be displayed as cancelled.,Pass,Active upcoming appointment should not be displayed as cancelled as expected.,Muskan,09-21-2026,Chrome,Windows
+TC-035,Appointments – Cancelled,Functional,Negative,High,Verify behavior when no cancelled appointments exist,Patient has no cancelled appointments,No cancelled appointment,"1. Open My Appointments
+2. Click on Cancelled tab",Empty-state message should be displayed and no appointment card should be shown.,Pass,Empty-state message should be displayed and no appointment card should be shown as expected.,Muskan,09-21-2026,Chrome,Windows
+TC-036,Appointments – All,Functional,Negative,Critical,Verify that appointments are not missing from All tab,Patient has appointments in different statuses,"Today, Upcoming, Past, Cancelled appointments","1. Open All tab
+2. Compare appointment records",All valid appointments of the patient should be displayed as per the defined rules.,Pass,All valid patient appointments are displayed correctly.,Muskan,09-21-2026,Chrome,Windows
+TC-037,Appointments – All,Functional,Negative,Critical,Verify that appointments belonging to another patient are not displayed,Multiple patient records exist,Another patient's appointment,"1. Login as Patient A
+2. Open All tab",Only Patient A's appointments should be displayed.,Pass,Only Patient A's appointments should be displayed as expected.,Muskan,09-21-2026,Chrome,Windows
+TC-038,Appointments – All,Functional,Negative,High,Verify that duplicate appointment records are not displayed,Patient has appointment records,Duplicate appointment ID,"1. Open All tab
+2. Check appointment list",Duplicate appointment should not be displayed multiple times.,Pass,Duplicate appointment should not be displayed multiple times.,Muskan,09-21-2026,Chrome,Windows
+TC-039,Appointments – All,Functional,Negative,High,Verify appointment data remains consistent after refresh,Patient has appointments,Existing appointments,"1. Open All tab
+2. Refresh page","No appointment should disappear, duplicate, or change status unexpectedly after refresh.",Pass,"No appointment should disappear, duplicate, or change status unexpectedly after refresh as expected.",Muskan,09-21-2026,Chrome,Windows
+TC-040,Instant Doctor,Smoke,Positive,Critical,Verify user can click Instant Doctor from Patient Dashboard,Patient is logged in and Dashboard is open,N/A," 1. Open Patient Dashboard 
+2. Click Instant Doctor",Instant Consultation popup should open successfully,Pass,Instant Consultation popup should open successfully as expected.,Muskan,09-21-2026,Chrome,Windows
+TC-041,Instant Doctor,Functional,Positive,Critical,Verify all elements are displayed in Instant Consultation popup,Instant Consultation popup is open,N/A," 1. Open Patient Dashboard 
+2. Click Instant Doctor
+3.Observe the popup","Search field, specialty filter, doctor list, Refresh option, Close icon and doctor action buttons should be displayed correctly",Pass,All fields are displayed correctly.,Muskan,09-21-2026,Chrome,Windows
+TC-042,Search Doctor,Functional,Positive,High,Verify doctor can be searched by valid doctor name,Popup is open and doctors are available,Valid doctor name," 1. Open Patient Dashboard 
+2. Click Instant Doctor
+3.Enter valid doctor name in search field",Matching doctor should be displayed,Pass,Matching doctor should be displayed as expected,Muskan,09-21-2026,Chrome,Windows
+TC-043,Specialty Filter,Functional,Positive,High,Verify All Specialties dropdown,Popup is open,N/A," 1. Open Patient Dashboard 
+2. Click Instant Doctor
+3.Click All Specialties dropdown",Available specialties should be displayed,Pass,Available specialties should be displayed as expected.,Muskan,09-22-2026,Chrome,Windows
+TC-044,Specialty Filter,Functional,Positive,High,Verify doctor list after selecting a specialty,Popup is open,Dentistry," 1. Open Patient Dashboard 
+2. Click Instant Doctor
+3.Click Specialties dropdown
+4.Select Dentistry",Only doctors matching the selected specialty should be displayed,Pass,Only doctors matching the selected specialty should be displayed as expected.,Muskan,09-22-2026,Chrome,Windows
+TC-045,Specialty Filter,Functional,Negative,High,Verify specialty with no available doctors,Popup is open,Specialty with no online doctors," 1. Open Patient Dashboard 
+2. Click Instant Doctor
+3.Click Specialties dropdown
+4. Select specialty",Appropriate empty-state message should be displayed,Pass,Appropriate empty-state message should be displayed,Muskan,09-22-2026,Chrome,Windows
+TC-046,Doctor List,Functional,Positive,High,Verify available online doctors are displayed,Popup is open and online doctors are available,N/A," 1. Open Patient Dashboard 
+2. Click Instant Doctor
+3.Observe doctor list",Available online doctors should be displayed,Pass,Available online doctors should be displayed as expected,Muskan,09-22-2026,Chrome,Windows
+TC-047,Doctor List,Functional,Positive,High,Verify doctor information displayed on doctor card,Popup is open,N/A," 1. Open Patient Dashboard 
+2. Click Instant Doctor
+3.Click any docter for book for later
+4.Observe any doctor card","Doctor name, specialty, experience, fee and online status should be displayed correctly",Pass,"Doctor name, specialty, experience, fee and online status should be displayed correctly as expected",Muskan,09-22-2026,Chrome,Windows
+TC-048,Refresh,Functional,Positive,Medium,Verify Refresh option updates doctor availability,Popup is open,N/A," 1. Open Patient Dashboard 
+2. Click Instant Doctor
+3.Click on Refresh option",Doctor availability/list should refresh successfully,Pass,Doctor availability/list should refresh successfully as expected,Muskan,09-22-2026,Chrome,Windows
+TC-049,Book for Later,Functional,Positive,Critical,Verify Book for Later option,Online doctor is available,Selected doctor," 1. Open Patient Dashboard 
+2. Click Instant Doctor
+3.Select docter
+4. Click Book for Later button",User should be redirected to the doctor booking flow,Pass,User should be redirected to the doctor booking flow as expected,Muskan,09-22-2026,Chrome,Windows
+TC-050,LungConnect Access,Functional,Positive,Critical,Verify patient can access LungConnect from Dashboard,Patient is logged in,Valid patient account,"1. Login as patient 
+2. Open Dashboard 
+3. Click LungConnect",LungConnect page should open successfully,Pass,LungConnect page should open successfully as expected,Muskan,09-22-2026,Chrome,Windows
+TC-051,LungConnect Page,Functional,Positive,Critical,Verify LungConnect page loads successfully,Patient is on LungConnect,Valid patient account,"1. Open LungConnect 
+2. Observe page loading","Page should load completely without errors, broken elements or blank sections",Pass,"Page should load completely without errors, broken elements or blank sections as expected",Muskan,09-22-2026,Chrome,Windows
+TC-052,LungConnect – Tab Navigation,Functional,Positive,High,Verify correct content is displayed when switching between all LungConnect tabs,User is logged in and LungConnect Hub is accessible,"My Health, My Activities, My Environment, My Care & Services","1. Open LungConnect Hub.
+2. Click My Health.
+3. Click My Activities.
+4. Click My Environment.
+5. Click My Care & Services.
+6. Repeat the navigation multiple times.",Each selected tab should load its own corresponding content without displaying content from the previously selected tab.,Fail,Tab selection/content appears inconsistent during switching; previously selected content remains visible before the new section loads.,Muskan,09-23-2026,Chrome,Windows
+TC-053,LungConnect – Tab Navigation,Functional,Positive,Medium,Verify smooth switching between LungConnect tabs,User is logged in and LungConnect Hub is accessible,"My Health, My Activities, My Environment, My Care & Services","1. Open LungConnect Hub.
+2. Click My Health.
+3. Switch to My Activities.
+4. Switch to My Environment.
+5. Switch to My Care & Services.
+6. Repeat the tab switching multiple times.","Tabs should switch smoothly without unnecessary blinking/flickering, and the selected tab should display its corresponding content correctly.",Fail,"Tab blinks/flickers during switching in some instances. However, after the tab loads, the correct tab and corresponding content are displayed.",Muskan,09-23-2026,Chrome,Windows
+TC-054,LungConnect – Care Episode,Functional,Positive,High,Verify Care Episode dates are consistent with the selected episode,User has an active Care Episode with timeline data,"Episode ID, Start Date, Recorded Date","1. Open My Care & Services.
+2. Note the Episode ID.
+3. Check Episode Started date.
+4. Check Data Recorded date.
+5. Compare the dates with the selected Care Episode.",All displayed dates should belong to the selected Care Episode and should be accurate and logically consistent.,Fail,"2026 Care Episode displays 2024 timeline dates, which are inconsistent with the current episode/activity data.",Muskan,09-23-2026,Chrome,Windows
+TC-055,Prescription,Functional,Positive,Critical,Verify prescription is displayed to patient,Patient is logged in and has a valid prescription,Valid prescription,"1. Login as patient.
+2. Open my Appointment section.
+3.Click on past section.
+4.Click on RX botton.
+5. Open prescription.",Correct prescription should be displayed to the patient.,Pass,Correct prescription should be displayed to the patient as expected.,Muskan,09-28-2026,Chrome,Windows
+TC-056,Prescription,UI,Positive,High,Verify prescription details are clearly visible,Valid prescription is available,Prescription with medicine details,"1. Login as patient.
+2. Open my Appointment section.
+3.Click on past section.
+4.Click on RX botton.
+5. Open prescription.
+6.Check Medicine.",All prescription information should be clearly visible and readable.,Pass,All prescription information should be clearly visible and readable as expected.,Muskan,09-28-2026,Chrome,Windows
+TC-057,Prescription,Functional,Positive,High,Verify prescription download option,Patient has access to a valid prescription,Valid prescription,"1. Open prescription.
+2. Click on print button then open Prescription .
+3.Click on print button.
+4.Click on save button and download the prescription.",Prescription should be downloaded successfully.,Pass,Prescription should be downloaded successfully as expected.,Muskan,09-28-2026,Chrome,Windows
+TC-058,Purchase Intent,Functional,Positive,Critical,Verify purchase medicine prompt,Patient has received a valid prescription,Valid prescription,"1. Open prescription.
+2. Navigate to medicine purchase section.",Proceed with medicines option should be displayed successfully.,Pass,Proceed with medicines option is displayed.,Muskan,09-28-2026,Chrome,Windows
+TC-059,Purchase Intent,UI,Positive,High,Verify PROCEED button,Purchase prompt is displayed,Purchase Intent = Yes,"1. View purchase prompt.
+2. Check on proceed on medicine button.",PROCEED button should be visible and clickable.,Pass,PROCEED button is visible and clickable.,Muskan,09-28-2026,Chrome,Windows
+TC-060,Purchase Intent,UI,Positive,Medium,"Verify NO,Thanku You functionality",Purchase prompt is displayed,Purchase Intent = No,"1. Click on  no,thank you button.",User should not proceed to pharmacy purchase flow.,Pass,User should not proceed to pharmacy purchase flow as expected.,Muskan,09-28-2026,Chrome,Windows
+TC-061,Purchase ,UI,Positive,Critical,Verify purchase consent text,"User selected YES, PROCEED",Valid consent screen,"1. Select YES to PROCEED button.
+2. View prompt screen.",Next page should be displayed correctly.,Pass,Next page is display correctly.,Muskan,09-28-2026,Chrome,Windows
+TC-062,Medicine Order,Functional,Positive,Critical,Verify Order Prescribed Medicines page opens from Prescription,Patient has completed video consultation and prescription is available,Valid prescription,"1. Open Prescription
+2. Click Order under Medicine Order",Order Prescribed Medicines page should open successfully,Pass,Order Prescribed Medicines page should open successfully as expected.,Muskan,09-28-2026,Chrome,Windows
+TC-063,Medicine Order,UI,Positive,High,Verify page title is displayed correctly,Order Prescribed Medicines page is open,N/A,Observe page header,Order Prescribed Medicines title should be displayed clearly,Pass,Order Prescribed Medicines title should be displayed clearly as expected.,Muskan,09-28-2026,Chrome,Windows
+TC-064,Medicine Order,UI,Positive,High, Verify pharmacy benefits/information are displayed,Page is open,N/A,Observe information section,"Options such as Compare prices from multiple pharmacies, View estimated delivery times, and Choose your preferred pharmacy should be displayed correctly",Pass,"Options such as Compare prices from multiple pharmacies, View estimated delivery times, and Choose your preferred pharmacy is display correctly as expected",Muskan,09-28-2026,Chrome,Windows
+TC-065,Medicine Order,Functional,Positive,High,"Verify Yes, Find Pharmacies button is displayed and enabled",Page is open,N/A,Observe and click the button,"Yes, Find Pharmacies button should be visible, enabled and clickable",Pass,"Yes, Find Pharmacies button should be visible, enabled and clickable as expected",Muskan,09-28-2026,Chrome,Windows
+TC-066,Medicine Order,Functional,Positive,Critical,"Verify navigation after clicking Yes, Find Pharmacies",Page is open,N/A,"Click Yes, Find Pharmacies",User should be navigated to the next page.,Pass,User should be navigated to the next page.,Muskan,09-28-2026,Chrome,Windows
+TC-067,Medicine Order,Functional,Positive,High,"Verify No, I'll Arrange Medicines Myself option is displayed",Page is open,N/A,Observe page,"No, I'll Arrange Medicines Myself option should be visible and clickable",Pass,"No, I'll Arrange Medicines Myself option should be visible and clickable as expected",Muskan,09-28-2026,Chrome,Windows
+TC-068,Medicine Order,Functional,Positive,High,Verify user can choose to arrange medicines themselves,Page is open,N/A,"Click No, I'll Arrange Medicines Myself",User should be able to proceed without ordering medicines through partner pharmacies,Pass,User should be able to proceed without ordering medicines through partner pharmacies as expected,Muskan,09-28-2026,Chrome,Windows
+TC-069,Medicine Order,Functional,Positive,High,Verify buttons/options are properly aligned and readable,Page is open,N/A,Check page visually,"Buttons, text, icons should be properly aligned without overlaping",Pass,"Buttons, text, icons should be properly aligned without overlaping",Muskan,09-28-2026,Chrome,Windows
+TC-070,Order Medicines – Review,Functional,Positive,High,Verify Order Medicines review page is displayed,Patient has received a prescription from doctor,Valid prescription with medicine,Open Prescription → Click Order Medicine,Review page should open successfully with prescribed medicine details,Pass,Review page should open successfully with prescribed medicine details,Muskan,09-28-2026,Chrome,Windows
+TC-071,Medicine List,Functional,Positive,High,Verify prescribed medicine is displayed correctly,Review page is open,Acetaminophen – 1g,Check medicine section,Correct medicine name and quantity should be displayed,Pass,Correct medicine name and quantity is display as expected,Muskan,09-28-2026,Chrome,Windows
+TC-072,Medicine List,Functional,Positive,High,Verify number of medicines is displayed correctly,Review page is open,1 prescribed medicine,Check Medicines to Order section,Correct medicine count should be displayed,Pass,Correct medicine count is display as expected,Muskan,09-28-2026,Chrome,Windows
+TC-073,Medicine List,Functional,Positive,High,Verify user can remove medicine from order,Medicine is displayed on review page,Acetaminophen – 1g,Click delete icon,Selected medicine should be removed from the order list,Pass,Selected medicine should be removed from the order list as expected,Muskan,09-28-2026,Chrome,Windows

@@ -13,6 +13,7 @@ import {
   ZoomOut,
   RefreshCw
 } from "lucide-react";
+import { getSavedPatientLocation, savePatientLocation, reverseGeocodeCoords } from "@/lib/patientLocation";
 
 // Fallback coordinates for major Indian cities if lat/lng is missing
 const CITY_COORDS = {
@@ -37,8 +38,6 @@ const CITY_COORDS = {
   "Noida, Uttar Pradesh": { lat: 28.5355, lng: 77.3910 },
   "Gurugram, Haryana": { lat: 28.4595, lng: 77.0266 },
 };
-
-import { getSavedPatientLocation, reverseGeocodeCoords } from "@/lib/patientLocation";
 
 /**
  * RealGpsMap

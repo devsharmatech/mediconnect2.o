@@ -402,7 +402,9 @@ export default function CardioConnectHome() {
     };
   }, [activeModal, isTrainingPaused]);
 
-  // Live GPS Coordinates Watcher
+  // Live GPS Coordinates Watcher with Strict Stationary Drift Guard (DOCX Issue #2)
+  const lastBearingRef = useRef(null);
+
   useEffect(() => {
     const isLive = (activeModal === "active_training" && !isTrainingPaused) ||
                    (activeModal === "walking_active" && walkingGpsEnabled);
@@ -414,19 +416,19 @@ export default function CardioConnectHome() {
           const acc = Math.round(accuracy || 999);
           setGpsAccuracy(acc);
 
-          // Handle device speed reporting
-          const isStationaryBySpeed = typeof speed === "number" && !isNaN(speed) && speed < 0.5;
-          if (typeof speed === "number" && !isNaN(speed)) {
-            if (speed >= 0.5) {
+          // Handle device hardware speed reporting if available
+          const hasHardwareSpeed = typeof speed === "number" && !isNaN(speed) && speed !== null;
+          if (hasHardwareSpeed) {
+            if (speed >= 0.6) {
               setCurrentSpeedKmH(parseFloat((speed * 3.6).toFixed(1)));
             } else {
               setCurrentSpeedKmH(0);
             }
           }
 
-          // Accuracy & stationary guard:
-          // If accuracy is poor (> 45m, e.g. Wi-Fi IP jitter) or device speed says stationary, ignore drift
-          if (acc > 45 || isStationaryBySpeed) {
+          // Strict Stationary & Desktop Wi-Fi Jitter Guard:
+          // If accuracy is weak (> 35m) or device speed says stationary (< 0.5 m/s), discard displacement
+          if (acc > 35 || (hasHardwareSpeed && speed < 0.5)) {
             setCurrentSpeedKmH(0);
             return;
           }
@@ -438,12 +440,29 @@ export default function CardioConnectHome() {
               const timeDeltaSec = (Date.now() - prevPoint.time) / 1000;
               const calcSpd = timeDeltaSec > 0 ? (dist / (timeDeltaSec / 3600)) : 0;
 
-              // Require true physical movement:
-              // - Minimum displacement of at least 10 meters (or 40% of accuracy radius)
-              // - Speed must be between normal walking/running range (1.8 km/h to 25 km/h)
-              const minDisplacement = Math.max(0.010, (acc * 0.4) / 1000);
+              // Calculate bearing to detect back-and-forth stationary Wi-Fi oscillation
+              const y = Math.sin((longitude - prevPoint.lng) * Math.PI / 180) * Math.cos(latitude * Math.PI / 180);
+              const x = Math.cos(prevPoint.lat * Math.PI / 180) * Math.sin(latitude * Math.PI / 180) -
+                        Math.sin(prevPoint.lat * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) * Math.cos((longitude - prevPoint.lng) * Math.PI / 180);
+              const currentBearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 
-              if (dist >= minDisplacement && dist < 0.25 && calcSpd >= 1.8 && calcSpd <= 25) {
+              // Check if direction flipped ~180° back to the original spot (classic Wi-Fi tower bounce)
+              let isDirectionFlip = false;
+              if (lastBearingRef.current !== null) {
+                const bearingDiff = Math.abs(currentBearing - lastBearingRef.current);
+                if (bearingDiff > 140 && bearingDiff < 220 && dist < 0.04) {
+                  isDirectionFlip = true;
+                }
+              }
+
+              // Require true physical movement:
+              // - Minimum displacement of 20 meters (or 60% of accuracy radius) to defeat desktop jitter
+              // - Discard direction flips (stationary oscillation)
+              // - Speed must be between normal walking/running range (2.0 km/h to 20 km/h)
+              const minDisplacement = Math.max(0.020, (acc * 0.6) / 1000);
+
+              if (!isDirectionFlip && dist >= minDisplacement && dist < 0.25 && calcSpd >= 2.0 && calcSpd <= 20) {
+                lastBearingRef.current = currentBearing;
                 const newDist = parseFloat((realGpsDistanceKm + dist).toFixed(3));
                 setRealGpsDistanceKm(newDist);
                 setSessionDistanceKm(newDist);
@@ -452,8 +471,8 @@ export default function CardioConnectHome() {
                   setWalkingDistanceInput(newDist.toFixed(2));
                 }
 
-                if (typeof speed !== "number" || isNaN(speed)) {
-                  setCurrentSpeedKmH(parseFloat(Math.min(calcSpd, 25).toFixed(1)));
+                if (!hasHardwareSpeed) {
+                  setCurrentSpeedKmH(parseFloat(Math.min(calcSpd, 18).toFixed(1)));
                 }
                 return [...prev, { lat: latitude, lng: longitude, time: Date.now(), speed }];
               } else {
@@ -482,7 +501,7 @@ export default function CardioConnectHome() {
         watchIdRef.current = null;
       }
     };
-  }, [activeModal, isTrainingPaused, gpsStatus, walkingGpsEnabled, realGpsDistanceKm]);
+  }, [activeModal, isTrainingPaused, gpsStatus, walkingGpsEnabled]);
 
   // Timer loop for Active Heart Training (CC-03 / CC-04) - strictly real physical telemetry only
   useEffect(() => {
@@ -714,6 +733,15 @@ export default function CardioConnectHome() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/heart-health"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-[5px] text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
+              title="Update or Retake Cardio Assessment"
+            >
+              <Heart className="w-3.5 h-3.5" />
+              <span className="hidden xs:inline">Update Assessment</span>
+            </Link>
+
             <Link
               href="/heart-health-history"
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-sky-50 hover:bg-sky-100 text-[#0067A1] rounded-[5px] text-xs font-semibold border border-sky-200 transition-colors shadow-2xs cursor-pointer"
@@ -1036,14 +1064,17 @@ export default function CardioConnectHome() {
           </section>
         </div>
 
-        {/* ── OPTIONAL SECONDARY ACTION: CARDIO SCREENING ── */}
+        {/* ── OPTIONAL SECONDARY ACTION: CARDIO SCREENING / UPDATE ASSESSMENT ── */}
         <div className="p-3.5 bg-white rounded-[5px] border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-          <span className="text-slate-700 font-medium">Looking for a clinical cardiovascular evaluation?</span>
+          <div>
+            <span className="text-slate-900 font-bold block">Need to update your clinical vitals or retake assessment?</span>
+            <span className="text-slate-500 text-[11px]">Log new blood pressure, lipid panel, or lifestyle readings to refresh your longitudinal trajectory.</span>
+          </div>
           <Link
             href="/heart-health"
-            className="text-[#0067A1] font-semibold hover:underline flex items-center gap-1 shrink-0"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-[5px] font-semibold text-xs transition-colors shadow-2xs shrink-0 cursor-pointer"
           >
-            <span>Complete Heart Health Assessment</span>
+            <span>Update / Retake Assessment</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -1710,11 +1741,22 @@ export default function CardioConnectHome() {
             </div>
 
             {/* Sticky Footer */}
-            <div className="shrink-0 p-4 sm:p-5 border-t border-slate-100 bg-white z-30 pb-12 sm:pb-5 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+            <div className="shrink-0 p-4 sm:p-5 border-t border-slate-100 bg-white z-30 pb-12 sm:pb-5 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveModal(null);
+                  router.push("/heart-health");
+                }}
+                className="w-full py-2.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200 font-semibold text-xs rounded-[5px] transition-colors cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Heart className="w-3.5 h-3.5" />
+                <span>Update / Retake Assessment (Add New Vitals)</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="w-full py-2.5 bg-[#0067A1] text-white font-medium text-xs rounded-[5px] hover:bg-[#004F7C] cursor-pointer"
+                className="w-full py-2 bg-slate-100 text-slate-700 font-medium text-xs rounded-[5px] hover:bg-slate-200 cursor-pointer"
               >
                 Close Spectrum
               </button>

@@ -48,6 +48,8 @@ export default function GamifiedHeartHealthAssessment() {
     palpitations: false
   });
 
+  const [hasPreviousAssessment, setHasPreviousAssessment] = useState(false);
+
   // Auto-scroll to top when advancing steps so header is always in view
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -55,12 +57,14 @@ export default function GamifiedHeartHealthAssessment() {
     }
   }, [currentStep]);
 
-  // Auto-fill Age & Gender from Profile (SP-07 P0-02)
+  // Auto-fill Age, Gender & Existing Assessment Data from Database (DOCX Issue #1)
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('userData');
+      let resolvedUserId = null;
+      const stored = localStorage.getItem('userData') || localStorage.getItem('user');
       if (stored) {
         const u = JSON.parse(stored);
+        resolvedUserId = u.id || u.user_id || u.user?.id || localStorage.getItem('userId');
 
         // ── Age from DOB ──
         const dobStr = u.user?.details?.date_of_birth || u.details?.date_of_birth || u.date_of_birth;
@@ -73,7 +77,6 @@ export default function GamifiedHeartHealthAssessment() {
             if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
               calculatedAge--;
             }
-            // Clamp to slider range (18–100)
             const clampedAge = Math.max(18, Math.min(100, calculatedAge));
             if (clampedAge > 0) {
               setFormData(prev => ({ ...prev, age: clampedAge }));
@@ -99,9 +102,46 @@ export default function GamifiedHeartHealthAssessment() {
         }
       }
 
-      const userId = localStorage.getItem('userId');
-      if (userId) {
-        fetch(`/api/patient/profile?id=${userId}`)
+      const uid = resolvedUserId || localStorage.getItem('userId');
+      if (uid) {
+        // Fetch existing heart assessment to prefill user's previous vitals
+        fetch(`/api/health/assessments?userId=${uid}&type=heart&limit=1`)
+          .then(r => r.json())
+          .then(res => {
+            const assessment = res?.data?.assessments?.[0];
+            const inputs = assessment?.heart_health_inputs?.[0];
+            if (inputs) {
+              setHasPreviousAssessment(true);
+              setFormData(prev => ({
+                ...prev,
+                age: inputs.age ? Number(inputs.age) : prev.age,
+                gender: inputs.gender ? String(inputs.gender).toLowerCase() : prev.gender,
+                height: inputs.height_cm ? Number(inputs.height_cm) : prev.height,
+                weight: inputs.weight_kg ? Number(inputs.weight_kg) : prev.weight,
+                systolicBP: inputs.systolic_bp ? Number(inputs.systolic_bp) : prev.systolicBP,
+                diastolicBP: inputs.diastolic_bp ? Number(inputs.diastolic_bp) : prev.diastolicBP,
+                restingHeartRate: inputs.resting_heart_rate ? Number(inputs.resting_heart_rate) : prev.restingHeartRate,
+                totalCholesterol: inputs.total_cholesterol ? Number(inputs.total_cholesterol) : prev.totalCholesterol,
+                hdlCholesterol: inputs.hdl_cholesterol ? Number(inputs.hdl_cholesterol) : prev.hdlCholesterol,
+                ldlCholesterol: inputs.ldl_cholesterol ? Number(inputs.ldl_cholesterol) : prev.ldlCholesterol,
+                triglycerides: inputs.triglycerides ? Number(inputs.triglycerides) : prev.triglycerides,
+                fastingGlucose: inputs.fasting_glucose ? Number(inputs.fasting_glucose) : prev.fastingGlucose,
+                hba1c: inputs.hba1c ? Number(inputs.hba1c) : prev.hba1c,
+                smokingStatus: inputs.smoking_status || prev.smokingStatus,
+                physicalActivity: inputs.physical_activity || prev.physicalActivity,
+                alcoholConsumption: inputs.alcohol_consumption || prev.alcoholConsumption,
+                familyHistory: inputs.family_history === true,
+                hypertensionHistory: inputs.hypertension_history === true,
+                diabetesHistory: inputs.diabetes_history === true,
+                chestPain: inputs.chest_pain === true,
+                breathlessness: inputs.breathlessness === true,
+                palpitations: inputs.palpitations === true,
+              }));
+            }
+          })
+          .catch(err => console.warn("Failed to fetch previous assessment:", err));
+
+        fetch(`/api/patient/profile?id=${uid}`)
           .then(r => r.json())
           .then(res => {
             if (res.success && res.data) {
@@ -123,7 +163,7 @@ export default function GamifiedHeartHealthAssessment() {
           .catch(err => console.warn("Failed background profile fetch in heart-health:", err));
       }
     } catch (e) {
-      console.warn("Could not load profile data:", e);
+      console.warn("Could not load profile or previous assessment data:", e);
     }
   }, []);
 
@@ -352,6 +392,21 @@ export default function GamifiedHeartHealthAssessment() {
             For severe chest pain, sudden breathlessness, fainting, or acute symptoms, seek immediate emergency medical care. This assessment is not a diagnostic tool.
           </p>
         </motion.div>
+
+        {/* ── Existing Vitals Auto-Loaded Banner (DOCX Issue #1) ── */}
+        {hasPreviousAssessment && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-sky-50 border border-sky-200 rounded-lg p-2.5 sm:p-3 flex items-start gap-2 sm:gap-2.5 text-[11px] sm:text-xs text-slate-800 leading-relaxed shadow-2xs"
+          >
+            <FaSync className="w-3.5 h-3.5 text-[#0067A1] shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-[#003358]">Previous Assessment Loaded: </span>
+              Your existing clinical vitals have been prefilled. Update any new blood pressure, cholesterol, or lifestyle readings below to refresh your longitudinal trajectory.
+            </div>
+          </motion.div>
+        )}
 
         {/* ── Step Progress Indicator (Connected Circular Stepper) ── */}
         <motion.div

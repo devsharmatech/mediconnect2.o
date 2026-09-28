@@ -22,57 +22,15 @@ export async function GET(req) {
     const checkpoint = (searchParams.get("checkpoint") || "7D").toUpperCase();
     let userId = searchParams.get("user_id");
 
-    const allowedCheckpoints = ["7D", "15D", "30D", "45D", "LONG"];
+    const allowedCheckpoints = ["7D", "15D", "30D", "45D", "60D", "90D", "LONG"];
     if (!allowedCheckpoints.includes(checkpoint)) {
-      return failure("Invalid checkpoint. Allowed: 7D, 15D, 30D, 45D, LONG", "invalid_checkpoint", 400, {
+      return failure("Invalid checkpoint. Allowed: 7D, 15D, 30D, 45D, 60D, 90D, LONG", "invalid_checkpoint", 400, {
         headers: corsHeaders
       });
     }
 
-    const daysMap = { "7D": 7, "15D": 15, "30D": 30, "45D": 45, "LONG": 90 };
+    const daysMap = { "7D": 7, "15D": 15, "30D": 30, "45D": 45, "60D": 60, "90D": 90, "LONG": 120 };
     const days = daysMap[checkpoint] || 7;
-
-    // CC-09 Rule: "Later" checkpoint maps to LONG and returns dataState: 'later'
-    if (checkpoint === "LONG") {
-      return success("Progress data fetched successfully.", {
-        checkpoint: "LONG",
-        days,
-        dataState: "later",
-        generatedAt: new Date().toISOString(),
-        activity: {
-          trend: "pending",
-          status: "Available later",
-          totalMinutes: 0,
-          referenceBand: "150 - 300 min/week",
-          dataPoints: []
-        },
-        steps: {
-          trend: "pending",
-          status: "Available later",
-          averageDailySteps: 0,
-          goalReference: 10000,
-          dataPoints: []
-        },
-        spectrum: {
-          trend: "pending",
-          status: "Available later",
-          availableCount: 0,
-          totalCount: 11,
-          factors: [],
-          trajectory: []
-        },
-        milestones: {
-          achievedCount: 0,
-          totalCount: 4,
-          status: "Available later",
-          items: []
-        },
-        summary: {
-          text: "This checkpoint is not yet available. Continue recording regular activity and screenings to unlock longitudinal projections.",
-          status: "Available later"
-        }
-      }, 200, { headers: corsHeaders });
-    }
 
     // Resolve User ID: if not provided, find the active patient with heart assessments in database
     if (!userId) {
