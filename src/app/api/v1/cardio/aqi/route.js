@@ -167,7 +167,7 @@ export async function GET(req) {
         category: cachedRecord.category || catInfo.category,
         description: catInfo.description,
         source: cachedRecord.source || "CPCB Telemetry / Open-Meteo Air Quality",
-        location: cachedRecord.location || resolvedLocation,
+        location: resolvedLocation || cachedRecord.location,
         latitude: lat,
         longitude: lng,
         dominant_pollutant: cachedRecord.dominant_pollutant || "PM2.5",

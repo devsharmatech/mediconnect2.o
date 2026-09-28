@@ -105,6 +105,8 @@ export default function CardioConnectHome() {
   const [isAqiLoading, setIsAqiLoading] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [citySearchInput, setCitySearchInput] = useState("");
+  const lastAqiFetchKeyRef = useRef("");
+  const isFetchingAqiRef = useRef(false);
   const POPULAR_CITIES = [
     "Bulandshahr", "Delhi NCR", "Noida", "Greater Noida",
     "Ghaziabad", "Gurugram", "Meerut", "Lucknow",
@@ -182,11 +184,26 @@ export default function CardioConnectHome() {
 
   // Fetch CC-13 Real AQI Data & Persist to Database
   const fetchAqiData = async (cityOverride, latOverride, lngOverride, forceRefresh = false) => {
+    const targetCity = cityOverride || savedUserCity || "Bulandshahr, Uttar Pradesh";
+    const targetLat = latOverride !== undefined ? latOverride : (gpsPoints?.[0]?.lat || null);
+    const targetLng = lngOverride !== undefined ? lngOverride : (gpsPoints?.[0]?.lng || null);
+
+    const latKey = targetLat ? Number(targetLat).toFixed(3) : "null";
+    const lngKey = targetLng ? Number(targetLng).toFixed(3) : "null";
+    const fetchKey = `${targetCity}_${latKey}_${lngKey}`;
+
+    if (!forceRefresh && lastAqiFetchKeyRef.current === fetchKey) {
+      return;
+    }
+
+    if (isFetchingAqiRef.current && !forceRefresh) {
+      return;
+    }
+
     try {
+      isFetchingAqiRef.current = true;
+      lastAqiFetchKeyRef.current = fetchKey;
       setIsAqiLoading(true);
-      const targetCity = cityOverride || savedUserCity || "Bulandshahr, Uttar Pradesh";
-      const targetLat = latOverride !== undefined ? latOverride : (gpsPoints?.[0]?.lat || null);
-      const targetLng = lngOverride !== undefined ? lngOverride : (gpsPoints?.[0]?.lng || null);
 
       let url = `/api/v1/cardio/aqi?city=${encodeURIComponent(targetCity)}`;
       if (targetLat && targetLng) {
@@ -200,20 +217,12 @@ export default function CardioConnectHome() {
       const json = await res.json();
       if (json.success && json.data) {
         setAqiDetailData(json.data);
-        if (json.data.location) {
-          setSavedUserCity(json.data.location);
-          savePatientLocation({
-            city: json.data.location,
-            lat: json.data.latitude || targetLat,
-            lng: json.data.longitude || targetLng,
-            aqi: json.data.aqi_value,
-          });
-        }
       }
     } catch (e) {
       console.warn("Could not fetch AQI:", e);
     } finally {
       setIsAqiLoading(false);
+      isFetchingAqiRef.current = false;
     }
   };
 

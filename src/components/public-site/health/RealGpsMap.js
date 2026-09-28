@@ -64,6 +64,7 @@ export default function RealGpsMap({
   const [isLeafletReady, setIsLeafletReady] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(15);
   const [resolvedCityName, setResolvedCityName] = useState(locationName || "");
+  const lastReverseGeocodeRef = useRef("");
 
   // Determine effective coordinates: explicitly passed coords -> saved patient coords -> city lookup -> default
   const savedPatientLoc = typeof window !== "undefined" ? getSavedPatientLocation() : null;
@@ -92,8 +93,14 @@ export default function RealGpsMap({
       return;
     }
     if (hasCustomCoords) {
+      const coordKey = `${Number(effectiveLat).toFixed(3)}_${Number(effectiveLng).toFixed(3)}`;
+      if (lastReverseGeocodeRef.current === coordKey) {
+        return;
+      }
+      lastReverseGeocodeRef.current = coordKey;
+
       reverseGeocodeCoords(effectiveLat, effectiveLng).then((city) => {
-        if (city && city !== "Current Location" && city !== "Delhi") {
+        if (city && city !== "Current Location" && city !== "Delhi" && city !== saved?.city) {
           setResolvedCityName(city);
           savePatientLocation({
             city,

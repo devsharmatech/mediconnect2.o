@@ -64,10 +64,18 @@ export function savePatientLocation(data) {
       updatedAt: new Date().toISOString(),
     };
 
+    const isSameCity = existing.city === updated.city;
+    const isSameLat = Math.abs((Number(existing.lat) || 0) - (Number(updated.lat) || 0)) < 0.0005;
+    const isSameLng = Math.abs((Number(existing.lng) || 0) - (Number(updated.lng) || 0)) < 0.0005;
+    const isSameAqi = existing.aqi === updated.aqi;
+    const hasMeaningfulChange = !isSameCity || !isSameLat || !isSameLng || !isSameAqi || Boolean(data.forceReset);
+
     localStorage.setItem(PATIENT_LOCATION_KEY, JSON.stringify(updated));
 
-    // Dispatch global event so all components/modals on the page update simultaneously
-    window.dispatchEvent(new CustomEvent("patient-location-updated", { detail: updated }));
+    // Dispatch global event only if something changed and not silenced to prevent ping-pong loops
+    if (!data.silent && hasMeaningfulChange) {
+      window.dispatchEvent(new CustomEvent("patient-location-updated", { detail: updated }));
+    }
     return updated;
   } catch (e) {
     console.warn("Failed to save patient location to localStorage:", e);
