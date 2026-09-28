@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   Activity, Heart, ShieldAlert, ChevronLeft, Download,
   TrendingUp, AlertTriangle, Stethoscope, Calendar, Clock,
-  User, Ruler, Scale, Zap, Info, CheckCircle2, Printer, X, FileText
+  User, Ruler, Scale, Zap, Info, CheckCircle2, Printer, X, FileText, Eye
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AssessmentTrendChart from '@/components/public-site/health/AssessmentTrendChart';
@@ -117,10 +117,10 @@ export default function HeartHealthResult() {
           <div className="w-14 h-14 rounded-[5px] bg-[#003358]/10 text-[#003358] flex items-center justify-center mx-auto mb-4">
             <Heart className="w-7 h-7" />
           </div>
-          <span className="inline-block px-2.5 py-0.5 rounded-[5px] text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 mb-2">
+          <span className="inline-block px-2.5 py-0.5 rounded-[5px] text-[10px] font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200 mb-2">
             Open Access Rule
           </span>
-          <h2 className="text-lg font-bold text-slate-900 mb-2">No Compulsory Assessment</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">No Compulsory Assessment</h2>
           <p className="text-xs text-slate-900 mb-6 leading-relaxed">
             CardioConnect wellness activities are open to every patient without requiring a prior assessment. You can launch Heart Training sessions, test functional capacity with the 6-Minute Walking Test, or view the factor spectrum.
           </p>
@@ -470,22 +470,22 @@ export default function HeartHealthResult() {
             <div className="grid grid-cols-2 gap-2.5 my-2">
               <div className="p-2.5 bg-slate-50/80 rounded-[5px] border border-slate-200/80">
                 <span className="text-[10px] uppercase font-semibold text-slate-800 block">Resting Heart Rate</span>
-                <span className="text-base font-extrabold text-slate-900 font-mono mt-0.5 block">{inputs.resting_heart_rate || 72} bpm</span>
+                <span className="text-base font-semibold text-slate-900 font-mono mt-0.5 block">{inputs.resting_heart_rate || 72} bpm</span>
                 <span className="text-[10px] text-emerald-600 font-medium">Recorded Metric</span>
               </div>
               <div className="p-2.5 bg-slate-50/80 rounded-[5px] border border-slate-200/80">
                 <span className="text-[10px] uppercase font-semibold text-slate-800 block">Blood Pressure</span>
-                <span className="text-base font-extrabold text-slate-900 font-mono mt-0.5 block">{inputs.systolic_bp || 120}/{inputs.diastolic_bp || 80} mmHg</span>
+                <span className="text-base font-semibold text-slate-900 font-mono mt-0.5 block">{inputs.systolic_bp || 120}/{inputs.diastolic_bp || 80} mmHg</span>
                 <span className="text-[10px] text-slate-900 font-medium">ESC 2024 Framework</span>
               </div>
               <div className="p-2.5 bg-slate-50/80 rounded-[5px] border border-slate-200/80">
                 <span className="text-[10px] uppercase font-semibold text-slate-800 block">Physical Activity</span>
-                <span className="text-base font-extrabold text-slate-900 font-mono mt-0.5 block">{inputs.physical_activity_minutes ? `${inputs.physical_activity_minutes}m` : '150m'}/wk</span>
+                <span className="text-base font-semibold text-slate-900 font-mono mt-0.5 block">{inputs.physical_activity_minutes ? `${inputs.physical_activity_minutes}m` : '150m'}/wk</span>
                 <span className="text-[10px] text-slate-900 font-medium">Ref: 150–300 min/wk</span>
               </div>
               <div className="p-2.5 bg-slate-50/80 rounded-[5px] border border-slate-200/80">
                 <span className="text-[10px] uppercase font-semibold text-slate-800 block">Body Mass Index</span>
-                <span className="text-base font-extrabold text-slate-900 font-mono mt-0.5 block">
+                <span className="text-base font-semibold text-slate-900 font-mono mt-0.5 block">
                   {inputs.bmi ? Number(inputs.bmi).toFixed(1) : (inputs.height_cm && inputs.weight_kg ? (inputs.weight_kg / ((inputs.height_cm/100)**2)).toFixed(1) : '22.5')}
                 </span>
                 <span className="text-[10px] text-slate-900 font-medium">kg/m²</span>
@@ -743,7 +743,7 @@ export default function HeartHealthResult() {
                   setShowFormatModal(false);
                   setShowPreviewModal(true);
                 }}
-                className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-800 rounded-[5px] text-xs font-bold border border-slate-300 transition-colors cursor-pointer flex items-center gap-1.5"
+                className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-800 rounded-[5px] text-xs font-medium border border-slate-300 transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Eye className="w-3.5 h-3.5" />
                 <span>Preview</span>
@@ -756,7 +756,7 @@ export default function HeartHealthResult() {
                     setShowFormatModal(false);
                     handlePrintReport(selectedFormat);
                   }}
-                  className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-[5px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-[5px] text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Print</span>
@@ -767,7 +767,7 @@ export default function HeartHealthResult() {
                     setShowFormatModal(false);
                     handleDownloadPDF(selectedFormat);
                   }}
-                  className="px-4 py-2 bg-[#0067A1] hover:bg-[#005282] text-white rounded-[5px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
+                  className="px-4 py-2 bg-[#0067A1] hover:bg-[#005282] text-white rounded-[5px] text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download Format {selectedFormat} PDF</span>
