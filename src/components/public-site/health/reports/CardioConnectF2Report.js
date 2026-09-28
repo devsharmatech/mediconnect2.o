@@ -42,7 +42,7 @@ export default function CardioConnectF2Report({
     assessmentData?.user_name || 
     assessmentData?.user?.name || 
     (typeof window !== "undefined" && (localStorage.getItem("userName") || localStorage.getItem("patient_name") || JSON.parse(localStorage.getItem("userData") || "{}")?.name)) || 
-    "Sneha Kapoor";
+    "Patient (CardioConnect)";
 
   const age = Math.max(18, Number(rawInputs?.age || demographics?.age || patientData?.age || 29));
   const gender = rawInputs?.gender || demographics?.gender || patientData?.gender || "Female";
@@ -60,21 +60,21 @@ export default function CardioConnectF2Report({
   const height = rawInputs?.height_cm || demographics?.height || 165;
   const rawBmi = rawInputs?.bmi ?? demographics?.bmi ?? (height ? (weight / ((height/100)*(height/100))) : 22.8);
   const bmi = !isNaN(Number(rawBmi)) ? Number(rawBmi).toFixed(1) : "22.8";
-  const activityMin = Number(rawInputs?.physical_activity_minutes || lifestyle?.physicalActivity || 150);
-  const steps = Number(rawInputs?.daily_steps || 7420).toLocaleString("en-IN");
+  const activityMin = Number(rawInputs?.physical_activity_minutes ?? rawInputs?.weekly_activity_minutes ?? lifestyle?.physicalActivity ?? 0);
+  const stepsNum = Number(rawInputs?.daily_steps ?? rawInputs?.steps ?? 0);
+  const steps = stepsNum.toLocaleString("en-IN");
   const smoking = rawInputs?.smoking_status || lifestyle?.smokingStatus || "Never";
   const diabetes = rawInputs?.diabetes_history !== undefined ? (rawInputs.diabetes_history ? "Present" : "No known history") : (medicalHistory?.diabetesHistory ? "Present" : "No known history");
   const familyHistory = rawInputs?.family_cardiac_history !== undefined ? (rawInputs.family_cardiac_history ? "Present" : "None reported") : (medicalHistory?.familyCardiacHistory ? "Present" : "None reported");
   const ldl = rawInputs?.ldl_cholesterol || lipids?.ldlCholesterol || 102;
   const hba1c = rawInputs?.hba1c || bloodSugar?.hba1c || "5.2%";
-  const aqi = rawInputs?.aqi || 65;
-  const city = rawInputs?.city || rawInputs?.location || "Delhi NCR";
+  const aqi = rawInputs?.aqi || 85;
+  const city = rawInputs?.city || rawInputs?.location || "Current Location";
 
   // Checkpoint projections based on actual daily steps
-  const stepsNum = Number(rawInputs?.daily_steps || 7420);
   const cp7_act = activityMin;
   const cp7_steps = (stepsNum * 7).toLocaleString("en-IN");
-  const cp7_sess = Math.max(2, Math.round(activityMin / 45));
+  const cp7_sess = activityMin > 0 ? Math.max(1, Math.round(activityMin / 45)) : 0;
   const cp15_act = Math.round(activityMin * 2.1);
   const cp15_steps = (stepsNum * 15).toLocaleString("en-IN");
   const cp15_sess = Math.round(cp7_sess * 2.1);

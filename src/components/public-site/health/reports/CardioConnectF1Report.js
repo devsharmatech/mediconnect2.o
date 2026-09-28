@@ -39,7 +39,7 @@ export default function CardioConnectF1Report({
     assessmentData?.user_name || 
     assessmentData?.user?.name || 
     (typeof window !== "undefined" && (localStorage.getItem("userName") || localStorage.getItem("patient_name") || JSON.parse(localStorage.getItem("userData") || "{}")?.name)) || 
-    "Sneha Kapoor";
+    "Patient (CardioConnect)";
 
   const age = Math.max(18, Number(rawInputs?.age || demographics?.age || patientData?.age || 29));
   const gender = rawInputs?.gender || demographics?.gender || patientData?.gender || "Female";
@@ -50,11 +50,11 @@ export default function CardioConnectF1Report({
     year: "numeric"
   }) + " · Activity";
 
-  const heartTrainingMin = Number(rawInputs?.physical_activity_minutes || lifestyle?.physicalActivity || 150);
-  const stepsToday = Number(rawInputs?.daily_steps || 7420).toLocaleString("en-IN");
-  const sessionsCount = Number(rawInputs?.weekly_sessions || (heartTrainingMin > 100 ? 3 : 2));
-  const aqiValue = rawInputs?.aqi || 65;
-  const aqiCity = rawInputs?.city || rawInputs?.location || "Delhi NCR";
+  const heartTrainingMin = Number(rawInputs?.physical_activity_minutes ?? rawInputs?.weekly_activity_minutes ?? lifestyle?.physicalActivity ?? 0);
+  const stepsToday = Number(rawInputs?.daily_steps ?? rawInputs?.steps ?? 0).toLocaleString("en-IN");
+  const sessionsCount = Number(rawInputs?.weekly_sessions ?? (heartTrainingMin > 0 ? Math.max(1, Math.round(heartTrainingMin / 45)) : 0));
+  const aqiValue = rawInputs?.aqi || 85;
+  const aqiCity = rawInputs?.city || rawInputs?.location || "Current Location";
 
   return (
     <div
@@ -206,25 +206,33 @@ export default function CardioConnectF1Report({
               </tr>
             </thead>
             <tbody>
-              {(() => {
-                const perSess = Math.round(heartTrainingMin / sessionsCount);
-                const sessionTypes = ["Heart Training", "Heart Training", "Heart Training", "Walking session", "Active session"];
-                const rows = [];
-                for (let i = 0; i < Math.min(sessionsCount, 3); i++) {
-                  const label = sessionTypes[i % sessionTypes.length];
-                  const dur = i === 0 ? perSess : i === 1 ? Math.round(perSess * 0.9) : Math.round(heartTrainingMin - perSess - Math.round(perSess * 0.9));
-                  rows.push(
-                    <tr key={i} style={{ borderBottom: i < Math.min(sessionsCount, 3) - 1 ? "1px solid #e2e8f0" : "none", backgroundColor: i % 2 === 0 ? "#ffffff" : "#f8fafc" }}>
-                      <td style={{ padding: "7px 12px", fontWeight: "700", color: "#0f2d4a", textAlign: "left" }}>{label}</td>
-                      <td style={{ padding: "7px 12px", textAlign: "center", color: "#334155", fontVariantNumeric: "tabular-nums" }}>{Math.max(5, dur)} min</td>
-                      <td style={{ padding: "7px 12px", textAlign: "center", color: "#0d9488", fontWeight: "700" }}>Completed</td>
-                      <td style={{ padding: "7px 12px", textAlign: "center", color: "#334155" }}>Recorded</td>
-                      <td style={{ padding: "7px 12px", color: "#64748b", textAlign: "left" }}>Activity event</td>
-                    </tr>
-                  );
-                }
-                return rows;
-              })()}
+              {sessionsCount === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ padding: "14px 12px", textAlign: "center", color: "#64748b", fontSize: "11px" }}>
+                    No recorded training sessions this week. Walk or begin Heart Training in CardioConnect to log sessions.
+                  </td>
+                </tr>
+              ) : (
+                (() => {
+                  const perSess = Math.max(5, Math.round(heartTrainingMin / sessionsCount));
+                  const sessionTypes = ["Heart Training", "Heart Training", "Walking session", "Active session"];
+                  const rows = [];
+                  for (let i = 0; i < Math.min(sessionsCount, 3); i++) {
+                    const label = sessionTypes[i % sessionTypes.length];
+                    const dur = i === 0 ? perSess : Math.round(perSess * 0.9);
+                    rows.push(
+                      <tr key={i} style={{ borderBottom: i < Math.min(sessionsCount, 3) - 1 ? "1px solid #e2e8f0" : "none", backgroundColor: i % 2 === 0 ? "#ffffff" : "#f8fafc" }}>
+                        <td style={{ padding: "7px 12px", fontWeight: "700", color: "#0f2d4a", textAlign: "left" }}>{label}</td>
+                        <td style={{ padding: "7px 12px", textAlign: "center", color: "#334155", fontVariantNumeric: "tabular-nums" }}>{dur} min</td>
+                        <td style={{ padding: "7px 12px", textAlign: "center", color: "#0d9488", fontWeight: "700" }}>Completed</td>
+                        <td style={{ padding: "7px 12px", textAlign: "center", color: "#334155" }}>Recorded</td>
+                        <td style={{ padding: "7px 12px", color: "#64748b", textAlign: "left" }}>Activity event</td>
+                      </tr>
+                    );
+                  }
+                  return rows;
+                })()
+              )}
             </tbody>
           </table>
         </div>

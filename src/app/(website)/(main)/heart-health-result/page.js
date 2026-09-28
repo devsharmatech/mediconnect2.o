@@ -32,6 +32,7 @@ export default function HeartHealthResult() {
   const [selectedFormat, setSelectedFormat] = useState("F4");
   const [showFormatModal, setShowFormatModal] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [cardioHomeData, setCardioHomeData] = useState(null);
 
   const reportRef = useRef(null);
   const router = useRouter();
@@ -47,13 +48,31 @@ export default function HeartHealthResult() {
     }
 
     const userDataRaw = typeof window !== 'undefined' ? localStorage.getItem('userData') : null;
+    let userId = null;
     if (userDataRaw) {
       try {
-        setPatientData(JSON.parse(userDataRaw));
+        const parsed = JSON.parse(userDataRaw);
+        setPatientData(parsed);
+        userId = parsed.user_id || parsed.user?.id || parsed.id;
       } catch (e) {
         console.warn("Could not parse userData", e);
       }
     }
+
+    // Fetch live RDS activity & step statistics
+    const fetchLiveCardioData = async () => {
+      try {
+        const url = userId ? `/api/v1/cardio/home?user_id=${userId}` : '/api/v1/cardio/home';
+        const res = await fetch(url);
+        const json = await res.json();
+        if (json.success && json.data) {
+          setCardioHomeData(json.data);
+        }
+      } catch (err) {
+        console.warn("Could not load live RDS cardio data:", err);
+      }
+    };
+    fetchLiveCardioData();
 
     setLoading(false);
   }, [router]);
@@ -159,6 +178,39 @@ export default function HeartHealthResult() {
     );
   }
 
+  const effectiveAssessmentData = React.useMemo(() => {
+    if (!assessmentData) return null;
+    const baseInputs = assessmentData.heart_health_inputs?.[0] || {};
+
+    // Live AWS RDS activity metrics
+    const liveSteps = cardioHomeData?.today_movement?.steps !== undefined 
+      ? Number(cardioHomeData.today_movement.steps) 
+      : (baseInputs.daily_steps !== undefined ? Number(baseInputs.daily_steps) : 0);
+
+    const liveWeeklyMin = cardioHomeData?.weekly_activity?.recorded_minutes !== undefined 
+      ? Number(cardioHomeData.weekly_activity.recorded_minutes) 
+      : (baseInputs.physical_activity_minutes !== undefined ? Number(baseInputs.physical_activity_minutes) : 0);
+
+    const liveAqi = cardioHomeData?.aqi_context?.value || baseInputs.aqi || 85;
+    const liveLocation = cardioHomeData?.aqi_context?.location || baseInputs.location || baseInputs.city || "Current Location";
+
+    return {
+      ...assessmentData,
+      heart_health_inputs: [
+        {
+          ...baseInputs,
+          daily_steps: liveSteps,
+          steps: liveSteps,
+          physical_activity_minutes: liveWeeklyMin,
+          weekly_sessions: liveWeeklyMin > 0 ? Math.max(1, Math.round(liveWeeklyMin / 45)) : 0,
+          aqi: liveAqi,
+          city: liveLocation,
+          location: liveLocation
+        }
+      ]
+    };
+  }, [assessmentData, cardioHomeData]);
+
   const {
     health_score = 75,
     risk_level = 'moderate',
@@ -168,9 +220,9 @@ export default function HeartHealthResult() {
     created_at = new Date().toISOString(),
     id: assessmentId,
     serial_no
-  } = assessmentData;
+  } = effectiveAssessmentData || assessmentData;
 
-  const inputs = assessmentData.heart_health_inputs?.[0] || {};
+  const inputs = (effectiveAssessmentData || assessmentData).heart_health_inputs?.[0] || {};
 
   // Formatted Serial No fallback
   const formattedSerialNo = serial_no || (assessmentId
@@ -836,26 +888,30 @@ export default function HeartHealthResult() {
               <div className="bg-white shadow-2xl ring-1 ring-black/20 overflow-x-auto max-w-full rounded-[2px]">
                 {selectedFormat === "F1" && (
                   <CardioConnectF1Report
-                    assessmentData={assessmentData}
+                    assessmentData={effectiveAssessmentData || assessmentData}
                     patientData={patientData || {}}
+                    reportRef={reportRef}
                   />
                 )}
                 {selectedFormat === "F2" && (
                   <CardioConnectF2Report
-                    assessmentData={assessmentData}
+                    assessmentData={effectiveAssessmentData || assessmentData}
                     patientData={patientData || {}}
+                    reportRef={reportRef}
                   />
                 )}
                 {selectedFormat === "F3" && (
                   <CardioConnectF3Report
-                    assessmentData={assessmentData}
+                    assessmentData={effectiveAssessmentData || assessmentData}
                     patientData={patientData || {}}
+                    reportRef={reportRef}
                   />
                 )}
                 {selectedFormat === "F4" && (
                   <CardioConnectF4Report
-                    assessmentData={assessmentData}
+                    assessmentData={effectiveAssessmentData || assessmentData}
                     patientData={patientData || {}}
+                    reportRef={reportRef}
                   />
                 )}
               </div>

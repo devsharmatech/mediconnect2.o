@@ -39,7 +39,7 @@ export default function CardioConnectF3Report({
     assessmentData?.user_name || 
     assessmentData?.user?.name || 
     (typeof window !== "undefined" && (localStorage.getItem("userName") || localStorage.getItem("patient_name") || JSON.parse(localStorage.getItem("userData") || "{}")?.name)) || 
-    "Sneha Kapoor";
+    "Patient (CardioConnect)";
 
   const age = Math.max(18, Number(rawInputs?.age || demographics?.age || patientData?.age || 29));
   const gender = rawInputs?.gender || demographics?.gender || patientData?.gender || "Female";
@@ -53,8 +53,8 @@ export default function CardioConnectF3Report({
   const weight = Number(rawInputs?.weight_kg || demographics?.weight || 62);
   const restingHr = Number(rawInputs?.resting_heart_rate || vitals?.restingHeartRate || 72);
   const walkingHr = Math.min(160, restingHr + 45);
-  const distanceM = Number(rawInputs?.walking_distance_m || rawInputs?.distance_m || 612);
-  const stepsCount = Number(rawInputs?.daily_steps || 7140).toLocaleString("en-IN");
+  const distanceM = Number(rawInputs?.walking_distance_m ?? rawInputs?.distance_m ?? 0);
+  const stepsCount = Number(rawInputs?.daily_steps ?? rawInputs?.steps ?? 0).toLocaleString("en-IN");
   const estimatedKcal = Math.round(3.8 * weight * (6 / 60)); // MET formula: MET * weight_kg * hours
 
   return (
