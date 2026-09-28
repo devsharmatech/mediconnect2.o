@@ -20,9 +20,11 @@ import {
   Check,
   Trash2,
   CheckCircle,
+  Heart,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import toast from "react-hot-toast";
 
 const formatMessageText = (message) => {
   if (!message) return "";
@@ -288,6 +290,28 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
     return "Laboratory Portal";
   };
 
+  const handleLogout = () => {
+    logoutUser("lab");
+    router.push("/lab/login");
+  };
+
+  const handleSwitchToPatient = () => {
+    const labUser = getLoggedInUser("lab");
+    if (labUser?.id) {
+      localStorage.setItem("userId", labUser.id);
+      localStorage.setItem("userRole", "patient");
+      localStorage.setItem("userData", JSON.stringify({
+        ...labUser,
+        role: "patient",
+        is_verified: true,
+      }));
+      toast.success("Switched to Patient Mode. Opening patient dashboard...");
+      window.location.href = "/dashboard";
+    } else {
+      window.location.href = "/";
+    }
+  };
+
   // Get notification icon based on type
   const getNotificationIcon = (type) => {
     switch (type) {
@@ -457,6 +481,16 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
             )}
           </div>
 
+          {/* Switch to Patient Mode / Consult Doctor */}
+          <button
+            onClick={handleSwitchToPatient}
+            className="flex items-center space-x-1.5 md:space-x-2 px-3 py-1.5 lg:py-2 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 hover:bg-pink-100 dark:hover:bg-pink-900/50 text-xs md:text-sm font-medium transition-all duration-200 border border-pink-200 dark:border-pink-800 shadow-sm cursor-pointer hover:scale-[1.02]"
+            title="Open Patient Portal to consult doctors or book appointments"
+          >
+            <Heart className="w-4 h-4 text-pink-500" />
+            <span className="hidden sm:inline">Patient Mode</span>
+          </button>
+
           {/* Profile Dropdown */}
           <div className="relative" ref={profileRef}>
             <button
@@ -489,6 +523,24 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
                   </p>
                 </div>
                 <div className="p-2">
+                  <button
+                    onClick={handleSwitchToPatient}
+                    className="flex items-center space-x-3 w-full p-2.5 rounded-xl hover:bg-pink-50 dark:hover:bg-gray-700 transition-colors cursor-pointer text-left group"
+                  >
+                    <Heart
+                      size={18}
+                      className="text-pink-500 group-hover:scale-110 transition-transform"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-800 dark:text-gray-200 block">
+                        Consult Doctor
+                      </span>
+                      <span className="text-[10px] text-pink-600 dark:text-pink-400 font-medium">
+                        Switch to Patient Mode
+                      </span>
+                    </div>
+                  </button>
+
                   <Link
                     href="/lab/profile"
                     className="flex items-center space-x-3 w-full p-3 rounded-xl hover:bg-emerald-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"

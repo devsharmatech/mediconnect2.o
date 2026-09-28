@@ -25,7 +25,7 @@ function getLoggedInUser() {
     if (typeof window === "undefined") return null;
     const role = localStorage.getItem("userRole");
     const userId = localStorage.getItem("userId");
-    if (role === "patient" && userId) return { id: userId, role };
+    if (["patient", "chemist", "lab"].includes(role) && userId) return { id: userId, role };
     return null;
 }
 

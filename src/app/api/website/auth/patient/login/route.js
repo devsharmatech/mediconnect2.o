@@ -18,7 +18,7 @@ export async function POST(req) {
     let query = supabase
       .from("users")
       .select("id, role, phone_number, is_verified")
-      .eq("role", "patient");
+      .in("role", ["patient", "chemist", "lab"]);
 
     if (phone_number) {
       const digitsOnly = String(phone_number).replace(/\D/g, "");
@@ -50,6 +50,34 @@ export async function POST(req) {
     if (error) throw error;
     if (!user) {
       return failure("No patient account found with this phone number. Please register first.", null, 404, { headers: corsHeaders });
+    }
+
+    // Auto-provision patient_details record for chemist or lab to enable doctor consultation
+    if (user.role === "chemist" || user.role === "lab") {
+      const { data: existingPt } = await supabase
+        .from("patient_details")
+        .select("id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!existingPt) {
+        let defaultName = user.role === "chemist" ? "Chemist User" : "Lab User";
+        if (user.role === "chemist") {
+          const { data: ch } = await supabase.from("chemist_details").select("pharmacy_name").eq("id", user.id).maybeSingle();
+          if (ch?.pharmacy_name) defaultName = `${ch.pharmacy_name} (Chemist)`;
+        } else if (user.role === "lab") {
+          const { data: lb } = await supabase.from("lab_details").select("lab_name").eq("id", user.id).maybeSingle();
+          if (lb?.lab_name) defaultName = `${lb.lab_name} (Lab)`;
+        }
+
+        await supabase.from("patient_details").insert({
+          id: user.id,
+          full_name: defaultName,
+          gender: "other",
+          created_at: new Date(),
+          updated_at: new Date(),
+        });
+      }
     }
 
     // Send real OTP via gateway if phone_number is provided

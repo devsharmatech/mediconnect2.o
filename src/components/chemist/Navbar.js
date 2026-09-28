@@ -909,6 +909,23 @@ export default function ChemistNavbar({ onMenuClick, sidebarOpen }) {
     router.push("/chemist/login");
   };
 
+  const handleSwitchToPatient = () => {
+    const chemist = getChemist();
+    if (chemist?.id) {
+      localStorage.setItem("userId", chemist.id);
+      localStorage.setItem("userRole", "patient");
+      localStorage.setItem("userData", JSON.stringify({
+        ...chemist,
+        role: "patient",
+        is_verified: true,
+      }));
+      toast.success("Switched to Patient Mode. Opening patient dashboard...");
+      window.location.href = "/dashboard";
+    } else {
+      window.location.href = "/";
+    }
+  };
+
   // Show custom notification toast
   const showCustomNotification = useCallback((notification) => {
     toast.custom(
@@ -1560,6 +1577,16 @@ export default function ChemistNavbar({ onMenuClick, sidebarOpen }) {
               )}
             </div>
 
+            {/* Switch to Patient Mode / Consult Doctor */}
+            <button
+              onClick={handleSwitchToPatient}
+              className="flex items-center space-x-1.5 md:space-x-2 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs md:text-sm font-medium transition-all duration-200 border border-white/20 shadow-sm cursor-pointer hover:scale-[1.02]"
+              title="Open Patient Portal to consult doctors or book tests"
+            >
+              <Heart className="w-4 h-4 text-pink-300" />
+              <span className="hidden sm:inline">Patient Mode</span>
+            </button>
+
             {/* Profile Dropdown */}
             <div className="relative" ref={profileRef}>
               <button
@@ -1592,6 +1619,24 @@ export default function ChemistNavbar({ onMenuClick, sidebarOpen }) {
                     </p>
                   </div>
                   <div className="p-2">
+                    <button
+                      onClick={handleSwitchToPatient}
+                      className="flex items-center space-x-3 w-full p-2.5 rounded-xl hover:bg-pink-50 dark:hover:bg-gray-800 transition-colors cursor-pointer text-left group"
+                    >
+                      <Heart
+                        size={18}
+                        className="text-pink-500 group-hover:scale-110 transition-transform"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-800 dark:text-gray-200 block">
+                          Consult Doctor
+                        </span>
+                        <span className="text-[10px] text-pink-600 dark:text-pink-400 font-medium">
+                          Switch to Patient Mode
+                        </span>
+                      </div>
+                    </button>
+
                     <Link
                       href="/chemist/profile"
                       className="flex items-center space-x-3 w-full p-3 rounded-xl hover:bg-[#0067A1]/5 dark:hover:bg-gray-800 transition-colors cursor-pointer"

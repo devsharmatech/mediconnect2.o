@@ -31,8 +31,8 @@ export async function POST(req) {
         // Resolve patient identity from token (NOT body)
         const caller = await resolveCallerFromRequest(req);
         if (!caller) return failure("Unauthorized", null, 401);
-        if (caller.role !== "patient") {
-            return failure("Only patient accounts can grant consent", null, 403);
+        if (!["patient", "chemist", "lab"].includes(caller.role)) {
+            return failure("Only patient, chemist, or lab accounts can grant consent", null, 403);
         }
 
         const patient_id = caller.id;
@@ -98,8 +98,8 @@ export async function GET(req) {
     try {
         const caller = await resolveCallerFromRequest(req);
         if (!caller) return failure("Unauthorized", null, 401);
-        if (caller.role !== "patient") {
-            return failure("Only patient accounts can query consent status", null, 403);
+        if (!["patient", "chemist", "lab"].includes(caller.role)) {
+            return failure("Only patient, chemist, or lab accounts can query consent status", null, 403);
         }
 
         const patient_id = caller.id;

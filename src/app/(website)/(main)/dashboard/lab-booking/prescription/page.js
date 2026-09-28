@@ -48,8 +48,8 @@ function PrescriptionLabBookingInner() {
 
         const userId = localStorage.getItem("userId");
         const userRole = localStorage.getItem("userRole");
-        if (!userId || userRole !== "patient") {
-            toast.error("Please login as a patient");
+        if (!userId || !["patient", "chemist", "lab"].includes(userRole)) {
+            toast.error("Please login to proceed");
             router.push("/website");
             return;
         }

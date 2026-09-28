@@ -325,7 +325,7 @@ export default function DoctorProfilePage() {
     const userRole =
       typeof window !== "undefined" ? localStorage.getItem("userRole") : null;
 
-    if (!patientId || userRole !== "patient") {
+    if (!patientId || !["patient", "chemist", "lab"].includes(userRole)) {
       setIsLoginOpen(true);
       return;
     }

@@ -99,6 +99,12 @@ const ProfileDropdown = ({ user, userRole, onLogout }) => {
   }, [avatarUrl]);
 
   const isDoctor = userRole === "doctor";
+  const isChemist =
+    userRole === "chemist" ||
+    (typeof window !== "undefined" && Boolean(localStorage.getItem("chemistUser")));
+  const isLab =
+    userRole === "lab" ||
+    (typeof window !== "undefined" && Boolean(localStorage.getItem("labUser")));
 
   return (
     <div className="relative hidden sm:block" ref={dropdownRef}>
@@ -167,6 +173,29 @@ const ProfileDropdown = ({ user, userRole, onLogout }) => {
 
         {/* Menu Items */}
         <div className="py-2">
+          {/* Quick Return for Dual Roles */}
+          {isChemist && (
+            <Link
+              href="/chemist/dashboard"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center px-4 py-2.5 text-sm text-teal-700 bg-teal-50 hover:bg-teal-100 group border-b border-teal-100 mb-1"
+            >
+              <FaCog className="h-4 w-4 mr-3 text-teal-600" />
+              <span className="font-semibold">Return to Chemist Panel</span>
+            </Link>
+          )}
+
+          {isLab && (
+            <Link
+              href="/lab/dashboard"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center px-4 py-2.5 text-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100 group border-b border-emerald-100 mb-1"
+            >
+              <FaCog className="h-4 w-4 mr-3 text-emerald-600" />
+              <span className="font-semibold">Return to Lab Panel</span>
+            </Link>
+          )}
+
           {/* Dashboard */}
           <Link
             href={isDoctor ? "/doctor" : "/website/dashboard"}
