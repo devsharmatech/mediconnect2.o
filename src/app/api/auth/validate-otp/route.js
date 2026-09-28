@@ -57,7 +57,12 @@ export async function POST(req) {
     }
     if (!user) return failure("User not found.", null, 404, { headers: corsHeaders });
 
-    const isTestOTP = otp === "123456" && (user.phone_number?.includes("7017580125") || process.env.NODE_ENV === "development");
+    const isPermanentTestUser = Boolean(
+      user.phone_number?.includes("9999999991") ||
+      user.phone_number?.includes("9999999992") ||
+      user.phone_number?.includes("7017580125")
+    );
+    const isTestOTP = otp === "123456" && (isPermanentTestUser || process.env.NODE_ENV === "development");
     if (user.otp_code !== otp && !isTestOTP)
       return failure("Invalid OTP.", null, 400, { headers: corsHeaders });
 
@@ -68,8 +73,8 @@ export async function POST(req) {
       .from("users")
       .update({
         is_verified: true,
-        otp_code: null,
-        otp_expires_at: null,
+        otp_code: isPermanentTestUser ? "123456" : null,
+        otp_expires_at: isPermanentTestUser ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) : null,
         updated_at: new Date(),
       })
       .eq("id", user.id);

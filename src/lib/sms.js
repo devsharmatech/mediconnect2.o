@@ -21,9 +21,12 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
         }
         formattedNumber = "91" + formattedNumber;
 
-        // 2. Generate a real random 6-digit OTP
-        const otp = String(Math.floor(100000 + Math.random() * 900000));
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+        // 2. Generate a real random 6-digit OTP (or bypass OTP for test accounts)
+        const isTestNumber = formattedNumber.endsWith("9999999991") || formattedNumber.endsWith("9999999992") || formattedNumber.endsWith("7017580125");
+        const otp = isTestNumber ? "123456" : String(Math.floor(100000 + Math.random() * 900000));
+        const expiresAt = isTestNumber 
+            ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+            : new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
         // 3. Update database users table
         const { error: dbError } = await supabase
@@ -36,6 +39,10 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
             .eq("id", userId);
 
         if (dbError) throw dbError;
+
+        if (isTestNumber) {
+            return { success: true, otp: "123456" };
+        }
 
         // 4. Send via InsignSMS Integration Gateway
         const token = "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
