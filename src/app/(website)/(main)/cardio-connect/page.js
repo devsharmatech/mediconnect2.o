@@ -573,7 +573,7 @@ export default function CardioConnectHome() {
   // Handlers for Active / Paused Heart Training Controls (CC-03 / CC-04)
   const handlePauseTraining = () => {
     setIsTrainingPaused(true);
-    toast.info("Heart Training session paused");
+    toast("Heart Training session paused");
   };
 
   const handleResumeTraining = () => {
@@ -594,7 +594,7 @@ export default function CardioConnectHome() {
     setSessionDistanceKm(0);
     setRealGpsDistanceKm(0);
     setPedometerSteps(0);
-    toast.info("Training session canceled");
+    toast("Training session canceled");
   };
 
   // Finish Walking Test (CC-11 -> CC-12)
