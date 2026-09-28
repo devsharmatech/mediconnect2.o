@@ -377,17 +377,39 @@ export default function CardioConnectHome() {
       watchIdRef.current = navigator.geolocation.watchPosition(
         (pos) => {
           const { latitude, longitude, accuracy, speed } = pos.coords;
-          setGpsAccuracy(Math.round(accuracy));
+          const acc = Math.round(accuracy || 999);
+          setGpsAccuracy(acc);
 
-          if (typeof speed === "number" && !isNaN(speed) && speed > 0.2) {
-            setCurrentSpeedKmH(parseFloat((speed * 3.6).toFixed(1)));
+          // Handle device speed reporting
+          const isStationaryBySpeed = typeof speed === "number" && !isNaN(speed) && speed < 0.5;
+          if (typeof speed === "number" && !isNaN(speed)) {
+            if (speed >= 0.5) {
+              setCurrentSpeedKmH(parseFloat((speed * 3.6).toFixed(1)));
+            } else {
+              setCurrentSpeedKmH(0);
+            }
+          }
+
+          // Accuracy & stationary guard:
+          // If accuracy is poor (> 45m, e.g. Wi-Fi IP jitter) or device speed says stationary, ignore drift
+          if (acc > 45 || isStationaryBySpeed) {
+            setCurrentSpeedKmH(0);
+            return;
           }
 
           setGpsPoints((prev) => {
             if (prev.length > 0) {
               const prevPoint = prev[prev.length - 1];
               const dist = getHaversineDistance(prevPoint.lat, prevPoint.lng, latitude, longitude);
-              if (dist >= 0.003 && dist < 0.2) {
+              const timeDeltaSec = (Date.now() - prevPoint.time) / 1000;
+              const calcSpd = timeDeltaSec > 0 ? (dist / (timeDeltaSec / 3600)) : 0;
+
+              // Require true physical movement:
+              // - Minimum displacement of at least 10 meters (or 40% of accuracy radius)
+              // - Speed must be between normal walking/running range (1.8 km/h to 25 km/h)
+              const minDisplacement = Math.max(0.010, (acc * 0.4) / 1000);
+
+              if (dist >= minDisplacement && dist < 0.25 && calcSpd >= 1.8 && calcSpd <= 25) {
                 const newDist = parseFloat((realGpsDistanceKm + dist).toFixed(3));
                 setRealGpsDistanceKm(newDist);
                 setSessionDistanceKm(newDist);
@@ -397,15 +419,11 @@ export default function CardioConnectHome() {
                 }
 
                 if (typeof speed !== "number" || isNaN(speed)) {
-                  const timeDeltaSec = (Date.now() - prevPoint.time) / 1000;
-                  if (timeDeltaSec > 0) {
-                    const calcSpd = dist / (timeDeltaSec / 3600);
-                    setCurrentSpeedKmH(parseFloat(Math.min(calcSpd, 30).toFixed(1)));
-                  }
+                  setCurrentSpeedKmH(parseFloat(Math.min(calcSpd, 25).toFixed(1)));
                 }
                 return [...prev, { lat: latitude, lng: longitude, time: Date.now(), speed }];
               } else {
-                if (Date.now() - prevPoint.time > 3500) {
+                if (timeDeltaSec > 3) {
                   setCurrentSpeedKmH(0);
                 }
                 return prev;
@@ -432,19 +450,11 @@ export default function CardioConnectHome() {
     };
   }, [activeModal, isTrainingPaused, gpsStatus, walkingGpsEnabled, realGpsDistanceKm]);
 
-  // Timer loop for Active Heart Training (CC-03 / CC-04)
+  // Timer loop for Active Heart Training (CC-03 / CC-04) - strictly real physical telemetry only
   useEffect(() => {
     if (activeModal === "active_training" && !isTrainingPaused) {
       trainingTimerRef.current = setInterval(() => {
-        setTrainingElapsedSeconds((prev) => {
-          const next = prev + 1;
-          // Increment fallback steps and distance if no real hardware sensor is detected
-          if (pedometerSteps === 0 && realGpsDistanceKm === 0 && next % 3 === 0) {
-            setSessionSteps((s) => s + 4);
-            setSessionDistanceKm((d) => Number((d + 0.003).toFixed(3)));
-          }
-          return next;
-        });
+        setTrainingElapsedSeconds((prev) => prev + 1);
       }, 1000);
     } else {
       if (trainingTimerRef.current) clearInterval(trainingTimerRef.current);
@@ -452,7 +462,7 @@ export default function CardioConnectHome() {
     return () => {
       if (trainingTimerRef.current) clearInterval(trainingTimerRef.current);
     };
-  }, [activeModal, isTrainingPaused, pedometerSteps, realGpsDistanceKm]);
+  }, [activeModal, isTrainingPaused]);
 
   // Timer loop for Walking Performance Test (CC-11)
   useEffect(() => {

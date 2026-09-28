@@ -106,18 +106,33 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
     if (isActive && gpsStatus === 'granted' && typeof window !== 'undefined' && navigator.geolocation) {
       watchIdRef.current = navigator.geolocation.watchPosition(
         (pos) => {
-          const { latitude, longitude, accuracy } = pos.coords;
-          setGpsAccuracy(Math.round(accuracy));
+          const { latitude, longitude, accuracy, speed } = pos.coords;
+          const acc = Math.round(accuracy || 999);
+          setGpsAccuracy(acc);
+
+          const isStationaryBySpeed = typeof speed === 'number' && !isNaN(speed) && speed < 0.5;
+          if (acc > 45 || isStationaryBySpeed) {
+            return;
+          }
+
           setGpsPoints((prev) => {
             if (prev.length > 0) {
               const last = prev[prev.length - 1];
               const dist = getHaversineDistanceMeters(last.lat, last.lng, latitude, longitude);
-              // Ignore GPS drift < 2m or sudden jumps > 150m
-              if (dist > 2 && dist < 150) {
+              const timeDeltaSec = (Date.now() - (last.time || Date.now())) / 1000;
+              const calcSpeedMps = timeDeltaSec > 0 ? (dist / timeDeltaSec) : 0;
+
+              // Require true physical movement:
+              // - Minimum displacement of at least 10 meters (or 40% of accuracy radius)
+              // - Speed must be within normal walking range (0.5 m/s to 7.0 m/s)
+              const minDisplacement = Math.max(10, acc * 0.4);
+              if (dist >= minDisplacement && dist < 150 && calcSpeedMps >= 0.5 && calcSpeedMps <= 7.0) {
                 setGpsDistanceMeters((d) => Math.round(d + dist));
+                return [...prev, { lat: latitude, lng: longitude, time: Date.now() }];
               }
+              return prev;
             }
-            return [...prev, { lat: latitude, lng: longitude, time: Date.now() }];
+            return [{ lat: latitude, lng: longitude, time: Date.now() }];
           });
         },
         (err) => console.warn('6MWT GPS watch error:', err),
