@@ -1493,7 +1493,7 @@ export default function CardioConnectHome() {
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "completion" && lastCompletedSession && (
         <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
-          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-md rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150 text-center">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-lg rounded-none sm:rounded-[8px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150 text-center">
             
             {/* Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
@@ -1630,7 +1630,7 @@ export default function CardioConnectHome() {
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "spectrum" && (
         <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
-          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-lg rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-xl md:max-w-2xl lg:max-w-3xl rounded-none sm:rounded-[8px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150">
             
             {/* Sticky Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
@@ -1651,7 +1651,7 @@ export default function CardioConnectHome() {
 
             {/* Scrollable Body */}
             <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-3">
-              <p className="text-xs text-slate-700">
+              <p className="text-xs text-slate-600">
                 Multiple individual factors for a broader view of your heart health. Factor-based representation without composite scoring.
               </p>
 
@@ -1659,35 +1659,39 @@ export default function CardioConnectHome() {
                 {spectrumData.map((factor) => (
                   <div
                     key={factor.id}
-                    className="p-3.5 bg-slate-50 rounded-[5px] border border-slate-200/80 flex items-center justify-between text-xs"
+                    className="p-3.5 sm:p-4 bg-slate-50 hover:bg-slate-100/70 rounded-[6px] border border-slate-200/80 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 text-xs"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-[5px] bg-white border border-slate-200 text-[#0067A1] flex items-center justify-center font-bold">
-                        <Heart className="w-4 h-4" />
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 shrink-0 rounded-[6px] bg-white border border-slate-200 text-[#0067A1] flex items-center justify-center font-bold shadow-2xs">
+                        <Heart className="w-4 h-4 text-[#0067A1]" />
                       </div>
-                      <div>
-                        <p className="font-bold text-slate-900 text-xs">{factor.name}</p>
-                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-600">
-                          <span>Source: {factor.current.source || "Not available"}</span>
-                          {factor.current.date && <span>• {factor.current.date}</span>}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-slate-900 text-xs sm:text-sm">{factor.name}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 flex-wrap">
+                          <span className="whitespace-nowrap">Source: {factor.current.source || "Clinical Assessment"}</span>
+                          {factor.current.date && (
+                            <span className="whitespace-nowrap font-mono text-[10.5px] text-slate-400">
+                              • {factor.current.date}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="text-right flex items-center gap-3">
-                      <div>
-                        <span className="font-extrabold text-slate-800 text-sm block">
+                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
+                      <div className="text-left sm:text-right">
+                        <span className="font-extrabold text-slate-900 text-sm sm:text-base block">
                           {factor.current.value !== null
-                            ? `${factor.current.value} ${factor.unit}`
+                            ? `${factor.current.value} ${factor.unit}`.trim()
                             : "Unavailable"}
                         </span>
-                        {factor.previous.value !== null && (
-                          <span className="text-[10px] text-slate-500 block">
+                        {factor.previous?.value !== null && factor.previous?.value !== undefined && (
+                          <span className="text-[10px] text-slate-500 whitespace-nowrap block">
                             Prev: {factor.previous.value} {factor.unit}
                           </span>
                         )}
                       </div>
-                      {factor.trend && getTrendIcon(factor.trend)}
+                      {factor.trend && <div className="shrink-0">{getTrendIcon(factor.trend)}</div>}
                     </div>
                   </div>
                 ))}
@@ -1712,7 +1716,7 @@ export default function CardioConnectHome() {
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "progress" && (
         <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
-          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-lg rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-xl md:max-w-2xl lg:max-w-3xl rounded-none sm:rounded-[8px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150">
             
             {/* Sticky Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
@@ -2178,7 +2182,7 @@ export default function CardioConnectHome() {
       ══════════════════════════════════════════════════════════════ */}
       {activeModal === "timeline" && (
         <div className="fixed inset-0 z-[99999] bg-white sm:bg-slate-900/80 sm:backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto sm:overflow-hidden">
-          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-md rounded-none sm:rounded-[5px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-lg md:max-w-xl rounded-none sm:rounded-[8px] shadow-2xl flex flex-col overflow-hidden text-slate-900 animate-in fade-in sm:zoom-in-95 duration-150">
             
             {/* Sticky Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
