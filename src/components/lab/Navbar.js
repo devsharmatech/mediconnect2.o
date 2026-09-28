@@ -290,11 +290,6 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
     return "Laboratory Portal";
   };
 
-  const handleLogout = () => {
-    logoutUser("lab");
-    router.push("/lab/login");
-  };
-
   const handleSwitchToPatient = () => {
     const labUser = getLoggedInUser("lab");
     if (labUser?.id) {
