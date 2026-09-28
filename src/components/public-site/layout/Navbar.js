@@ -80,9 +80,8 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
     };
   }, [activeModal, isMenuOpen]);
 
-  useEffect(() => {
+  const refreshAuthState = useCallback(() => {
     if (typeof window === "undefined") return;
-
     const role = localStorage.getItem("userRole");
     const storedUser = localStorage.getItem("userData");
 
@@ -102,7 +101,10 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
       setUser(null);
       setUserRole(null);
     }
+  }, []);
 
+  useEffect(() => {
+    refreshAuthState();
     setMounted(true);
 
     const handleProfileUpdate = (e) => {
@@ -126,14 +128,21 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
       }
     };
 
+    const handleStorage = () => refreshAuthState();
+
     window.addEventListener("userProfileUpdated", handleProfileUpdate);
-    window.addEventListener("storage", handleProfileUpdate);
+    window.addEventListener("storage", handleStorage);
 
     return () => {
       window.removeEventListener("userProfileUpdated", handleProfileUpdate);
-      window.removeEventListener("storage", handleProfileUpdate);
+      window.removeEventListener("storage", handleStorage);
     };
-  }, []);
+  }, [refreshAuthState]);
+
+  // Re-check auth when route changes (handles Patient Mode switch redirect)
+  useEffect(() => {
+    refreshAuthState();
+  }, [pathname, refreshAuthState]);
 
   const handleOpenSignup = useCallback((e) => {
     e?.preventDefault();

@@ -55,12 +55,19 @@ const ProfileDropdown = ({ user, userRole, onLogout }) => {
 
   const getDisplayName = () => {
     return (
+      // Patient / generic
       user?.details?.full_name ||
       user?.profile?.full_name ||
       user?.user?.details?.full_name ||
       user?.user?.full_name ||
       user?.full_name ||
       user?.name ||
+      // Chemist
+      user?.details?.owner_name ||
+      user?.details?.pharmacy_name ||
+      // Lab
+      user?.details?.lab_name ||
+      user?.details?.lab_owner_name ||
       "User"
     );
   };
@@ -72,6 +79,7 @@ const ProfileDropdown = ({ user, userRole, onLogout }) => {
       user?.user?.details?.email ||
       user?.user?.email ||
       user?.email ||
+      user?.details?.mobile ||
       "user@example.com"
     );
   };

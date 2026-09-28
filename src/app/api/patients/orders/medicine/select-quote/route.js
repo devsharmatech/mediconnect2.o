@@ -1,8 +1,8 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { broadcastEmitter } from "@/lib/broadcastEmitter";
-import admin from "@/lib/firebaseAdmin";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+import { sendPushAndInAppNotification } from "@/lib/notificationHelper";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -16,14 +16,13 @@ export async function POST(req) {
       return failure("broadcast_id and quote_id are required", null, 400, { headers: corsHeaders });
     }
 
-    // 1. Fetch the broadcast details and validate active status
-    const { data: broadcast, error: broadcastErr } = await supabase
-      .from("medicine_order_broadcasts")
-      .select("*")
-      .eq("id", broadcast_id)
-      .single();
+    // 1. Fetch broadcast details
+    const broadcastRows = await sql`
+      SELECT * FROM medicine_order_broadcasts WHERE id = ${broadcast_id} LIMIT 1
+    `;
+    const broadcast = broadcastRows[0];
 
-    if (broadcastErr || !broadcast) {
+    if (!broadcast) {
       return failure("Broadcast not found", null, 404, { headers: corsHeaders });
     }
 
@@ -31,35 +30,28 @@ export async function POST(req) {
       return failure("An offer has already been selected for this broadcast", null, 409, { headers: corsHeaders });
     }
 
-    if (broadcast.expires_at && new Date(broadcast.expires_at) < new Date()) {
-      return failure("Bidding window has expired. Expired offers cannot be selected.", null, 400, { headers: corsHeaders });
-    }
+    // 2. Fetch the selected quote with chemist details
+    const quoteRows = await sql`
+      SELECT 
+        q.*,
+        cd.pharmacy_name,
+        cd.address as chemist_address,
+        cd.payment_qr_url,
+        cd.payment_qr_payload
+      FROM medicine_order_quotes q
+      LEFT JOIN chemist_details cd ON cd.id = q.chemist_id
+      WHERE q.id = ${quote_id} AND q.broadcast_id = ${broadcast_id}
+      LIMIT 1
+    `;
+    const quote = quoteRows[0];
 
-    // 2. Fetch the selected quote to lock in pricing and chemist details
-    const { data: quote, error: quoteErr } = await supabase
-      .from("medicine_order_quotes")
-      .select(`
-        *,
-        chemist:chemist_id(
-          pharmacy_name,
-          address,
-          mobile,
-          payment_qr_url,
-          payment_qr_payload,
-          payment_qr_label
-        )
-      `)
-      .eq("id", quote_id)
-      .eq("broadcast_id", broadcast_id)
-      .single();
-
-    if (quoteErr || !quote) {
+    if (!quote) {
       return failure("Selected quote not found", null, 404, { headers: corsHeaders });
     }
 
-    // 3. Calculate SLA commitment timestamps (promised, warning at 80%, breach)
+    // 3. Financial calculations & SLA
     const now = new Date();
-    const deliveryMins = Number(quote.delivery_time_minutes || 60);
+    const deliveryMins = Number(quote.delivery_time_minutes || 30);
     const promisedDeliveryAt = new Date(now.getTime() + deliveryMins * 60 * 1000);
     const warningAt = new Date(now.getTime() + Math.floor(deliveryMins * 0.8) * 60 * 1000);
     const breachAt = promisedDeliveryAt;
@@ -69,141 +61,144 @@ export async function POST(req) {
     const deliveryCharge = Number(quote.delivery_charge || 0);
     const discount = Number(quote.discount || 0);
 
-    // 4. Atomically mark the chosen quote as 'selected' and all others as 'not_selected'
-    await supabase
-      .from("medicine_order_quotes")
-      .update({ status: "selected" })
-      .eq("id", quote_id);
+    // 4. Mark chosen quote as selected, others as not_selected
+    await sql`
+      UPDATE medicine_order_quotes 
+      SET status = 'selected' 
+      WHERE id = ${quote_id}
+    `;
 
-    const { data: ignoredQuotes } = await supabase
-      .from("medicine_order_quotes")
-      .update({ status: "not_selected" })
-      .eq("broadcast_id", broadcast_id)
-      .neq("id", quote_id)
-      .select("chemist_id");
+    await sql`
+      UPDATE medicine_order_quotes 
+      SET status = 'not_selected' 
+      WHERE broadcast_id = ${broadcast_id} AND id != ${quote_id}
+    `;
 
-    // 5. Complete the broadcast status and push SSE event
-    await supabase
-      .from("medicine_order_broadcasts")
-      .update({ status: "completed" })
-      .eq("id", broadcast_id);
+    // 5. Complete broadcast status
+    await sql`
+      UPDATE medicine_order_broadcasts 
+      SET status = 'completed' 
+      WHERE id = ${broadcast_id}
+    `;
 
-    broadcastEmitter.emit(`status:${broadcast_id}`, {
-      status: "completed",
-      selected_quote_id: quote_id
-    });
+    try {
+      broadcastEmitter.emit(`status:${broadcast_id}`, {
+        status: "completed",
+        selected_quote_id: quote_id,
+      });
+    } catch (e) {
+      console.warn("Emitter warning:", e.message);
+    }
 
-    // 6. Create the order in canonical state 'payment_pending' with locked financial breakdown
-    const { data: order, error: orderErr } = await supabase
-      .from("medicine_orders")
-      .insert([
-        {
-          prescription_id: broadcast.prescription_id,
-          patient_id: broadcast.patient_id,
-          chemist_id: quote.chemist_id,
-          status: "payment_pending", // V3 canonical state: ready for payment review & disclosure
-          medicine_subtotal: medicineSubtotal,
-          delivery_charge: deliveryCharge,
-          discount: discount,
-          total_amount: finalAmount,
-          payment_qr_url: quote.chemist?.payment_qr_url || null,
-          payment_qr_payload: quote.chemist?.payment_qr_payload || null,
-          promised_delivery_at: promisedDeliveryAt,
-          warning_at: warningAt,
-          breach_at: breachAt,
-          sla_status: "ON_TRACK",
-          patient_notes: `V3 Offer Selected - Promised Delivery: ${deliveryMins} mins.`,
-        },
-      ])
-      .select()
-      .single();
+    // 6. Generate sequential BIGINT UNID
+    const maxUnidRows = await sql`
+      SELECT COALESCE(MAX(unid), 25) + 1 AS next_unid FROM medicine_orders
+    `;
+    const nextUnid = maxUnidRows[0]?.next_unid || 26;
 
-    if (orderErr) throw orderErr;
+    const orderRows = await sql`
+      INSERT INTO medicine_orders (
+        unid,
+        prescription_id,
+        patient_id,
+        chemist_id,
+        status,
+        medicine_subtotal,
+        delivery_charge,
+        discount,
+        total_amount,
+        payment_qr_url,
+        payment_qr_payload,
+        promised_delivery_at,
+        warning_at,
+        breach_at,
+        sla_status,
+        delivery_type,
+        patient_notes,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${nextUnid},
+        ${broadcast.prescription_id},
+        ${broadcast.patient_id},
+        ${quote.chemist_id},
+        'approved',
+        ${medicineSubtotal},
+        ${deliveryCharge},
+        ${discount},
+        ${finalAmount},
+        ${quote.payment_qr_url || null},
+        ${quote.payment_qr_payload || null},
+        ${promisedDeliveryAt},
+        ${warningAt},
+        ${breachAt},
+        'ON_TRACK',
+        'delivery',
+        ${`Offer Selected: ₹${finalAmount} — Promised Delivery: ${deliveryMins} mins`},
+        NOW(),
+        NOW()
+      )
+      RETURNING *
+    `;
+    const order = orderRows[0];
 
-    // 7. Extract medicines list from prescription and insert into medicine_order_items
-    const { data: prescription, error: prescriptionErr } = await supabase
-      .from("prescriptions")
-      .select("medicines")
-      .eq("id", broadcast.prescription_id)
-      .single();
+    // 7. Extract prescription medicines and insert into medicine_order_items
+    if (broadcast.prescription_id) {
+      const rxRows = await sql`
+        SELECT medicines FROM prescriptions WHERE id = ${broadcast.prescription_id} LIMIT 1
+      `;
+      const rx = rxRows[0];
 
-    if (!prescriptionErr && prescription?.medicines) {
-      const parsedMedicines = typeof prescription.medicines === "string" 
-        ? JSON.parse(prescription.medicines) 
-        : prescription.medicines;
+      if (rx?.medicines) {
+        let parsedMeds = [];
+        try {
+          parsedMeds = typeof rx.medicines === "string" ? JSON.parse(rx.medicines) : rx.medicines;
+        } catch (e) {
+          parsedMeds = [];
+        }
 
-      if (Array.isArray(parsedMedicines)) {
-        const orderItems = parsedMedicines.map((m) => ({
-          order_id: order.id,
-          medicine_name: m.name,
-          dosage: m.dosage || m.dosage_instruction || "",
-          frequency: m.frequency || "",
-          duration: m.duration || "",
-          quantity: parseInt(m.quantity || "1", 10),
-        }));
-
-        const { error: itemsErr } = await supabase
-          .from("medicine_order_items")
-          .insert(orderItems);
-
-        if (itemsErr) console.error("Error inserting medicine order items:", itemsErr.message);
+        if (Array.isArray(parsedMeds)) {
+          for (const m of parsedMeds) {
+            await sql`
+              INSERT INTO medicine_order_items (
+                order_id,
+                medicine_name,
+                dosage,
+                frequency,
+                duration,
+                quantity,
+                price
+              ) VALUES (
+                ${order.id},
+                ${m.name || m.medicine_name || "Prescribed Medicine"},
+                ${m.dosage || m.dosage_instruction || ""},
+                ${m.frequency || ""},
+                ${m.duration || ""},
+                ${parseInt(m.quantity || "1", 10)},
+                ${parseFloat(m.price || 0)}
+              )
+            `;
+          }
+        }
       }
     }
 
-    // 8. Notifications per Section 10 Notification Event Matrix
+    // 8. Notifications
     try {
-      const pharmacyName = quote.chemist?.pharmacy_name || "Selected Pharmacy";
-
-      // 8a. Notify Selected Pharmacy (Offer Selected)
-      await supabase.from("notifications").insert({
-        user_id: quote.chemist_id,
+      await sendPushAndInAppNotification({
+        userId: quote.chemist_id,
         title: "Offer Selected 🎉",
-        message: `Your offer of ₹${finalAmount} was selected! Waiting for patient verified payment before releasing full delivery address.`,
-        type: "medicine_order",
+        message: `Your offer of ₹${finalAmount} was selected by patient! Order #${nextUnid} created.`,
+        type: "medicine_order_accepted",
         metadata: { order_id: order.id, broadcast_id },
       });
-
-      // Firebase Push to Selected Chemist
-      const { data: chemistUser } = await supabase
-        .from("users")
-        .select("fcm_token")
-        .eq("id", quote.chemist_id)
-        .maybeSingle();
-
-      if (chemistUser?.fcm_token) {
-        await admin.messaging().send({
-          token: chemistUser.fcm_token,
-          notification: {
-            title: "Offer Selected 🎉",
-            body: `Your offer of ₹${finalAmount} was chosen! Awaiting verified payment.`,
-          },
-          data: {
-            type: "offer_selected",
-            order_id: order.id,
-            broadcast_id,
-          },
-        }).catch(() => null);
-      }
-
-      // 8b. Notify Non-selected Pharmacies (Offer Not Selected)
-      if (Array.isArray(ignoredQuotes) && ignoredQuotes.length > 0) {
-        const unselectedNotifs = ignoredQuotes.map((q) => ({
-          user_id: q.chemist_id,
-          title: "Bidding Concluded",
-          message: "Another pharmacy offer was selected by the patient for this broadcast.",
-          type: "medicine_order",
-          metadata: { broadcast_id },
-        }));
-        await supabase.from("notifications").insert(unselectedNotifs).catch(() => null);
-      }
     } catch (notifErr) {
-      console.warn("Notification dispatch warning in select-quote:", notifErr?.message);
+      console.warn("Chemist notification warning:", notifErr.message);
     }
 
-    return success("Offer selected and locked successfully", order, 201, { headers: corsHeaders });
-
+    return success("Offer selected and order confirmed", { order }, 200, { headers: corsHeaders });
   } catch (err) {
-    console.error("Error selecting quote:", err);
+    console.error("Error in select-quote route:", err);
     return failure("Failed to select quote", err.message, 500, { headers: corsHeaders });
   }
 }

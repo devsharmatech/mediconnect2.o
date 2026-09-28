@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { corsHeaders } from "@/lib/cors";
 
 export async function OPTIONS() {
@@ -20,12 +20,10 @@ export async function DELETE(req) {
 
     // CLEAR ALL
     if (clear_all === true) {
-      const { error } = await supabase
-        .from("notifications")
-        .delete()
-        .eq("user_id", user_id);
-
-      if (error) throw error;
+      await sql`
+        DELETE FROM notifications
+        WHERE user_id = ${user_id}
+      `;
 
       return Response.json(
         { success: true, message: "All notifications cleared" },
@@ -40,19 +38,17 @@ export async function DELETE(req) {
         { status: 400, headers: corsHeaders }
       );
 
-    const { error } = await supabase
-      .from("notifications")
-      .delete()
-      .eq("id", notification_id)
-      .eq("user_id", user_id);
-
-    if (error) throw error;
+    await sql`
+      DELETE FROM notifications
+      WHERE id = ${notification_id} AND user_id = ${user_id}
+    `;
 
     return Response.json(
       { success: true, message: "Notification deleted" },
       { headers: corsHeaders }
     );
   } catch (err) {
+    console.error("[Notifications DELETE] Error:", err);
     return Response.json(
       { success: false, message: err.message },
       { status: 500, headers: corsHeaders }

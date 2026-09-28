@@ -22,7 +22,34 @@ export const verifyOtp = async (user_id, otp) => {
 // Check if user is logged in
 export const getLoggedInUser = (role) => {
   if (typeof window === "undefined") return null;
-  return JSON.parse(localStorage.getItem(`${role}User`));
+  try {
+    const raw = localStorage.getItem(`${role}User`);
+    if (!raw) return null;
+    const user = JSON.parse(raw);
+
+    // Auto-migrate legacy dummy user IDs in localStorage
+    if (user?.id === "10000000-0000-4000-8000-000000000001") {
+      user.id = "c4b12f6a-8d7e-49b2-a3c5-92f14890c23e";
+      if (user.details) {
+        user.details.id = "c4b12f6a-8d7e-49b2-a3c5-92f14890c23e";
+        user.details.pharmacy_name = "Apex Healthcare & Medicos";
+      }
+      localStorage.setItem(`${role}User`, JSON.stringify(user));
+      document.cookie = `session_id=${user.id}; path=/; max-age=86400; SameSite=Lax`;
+    } else if (user?.id === "10000000-0000-4000-8000-000000000002") {
+      user.id = "e8d2491a-7b3f-4e92-bc10-7299a9a3f821";
+      if (user.details) {
+        user.details.id = "e8d2491a-7b3f-4e92-bc10-7299a9a3f821";
+        user.details.lab_name = "Apex Diagnostic & Pathology Lab";
+      }
+      localStorage.setItem(`${role}User`, JSON.stringify(user));
+      document.cookie = `session_id=${user.id}; path=/; max-age=86400; SameSite=Lax`;
+    }
+
+    return user;
+  } catch (e) {
+    return null;
+  }
 };
 
 // Save user

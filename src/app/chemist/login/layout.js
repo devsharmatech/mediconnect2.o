@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Chemist Login",
+  title: "Chemist Login | MediConnect",
   icons: {
     icon: "/real-logo.png",
     shortcut: "/real-logo.png",
@@ -8,9 +8,5 @@ export const metadata = {
 };
 
 export default function ChemistLoginLayout({ children }) {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center  dark:bg-gray-900">
-      {children}
-    </div>
-  );
-}
+  return <>{children}</>;
+}

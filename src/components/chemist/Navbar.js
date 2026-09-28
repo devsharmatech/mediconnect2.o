@@ -1364,7 +1364,7 @@ export default function ChemistNavbar({ onMenuClick, sidebarOpen }) {
                     Live
                   </span>
                 </div>
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2.5 py-1 bg-gray-900 text-white text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-[100]">
                   Connected to real-time notifications
                 </div>
               </div>
@@ -1388,14 +1388,16 @@ export default function ChemistNavbar({ onMenuClick, sidebarOpen }) {
                     {unreadCount}
                   </span>
                 )}
-                {/* Hover tooltip */}
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                  {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
-                </div>
+                {/* Hover tooltip - only show below bell when dropdown is closed */}
+                {!notificationsOpen && (
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2.5 py-1 bg-gray-900 text-white text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-[100]">
+                    {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
+                  </div>
+                )}
               </button>
 
               {notificationsOpen && (
-                <div className="absolute right-0 top-12 w-96 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-[#0067A1]/20 dark:border-gray-700 z-50 overflow-hidden">
+                <div className="absolute right-0 top-12 w-96 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-[#0067A1]/20 dark:border-gray-700 z-[100] overflow-hidden">
                   <div className="p-4 border-b border-[#0067A1]/20 dark:border-gray-700 bg-[#0067A1]/5 dark:bg-gray-800">
                     <div className="flex items-center justify-between">
                       <div>

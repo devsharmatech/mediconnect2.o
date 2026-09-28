@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { corsHeaders } from "@/lib/cors";
 
 export async function OPTIONS() {
@@ -20,13 +20,11 @@ export async function PATCH(req) {
 
     // MARK ALL AS READ
     if (mark_all === true) {
-      const { error } = await supabase
-        .from("notifications")
-        .update({ read: true })
-        .eq("user_id", user_id)
-        .eq("read", false);
-
-      if (error) throw error;
+      await sql`
+        UPDATE notifications
+        SET read = true
+        WHERE user_id = ${user_id} AND read = false
+      `;
 
       return Response.json(
         { success: true, message: "All notifications marked as read" },
@@ -41,19 +39,18 @@ export async function PATCH(req) {
         { status: 400, headers: corsHeaders }
       );
 
-    const { error } = await supabase
-      .from("notifications")
-      .update({ read: true })
-      .eq("id", notification_id)
-      .eq("user_id", user_id);
-
-    if (error) throw error;
+    await sql`
+      UPDATE notifications
+      SET read = true
+      WHERE id = ${notification_id} AND user_id = ${user_id}
+    `;
 
     return Response.json(
       { success: true, message: "Notification marked as read" },
       { headers: corsHeaders }
     );
   } catch (err) {
+    console.error("[Notifications PATCH] Error:", err);
     return Response.json(
       { success: false, message: err.message },
       { status: 500, headers: corsHeaders }

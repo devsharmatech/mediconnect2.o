@@ -1,5 +1,5 @@
 import admin from "@/lib/firebaseAdmin";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 /**
  * Dispatches an In-App Notification (Database row insert) and FCM Push Notification.
@@ -8,8 +8,8 @@ import { supabase } from "@/lib/supabaseAdmin";
  * @param {string} params.user_id - Target user ID (patient or doctor)
  * @param {string} params.title - Notification title
  * @param {string} params.message - Notification body text
- * @param {string} [params.type='general'] - Type of notification (e.g. 'appointment_booked', 'appointment_cancelled', 'payment_success')
- * @param {object} [params.metadata={}] - Extra metadata (e.g. { appointment_id, doctor_id, patient_id })
+ * @param {string} [params.type='general'] - Type of notification
+ * @param {object} [params.metadata={}] - Extra metadata
  */
 export async function sendPushAndInAppNotification({
   user_id,
@@ -23,63 +23,56 @@ export async function sendPushAndInAppNotification({
     return { success: false, error: "user_id is required" };
   }
 
+  let dbCreated = false;
+  let pushSent = false;
+
   try {
-    // 1. Insert DB notification for In-App list
-    const { data: dbData, error: dbErr } = await supabase
-      .from("notifications")
-      .insert({
-        user_id,
-        title,
-        message,
-        type,
-        metadata,
-        created_at: new Date().toISOString(),
-      })
-      .select()
-      .maybeSingle();
-
-    if (dbErr) {
-      console.error("[NOTIFICATION HELPER] DB insert error:", dbErr.message);
-    } else {
+    // 1. Insert DB notification into RDS
+    try {
+      await sql`
+        INSERT INTO notifications (user_id, title, message, type, metadata, created_at)
+        VALUES (${user_id}, ${title}, ${message}, ${type}, ${JSON.stringify(metadata)}, NOW())
+      `;
+      dbCreated = true;
       console.log(`[NOTIFICATION HELPER] DB notification created for user ${user_id}:`, title);
+    } catch (dbErr) {
+      console.error("[NOTIFICATION HELPER] DB insert error:", dbErr.message);
     }
 
-    // 2. Fetch user's FCM token and dispatch push notification
-    let pushSent = false;
-    const { data: user } = await supabase
-      .from("users")
-      .select("fcm_token")
-      .eq("id", user_id)
-      .maybeSingle();
+    // 2. Fetch user's FCM token from RDS and dispatch push notification
+    try {
+      const [user] = await sql`
+        SELECT fcm_token FROM users WHERE id = ${user_id} LIMIT 1
+      `;
 
-    if (user?.fcm_token) {
-      try {
-        await admin.messaging().send({
-          token: user.fcm_token,
-          notification: {
-            title,
-            body: message,
-          },
-          data: {
-            type,
-            title,
-            body: message,
-            ...(metadata.appointment_id ? { appointment_id: String(metadata.appointment_id) } : {}),
-            ...(metadata.order_id ? { order_id: String(metadata.order_id) } : {}),
-          },
-        });
-        pushSent = true;
-        console.log(`[NOTIFICATION HELPER] FCM Push successfully sent to user ${user_id}`);
-      } catch (fcmErr) {
-        console.warn(`[NOTIFICATION HELPER] FCM Push failed for user ${user_id}:`, fcmErr.message);
+      if (user?.fcm_token) {
+        try {
+          await admin.messaging().send({
+            token: user.fcm_token,
+            notification: { title, body: message },
+            data: {
+              type,
+              title,
+              body: message,
+              ...(metadata.appointment_id ? { appointment_id: String(metadata.appointment_id) } : {}),
+              ...(metadata.order_id ? { order_id: String(metadata.order_id) } : {}),
+            },
+          });
+          pushSent = true;
+          console.log(`[NOTIFICATION HELPER] FCM Push sent to user ${user_id}`);
+        } catch (fcmErr) {
+          console.warn(`[NOTIFICATION HELPER] FCM Push failed for user ${user_id}:`, fcmErr.message);
+        }
+      } else {
+        console.log(`[NOTIFICATION HELPER] No FCM token for user ${user_id}. DB notification stored.`);
       }
-    } else {
-      console.log(`[NOTIFICATION HELPER] No FCM token found for user ${user_id}. DB notification stored.`);
+    } catch (userErr) {
+      console.warn("[NOTIFICATION HELPER] Could not fetch FCM token:", userErr.message);
     }
 
-    return { success: true, db_created: !dbErr, push_sent: pushSent };
+    return { success: true, db_created: dbCreated, push_sent: pushSent };
   } catch (err) {
-    console.error("[NOTIFICATION HELPER] Exception in sendPushAndInAppNotification:", err);
+    console.error("[NOTIFICATION HELPER] Exception:", err);
     return { success: false, error: err.message };
   }
 }

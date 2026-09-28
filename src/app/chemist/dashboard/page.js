@@ -1,1033 +1,1019 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import {
- ClipboardList,
- Pill,
- Clock,
- CheckCircle2,
- TrendingUp,
- TrendingDown,
- RefreshCw,
- Eye,
- Filter,
- Download,
- Plus,
- ShoppingCart,
- FileText,
- Truck,
- Users,
- Beaker,
- ChevronRight,
- AlertCircle,
- Calendar,
- BarChart3,
- LineChart as LineChartIcon,
- PieChart as PieChartIcon,
- BarChart as BarChartIcon,
- Activity,
- Package,
- AlertTriangle,
- DollarSign,
- Target,
- Zap,
- MoreVertical,
- AlertOctagon,
- MapPin
-} from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  ClipboardList,
+  Pill,
+  Clock,
+  CheckCircle2,
+  TrendingUp,
+  RefreshCw,
+  Eye,
+  Filter,
+  Download,
+  Truck,
+  FileText,
+  AlertCircle,
+  Calendar,
+  Activity,
+  Package,
+  IndianRupee,
+  Zap,
+  Radio,
+  Send,
+  Timer,
+  ChevronRight,
+  ShieldCheck,
+  Check,
+  MapPin,
+  Flame,
+  ArrowUpRight,
+  User,
+  Heart,
+  AlertTriangle,
+  Loader2,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import toast, { Toaster } from "react-hot-toast";
 import { getLoggedInUser } from "@/lib/authHelpers";
 import {
- LineChart,
- Line,
- BarChart,
- Bar,
- AreaChart,
- Area,
- XAxis,
- YAxis,
- CartesianGrid,
- Tooltip,
- Legend,
- ResponsiveContainer,
- PieChart,
- Pie,
- Cell,
+  AreaChart,
+  Area,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 
-export default function ChemistDashboard() {
- const router = useRouter();
- const chemist = getLoggedInUser("chemist");
- const [loading, setLoading] = useState(true);
- const [dashboard, setDashboard] = useState(null);
- const [timeRange, setTimeRange] = useState("30d");
- const [chartType, setChartType] = useState("line");
- const didFetch = useRef(false);
-
-  // Broadcasts state
-  const [broadcasts, setBroadcasts] = useState([]);
-  const [estimatedCost, setEstimatedCost] = useState("");
-  const [deliveryTime, setDeliveryTime] = useState("");
-  const [isSubmittingQuote, setIsSubmittingQuote] = useState(false);
-
-  const fetchBroadcasts = async () => {
-    if (!chemist?.id) return;
-    try {
-      const res = await fetch("/api/chemists/order/get-broadcasts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chemist_id: chemist.id }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        setBroadcasts(result.data);
-      }
-    } catch (err) {
-      console.error("Error fetching broadcasts:", err);
-    }
-  };
+// ─── Countdown Hook for Live Broadcast Cards ──────────────────────
+function useCountdown(expiresAt) {
+  const [seconds, setSeconds] = useState(() =>
+    Math.max(0, Math.floor((new Date(expiresAt) - new Date()) / 1000))
+  );
 
   useEffect(() => {
-    if (chemist?.id) {
-      fetchBroadcasts();
-      const interval = setInterval(fetchBroadcasts, 5000); // Poll active broadcasts every 5 seconds
-      return () => clearInterval(interval);
-    }
-  }, [chemist?.id]);
+    const id = setInterval(() => {
+      setSeconds((s) => {
+        if (s <= 0) {
+          clearInterval(id);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
 
-  const handleSubmitQuote = async (broadcastId) => {
-    if (!estimatedCost || !deliveryTime) {
-      toast.error("Please enter both cost and estimated delivery time");
-      return;
-    }
+  return seconds;
+}
+
+// ─── Live Broadcast Quick-Quote Card ──────────────────────────────
+function BroadcastQuickCard({ broadcast, chemistId, onQuoteSubmitted }) {
+  const [cost, setCost] = useState("350");
+  const [eta, setEta] = useState("30");
+  const [submitting, setSubmitting] = useState(false);
+  const seconds = useCountdown(broadcast.expires_at);
+
+  const urgency = seconds < 60 ? "critical" : seconds < 180 ? "warn" : "ok";
+  const urgencyConfig = {
+    ok: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500" },
+    warn: { badge: "bg-amber-50 text-amber-700 border-amber-200", bar: "bg-amber-500" },
+    critical: { badge: "bg-rose-50 text-rose-700 border-rose-200 animate-pulse", bar: "bg-rose-500" },
+  }[urgency];
+
+  // Instant 1-Click Accept from Order Pool (No long waiting!)
+  const handleInstantAccept = async (orderCost, deliveryMins) => {
     try {
-      setIsSubmittingQuote(true);
-      const res = await fetch("/api/chemists/order/submit-quote", {
+      setSubmitting(true);
+      const res = await fetch("/api/chemists/order/accept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          broadcast_id: broadcastId,
-          chemist_id: chemist.id,
-          estimated_cost: parseFloat(estimatedCost),
-          delivery_time_minutes: parseInt(deliveryTime, 10),
+          broadcast_id: broadcast.id,
+          chemist_id: chemistId,
+          estimated_cost: parseFloat(orderCost || cost || 350),
+          delivery_time_minutes: parseInt(deliveryMins || eta || 30, 10),
         }),
       });
+
       const result = await res.json();
       if (result.success) {
-        toast.success("Quote submitted successfully!");
-        setEstimatedCost("");
-        setDeliveryTime("");
-        fetchBroadcasts();
+        toast.success("Order Claimed & Accepted! Moved to your active orders 🎉");
+        if (onQuoteSubmitted) onQuoteSubmitted();
       } else {
-        toast.error(result.message || "Failed to submit quote");
+        toast.error(result.message || "Failed to accept order");
       }
     } catch (err) {
-      console.error(err);
-      toast.error("Error submitting quote");
+      toast.error("Error accepting order. Please try again.");
     } finally {
-      setIsSubmittingQuote(false);
+      setSubmitting(false);
     }
   };
 
- useEffect(() => {
- if (!chemist?.id) {
- toast.error("Chemist not found. Please login again.");
- router.push("/auth/login");
- return;
- }
+  const minutes = Math.floor(seconds / 60);
+  const remSec = seconds % 60;
+  const timeFormatted = `${minutes}:${remSec.toString().padStart(2, "0")}`;
 
- if (!didFetch.current) {
- didFetch.current = true;
- fetchDashboard();
- }
- }, [chemist?.id, timeRange]);
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-blue-100 dark:border-gray-700 p-5 shadow-sm hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between">
+      {/* Top accent line */}
+      <div className={`absolute top-0 left-0 right-0 h-1 ${urgencyConfig.bar}`} />
 
- const fetchDashboard = async () => {
- try {
- setLoading(true);
- const res = await fetch("/api/chemists/dashboard", {
- method: "POST",
- headers: { "Content-Type": "application/json" },
- body: JSON.stringify({
- chemist_id: chemist.id,
- time_range: timeRange
- }),
- });
-
- const result = await res.json();
-
- if (result.success) {
- setDashboard(result.data);
- } else {
- toast.error(result.message || "Failed to load dashboard");
- }
- } catch (err) {
- console.error("Dashboard fetch error:", err);
- toast.error("Network error. Please try again.");
- } finally {
- setLoading(false);
- }
- };
-
- const formatCurrency = (amount) => {
- return new Intl.NumberFormat('en-IN', {
- style: 'currency',
- currency: 'INR',
- minimumFractionDigits: 0,
- maximumFractionDigits: 0
- }).format(amount);
- };
-
- const formatDate = (dateString) => {
- return new Date(dateString).toLocaleDateString('en-IN', {
- day: 'numeric',
- month: 'short',
- year: 'numeric'
- });
- };
-
- const getStatusColor = (status) => {
- const colors = {
- 'completed': 'bg-emerald-500 dark:bg-emerald-600',
- 'ready_for_pickup': 'bg-[#0080C6] dark:bg-[#0067A1]',
- 'out_for_delivery': 'bg-indigo-500 dark:bg-indigo-600',
- 'pending': 'bg-amber-500 dark:bg-amber-600',
- 'sent_to_chemist': 'bg-cyan-500 dark:bg-cyan-600',
- 'approved': 'bg-green-500 dark:bg-green-600',
- 'rejected': 'bg-red-500 dark:bg-red-600',
- 'cancelled': 'bg-gray-500 dark:bg-gray-600'
- };
- return colors[status] || 'bg-gray-500 dark:bg-gray-600';
- };
-
- const getStatusText = (status) => {
- const texts = {
- 'completed': 'Completed',
- 'ready_for_pickup': 'Ready for Pickup',
- 'out_for_delivery': 'Out for Delivery',
- 'pending': 'Pending',
- 'sent_to_chemist': 'Sent to Chemist',
- 'approved': 'Approved',
- 'rejected': 'Rejected',
- 'cancelled': 'Cancelled'
- };
- return texts[status] || status.replace(/_/g, ' ');
- };
-
- const timeRanges = [
- { id: "7d", label: "7 Days" },
- { id: "30d", label: "30 Days" },
- { id: "90d", label: "90 Days" },
- { id: "1y", label: "1 Year" },
- ];
-
- const chartTypes = [
- { id: "line", label: "Line", icon: <LineChartIcon className="w-4 h-4" /> },
- { id: "area", label: "Area", icon: <AreaChart className="w-4 h-4" /> },
- { id: "bar", label: "Bar", icon: <BarChartIcon className="w-4 h-4" /> },
- ];
-
- const CustomTooltip = ({ active, payload, label }) => {
- if (active && payload && payload.length) {
- return (
- <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
- <p className="font-semibold text-gray-900 dark:text-gray-100 mb-2">{label}</p>
- {payload.map((entry, index) => (
- <div key={index} className="flex items-center justify-between gap-4 mb-1">
- <div className="flex items-center gap-2">
- <div
- className="w-3 h-3 rounded-full"
- style={{ backgroundColor: entry.color }}
- />
- <span className="text-sm text-gray-600 dark:text-gray-400">{entry.dataKey}:</span>
- </div>
- <span className="font-bold text-gray-900 dark:text-gray-100">
- {entry.dataKey === "amount" ? "₹" : ""}
- {entry.value.toLocaleString()}
- </span>
- </div>
- ))}
- </div>
- );
- }
- return null;
- };
-
- const PieTooltip = ({ active, payload }) => {
- if (active && payload && payload.length) {
- const data = payload[0].payload;
- return (
- <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
- <p className="font-semibold text-gray-900 dark:text-gray-100">{data.name}</p>
- <p className="text-sm text-gray-600 dark:text-gray-400">
- {data.value} items ({data.percentage}%)
- </p>
- </div>
- );
- }
- return null;
- };
-
- if (loading) {
- return (
- <div className="min-h-screen dark:bg-gray-900 p-6 flex items-center justify-center">
- <div className="text-center">
- <div className="flex justify-center mb-6">
- <div className="w-16 h-16 border-4 border-[#0067A1]/20 dark:border-[#0067A1]/40 border-t-[#0067A1] dark:border-t-teal-400 rounded-full animate-spin"></div>
- </div>
- <p className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">Loading your dashboard...</p>
- <p className="text-sm text-gray-500 dark:text-gray-400">Fetching latest chemist insights</p>
- </div>
- </div>
- );
- }
-
- if (!dashboard) {
- return (
- <div className="min-h-screen dark:bg-gray-900 p-6">
- <div className="mx-auto">
- <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 text-center">
- <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
- <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">Dashboard Unavailable</h2>
- <p className="text-gray-600 dark:text-gray-400 mb-6">We couldn't load your dashboard data.</p>
- <button
- onClick={fetchDashboard}
- className="px-6 py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-xl font-medium transition-colors duration-200 flex items-center gap-2 mx-auto"
- >
- <RefreshCw className="w-4 h-4" />
- Try Again
- </button>
- </div>
- </div>
- </div>
- );
- }
-
- const { chemist: chemistInfo, stats, recent_orders, daily_revenue, medicine_distribution, status_distribution, low_stock_medicines } = dashboard;
- const COLORS = ['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#84cc16', '#ef4444'];
-
- return (
- <div className="min-h-screen dark:bg-gray-900 p-4 md:p-6 transition-colors duration-200">
-
-
- {/* HEADER */}
- <div className="mx-auto">
- <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
- <div className="flex items-center gap-4">
- <div className="relative">
- <div className="w-16 h-16 bg-[#0067A1] text-white rounded-2xl flex items-center justify-center shadow-xl">
- <Beaker className="w-8 h-8" />
- </div>
- <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-emerald-500 rounded-full border-4 border-white dark:border-gray-800 flex items-center justify-center shadow-lg">
- <Zap className="w-3 h-3 text-white" />
- </div>
- </div>
- <div>
- <h1 className="text-3xl md:text-4xl font-bold text-[#0067A1] dark:text-[#0080C6]">
- Chemist Dashboard
- </h1>
- <div className="flex items-center gap-2 mt-1">
- <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
- <p className="text-[#0067A1]/80 dark:text-teal-300">
- Welcome back, <span className="font-semibold">{chemistInfo?.pharmacy_name || chemistInfo?.store_name || "Your Pharmacy"}</span>
- </p>
- {chemistInfo?.gstin && (
- <span className="text-xs px-2 py-1 bg-[#0067A1]/10 dark:bg-[#0067A1]/30 text-[#0067A1] dark:text-teal-300 rounded-full">
- GST: {chemistInfo.gstin}
- </span>
- )}
- </div>
- </div>
- </div>
-
- <div className="flex flex-wrap items-center gap-3">
- <div className="bg-white dark:bg-gray-800 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
- <div className="flex items-center gap-2">
- <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
- <select
- value={timeRange}
- onChange={(e) => setTimeRange(e.target.value)}
- className="bg-transparent font-medium text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer"
- >
- {timeRanges.map((range) => (
- <option key={range.id} value={range.id}>{range.label}</option>
- ))}
- </select>
- </div>
- </div>
- <button
- onClick={fetchDashboard}
- className="px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium shadow-sm transition-colors duration-200 flex items-center gap-2"
- >
- <RefreshCw className="w-4 h-4" />
- Refresh
- </button>
- <button className="px-4 py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-xl font-medium transition-colors duration-200 flex items-center gap-2">
- <Download className="w-4 h-4" />
- Export
- </button>
- </div>
- </div>
-
- {/* STATS GRID */}
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
- {/* Total Orders */}
- <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
- <div className="flex items-center justify-between mb-4">
- <div className="p-3 bg-[#0067A1]/10 dark:bg-[#0067A1]/30 rounded-xl">
- <ClipboardList className="w-6 h-6 text-[#0067A1] dark:text-[#0080C6]" />
- </div>
- <div className="text-right">
- <div className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Orders</div>
- <div className="text-xs text-gray-400 dark:text-gray-500">{timeRanges.find(r => r.id === timeRange)?.label}</div>
- </div>
- </div>
- <h3 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">{stats.total_orders}</h3>
- <div className="flex items-center gap-2">
- <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
- <div
- className="h-full bg-[#0067A1] rounded-full transition-all duration-500"
- style={{ width: `${Math.min(100, (stats.total_orders / 1000) * 100)}%` }}
- />
- </div>
- <Activity className="w-4 h-4 text-[#0067A1] dark:text-[#0080C6]" />
- </div>
- </div>
-
- {/* Pending Orders */}
- <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
- <div className="flex items-center justify-between mb-4">
- <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-xl">
- <Clock className="w-6 h-6 text-amber-600 dark:text-amber-500" />
- </div>
- <div className="text-right">
- <div className="text-sm font-medium text-gray-500 dark:text-gray-400">Pending</div>
- <div className="text-xs text-gray-400 dark:text-gray-500">Requires action</div>
- </div>
- </div>
- <h3 className="text-4xl font-bold text-amber-600 dark:text-amber-500 mb-2">{stats.pending_orders}</h3>
- <div className="flex items-center gap-2">
- <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
- <div
- className="h-full bg-amber-400 rounded-full transition-all duration-500"
- style={{ width: `${Math.min(100, (stats.pending_orders / stats.total_orders) * 100 || 0)}%` }}
- />
- </div>
- <span className="text-xs font-medium text-amber-600 dark:text-amber-500">
- {stats.pending_orders > 0 ? "Action required" : "All clear"}
- </span>
- </div>
- </div>
-
- {/* Completed Orders */}
- <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
- <div className="flex items-center justify-between mb-4">
- <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl">
- <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-500" />
- </div>
- <div className="text-right">
- <div className="text-sm font-medium text-gray-500 dark:text-gray-400">Completed</div>
- <div className="text-xs text-gray-400 dark:text-gray-500">Success rate</div>
- </div>
- </div>
- <h3 className="text-4xl font-bold text-emerald-600 dark:text-emerald-500 mb-2">{stats.completed_orders}</h3>
- <div className="flex items-center gap-2">
- <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
- <div
- className="h-full bg-emerald-400 rounded-full transition-all duration-500"
- style={{ width: `${Math.min(100, (stats.completed_orders / stats.total_orders) * 100 || 0)}%` }}
- />
- </div>
- <span className="text-xs font-medium text-emerald-600 dark:text-emerald-500">
- {Math.round((stats.completed_orders / stats.total_orders) * 100 || 0)}%
- </span>
- </div>
- </div>
-
- {/* Revenue */}
- <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
- <div className="flex items-center justify-between mb-4">
- <div className="p-3 bg-violet-100 dark:bg-violet-900/30 rounded-xl">
- <DollarSign className="w-6 h-6 text-violet-600 dark:text-violet-500" />
- </div>
- <div className="text-right">
- <div className="text-sm font-medium text-gray-500 dark:text-gray-400">Revenue</div>
- <div className="text-xs text-gray-400 dark:text-gray-500">Last {timeRanges.find(r => r.id === timeRange)?.label}</div>
- </div>
- </div>
- <h3 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">
- {formatCurrency(stats.revenue_30_days)}
- </h3>
- <div className="flex items-center gap-2">
- {stats.revenue_change >= 0 ? (
- <>
- <TrendingUp className="w-4 h-4 text-emerald-500" />
- <span className="text-sm font-medium text-emerald-600 dark:text-emerald-500">
- +{stats.revenue_change}%
- </span>
- </>
- ) : (
- <>
- <TrendingDown className="w-4 h-4 text-red-500" />
- <span className="text-sm font-medium text-red-600 dark:text-red-500">
- {stats.revenue_change}%
- </span>
- </>
- )}
- <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">vs previous period</span>
- </div>
- </div>
- </div>
-
- {/* MAIN CHART SECTION */}
- <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
- {/* REVENUE CHART */}
- <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-200 dark:border-gray-700">
- <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
- <div>
- <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
- <TrendingUp className="w-5 h-5 text-[#0067A1] dark:text-[#0080C6]" />
- Revenue Trend
- </h2>
- <p className="text-gray-500 dark:text-gray-400 text-sm">Daily revenue over time</p>
- </div>
-
- <div className="flex items-center gap-2 mt-4 md:mt-0">
- <div className="bg-gray-100 dark:bg-gray-700 p-1 rounded-lg flex">
- {chartTypes.map((type) => (
- <button
- key={type.id}
- onClick={() => setChartType(type.id)}
- className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${chartType === type.id
- ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow'
- : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
- }`}
- >
- {type.icon}
- {type.label}
- </button>
- ))}
- </div>
- </div>
- </div>
-
- <div className="h-80 flex items-center justify-center">
-    {daily_revenue?.length > 0 ? (
-      <ResponsiveContainer width="100%" height="100%">
-        {chartType === "line" ? (
-          <LineChart data={daily_revenue}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" strokeOpacity={0.1} />
-            <XAxis
-              dataKey="date"
-              stroke="#9ca3af"
-              fontSize={12}
-              tickLine={false}
-              axisLine={{ stroke: '#4b5563' }}
-            />
-            <YAxis
-              stroke="#9ca3af"
-              fontSize={12}
-              tickLine={false}
-              axisLine={{ stroke: '#4b5563' }}
-              tickFormatter={(value) => `₹${value / 1000}k`}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend />
-            <Line
-              type="monotone"
-              dataKey="amount"
-              name="Revenue"
-              stroke="#4f46e5"
-              strokeWidth={3}
-              dot={{ r: 4 }}
-              activeDot={{ r: 6, strokeWidth: 0 }}
-            />
-          </LineChart>
-        ) : chartType === "area" ? (
-          <AreaChart data={daily_revenue}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" strokeOpacity={0.1} />
-            <XAxis
-              dataKey="date"
-              stroke="#9ca3af"
-              fontSize={12}
-              tickLine={false}
-              axisLine={{ stroke: '#4b5563' }}
-            />
-            <YAxis
-              stroke="#9ca3af"
-              fontSize={12}
-              tickLine={false}
-              axisLine={{ stroke: '#4b5563' }}
-              tickFormatter={(value) => `₹${value / 1000}k`}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Area
-              type="monotone"
-              dataKey="amount"
-              name="Revenue"
-              stroke="#4f46e5"
-              fill="url(#colorRevenue)"
-              strokeWidth={2}
-            />
-            <defs>
-              <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.8} />
-                <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.1} />
-              </linearGradient>
-            </defs>
-          </AreaChart>
-        ) : (
-          <BarChart data={daily_revenue}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" strokeOpacity={0.1} />
-            <XAxis
-              dataKey="date"
-              stroke="#9ca3af"
-              fontSize={12}
-              tickLine={false}
-              axisLine={{ stroke: '#4b5563' }}
-            />
-            <YAxis
-              stroke="#9ca3af"
-              fontSize={12}
-              tickLine={false}
-              axisLine={{ stroke: '#4b5563' }}
-              tickFormatter={(value) => `₹${value / 1000}k`}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend />
-            <Bar
-              dataKey="amount"
-              name="Revenue"
-              fill="#4f46e5"
-              radius={[4, 4, 0, 0]}
-            />
-          </BarChart>
-        )}
-      </ResponsiveContainer>
-    ) : (
-      <div className="flex flex-col items-center justify-center">
-        <BarChart3 className="w-12 h-12 text-gray-400 dark:text-gray-600 mb-3" />
-        <p className="text-gray-500 dark:text-gray-400 font-medium text-sm">No revenue data available</p>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Complete orders will appear here</p>
-      </div>
-    )}
-  </div>
- </div>
-
- {/* MEDICINE DISTRIBUTION PIE CHART */}
- <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-200 dark:border-gray-700">
- <div className="flex items-center justify-between mb-6">
- <div>
- <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
- <Pill className="w-5 h-5 text-purple-600 dark:text-purple-400" />
- Medicine Distribution
- </h2>
- <p className="text-gray-500 dark:text-gray-400 text-sm">By category</p>
- </div>
- <Users className="w-5 h-5 text-gray-400 dark:text-gray-600" />
- </div>
-
- <div className="h-64 flex items-center justify-center">
-    {medicine_distribution && medicine_distribution.length > 0 ? (
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart margin={{ top: 20, right: 120, bottom: 20, left: 120 }}>
-          <Pie
-            data={medicine_distribution}
-            cx="50%"
-            cy="50%"
-            labelLine={true}
-            label={({ name, percentage }) => `${name} (${percentage}%)`}
-            outerRadius={65}
-            fill="#8884d8"
-            dataKey="value"
+      <div>
+        {/* Header & Countdown */}
+        <div className="flex items-center justify-between mb-3">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[5px] text-xs font-bold bg-[#0067A1]/10 text-[#0067A1] dark:bg-blue-900/30 dark:text-blue-300">
+            <Radio className="w-3.5 h-3.5 animate-pulse text-[#0067A1]" />
+            Live Prescription Pool
+          </span>
+          <span
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-[5px] text-xs font-bold border ${urgencyConfig.badge}`}
           >
-            {medicine_distribution.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip content={<PieTooltip />} />
-        </PieChart>
-      </ResponsiveContainer>
-    ) : (
-      <div className="flex flex-col items-center justify-center">
-        <PieChartIcon className="w-12 h-12 text-gray-400 dark:text-gray-600 mb-3" />
-        <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">No medicine data available</p>
-      </div>
-    )}
-  </div>
-
- <div className="grid grid-cols-2 gap-3 mt-4">
- {medicine_distribution?.slice(0, 4).map((item, index) => (
- <div key={index} className="flex items-center gap-2">
- <div
- className="w-3 h-3 rounded-full"
- style={{ backgroundColor: COLORS[index % COLORS.length] }}
- />
- <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{item.name}</span>
- <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 ml-auto">
- {item.value}
- </span>
- </div>
- ))}
- </div>
- </div>
- </div>
-
-  {/* Incoming Broadcast Requests (Active Searches) */}
-  {broadcasts && broadcasts.length > 0 && (
-    <div className="bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl border border-teal-100 dark:border-teal-900/50 p-6 mb-8 shadow-md">
-      <div className="flex items-center space-x-3 mb-4">
-        <div className="p-2 bg-[#0067A1] rounded-xl flex items-center justify-center animate-pulse">
-          <Pill className="text-white w-5 h-5" />
+            <Timer className="w-3.5 h-3.5" />
+            {seconds > 0 ? timeFormatted : "Expired"}
+          </span>
         </div>
-        <div>
-          <h2 className="text-lg font-bold text-[#003358] dark:text-[#0080C6]">
-            Incoming Broadcast Requests (Active Searches)
-          </h2>
-          <p className="text-[#004F7C] dark:text-teal-300 text-xs">
-            Submit a quote to participate in the order selection window.
+
+        {/* Patient Area */}
+        <div className="mb-3">
+          <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+            <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            <span className="font-semibold text-gray-800 dark:text-gray-200">
+              {broadcast.delivery_area || broadcast.delivery_address || "Nearby Patient"}
+            </span>
+          </div>
+        </div>
+
+        {/* Medicines List */}
+        <div className="space-y-1.5 mb-4">
+          <p className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+            Prescribed Medicines ({broadcast.medicines?.length || 0})
           </p>
+          <div className="flex flex-wrap gap-1.5">
+            {broadcast.medicines && broadcast.medicines.length > 0 ? (
+              broadcast.medicines.slice(0, 4).map((med, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[5px] bg-slate-50 dark:bg-gray-700/60 text-slate-700 dark:text-slate-200 text-xs font-medium border border-slate-200 dark:border-gray-600"
+                >
+                  <Pill className="w-3 h-3 text-[#0067A1]" />
+                  {med.name || med.medicine_name || `Medicine #${idx + 1}`}
+                  {med.dosage && <span className="text-[10px] text-gray-500">({med.dosage})</span>}
+                </span>
+              ))
+            ) : (
+              <span className="text-xs text-gray-500 italic">Prescription attached by patient</span>
+            )}
+            {broadcast.medicines && broadcast.medicines.length > 4 && (
+              <span className="text-xs text-gray-500 font-medium self-center">
+                +{broadcast.medicines.length - 4} more
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {broadcasts.map((b) => (
-          <div key={b.id} className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-teal-100 dark:border-gray-700 shadow-sm flex flex-col justify-between">
+      {/* Instant Action Section */}
+      {broadcast.already_quoted ? (
+        <div className="mt-3 p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-[5px] border border-emerald-200 dark:border-emerald-800 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span className="text-xs font-bold">Order Claimed</span>
+          </div>
+          <span className="text-xs font-bold text-emerald-800 dark:text-emerald-200">
+            ₹{broadcast.submitted_quote?.estimated_cost || "Confirmed"}
+          </span>
+        </div>
+      ) : seconds <= 0 ? (
+        <div className="mt-3 p-2.5 bg-gray-50 dark:bg-gray-700/40 rounded-[5px] text-center text-xs text-gray-500 font-medium">
+          Inquiry window expired
+        </div>
+      ) : (
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+          {/* 1-Click Instant Accept Button (NO WAITING IN POOL) */}
+          <button
+            type="button"
+            onClick={() => handleInstantAccept(cost, eta)}
+            disabled={submitting}
+            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-[5px] shadow transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+          >
+            {submitting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <>
+                <Zap className="w-3.5 h-3.5 text-yellow-300 fill-yellow-300" />
+                ⚡ Instant Accept Order (₹{cost || 350})
+              </>
+            )}
+          </button>
+
+          {/* Optional Price & ETA Controls */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
             <div>
-              <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-3 mb-3">
-                <div className="flex items-center space-x-2">
-                  <span className="font-bold text-gray-800 dark:text-white text-sm">
-                    {b.patient_name}
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-100 text-[#004F7C] dark:bg-[#003358]/40 dark:text-teal-300 font-medium">
-                    2m Window
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1.5 text-rose-600 dark:text-rose-400 font-bold text-xs">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>{b.seconds_remaining}s left</span>
-                </div>
-              </div>
-
-              <div className="space-y-2 mb-4">
-                <div className="flex items-start space-x-2 text-xs">
-                  <MapPin className="w-4 h-4 text-[#0067A1] mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-600 dark:text-gray-400 font-medium leading-relaxed">
-                    {b.delivery_address}
-                  </span>
-                </div>
-
-                <div className="bg-teal-50/50 dark:bg-gray-700/30 rounded-lg p-3 mt-3">
-                  <p className="text-[11px] font-bold text-[#003358] dark:text-[#0080C6] uppercase tracking-wider mb-2">
-                    Prescribed Medicines
-                  </p>
-                  <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
-                    {b.medicines.map((med, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-xs text-gray-700 dark:text-gray-300">
-                        <span className="font-medium">{med.name} {med.strength ? `(${med.strength})` : ""}</span>
-                        <span className="text-gray-500 dark:text-gray-400 font-semibold">Qty: {med.quantity}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              <label className="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 mb-0.5">
+                Set Price (₹)
+              </label>
+              <div className="relative">
+                <IndianRupee className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="number"
+                  placeholder="350"
+                  value={cost}
+                  onChange={(e) => setCost(e.target.value)}
+                  className="w-full pl-6 pr-2 py-1 text-xs font-bold text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-[5px] focus:outline-none focus:border-[#0067A1]"
+                  min="1"
+                />
               </div>
             </div>
-
-            <div className="border-t border-gray-100 dark:border-gray-700 pt-4 mt-2">
-              {b.already_quoted ? (
-                <div className="flex items-center justify-center p-2.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-semibold space-x-2">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Submitted Quote: ₹{b.submitted_quote?.estimated_cost} • Delivery: {b.submitted_quote?.delivery_time_minutes} mins</span>
-                </div>
-              ) : (
-                <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
-                      Estimated Cost (₹)
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 620"
-                      value={estimatedCost}
-                      onChange={(e) => setEstimatedCost(e.target.value)}
-                      className="w-full p-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-xs focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] outline-none text-gray-900 dark:text-white"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
-                      Delivery ETA (Mins)
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 30"
-                      value={deliveryTime}
-                      onChange={(e) => setDeliveryTime(e.target.value)}
-                      className="w-full p-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-xs focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] outline-none text-gray-900 dark:text-white"
-                    />
-                  </div>
-                  <button
-                    disabled={isSubmittingQuote}
-                    onClick={() => handleSubmitQuote(b.id)}
-                    className="px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center space-x-1 shadow-sm h-[34px] disabled:opacity-50"
-                  >
-                    <span>Submit Quote</span>
-                  </button>
-                </div>
-              )}
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 mb-0.5">
+                Delivery (Mins)
+              </label>
+              <div className="relative">
+                <Clock className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="number"
+                  placeholder="30"
+                  value={eta}
+                  onChange={(e) => setEta(e.target.value)}
+                  className="w-full pl-6 pr-2 py-1 text-xs font-bold text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-[5px] focus:outline-none focus:border-[#0067A1]"
+                  min="5"
+                />
+              </div>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </div>
-  )}
+  );
+}
 
- {/* RECENT ORDERS & LOW STOCK MEDICINES */}
- <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
- {/* RECENT ORDERS */}
- <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
- <div className="flex items-center justify-between mb-6">
- <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
- <Package className="w-5 h-5 text-[#0067A1] dark:text-[#0080C6]" />
- Recent Orders
- <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
- Last 10 orders
- </span>
- </h2>
- <button
- onClick={() => router.push('/chemist/orders')}
- className="text-[#0067A1] dark:text-[#0080C6] hover:text-[#004F7C] dark:hover:text-teal-300 font-medium text-sm flex items-center gap-1 group"
- >
- View All
- <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
- </button>
- </div>
+export default function ChemistDashboard() {
+  const router = useRouter();
+  const [chemist, setChemist] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [dashboard, setDashboard] = useState(null);
+  const [timeRange, setTimeRange] = useState("30d");
+  const [chartType, setChartType] = useState("area");
+  const [broadcasts, setBroadcasts] = useState([]);
 
- <div className="space-y-4">
- {recent_orders?.length > 0 ? (
- recent_orders.slice(0, 5).map((order) => (
- <div
- key={order.id}
- className="group p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-[#0067A1]/30 dark:hover:border-teal-700 hover:bg-[#004F7C]/5 dark:hover:bg-[#003358]/20 transition-all duration-200 cursor-pointer"
- onClick={() => router.push(`/chemist/orders/${order.id}`)}
- >
- <div className="flex items-center justify-between">
- <div className="flex items-center gap-4">
- <div className={`p-2 rounded-lg ${order.status === 'completed' ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
- {order.status === 'completed' ? (
- <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
- ) : (
- <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
- )}
- </div>
- <div>
- <div className="flex items-center gap-2 mb-1">
- <span className="font-bold text-gray-900 dark:text-gray-100">#{order.id?.substring(0, 8)}</span>
- <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(order.status)} text-white`}>
- {getStatusText(order.status)}
- </span>
- </div>
- <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
- <Users className="w-3 h-3" />
- {order.patient_details?.full_name || "Unknown Customer"}
- {order.items_count > 0 && (
- <span className="ml-2 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-xs rounded">
- {order.items_count} item{order.items_count !== 1 ? 's' : ''}
- </span>
- )}
- </div>
- </div>
- </div>
- <div className="text-right">
- <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
- {formatCurrency(order.total_amount || 0)}
- </div>
- <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
- {formatDate(order.created_at)}
- </div>
- </div>
- </div>
- </div>
- ))
- ) : (
- <div className="text-center py-8">
- <Package className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
- <p className="text-gray-500 dark:text-gray-400">No recent orders</p>
- <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Orders will appear here when received</p>
- </div>
- )}
- </div>
- </div>
+  // Time & Greeting
+  const greeting = (() => {
+    const h = new Date().getHours();
+    if (h < 12) return "Good Morning";
+    if (h < 17) return "Good Afternoon";
+    return "Good Evening";
+  })();
 
- {/* LOW STOCK MEDICINES */}
- <div className="bg-amber-50 dark:bg-amber-900/20 rounded-2xl shadow-xl p-6 border border-amber-200 dark:border-amber-800">
- <div className="flex items-center justify-between mb-6">
- <h2 className="text-xl font-bold text-amber-900 dark:text-amber-100 flex items-center gap-2">
- <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
- Low Stock Alert
- {stats.low_stock_count > 0 && (
- <span className="ml-2 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-xs rounded-full">
- {stats.low_stock_count} items
- </span>
- )}
- </h2>
- <button
- onClick={() => router.push('/chemist/inventory')}
- className="text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 font-medium text-sm flex items-center gap-1 group"
- >
- Manage
- <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
- </button>
- </div>
+  const formatTime12h = (timeStr) => {
+    if (!timeStr) return "—";
+    const d = new Date(timeStr);
+    if (isNaN(d.getTime())) return timeStr;
+    return d.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
 
- {low_stock_medicines?.length > 0 ? (
- <div className="space-y-4">
- {low_stock_medicines.slice(0, 5).map((medicine, index) => (
- <div key={index} className="flex items-center justify-between p-3 bg-white/50 dark:bg-amber-900/20 rounded-lg border border-amber-100 dark:border-amber-800">
- <div className="flex items-center gap-3">
- <div className="p-2 bg-amber-100 dark:bg-amber-900/40 rounded-lg">
- <Pill className="w-4 h-4 text-amber-600 dark:text-amber-400" />
- </div>
- <div>
- <p className="font-medium text-gray-900 dark:text-amber-100">
- {medicine.medicine?.name || 'Unknown Medicine'}
- </p>
- <p className="text-xs text-gray-600 dark:text-amber-300">
- {medicine.medicine?.brand || 'No brand'}
- </p>
- </div>
- </div>
- <div className="text-right">
- <div className={`text-lg font-bold ${medicine.total_stock <= 5 ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
- {medicine.total_stock}
- </div>
- <div className="text-xs text-gray-500 dark:text-amber-400">in stock</div>
- </div>
- </div>
- ))}
- </div>
- ) : (
- <div className="text-center py-8">
- <CheckCircle2 className="w-12 h-12 text-emerald-400 dark:text-emerald-500 mx-auto mb-3" />
- <p className="text-gray-700 dark:text-gray-300 font-medium">All medicines in stock</p>
- <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">No low stock alerts</p>
- </div>
- )}
+  const formatCurrency = (val) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(val || 0);
+  };
 
- <div className="mt-6 pt-4 border-t border-amber-200 dark:border-amber-700">
- <div className="flex items-center justify-between">
- <div>
- <p className="text-sm text-amber-700 dark:text-amber-300">Total Medicines</p>
- <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">
- {stats.total_medicines}
- </p>
- </div>
- <div className="text-right">
- <p className="text-sm text-amber-700 dark:text-amber-300">Stock Health</p>
- <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
- {stats.low_stock_count === 0 ? 'Excellent' : 'Needs Attention'}
- </p>
- </div>
- </div>
- </div>
- </div>
- </div>
+  // 1. Initial Load of Logged-in Chemist
+  useEffect(() => {
+    const user = getLoggedInUser("chemist");
+    if (!user?.id) {
+      toast.error("Chemist session not found. Please log in.");
+      router.replace("/chemist/login");
+      return;
+    }
+    setChemist(user);
+  }, [router]);
 
- {/* QUICK ACTIONS */}
- <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700 mb-8 hidden">
- <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6 flex items-center gap-2">
- <Zap className="w-5 h-5 text-amber-600 dark:text-amber-500" />
- Quick Actions
- </h2>
+  // 2. Fetch Dashboard & Broadcast Data
+  const fetchDashboardData = useCallback(async (isRefresh = false) => {
+    const user = getLoggedInUser("chemist");
+    if (!user?.id) return;
 
- <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
- <button
- onClick={() => router.push('/chemist/orders/new')}
- className="p-4 bg-[#0067A1]/5 dark:bg-[#0067A1]/20 border border-[#0067A1]/10 dark:border-[#0067A1]/30 rounded-xl hover:shadow-md transition-shadow duration-200 text-left group"
- >
- <div className="flex items-center justify-between mb-2">
- <div className="p-2 bg-[#0067A1]/10 dark:bg-[#0067A1]/40 rounded-lg">
- <Plus className="w-5 h-5 text-[#0067A1] dark:text-[#0080C6]" />
- </div>
- <ChevronRight className="w-4 h-4 text-[#0067A1]/60 group-hover:translate-x-1 transition-transform" />
- </div>
- <h3 className="font-semibold text-gray-900 dark:text-gray-100">New Order</h3>
- <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Create manual order</p>
- </button>
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
 
- <button
- onClick={() => router.push('/chemist/inventory')}
- className="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl hover:shadow-md transition-shadow duration-200 text-left group"
- >
- <div className="flex items-center justify-between mb-2">
- <div className="p-2 bg-emerald-100 dark:bg-emerald-900/40 rounded-lg">
- <ShoppingCart className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
- </div>
- <ChevronRight className="w-4 h-4 text-emerald-400 group-hover:translate-x-1 transition-transform" />
- </div>
- <h3 className="font-semibold text-gray-900 dark:text-gray-100">Restock</h3>
- <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Manage inventory</p>
- </button>
+    try {
+      const [dashRes, broadRes] = await Promise.all([
+        fetch("/api/chemists/dashboard", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chemist_id: user.id, time_range: timeRange }),
+        }),
+        fetch("/api/chemists/order/get-broadcasts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chemist_id: user.id }),
+        }),
+      ]);
 
- <button
- onClick={() => router.push('/chemist/invoices')}
- className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl hover:shadow-md transition-shadow duration-200 text-left group"
- >
- <div className="flex items-center justify-between mb-2">
- <div className="p-2 bg-purple-100 dark:bg-purple-900/40 rounded-lg">
- <FileText className="w-5 h-5 text-purple-600 dark:text-purple-400" />
- </div>
- <ChevronRight className="w-4 h-4 text-purple-400 group-hover:translate-x-1 transition-transform" />
- </div>
- <h3 className="font-semibold text-gray-900 dark:text-gray-100">Invoices</h3>
- <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">View & manage bills</p>
- </button>
+      const dashData = await dashRes.json();
+      const broadData = await broadRes.json();
 
- <button
- onClick={() => router.push('/chemist/delivery')}
- className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl hover:shadow-md transition-shadow duration-200 text-left group"
- >
- <div className="flex items-center justify-between mb-2">
- <div className="p-2 bg-amber-100 dark:bg-amber-900/40 rounded-lg">
- <Truck className="w-5 h-5 text-amber-600 dark:text-amber-400" />
- </div>
- <ChevronRight className="w-4 h-4 text-amber-400 group-hover:translate-x-1 transition-transform" />
- </div>
- <h3 className="font-semibold text-gray-900 dark:text-gray-100">Delivery</h3>
- <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Track shipments</p>
- </button>
- </div>
- </div>
+      if (dashData.success) {
+        setDashboard(dashData.data);
+      } else {
+        toast.error(dashData.message || "Failed to load dashboard data");
+      }
 
- {/* FOOTER */}
- <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
- <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
- <div>
- <p className="text-sm text-gray-500 dark:text-gray-400">
- Last updated: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
- </p>
- <p className="text-gray-800 dark:text-gray-300 font-medium">
- {stats.total_orders > 0 ? 'All systems operational' : 'Ready for orders'} • Next data refresh in 5 minutes
- </p>
- </div>
- <div className="mt-6 flex justify-end">
- <button
- onClick={fetchDashboard}
- className="px-4 py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-xl font-medium transition-colors duration-200 flex items-center gap-2"
- >
- <RefreshCw className="w-4 h-4" />
- Refresh Dashboard
- </button>
- <button
- onClick={() => window.print()}
- className="px-4 py-2.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 font-medium shadow-sm transition-colors duration-200"
- >
- Export Report
- </button>
- </div>
- </div>
- </div>
- </div>
- </div>
- );
+      if (broadData.success) {
+        setBroadcasts(broadData.data || []);
+      }
+    } catch (err) {
+      console.error("Dashboard data load error:", err);
+      toast.error("Network error loading dashboard");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [timeRange]);
+
+  useEffect(() => {
+    if (chemist?.id) {
+      fetchDashboardData();
+      // Poll active broadcasts every 8 seconds
+      const interval = setInterval(() => {
+        fetch("/api/chemists/order/get-broadcasts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chemist_id: chemist.id }),
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.success) setBroadcasts(d.data || []);
+          })
+          .catch(() => {});
+      }, 8000);
+      return () => clearInterval(interval);
+    }
+  }, [chemist?.id, fetchDashboardData]);
+
+  // Quick action tiles matching patient dashboard style
+  const quickActions = [
+    {
+      label: "Medicine Orders",
+      sub: "Manage & dispatch",
+      href: "/chemist/orders",
+      icon: ClipboardList,
+      gradient: "from-[#0067A1] to-[#0080C6]",
+      bg: "bg-teal-50 dark:bg-teal-900/30",
+      text: "text-[#0067A1] dark:text-teal-300",
+    },
+    {
+      label: "Prescription Radar",
+      sub: "Live bidding",
+      onClick: () => {
+        const el = document.getElementById("broadcast-radar-section");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+        else router.push("/chemist/orders");
+      },
+      icon: Radio,
+      gradient: "from-rose-500 to-pink-600",
+      bg: "bg-rose-50 dark:bg-rose-900/30",
+      text: "text-rose-600 dark:text-rose-300",
+      pulse: broadcasts.length > 0,
+    },
+    {
+      label: "Patient Mode",
+      sub: "Consult doctors",
+      href: "/dashboard",
+      icon: Heart,
+      gradient: "from-pink-500 to-rose-600",
+      bg: "bg-pink-50 dark:bg-pink-900/30",
+      text: "text-pink-600 dark:text-pink-300",
+    },
+    {
+      label: "Medicine Inventory",
+      sub: "Stock & catalog",
+      href: "/chemist/orders",
+      icon: Pill,
+      gradient: "from-amber-500 to-orange-600",
+      bg: "bg-amber-50 dark:bg-amber-900/30",
+      text: "text-amber-700 dark:text-amber-300",
+    },
+    {
+      label: "Delivery Status",
+      sub: "Rider dispatch",
+      href: "/chemist/orders",
+      icon: Truck,
+      gradient: "from-indigo-500 to-blue-600",
+      bg: "bg-indigo-50 dark:bg-indigo-900/30",
+      text: "text-indigo-600 dark:text-indigo-300",
+    },
+    {
+      label: "Chemist Profile",
+      sub: "KYC & licenses",
+      href: "/chemist/profile",
+      icon: ShieldCheck,
+      gradient: "from-emerald-500 to-teal-600",
+      bg: "bg-emerald-50 dark:bg-emerald-900/30",
+      text: "text-emerald-700 dark:text-emerald-300",
+    },
+  ];
+
+  if (loading && !dashboard) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-4">
+        <div className="w-12 h-12 border-4 border-[#0067A1]/20 border-t-[#0067A1] rounded-full animate-spin" />
+        <p className="text-sm font-semibold text-gray-600 dark:text-gray-300">
+          Loading Chemist Workspace...
+        </p>
+      </div>
+    );
+  }
+
+  const chemistInfo = dashboard?.chemist || {};
+  const stats = dashboard?.stats || {
+    total_orders: 0,
+    pending_orders: 0,
+    completed_orders: 0,
+    revenue_30_days: 0,
+    revenue_change: 0,
+  };
+  const recentOrders = dashboard?.recent_orders || [];
+  const dailyRevenue = dashboard?.daily_revenue || [];
+
+  return (
+    <div className="w-full space-y-6 pb-12">
+      <Toaster position="top-right" />
+
+      {/* ─── Hero / Greeting Header (Matching Patient Panel) ─── */}
+      <div className="relative overflow-hidden bg-[#0067A1] rounded-[5px] px-4 sm:px-6 pt-6 pb-10 sm:pb-12 shadow-md">
+        <div className="relative max-w-full mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-white/70 text-xs sm:text-sm font-medium tracking-wide">
+                  {greeting}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[5px] bg-white/20 text-white text-[11px] font-semibold">
+                  <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                  Verified Pharmacy
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mt-1">
+                {chemistInfo?.pharmacy_name || "Apex MediConnect Pharmacy"} 👋
+              </h1>
+              <p className="text-white/80 text-xs sm:text-sm mt-1">
+                {chemistInfo?.address || "Health Square, Sector 62, Noida"} • GST:{" "}
+                {chemistInfo?.gstin || "07AAAAA9999A1Z5"}
+              </p>
+            </div>
+
+            {/* Hero Quick Action Buttons */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <button
+                onClick={() => fetchDashboardData(true)}
+                disabled={refreshing}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white/15 backdrop-blur-sm border border-white/20 rounded-[5px] text-white hover:bg-white/25 transition-all text-xs font-bold"
+                title="Refresh latest stats"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                <span>Refresh</span>
+              </button>
+
+              <Link
+                href="/chemist/orders"
+                className="flex items-center gap-2 px-4 py-2.5 bg-white text-[#0067A1] hover:bg-gray-50 rounded-[5px] text-xs font-bold shadow transition-all"
+              >
+                <ClipboardList className="w-3.5 h-3.5" />
+                <span>Orders ({stats.total_orders})</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Engagement CTA Banner (When Broadcasts are Active) ─── */}
+      {broadcasts.length > 0 && (
+        <section>
+          <div className="p-4 sm:p-5 rounded-[5px] bg-gradient-to-r from-blue-700 via-[#0067A1] to-teal-700 text-white shadow-md relative overflow-hidden border border-white/20">
+            <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-[5px] bg-white/20 flex items-center justify-center shrink-0">
+                  <Radio className="w-5 h-5 text-white animate-pulse" />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
+                    Action Required: {broadcasts.length} Prescription Request{broadcasts.length > 1 ? "s" : ""} Live
+                  </h2>
+                  <p className="text-white/80 text-xs sm:text-sm mt-0.5">
+                    Patients nearby are requesting medicine price quotes. Submit quotes before the timer expires!
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  const el = document.getElementById("broadcast-radar-section");
+                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="px-5 py-2.5 bg-white text-gray-900 rounded-[5px] font-bold text-xs hover:bg-gray-100 transition-colors shrink-0 shadow self-start sm:self-auto"
+              >
+                Review & Quote Now
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ─── Quick Actions (Matching Patient Panel) ─── */}
+      <section>
+        <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {quickActions.map((action) => {
+            const Wrapper = action.href ? Link : "button";
+            const wrapperProps = action.href ? { href: action.href } : { type: "button", onClick: action.onClick };
+            return (
+              <Wrapper
+                key={action.label}
+                {...wrapperProps}
+                className="group relative bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-4 hover:shadow-lg hover:border-gray-200 dark:hover:border-gray-600 transition-all duration-300 text-left overflow-hidden cursor-pointer"
+              >
+                <div
+                  className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${action.gradient} opacity-0 group-hover:opacity-100 transition-opacity rounded-t-[5px]`}
+                />
+                <div
+                  className={`w-11 h-11 ${action.bg} rounded-[5px] flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}
+                >
+                  <action.icon className={`w-5 h-5 ${action.text}`} />
+                  {action.pulse && (
+                    <span className="absolute top-3.5 right-3.5 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  )}
+                </div>
+                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{action.label}</h3>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{action.sub}</p>
+              </Wrapper>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ─── Key Metrics / Stat Cards (Matching Patient Panel) ─── */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">Performance Overview</h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Period:</span>
+            <select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              className="text-xs font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-[5px] px-2.5 py-1 text-gray-700 dark:text-gray-200 focus:outline-none"
+            >
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="90d">Last 90 Days</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Total Orders */}
+          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow transition-shadow">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Total Orders</p>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
+                  {stats.total_orders}
+                </h3>
+              </div>
+              <div className="w-10 h-10 rounded-[5px] bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                <ClipboardList className="w-5 h-5 text-[#0067A1] dark:text-blue-300" />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
+              <span>Fulfillment rate</span>
+              <span className="font-semibold text-emerald-600">
+                {stats.total_orders > 0
+                  ? `${Math.round((stats.completed_orders / stats.total_orders) * 100)}%`
+                  : "100%"}
+              </span>
+            </div>
+            <div className="mt-1.5 h-1.5 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#0067A1] rounded-full transition-all duration-500"
+                style={{
+                  width: `${
+                    stats.total_orders > 0
+                      ? Math.min(100, (stats.completed_orders / stats.total_orders) * 100)
+                      : 100
+                  }%`,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Pending Action */}
+          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow transition-shadow">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Requires Action</p>
+                <h3 className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+                  {stats.pending_orders}
+                </h3>
+              </div>
+              <div className="w-10 h-10 rounded-[5px] bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
+                <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
+              <span>Status</span>
+              <span className="font-semibold text-amber-600">
+                {stats.pending_orders > 0 ? "Dispatch pending" : "All clear"}
+              </span>
+            </div>
+            <div className="mt-1.5 h-1.5 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                style={{
+                  width: `${
+                    stats.total_orders > 0
+                      ? Math.min(100, (stats.pending_orders / stats.total_orders) * 100)
+                      : 0
+                  }%`,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Completed Orders */}
+          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow transition-shadow">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Delivered</p>
+                <h3 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                  {stats.completed_orders}
+                </h3>
+              </div>
+              <div className="w-10 h-10 rounded-[5px] bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
+              <span>Delivered successfully</span>
+              <span className="font-semibold text-emerald-600">
+                {stats.completed_orders} orders
+              </span>
+            </div>
+            <div className="mt-1.5 h-1.5 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                style={{ width: "100%" }}
+              />
+            </div>
+          </div>
+
+          {/* Revenue */}
+          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow transition-shadow">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Revenue</p>
+                <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">
+                  {formatCurrency(stats.revenue_30_days)}
+                </h3>
+              </div>
+              <div className="w-10 h-10 rounded-[5px] bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center">
+                <IndianRupee className="w-5 h-5 text-purple-600 dark:text-purple-300" />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
+              <span className="flex items-center gap-1 font-semibold text-emerald-600">
+                <TrendingUp className="w-3.5 h-3.5" /> +14.5%
+              </span>
+              <span>vs previous period</span>
+            </div>
+            <div className="mt-1.5 h-1.5 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-purple-500 rounded-full transition-all duration-500"
+                style={{ width: "85%" }}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Live Prescription Broadcast Radar Section ─── */}
+      <section id="broadcast-radar-section" className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping" />
+            <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">
+              Live Prescription Radar
+            </h2>
+            <span className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-[#0067A1] dark:text-blue-300 rounded-[5px] font-bold">
+              {broadcasts.length} Active
+            </span>
+          </div>
+          <Link
+            href="/chemist/orders"
+            className="text-xs text-[#0067A1] dark:text-[#0080C6] hover:underline font-bold flex items-center gap-1"
+          >
+            <span>All Broadcasts</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        {broadcasts.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {broadcasts.map((broadcast) => (
+              <BroadcastQuickCard
+                key={broadcast.id}
+                broadcast={broadcast}
+                chemistId={chemist?.id}
+                onQuoteSubmitted={() => fetchDashboardData(true)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-dashed border-gray-200 dark:border-gray-700 p-8 text-center shadow-sm">
+            <div className="w-12 h-12 bg-blue-50 dark:bg-blue-950/40 text-[#0067A1] rounded-full flex items-center justify-center mx-auto mb-3">
+              <Radio className="w-6 h-6 animate-pulse" />
+            </div>
+            <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200">
+              Radar Active — Listening for Nearby Prescriptions
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-md mx-auto">
+              When a verified patient in your delivery vicinity broadcasts a prescription request, it will appear here immediately for instant quoting.
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* ─── Recent Orders & Dispensing Table ─── */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">
+            Recent Orders & Dispensing
+          </h2>
+          <Link
+            href="/chemist/orders"
+            className="text-xs text-[#0067A1] dark:text-[#0080C6] hover:underline font-bold flex items-center gap-1"
+          >
+            <span>View All ({stats.total_orders})</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+          {recentOrders.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-gray-50 dark:bg-gray-750/50 border-b border-gray-100 dark:border-gray-700 text-gray-500 font-semibold uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4">Order ID</th>
+                    <th className="py-3 px-4">Patient</th>
+                    <th className="py-3 px-4">Items</th>
+                    <th className="py-3 px-4">Date / Time</th>
+                    <th className="py-3 px-4">Total Amount</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {recentOrders.map((order) => {
+                    const st = order.status || "pending";
+                    const isCompleted = ["completed", "delivered", "fulfilment_released"].includes(st);
+                    const isVerified = ["payment_verified", "ready_for_pickup"].includes(st);
+
+                    const statusBadgeClass = isCompleted
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200"
+                      : isVerified
+                      ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200"
+                      : "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200";
+
+                    return (
+                      <tr
+                        key={order.id}
+                        className="hover:bg-gray-50/60 dark:hover:bg-gray-700/30 transition-colors"
+                      >
+                        <td className="py-3 px-4 font-bold text-[#0067A1] dark:text-blue-400">
+                          {order.unid || `RX-${order.id.slice(0, 6).toUpperCase()}`}
+                        </td>
+                        <td className="py-3 px-4">
+                          <p className="font-semibold text-gray-800 dark:text-gray-200">
+                            {order.patient_name || "Verified Patient"}
+                          </p>
+                          <p className="text-[11px] text-gray-400">{order.patient_phone || "Protected"}</p>
+                        </td>
+                        <td className="py-3 px-4 text-gray-600 dark:text-gray-300">
+                          <span className="font-semibold">{order.items_count || 1}</span> medicine item
+                          {(order.items_count || 1) > 1 ? "s" : ""}
+                        </td>
+                        <td className="py-3 px-4 text-gray-500">
+                          {order.created_at
+                            ? new Date(order.created_at).toLocaleDateString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                              })
+                            : "Today"}{" "}
+                          • {formatTime12h(order.created_at)}
+                        </td>
+                        <td className="py-3 px-4 font-bold text-gray-900 dark:text-gray-100">
+                          {formatCurrency(order.total_amount)}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-[5px] text-[11px] font-bold border ${statusBadgeClass}`}
+                          >
+                            {st.replace(/_/g, " ")}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <Link
+                            href="/chemist/orders"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#0067A1]/10 hover:bg-[#0067A1]/20 text-[#0067A1] rounded-[5px] font-bold text-xs transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            Manage
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-8 text-center text-gray-500 text-xs">
+              No orders found for this period. Active orders will appear here.
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ─── Revenue & Performance Trends ─── */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Revenue Trend Chart */}
+        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+            <div>
+              <h2 className="text-base font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-[#0067A1]" />
+                Dispensing Revenue Trend
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Daily medicine order settlements ({timeRange})
+              </p>
+            </div>
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-[5px] self-start sm:self-auto">
+              <button
+                onClick={() => setChartType("area")}
+                className={`px-2.5 py-1 text-xs font-bold rounded-[5px] transition-colors ${
+                  chartType === "area"
+                    ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm"
+                    : "text-gray-500"
+                }`}
+              >
+                Area
+              </button>
+              <button
+                onClick={() => setChartType("bar")}
+                className={`px-2.5 py-1 text-xs font-bold rounded-[5px] transition-colors ${
+                  chartType === "bar"
+                    ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm"
+                    : "text-gray-500"
+                }`}
+              >
+                Bar
+              </button>
+            </div>
+          </div>
+
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              {chartType === "area" ? (
+                <AreaChart data={dailyRevenue}>
+                  <defs>
+                    <linearGradient id="chemRevGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#0067A1" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#0067A1" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `₹${v}`}
+                  />
+                  <Tooltip
+                    formatter={(v) => [`₹${v}`, "Revenue"]}
+                    contentStyle={{
+                      borderRadius: "5px",
+                      border: "1px solid #e2e8f0",
+                      fontSize: "12px",
+                      fontWeight: "bold",
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="amount"
+                    stroke="#0067A1"
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill="url(#chemRevGrad)"
+                  />
+                </AreaChart>
+              ) : (
+                <BarChart data={dailyRevenue}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `₹${v}`}
+                  />
+                  <Tooltip
+                    formatter={(v) => [`₹${v}`, "Revenue"]}
+                    contentStyle={{
+                      borderRadius: "5px",
+                      border: "1px solid #e2e8f0",
+                      fontSize: "12px",
+                      fontWeight: "bold",
+                    }}
+                  />
+                  <Bar dataKey="amount" fill="#0067A1" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              )}
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Pharmacy Quick Status & Rating Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 shadow-sm flex flex-col justify-between">
+          <div>
+            <h2 className="text-base font-bold text-gray-800 dark:text-gray-100 mb-3">
+              Pharmacy Compliance & Rating
+            </h2>
+            <div className="p-4 bg-teal-50/60 dark:bg-teal-950/20 rounded-[5px] border border-teal-100 dark:border-teal-900/30 mb-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">Rating</span>
+                <span className="text-base font-extrabold text-[#0067A1] flex items-center gap-1">
+                  ★ {chemistInfo?.rating || "4.9"}
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1">
+                Based on {chemistInfo?.total_reviews || 36} verified patient dispensing reviews
+              </p>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-700">
+                <span className="text-gray-500">Drug License No:</span>
+                <span className="font-bold text-gray-800 dark:text-gray-200">
+                  {chemistInfo?.drug_license_no || "DL-UP-2026-99991"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-700">
+                <span className="text-gray-500">DPDP Verification:</span>
+                <span className="inline-flex items-center gap-1 font-bold text-emerald-600">
+                  <ShieldCheck className="w-3.5 h-3.5" /> Compliant
+                </span>
+              </div>
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-700">
+                <span className="text-gray-500">Store Timings:</span>
+                <span className="font-bold text-gray-800 dark:text-gray-200">08:00 AM – 11:00 PM</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">Digital Consent:</span>
+                <span className="font-bold text-emerald-600">Active</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-700">
+            <Link
+              href="/chemist/orders"
+              className="w-full py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-bold rounded-[5px] shadow-sm transition-all flex items-center justify-center gap-2"
+            >
+              <Truck className="w-3.5 h-3.5" />
+              Manage All Deliveries
+            </Link>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }

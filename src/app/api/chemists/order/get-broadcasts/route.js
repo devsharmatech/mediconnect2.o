@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -15,71 +15,78 @@ export async function POST(req) {
     }
 
     // 1. Fetch active broadcasts (broadcasting and not yet expired)
-    const now = new Date().toISOString();
-    const { data: broadcasts, error: broadcastsErr } = await supabase
-      .from("medicine_order_broadcasts")
-      .select(`
-        id,
-        delivery_address,
-        created_at,
-        expires_at,
-        status,
-        prescription:prescription_id(
-          id,
-          medicines
-        ),
-        patient:patient_id(
-          id,
-          phone_number,
-          patient_details(
-            full_name
-          )
-        )
-      `)
-      .eq("status", "broadcasting")
-      .gt("expires_at", now);
+    const broadcasts = await sql`
+      SELECT 
+        mob.id,
+        mob.delivery_address,
+        mob.created_at,
+        mob.expires_at,
+        mob.status,
+        p.id as prescription_id,
+        p.medicines,
+        u.id as patient_id,
+        u.phone_number as patient_phone,
+        pd.full_name as patient_name
+      FROM medicine_order_broadcasts mob
+      LEFT JOIN prescriptions p ON p.id = mob.prescription_id
+      LEFT JOIN users u ON u.id = mob.patient_id
+      LEFT JOIN patient_details pd ON pd.id = mob.patient_id
+      WHERE mob.status = 'broadcasting' AND mob.expires_at > NOW()
+      ORDER BY mob.created_at DESC
+    `;
 
-    if (broadcastsErr) throw broadcastsErr;
-
-    // 2. Fetch quotes submitted by this chemist to see which ones are already answered
-    const { data: quotes, error: quotesErr } = await supabase
-      .from("medicine_order_quotes")
-      .select("broadcast_id, estimated_cost, delivery_time_minutes")
-      .eq("chemist_id", chemist_id);
-
-    if (quotesErr) throw quotesErr;
-
-    const quotesMap = {};
-    if (quotes) {
-      quotes.forEach(q => {
+    // 2. Fetch quotes submitted by this chemist
+    let quotesMap = {};
+    if (broadcasts.length > 0) {
+      const broadcastIds = broadcasts.map((b) => b.id);
+      const quotes = await sql`
+        SELECT broadcast_id, estimated_cost, delivery_time_minutes, final_amount, status
+        FROM medicine_order_quotes
+        WHERE chemist_id = ${chemist_id} AND broadcast_id = ANY(${broadcastIds})
+      `;
+      quotes.forEach((q) => {
         quotesMap[q.broadcast_id] = q;
       });
     }
 
     // 3. Map broadcasts, masking exact delivery address & shielding phone number (V3 DPDP Rule)
-    const result = broadcasts.map(b => {
+    const result = broadcasts.map((b) => {
       const rawAddr = b.delivery_address || "";
       const pinMatch = rawAddr.match(/\b\d{6}\b/);
       const delivery_pincode = pinMatch ? pinMatch[0] : null;
-      const parts = rawAddr.split(',').map(s => s.trim()).filter(Boolean);
-      const delivery_area = parts.length > 1 ? parts.slice(-2).join(', ') : (parts[0] || "Local Delivery Area");
+      const parts = rawAddr.split(",").map((s) => s.trim()).filter(Boolean);
+      const delivery_area =
+        parts.length > 1
+          ? parts.slice(-2).join(", ")
+          : parts[0] || "Local Delivery Area";
+
+      let parsedMedicines = [];
+      try {
+        parsedMedicines =
+          typeof b.medicines === "string" ? JSON.parse(b.medicines) : b.medicines || [];
+      } catch (e) {
+        parsedMedicines = [];
+      }
+
+      const secondsRemaining = Math.max(
+        0,
+        Math.floor((new Date(b.expires_at).getTime() - Date.now()) / 1000)
+      );
 
       return {
         id: b.id,
-        delivery_area: delivery_area,
-        delivery_pincode: delivery_pincode,
-        // Shielded address representation for bidding pharmacies
-        delivery_address: delivery_pincode ? `${delivery_area} (PIN: ${delivery_pincode})` : delivery_area,
+        delivery_area,
+        delivery_pincode,
+        delivery_address: delivery_pincode
+          ? `${delivery_area} (PIN: ${delivery_pincode})`
+          : delivery_area,
         created_at: b.created_at,
         expires_at: b.expires_at,
-        medicines: typeof b.prescription?.medicines === "string" 
-          ? JSON.parse(b.prescription.medicines) 
-          : b.prescription?.medicines || [],
-        // Shield patient phone number completely during bidding phase
-        patient_name: b.patient?.patient_details?.full_name || "Patient",
+        medicines: parsedMedicines,
+        patient_name: b.patient_name || "Verified Patient",
         already_quoted: !!quotesMap[b.id],
         submitted_quote: quotesMap[b.id] || null,
-        seconds_remaining: Math.max(0, Math.floor((new Date(b.expires_at) - new Date()) / 1000))
+        seconds_remaining: secondsRemaining,
       };
     });
 

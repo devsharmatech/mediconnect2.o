@@ -1,6 +1,7 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+import { sendPushAndInAppNotification } from "@/lib/notificationHelper";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -14,86 +15,101 @@ export async function POST(req) {
       return failure("order_id and status required", null, 400, { headers: corsHeaders });
     }
 
-    // Fetch previous status for immutable audit record
-    const { data: currentOrder } = await supabase
-      .from("medicine_orders")
-      .select("status, chemist_id, patient_id")
-      .eq("id", order_id)
-      .maybeSingle();
+    // 1. Fetch current order
+    const currentOrderRows = await sql`
+      SELECT mo.*, cd.pharmacy_name 
+      FROM medicine_orders mo
+      LEFT JOIN chemist_details cd ON cd.id = mo.chemist_id
+      WHERE mo.id = ${order_id}
+      LIMIT 1
+    `;
+    const currentOrder = currentOrderRows[0];
 
-    const previousStatus = currentOrder?.status || "unknown";
-
-    const updatePayload = {
-      status,
-      chemist_notes,
-      updated_at: new Date(),
-    };
-
-    if (status === "delivered" || status === "completed") {
-      updatePayload.actual_delivery_at = new Date();
+    if (!currentOrder) {
+      return failure("Order not found", null, 404, { headers: corsHeaders });
     }
 
-    const { data, error } = await supabase
-      .from("medicine_orders")
-      .update(updatePayload)
-      .eq("id", order_id)
-      .select("*, chemist_details(pharmacy_name)")
-      .maybeSingle();
+    const previousStatus = currentOrder.status || "unknown";
 
-    if (error) throw error;
+    // 2. Perform update
+    const isCompleted = status === "delivered" || status === "completed";
+    const updatedOrderRows = await sql`
+      UPDATE medicine_orders
+      SET 
+        status = ${status},
+        chemist_notes = ${chemist_notes !== undefined ? chemist_notes : currentOrder.chemist_notes},
+        updated_at = NOW()
+        ${isCompleted ? sql`, actual_delivery_at = NOW()` : sql``}
+      WHERE id = ${order_id}
+      RETURNING *
+    `;
+    const updatedOrder = updatedOrderRows[0];
 
-    // Record immutable audit event (Section 11 V3 Spec)
+    // 3. Record immutable audit event
     try {
-      await supabase.from("activity_log").insert({
-        patient_id: data?.patient_id || currentOrder?.patient_id,
-        actor_id: data?.chemist_id || currentOrder?.chemist_id,
-        reference_id: data?.id || order_id,
-        module_type: "pharmacy",
-        action_type: `ORDER_STATUS_${status.toUpperCase()}`,
-        description: `Order ${order_id.slice(0, 8).toUpperCase()} status transitioned to ${status}.`,
-        metadata: {
-          order_id: data?.id || order_id,
-          previous_state: previousStatus,
-          new_state: status,
-          chemist_notes,
-          timestamp: new Date().toISOString()
-        },
-        created_at: new Date()
-      });
-    } catch (logErr) {
-      console.warn("Activity log insertion warning:", logErr?.message);
+      await sql`
+        INSERT INTO activity_log (
+          patient_id,
+          actor_id,
+          reference_id,
+          module_type,
+          action_type,
+          description,
+          metadata,
+          created_at
+        ) VALUES (
+          ${currentOrder.patient_id},
+          ${currentOrder.chemist_id},
+          ${order_id},
+          'pharmacy',
+          ${`ORDER_STATUS_${status.toUpperCase()}`},
+          ${`Order ${order_id.slice(0, 8).toUpperCase()} status transitioned to ${status}.`},
+          ${JSON.stringify({
+            order_id,
+            previous_state: previousStatus,
+            new_state: status,
+            chemist_notes,
+            timestamp: new Date().toISOString(),
+          })},
+          NOW()
+        )
+      `;
+    } catch (auditErr) {
+      console.warn("Audit log insert failed (non-fatal):", auditErr.message);
     }
 
-    if (data && data.patient_id) {
-      const pharmacyName = data.chemist_details?.pharmacy_name || "the pharmacy";
-      const statusLabels = {
-        "fulfilment_released": "Fulfilment Released",
-        "fulfilment_confirmed": "Fulfilment Confirmed",
-        "packing": "Packing Medicines",
-        "ready_for_dispatch": "Ready for Dispatch",
-        "approved_preparing": "Approved & Preparing",
-        "payment_verified": "Payment Verified",
-        "out_for_delivery": "Out for Delivery",
-        "delivered": "Delivered",
-        "completed": "Completed",
-        "rejected": "Rejected",
-        "cancelled": "Cancelled"
-      };
-      
-      const label = statusLabels[status] || status;
-      
-      const { error: notifErr } = await supabase.from("notifications").insert({
-        user_id: data.patient_id,
-        title: "Order Status Updated",
-        message: `Your order status from ${pharmacyName} has been updated to: ${label}.`,
-        type: "medicine_order_update",
-        metadata: { order_id: data.id, status }
-      });
-      if (notifErr) console.error("Error inserting notification:", notifErr.message);
+    // 4. Send notification to patient
+    try {
+      if (currentOrder.patient_id) {
+        const friendlyStatus = {
+          approved: "Confirmed & In Preparation",
+          ready_for_pickup: "Ready for Pickup at Pharmacy",
+          out_for_delivery: "Out for Delivery 🛵",
+          completed: "Delivered & Completed ✅",
+          cancelled: "Cancelled",
+        }[status] || status;
+
+        await sendPushAndInAppNotification({
+          userId: currentOrder.patient_id,
+          title: `Medicine Order Update: ${friendlyStatus}`,
+          message: `Your medicine order #${(currentOrder.unid || order_id.slice(0, 8)).toUpperCase()} is now ${friendlyStatus}.`,
+          type: "medicine_order_status_update",
+          metadata: {
+            order_id,
+            status,
+            previous_status: previousStatus,
+          },
+        });
+      }
+    } catch (notifErr) {
+      console.warn("Patient notification failed (non-fatal):", notifErr.message);
     }
 
-    return success("Order status updated", data, 200, { headers: corsHeaders });
+    return success("Order status updated successfully", updatedOrder, 200, {
+      headers: corsHeaders,
+    });
   } catch (err) {
-    return failure("Error updating status", err.message, 500, { headers: corsHeaders });
+    console.error("Error updating order status:", err);
+    return failure("Failed to update order status", err.message, 500, { headers: corsHeaders });
   }
 }

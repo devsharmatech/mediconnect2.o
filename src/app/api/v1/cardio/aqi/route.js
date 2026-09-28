@@ -1,6 +1,6 @@
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -83,21 +83,47 @@ function calculateCpcbAqi(pm25, pm10) {
 /**
  * CC-13: Real AQI & Environmental Telemetry API
  * Method: GET /api/v1/cardio/aqi
- * Parameters: lat, lng, location / city, refresh
- * Integrates real external CPCB & Open-Meteo telemetry and persists snapshots to PostgreSQL aqi_cache.
+ * Parameters: lat, lng, location / city, is_gps, refresh
+ * Integrates real external CPCB & Open-Meteo telemetry and persists snapshots to AWS RDS aqi_cache.
  */
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
     const rawCity = searchParams.get("city") || searchParams.get("location") || "";
+    const isGps = searchParams.get("is_gps") === "true";
     let lat = searchParams.get("lat") ? parseFloat(searchParams.get("lat")) : null;
     let lng = searchParams.get("lng") ? parseFloat(searchParams.get("lng")) : null;
     const forceRefresh = searchParams.get("refresh") === "true";
 
     let resolvedLocation = rawCity.trim();
 
-    // 1. If lat/lng missing, lookup in dictionary or geocode
-    if ((lat === null || lng === null || isNaN(lat) || isNaN(lng)) && resolvedLocation) {
+    // 1. If NOT GPS mode and a city was chosen, ALWAYS prioritize that city's coordinates:
+    if (!isGps && resolvedLocation) {
+      const lower = resolvedLocation.toLowerCase().split(",")[0].trim();
+      if (INDIAN_CITIES[lower]) {
+        lat = INDIAN_CITIES[lower].lat;
+        lng = INDIAN_CITIES[lower].lng;
+        resolvedLocation = INDIAN_CITIES[lower].name;
+      } else {
+        try {
+          const geoRes = await fetch(
+            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(lower)}&count=1&language=en&format=json`
+          );
+          if (geoRes.ok) {
+            const geoJson = await geoRes.json();
+            if (geoJson.results && geoJson.results.length > 0) {
+              const top = geoJson.results[0];
+              lat = top.latitude;
+              lng = top.longitude;
+              resolvedLocation = `${top.name}${top.admin1 ? `, ${top.admin1}` : ""}`;
+            }
+          }
+        } catch (geoErr) {
+          console.warn("[Cardio AQI] Geocoding fallback warning:", geoErr.message);
+        }
+      }
+    } else if ((lat === null || lng === null || isNaN(lat) || isNaN(lng)) && resolvedLocation) {
+      // Lat/lng missing, lookup in dictionary or geocode
       const lower = resolvedLocation.toLowerCase().split(",")[0].trim();
       if (INDIAN_CITIES[lower]) {
         lat = INDIAN_CITIES[lower].lat;
@@ -134,23 +160,20 @@ export async function GET(req) {
       resolvedLocation = "Current Location";
     }
 
-    // 2. Check fresh cache in PostgreSQL aqi_cache (< 30 minutes old)
+    // 2. Check fresh cache in AWS RDS aqi_cache (< 30 minutes old)
     let cachedRecord = null;
     const cityNamePrefix = resolvedLocation.split(",")[0].trim();
     if (!forceRefresh) {
       try {
-        const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-        const { data: cached } = await supabase
-          .from("aqi_cache")
-          .select("*")
-          .gte("fetched_at", thirtyMinsAgo)
-          .ilike("location", `%${cityNamePrefix}%`)
-          .order("fetched_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (cached) {
-          cachedRecord = cached;
+        const rows = await sql`
+          SELECT * FROM aqi_cache 
+          WHERE fetched_at >= NOW() - INTERVAL '30 minutes'
+          AND location ILIKE ${`%${cityNamePrefix}%`}
+          ORDER BY fetched_at DESC 
+          LIMIT 1
+        `;
+        if (rows && rows.length > 0) {
+          cachedRecord = rows[0];
         }
       } catch (cacheErr) {
         console.warn("[Cardio AQI] DB cache check skipped:", cacheErr.message);
@@ -159,7 +182,7 @@ export async function GET(req) {
 
     // 3. Return cached data if fresh
     if (cachedRecord) {
-      const aqiNum = Math.round(cachedRecord.aqi_value || 80);
+      const aqiNum = Math.round(Number(cachedRecord.aqi_value) || 80);
       const catInfo = getAqiCategory(aqiNum);
       return success("AQI Context loaded from database cache.", {
         screen_id: "CC-13",
@@ -181,9 +204,12 @@ export async function GET(req) {
       }, 200, { headers: corsHeaders });
     }
 
-    // 4. Fetch Live external telemetry from Open-Meteo Air Quality & Weather APIs
+    // 4. Fetch Live external telemetry from Google Air Quality API (with Open-Meteo fallback) & Weather
     let aqiVal = 80;
     let dominantPollutant = "PM10";
+    let apiSource = "Google Air Quality API (NAQI/CPCB)";
+    let pollutants = [];
+    let healthRecommendations = null;
     let weatherData = {
       temp_c: 28,
       condition: "Partly Cloudy",
@@ -194,28 +220,38 @@ export async function GET(req) {
     };
     const lastUpdated = new Date().toISOString();
 
+    const googleApiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
     try {
-      const [aqiRes, weatherRes] = await Promise.all([
-        fetch(
-          `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=pm10,pm2_5,us_aqi,european_aqi,nitrogen_dioxide,sulphur_dioxide,ozone`
-        ),
+      const fetches = [
         fetch(
           `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,visibility`
         ),
-      ]);
+      ];
 
-      if (aqiRes.ok) {
-        const aqiJson = await aqiRes.json();
-        const current = aqiJson.current || {};
-        const pm25 = current.pm2_5 ?? 28;
-        const pm10 = current.pm10 ?? 48;
-
-        const cpcb = calculateCpcbAqi(pm25, pm10);
-        aqiVal = cpcb.aqi;
-        dominantPollutant = cpcb.dominantPollutant;
+      if (googleApiKey) {
+        fetches.push(
+          fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleApiKey}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              location: { latitude: lat, longitude: lng },
+              extraComputations: [
+                "HEALTH_RECOMMENDATIONS",
+                "DOMINANT_POLLUTANT_CONCENTRATION",
+                "POLLUTANT_CONCENTRATION",
+                "LOCAL_AQI",
+              ],
+            }),
+          })
+        );
       }
 
-      if (weatherRes.ok) {
+      const results = await Promise.allSettled(fetches);
+      const weatherRes = results[0]?.status === "fulfilled" ? results[0].value : null;
+      const googleRes = results[1]?.status === "fulfilled" ? results[1].value : null;
+
+      if (weatherRes && weatherRes.ok) {
         const weatherJson = await weatherRes.json();
         const curW = weatherJson.current || {};
         weatherData = {
@@ -227,32 +263,59 @@ export async function GET(req) {
           last_updated: lastUpdated,
         };
       }
+
+      let googleAqiLoaded = false;
+      if (googleRes && googleRes.ok) {
+        const gJson = await googleRes.json();
+        const naqiIndex = gJson.indexes?.find((i) => i.code === "ind_cpcb") || gJson.indexes?.[0];
+        if (naqiIndex && naqiIndex.aqi !== undefined) {
+          aqiVal = naqiIndex.aqi;
+          dominantPollutant = (naqiIndex.dominantPollutant || "PM2.5").toUpperCase();
+          apiSource = `Google Air Quality API (${naqiIndex.displayName || "NAQI"})`;
+          pollutants = gJson.pollutants || [];
+          healthRecommendations = gJson.healthRecommendations || null;
+          googleAqiLoaded = true;
+        }
+      }
+
+      // Fallback to Open-Meteo Air Quality if Google API wasn't available
+      if (!googleAqiLoaded) {
+        apiSource = "CPCB Telemetry / Open-Meteo Air Quality";
+        try {
+          const omRes = await fetch(
+            `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=pm10,pm2_5,us_aqi,european_aqi,nitrogen_dioxide,sulphur_dioxide,ozone`
+          );
+          if (omRes.ok) {
+            const aqiJson = await omRes.json();
+            const current = aqiJson.current || {};
+            const pm25 = current.pm2_5 ?? 28;
+            const pm10 = current.pm10 ?? 48;
+            const cpcb = calculateCpcbAqi(pm25, pm10);
+            aqiVal = cpcb.aqi;
+            dominantPollutant = cpcb.dominantPollutant;
+          }
+        } catch (omErr) {
+          console.warn("[Cardio AQI] Open-Meteo fallback warning:", omErr.message);
+        }
+      }
     } catch (extErr) {
       console.warn("[Cardio AQI] External API call error:", extErr.message);
     }
 
     const catInfo = getAqiCategory(aqiVal);
 
-    // 5. Persist the fresh telemetry directly to PostgreSQL aqi_cache table
+    // 5. Persist the fresh telemetry directly to AWS RDS aqi_cache table
     let dbSaved = false;
     try {
-      const { error: insertErr } = await supabase.from("aqi_cache").insert([
-        {
-          location: resolvedLocation,
-          aqi_value: aqiVal,
-          category: catInfo.category,
-          source: "CPCB Telemetry / Open-Meteo Air Quality",
-          dominant_pollutant: dominantPollutant,
-          weather_json: weatherData,
-          freshness_status: "Current",
-          fetched_at: lastUpdated,
-        },
-      ]);
-      if (!insertErr) {
-        dbSaved = true;
-      } else {
-        console.warn("[Cardio AQI] DB cache insert warning:", insertErr.message);
-      }
+      await sql`
+        INSERT INTO aqi_cache (
+          location, aqi_value, category, source, dominant_pollutant, weather_json, freshness_status, fetched_at
+        ) VALUES (
+          ${resolvedLocation}, ${aqiVal}, ${catInfo.category}, ${apiSource},
+          ${dominantPollutant}, ${sql.json(weatherData)}, ${"Current"}, ${lastUpdated}
+        )
+      `;
+      dbSaved = true;
     } catch (dbErr) {
       console.warn("[Cardio AQI] DB insertion exception:", dbErr.message);
     }
@@ -262,11 +325,13 @@ export async function GET(req) {
       aqi_value: aqiVal,
       category: catInfo.category,
       description: catInfo.description,
-      source: "CPCB Telemetry / Open-Meteo Air Quality",
+      source: apiSource,
       location: resolvedLocation,
       latitude: lat,
       longitude: lng,
       dominant_pollutant: dominantPollutant,
+      pollutants,
+      health_recommendations: healthRecommendations,
       weather: weatherData,
       timestamp: lastUpdated,
       freshness: "fresh",
@@ -289,7 +354,7 @@ export async function GET(req) {
 
 /**
  * Method: POST /api/v1/cardio/aqi
- * Allows client to explicitly save patient preferred location and AQI snapshot into PostgreSQL aqi_cache.
+ * Allows client to explicitly save patient preferred location and AQI snapshot into AWS RDS aqi_cache.
  */
 export async function POST(req) {
   try {
@@ -303,46 +368,88 @@ export async function POST(req) {
     let category = body.category;
     let dominantPollutant = body.dominant_pollutant || "PM2.5";
     let weather = body.weather || {};
+    let apiSource = "Google Air Quality API (NAQI/CPCB)";
+
+    const googleApiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
     if (finalAqi === null && lat !== null && lng !== null) {
-      try {
-        const aqiRes = await fetch(
-          `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=pm10,pm2_5`
-        );
-        if (aqiRes.ok) {
-          const aqiJson = await aqiRes.json();
-          const cur = aqiJson.current || {};
-          const cpcb = calculateCpcbAqi(cur.pm2_5 ?? 25, cur.pm10 ?? 45);
-          finalAqi = cpcb.aqi;
-          dominantPollutant = cpcb.dominantPollutant;
-        }
-      } catch (e) {}
+      let googleFetched = false;
+      if (googleApiKey) {
+        try {
+          const gRes = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleApiKey}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              location: { latitude: lat, longitude: lng },
+            }),
+          });
+          if (gRes.ok) {
+            const gJson = await gRes.json();
+            const naqi = gJson.indexes?.find((i) => i.code === "ind_cpcb") || gJson.indexes?.[0];
+            if (naqi && naqi.aqi !== undefined) {
+              finalAqi = naqi.aqi;
+              dominantPollutant = (naqi.dominantPollutant || "PM2.5").toUpperCase();
+              apiSource = `Google Air Quality API (${naqi.displayName || "NAQI"})`;
+              googleFetched = true;
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (!googleFetched) {
+        try {
+          const aqiRes = await fetch(
+            `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=pm10,pm2_5`
+          );
+          if (aqiRes.ok) {
+            const aqiJson = await aqiRes.json();
+            const cur = aqiJson.current || {};
+            const cpcb = calculateCpcbAqi(cur.pm2_5 ?? 25, cur.pm10 ?? 45);
+            finalAqi = cpcb.aqi;
+            dominantPollutant = cpcb.dominantPollutant;
+            apiSource = "CPCB Telemetry / Open-Meteo Air Quality";
+          }
+        } catch (e) {}
+      }
     }
 
     if (finalAqi === null) finalAqi = 80;
     const catInfo = getAqiCategory(finalAqi);
     if (!category) category = catInfo.category;
 
-    const record = {
-      location,
-      aqi_value: finalAqi,
-      category,
-      source: "CPCB Telemetry / Open-Meteo Air Quality",
-      dominant_pollutant: dominantPollutant,
-      weather_json: weather,
-      freshness_status: "Current",
-      fetched_at: new Date().toISOString(),
-    };
+    const lastUpdated = new Date().toISOString();
+    let savedRow = null;
+    let dbSaved = false;
 
-    const { data, error } = await supabase.from("aqi_cache").insert([record]).select().single();
-    if (error) {
-      console.warn("[Cardio AQI POST] Insert warning:", error.message);
+    try {
+      const rows = await sql`
+        INSERT INTO aqi_cache (
+          location, aqi_value, category, source, dominant_pollutant, weather_json, freshness_status, fetched_at
+        ) VALUES (
+          ${location}, ${finalAqi}, ${category}, ${apiSource},
+          ${dominantPollutant}, ${sql.json(weather)}, ${"Current"}, ${lastUpdated}
+        )
+        RETURNING id
+      `;
+      if (rows && rows.length > 0) {
+        savedRow = rows[0];
+        dbSaved = true;
+      }
+    } catch (dbErr) {
+      console.warn("[Cardio AQI POST] Insert warning:", dbErr.message);
     }
 
     return success("Patient location & AQI successfully saved to database.", {
-      ...record,
-      id: data?.id,
-      saved_to_db: !error,
+      location,
+      aqi_value: finalAqi,
+      category,
+      source: apiSource,
+      dominant_pollutant: dominantPollutant,
+      weather_json: weather,
+      freshness_status: "Current",
+      fetched_at: lastUpdated,
+      id: savedRow?.id,
+      saved_to_db: dbSaved,
     }, 200, { headers: corsHeaders });
   } catch (err) {
     console.error("POST /api/v1/cardio/aqi error:", err);

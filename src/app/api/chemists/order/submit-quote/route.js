@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { broadcastEmitter } from "@/lib/broadcastEmitter";
@@ -10,135 +10,264 @@ export async function OPTIONS() {
 
 export async function POST(req) {
   try {
-    const { 
-      broadcast_id, 
-      chemist_id, 
-      estimated_cost, 
-      delivery_time_minutes,
+    const {
+      broadcast_id,
+      chemist_id,
+      estimated_cost,
+      delivery_time_minutes = 30,
       medicine_subtotal,
       delivery_charge = 0,
       discount = 0,
       final_amount,
-      delivery_window,
-      items = []
+      auto_accept = true,
+      items = [],
     } = await req.json();
 
     const rawCost = estimated_cost !== undefined ? estimated_cost : final_amount;
 
-    if (!broadcast_id || !chemist_id || rawCost === undefined || !delivery_time_minutes) {
-      return failure("Missing required fields: broadcast_id, chemist_id, estimated_cost (or final_amount), delivery_time_minutes", null, 400, { headers: corsHeaders });
+    if (!broadcast_id || !chemist_id || rawCost === undefined) {
+      return failure(
+        "Missing required fields: broadcast_id, chemist_id, estimated_cost (or final_amount)",
+        null,
+        400,
+        { headers: corsHeaders }
+      );
     }
 
-    // 1. Validate Price Arithmetic (V3 Master Spec Page 6: Backend validates price arithmetic)
+    // 1. Price Arithmetic
     const subtotal = parseFloat(medicine_subtotal !== undefined ? medicine_subtotal : rawCost);
     const delCharge = parseFloat(delivery_charge || 0);
     const disc = parseFloat(discount || 0);
     const finalAmt = parseFloat(final_amount !== undefined ? final_amount : rawCost);
+    const deliveryMins = parseInt(delivery_time_minutes, 10) || 30;
 
-    if (medicine_subtotal !== undefined && final_amount !== undefined) {
-      const expected = parseFloat((subtotal + delCharge - disc).toFixed(2));
-      if (Math.abs(expected - finalAmt) > 0.05) {
-        return failure(`Price calculation mismatch: Subtotal (${subtotal}) + Delivery (${delCharge}) - Discount (${disc}) must equal Final Amount (${finalAmt})`, null, 400, { headers: corsHeaders });
-      }
-    }
+    // 2. Check if broadcast exists and is active
+    const broadcastRows = await sql`
+      SELECT * FROM medicine_order_broadcasts WHERE id = ${broadcast_id} LIMIT 1
+    `;
+    const broadcast = broadcastRows[0];
 
-    // 2. Check if broadcast exists and is still active
-    const { data: broadcast, error: broadcastErr } = await supabase
-      .from("medicine_order_broadcasts")
-      .select("*")
-      .eq("id", broadcast_id)
-      .single();
-
-    if (broadcastErr || !broadcast) {
+    if (!broadcast) {
       return failure("Broadcast request not found", null, 404, { headers: corsHeaders });
     }
 
-    if (broadcast.status !== "broadcasting" || new Date() > new Date(broadcast.expires_at)) {
-      return failure("Broadcast response window has closed", null, 410, { headers: corsHeaders });
+    if (broadcast.status === "completed") {
+      return failure("This order has already been claimed and accepted", null, 409, {
+        headers: corsHeaders,
+      });
     }
 
-    // 3. Check if this chemist already submitted a quote
-    const { data: existingQuote } = await supabase
-      .from("medicine_order_quotes")
-      .select("id")
-      .eq("broadcast_id", broadcast_id)
-      .eq("chemist_id", chemist_id)
-      .maybeSingle();
+    // 3. Fetch chemist info
+    const chemistRows = await sql`
+      SELECT pharmacy_name, owner_name, payment_qr_url, payment_qr_payload, address, mobile
+      FROM chemist_details WHERE id = ${chemist_id} LIMIT 1
+    `;
+    const chemistName = chemistRows[0]?.pharmacy_name || "A local pharmacy";
 
-    if (existingQuote) {
-      return failure("You have already submitted a quote for this request", null, 409, { headers: corsHeaders });
-    }
+    // 4. Create or update quote
+    const existingQuotes = await sql`
+      SELECT id FROM medicine_order_quotes 
+      WHERE broadcast_id = ${broadcast_id} AND chemist_id = ${chemist_id} 
+      LIMIT 1
+    `;
 
-    // 4. Create the quote in database
-    const { data: quote, error: quoteErr } = await supabase
-      .from("medicine_order_quotes")
-      .insert([
-        {
+    let quote = null;
+    const quoteStatus = auto_accept ? "selected" : "submitted";
+
+    if (existingQuotes.length > 0) {
+      const updatedQuotes = await sql`
+        UPDATE medicine_order_quotes 
+        SET 
+          estimated_cost = ${finalAmt},
+          final_amount = ${finalAmt},
+          medicine_subtotal = ${subtotal},
+          delivery_charge = ${delCharge},
+          discount = ${disc},
+          delivery_time_minutes = ${deliveryMins},
+          status = ${quoteStatus}
+        WHERE id = ${existingQuotes[0].id}
+        RETURNING *
+      `;
+      quote = updatedQuotes[0];
+    } else {
+      const newQuoteRows = await sql`
+        INSERT INTO medicine_order_quotes (
           broadcast_id,
           chemist_id,
-          estimated_cost: finalAmt,
-          medicine_subtotal: subtotal,
-          delivery_charge: delCharge,
-          discount: disc,
-          final_amount: finalAmt,
-          delivery_time_minutes: parseInt(delivery_time_minutes, 10),
-          status: "pending",
-        },
-      ])
-      .select()
-      .single();
-
-    if (quoteErr) throw quoteErr;
-
-    // 5. Fetch Chemist details for real-time push payload
-    const { data: chemistInfo } = await supabase
-      .from("chemist_details")
-      .select("pharmacy_name, address, mobile")
-      .eq("id", chemist_id)
-      .maybeSingle();
-
-    const enrichedQuote = {
-      id: quote.id,
-      broadcast_id,
-      chemist_id,
-      estimated_cost: finalAmt,
-      delivery_time_minutes: parseInt(delivery_time_minutes, 10),
-      medicine_subtotal: subtotal,
-      delivery_charge: delCharge,
-      discount: disc,
-      final_amount: finalAmt,
-      delivery_window: delivery_window || `${delivery_time_minutes} mins`,
-      items: items || [],
-      status: "pending",
-      created_at: quote.created_at || new Date().toISOString(),
-      chemist: chemistInfo || { pharmacy_name: "Verified Pharmacy" }
-    };
-
-    // 6. REAL-TIME PUSH: Emit SSE event to patient's active stream (<10ms latency, 0 DB poll)
-    try {
-      broadcastEmitter.emit(`quote:${broadcast_id}`, enrichedQuote);
-    } catch (emitterErr) {
-      console.warn("Could not emit real-time SSE quote event:", emitterErr?.message);
+          estimated_cost,
+          medicine_subtotal,
+          delivery_charge,
+          discount,
+          final_amount,
+          delivery_time_minutes,
+          status,
+          created_at
+        ) VALUES (
+          ${broadcast_id},
+          ${chemist_id},
+          ${finalAmt},
+          ${subtotal},
+          ${delCharge},
+          ${disc},
+          ${finalAmt},
+          ${deliveryMins},
+          ${quoteStatus},
+          NOW()
+        )
+        RETURNING *
+      `;
+      quote = newQuoteRows[0];
     }
 
-    // 7. REAL-TIME PUSH: Dispatch FCM push notification to patient
-    if (broadcast.patient_id) {
-      sendPushAndInAppNotification({
-        user_id: broadcast.patient_id,
-        title: "New Pharmacy Offer Received 💊",
-        message: `${chemistInfo?.pharmacy_name || "A pharmacy"} quoted ₹${finalAmt} with ${delivery_time_minutes} min delivery.`,
-        type: "pharmacy_quote_received",
-        metadata: {
-          broadcast_id,
-          quote_id: quote.id,
-          final_amount: String(finalAmt)
+    let createdOrder = null;
+
+    // 5. If auto_accept is enabled: IMMEDIATELY CLAIM & ACCEPT ORDER (No long wait in pool!)
+    if (auto_accept) {
+      // Mark broadcast completed
+      await sql`
+        UPDATE medicine_order_broadcasts 
+        SET status = 'completed'
+        WHERE id = ${broadcast_id}
+      `;
+
+      // Generate sequential BIGINT UNID
+      const maxUnidRows = await sql`
+        SELECT COALESCE(MAX(unid), 25) + 1 AS next_unid FROM medicine_orders
+      `;
+      const nextUnid = maxUnidRows[0]?.next_unid || 26;
+
+      const promisedDeliveryAt = new Date(Date.now() + deliveryMins * 60 * 1000);
+      const warningAt = new Date(Date.now() + Math.floor(deliveryMins * 0.8) * 60 * 1000);
+
+      const orderRows = await sql`
+        INSERT INTO medicine_orders (
+          unid,
+          prescription_id,
+          patient_id,
+          chemist_id,
+          status,
+          medicine_subtotal,
+          delivery_charge,
+          discount,
+          total_amount,
+          payment_qr_url,
+          payment_qr_payload,
+          promised_delivery_at,
+          warning_at,
+          breach_at,
+          sla_status,
+          delivery_type,
+          patient_notes,
+          created_at,
+          updated_at
+        ) VALUES (
+          ${nextUnid},
+          ${broadcast.prescription_id},
+          ${broadcast.patient_id},
+          ${chemist_id},
+          'approved',
+          ${subtotal},
+          ${delCharge},
+          ${disc},
+          ${finalAmt},
+          ${chemistRows[0]?.payment_qr_url || null},
+          ${chemistRows[0]?.payment_qr_payload || null},
+          ${promisedDeliveryAt},
+          ${warningAt},
+          ${promisedDeliveryAt},
+          'ON_TRACK',
+          'delivery',
+          ${`Accepted by ${chemistName} — Delivery in ${deliveryMins} mins`},
+          NOW(),
+          NOW()
+        )
+        RETURNING *
+      `;
+      createdOrder = orderRows[0];
+
+      // Copy medicines into medicine_order_items
+      if (broadcast.prescription_id) {
+        const rxRows = await sql`
+          SELECT medicines FROM prescriptions WHERE id = ${broadcast.prescription_id} LIMIT 1
+        `;
+        if (rxRows[0]?.medicines) {
+          let parsedMeds = [];
+          try {
+            parsedMeds =
+              typeof rxRows[0].medicines === "string"
+                ? JSON.parse(rxRows[0].medicines)
+                : rxRows[0].medicines;
+          } catch (e) {
+            parsedMeds = [];
+          }
+
+          if (Array.isArray(parsedMeds)) {
+            for (const m of parsedMeds) {
+              await sql`
+                INSERT INTO medicine_order_items (
+                  order_id,
+                  medicine_name,
+                  dosage,
+                  frequency,
+                  duration,
+                  quantity,
+                  price
+                ) VALUES (
+                  ${createdOrder.id},
+                  ${m.name || m.medicine_name || "Prescribed Medicine"},
+                  ${m.dosage || m.dosage_instruction || ""},
+                  ${m.frequency || ""},
+                  ${m.duration || ""},
+                  ${parseInt(m.quantity || "1", 10)},
+                  ${parseFloat(m.price || 0)}
+                )
+              `;
+            }
+          }
         }
-      }).catch(err => console.warn("FCM quote notification failed:", err.message));
+      }
+
+      // Notify patient of instant acceptance
+      try {
+        if (broadcast.patient_id) {
+          await sendPushAndInAppNotification({
+            userId: broadcast.patient_id,
+            title: "Order Accepted by Pharmacy! 💊",
+            message: `${chemistName} has accepted your prescription order (#${nextUnid}). Preparation started.`,
+            type: "medicine_order_accepted",
+            metadata: {
+              order_id: createdOrder.id,
+              broadcast_id,
+              chemist_id,
+              amount: finalAmt,
+            },
+          });
+        }
+      } catch (notifErr) {
+        console.warn("Patient notification warning:", notifErr.message);
+      }
     }
 
-    return success("Quote submitted successfully and broadcast in real time", enrichedQuote, 201, { headers: corsHeaders });
+    // 6. Broadcast event
+    try {
+      broadcastEmitter.emit(`status:${broadcast_id}`, {
+        status: auto_accept ? "completed" : "quoted",
+        selected_quote_id: quote.id,
+        order_id: createdOrder?.id || null,
+        chemist_name: chemistName,
+      });
+    } catch (e) {
+      console.warn("BroadcastEmitter error:", e.message);
+    }
+
+    return success(
+      auto_accept ? "Order accepted and claimed into your active orders!" : "Quote submitted successfully",
+      { quote, order: createdOrder, auto_accepted: auto_accept },
+      201,
+      { headers: corsHeaders }
+    );
   } catch (err) {
-    console.error("Error submitting quote:", err);
-    return failure("Failed to submit quote", err.message, 500, { headers: corsHeaders });
+    console.error("Error submitting chemist quote / accepting order:", err);
+    return failure("Failed to process order", err.message, 500, { headers: corsHeaders });
   }
 }

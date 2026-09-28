@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { corsHeaders } from "@/lib/cors";
 
 export async function OPTIONS() {
@@ -12,7 +12,7 @@ export async function GET(req) {
     const user_id = searchParams.get("user_id");
     const page = Number(searchParams.get("page")) || 1;
     const limit = Number(searchParams.get("limit")) || 10;
-    const read = searchParams.get("read");
+    const readParam = searchParams.get("read");
     const type = searchParams.get("type");
 
     if (!user_id)
@@ -23,36 +23,44 @@ export async function GET(req) {
 
     const offset = (page - 1) * limit;
 
-    let query = supabase
-      .from("notifications")
-      .select("*", { count: "exact" })
-      .eq("user_id", user_id)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+    // Build dynamic WHERE conditions
+    const conditions = [sql`user_id = ${user_id}`];
+    if (readParam === "true") conditions.push(sql`read = true`);
+    if (readParam === "false") conditions.push(sql`read = false`);
+    if (type) conditions.push(sql`type = ${type}`);
 
-    if (read === "true") query = query.eq("read", true);
-    if (read === "false") query = query.eq("read", false);
-    if (type) query = query.eq("type", type);
+    const whereClause = sql`WHERE ${conditions.reduce((acc, cond, i) =>
+      i === 0 ? cond : sql`${acc} AND ${cond}`
+    )}`;
 
-    const { data, count, error } = await query;
-    if (error) throw error;
+    const notifications = await sql`
+      SELECT * FROM notifications
+      ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
 
-    const { count: unreadCount } = await supabase
-      .from("notifications")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user_id)
-      .eq("read", false);
+    const [{ count }] = await sql`
+      SELECT COUNT(*)::int AS count FROM notifications
+      ${whereClause}
+    `;
+
+    const [{ unread_count }] = await sql`
+      SELECT COUNT(*)::int AS unread_count FROM notifications
+      WHERE user_id = ${user_id} AND read = false
+    `;
 
     return Response.json(
       {
         success: true,
-        notifications: data,
+        notifications,
         total: count,
-        unread_count: unreadCount || 0,
+        unread_count: unread_count || 0,
       },
       { headers: corsHeaders }
     );
   } catch (err) {
+    console.error("[Notifications GET] Error:", err);
     return Response.json(
       { success: false, message: err.message },
       { status: 500, headers: corsHeaders }

@@ -207,7 +207,9 @@ export default function CardioConnectHome() {
 
       let url = `/api/v1/cardio/aqi?city=${encodeURIComponent(targetCity)}`;
       if (targetLat && targetLng) {
-        url += `&lat=${targetLat}&lng=${targetLng}`;
+        url += `&lat=${targetLat}&lng=${targetLng}&is_gps=true`;
+      } else {
+        url += `&is_gps=false`;
       }
       if (forceRefresh) {
         url += `&refresh=true`;
