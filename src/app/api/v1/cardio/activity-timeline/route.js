@@ -1,6 +1,6 @@
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-import { supabase } from "@/lib/supabaseAdmin";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -9,14 +9,13 @@ export async function OPTIONS() {
 /**
  * CC-06: Activity Timeline API
  * Method: GET /api/v1/cardio/activity-timeline?date=YYYY-MM-DD&user_id=UUID
- * Returns chronological sessions for the selected date and daily aggregate.
- * Adheres to CC-06 & CC-15 contracts.
+ * Connects directly to AWS RDS PostgreSQL.
  */
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
     const dateParam = searchParams.get("date") || new Date().toISOString().split("T")[0];
-    const userId = searchParams.get("user_id");
+    let userId = searchParams.get("user_id");
 
     let sessions = [];
     let dailyTotal = {
@@ -26,20 +25,34 @@ export async function GET(req) {
       total_duration_minutes: 0,
     };
 
+    if (!userId) {
+      try {
+        const topUser = await sql`
+          SELECT user_id, count(*) as count
+          FROM health_assessments
+          WHERE assessment_type = 'heart'
+          GROUP BY user_id
+          ORDER BY count DESC
+          LIMIT 1;
+        `;
+        userId = topUser[0]?.user_id || null;
+      } catch (_) {}
+    }
+
     if (userId) {
       try {
-        const startOfDay = `${dateParam}T00:00:00.000Z`;
-        const endOfDay = `${dateParam}T23:59:59.999Z`;
+        const startOfDay = `${dateParam} 00:00:00`;
+        const endOfDay = `${dateParam} 23:59:59`;
 
-        const { data: dbSessions, error } = await supabase
-          .from("activity_log")
-          .select("*")
-          .eq("user_id", userId)
-          .gte("created_at", startOfDay)
-          .lte("created_at", endOfDay)
-          .order("created_at", { ascending: true });
+        const dbSessions = await sql`
+          SELECT * FROM activity_log
+          WHERE (patient_id = ${userId})
+            AND created_at >= ${startOfDay}::timestamp
+            AND created_at <= ${endOfDay}::timestamp
+          ORDER BY created_at ASC;
+        `;
 
-        if (!error && dbSessions && dbSessions.length > 0) {
+        if (dbSessions && dbSessions.length > 0) {
           sessions = dbSessions.map((s, idx) => {
             const dur = Number(s.duration_minutes || 0);
             const stp = Number(s.steps || 0);

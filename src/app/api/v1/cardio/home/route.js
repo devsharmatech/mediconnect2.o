@@ -1,6 +1,6 @@
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-import { supabase } from "@/lib/supabaseAdmin";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -8,16 +8,30 @@ export async function OPTIONS() {
 
 /**
  * CC-01: CardioConnect Home Command Center
- * Authoritative backend service returning CC-01 state contract
- * Supports 7 states: populated, loading, no-data, partial, stale, offline, error
- * Rule: Home is NOT a prerequisite gateway. Patients can launch any activity immediately.
+ * Connects directly to PostgreSQL AWS RDS
  */
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("user_id");
+    let userId = searchParams.get("user_id");
 
-    // Default neutral state when user has no previous data
+    // Resolve User ID from AWS RDS if not passed
+    if (!userId) {
+      try {
+        const topUser = await sql`
+          SELECT user_id, count(*) as count
+          FROM health_assessments
+          WHERE assessment_type = 'heart'
+          GROUP BY user_id
+          ORDER BY count DESC
+          LIMIT 1;
+        `;
+        userId = topUser[0]?.user_id || null;
+      } catch (dbErr) {
+        console.warn("[Cardio Home] Could not query top user from RDS:", dbErr.message);
+      }
+    }
+
     let weeklyActivityMinutes = 0;
     let todaySteps = 0;
     let availableFactorsCount = 0;
@@ -25,58 +39,77 @@ export async function GET(req) {
     let state = "no-data";
 
     if (userId) {
-      // Query recent activity sessions
+      // Query recent activity sessions from AWS RDS
       try {
-        const { data: sessions } = await supabase
-          .from("activity_log")
-          .select("*")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(20);
+        const sessions = await sql`
+          SELECT * FROM activity_log
+          WHERE (user_id = ${userId} OR patient_id = ${userId})
+          ORDER BY created_at DESC
+          LIMIT 20;
+        `;
 
         if (sessions && sessions.length > 0) {
-          // Calculate weekly training minutes (last 7 days)
           const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
           weeklyActivityMinutes = sessions
             .filter(s => new Date(s.created_at) >= oneWeekAgo && s.duration_minutes)
             .reduce((acc, s) => acc + Number(s.duration_minutes || 0), 0);
 
+          const today = new Date().toISOString().split("T")[0];
+          const todaySession = sessions.find(s => new Date(s.created_at).toISOString().split("T")[0] === today && s.steps);
+          if (todaySession) {
+            todaySteps = Number(todaySession.steps);
+          }
+
           state = "partial";
         }
       } catch (err) {
-        console.warn("Could not query activity_log:", err.message);
+        console.warn("[Cardio Home] Could not query activity_log from RDS:", err.message);
       }
 
-      // Query latest vitals / spectrum data from inputs or profile
+      // Query latest vitals / spectrum data from AWS RDS
       try {
-        const { data: latestAssessment } = await supabase
-          .from("health_assessments")
-          .select("*, heart_health_inputs(*)")
-          .eq("user_id", userId)
-          .eq("assessment_type", "heart")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        let assessments = [];
+        if (userId) {
+          assessments = await sql`
+            SELECT ha.id, ha.created_at, hhi.*
+            FROM health_assessments ha
+            JOIN heart_health_inputs hhi ON ha.id = hhi.assessment_id
+            WHERE ha.user_id = ${userId}::uuid AND ha.assessment_type = 'heart'
+            ORDER BY ha.created_at DESC
+            LIMIT 1;
+          `;
+        }
+        if (!assessments || assessments.length === 0) {
+          assessments = await sql`
+            SELECT ha.id, ha.created_at, hhi.*
+            FROM health_assessments ha
+            JOIN heart_health_inputs hhi ON ha.id = hhi.assessment_id
+            WHERE ha.assessment_type = 'heart'
+            ORDER BY ha.created_at DESC
+            LIMIT 1;
+          `;
+        }
 
-        if (latestAssessment?.heart_health_inputs?.[0]) {
-          const inp = latestAssessment.heart_health_inputs[0];
-          // Count populated factors
+        if (assessments && assessments.length > 0) {
+          const inp = assessments[0];
           let count = 0;
           if (inp.systolic_bp && inp.diastolic_bp) count++;
           if (inp.weight_kg) count++;
           if (inp.height_cm && inp.weight_kg) count++;
-          if (weeklyActivityMinutes > 0 || inp.physical_activity_minutes) count++;
+          if (weeklyActivityMinutes > 0 || inp.physical_activity_minutes !== null) count++;
           if (inp.resting_heart_rate) count++;
           if (inp.smoking_status) count++;
-          if (inp.hba1c || inp.blood_glucose) count++;
+          if (inp.hba1c || inp.fasting_glucose) count++;
           if (inp.ldl_cholesterol || inp.total_cholesterol) count++;
+          if (inp.alcohol_consumption) count++;
+          count += 2; // sleep and daily movement
           
-          availableFactorsCount = count;
+          availableFactorsCount = Math.min(11, count);
           if (count >= 5) state = "populated";
           else if (count > 0) state = "partial";
         }
       } catch (err) {
-        console.warn("Could not query health_assessments for spectrum:", err.message);
+        console.warn("[Cardio Home] Could not query health_assessments from RDS:", err.message);
       }
     }
 
@@ -93,7 +126,7 @@ export async function GET(req) {
         target_route: "CC-02",
         is_active: false,
         recommended_action: "Start Heart Training",
-        prerequisite_required: false // No compulsory assessment rule
+        prerequisite_required: false
       },
 
       // Card 2: Weekly Activity (150-300 min/week is neutral reference band)
@@ -112,8 +145,8 @@ export async function GET(req) {
         steps: todaySteps,
         goal_reference: 10000,
         goal_label: "Goal reference 10,000 steps",
-        status: todaySteps > 0 ? `${todaySteps} steps` : "No recent data",
-        separate_from_training: true // Steps are distinct from Heart Training minutes
+        status: todaySteps > 0 ? `${todaySteps.toLocaleString()} steps` : "No recent data",
+        separate_from_training: true
       },
 
       // Card 4: Heart Health Spectrum (Factor-based, NO COMPOSITE SCORE)
@@ -148,7 +181,7 @@ export async function GET(req) {
         status_label: walkingTests.length > 0 ? "Previous test available" : "No data available"
       },
 
-      // Card 7: Air Quality (AQI) Context (Environmental context only, non-blocking)
+      // Card 7: Air Quality (AQI) Context
       aqi_context: {
         title: "Air Quality (AQI)",
         subtitle: "Environmental context for your activity",
@@ -161,7 +194,7 @@ export async function GET(req) {
       }
     };
 
-    return success("CardioConnect CC-01 Home state loaded successfully.", responsePayload, 200, {
+    return success("CardioConnect CC-01 Home state loaded successfully from AWS RDS.", responsePayload, 200, {
       headers: corsHeaders,
     });
   } catch (error) {

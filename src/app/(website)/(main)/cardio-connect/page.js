@@ -49,6 +49,7 @@ export default function CardioConnectHome() {
   const [spectrumData, setSpectrumData] = useState([]);
   const [progressData, setProgressData] = useState(null);
   const [selectedCheckpoint, setSelectedCheckpoint] = useState("7D");
+  const [currentUserId, setCurrentUserId] = useState(null);
 
   // Interactive Flow Modals:
   // CC-02: Heart Training Setup
@@ -110,11 +111,12 @@ export default function CardioConnectHome() {
     "Mumbai", "Bengaluru", "Pune", "Jaipur", "Chandigarh"
   ];
 
-  // Fetch Authoritative CC-01 Home Data
-  const fetchHomeData = async () => {
+  // Fetch Authoritative CC-01 Home Data from AWS RDS
+  const fetchHomeData = async (uid = currentUserId) => {
     try {
       setUiState("loading");
-      const res = await fetch("/api/v1/cardio/home");
+      const url = uid ? `/api/v1/cardio/home?user_id=${uid}` : "/api/v1/cardio/home";
+      const res = await fetch(url);
       const json = await res.json();
       if (json.success && json.data) {
         setHomeData(json.data);
@@ -128,10 +130,11 @@ export default function CardioConnectHome() {
     }
   };
 
-  // Fetch Heart Health Spectrum Data
-  const fetchSpectrumData = async () => {
+  // Fetch Heart Health Spectrum Data from AWS RDS
+  const fetchSpectrumData = async (uid = currentUserId) => {
     try {
-      const res = await fetch("/api/v1/cardio/spectrum");
+      const url = uid ? `/api/v1/cardio/spectrum?user_id=${uid}` : "/api/v1/cardio/spectrum";
+      const res = await fetch(url);
       const json = await res.json();
       if (json.success && json.data) {
         setSpectrumData(json.data);
@@ -141,10 +144,13 @@ export default function CardioConnectHome() {
     }
   };
 
-  // Fetch CC-09 Progress Data
-  const fetchProgressData = async (cp = "7D") => {
+  // Fetch CC-09 Progress Data from AWS RDS
+  const fetchProgressData = async (cp = "7D", uid = currentUserId) => {
     try {
-      const res = await fetch(`/api/v1/cardio/progress?checkpoint=${cp}`);
+      const url = uid
+        ? `/api/v1/cardio/progress?checkpoint=${cp}&user_id=${uid}`
+        : `/api/v1/cardio/progress?checkpoint=${cp}`;
+      const res = await fetch(url);
       const json = await res.json();
       if (json.success && json.data) {
         setProgressData(json.data);
@@ -154,12 +160,15 @@ export default function CardioConnectHome() {
     }
   };
 
-  // Fetch CC-06 Timeline Data
-  const fetchTimelineData = async (dateStr) => {
+  // Fetch CC-06 Timeline Data from AWS RDS
+  const fetchTimelineData = async (dateStr, uid = currentUserId) => {
     try {
       setIsLoadingTimeline(true);
       const targetDate = dateStr || timelineDate;
-      const res = await fetch(`/api/v1/cardio/activity-timeline?date=${targetDate}`);
+      const url = uid
+        ? `/api/v1/cardio/activity-timeline?date=${targetDate}&user_id=${uid}`
+        : `/api/v1/cardio/activity-timeline?date=${targetDate}`;
+      const res = await fetch(url);
       const json = await res.json();
       if (json.success && json.data) {
         setTimelineData(json.data);
@@ -275,12 +284,25 @@ export default function CardioConnectHome() {
     );
   };
 
-  // Check saved location and permissions on mount
+  // Check saved location, user session, and initial data on mount
   useEffect(() => {
-    fetchHomeData();
-    fetchSpectrumData();
-    fetchProgressData("7D");
-    fetchTimelineData(timelineDate);
+    let resolvedId = null;
+    try {
+      const stored = localStorage.getItem("user") || localStorage.getItem("userData");
+      if (stored) {
+        const u = JSON.parse(stored);
+        resolvedId = u.id || u.user_id || u.user?.id;
+      }
+    } catch (_) {}
+
+    if (resolvedId) {
+      setCurrentUserId(resolvedId);
+    }
+
+    fetchHomeData(resolvedId);
+    fetchSpectrumData(resolvedId);
+    fetchProgressData("7D", resolvedId);
+    fetchTimelineData(timelineDate, resolvedId);
 
     let initialCity = "Bulandshahr, Uttar Pradesh";
     let initialLat = 28.4069;
@@ -556,6 +578,7 @@ export default function CardioConnectHome() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "complete",
+          user_id: currentUserId,
           target_duration_minutes: targetMin,
           accumulated_active_seconds: trainingElapsedSeconds,
           steps: effectiveSteps,

@@ -1,6 +1,6 @@
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-import { supabase } from "@/lib/supabaseAdmin";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -9,8 +9,7 @@ export async function OPTIONS() {
 /**
  * CC-02 -> CC-05: CardioConnect Heart Training Sessions API
  * Governs session creation, pause, resume, and completion.
- * Rule: Server authority. Excludes paused time from active duration.
- * Safe idempotent execution with client_idempotency_key.
+ * Connects directly to AWS RDS PostgreSQL.
  */
 export async function POST(req) {
   try {
@@ -53,22 +52,16 @@ export async function POST(req) {
       const actualDurationMin = Math.round((Number(accumulated_active_seconds) || 0) / 60);
       const isTargetReached = actualDurationMin >= Number(target_duration_minutes);
 
-      // Persist to activity_log if user_id is provided
+      // Persist to activity_log in AWS RDS if user_id is provided
       if (user_id) {
         try {
-          await supabase.from("activity_log").insert([
-            {
-              user_id: user_id,
-              activity_type: "heart_training",
-              duration_minutes: actualDurationMin,
-              steps: Number(steps) || 0,
-              distance_km: Number(distance_km) || 0,
-              calories: typeof estimated_energy_kcal === 'number' ? estimated_energy_kcal : (Number(estimated_energy_kcal) || 0),
-              created_at: new Date().toISOString()
-            }
-          ]);
+          const cal = typeof estimated_energy_kcal === 'number' ? estimated_energy_kcal : (Number(estimated_energy_kcal) || 0);
+          await sql`
+            INSERT INTO activity_log (patient_id, module_type, action_type, description, created_at)
+            VALUES (${user_id}, 'cardio', 'heart_training', 'Heart Training Session', NOW())
+          `;
         } catch (dbErr) {
-          console.warn("Could not insert into activity_log:", dbErr.message);
+          console.warn("Could not insert into activity_log in RDS:", dbErr.message);
         }
       }
 
