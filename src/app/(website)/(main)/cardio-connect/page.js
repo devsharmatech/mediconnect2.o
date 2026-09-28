@@ -691,8 +691,8 @@ export default function CardioConnectHome() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs sm:text-sm font-extrabold text-[#003358] tracking-tight">MediConnect.Fit</span>
-                <span className="text-[10px] font-bold uppercase bg-sky-50 text-[#0067A1] px-1.5 py-0.5 rounded-[5px] border border-sky-200 shrink-0 whitespace-nowrap">
+                <span className="text-xs sm:text-sm font-semibold text-[#003358] tracking-tight">MediConnect.Fit</span>
+                <span className="text-[10px] font-medium uppercase bg-sky-50 text-[#0067A1] px-1.5 py-0.5 rounded-[5px] border border-sky-200 shrink-0 whitespace-nowrap">
                   CardioConnect
                 </span>
               </div>
@@ -705,7 +705,7 @@ export default function CardioConnectHome() {
           <div className="flex items-center gap-2 shrink-0">
             <Link
               href="/heart-health-history"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-sky-50 hover:bg-sky-100 text-[#0067A1] rounded-[5px] text-xs font-bold border border-sky-200 transition-colors shadow-2xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-sky-50 hover:bg-sky-100 text-[#0067A1] rounded-[5px] text-xs font-semibold border border-sky-200 transition-colors shadow-2xs cursor-pointer"
               title="View History & Download Reports (F1, F2, F3, F4)"
             >
               <FileText className="w-3.5 h-3.5" />
@@ -742,13 +742,13 @@ export default function CardioConnectHome() {
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
             <div className="space-y-2 max-w-xl">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-sky-200 bg-white/10 px-2.5 py-0.5 rounded-[5px] border border-white/15 whitespace-nowrap">
+                <span className="text-[10px] sm:text-[11px] font-medium uppercase tracking-wider text-sky-200 bg-white/10 px-2.5 py-0.5 rounded-[5px] border border-white/15 whitespace-nowrap">
                   Daily Heart Exercise
                 </span>
               </div>
 
               <div className="flex items-center gap-2.5">
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-white">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold tracking-tight text-white">
                   Heart Training
                 </h1>
                 <AnimatedHeartbeat size="sm" color="#ffffff" glowColor="#38bdf8" />
@@ -763,7 +763,7 @@ export default function CardioConnectHome() {
               <button
                 type="button"
                 onClick={() => setActiveModal("setup")}
-                className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-white hover:bg-slate-50 text-[#0067A1] font-bold text-xs sm:text-sm rounded-[5px] shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-white hover:bg-slate-50 text-[#0067A1] font-semibold text-xs sm:text-sm rounded-[5px] shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
               >
                 <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                 <span>START HEART TRAINING</span>
@@ -788,12 +788,12 @@ export default function CardioConnectHome() {
                     <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#0067A1] animate-ping" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-xs font-bold text-slate-900 truncate">Weekly Activity</h3>
+                    <h3 className="text-xs font-semibold text-slate-900 truncate">Weekly Activity</h3>
                     <p className="text-[11px] text-slate-500 truncate">Cardiovascular reference</p>
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <span className="text-xs font-bold text-slate-900 block">150 – 300 min/wk</span>
+                  <span className="text-xs font-semibold text-slate-900 block">150 – 300 min/wk</span>
                   <span className="text-[10px] text-slate-500 block font-mono">
                     {homeData?.weekly_activity?.recorded_minutes || 0} mins logged
                   </span>
@@ -830,15 +830,15 @@ export default function CardioConnectHome() {
                     <AnimatedWalkingFigure size="sm" color="#059669" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-xs font-bold text-slate-900 truncate">Today&apos;s Movement</h3>
-                    <span className="text-base sm:text-lg font-bold font-mono text-slate-800">
+                    <h3 className="text-xs font-semibold text-slate-900 truncate">Today&apos;s Movement</h3>
+                    <span className="text-base sm:text-lg font-semibold font-mono text-slate-800">
                       {homeData?.today_movement?.steps ? `${homeData.today_movement.steps.toLocaleString()} steps` : "— steps"}
                     </span>
                   </div>
                 </div>
                 <div className="text-right flex items-center gap-1 shrink-0">
                   <div>
-                    <span className="text-xs font-bold text-slate-900 block">Goal target</span>
+                    <span className="text-xs font-semibold text-slate-900 block">Goal target</span>
                     <span className="text-xs font-mono text-slate-500 block">10,000 steps</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -864,18 +864,18 @@ export default function CardioConnectHome() {
                   <AnimatedHeartbeat size="sm" color="#e11d48" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-xs font-bold text-slate-900">Heart Health Spectrum</h3>
+                  <h3 className="text-xs font-semibold text-slate-900">Heart Health Spectrum</h3>
                   <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed line-clamp-2">
                     Multi-factor cardiovascular panel tracking blood pressure, cholesterol, and metabolic markers.
                   </p>
                   <div className="flex items-center gap-2 mt-2">
-                    <span className="text-[10px] font-bold text-[#0067A1] bg-[#0067A1]/10 px-2 py-0.5 rounded-[5px]">
+                    <span className="text-[10px] font-semibold text-[#0067A1] bg-[#0067A1]/10 px-2 py-0.5 rounded-[5px]">
                       {spectrumData.filter(f => f.current.value !== null).length} of 11 factors available
                     </span>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-xs font-bold text-[#0067A1] shrink-0">
+              <div className="flex items-center gap-1 text-xs font-semibold text-[#0067A1] shrink-0">
                 <span>VIEW</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
@@ -893,13 +893,13 @@ export default function CardioConnectHome() {
                   <TrendingUp className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-xs font-bold text-slate-900">My Progress</h3>
+                  <h3 className="text-xs font-semibold text-slate-900">My Progress</h3>
                   <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed line-clamp-2">
                     Track your longitudinal recovery milestones, activity consistency, and physiological trends across checkpoints.
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-xs font-bold text-[#0067A1] shrink-0">
+              <div className="flex items-center gap-1 text-xs font-semibold text-[#0067A1] shrink-0">
                 <span>CHECKPOINTS</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
@@ -920,13 +920,13 @@ export default function CardioConnectHome() {
                   <Clock className="w-4 h-4 animate-pulse" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-xs font-bold text-slate-900">Walking Performance Test</h3>
+                  <h3 className="text-xs font-semibold text-slate-900">Walking Performance Test</h3>
                   <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed line-clamp-2">
                     Standardized 6-minute aerobic endurance evaluation to record distance and functional capacity.
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-xs font-bold text-[#0067A1] shrink-0">
+              <div className="flex items-center gap-1 text-xs font-semibold text-[#0067A1] shrink-0">
                 <span>START</span>
                 <ChevronRight className="w-4 h-4" />
               </div>
@@ -948,7 +948,7 @@ export default function CardioConnectHome() {
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <h3 className="text-xs sm:text-sm font-bold text-slate-900">Air Quality & Weather</h3>
+                    <h3 className="text-xs sm:text-sm font-semibold text-slate-900">Air Quality & Weather</h3>
                     <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-[5px] border border-emerald-200 inline-flex items-center gap-1 shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       Live
@@ -968,7 +968,7 @@ export default function CardioConnectHome() {
                 }}
                 className="flex items-center sm:flex-col sm:items-end justify-between gap-1 cursor-pointer shrink-0"
               >
-                <span className={`text-xs font-bold px-2.5 py-1 rounded-[5px] border whitespace-nowrap ${
+                <span className={`text-xs font-semibold px-2.5 py-1 rounded-[5px] border whitespace-nowrap ${
                   (aqiDetailData?.aqi_value || 80) <= 50
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : (aqiDetailData?.aqi_value || 80) <= 100
@@ -1016,7 +1016,7 @@ export default function CardioConnectHome() {
                   fetchAqiData(savedUserCity, null, null, false);
                   setActiveModal("aqi");
                 }}
-                className="text-[#0067A1] font-bold hover:underline flex items-center gap-1 text-[11px] cursor-pointer ml-auto"
+                className="text-[#0067A1] font-semibold hover:underline flex items-center gap-1 text-[11px] cursor-pointer ml-auto"
               >
                 <span>View Details</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -1030,7 +1030,7 @@ export default function CardioConnectHome() {
           <span className="text-slate-700 font-medium">Looking for a clinical cardiovascular evaluation?</span>
           <Link
             href="/heart-health"
-            className="text-[#0067A1] font-bold hover:underline flex items-center gap-1 shrink-0"
+            className="text-[#0067A1] font-semibold hover:underline flex items-center gap-1 shrink-0"
           >
             <span>Complete Heart Health Assessment</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -1049,10 +1049,10 @@ export default function CardioConnectHome() {
             {/* Sticky Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <div>
-                <span className="text-[10px] font-mono font-bold uppercase text-[#0067A1] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-[5px]">
+                <span className="text-[10px] font-mono font-medium uppercase text-[#0067A1] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-[5px]">
                   Training Setup
                 </span>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-1">Heart Training Setup</h2>
+                <h2 className="text-base sm:text-lg font-semibold text-slate-900 mt-1">Heart Training Setup</h2>
               </div>
               <button
                 type="button"
@@ -1080,13 +1080,13 @@ export default function CardioConnectHome() {
                     <AnimatedWalkingFigure size="md" color="#059669" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase">Activity Type</span>
-                    <p className="text-xs font-bold text-slate-900">Walking / Moderate Aerobic</p>
+                    <span className="text-[10px] font-semibold text-slate-500 uppercase">Activity Type</span>
+                    <p className="text-xs font-semibold text-slate-900">Walking / Moderate Aerobic</p>
                     <p className="text-[10px] text-slate-500">From device motion (Active)</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[5px] border border-emerald-200">
+                  <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[5px] border border-emerald-200">
                     Connected
                   </span>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
@@ -1103,14 +1103,14 @@ export default function CardioConnectHome() {
                       <MapPin className="w-4 h-4" />
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold text-slate-600 uppercase block">GPS Live Route Map</span>
+                      <span className="text-[10px] font-semibold text-slate-600 uppercase block">GPS Live Route Map</span>
                       <p className="text-[11px] text-slate-800 font-medium">
                         {gpsStatus === 'granted' ? `Location locked (${savedUserCity})` : 'Outdoor running / walking path'}
                       </p>
                     </div>
                   </div>
                   {gpsStatus === 'granted' ? (
-                    <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-[5px] inline-flex items-center gap-1">
+                    <span className="text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-[5px] inline-flex items-center gap-1">
                       <Check className="w-3 h-3 text-sky-600" />
                       <span>Ready</span>
                     </span>
@@ -1118,7 +1118,7 @@ export default function CardioConnectHome() {
                     <button
                       type="button"
                       onClick={requestGps}
-                      className="text-[10px] font-bold text-[#0067A1] bg-blue-50 border border-blue-200 hover:bg-blue-100 px-2.5 py-1 rounded-[5px] transition-colors cursor-pointer"
+                      className="text-[10px] font-medium text-[#0067A1] bg-blue-50 border border-blue-200 hover:bg-blue-100 px-2.5 py-1 rounded-[5px] transition-colors cursor-pointer"
                     >
                       Enable GPS
                     </button>
@@ -1133,7 +1133,7 @@ export default function CardioConnectHome() {
                       setActiveModal("aqi");
                       setShowLocationPicker(true);
                     }}
-                    className="text-[#0067A1] font-bold hover:underline"
+                    className="text-[#0067A1] font-semibold hover:underline"
                   >
                     Change City
                   </button>
@@ -1143,7 +1143,7 @@ export default function CardioConnectHome() {
               {/* Duration Selector (CC-07 Embedded Presets) */}
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-bold text-slate-800">Select duration</label>
+                  <label className="text-xs font-medium text-slate-800">Select duration</label>
                   <span className="text-[10px] text-slate-500 font-medium">Minutes</span>
                 </div>
                 <div className="grid grid-cols-4 gap-2">
@@ -1155,7 +1155,7 @@ export default function CardioConnectHome() {
                         setSelectedPresetDuration(mins);
                         setCustomDurationInput("");
                       }}
-                      className={`py-2.5 rounded-[5px] text-xs font-bold transition-all border ${
+                      className={`py-2.5 rounded-[5px] text-xs font-semibold transition-all border ${
                         selectedPresetDuration === mins && !customDurationInput
                           ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
                           : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
@@ -1189,7 +1189,7 @@ export default function CardioConnectHome() {
               <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-[5px] flex items-start gap-2.5 text-xs text-blue-900">
                 <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-bold text-[11px]">A few things to keep in mind</p>
+                  <p className="font-semibold text-[11px]">A few things to keep in mind</p>
                   <p className="text-[11px] text-blue-800/90 mt-0.5 leading-relaxed">
                     Choose a duration that feels right for you. Heart Training is a safe, moderate activity. Stop immediately if you feel unwell or experience discomfort.
                   </p>
@@ -1202,7 +1202,7 @@ export default function CardioConnectHome() {
               <button
                 type="button"
                 onClick={handleStartTrainingSession}
-                className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold text-xs rounded-[5px] shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium text-xs rounded-[5px] shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Play className="w-4 h-4 fill-current" />
                 <span>START HEART TRAINING</span>
@@ -1228,10 +1228,10 @@ export default function CardioConnectHome() {
             {/* Header with CC ID & View Switcher */}
             <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+                <span className="text-[10px] font-mono font-medium uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
                   {isTrainingPaused ? "Session Paused" : "Active Training"}
                 </span>
-                <span className="text-xs font-bold text-slate-700">Heart Training</span>
+                <span className="text-xs font-semibold text-slate-700">Heart Training</span>
               </div>
 
               {/* View Mode Toggle */}
@@ -1241,7 +1241,7 @@ export default function CardioConnectHome() {
                   onClick={() => setTrainingViewMode("gauge")}
                   className={`px-2.5 py-1 rounded-[5px] transition-all flex items-center gap-1 cursor-pointer ${
                     trainingViewMode === "gauge"
-                      ? "bg-white text-slate-900 shadow-xs font-bold"
+                      ? "bg-white text-slate-900 shadow-xs font-semibold"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
@@ -1256,7 +1256,7 @@ export default function CardioConnectHome() {
                   }}
                   className={`px-2.5 py-1 rounded-[5px] transition-all flex items-center gap-1 cursor-pointer ${
                     trainingViewMode === "map"
-                      ? "bg-white text-slate-900 shadow-xs font-bold"
+                      ? "bg-white text-slate-900 shadow-xs font-semibold"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
@@ -1271,7 +1271,7 @@ export default function CardioConnectHome() {
                   }}
                   className={`px-2.5 py-1 rounded-[5px] transition-all hidden sm:flex items-center gap-1 cursor-pointer ${
                     trainingViewMode === "split"
-                      ? "bg-white text-slate-900 shadow-xs font-bold"
+                      ? "bg-white text-slate-900 shadow-xs font-semibold"
                       : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
@@ -1285,7 +1285,7 @@ export default function CardioConnectHome() {
             <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4">
               <div className="text-center sm:text-left flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <div>
-                  <h2 className="text-xl font-black text-slate-900">
+                  <h2 className="text-xl font-semibold text-slate-900">
                     {isTrainingPaused ? "Session Paused" : "Active Heart Training"}
                   </h2>
                   <p className="text-xs text-slate-600 mt-0.5">
@@ -1393,21 +1393,21 @@ export default function CardioConnectHome() {
               {/* Real-time Telemetry Metrics Grid */}
               <div className="grid grid-cols-3 gap-2 text-center text-xs">
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-[5px]">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase block">Elapsed Time</span>
+                  <span className="text-[10px] text-slate-500 font-medium uppercase block">Elapsed Time</span>
                   <strong className="text-slate-900 font-mono text-base block mt-0.5">
                     {formatSeconds(trainingElapsedSeconds)}
                   </strong>
                   <span className="text-[9px] text-slate-500">paused time excluded</span>
                 </div>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-[5px]">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase block">Remaining</span>
+                  <span className="text-[10px] text-slate-500 font-medium uppercase block">Remaining</span>
                   <strong className="text-slate-900 font-mono text-base block mt-0.5">
                     {formatSeconds(Math.max(0, trainingTargetSeconds - trainingElapsedSeconds))}
                   </strong>
                   <span className="text-[9px] text-slate-500">target {Math.round(trainingTargetSeconds / 60)} min</span>
                 </div>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-[5px]">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase block">Live Distance</span>
+                  <span className="text-[10px] text-slate-500 font-medium uppercase block">Live Distance</span>
                   <strong className="text-[#0067A1] font-mono text-base block mt-0.5">
                     {(realGpsDistanceKm || sessionDistanceKm).toFixed(2)} km
                   </strong>
@@ -1451,7 +1451,7 @@ export default function CardioConnectHome() {
                   <button
                     type="button"
                     onClick={handleResumeTraining}
-                    className="flex-1 py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                    className="flex-1 py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium text-xs rounded-[5px] shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-current" />
                     <span>RESUME TRAINING</span>
@@ -1460,7 +1460,7 @@ export default function CardioConnectHome() {
                   <button
                     type="button"
                     onClick={handlePauseTraining}
-                    className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                    className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white font-medium text-xs rounded-[5px] shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Pause className="w-4 h-4 fill-current" />
                     <span>PAUSE TRAINING</span>
@@ -1470,7 +1470,7 @@ export default function CardioConnectHome() {
                 <button
                   type="button"
                   onClick={handleCompleteTrainingSession}
-                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-[5px] shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>COMPLETE SESSION</span>
@@ -1497,7 +1497,7 @@ export default function CardioConnectHome() {
             
             {/* Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
-              <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+              <span className="text-[10px] font-mono font-medium uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
                 Session Summary
               </span>
               <button
@@ -1514,7 +1514,7 @@ export default function CardioConnectHome() {
             <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4">
               <AnimatedCheckmark size="lg" showParticles={true} className="mb-2" />
 
-              <h2 className="text-xl font-black text-slate-900 mt-1">Session Recorded</h2>
+              <h2 className="text-xl font-semibold text-slate-900 mt-1">Session Recorded</h2>
               <p className="text-xs text-slate-600 mt-0.5">
                 Your Heart Training session has been safely recorded to your health profile.
               </p>
@@ -1537,20 +1537,20 @@ export default function CardioConnectHome() {
               <div className="divide-y divide-slate-100 text-xs text-left bg-slate-50 p-3 rounded-[5px] border border-slate-200">
                 <div className="py-2 flex justify-between">
                   <span className="text-slate-600">Actual duration</span>
-                  <span className="font-bold text-slate-900 font-mono">
+                  <span className="font-semibold text-slate-900 font-mono">
                     {lastCompletedSession.actual_duration_formatted}
                   </span>
                 </div>
                 <div className="py-2 flex justify-between">
                   <span className="text-slate-600">Target / status</span>
-                  <span className="font-bold text-slate-900">
+                  <span className="font-semibold text-slate-900">
                     {lastCompletedSession.target_status}
                   </span>
                 </div>
                 {lastCompletedSession.steps !== null && (
                   <div className="py-2 flex justify-between">
                     <span className="text-slate-600">Steps</span>
-                    <span className="font-bold text-slate-900 font-mono">
+                    <span className="font-semibold text-slate-900 font-mono">
                       {lastCompletedSession.steps.toLocaleString()}
                     </span>
                   </div>
@@ -1558,7 +1558,7 @@ export default function CardioConnectHome() {
                 {lastCompletedSession.distance_km !== null && (
                   <div className="py-2 flex justify-between">
                     <span className="text-slate-600">Distance</span>
-                    <span className="font-bold text-slate-900 font-mono">
+                    <span className="font-semibold text-slate-900 font-mono">
                       {typeof lastCompletedSession.distance_km === 'number'
                         ? lastCompletedSession.distance_km.toFixed(2)
                         : lastCompletedSession.distance_km} km
@@ -1568,7 +1568,7 @@ export default function CardioConnectHome() {
                 {lastCompletedSession.estimated_energy !== null && (
                   <div className="py-2 flex justify-between">
                     <span className="text-slate-600">Estimated energy</span>
-                    <span className="font-bold text-slate-900">
+                    <span className="font-semibold text-slate-900">
                       {lastCompletedSession.estimated_energy}
                     </span>
                   </div>
@@ -1582,7 +1582,7 @@ export default function CardioConnectHome() {
                 {lastCompletedSession.milestone && (
                   <div className="py-2 flex justify-between bg-amber-50/50 px-2 rounded-[5px]">
                     <span className="text-amber-800 font-medium">Milestone achieved</span>
-                    <span className="font-bold text-amber-700 flex items-center gap-1">
+                    <span className="font-semibold text-amber-700 flex items-center gap-1">
                       <Award className="w-3.5 h-3.5" /> {lastCompletedSession.milestone}
                     </span>
                   </div>
@@ -1599,7 +1599,7 @@ export default function CardioConnectHome() {
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors cursor-pointer"
+                className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold text-xs rounded-[5px] shadow-xs transition-colors cursor-pointer"
               >
                 DONE (Back to Home)
               </button>
@@ -1609,7 +1609,7 @@ export default function CardioConnectHome() {
                   setActiveModal(null);
                   router.push("/heart-health-history");
                 }}
-                className="w-full py-2.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200 font-bold text-xs rounded-[5px] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                className="w-full py-2.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200 font-semibold text-xs rounded-[5px] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <FileText className="w-3.5 h-3.5" />
                 <span>VIEW HISTORY & PRINT PDF REPORT (F1–F4)</span>
@@ -1617,7 +1617,7 @@ export default function CardioConnectHome() {
               <button
                 type="button"
                 onClick={() => setActiveModal("progress")}
-                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-[5px] transition-colors cursor-pointer"
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-[5px] transition-colors cursor-pointer"
               >
                 VIEW PROGRESS
               </button>
@@ -1635,15 +1635,15 @@ export default function CardioConnectHome() {
             {/* Sticky Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <div>
-                <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded">
+                <span className="text-[10px] font-mono font-medium uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
                   Heart Health Spectrum
                 </span>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">Heart Health Spectrum</h2>
+                <h2 className="text-base sm:text-lg font-semibold text-slate-900 mt-0.5">Heart Health Spectrum</h2>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="p-1.5 text-slate-600 hover:text-slate-900 rounded-[5px] hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1.5 text-slate-500 hover:text-slate-800 rounded-[5px] hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1651,7 +1651,7 @@ export default function CardioConnectHome() {
 
             {/* Scrollable Body */}
             <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-3">
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-slate-500 leading-relaxed font-normal">
                 Multiple individual factors for a broader view of your heart health. Factor-based representation without composite scoring.
               </p>
 
@@ -1659,15 +1659,15 @@ export default function CardioConnectHome() {
                 {spectrumData.map((factor) => (
                   <div
                     key={factor.id}
-                    className="p-3.5 sm:p-4 bg-slate-50 hover:bg-slate-100/70 rounded-[6px] border border-slate-200/80 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 text-xs"
+                    className="p-3.5 sm:p-4 bg-slate-50/70 hover:bg-slate-50 rounded-[6px] border border-slate-200/80 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 text-xs"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 shrink-0 rounded-[6px] bg-white border border-slate-200 text-[#0067A1] flex items-center justify-center font-bold shadow-2xs">
+                      <div className="w-9 h-9 shrink-0 rounded-[6px] bg-white border border-slate-200/90 text-[#0067A1] flex items-center justify-center font-medium shadow-2xs">
                         <Heart className="w-4 h-4 text-[#0067A1]" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="font-bold text-slate-900 text-xs sm:text-sm">{factor.name}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 flex-wrap">
+                        <p className="font-semibold text-slate-800 text-xs sm:text-sm">{factor.name}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 flex-wrap font-normal">
                           <span className="whitespace-nowrap">Source: {factor.current.source || "Clinical Assessment"}</span>
                           {factor.current.date && (
                             <span className="whitespace-nowrap font-mono text-[10.5px] text-slate-400">
@@ -1680,13 +1680,13 @@ export default function CardioConnectHome() {
 
                     <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60">
                       <div className="text-left sm:text-right">
-                        <span className="font-extrabold text-slate-900 text-sm sm:text-base block">
+                        <span className="font-semibold text-slate-800 text-sm sm:text-base block">
                           {factor.current.value !== null
                             ? `${factor.current.value} ${factor.unit}`.trim()
                             : "Unavailable"}
                         </span>
                         {factor.previous?.value !== null && factor.previous?.value !== undefined && (
-                          <span className="text-[10px] text-slate-500 whitespace-nowrap block">
+                          <span className="text-[10px] text-slate-400 font-normal whitespace-nowrap block">
                             Prev: {factor.previous.value} {factor.unit}
                           </span>
                         )}
@@ -1703,7 +1703,7 @@ export default function CardioConnectHome() {
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="w-full py-2.5 bg-[#0067A1] text-white font-bold text-xs rounded-[5px] hover:bg-[#004F7C] cursor-pointer"
+                className="w-full py-2.5 bg-[#0067A1] text-white font-medium text-xs rounded-[5px] hover:bg-[#004F7C] cursor-pointer"
               >
                 Close Spectrum
               </button>
@@ -1721,10 +1721,10 @@ export default function CardioConnectHome() {
             {/* Sticky Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <div>
-                <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded">
+                <span className="text-[10px] font-mono font-medium uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded">
                   My Progress
                 </span>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">Longitudinal Checkpoints</h2>
+                <h2 className="text-base sm:text-lg font-semibold text-slate-900 mt-0.5">Longitudinal Checkpoints</h2>
               </div>
               <button
                 type="button"
@@ -1745,7 +1745,7 @@ export default function CardioConnectHome() {
                     setSelectedCheckpoint(cp);
                     fetchProgressData(cp === "Later" ? "LONG" : cp);
                   }}
-                  className={`px-3 py-1.5 rounded-[5px] text-xs font-bold transition-colors whitespace-nowrap cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-[5px] text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
                     selectedCheckpoint === cp
                       ? "bg-[#0067A1] text-white shadow-2xs"
                       : "text-slate-700 hover:bg-slate-100"
@@ -1760,7 +1760,7 @@ export default function CardioConnectHome() {
             <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4 text-xs">
               {/* Activity Trend */}
               <div className="p-4 bg-slate-50 rounded-[5px] border border-slate-200">
-                <h3 className="font-bold text-slate-900 mb-1 flex items-center gap-1.5">
+                <h3 className="font-semibold text-slate-900 mb-1 flex items-center gap-1.5">
                   <Activity className="w-4 h-4 text-[#0067A1]" /> Activity Trend
                 </h3>
                 <p className="text-[11px] text-slate-600 mb-3">
@@ -1790,7 +1790,7 @@ export default function CardioConnectHome() {
 
               {/* Steps Trend */}
               <div className="p-4 bg-slate-50 rounded-[5px] border border-slate-200">
-                <h3 className="font-bold text-slate-900 mb-1 flex items-center gap-1.5">
+                <h3 className="font-semibold text-slate-900 mb-1 flex items-center gap-1.5">
                   <Footprints className="w-4 h-4 text-emerald-600" /> Steps Trend
                 </h3>
                 <p className="text-[11px] text-slate-600 mb-3">Goal reference 10,000 daily steps</p>
@@ -1819,10 +1819,10 @@ export default function CardioConnectHome() {
               {/* Spectrum Factor Coverage */}
               <div className="p-4 bg-slate-50 rounded-[5px] border border-slate-200 flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-slate-900">Spectrum Factor Coverage</h4>
+                  <h4 className="font-semibold text-slate-900">Spectrum Factor Coverage</h4>
                   <p className="text-[11px] text-slate-600 mt-0.5">Individual data available</p>
                 </div>
-                <span className="font-extrabold text-[#0067A1] text-sm">
+                <span className="font-semibold text-[#0067A1] text-sm">
                   {spectrumData.filter((f) => f.current.value !== null).length} of {spectrumData.length} factors
                 </span>
               </div>
@@ -1838,14 +1838,14 @@ export default function CardioConnectHome() {
               <button
                 type="button"
                 onClick={() => setActiveModal("spectrum")}
-                className="py-2.5 bg-[#0067A1] text-white font-bold text-xs rounded-[5px] hover:bg-[#004F7C] cursor-pointer text-center"
+                className="py-2.5 bg-[#0067A1] text-white font-semibold text-xs rounded-[5px] hover:bg-[#004F7C] cursor-pointer text-center"
               >
                 VIEW SPECTRUM
               </button>
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-[5px] cursor-pointer text-center"
+                className="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-[5px] cursor-pointer text-center"
               >
                 Close
               </button>
@@ -1863,10 +1863,10 @@ export default function CardioConnectHome() {
             {/* Sticky Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <div>
-                <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded">
+                <span className="text-[10px] font-mono font-medium uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded">
                   6-Minute Walk Test
                 </span>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">Walking Performance Test</h2>
+                <h2 className="text-base sm:text-lg font-semibold text-slate-900 mt-0.5">Walking Performance Test</h2>
               </div>
               <button
                 type="button"
@@ -1884,14 +1884,14 @@ export default function CardioConnectHome() {
               </p>
 
               <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-200">
-                <h4 className="font-bold text-slate-900 mb-1">What It Is</h4>
+                <h4 className="font-semibold text-slate-900 mb-1">What It Is</h4>
                 <p className="text-slate-700 text-[11px] leading-relaxed">
                   A standardized 6-minute walking test for baseline and repeat functional observation.
                 </p>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-[5px] border border-slate-200">
-                <h4 className="font-bold text-slate-900 mb-1">What It Measures</h4>
+                <h4 className="font-semibold text-slate-900 mb-1">What It Measures</h4>
                 <ul className="text-[11px] text-slate-700 list-disc list-inside space-y-0.5">
                   <li>Duration (fixed 6 minutes)</li>
                   <li>Distance covered</li>
@@ -1901,7 +1901,7 @@ export default function CardioConnectHome() {
               </div>
 
               <div className="p-3 bg-amber-50/70 rounded-[5px] border border-amber-200">
-                <h4 className="font-bold text-amber-900 mb-1">What It Does NOT Diagnose</h4>
+                <h4 className="font-semibold text-amber-900 mb-1">What It Does NOT Diagnose</h4>
                 <ul className="text-[11px] text-amber-800 list-disc list-inside space-y-0.5">
                   <li>It is not a diagnostic test</li>
                   <li>It is not a cardiac stress test</li>
@@ -1921,7 +1921,7 @@ export default function CardioConnectHome() {
                   setWalkingHeartRateInput("");
                   setActiveModal("walking_active");
                 }}
-                className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold text-xs rounded-[5px] shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span>START TEST</span>
                 <ArrowRight className="w-4 h-4" />
@@ -1946,16 +1946,16 @@ export default function CardioConnectHome() {
             
             {/* Header */}
             <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
-              <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+              <span className="text-[10px] font-mono font-medium uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
                 Active Walk Test
               </span>
-              <span className="text-xs font-bold text-slate-700">Standardized 6-Min Test</span>
+              <span className="text-xs font-semibold text-slate-700">Standardized 6-Min Test</span>
             </div>
 
             {/* Scrollable Body */}
             <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4">
               <div>
-                <h2 className="text-xl font-black text-slate-900 mt-1">Walking Performance Test</h2>
+                <h2 className="text-xl font-semibold text-slate-900 mt-1">Walking Performance Test</h2>
                 <p className="text-xs text-slate-600 mt-0.5">Walk at your usual comfortable pace for 6 minutes</p>
               </div>
 
@@ -1991,7 +1991,7 @@ export default function CardioConnectHome() {
                     }
                     setWalkingGpsEnabled(!walkingGpsEnabled);
                   }}
-                  className={`text-[10px] font-bold px-2.5 py-1 rounded-[5px] border transition-colors cursor-pointer ${
+                  className={`text-[10px] font-semibold px-2.5 py-1 rounded-[5px] border transition-colors cursor-pointer ${
                     walkingGpsEnabled
                       ? "bg-emerald-600 text-white border-emerald-600"
                       : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
@@ -2012,7 +2012,7 @@ export default function CardioConnectHome() {
               <div className="text-left space-y-2">
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">
+                    <label className="text-[10px] font-medium text-slate-700 uppercase block mb-1">
                       Distance (km) {walkingGpsEnabled && "(Auto)"}
                     </label>
                     <input
@@ -2022,18 +2022,18 @@ export default function CardioConnectHome() {
                       placeholder="e.g. 0.52"
                       value={walkingDistanceInput}
                       onChange={(e) => setWalkingDistanceInput(e.target.value)}
-                      className="w-full px-2.5 py-2 border border-slate-200 rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30 font-bold"
+                      className="w-full px-2.5 py-2 border border-slate-200 rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30 font-semibold"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-slate-700 uppercase block mb-1">Heart Rate (bpm)</label>
+                    <label className="text-[10px] font-medium text-slate-700 uppercase block mb-1">Heart Rate (bpm)</label>
                     <input
                       type="number"
                       min="0"
                       placeholder="Optional"
                       value={walkingHeartRateInput}
                       onChange={(e) => setWalkingHeartRateInput(e.target.value)}
-                      className="w-full px-2.5 py-2 border border-slate-200 rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30 font-bold"
+                      className="w-full px-2.5 py-2 border border-slate-200 rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30 font-semibold"
                     />
                   </div>
                 </div>
@@ -2045,7 +2045,7 @@ export default function CardioConnectHome() {
               <button
                 type="button"
                 onClick={() => finishWalkingTest(true)}
-                className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors cursor-pointer"
+                className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-[5px] shadow-xs transition-colors cursor-pointer"
               >
                 STOP EARLY / COMPLETE TEST
               </button>
@@ -2062,7 +2062,7 @@ export default function CardioConnectHome() {
             
             {/* Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
-              <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+              <span className="text-[10px] font-mono font-medium uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
                 Walk Test Result
               </span>
               <button
@@ -2078,7 +2078,7 @@ export default function CardioConnectHome() {
             <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 pb-28 sm:pb-6 space-y-4">
               <AnimatedCheckmark size="lg" showParticles={true} className="mb-2" />
 
-              <h2 className="text-xl font-black text-slate-900 mt-1">
+              <h2 className="text-xl font-semibold text-slate-900 mt-1">
                 {walkingTestResult.isComplete ? "Test Complete (6 Minutes)" : "Test Stopped Early"}
               </h2>
 
@@ -2098,7 +2098,7 @@ export default function CardioConnectHome() {
 
               {/* Current Result */}
               <div className="p-4 bg-slate-50 rounded-[5px] border border-slate-200 text-left">
-                <h4 className="font-bold text-slate-900 text-xs mb-2">Your Result</h4>
+                <h4 className="font-semibold text-slate-900 text-xs mb-2">Your Result</h4>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex justify-between font-mono">
                     <span className="text-slate-600">Duration</span>
@@ -2128,7 +2128,7 @@ export default function CardioConnectHome() {
               {/* Previous Comparable Test */}
               {walkingTestResult.previousComparable ? (
                 <div className="p-4 bg-slate-50 rounded-[5px] border border-slate-200 text-left text-xs">
-                  <h4 className="font-bold text-slate-900 mb-1">Previous Comparable Test</h4>
+                  <h4 className="font-semibold text-slate-900 mb-1">Previous Comparable Test</h4>
                   <p className="text-[10px] text-slate-600 mb-2">Like-for-like protocol version (V1.0)</p>
                   <div className="space-y-1 font-mono">
                     <div className="flex justify-between">
@@ -2147,7 +2147,7 @@ export default function CardioConnectHome() {
                 </div>
               ) : (
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-[5px] text-left text-xs text-slate-700">
-                  <p className="font-bold text-slate-900 mb-0.5">Previous Test</p>
+                  <p className="font-semibold text-slate-900 mb-0.5">Previous Test</p>
                   <p className="text-[10px] text-slate-600">No previous test found for like-for-like comparison (V1.0 protocol). Complete more tests to enable comparison.</p>
                 </div>
               )}
@@ -2162,14 +2162,14 @@ export default function CardioConnectHome() {
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="w-full py-3 bg-[#0067A1] text-white font-bold text-xs rounded-[5px] hover:bg-[#004F7C] cursor-pointer shadow-xs"
+                className="w-full py-3 bg-[#0067A1] text-white font-semibold text-xs rounded-[5px] hover:bg-[#004F7C] cursor-pointer shadow-xs"
               >
                 DONE (Back to Home)
               </button>
               <button
                 type="button"
                 onClick={() => setActiveModal("progress")}
-                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-[5px] cursor-pointer"
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-[5px] cursor-pointer"
               >
                 VIEW PROGRESS
               </button>
@@ -2187,10 +2187,10 @@ export default function CardioConnectHome() {
             {/* Sticky Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <div>
-                <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+                <span className="text-[10px] font-mono font-medium uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
                   Activity History
                 </span>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">Activity Timeline</h2>
+                <h2 className="text-base sm:text-lg font-semibold text-slate-900 mt-0.5">Activity Timeline</h2>
               </div>
               <button
                 type="button"
@@ -2214,12 +2214,12 @@ export default function CardioConnectHome() {
                     setTimelineDate(str);
                     fetchTimelineData(str);
                   }}
-                  className="p-1.5 hover:bg-slate-200 rounded text-slate-700 font-bold cursor-pointer"
+                  className="p-1.5 hover:bg-slate-200 rounded text-slate-700 font-semibold cursor-pointer"
                   title="Previous Day"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <div className="flex items-center gap-2 font-bold text-slate-900">
+                <div className="flex items-center gap-2 font-semibold text-slate-900">
                   <Calendar className="w-4 h-4 text-[#0067A1]" />
                   <span>
                     {new Date(timelineDate + "T00:00:00").toLocaleDateString("en-US", {
@@ -2239,7 +2239,7 @@ export default function CardioConnectHome() {
                     setTimelineDate(str);
                     fetchTimelineData(str);
                   }}
-                  className="p-1.5 hover:bg-slate-200 rounded text-slate-700 font-bold cursor-pointer"
+                  className="p-1.5 hover:bg-slate-200 rounded text-slate-700 font-semibold cursor-pointer"
                   title="Next Day"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -2248,7 +2248,7 @@ export default function CardioConnectHome() {
 
               {/* Daily Total */}
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-[5px] text-xs">
-                <h4 className="font-bold text-slate-900 mb-2">Daily Total</h4>
+                <h4 className="font-semibold text-slate-900 mb-2">Daily Total</h4>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="p-2 bg-white rounded-[5px] border border-slate-200">
                     <span className="text-[10px] text-slate-500 block">Steps</span>
@@ -2273,7 +2273,7 @@ export default function CardioConnectHome() {
 
               {/* Chronological Sessions */}
               <div className="space-y-2 text-xs">
-                <h4 className="font-bold text-slate-900">Recorded Sessions</h4>
+                <h4 className="font-semibold text-slate-900">Recorded Sessions</h4>
                 {isLoadingTimeline ? (
                   <div className="p-6 text-center text-slate-500">Loading activity sessions...</div>
                 ) : timelineData?.session_records && timelineData.session_records.length > 0 ? (
@@ -2309,7 +2309,7 @@ export default function CardioConnectHome() {
                     <div className="w-10 h-10 rounded-[5px] bg-slate-200 text-slate-500 flex items-center justify-center mx-auto">
                       <Footprints className="w-5 h-5" />
                     </div>
-                    <h5 className="font-bold text-slate-800 text-xs">No sessions yet</h5>
+                    <h5 className="font-semibold text-slate-800 text-xs">No sessions yet</h5>
                     <p className="text-[11px] text-slate-500">No activity sessions recorded for this date.</p>
                   </div>
                 )}
@@ -2323,7 +2323,7 @@ export default function CardioConnectHome() {
                 onClick={() => {
                   setActiveModal("progress");
                 }}
-                className="w-full py-2.5 bg-blue-50 hover:bg-blue-100 text-[#0067A1] font-bold text-xs rounded-[5px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                className="w-full py-2.5 bg-blue-50 hover:bg-blue-100 text-[#0067A1] font-semibold text-xs rounded-[5px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <span>Weekly Summary</span>
                 <ChevronRight className="w-4 h-4" />
@@ -2348,7 +2348,7 @@ export default function CardioConnectHome() {
             
             {/* Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
-              <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+              <span className="text-[10px] font-mono font-medium uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
                 Device Permissions
               </span>
               <button
@@ -2380,7 +2380,7 @@ export default function CardioConnectHome() {
                 {permissionsState === "sync_pending" && <RefreshCw className="w-8 h-8 animate-spin" />}
               </div>
 
-              <h2 className="text-xl font-black text-slate-900 mt-1 capitalize">
+              <h2 className="text-xl font-semibold text-slate-900 mt-1 capitalize">
                 {permissionsState.replace("_", " ")}
               </h2>
               <p className="text-xs text-slate-600">
@@ -2401,7 +2401,7 @@ export default function CardioConnectHome() {
                     <Shield className="w-4 h-4 text-slate-600" />
                     <span className="font-semibold text-slate-800">Activity Permission</span>
                   </div>
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${
                     permissionsState === "granted"
                       ? "bg-emerald-100 text-emerald-800"
                       : permissionsState === "denied"
@@ -2416,7 +2416,7 @@ export default function CardioConnectHome() {
                     <Activity className="w-4 h-4 text-slate-600" />
                     <span className="font-semibold text-slate-800">Health Source</span>
                   </div>
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded ${
                     permissionsState === "granted"
                       ? "bg-emerald-100 text-emerald-800"
                       : permissionsState === "sync_pending"
@@ -2442,7 +2442,7 @@ export default function CardioConnectHome() {
                     setPermissionsState("granted");
                     toast.success("Permissions granted");
                   }}
-                  className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold text-xs rounded-[5px] shadow-xs transition-colors cursor-pointer"
+                  className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold text-xs rounded-[5px] shadow-xs transition-colors cursor-pointer"
                 >
                   Retry / Connect Source
                 </button>
@@ -2452,7 +2452,7 @@ export default function CardioConnectHome() {
                 onClick={() => {
                   setActiveModal("setup");
                 }}
-                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-[5px] transition-colors cursor-pointer"
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-[5px] transition-colors cursor-pointer"
               >
                 Continue Without
               </button>
@@ -2470,10 +2470,10 @@ export default function CardioConnectHome() {
             {/* Sticky Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
               <div>
-                <span className="text-[10px] font-mono font-bold uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
+                <span className="text-[10px] font-mono font-medium uppercase bg-slate-100 text-slate-950 px-2 py-0.5 rounded-[5px]">
                   Environmental Telemetry
                 </span>
-                <h2 className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">Air Quality (AQI) & Weather</h2>
+                <h2 className="text-base sm:text-lg font-semibold text-slate-900 mt-0.5">Air Quality (AQI) & Weather</h2>
               </div>
               <button
                 type="button"
@@ -2493,7 +2493,7 @@ export default function CardioConnectHome() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-[#0067A1]" />
-                    <span className="text-xs font-bold text-slate-900">{savedUserCity}</span>
+                    <span className="text-xs font-semibold text-slate-900">{savedUserCity}</span>
                   </div>
                   <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -2506,7 +2506,7 @@ export default function CardioConnectHome() {
                   <button
                     type="button"
                     onClick={requestGps}
-                    className="flex-1 py-1.5 px-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[11px] rounded-[5px] border border-sky-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    className="flex-1 py-1.5 px-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-medium text-[11px] rounded-[5px] border border-sky-200 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Navigation className="w-3.5 h-3.5" />
                     <span>Use Current GPS</span>
@@ -2514,7 +2514,7 @@ export default function CardioConnectHome() {
                   <button
                     type="button"
                     onClick={() => setShowLocationPicker(!showLocationPicker)}
-                    className="flex-1 py-1.5 px-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-[11px] rounded-[5px] border border-slate-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    className="flex-1 py-1.5 px-2 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-[11px] rounded-[5px] border border-slate-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Search className="w-3.5 h-3.5" />
                     <span>{showLocationPicker ? "Hide Cities" : "Choose City"}</span>
@@ -2534,14 +2534,14 @@ export default function CardioConnectHome() {
                       />
                       <button
                         type="submit"
-                        className="px-3 py-1.5 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold text-xs rounded-[5px] transition-colors cursor-pointer"
+                        className="px-3 py-1.5 bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium text-xs rounded-[5px] transition-colors cursor-pointer"
                       >
                         Search
                       </button>
                     </form>
 
                     <div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">
                         Popular Locations:
                       </span>
                       <div className="flex flex-wrap gap-1">
@@ -2552,7 +2552,7 @@ export default function CardioConnectHome() {
                             onClick={() => handleSelectCity(city)}
                             className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
                               savedUserCity.toLowerCase().includes(city.toLowerCase())
-                                ? "bg-[#0067A1] text-white border-[#0067A1] font-bold"
+                                ? "bg-[#0067A1] text-white border-[#0067A1] font-semibold"
                                 : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                             }`}
                           >
@@ -2568,10 +2568,10 @@ export default function CardioConnectHome() {
               {/* Real AQI Value & Category Card */}
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-[5px] text-center">
                 <span className="text-[11px] text-slate-600 block">Current Air Quality Index</span>
-                <div className="text-5xl font-black text-slate-900 font-mono my-2 tracking-tight">
+                <div className="text-5xl font-semibold text-slate-900 font-mono my-2 tracking-tight">
                   {aqiDetailData?.aqi_value || 80}
                 </div>
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-extrabold border ${
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${
                   (aqiDetailData?.aqi_value || 80) <= 50
                     ? "bg-emerald-100 text-emerald-800 border-emerald-300"
                     : (aqiDetailData?.aqi_value || 80) <= 100
@@ -2595,7 +2595,7 @@ export default function CardioConnectHome() {
               {/* Real Weather Telemetry Grid */}
               {aqiDetailData?.weather && (
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-[5px]">
-                  <h4 className="text-[11px] font-bold text-slate-700 uppercase mb-2 flex items-center gap-1.5">
+                  <h4 className="text-[11px] font-semibold text-slate-700 uppercase mb-2 flex items-center gap-1.5">
                     <CloudSun className="w-3.5 h-3.5 text-sky-600" />
                     <span>Live Weather Telemetry</span>
                   </h4>
@@ -2639,7 +2639,7 @@ export default function CardioConnectHome() {
                 </div>
                 <div className="flex justify-between text-slate-700 items-center">
                   <span>Telemetry Feed:</span>
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[5px] border border-emerald-200">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[5px] border border-emerald-200">
                     <Shield className="w-3 h-3" />
                     <span>Live Verified Station</span>
                   </span>
@@ -2674,7 +2674,7 @@ export default function CardioConnectHome() {
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="w-full py-2.5 bg-[#0067A1] text-white font-bold text-xs rounded-[5px] hover:bg-[#004F7C] cursor-pointer shadow-xs"
+                className="w-full py-2.5 bg-[#0067A1] text-white font-semibold text-xs rounded-[5px] hover:bg-[#004F7C] cursor-pointer shadow-xs"
               >
                 Close
               </button>
