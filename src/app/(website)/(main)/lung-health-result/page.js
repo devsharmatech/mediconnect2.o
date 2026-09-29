@@ -208,7 +208,7 @@ export default function LungHealthResult() {
 
   const inputs = assessmentData.lung_health_inputs?.[0] || {};
   const formattedSerialNo = serial_no || (assessmentId
-    ? `LCN-${new Date(created_at).getFullYear()}-${assessmentId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
+    ? `LCN-${new Date(created_at).getFullYear()}-${String(assessmentId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
     : 'LCN-LATEST');
 
   const riskKey = risk_level?.toLowerCase();

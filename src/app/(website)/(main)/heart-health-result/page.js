@@ -226,7 +226,7 @@ export default function HeartHealthResult() {
 
   // Formatted Serial No fallback
   const formattedSerialNo = serial_no || (assessmentId
-    ? `CCN-${new Date(created_at).getFullYear()}-${assessmentId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
+    ? `CCN-${new Date(created_at).getFullYear()}-${String(assessmentId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
     : 'CCN-LATEST'
   );
 

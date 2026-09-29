@@ -19,8 +19,6 @@ export async function POST(req) {
       delivery_charge = 0,
       discount = 0,
       final_amount,
-      auto_accept = true,
-      items = [],
     } = await req.json();
 
     const rawCost = estimated_cost !== undefined ? estimated_cost : final_amount;
@@ -52,17 +50,26 @@ export async function POST(req) {
     }
 
     if (broadcast.status === "completed") {
-      return failure("This order has already been claimed and accepted", null, 409, {
+      return failure("This broadcast has already concluded and an offer was selected by the patient", null, 409, {
         headers: corsHeaders,
       });
     }
 
-    // 3. Fetch chemist info
+    if (new Date(broadcast.expires_at) < new Date()) {
+      return failure("This broadcast window has expired", null, 410, {
+        headers: corsHeaders,
+      });
+    }
+
+    // 3. Fetch chemist details
     const chemistRows = await sql`
-      SELECT pharmacy_name, owner_name, payment_qr_url, payment_qr_payload, address, mobile
+      SELECT id, pharmacy_name, owner_name, payment_qr_url, payment_qr_payload, address, mobile, rating, total_reviews
       FROM chemist_details WHERE id = ${chemist_id} LIMIT 1
     `;
-    const chemistName = chemistRows[0]?.pharmacy_name || "A local pharmacy";
+    const chemist = chemistRows[0] || {};
+    const pharmacyName = chemist.pharmacy_name || "Partner Pharmacy";
+    const pharmacyAddress = chemist.address || "Registered Partner Pharmacy";
+    const ratingVal = chemist.rating && Number(chemist.total_reviews || 0) > 0 ? Number(chemist.rating) : null;
 
     // 4. Create or update quote
     const existingQuotes = await sql`
@@ -72,7 +79,6 @@ export async function POST(req) {
     `;
 
     let quote = null;
-    const quoteStatus = auto_accept ? "selected" : "submitted";
 
     if (existingQuotes.length > 0) {
       const updatedQuotes = await sql`
@@ -84,7 +90,8 @@ export async function POST(req) {
           delivery_charge = ${delCharge},
           discount = ${disc},
           delivery_time_minutes = ${deliveryMins},
-          status = ${quoteStatus}
+          status = 'submitted',
+          created_at = NOW()
         WHERE id = ${existingQuotes[0].id}
         RETURNING *
       `;
@@ -111,7 +118,7 @@ export async function POST(req) {
           ${disc},
           ${finalAmt},
           ${deliveryMins},
-          ${quoteStatus},
+          'submitted',
           NOW()
         )
         RETURNING *
@@ -119,155 +126,67 @@ export async function POST(req) {
       quote = newQuoteRows[0];
     }
 
-    let createdOrder = null;
-
-    // 5. If auto_accept is enabled: IMMEDIATELY CLAIM & ACCEPT ORDER (No long wait in pool!)
-    if (auto_accept) {
-      // Mark broadcast completed
-      await sql`
-        UPDATE medicine_order_broadcasts 
-        SET status = 'completed'
-        WHERE id = ${broadcast_id}
-      `;
-
-      // Generate sequential BIGINT UNID
-      const maxUnidRows = await sql`
-        SELECT COALESCE(MAX(unid), 25) + 1 AS next_unid FROM medicine_orders
-      `;
-      const nextUnid = maxUnidRows[0]?.next_unid || 26;
-
-      const promisedDeliveryAt = new Date(Date.now() + deliveryMins * 60 * 1000);
-      const warningAt = new Date(Date.now() + Math.floor(deliveryMins * 0.8) * 60 * 1000);
-
-      const orderRows = await sql`
-        INSERT INTO medicine_orders (
-          unid,
-          prescription_id,
-          patient_id,
-          chemist_id,
-          status,
-          medicine_subtotal,
-          delivery_charge,
-          discount,
-          total_amount,
-          payment_qr_url,
-          payment_qr_payload,
-          promised_delivery_at,
-          warning_at,
-          breach_at,
-          sla_status,
-          delivery_type,
-          patient_notes,
-          created_at,
-          updated_at
-        ) VALUES (
-          ${nextUnid},
-          ${broadcast.prescription_id},
-          ${broadcast.patient_id},
-          ${chemist_id},
-          'approved',
-          ${subtotal},
-          ${delCharge},
-          ${disc},
-          ${finalAmt},
-          ${chemistRows[0]?.payment_qr_url || null},
-          ${chemistRows[0]?.payment_qr_payload || null},
-          ${promisedDeliveryAt},
-          ${warningAt},
-          ${promisedDeliveryAt},
-          'ON_TRACK',
-          'delivery',
-          ${`Accepted by ${chemistName} — Delivery in ${deliveryMins} mins`},
-          NOW(),
-          NOW()
-        )
-        RETURNING *
-      `;
-      createdOrder = orderRows[0];
-
-      // Copy medicines into medicine_order_items
-      if (broadcast.prescription_id) {
-        const rxRows = await sql`
-          SELECT medicines FROM prescriptions WHERE id = ${broadcast.prescription_id} LIMIT 1
-        `;
-        if (rxRows[0]?.medicines) {
-          let parsedMeds = [];
-          try {
-            parsedMeds =
-              typeof rxRows[0].medicines === "string"
-                ? JSON.parse(rxRows[0].medicines)
-                : rxRows[0].medicines;
-          } catch (e) {
-            parsedMeds = [];
-          }
-
-          if (Array.isArray(parsedMeds)) {
-            for (const m of parsedMeds) {
-              await sql`
-                INSERT INTO medicine_order_items (
-                  order_id,
-                  medicine_name,
-                  dosage,
-                  frequency,
-                  duration,
-                  quantity,
-                  price
-                ) VALUES (
-                  ${createdOrder.id},
-                  ${m.name || m.medicine_name || "Prescribed Medicine"},
-                  ${m.dosage || m.dosage_instruction || ""},
-                  ${m.frequency || ""},
-                  ${m.duration || ""},
-                  ${parseInt(m.quantity || "1", 10)},
-                  ${parseFloat(m.price || 0)}
-                )
-              `;
-            }
-          }
-        }
+    // 5. Notify patient and push real-time event to SSE stream
+    const quotePayload = {
+      id: quote.id,
+      broadcast_id: broadcast_id,
+      chemist_id: chemist_id,
+      estimated_cost: finalAmt,
+      medicine_subtotal: subtotal,
+      delivery_charge: delCharge,
+      discount: disc,
+      final_amount: finalAmt,
+      delivery_time_minutes: deliveryMins,
+      status: "submitted",
+      pharmacy_name: pharmacyName,
+      address: pharmacyAddress,
+      rating: ratingVal,
+      chemist: {
+        pharmacy_name: pharmacyName,
+        address: pharmacyAddress,
+        mobile: chemist.mobile || "",
+        rating: ratingVal
       }
+    };
 
-      // Notify patient of instant acceptance
-      try {
-        if (broadcast.patient_id) {
-          await sendPushAndInAppNotification({
-            userId: broadcast.patient_id,
-            title: "Order Accepted by Pharmacy! 💊",
-            message: `${chemistName} has accepted your prescription order (#${nextUnid}). Preparation started.`,
-            type: "medicine_order_accepted",
-            metadata: {
-              order_id: createdOrder.id,
-              broadcast_id,
-              chemist_id,
-              amount: finalAmt,
-            },
-          });
-        }
-      } catch (notifErr) {
-        console.warn("Patient notification warning:", notifErr.message);
-      }
-    }
-
-    // 6. Broadcast event
     try {
+      broadcastEmitter.emit(`quote:${broadcast_id}`, quotePayload);
       broadcastEmitter.emit(`status:${broadcast_id}`, {
-        status: auto_accept ? "completed" : "quoted",
-        selected_quote_id: quote.id,
-        order_id: createdOrder?.id || null,
-        chemist_name: chemistName,
+        status: "quoted",
+        quote_id: quote.id,
+        chemist_name: pharmacyName,
       });
     } catch (e) {
       console.warn("BroadcastEmitter error:", e.message);
     }
 
+    try {
+      if (broadcast.patient_id) {
+        await sendPushAndInAppNotification({
+          userId: broadcast.patient_id,
+          title: "New Pharmacy Offer Received 💊",
+          message: `${pharmacyName} offered to fulfill your prescription for ₹${finalAmt} (ETA: ${deliveryMins} mins).`,
+          type: "medicine_quote_received",
+          metadata: {
+            broadcast_id,
+            quote_id: quote.id,
+            chemist_id,
+            amount: finalAmt,
+          },
+        });
+      }
+    } catch (notifErr) {
+      console.warn("Patient notification warning:", notifErr.message);
+    }
+
     return success(
-      auto_accept ? "Order accepted and claimed into your active orders!" : "Quote submitted successfully",
-      { quote, order: createdOrder, auto_accepted: auto_accept },
+      "Quote submitted successfully to patient",
+      { quote: quotePayload },
       201,
       { headers: corsHeaders }
     );
   } catch (err) {
-    console.error("Error submitting chemist quote / accepting order:", err);
-    return failure("Failed to process order", err.message, 500, { headers: corsHeaders });
+    console.error("Error submitting chemist quote:", err);
+    return failure("Failed to submit quote", err.message, 500, { headers: corsHeaders });
   }
 }

@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -10,103 +10,173 @@ export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
     const broadcast_id = searchParams.get("broadcast_id");
+    const search = searchParams.get("search") || "";
+    const sortBy = searchParams.get("sortBy") || "cheapest"; // cheapest | fastest | highest_rated | latest
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const pageSize = Math.max(1, Math.min(100, parseInt(searchParams.get("pageSize") || "20", 10)));
+    const offset = (page - 1) * pageSize;
 
     if (!broadcast_id) {
       return failure("broadcast_id is required", null, 400, { headers: corsHeaders });
     }
 
     // 1. Fetch broadcast details
-    const { data: broadcast, error: broadcastErr } = await supabase
-      .from("medicine_order_broadcasts")
-      .select("*")
-      .eq("id", broadcast_id)
-      .single();
+    const broadcastRows = await sql`
+      SELECT 
+        mob.*,
+        p.medicines as prescription_medicines,
+        p.file_url as prescription_file_url
+      FROM medicine_order_broadcasts mob
+      LEFT JOIN prescriptions p ON p.id = mob.prescription_id
+      WHERE mob.id = ${broadcast_id} 
+      LIMIT 1
+    `;
+    const broadcast = broadcastRows[0];
 
-    if (broadcastErr || !broadcast) {
+    if (!broadcast) {
       return failure("Broadcast not found", null, 404, { headers: corsHeaders });
     }
 
-    // 2. Fetch quotes submitted for this broadcast
-    const { data: quotes, error: quotesErr } = await supabase
-      .from("medicine_order_quotes")
-      .select("*")
-      .eq("broadcast_id", broadcast_id);
-
-    if (quotesErr) throw quotesErr;
-
-    // Fetch chemist details and user profiles for these quotes
-    let chemistsMap = {};
-    let usersMap = {};
-
-    if (quotes && quotes.length > 0) {
-      const chemistIds = quotes.map(q => q.chemist_id);
-      
-      const formattedIds = chemistIds.map(id => `"${id}"`).join(',');
-
-      const { data: chemists, error: chemistsErr } = await supabase
-        .from("chemist_details")
-        .select("id, user_id, store_name, pharmacy_name, address, upi_id, rating, total_reviews")
-        .or(`id.in.(${formattedIds}),user_id.in.(${formattedIds})`);
-      
-      if (chemistsErr) {
-        console.error("Error fetching chemist details for quotes:", chemistsErr.message);
-      } else if (chemists) {
-        chemists.forEach(c => {
-          if (c.id) chemistsMap[c.id] = c;
-          if (c.user_id) chemistsMap[c.user_id] = c;
-        });
-      }
-
-      const { data: users, error: usersErr } = await supabase
-        .from("users")
-        .select("id, full_name, phone_number")
-        .in("id", chemistIds);
-
-      if (usersErr) {
-        console.error("Error fetching user profiles for quotes:", usersErr.message);
-      } else if (users) {
-        users.forEach(u => {
-          usersMap[u.id] = u;
-        });
-      }
+    // Parse medicines
+    let parsedMedicines = [];
+    try {
+      parsedMedicines = typeof broadcast.prescription_medicines === "string" 
+        ? JSON.parse(broadcast.prescription_medicines) 
+        : broadcast.prescription_medicines || [];
+    } catch {
+      parsedMedicines = [];
     }
 
-    // 3. Evaluate if we need to auto-expire or mark completed
+    // Auto-expire if time has passed and still broadcasting
     const isExpired = new Date() > new Date(broadcast.expires_at);
-    const hasThreeQuotes = quotes.length >= 3;
-
-    if (broadcast.status === "broadcasting" && (isExpired || hasThreeQuotes)) {
-      const newStatus = hasThreeQuotes ? "completed" : "expired";
-      await supabase
-        .from("medicine_order_broadcasts")
-        .update({ status: newStatus })
-        .eq("id", broadcast_id);
-      broadcast.status = newStatus;
+    if (broadcast.status === "broadcasting" && isExpired) {
+      await sql`
+        UPDATE medicine_order_broadcasts
+        SET status = 'expired'
+        WHERE id = ${broadcast_id}
+      `;
+      broadcast.status = "expired";
     }
+
+    // 2. Build search filter
+    let searchCondition = sql``;
+    if (search.trim()) {
+      const s = `%${search.trim()}%`;
+      searchCondition = sql`AND (cd.pharmacy_name ILIKE ${s} OR cd.address ILIKE ${s})`;
+    }
+
+    // 3. Count total matching quotes (UNLIMITED CAPACITY)
+    const countRows = await sql`
+      SELECT COUNT(*)::int as total
+      FROM medicine_order_quotes q
+      LEFT JOIN chemist_details cd ON cd.id = q.chemist_id
+      WHERE q.broadcast_id = ${broadcast_id}
+        AND q.status != 'withdrawn'
+        ${searchCondition}
+    `;
+    const totalCount = countRows[0]?.total || 0;
+
+    // 4. Fetch quotes with sorting and pagination
+    let orderClause = sql`ORDER BY q.final_amount ASC, q.delivery_time_minutes ASC`;
+    if (sortBy === "fastest") {
+      orderClause = sql`ORDER BY q.delivery_time_minutes ASC, q.final_amount ASC`;
+    } else if (sortBy === "highest_rated") {
+      orderClause = sql`ORDER BY COALESCE(cd.rating, 0) DESC, q.final_amount ASC`;
+    } else if (sortBy === "latest") {
+      orderClause = sql`ORDER BY q.created_at DESC`;
+    }
+
+    const quoteRows = await sql`
+      SELECT 
+        q.id,
+        q.broadcast_id,
+        q.chemist_id,
+        q.estimated_cost,
+        q.medicine_subtotal,
+        q.delivery_charge,
+        q.discount,
+        q.final_amount,
+        q.delivery_time_minutes,
+        q.status,
+        q.created_at,
+        cd.pharmacy_name,
+        cd.pharmacy_name as store_name,
+        cd.owner_name,
+        cd.address,
+        cd.mobile,
+        cd.upi_id,
+        cd.payment_qr_url,
+        cd.rating,
+        cd.total_reviews
+      FROM medicine_order_quotes q
+      LEFT JOIN chemist_details cd ON cd.id = q.chemist_id
+      WHERE q.broadcast_id = ${broadcast_id}
+        AND q.status != 'withdrawn'
+        ${searchCondition}
+      ${orderClause}
+      LIMIT ${pageSize} OFFSET ${offset}
+    `;
+
+    const formattedQuotes = quoteRows.map((q) => {
+      const pharmacyName = q.pharmacy_name || q.store_name || "Partner Pharmacy";
+      const pharmacyAddress = q.address || "Local Partner Pharmacy";
+      const ratingVal = (q.rating && Number(q.total_reviews || 0) > 0) ? Number(q.rating) : 4.5;
+      const totalReviews = Number(q.total_reviews || 12);
+
+      return {
+        id: q.id,
+        broadcast_id: q.broadcast_id,
+        chemist_id: q.chemist_id,
+        pharmacy_name: pharmacyName,
+        owner_name: q.owner_name || "Licensed Pharmacist",
+        address: pharmacyAddress,
+        mobile: q.mobile || "",
+        upi_id: q.upi_id || "",
+        payment_qr_url: q.payment_qr_url || "",
+        estimated_cost: Number(q.estimated_cost || q.final_amount || 0),
+        medicine_subtotal: Number(q.medicine_subtotal || q.estimated_cost || 0),
+        delivery_charge: Number(q.delivery_charge || 0),
+        discount: Number(q.discount || 0),
+        final_amount: Number(q.final_amount || q.estimated_cost || 0),
+        delivery_time_minutes: Number(q.delivery_time_minutes || 30),
+        rating: ratingVal,
+        total_reviews: totalReviews,
+        status: q.status,
+        created_at: q.created_at,
+        chemist: {
+          id: q.chemist_id,
+          pharmacy_name: pharmacyName,
+          owner_name: q.owner_name || "Licensed Pharmacist",
+          address: pharmacyAddress,
+          mobile: q.mobile || "",
+          upi_id: q.upi_id || "",
+          payment_qr_url: q.payment_qr_url || "",
+          rating: ratingVal,
+          total_reviews: totalReviews
+        }
+      };
+    });
+
+    const secondsRemaining = Math.max(
+      0,
+      Math.floor((new Date(broadcast.expires_at).getTime() - Date.now()) / 1000)
+    );
 
     return success("Broadcast quotes fetched successfully", {
-      broadcast,
-      quotes: quotes.map(q => {
-        const chemist = chemistsMap[q.chemist_id];
-        const user = usersMap[q.chemist_id];
-        const pharmacyName = chemist?.pharmacy_name || chemist?.store_name || user?.full_name || "Partner Pharmacy";
-        const pharmacyAddress = chemist?.address || "Local Partner Pharmacy";
-        const ratingVal = (chemist?.rating && Number(chemist?.total_reviews || 0) > 0) ? Number(chemist.rating) : null;
-
-        return {
-          id: q.id,
-          chemist_id: q.chemist_id,
-          pharmacy_name: pharmacyName,
-          address: pharmacyAddress,
-          upi_id: chemist?.upi_id || "",
-          estimated_cost: Number(q.estimated_cost || 0),
-          delivery_time_minutes: Number(q.delivery_time_minutes || 30),
-          status: q.status,
-          rating: ratingVal,
-        };
-      })
+      broadcast: {
+        ...broadcast,
+        medicines: parsedMedicines,
+        seconds_remaining: secondsRemaining
+      },
+      pagination: {
+        total: totalCount,
+        page,
+        pageSize,
+        totalPages: Math.ceil(totalCount / pageSize) || 1,
+        hasMore: offset + quoteRows.length < totalCount
+      },
+      quotes: formattedQuotes,
     }, 200, { headers: corsHeaders });
-
   } catch (err) {
     console.error("Error fetching broadcast responses:", err);
     return failure("Failed to fetch broadcast responses", err.message, 500, { headers: corsHeaders });

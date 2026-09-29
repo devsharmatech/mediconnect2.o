@@ -29,7 +29,7 @@ export default function CardioConnectF3Report({
     assessmentData?.serialNo || 
     assessmentData?.serial_no || 
     assessmentData?.rawAssessment?.serial_no || 
-    `WPT-${new Date(createdAt).getFullYear()}-${(assessmentData?.id || assessmentData?.rawAssessment?.id || "0918").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`;
+    `WPT-${new Date(createdAt).getFullYear()}-${String(assessmentData?.id || assessmentData?.rawAssessment?.id || "0918").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`;
 
   const patientName = 
     patientData?.name || 

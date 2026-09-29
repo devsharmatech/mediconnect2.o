@@ -24,7 +24,7 @@ export async function POST(req) {
     let searchFilter = sql``;
     if (search && search.trim()) {
       const s = `%${search.trim()}%`;
-      searchFilter = sql`AND (mo.unid ILIKE ${s} OR pd.full_name ILIKE ${s})`;
+      searchFilter = sql`AND (mo.unid::text ILIKE ${s} OR pd.full_name ILIKE ${s})`;
     }
 
     // If status filter provided
@@ -97,7 +97,17 @@ export async function POST(req) {
     // Mask delivery address according to DPDP payment verification rules
     const maskAddress = (addr, st) => {
       if (!addr) return "Local Delivery Area (PIN shielded)";
-      const isPaid = ["payment_verified", "ready_for_pickup", "out_for_delivery", "completed", "delivered", "fulfilment_released"].includes(st);
+      const isPaid = [
+        "approved",
+        "packing",
+        "ready_for_dispatch",
+        "payment_verified",
+        "ready_for_pickup",
+        "out_for_delivery",
+        "completed",
+        "delivered",
+        "fulfilment_released"
+      ].includes(st);
       if (isPaid) return addr;
       // Masking exact house/flat details before payment verification
       const parts = addr.split(",").map((s) => s.trim()).filter(Boolean);
@@ -108,12 +118,27 @@ export async function POST(req) {
 
     const formattedOrders = orders.map((order) => {
       const items = itemsByOrder[order.id] || [];
+      const isPaidOrApproved = [
+        "approved",
+        "packing",
+        "ready_for_dispatch",
+        "payment_verified",
+        "ready_for_pickup",
+        "out_for_delivery",
+        "completed",
+        "delivered",
+        "fulfilment_released"
+      ].includes(order.status);
+
       return {
         ...order,
+        display_delivery_address: maskAddress(order.raw_patient_address, order.status),
         delivery_address: maskAddress(order.raw_patient_address, order.status),
+        patient_name: order.patient_name || "Verified Patient",
+        patient_phone: isPaidOrApproved ? (order.patient_phone || "Not provided") : "Shielded (DPDP)",
         patient: {
           id: order.patient_id,
-          phone_number: order.status === "completed" || order.status === "payment_verified" ? order.patient_phone : "Shielded (DPDP)",
+          phone_number: isPaidOrApproved ? (order.patient_phone || "Not provided") : "Shielded (DPDP)",
           patient_details: {
             full_name: order.patient_name || "Verified Patient",
           },
@@ -131,9 +156,13 @@ export async function POST(req) {
         orders: formattedOrders,
         pagination: {
           page: parseInt(page, 10),
+          currentPage: parseInt(page, 10),
           pageSize: limit,
           total: totalCount,
+          totalItems: totalCount,
           totalPages,
+          hasNextPage: parseInt(page, 10) < totalPages,
+          hasPrevPage: parseInt(page, 10) > 1,
         },
       },
       200,

@@ -32,7 +32,7 @@ export default function CardioConnectF4Report({
     assessmentData?.serialNo || 
     assessmentData?.serial_no || 
     assessmentData?.rawAssessment?.serial_no || 
-    `CCN-${new Date(createdAt).getFullYear()}-${(assessmentData?.id || assessmentData?.rawAssessment?.id || "0920").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`;
+    `CCN-${new Date(createdAt).getFullYear()}-${String(assessmentData?.id || assessmentData?.rawAssessment?.id || "0920").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`;
 
   const patientName = 
     patientData?.name || 

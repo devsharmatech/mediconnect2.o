@@ -17,7 +17,7 @@ export default function LungConnectFullReport({
   const createdAt = assessmentData?.created_at || new Date().toISOString();
 
   const serialNo = assessmentData?.serial_no || (
-    `LCN-${new Date(createdAt).getFullYear()}-${(assessmentData?.id || "FULL0920").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`
+    `LCN-${new Date(createdAt).getFullYear()}-${String(assessmentData?.id || "FULL0920").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`
   );
 
   const patientName = patientData?.name || patientData?.full_name || patientData?.user?.name || "Sneha Kapoor";

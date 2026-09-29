@@ -3,6 +3,17 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeftIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import {
+  Check,
+  Star,
+  Truck,
+  ShieldCheck,
+  X,
+  Zap,
+  AlertTriangle,
+  ArrowRight,
+  Radio,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "@/lib/supabaseClient";
 import { loadRazorpayScript } from "@/lib/razorpay";
@@ -722,7 +733,7 @@ function SharePrescriptionModal({
                   <div className={`flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold transition-all ${
                     i <= currentStepIndex ? "bg-white text-[#0067A1]" : "bg-white/20 text-white/60"
                   }`}>
-                    {i < currentStepIndex ? "✓" : i + 1}
+                    {i < currentStepIndex ? <Check className="w-3 h-3 stroke-[3]" /> : i + 1}
                   </div>
                   <span className={`text-[10px] hidden sm:inline ${i <= currentStepIndex ? "text-white" : "text-white/40"}`}>{label}</span>
                   {i < stepLabels.length - 1 && (
@@ -754,15 +765,21 @@ function SharePrescriptionModal({
 
             <div className="w-full max-w-sm bg-gray-50 border border-gray-100 rounded-2xl p-4 text-left space-y-2.5">
               <div className="flex items-center gap-2 text-xs font-semibold text-gray-700">
-                <span className="w-4 h-4 rounded-full bg-teal-100 text-[#004F7C] flex items-center justify-center text-[10px] font-bold">✓</span>
+                <span className="w-4 h-4 rounded-full bg-teal-100 text-[#004F7C] flex items-center justify-center">
+                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                </span>
                 <span>Compare prices from multiple pharmacies</span>
               </div>
               <div className="flex items-center gap-2 text-xs font-semibold text-gray-700">
-                <span className="w-4 h-4 rounded-full bg-teal-100 text-[#004F7C] flex items-center justify-center text-[10px] font-bold">✓</span>
+                <span className="w-4 h-4 rounded-full bg-teal-100 text-[#004F7C] flex items-center justify-center">
+                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                </span>
                 <span>View estimated delivery times</span>
               </div>
               <div className="flex items-center gap-2 text-xs font-semibold text-gray-700">
-                <span className="w-4 h-4 rounded-full bg-teal-100 text-[#004F7C] flex items-center justify-center text-[10px] font-bold">✓</span>
+                <span className="w-4 h-4 rounded-full bg-teal-100 text-[#004F7C] flex items-center justify-center">
+                  <Check className="w-2.5 h-2.5 stroke-[3]" />
+                </span>
                 <span>Choose your preferred pharmacy</span>
               </div>
             </div>
@@ -864,14 +881,16 @@ function SharePrescriptionModal({
                           <div className="flex items-center gap-1.5">
                             <h6 className="text-sm font-bold text-slate-800">{q.pharmacy_name}</h6>
                             {q.rating && q.rating > 0 && (
-                              <span className="text-[10px] font-semibold text-yellow-600 bg-yellow-50 px-1 rounded flex items-center gap-0.5">
-                                ★ {q.rating.toFixed(1)}
+                              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                <Star className="w-3 h-3 fill-amber-400 text-amber-500" />
+                                <span>{q.rating.toFixed(1)}</span>
                               </span>
                             )}
                           </div>
                           <p className="text-xs text-slate-400 mt-0.5 max-w-xs truncate">{q.address}</p>
-                          <p className="text-[11px] text-[#0067A1] font-medium mt-1">
-                            🚚 Delivery: {q.delivery_time_minutes} mins
+                          <p className="text-[11px] text-[#0067A1] font-medium mt-1 flex items-center gap-1.5">
+                            <Truck className="w-3.5 h-3.5 text-[#0067A1]" />
+                            <span>Delivery: {q.delivery_time_minutes} mins</span>
                           </p>
                         </div>
                       </div>
@@ -904,8 +923,8 @@ function SharePrescriptionModal({
                   {/* Header */}
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
-                        🛡️
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
+                        <ShieldCheck className="w-5 h-5 text-amber-600" />
                       </div>
                       <div>
                         <h4 className="text-base font-bold text-slate-900">Payment & Pharmacy Disclosure</h4>
@@ -916,7 +935,7 @@ function SharePrescriptionModal({
                       onClick={() => setQuoteToConfirm(null)}
                       className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
                     >
-                      ✕
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
 
@@ -931,8 +950,9 @@ function SharePrescriptionModal({
                           {quoteToConfirm.address || quoteToConfirm.chemist?.address || "Registered Pharmacy Partner"}
                         </p>
                       </div>
-                      <span className="text-[11px] font-semibold text-[#0067A1] bg-[#0067A1]/10 px-2.5 py-1 rounded-full shrink-0">
-                        ⚡ {quoteToConfirm.delivery_time_minutes || 45} mins ETA
+                      <span className="text-[11px] font-semibold text-[#0067A1] bg-[#0067A1]/10 px-2.5 py-1 rounded-full shrink-0 flex items-center gap-1">
+                        <Zap className="w-3 h-3 text-[#0067A1] fill-[#0067A1]" />
+                        <span>{quoteToConfirm.delivery_time_minutes || 45} mins ETA</span>
                       </span>
                     </div>
 
@@ -967,7 +987,8 @@ function SharePrescriptionModal({
                   {/* Mandatory V3 Step 3 Disclosure Notice */}
                   <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/80 text-xs text-amber-900 leading-relaxed space-y-1.5">
                     <p className="font-bold flex items-center gap-1.5 text-amber-800">
-                      <span>⚠️</span> Important Service Disclosure:
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Important Service Disclosure:</span>
                     </p>
                     <p className="text-[11px] text-amber-800/90 leading-normal">
                       &ldquo;You are proceeding to pay for your selected pharmacy order. The selected pharmacy is responsible for dispensing and fulfilling the medicines. MediConnect.fit facilitates pharmacy offer discovery, comparison and order coordination. Payment will be processed for the selected pharmacy transaction through the configured payment service.&rdquo;
@@ -1011,7 +1032,7 @@ function SharePrescriptionModal({
                       }`}
                     >
                       <span>PROCEED TO SECURE PAYMENT</span>
-                      <span>➔</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -1024,8 +1045,8 @@ function SharePrescriptionModal({
             <div className="bg-gradient-to-br from-[#0067A1]/5 to-[#0067A1]/10 rounded-2xl p-4 border border-[#0067A1]/10">
               {isChemist ? (
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center text-sm font-bold shrink-0">
-                    📢
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <Radio className="w-5 h-5 text-white" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-900">Broadcast Request</p>
@@ -1151,8 +1172,8 @@ function SharePrescriptionModal({
             {/* Selected provider */}
             {isChemist ? (
               <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
-                <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center text-sm font-bold shrink-0">
-                  📢
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <Radio className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-850">Broadcast to all partner pharmacies</p>

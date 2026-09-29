@@ -85,9 +85,23 @@ export default function CardioConnectHome() {
   // Walking Performance Test State (CC-10 -> CC-12)
   const WALKING_TEST_TOTAL_SECONDS = 360; // 6:00 fixed standardized protocol
   const [walkingRemainingSeconds, setWalkingRemainingSeconds] = useState(360);
-  const [walkingDistanceInput, setWalkingDistanceInput] = useState(""); // user-entered km or auto GPS
+  const [walkingDistanceInput, setWalkingDistanceInput] = useState(""); // user-entered distance
+  const [walkingDistanceUnit, setWalkingDistanceUnit] = useState("m"); // 'm' (meters) | 'km'
   const [walkingHeartRateInput, setWalkingHeartRateInput] = useState(""); // optional HR bpm
   const [walkingTestResult, setWalkingTestResult] = useState(null);
+
+  const handleToggleWalkingUnit = (newUnit) => {
+    if (newUnit === walkingDistanceUnit) return;
+    setWalkingDistanceUnit(newUnit);
+    if (walkingDistanceInput && !isNaN(parseFloat(walkingDistanceInput))) {
+      const val = parseFloat(walkingDistanceInput);
+      if (newUnit === "km") {
+        setWalkingDistanceInput((val / 1000).toFixed(2));
+      } else {
+        setWalkingDistanceInput(Math.round(val * 1000).toString());
+      }
+    }
+  };
 
   const trainingTimerRef = useRef(null);
   const walkingTimerRef = useRef(null);
@@ -468,7 +482,11 @@ export default function CardioConnectHome() {
                 setSessionDistanceKm(newDist);
 
                 if (activeModal === "walking_active") {
-                  setWalkingDistanceInput(newDist.toFixed(2));
+                  if (walkingDistanceUnit === "m") {
+                    setWalkingDistanceInput(Math.round(newDist * 1000).toString());
+                  } else {
+                    setWalkingDistanceInput(newDist.toFixed(2));
+                  }
                 }
 
                 if (!hasHardwareSpeed) {
@@ -652,21 +670,91 @@ export default function CardioConnectHome() {
 
   // Finish Walking Test (CC-11 -> CC-12)
   const finishWalkingTest = async (stoppedEarly = false) => {
-    const elapsed = WALKING_TEST_TOTAL_SECONDS - walkingRemainingSeconds;
+    const elapsed = Math.max(1, WALKING_TEST_TOTAL_SECONDS - walkingRemainingSeconds);
     const isComplete = !stoppedEarly && walkingRemainingSeconds === 0;
-    const distanceKm = walkingDistanceInput
-      ? Number(parseFloat(walkingDistanceInput).toFixed(2))
-      : (realGpsDistanceKm > 0 ? Number(realGpsDistanceKm.toFixed(2)) : null);
+
+    let distanceMeters = null;
+    let distanceKm = null;
+
+    if (walkingDistanceInput && !isNaN(parseFloat(walkingDistanceInput))) {
+      const raw = parseFloat(walkingDistanceInput);
+      if (walkingDistanceUnit === "m") {
+        if (raw > 0 && raw < 2) {
+          distanceMeters = Math.round(raw * 1000);
+          distanceKm = Number(raw.toFixed(3));
+        } else {
+          distanceMeters = Math.round(raw);
+          distanceKm = Number((raw / 1000).toFixed(3));
+        }
+      } else {
+        if (raw > 15) {
+          distanceMeters = Math.round(raw);
+          distanceKm = Number((raw / 1000).toFixed(3));
+        } else {
+          distanceKm = Number(raw.toFixed(3));
+          distanceMeters = Math.round(raw * 1000);
+        }
+      }
+    } else if (realGpsDistanceKm > 0) {
+      distanceKm = Number(realGpsDistanceKm.toFixed(3));
+      distanceMeters = Math.round(realGpsDistanceKm * 1000);
+    }
+
+    // Physiological validation for 6-Minute Walk Test (6MWT)
+    // In 6 minutes, a normal human walks 300m - 750m. Olympic race walkers reach max ~1,450m (~14.5 km/h).
+    // Entering 10,000m equals 100 km/h (car speed) or confusing meters with daily pedometer steps.
+    if (distanceMeters !== null) {
+      if (distanceMeters > 1500) {
+        const speedKmh = Math.round((distanceMeters / 1000) / (elapsed / 3600));
+        if (distanceMeters >= 2000) {
+          toast.error(
+            `Impossible distance: ${distanceMeters.toLocaleString()}m in 6 min = ${speedKmh} km/h (vehicle speed)! For a 6-minute walk, maximum realistic limit is 1,500m (1.5 km). If you entered daily pedometer steps, note that a 6-min walk is ~400–800 steps (≈300m–600m).`,
+            { duration: 6000 }
+          );
+        } else {
+          toast.error(
+            `Distance exceeds realistic walking limit: 6-minute walk cannot exceed 1,500m (1.5 km). You entered ${distanceMeters}m.`
+          );
+        }
+        return;
+      }
+
+      if (!stoppedEarly && distanceMeters < 10) {
+        toast.error("Please enter a valid walking distance (at least 10 meters).");
+        return;
+      }
+    }
+
     const heartRateBpm = walkingHeartRateInput ? parseInt(walkingHeartRateInput, 10) : null;
-    const paceKmh = distanceKm && elapsed > 0
-      ? Number((distanceKm / (elapsed / 3600)).toFixed(1))
-      : null;
+    if (heartRateBpm !== null && (heartRateBpm < 35 || heartRateBpm > 220)) {
+      toast.error("Heart rate must be realistic (between 35 and 220 bpm).");
+      return;
+    }
+
+    let paceKmh = null;
+    let paceMinPerKm = null;
+
+    if (distanceKm !== null && distanceKm > 0 && elapsed > 0) {
+      const hours = elapsed / 3600;
+      const rawSpeed = distanceKm / hours;
+      // Walking speed upper bound: 16 km/h max
+      paceKmh = Number(Math.min(rawSpeed, 16.0).toFixed(1));
+
+      const secPerKm = elapsed / distanceKm;
+      if (secPerKm > 0 && secPerKm < 3600) {
+        const m = Math.floor(secPerKm / 60);
+        const s = Math.floor(secPerKm % 60);
+        paceMinPerKm = `${m}:${s.toString().padStart(2, "0")} /km`;
+      }
+    }
 
     const resultPayload = {
       isComplete,
       durationFormatted: `${Math.floor(elapsed / 60).toString().padStart(2, "0")}:${(elapsed % 60).toString().padStart(2, "0")}`,
       distanceKm,
+      distanceMeters,
       paceKmh,
+      paceMinPerKm,
       heartRateBpm,
       stoppedEarly,
       previousComparable: null,
@@ -678,18 +766,28 @@ export default function CardioConnectHome() {
     setActiveModal("walking_result");
 
     try {
-      await fetch("/api/v1/cardio/walking-tests", {
+      const res = await fetch("/api/v1/cardio/walking-tests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          user_id: currentUserId,
           duration_seconds: elapsed,
           distance_km: distanceKm,
+          distance_m: distanceMeters,
           pace_kmh: paceKmh,
           heart_rate_bpm: heartRateBpm,
           stopped_early: stoppedEarly,
           protocol_version: "V1.0"
         })
       });
+      const data = await res.json();
+      if (data?.data?.comparison?.previous_test) {
+        setWalkingTestResult((prev) => ({
+          ...prev,
+          previousComparable: data.data.comparison.previous_test,
+          comparison: data.data.comparison
+        }));
+      }
       fetchHomeData();
     } catch (e) {
       console.warn("Could not save walking test to server:", e);
@@ -2063,33 +2161,140 @@ export default function CardioConnectHome() {
 
               {/* Distance input / recording */}
               <div className="text-left space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] font-medium text-slate-700 uppercase block mb-1">
-                      Distance (km) {walkingGpsEnabled && "(Auto)"}
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="e.g. 0.52"
-                      value={walkingDistanceInput}
-                      onChange={(e) => setWalkingDistanceInput(e.target.value)}
-                      className="w-full px-2.5 py-2 border border-slate-200 rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30 font-semibold"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-medium text-slate-700 uppercase block mb-1">Heart Rate (bpm)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="Optional"
-                      value={walkingHeartRateInput}
-                      onChange={(e) => setWalkingHeartRateInput(e.target.value)}
-                      className="w-full px-2.5 py-2 border border-slate-200 rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30 font-semibold"
-                    />
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-semibold text-slate-700 uppercase tracking-wider">
+                    Distance {walkingGpsEnabled && "(Auto-detected)"}
+                  </label>
+                  {/* Unit Selector */}
+                  <div className="inline-flex rounded-[5px] bg-slate-100 p-0.5 border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (walkingDistanceUnit === "m") return;
+                        setWalkingDistanceUnit("m");
+                        if (walkingDistanceInput && !isNaN(parseFloat(walkingDistanceInput))) {
+                          const v = parseFloat(walkingDistanceInput);
+                          setWalkingDistanceInput(Math.round(v < 20 ? v * 1000 : v).toString());
+                        }
+                      }}
+                      className={`px-2 py-0.5 text-[10px] font-medium rounded-[3px] transition-colors cursor-pointer ${
+                        walkingDistanceUnit === "m"
+                          ? "bg-[#0067A1] text-white shadow-xs font-semibold"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Meters (m)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (walkingDistanceUnit === "km") return;
+                        setWalkingDistanceUnit("km");
+                        if (walkingDistanceInput && !isNaN(parseFloat(walkingDistanceInput))) {
+                          const v = parseFloat(walkingDistanceInput);
+                          setWalkingDistanceInput(v > 20 ? (v / 1000).toFixed(2) : v.toString());
+                        }
+                      }}
+                      className={`px-2 py-0.5 text-[10px] font-medium rounded-[3px] transition-colors cursor-pointer ${
+                        walkingDistanceUnit === "km"
+                          ? "bg-[#0067A1] text-white shadow-xs font-semibold"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Kilometers (km)
+                    </button>
                   </div>
                 </div>
+
+                {(() => {
+                  const rawNum = parseFloat(walkingDistanceInput);
+                  let liveMeters = 0;
+                  if (!isNaN(rawNum) && rawNum > 0) {
+                    if (walkingDistanceUnit === "m") {
+                      liveMeters = rawNum < 2 ? Math.round(rawNum * 1000) : Math.round(rawNum);
+                    } else {
+                      liveMeters = rawNum > 15 ? Math.round(rawNum) : Math.round(rawNum * 1000);
+                    }
+                  }
+                  const isTooHigh = liveMeters > 1500;
+                  const isLikelySteps = liveMeters >= 2000;
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <input
+                            type="number"
+                            step={walkingDistanceUnit === "m" ? "1" : "0.01"}
+                            min="0"
+                            max={walkingDistanceUnit === "m" ? "1500" : "1.5"}
+                            placeholder={walkingDistanceUnit === "m" ? "e.g. 500 (max 1500)" : "e.g. 0.50 (max 1.5)"}
+                            value={walkingDistanceInput}
+                            onChange={(e) => setWalkingDistanceInput(e.target.value)}
+                            className={`w-full px-2.5 py-2 border rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 font-semibold ${
+                              isTooHigh
+                                ? "border-rose-400 bg-rose-50/40 text-rose-800 focus:ring-rose-300"
+                                : "border-slate-200 focus:ring-[#0067A1]/30 text-slate-800"
+                            }`}
+                          />
+                          {walkingDistanceInput && !isNaN(parseFloat(walkingDistanceInput)) && parseFloat(walkingDistanceInput) > 0 && (
+                            <p className="text-[10px] text-slate-500 font-mono mt-1">
+                              {walkingDistanceUnit === "m"
+                                ? `≈ ${(parseFloat(walkingDistanceInput) / 1000).toFixed(2)} km (${Math.round(parseFloat(walkingDistanceInput))}m)`
+                                : `≈ ${Math.round(parseFloat(walkingDistanceInput) * 1000)} meters`}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <input
+                            type="number"
+                            min="35"
+                            max="220"
+                            placeholder="Heart Rate (bpm)"
+                            value={walkingHeartRateInput}
+                            onChange={(e) => setWalkingHeartRateInput(e.target.value)}
+                            className="w-full px-2.5 py-2 border border-slate-200 rounded-[5px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30 font-semibold"
+                          />
+                          <p className="text-[10px] text-slate-400 mt-1">Optional BPM (35-220)</p>
+                        </div>
+                      </div>
+
+                      {/* Live Validation Guidance */}
+                      {isTooHigh && (
+                        <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-[6px] text-left">
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                            <div className="space-y-1">
+                              <p className="font-semibold text-rose-800 text-[11px]">
+                                Impossible Distance: {liveMeters.toLocaleString()}m ({((liveMeters / 1000) / 0.1).toFixed(0)} km/h)
+                              </p>
+                              <p className="text-[10px] text-rose-700 leading-tight">
+                                {isLikelySteps
+                                  ? `6-minute walk test mein maximum realistic limit 1,500m (1.5 km) hoti hai. ${liveMeters.toLocaleString()}m car speed ke barabar hai! Pedometer "Daily Steps" ke badle 6-min walking distance dalein (normal 6-min walk = 300m–600m).`
+                                  : `In a 6-minute walk, maximum human distance limit is 1,500 meters (1.5 km). Normal clinical range is 300m – 700m.`}
+                              </p>
+                              <div className="pt-1 flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (walkingDistanceUnit === "m") {
+                                      setWalkingDistanceInput("500");
+                                    } else {
+                                      setWalkingDistanceInput("0.50");
+                                    }
+                                  }}
+                                  className="text-[10px] bg-rose-100 hover:bg-rose-200 text-rose-800 font-semibold px-2 py-0.5 rounded-[4px] border border-rose-300 cursor-pointer"
+                                >
+                                  Set to typical 6-min walk (~500m)
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
@@ -2160,13 +2365,18 @@ export default function CardioConnectHome() {
                   <div className="flex justify-between font-mono">
                     <span className="text-slate-600">Distance</span>
                     <strong className="text-slate-900">
-                      {walkingTestResult.distanceKm !== null ? `${walkingTestResult.distanceKm} km` : "Not recorded"}
+                      {walkingTestResult.distanceMeters !== null
+                        ? `${walkingTestResult.distanceMeters} m (${walkingTestResult.distanceKm} km)`
+                        : walkingTestResult.distanceKm !== null
+                        ? `${walkingTestResult.distanceKm} km`
+                        : "Not recorded"}
                     </strong>
                   </div>
                   <div className="flex justify-between font-mono">
-                    <span className="text-slate-600">Pace</span>
+                    <span className="text-slate-600">Speed & Pace</span>
                     <strong className="text-slate-900">
                       {walkingTestResult.paceKmh !== null ? `${walkingTestResult.paceKmh} km/h` : "—"}
+                      {walkingTestResult.paceMinPerKm ? ` (${walkingTestResult.paceMinPerKm})` : ""}
                     </strong>
                   </div>
                   <div className="flex justify-between font-mono">
@@ -2181,12 +2391,27 @@ export default function CardioConnectHome() {
               {/* Previous Comparable Test */}
               {walkingTestResult.previousComparable ? (
                 <div className="p-4 bg-slate-50 rounded-[5px] border border-slate-200 text-left text-xs">
-                  <h4 className="font-semibold text-slate-900 mb-1">Previous Comparable Test</h4>
+                  <div className="flex items-center justify-between mb-1">
+                    <h4 className="font-semibold text-slate-900">Previous Comparable Test</h4>
+                    {walkingTestResult.comparison?.distanceDiffMeters !== undefined && (
+                      <span className={`text-[10px] font-semibold font-mono px-1.5 py-0.5 rounded-[3px] ${
+                        walkingTestResult.comparison.distanceDiffMeters >= 0
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-amber-100 text-amber-800"
+                      }`}>
+                        {walkingTestResult.comparison.distanceDiffMeters >= 0 ? "+" : ""}
+                        {walkingTestResult.comparison.distanceDiffMeters} m
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[10px] text-slate-600 mb-2">Like-for-like protocol version (V1.0)</p>
                   <div className="space-y-1 font-mono">
                     <div className="flex justify-between">
                       <span className="text-slate-700">Distance</span>
-                      <strong className="text-slate-800">{walkingTestResult.previousComparable.distanceKm} km</strong>
+                      <strong className="text-slate-800">
+                        {walkingTestResult.previousComparable.distanceKm} km
+                        {walkingTestResult.previousComparable.distanceKm ? ` (${Math.round(walkingTestResult.previousComparable.distanceKm * 1000)} m)` : ""}
+                      </strong>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-700">Pace</span>

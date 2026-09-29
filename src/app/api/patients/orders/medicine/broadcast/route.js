@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -11,102 +11,141 @@ export async function POST(req) {
     const { 
       prescription_id, 
       patient_id, 
+      medicines = [],
+      prescription_url,
       delivery_address, 
       delivery_area,
       delivery_pincode,
+      contact_phone,
+      patient_notes,
       latitude, 
       longitude,
+      window_minutes = 30,
       consent_version = "v3.0",
-      consent_timestamp = new Date().toISOString(),
       channel = "web"
     } = await req.json();
 
-    if (!prescription_id || !patient_id) {
-      return failure("prescription_id & patient_id are required", null, 400, { headers: corsHeaders });
+    if (!patient_id) {
+      return failure("patient_id is required", null, 400, { headers: corsHeaders });
     }
 
-    // Set expiration to 2 minutes from now
-    const expires_at = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+    if (!delivery_address || !delivery_address.trim()) {
+      return failure("Delivery address is required", null, 400, { headers: corsHeaders });
+    }
+
+    let targetPrescriptionId = prescription_id || null;
+
+    // If custom medicines or uploaded prescription provided without a prescription_id,
+    // create a self-ordered prescription record in prescriptions table
+    if (!targetPrescriptionId && ((Array.isArray(medicines) && medicines.length > 0) || prescription_url)) {
+      const formattedMeds = (medicines || []).map((m) => ({
+        name: typeof m === "string" ? m : (m.name || m.medicine_name || "Medicine"),
+        quantity: parseInt(m.quantity || 1, 10),
+        dosage: m.dosage || m.strength || "",
+        instructions: m.instructions || m.frequency || "",
+      }));
+
+      const newRxRows = await sql`
+        INSERT INTO prescriptions (
+          patient_id,
+          medicines,
+          notes,
+          file_url,
+          created_at,
+          updated_at
+        ) VALUES (
+          ${patient_id},
+          ${JSON.stringify(formattedMeds)},
+          ${patient_notes || "Self-submitted patient medicine order"},
+          ${prescription_url || null},
+          NOW(),
+          NOW()
+        )
+        RETURNING id
+      `;
+      targetPrescriptionId = newRxRows[0]?.id || null;
+    }
+
+    // Set expiration window (default 30 mins)
+    const expiryWindow = Math.max(5, Math.min(120, parseInt(window_minutes, 10) || 30));
+    const expiresAt = new Date(Date.now() + expiryWindow * 60 * 1000);
 
     // Auto-resolve pincode and area if not explicitly passed
     const pinMatch = (delivery_address || "").match(/\b\d{6}\b/);
     const resolvedPincode = delivery_pincode || (pinMatch ? pinMatch[0] : null);
-    const parts = (delivery_address || "").split(',').map(s => s.trim()).filter(Boolean);
-    const resolvedArea = delivery_area || (parts.length > 1 ? parts.slice(-2).join(', ') : (parts[0] || "Local Delivery Area"));
+    const parts = (delivery_address || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const resolvedArea = delivery_area || (parts.length > 1 ? parts.slice(-2).join(", ") : (parts[0] || "Local Delivery Area"));
 
-    // Create the broadcast entry
-    const { data: broadcast, error: broadcastErr } = await supabase
-      .from("medicine_order_broadcasts")
-      .insert([
-        {
-          prescription_id,
-          patient_id,
-          delivery_address,
-          latitude: latitude ? parseFloat(latitude) : null,
-          longitude: longitude ? parseFloat(longitude) : null,
-          status: "broadcasting",
-          expires_at,
-        },
-      ])
-      .select()
-      .single();
+    // Insert broadcast into AWS RDS
+    const broadcastRows = await sql`
+      INSERT INTO medicine_order_broadcasts (
+        prescription_id,
+        patient_id,
+        delivery_address,
+        latitude,
+        longitude,
+        status,
+        expires_at,
+        created_at
+      ) VALUES (
+        ${targetPrescriptionId},
+        ${patient_id},
+        ${delivery_address},
+        ${latitude ? parseFloat(latitude) : null},
+        ${longitude ? parseFloat(longitude) : null},
+        'broadcasting',
+        ${expiresAt},
+        NOW()
+      )
+      RETURNING *
+    `;
+    const broadcast = broadcastRows[0];
 
-    if (broadcastErr) throw broadcastErr;
-
-    // Record DPDP Consent & Intent Event (Page 5 of V3 Spec)
+    // Log notification for patient
     try {
-      await supabase.from("notifications").insert([
-        {
-          user_id: patient_id,
-          title: "Medicine Request Created 💊",
-          message: "Your medicine request has been created under DPDP Consent v3.0. We are finding available pharmacies.",
-          type: "e_pharmacy_consent",
-          metadata: {
+      await sql`
+        INSERT INTO notifications (
+          user_id,
+          title,
+          message,
+          type,
+          metadata,
+          created_at
+        ) VALUES (
+          ${patient_id},
+          'Medicine Request Broadcasted 💊',
+          'Your medicine order request is live in the pharmacy pool. Pharmacies are now reviewing and submitting quotes.',
+          'e_pharmacy_consent',
+          ${JSON.stringify({
             broadcast_id: broadcast.id,
-            prescription_id,
-            consent_version,
-            consent_timestamp,
-            channel,
-            purchase_intent: true,
+            prescription_id: targetPrescriptionId,
             delivery_area: resolvedArea,
-            delivery_pincode: resolvedPincode
-          }
-        }
-      ]);
-    } catch (consentErr) {
-      console.warn("Could not log consent notification:", consentErr.message);
+            delivery_pincode: resolvedPincode,
+            contact_phone: contact_phone || null,
+            patient_notes: patient_notes || null,
+          })},
+          NOW()
+        )
+      `;
+    } catch (notifErr) {
+      console.warn("Could not insert patient notification:", notifErr.message);
     }
 
-    // Fetch all active/onboarded chemists to notify
-    const { data: chemists, error: chemistsErr } = await supabase
-      .from("chemist_details")
-      .select("id, pharmacy_name");
-
-    if (chemistsErr) console.error("Error fetching chemists to broadcast:", chemistsErr.message);
-
-    // Create notifications for chemists (without exposing patient exact address or phone)
-    if (chemists && chemists.length > 0) {
-      const notifications = chemists.map((c) => ({
-        user_id: c.id,
-        title: "New Medicine Request 💊",
-        message: `A patient in ${resolvedArea} (${resolvedPincode || 'Nearby'}) is looking for medicines. Review prescription items and submit your quote!`,
-        type: "medicine_broadcast",
-        metadata: {
-          broadcast_id: broadcast.id,
-          prescription_id,
-          patient_id,
+    return success(
+      "Medicine order broadcasted successfully",
+      {
+        broadcast: {
+          ...broadcast,
           delivery_area: resolvedArea,
-          delivery_pincode: resolvedPincode
+          delivery_pincode: resolvedPincode,
+          prescription_id: targetPrescriptionId,
         },
-      }));
-
-      const { error: notifErr } = await supabase.from("notifications").insert(notifications);
-      if (notifErr) console.error("Error inserting broadcast notifications:", notifErr.message);
-    }
-
-    return success("Broadcast initiated successfully", broadcast, 201, { headers: corsHeaders });
+      },
+      201,
+      { headers: corsHeaders }
+    );
   } catch (err) {
-    console.error("Error creating broadcast:", err);
-    return failure("Failed to create broadcast", err.message, 500, { headers: corsHeaders });
+    console.error("Error creating medicine order broadcast:", err);
+    return failure("Failed to broadcast medicine order", err.message, 500, { headers: corsHeaders });
   }
 }

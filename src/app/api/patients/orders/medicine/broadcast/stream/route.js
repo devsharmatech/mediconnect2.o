@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { broadcastEmitter } from "@/lib/broadcastEmitter";
 
 export const dynamic = 'force-dynamic';
@@ -22,38 +22,66 @@ export async function GET(req) {
 
   if (isUuid) {
     try {
-      // 1. Fetch initial quotes upon connection (single DB read)
-      const { data } = await supabase
-        .from("medicine_order_quotes")
-        .select(`
-          id,
-          broadcast_id,
-          chemist_id,
-          estimated_cost,
-          medicine_subtotal,
-          delivery_charge,
-          discount,
-          final_amount,
-          delivery_time_minutes,
-          status,
-          created_at,
-          chemist:chemist_id(
-            pharmacy_name,
-            address,
-            mobile
-          )
-        `)
-        .eq("broadcast_id", broadcast_id)
-        .order("created_at", { ascending: false });
-      initialQuotes = data || [];
+      // 1. Fetch initial quotes upon connection (single DB read from AWS RDS)
+      const quoteRows = await sql`
+        SELECT 
+          q.id,
+          q.broadcast_id,
+          q.chemist_id,
+          q.estimated_cost,
+          q.medicine_subtotal,
+          q.delivery_charge,
+          q.discount,
+          q.final_amount,
+          q.delivery_time_minutes,
+          q.status,
+          q.created_at,
+          cd.pharmacy_name,
+          cd.pharmacy_name as store_name,
+          cd.address,
+          cd.mobile,
+          cd.rating,
+          cd.total_reviews
+        FROM medicine_order_quotes q
+        LEFT JOIN chemist_details cd ON cd.id = q.chemist_id
+        WHERE q.broadcast_id = ${broadcast_id}
+        ORDER BY q.created_at DESC
+      `;
+
+      initialQuotes = quoteRows.map((q) => {
+        const pharmacyName = q.pharmacy_name || q.store_name || "Partner Pharmacy";
+        const pharmacyAddress = q.address || "Local Partner Pharmacy";
+        const ratingVal = (q.rating && Number(q.total_reviews || 0) > 0) ? Number(q.rating) : null;
+        return {
+          id: q.id,
+          broadcast_id: q.broadcast_id,
+          chemist_id: q.chemist_id,
+          estimated_cost: Number(q.estimated_cost || q.final_amount || 0),
+          medicine_subtotal: Number(q.medicine_subtotal || q.estimated_cost || 0),
+          delivery_charge: Number(q.delivery_charge || 0),
+          discount: Number(q.discount || 0),
+          final_amount: Number(q.final_amount || q.estimated_cost || 0),
+          delivery_time_minutes: Number(q.delivery_time_minutes || 30),
+          status: q.status,
+          created_at: q.created_at,
+          pharmacy_name: pharmacyName,
+          address: pharmacyAddress,
+          rating: ratingVal,
+          chemist: {
+            pharmacy_name: pharmacyName,
+            address: pharmacyAddress,
+            mobile: q.mobile || "",
+            rating: ratingVal
+          }
+        };
+      });
 
       // 2. Fetch broadcast remaining time
-      const { data: bData } = await supabase
-        .from("medicine_order_broadcasts")
-        .select("expires_at, status")
-        .eq("id", broadcast_id)
-        .maybeSingle();
-      broadcast = bData;
+      const broadcastRows = await sql`
+        SELECT expires_at, status FROM medicine_order_broadcasts
+        WHERE id = ${broadcast_id} LIMIT 1
+      `;
+      broadcast = broadcastRows[0] || null;
     } catch (err) {
       console.warn("SSE initial fetch error:", err?.message);
     }
@@ -88,7 +116,7 @@ export async function GET(req) {
       // Track seen quote IDs to prevent duplicates
       const seenQuoteIds = new Set((initialQuotes || []).map(q => q.id));
 
-      // Listener for real-time quotes pushed by chemists (instant in-process push)
+      // Listener for real-time quotes pushed by chemists
       const quoteListener = (newQuote) => {
         if (newQuote?.id) {
           if (seenQuoteIds.has(newQuote.id)) return;
@@ -113,41 +141,68 @@ export async function GET(req) {
       broadcastEmitter.on(`quote:${broadcast_id}`, quoteListener);
       broadcastEmitter.on(`status:${broadcast_id}`, statusListener);
 
-      // Lightweight 3-second database sync loop as a cross-worker/cross-instance fallback
-      // Ensures quotes are never lost even if chemists submit on a different worker process
+      // Lightweight 3-second database sync loop from AWS RDS
       const syncInterval = setInterval(async () => {
         if (!isUuid) return;
         try {
-          const { data: latestQuotes } = await supabase
-            .from("medicine_order_quotes")
-            .select(`
-              id,
-              broadcast_id,
-              chemist_id,
-              estimated_cost,
-              medicine_subtotal,
-              delivery_charge,
-              discount,
-              final_amount,
-              delivery_time_minutes,
-              status,
-              created_at,
-              chemist:chemist_id(
-                pharmacy_name,
-                address,
-                mobile
-              )
-            `)
-            .eq("broadcast_id", broadcast_id);
+          const latestQuoteRows = await sql`
+            SELECT 
+              q.id,
+              q.broadcast_id,
+              q.chemist_id,
+              q.estimated_cost,
+              q.medicine_subtotal,
+              q.delivery_charge,
+              q.discount,
+              q.final_amount,
+              q.delivery_time_minutes,
+              q.status,
+              q.created_at,
+              cd.pharmacy_name,
+              cd.pharmacy_name as store_name,
+              cd.address,
+              cd.mobile,
+              cd.rating,
+              cd.total_reviews
+            FROM medicine_order_quotes q
+            LEFT JOIN chemist_details cd ON cd.id = q.chemist_id
+            WHERE q.broadcast_id = ${broadcast_id}
+            ORDER BY q.created_at DESC
+          `;
 
-          if (latestQuotes && latestQuotes.length > 0) {
-            for (const q of latestQuotes) {
+          if (latestQuoteRows && latestQuoteRows.length > 0) {
+            for (const q of latestQuoteRows) {
               if (!seenQuoteIds.has(q.id)) {
                 seenQuoteIds.add(q.id);
+                const pharmacyName = q.pharmacy_name || q.store_name || "Partner Pharmacy";
+                const pharmacyAddress = q.address || "Local Partner Pharmacy";
+                const ratingVal = (q.rating && Number(q.total_reviews || 0) > 0) ? Number(q.rating) : null;
+                const formatted = {
+                  id: q.id,
+                  broadcast_id: q.broadcast_id,
+                  chemist_id: q.chemist_id,
+                  estimated_cost: Number(q.estimated_cost || q.final_amount || 0),
+                  medicine_subtotal: Number(q.medicine_subtotal || q.estimated_cost || 0),
+                  delivery_charge: Number(q.delivery_charge || 0),
+                  discount: Number(q.discount || 0),
+                  final_amount: Number(q.final_amount || q.estimated_cost || 0),
+                  delivery_time_minutes: Number(q.delivery_time_minutes || 30),
+                  status: q.status,
+                  created_at: q.created_at,
+                  pharmacy_name: pharmacyName,
+                  address: pharmacyAddress,
+                  rating: ratingVal,
+                  chemist: {
+                    pharmacy_name: pharmacyName,
+                    address: pharmacyAddress,
+                    mobile: q.mobile || "",
+                    rating: ratingVal
+                  }
+                };
                 sendEvent({
                   type: "NEW_QUOTE",
                   broadcast_id,
-                  quote: q
+                  quote: formatted
                 });
               }
             }

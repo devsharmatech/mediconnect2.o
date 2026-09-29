@@ -122,7 +122,7 @@ export async function POST(req) {
         ${broadcast.prescription_id},
         ${broadcast.patient_id},
         ${quote.chemist_id},
-        'approved',
+        'payment_pending',
         ${medicineSubtotal},
         ${deliveryCharge},
         ${discount},

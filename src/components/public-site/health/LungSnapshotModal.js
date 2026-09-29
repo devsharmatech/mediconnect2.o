@@ -50,7 +50,7 @@ export default function LungSnapshotModal({
 
   // Serial No fallback
   const formattedSerialNo = serial_no || (assessmentId
-    ? `LCN-${new Date(created_at).getFullYear()}-${assessmentId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
+    ? `LCN-${new Date(created_at).getFullYear()}-${String(assessmentId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
     : 'LCN-LATEST'
   );
 

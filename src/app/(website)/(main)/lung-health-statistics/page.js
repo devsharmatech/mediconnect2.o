@@ -190,7 +190,7 @@ export default function LungHealthStatisticsPage() {
       const lungInputs = historyMatch?.inputs?.respiratoryTests || {};
       const envInputs = historyMatch?.inputs?.environment || {};
       const serialNo = historyMatch?.serialNo || (point.assessmentId
-        ? `LCN-${new Date(point.date).getFullYear()}-${point.assessmentId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`
+        ? `LCN-${new Date(point.date).getFullYear()}-${String(point.assessmentId).replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`
         : "LCN-REC");
 
       return {

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { FaTimes, FaStethoscope, FaArrowRight, FaPills, FaFlask, FaUserNurse } from "react-icons/fa";
+import { FaTimes, FaStethoscope, FaArrowRight, FaPills, FaFlask, FaUserNurse, FaClock } from "react-icons/fa";
 import { toast } from "react-hot-toast";
 
 const SERVICE_ICONS = {
@@ -108,8 +108,9 @@ export default function ServiceRecommendationModal({ isOpen, onClose, appointmen
                         </div>
                     ) : (
                         <div className="space-y-6">
-                            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm font-semibold p-3 rounded-xl text-center shadow-sm">
-                                🕒 {urgencyMessage}
+                            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm font-semibold p-3 rounded-xl text-center shadow-sm flex items-center justify-center gap-2">
+                                <FaClock className="w-4 h-4 text-amber-700 shrink-0" />
+                                <span>{urgencyMessage}</span>
                             </div>
 
                             {/* Service options — click to select */}

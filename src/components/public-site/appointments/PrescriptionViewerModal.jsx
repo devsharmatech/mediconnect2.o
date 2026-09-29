@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { FaTimes, FaPaperPlane, FaFlask, FaPills, FaArrowRight, FaCheckCircle } from "react-icons/fa";
+import { FaTimes, FaPaperPlane, FaFlask, FaPills, FaArrowRight, FaCheckCircle, FaPrint, FaEnvelope } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import SharePrescriptionModal from "./SharePrescriptionModal";
 
@@ -340,7 +340,7 @@ export default function PrescriptionViewerModal({
               onClick={handlePrint}
               className="px-4 py-1.5 bg-[#0080C6] text-white rounded-lg text-xs font-semibold hover:bg-[#0067A1] transition cursor-pointer shadow-sm flex items-center gap-1.5"
             >
-              <span>🖨</span> Print
+              <FaPrint className="w-3.5 h-3.5" /> Print
             </button>
             <button
               onClick={onClose}
@@ -367,7 +367,7 @@ export default function PrescriptionViewerModal({
                 <p style={{ margin: '4px 0 0', fontSize: 13, color: 'black', fontWeight: 500 }}>
                   {tagline}
                 </p>
-                <p style={{ margin: '3px 0 0', fontSize: 12, color: 'black' }}>📧 hello@mediconnect.fit</p>
+                <p style={{ margin: '3px 0 0', fontSize: 12, color: 'black' }}><FaEnvelope style={{ display: 'inline', width: 12, height: 12, marginRight: 4, verticalAlign: 'middle' }} /> hello@mediconnect.fit</p>
               </div>
               <div style={{ width: 72, height: 72, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                 <img src="/md-pdf/dr.png" alt="dr" style={{ width: 56, height: 56 }} />
