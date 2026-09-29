@@ -54,10 +54,11 @@ export async function GET(req) {
 
         if (dbSessions && dbSessions.length > 0) {
           sessions = dbSessions.map((s, idx) => {
-            const dur = Number(s.duration_minutes || 0);
-            const stp = Number(s.steps || 0);
-            const dst = Number(s.distance_km || 0);
-            const nrg = Number(s.calories || 0);
+            const meta = s.metadata || {};
+            const dur = Number(s.duration_minutes || meta.duration_minutes || (meta.duration_seconds ? Math.round(meta.duration_seconds / 60) : 0));
+            const stp = Number(s.steps || meta.steps || 0);
+            const dst = Number(s.distance_km || meta.distance_km || 0);
+            const nrg = Number(s.calories || meta.calories || 0);
 
             dailyTotal.total_duration_minutes += dur;
             dailyTotal.steps += stp;

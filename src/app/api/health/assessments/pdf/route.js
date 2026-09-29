@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import sql from "@/lib/db";
 import { supabase } from "@/lib/supabaseAdmin";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
@@ -18,20 +19,44 @@ export async function POST(req) {
       });
     }
 
-    // Get health assessments
-    const { data: assessments, error: fetchError } = await supabase
-      .from("health_assessments")
-      .select(
-        `
-        *,
-        heart_health_inputs(*),
-        lung_health_inputs(*)
-      `
-      )
-      .eq("user_id", user_id)
-      .order("created_at", { ascending: false });
+    // Get health assessments from AWS RDS
+    let assessments = [];
+    if (assessment_id) {
+      assessments = await sql`
+        SELECT * FROM health_assessments
+        WHERE (user_id = ${user_id}::uuid OR user_id = ${String(user_id)})
+          AND (id = ${assessment_id}::uuid OR id = ${String(assessment_id)})
+        ORDER BY created_at DESC;
+      `;
+    } else {
+      assessments = await sql`
+        SELECT * FROM health_assessments
+        WHERE (user_id = ${user_id}::uuid OR user_id = ${String(user_id)})
+        ORDER BY created_at DESC;
+      `;
+    }
 
-    if (fetchError) throw fetchError;
+    if (assessments && assessments.length > 0) {
+      const ids = assessments.map(a => a.id);
+      let hInputs = [];
+      let lInputs = [];
+      try {
+        hInputs = await sql`SELECT * FROM heart_health_inputs WHERE assessment_id = ANY(${ids});`;
+      } catch (_) {}
+      try {
+        lInputs = await sql`SELECT * FROM lung_health_inputs WHERE assessment_id = ANY(${ids});`;
+      } catch (_) {}
+      const hMap = {};
+      hInputs.forEach(h => { hMap[h.assessment_id] = h; });
+      const lMap = {};
+      lInputs.forEach(l => { lMap[l.assessment_id] = l; });
+
+      assessments = assessments.map(a => ({
+        ...a,
+        heart_health_inputs: hMap[a.id] ? [hMap[a.id]] : [],
+        lung_health_inputs: lMap[a.id] ? [lMap[a.id]] : []
+      }));
+    }
 
     if (!assessments || assessments.length === 0) {
       return failure("No health assessments found", "not_found", 404, {
@@ -1174,25 +1199,42 @@ export async function GET(req) {
       });
     }
 
-    let query = supabase
-      .from("health_assessments")
-      .select(
-        `
-        *,
-        heart_health_inputs(*),
-        lung_health_inputs(*)
-      `
-      );
-
+    let assessments = [];
     if (assessmentId) {
-      query = query.eq("id", assessmentId);
+      assessments = await sql`
+        SELECT * FROM health_assessments
+        WHERE (id = ${assessmentId}::uuid OR id = ${String(assessmentId)})
+        ORDER BY created_at DESC;
+      `;
     } else if (userId) {
-      query = query.eq("user_id", userId).order("created_at", { ascending: false });
+      assessments = await sql`
+        SELECT * FROM health_assessments
+        WHERE (user_id = ${userId}::uuid OR user_id = ${String(userId)})
+        ORDER BY created_at DESC;
+      `;
     }
 
-    const { data: assessments, error: fetchError } = await query;
+    if (assessments && assessments.length > 0) {
+      const ids = assessments.map(a => a.id);
+      let hInputs = [];
+      let lInputs = [];
+      try {
+        hInputs = await sql`SELECT * FROM heart_health_inputs WHERE assessment_id = ANY(${ids});`;
+      } catch (_) {}
+      try {
+        lInputs = await sql`SELECT * FROM lung_health_inputs WHERE assessment_id = ANY(${ids});`;
+      } catch (_) {}
+      const hMap = {};
+      hInputs.forEach(h => { hMap[h.assessment_id] = h; });
+      const lMap = {};
+      lInputs.forEach(l => { lMap[l.assessment_id] = l; });
 
-    if (fetchError) throw fetchError;
+      assessments = assessments.map(a => ({
+        ...a,
+        heart_health_inputs: hMap[a.id] ? [hMap[a.id]] : [],
+        lung_health_inputs: lMap[a.id] ? [lMap[a.id]] : []
+      }));
+    }
 
     const targetAssessment = Array.isArray(assessments) ? assessments[0] : assessments;
 

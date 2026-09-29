@@ -116,6 +116,39 @@ export default function HeartHealthResult() {
     fetchGraphData();
   }, []);
 
+  const effectiveAssessmentData = React.useMemo(() => {
+    if (!assessmentData) return null;
+    const baseInputs = assessmentData.heart_health_inputs?.[0] || {};
+
+    // Live AWS RDS activity metrics
+    const liveSteps = cardioHomeData?.today_movement?.steps !== undefined 
+      ? Number(cardioHomeData.today_movement.steps) 
+      : (baseInputs.daily_steps !== undefined ? Number(baseInputs.daily_steps) : 0);
+
+    const liveWeeklyMin = cardioHomeData?.weekly_activity?.recorded_minutes !== undefined 
+      ? Number(cardioHomeData.weekly_activity.recorded_minutes) 
+      : (baseInputs.physical_activity_minutes !== undefined ? Number(baseInputs.physical_activity_minutes) : 0);
+
+    const liveAqi = cardioHomeData?.aqi_context?.value || baseInputs.aqi || 85;
+    const liveLocation = cardioHomeData?.aqi_context?.location || baseInputs.location || baseInputs.city || "Current Location";
+
+    return {
+      ...assessmentData,
+      heart_health_inputs: [
+        {
+          ...baseInputs,
+          daily_steps: liveSteps,
+          steps: liveSteps,
+          physical_activity_minutes: liveWeeklyMin,
+          weekly_sessions: liveWeeklyMin > 0 ? Math.max(1, Math.round(liveWeeklyMin / 45)) : 0,
+          aqi: liveAqi,
+          city: liveLocation,
+          location: liveLocation
+        }
+      ]
+    };
+  }, [assessmentData, cardioHomeData]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -177,39 +210,6 @@ export default function HeartHealthResult() {
       </div>
     );
   }
-
-  const effectiveAssessmentData = React.useMemo(() => {
-    if (!assessmentData) return null;
-    const baseInputs = assessmentData.heart_health_inputs?.[0] || {};
-
-    // Live AWS RDS activity metrics
-    const liveSteps = cardioHomeData?.today_movement?.steps !== undefined 
-      ? Number(cardioHomeData.today_movement.steps) 
-      : (baseInputs.daily_steps !== undefined ? Number(baseInputs.daily_steps) : 0);
-
-    const liveWeeklyMin = cardioHomeData?.weekly_activity?.recorded_minutes !== undefined 
-      ? Number(cardioHomeData.weekly_activity.recorded_minutes) 
-      : (baseInputs.physical_activity_minutes !== undefined ? Number(baseInputs.physical_activity_minutes) : 0);
-
-    const liveAqi = cardioHomeData?.aqi_context?.value || baseInputs.aqi || 85;
-    const liveLocation = cardioHomeData?.aqi_context?.location || baseInputs.location || baseInputs.city || "Current Location";
-
-    return {
-      ...assessmentData,
-      heart_health_inputs: [
-        {
-          ...baseInputs,
-          daily_steps: liveSteps,
-          steps: liveSteps,
-          physical_activity_minutes: liveWeeklyMin,
-          weekly_sessions: liveWeeklyMin > 0 ? Math.max(1, Math.round(liveWeeklyMin / 45)) : 0,
-          aqi: liveAqi,
-          city: liveLocation,
-          location: liveLocation
-        }
-      ]
-    };
-  }, [assessmentData, cardioHomeData]);
 
   const {
     health_score = 75,

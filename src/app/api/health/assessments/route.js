@@ -1,3 +1,4 @@
+import sql from "@/lib/db";
 import { supabase } from "@/lib/supabaseAdmin";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
@@ -16,63 +17,122 @@ export async function GET(req) {
       userId = null;
     }
     const assessmentType = searchParams.get("type");
-    const limit = parseInt(searchParams.get("limit")) || 10;
-    const page = parseInt(searchParams.get("page")) || 1;
+    const limit = parseInt(searchParams.get("limit"), 10) || 10;
+    const page = parseInt(searchParams.get("page"), 10) || 1;
     const offset = (page - 1) * limit;
 
     if (!userId) {
       try {
-        let topQuery = supabase
-          .from("health_assessments")
-          .select("user_id")
-          .order("created_at", { ascending: false });
-
+        let topQuery;
         if (assessmentType) {
-          topQuery = topQuery.eq("assessment_type", assessmentType);
+          topQuery = await sql`
+            SELECT user_id, count(*) as count
+            FROM health_assessments
+            WHERE assessment_type = ${assessmentType}
+            GROUP BY user_id
+            ORDER BY count DESC
+            LIMIT 1;
+          `;
+        } else {
+          topQuery = await sql`
+            SELECT user_id, count(*) as count
+            FROM health_assessments
+            GROUP BY user_id
+            ORDER BY count DESC
+            LIMIT 1;
+          `;
         }
-
-        const { data: topUser } = await topQuery.limit(1).maybeSingle();
-        if (topUser?.user_id) {
-          userId = topUser.user_id;
+        if (topQuery && topQuery.length > 0 && topQuery[0].user_id) {
+          userId = topQuery[0].user_id;
         }
       } catch (findErr) {
-        console.warn("[Assessments API] Could not resolve default user:", findErr.message);
+        console.warn("[Assessments API] Could not resolve default user from RDS:", findErr.message);
       }
     }
 
-    let query = supabase
-      .from("health_assessments")
-      .select(
-        `
-        *,
-        heart_health_inputs(*),
-        lung_health_inputs(*)
-      `,
-        { count: "exact" }
-      )
-      .range(offset, offset + limit - 1)
-      .order("created_at", { ascending: false });
+    let assessments = [];
+    let totalCount = 0;
 
     if (userId) {
-      query = query.eq("user_id", userId);
-    }
-    if (assessmentType) {
-      query = query.eq("assessment_type", assessmentType);
+      if (assessmentType) {
+        const countRes = await sql`
+          SELECT count(*)::int as cnt
+          FROM health_assessments
+          WHERE (user_id = ${userId}::uuid OR user_id = ${String(userId)})
+            AND assessment_type = ${assessmentType};
+        `;
+        totalCount = countRes[0]?.cnt || 0;
+
+        assessments = await sql`
+          SELECT *
+          FROM health_assessments
+          WHERE (user_id = ${userId}::uuid OR user_id = ${String(userId)})
+            AND assessment_type = ${assessmentType}
+          ORDER BY created_at DESC
+          LIMIT ${limit} OFFSET ${offset};
+        `;
+      } else {
+        const countRes = await sql`
+          SELECT count(*)::int as cnt
+          FROM health_assessments
+          WHERE (user_id = ${userId}::uuid OR user_id = ${String(userId)});
+        `;
+        totalCount = countRes[0]?.cnt || 0;
+
+        assessments = await sql`
+          SELECT *
+          FROM health_assessments
+          WHERE (user_id = ${userId}::uuid OR user_id = ${String(userId)})
+          ORDER BY created_at DESC
+          LIMIT ${limit} OFFSET ${offset};
+        `;
+      }
     }
 
-    const { data, count, error } = await query;
+    if (assessments.length > 0) {
+      const assessmentIds = assessments.map((a) => a.id);
+      let heartInputs = [];
+      let lungInputs = [];
 
-    if (error) throw error;
+      try {
+        heartInputs = await sql`
+          SELECT * FROM heart_health_inputs
+          WHERE assessment_id = ANY(${assessmentIds});
+        `;
+      } catch (_) {}
+
+      try {
+        lungInputs = await sql`
+          SELECT * FROM lung_health_inputs
+          WHERE assessment_id = ANY(${assessmentIds});
+        `;
+      } catch (_) {}
+
+      const heartMap = {};
+      heartInputs.forEach((h) => {
+        heartMap[h.assessment_id] = h;
+      });
+      const lungMap = {};
+      lungInputs.forEach((l) => {
+        lungMap[l.assessment_id] = l;
+      });
+
+      assessments = assessments.map((a) => ({
+        ...a,
+        heart_health_inputs: heartMap[a.id] ? [heartMap[a.id]] : [],
+        lung_health_inputs: lungMap[a.id] ? [lungMap[a.id]] : [],
+      }));
+    }
 
     return success(
       "Health assessments fetched successfully.",
       {
-        assessments: data,
+        assessments,
         pagination: {
           page,
           limit,
-          total: count,
-          totalPages: Math.ceil(count / limit),
+          total: totalCount,
+          totalPages: Math.ceil(totalCount / limit) || 1,
         },
       },
       200,

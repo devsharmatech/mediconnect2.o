@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -15,26 +15,36 @@ export async function GET(req) {
     }
     const assessmentType = searchParams.get("type"); // 'heart', 'lung', or undefined for both
     const timeframe = searchParams.get("timeframe") || "all"; // 'week', 'month', '3months', 'year', 'all'
-    const limit = parseInt(searchParams.get("limit")) || 50;
+    const limit = parseInt(searchParams.get("limit"), 10) || 50;
     const includeHistory = searchParams.get("include_history") !== "false"; // Default true
 
+    // Resolve user ID if not provided: find top active user with assessments in AWS RDS
     if (!userId) {
       try {
-        let topQuery = supabase
-          .from("health_assessments")
-          .select("user_id")
-          .order("created_at", { ascending: false });
-
-        if (assessmentType) {
-          topQuery = topQuery.eq("assessment_type", assessmentType);
+        let topQuery;
+        if (assessmentType && assessmentType !== "all") {
+          topQuery = await sql`
+            SELECT user_id, count(*) as count
+            FROM health_assessments
+            WHERE assessment_type = ${assessmentType}
+            GROUP BY user_id
+            ORDER BY count DESC
+            LIMIT 1;
+          `;
+        } else {
+          topQuery = await sql`
+            SELECT user_id, count(*) as count
+            FROM health_assessments
+            GROUP BY user_id
+            ORDER BY count DESC
+            LIMIT 1;
+          `;
         }
-
-        const { data: topUser } = await topQuery.limit(1).maybeSingle();
-        if (topUser?.user_id) {
-          userId = topUser.user_id;
+        if (topQuery && topQuery.length > 0 && topQuery[0].user_id) {
+          userId = topQuery[0].user_id;
         }
       } catch (findErr) {
-        console.warn("[Assessments Graph] Could not resolve default user:", findErr.message);
+        console.warn("[Assessments Graph] Could not resolve default user from RDS:", findErr.message);
       }
     }
 
@@ -61,95 +71,111 @@ export async function GET(req) {
       }, 200, { headers: corsHeaders });
     }
 
-    // Build base query for assessments with all related data
-    let query = supabase
-      .from("health_assessments")
-      .select(`
-        id,
-        serial_no,
-        assessment_type,
-        health_score,
-        calculated_age,
-        risk_level,
-        ai_analysis,
-        recommendations,
-        created_at,
-        updated_at,
-        heart_health_inputs(
-          age,
-          gender,
-          systolic_bp,
-          diastolic_bp,
-          resting_heart_rate,
-          total_cholesterol,
-          hdl_cholesterol,
-          ldl_cholesterol,
-          triglycerides,
-          fasting_glucose,
-          hba1c,
-          height_cm,
-          weight_kg,
-          bmi,
-          smoking_status,
-          alcohol_consumption,
-          physical_activity_minutes,
-          family_cardiac_history,
-          hypertension_history,
-          diabetes_history,
-          chest_pain,
-          breathlessness,
-          palpitations
-        ),
-        lung_health_inputs(
-          age,
-          gender,
-          height_cm,
-          weight_kg,
-          bmi,
-          lung_age,
-          smoking_status,
-          smoking_pack_years,
-          pack_years,
-          pollution_exposure,
-          occupational_risk,
-          occupational_exposure,
-          breath_holding_time,
-          breaths_per_minute,
-          peak_flow,
-          cough_frequency,
-          breathlessness,
-          wheezing,
-          aqi,
-          location,
-          pollutant_data
-        )
-      `)
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false }) // Most recent first for history
-      .limit(limit);
+    const dateFilter = getDateFilter(timeframe);
 
-    // Filter by assessment type if specified
-    if (assessmentType && assessmentType !== 'all') {
-      query = query.eq("assessment_type", assessmentType);
-    }
-
-    // Filter by timeframe
-    if (timeframe !== 'all') {
-      const dateFilter = getDateFilter(timeframe);
+    // Query health_assessments from AWS RDS PostgreSQL
+    let assessments = [];
+    if (assessmentType && assessmentType !== "all") {
       if (dateFilter) {
-        query = query.gte("created_at", dateFilter);
+        assessments = await sql`
+          SELECT *
+          FROM health_assessments
+          WHERE (user_id = ${userId}::uuid OR user_id = ${String(userId)})
+            AND assessment_type = ${assessmentType}
+            AND created_at >= ${dateFilter}::timestamptz
+          ORDER BY created_at DESC
+          LIMIT ${limit};
+        `;
+      } else {
+        assessments = await sql`
+          SELECT *
+          FROM health_assessments
+          WHERE (user_id = ${userId}::uuid OR user_id = ${String(userId)})
+            AND assessment_type = ${assessmentType}
+          ORDER BY created_at DESC
+          LIMIT ${limit};
+        `;
+      }
+    } else {
+      if (dateFilter) {
+        assessments = await sql`
+          SELECT *
+          FROM health_assessments
+          WHERE (user_id = ${userId}::uuid OR user_id = ${String(userId)})
+            AND created_at >= ${dateFilter}::timestamptz
+          ORDER BY created_at DESC
+          LIMIT ${limit};
+        `;
+      } else {
+        assessments = await sql`
+          SELECT *
+          FROM health_assessments
+          WHERE (user_id = ${userId}::uuid OR user_id = ${String(userId)})
+          ORDER BY created_at DESC
+          LIMIT ${limit};
+        `;
       }
     }
 
-    const { data: assessments, error } = await query;
+    if (!assessments || assessments.length === 0) {
+      return success("No assessment history found.", {
+        graphData: {
+          labels: [],
+          healthScoreTrend: [],
+          riskLevelDistribution: [],
+          organAgeComparison: [],
+          detailedMetrics: [],
+          improvementTimeline: []
+        },
+        summary: getSummary([]),
+        history: []
+      }, 200, { headers: corsHeaders });
+    }
 
-    if (error) throw error;
+    // Fetch related inputs for these assessments from AWS RDS
+    const assessmentIds = assessments.map(a => a.id);
+    let heartInputs = [];
+    let lungInputs = [];
+
+    try {
+      heartInputs = await sql`
+        SELECT * FROM heart_health_inputs
+        WHERE assessment_id = ANY(${assessmentIds});
+      `;
+    } catch (hErr) {
+      console.warn("[Assessments Graph] Could not query heart_health_inputs:", hErr.message);
+    }
+
+    try {
+      lungInputs = await sql`
+        SELECT * FROM lung_health_inputs
+        WHERE assessment_id = ANY(${assessmentIds});
+      `;
+    } catch (lErr) {
+      console.warn("[Assessments Graph] Could not query lung_health_inputs:", lErr.message);
+    }
+
+    const heartMap = {};
+    heartInputs.forEach(h => {
+      heartMap[h.assessment_id] = h;
+    });
+    const lungMap = {};
+    lungInputs.forEach(l => {
+      lungMap[l.assessment_id] = l;
+    });
+
+    // Attach inputs to assessment records
+    const fullAssessments = assessments.map(a => ({
+      ...a,
+      heart_health_inputs: heartMap[a.id] ? [heartMap[a.id]] : [],
+      lung_health_inputs: lungMap[a.id] ? [lungMap[a.id]] : []
+    }));
 
     // Format data for graphs and history
     const responseData = {
-      graphData: formatGraphData(assessments, assessmentType),
-      summary: getSummary(assessments),
-      ...(includeHistory && { history: formatHistoryData(assessments) })
+      graphData: formatGraphData(fullAssessments, assessmentType),
+      summary: getSummary(fullAssessments),
+      ...(includeHistory && { history: formatHistoryData(fullAssessments) })
     };
 
     return success("Health data fetched successfully.", responseData, 200, {
@@ -219,25 +245,29 @@ function formatHistoryData(assessments) {
     return [];
   }
 
-  return assessments.map(assessment => ({
-    id: assessment.id,
-    serialNo: assessment.serial_no || (
-      assessment.assessment_type === 'heart'
-        ? `CCN-${new Date(assessment.created_at).getFullYear()}-${assessment.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
-        : `LCN-${new Date(assessment.created_at).getFullYear()}-${assessment.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
-    ),
-    type: assessment.assessment_type,
-    date: assessment.created_at,
-    healthScore: assessment.health_score,
-    riskLevel: assessment.risk_level,
-    calculatedAge: assessment.calculated_age,
-    aiAnalysis: assessment.ai_analysis,
-    recommendations: assessment.recommendations,
-    rawAssessment: assessment,
-    inputs: assessment.assessment_type === 'heart' 
-      ? formatHeartInputs(assessment.heart_health_inputs?.[0])
-      : formatLungInputs(assessment.lung_health_inputs?.[0])
-  }));
+  return assessments.map(assessment => {
+    const rawId = String(assessment.id || '');
+    const cleanId = rawId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase();
+    const fallbackSerial = assessment.assessment_type === 'heart'
+      ? `CCN-${new Date(assessment.created_at).getFullYear()}-${cleanId || '0920'}`
+      : `LCN-${new Date(assessment.created_at).getFullYear()}-${cleanId || '0920'}`;
+
+    return {
+      id: assessment.id,
+      serialNo: assessment.serial_no || fallbackSerial,
+      type: assessment.assessment_type,
+      date: assessment.created_at,
+      healthScore: assessment.health_score,
+      riskLevel: assessment.risk_level,
+      calculatedAge: assessment.calculated_age,
+      aiAnalysis: assessment.ai_analysis,
+      recommendations: assessment.recommendations,
+      rawAssessment: assessment,
+      inputs: assessment.assessment_type === 'heart' 
+        ? formatHeartInputs(assessment.heart_health_inputs?.[0])
+        : formatLungInputs(assessment.lung_health_inputs?.[0])
+    };
+  });
 }
 
 function formatHeartInputs(heartInput) {
@@ -361,7 +391,7 @@ function getOrganAgeComparison(heartAssessments, lungAssessments, assessmentType
           type: 'heart',
           actualAge: heartInput.age,
           organAge: assessment.calculated_age,
-          ageDifference: assessment.calculated_age - heartInput.age,
+          ageDifference: (assessment.calculated_age || 0) - (heartInput.age || 0),
           assessmentId: assessment.id
         });
       }
@@ -377,7 +407,7 @@ function getOrganAgeComparison(heartAssessments, lungAssessments, assessmentType
           type: 'lung',
           actualAge: lungInput.age,
           organAge: assessment.calculated_age,
-          ageDifference: assessment.calculated_age - lungInput.age,
+          ageDifference: (assessment.calculated_age || 0) - (lungInput.age || 0),
           assessmentId: assessment.id
         });
       }
@@ -486,8 +516,8 @@ function getSummary(assessments) {
     overall: {
       averageScore: assessments.length > 0 ?
         Math.round(assessments.reduce((sum, a) => sum + a.health_score, 0) / assessments.length) : null,
-      bestScore: Math.max(...assessments.map(a => a.health_score)),
-      worstScore: Math.min(...assessments.map(a => a.health_score))
+      bestScore: assessments.length > 0 ? Math.max(...assessments.map(a => a.health_score)) : 0,
+      worstScore: assessments.length > 0 ? Math.min(...assessments.map(a => a.health_score)) : 0
     }
   };
 }

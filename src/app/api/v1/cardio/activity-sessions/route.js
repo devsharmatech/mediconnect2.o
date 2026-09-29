@@ -52,16 +52,47 @@ export async function POST(req) {
       const actualDurationMin = Math.round((Number(accumulated_active_seconds) || 0) / 60);
       const isTargetReached = actualDurationMin >= Number(target_duration_minutes);
 
-      // Persist to activity_log in AWS RDS if user_id is provided
+      // Persist to activity_log and lung_activity_sessions in AWS RDS
       if (user_id) {
         try {
           const cal = typeof estimated_energy_kcal === 'number' ? estimated_energy_kcal : (Number(estimated_energy_kcal) || 0);
+          const meta = {
+            duration_minutes: actualDurationMin,
+            duration_seconds: Number(accumulated_active_seconds) || 0,
+            steps: Number(steps) || 0,
+            distance_km: Number(distance_km) || 0,
+            calories: cal,
+            session_id: session_id || `hts-${Date.now()}`
+          };
+
           await sql`
-            INSERT INTO activity_log (patient_id, module_type, action_type, description, created_at)
-            VALUES (${user_id}, 'cardio', 'heart_training', 'Heart Training Session', NOW())
+            INSERT INTO activity_log (
+              patient_id, module_type, action_type, description, metadata, created_at
+            ) VALUES (
+              ${user_id}, 'cardio', 'heart_training',
+              ${`Heart Training Session (${actualDurationMin} min, ${Number(steps) || 0} steps, ${Number(distance_km) || 0} km, ${cal} kcal)`},
+              ${JSON.stringify(meta)},
+              NOW()
+            );
+          `;
+
+          const actId = `hts-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+          await sql`
+            INSERT INTO lung_activity_sessions (
+              id, user_id, activity_type, title, status, duration_seconds,
+              steps, distance_km, calories, created_at
+            ) VALUES (
+              ${actId}, ${String(user_id)}, 'heart_training', 'Heart Training',
+              ${isTargetReached ? 'completed' : 'partial'},
+              ${Number(accumulated_active_seconds) || 0},
+              ${Number(steps) || 0},
+              ${Number(distance_km) || 0},
+              ${cal},
+              NOW()
+            );
           `;
         } catch (dbErr) {
-          console.warn("Could not insert into activity_log in RDS:", dbErr.message);
+          console.warn("Could not insert session into RDS:", dbErr.message);
         }
       }
 
