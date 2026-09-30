@@ -26,7 +26,6 @@ import {
 } from "@heroicons/react/24/solid";
 import toast from "react-hot-toast";
 import SessionStateTracker from "@/components/doctor/SessionStateTracker";
-import { supabase } from "@/lib/supabaseClient";
 import { loadRazorpayScript } from "@/lib/razorpay";
 import SharePrescriptionModal from "@/components/public-site/appointments/SharePrescriptionModal";
 

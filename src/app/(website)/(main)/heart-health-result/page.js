@@ -224,6 +224,26 @@ export default function HeartHealthResult() {
 
   const inputs = (effectiveAssessmentData || assessmentData).heart_health_inputs?.[0] || {};
 
+  // Safely parse AI analysis
+  let parsedAi = null;
+  if (ai_analysis) {
+    if (typeof ai_analysis === 'object') {
+      parsedAi = ai_analysis;
+    } else if (typeof ai_analysis === 'string') {
+      try {
+        parsedAi = JSON.parse(ai_analysis);
+      } catch (e) {
+        parsedAi = { analysis: ai_analysis };
+      }
+    }
+  }
+  if (parsedAi && typeof parsedAi.analysis === 'string' && parsedAi.analysis.trim().startsWith('{')) {
+    try {
+      const nested = JSON.parse(parsedAi.analysis);
+      parsedAi = { ...parsedAi, ...nested };
+    } catch (e) {}
+  }
+
   // Formatted Serial No fallback
   const formattedSerialNo = serial_no || (assessmentId
     ? `CCN-${new Date(created_at).getFullYear()}-${String(assessmentId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
@@ -648,13 +668,80 @@ export default function HeartHealthResult() {
             </h3>
           </div>
 
-          <div className="p-3.5 bg-slate-50/70 rounded-[5px] border border-slate-200 text-xs text-slate-700 leading-relaxed space-y-2">
-            <p>
-              {typeof ai_analysis === 'string'
-                ? ai_analysis
-                : (ai_analysis?.analysis || "Assessment summary: Based on the information entered for this screening, recorded measures reflect self-reported lifestyle and vital parameters.")}
-            </p>
+          {/* Primary Summary Text */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
+            {parsedAi?.analysis || "Assessment summary: Based on the information entered for this screening, recorded measures reflect self-reported lifestyle and vital parameters. Continue monitoring and maintain heart-healthy routines."}
           </div>
+
+          {/* Key Findings Badges */}
+          {Array.isArray(parsedAi?.key_findings) && parsedAi.key_findings.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+                Recorded Clinical Indicators
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {parsedAi.key_findings.map((finding, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 text-slate-700 rounded-md text-xs font-medium shadow-2xs"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0067A1]" />
+                    {finding}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Positive Aspects & Improvement Areas in a 2-col Grid */}
+          {((Array.isArray(parsedAi?.positive_aspects) && parsedAi.positive_aspects.length > 0) ||
+            (Array.isArray(parsedAi?.improvement_areas) && parsedAi.improvement_areas.length > 0)) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* Positive Indicators */}
+              {Array.isArray(parsedAi?.positive_aspects) && parsedAi.positive_aspects.length > 0 && (
+                <div className="p-3 bg-emerald-50/50 border border-emerald-200 rounded-lg space-y-2">
+                  <span className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Positive Indicators
+                  </span>
+                  <ul className="space-y-1.5 text-xs text-emerald-950">
+                    {parsedAi.positive_aspects.map((pos, idx) => (
+                      <li key={idx} className="flex items-start gap-1.5 leading-snug">
+                        <span className="text-emerald-600 font-bold">✓</span>
+                        <span>{pos}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Recommended Focus Areas */}
+              {Array.isArray(parsedAi?.improvement_areas) && parsedAi.improvement_areas.length > 0 && (
+                <div className="p-3 bg-sky-50/50 border border-sky-200 rounded-lg space-y-2">
+                  <span className="text-[11px] font-semibold text-sky-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Info className="w-3.5 h-3.5 text-[#0067A1]" /> Recommended Focus Areas
+                  </span>
+                  <ul className="space-y-1.5 text-xs text-sky-950">
+                    {parsedAi.improvement_areas.map((area, idx) => (
+                      <li key={idx} className="flex items-start gap-1.5 leading-snug">
+                        <span className="text-[#0067A1] font-bold">•</span>
+                        <span>{area}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Medical Guidance */}
+          {parsedAi?.medical_attention && (
+            <div className="p-2.5 bg-amber-50/80 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
+              <Stethoscope className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">
+                <strong className="font-semibold text-amber-950">Clinical Guidance:</strong> {parsedAi.medical_attention}
+              </span>
+            </div>
+          )}
 
           {/* Action Recommendations */}
           <div className="pt-2">

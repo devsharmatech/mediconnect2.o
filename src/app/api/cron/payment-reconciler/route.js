@@ -1,16 +1,15 @@
 import { success, failure } from "@/lib/response";
 import { createIncident } from "@/lib/layer1/incidentService";
 import { retryFailedRefunds } from "@/lib/layer1/refundEngine";
+import sql from "@/lib/db";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const RZP_KEY_ID   = process.env.RAZORPAY_KEY_ID;
 const RZP_KEY_SEC  = process.env.RAZORPAY_KEY_SECRET;
 
 /**
  * GET/POST /api/cron/payment-reconciler
  *
- * Layer-111 Financial Reconciliation Backbone — Phase 5
+ * Layer-111 Financial Reconciliation Backbone — AWS RDS PostgreSQL Direct
  *
  * Tasks:
  * 1. Detect "pending" payments stuck > 1 hour → query Razorpay API for truth
@@ -27,46 +26,6 @@ export async function GET(req) {
 
 export async function POST(req) {
   return await executeReconciliation(req);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Utility: direct fetch wrappers
-// ─────────────────────────────────────────────────────────────────────────────
-async function dbSelect(table, filters, options = {}) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filters}${options.limit ? '&limit=' + options.limit : ''}`, {
-    headers: { 'apikey': SERVICE_KEY, 'Authorization': `Bearer ${SERVICE_KEY}` }
-  });
-  if (!res.ok) return [];
-  const d = await res.json();
-  return Array.isArray(d) ? d : [];
-}
-
-async function dbPatch(table, filters, payload) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filters}`, {
-    method:  'PATCH',
-    headers: {
-      'apikey':        SERVICE_KEY,
-      'Authorization': `Bearer ${SERVICE_KEY}`,
-      'Content-Type':  'application/json',
-      'Prefer':        'return=minimal',
-    },
-    body: JSON.stringify(payload)
-  });
-  return res.ok;
-}
-
-async function dbInsert(table, payload) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-    method:  'POST',
-    headers: {
-      'apikey':        SERVICE_KEY,
-      'Authorization': `Bearer ${SERVICE_KEY}`,
-      'Content-Type':  'application/json',
-      'Prefer':        'return=minimal',
-    },
-    body: JSON.stringify(Array.isArray(payload) ? payload : [payload])
-  });
-  return res.ok;
 }
 
 // Query Razorpay for the real payment/order status
@@ -88,9 +47,7 @@ async function fetchRazorpayOrderStatus(orderId) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Main reconciliation function
-// ─────────────────────────────────────────────────────────────────────────────
 async function executeReconciliation(req) {
   // Security check
   const cronSecret    = req.headers.get("x-cron-secret") || req.headers.get("authorization");
@@ -110,14 +67,20 @@ async function executeReconciliation(req) {
   };
 
   try {
-    const oneHourAgo = new Date(Date.now() - 60 * 60000).toISOString();
+    const oneHourAgo = new Date(Date.now() - 60 * 60000);
 
-    // ── 1. Find stuck pending appointments ─────────────────────────────────
-    const stuckAppointments = await dbSelect(
-      'appointments',
-      `payment_status=eq.pending&created_at=lt.${oneHourAgo}&select=id,patient_id,care_episode_id,razorpay_order_id,payment_status`,
-      { limit: 30 }
-    );
+    // ── 1. Find stuck pending appointments directly in AWS RDS ──────────
+    let stuckAppointments = [];
+    try {
+      stuckAppointments = await sql`
+        SELECT id, patient_id, care_episode_id, razorpay_order_id, payment_status
+        FROM appointments
+        WHERE payment_status = 'pending' AND created_at < ${oneHourAgo}
+        LIMIT 30
+      `;
+    } catch (e) {
+      console.warn("Could not query stuck appointments from RDS:", e.message);
+    }
 
     stats.appointments_checked = stuckAppointments.length;
 
@@ -133,14 +96,22 @@ async function executeReconciliation(req) {
         }
 
         if (gatewayStatus === 'captured' || gatewayStatus === 'authorized') {
-          // Gateway says paid — update DB
-          await dbPatch('appointments', `id=eq.${appt.id}`, { payment_status: 'paid', status: 'booked' });
+          // Gateway says paid — update AWS RDS
+          await sql`
+            UPDATE appointments
+            SET payment_status = 'paid', status = 'booked'
+            WHERE id = ${appt.id}
+          `;
           stats.reconciled_to_paid++;
           reconcileNote = 'Reconciled to PAID from gateway';
 
         } else if (gatewayStatus === 'failed') {
-          // Gateway says failed — update DB
-          await dbPatch('appointments', `id=eq.${appt.id}`, { payment_status: 'failed' });
+          // Gateway says failed — update AWS RDS
+          await sql`
+            UPDATE appointments
+            SET payment_status = 'failed'
+            WHERE id = ${appt.id}
+          `;
           stats.reconciled_to_failed++;
           reconcileNote = 'Reconciled to FAILED from gateway';
 
@@ -157,15 +128,21 @@ async function executeReconciliation(req) {
           reconcileNote = 'Cannot determine — P2 incident raised';
         }
 
-        // Log reconciliation attempt
-        await dbInsert('payment_reconciliation_log', {
-          payment_id:      appt.razorpay_order_id || appt.id,
-          care_episode_id: appt.care_episode_id,
-          gateway_status:  gatewayStatus,
-          db_status:       appt.payment_status,
-          mismatch:        isMismatch,
-          notes:           reconcileNote
-        });
+        // Log reconciliation attempt in AWS RDS
+        try {
+          await sql`
+            INSERT INTO payment_reconciliation_log (
+              payment_id, care_episode_id, gateway_status, db_status, mismatch, notes
+            ) VALUES (
+              ${appt.razorpay_order_id || appt.id},
+              ${appt.care_episode_id || null},
+              ${gatewayStatus},
+              ${appt.payment_status},
+              ${isMismatch},
+              ${reconcileNote}
+            )
+          `;
+        } catch {}
 
       } catch (err) {
         stats.errors.push({ appointment_id: appt.id, error: err.message });
@@ -175,17 +152,21 @@ async function executeReconciliation(req) {
     // ── 2. Retry failed refunds from dead-letter queue ─────────────────────
     try {
       const retryResults = await retryFailedRefunds();
-      stats.refund_retries = retryResults.retried;
-      stats.refund_retry_succeeded = retryResults.succeeded;
-      stats.refund_retry_failed    = retryResults.failed;
+      stats.refund_retries = retryResults.retried || 0;
+      stats.refund_retry_succeeded = retryResults.succeeded || 0;
+      stats.refund_retry_failed    = retryResults.failed || 0;
     } catch (err) {
       stats.errors.push({ task: 'refund_retry', error: err.message });
     }
 
     const duration = Date.now() - startedAt;
-    console.log(`[PaymentReconciler] Completed in ${duration}ms:`, JSON.stringify(stats));
+    console.log(`[PaymentReconciler] Completed in ${duration}ms (AWS RDS):`, JSON.stringify(stats));
 
-    return success("Payment reconciliation completed", { duration_ms: duration, ...stats });
+    return success("Payment reconciliation completed (AWS RDS)", { 
+      duration_ms: duration, 
+      database: "AWS RDS PostgreSQL",
+      ...stats 
+    });
 
   } catch (err) {
     console.error("[PaymentReconciler] Fatal error:", err.message);

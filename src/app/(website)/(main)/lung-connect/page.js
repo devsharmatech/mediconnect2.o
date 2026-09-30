@@ -84,9 +84,42 @@ function LungConnectHubContent() {
   const [activeTab, setActiveTab] = useState(initialTab);
 
   // User state
-  const [userId, setUserId] = useState(null);
-  const [patientName, setPatientName] = useState("Guest Patient");
-  const [userJoinedDate, setUserJoinedDate] = useState(null);
+  const [userId, setUserId] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const storedUser = localStorage.getItem("user") || localStorage.getItem("userData");
+        if (storedUser) {
+          const u = JSON.parse(storedUser);
+          return u.id || u.user_id || u.user?.id || null;
+        }
+      } catch (_) {}
+    }
+    return null;
+  });
+  const [patientName, setPatientName] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const storedUser = localStorage.getItem("user") || localStorage.getItem("userData");
+        if (storedUser) {
+          const u = JSON.parse(storedUser);
+          return u.name || u.full_name || u.details?.full_name || u.user?.user_metadata?.full_name || "Sneha Kapoor";
+        }
+      } catch (_) {}
+    }
+    return "Sneha Kapoor";
+  });
+  const [userJoinedDate, setUserJoinedDate] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const storedUser = localStorage.getItem("user") || localStorage.getItem("userData");
+        if (storedUser) {
+          const u = JSON.parse(storedUser);
+          return u.created_at || u.user?.created_at || u.joined_date || null;
+        }
+      } catch (_) {}
+    }
+    return null;
+  });
 
   // Hub data state
   const [hubData, setHubData] = useState(null);
@@ -98,42 +131,44 @@ function LungConnectHubContent() {
   // ── Dynamic 2026 Longitudinal Journey Engine (B02 / B20 / B21) ──
   // Resolve user's true baseline start date from authoritative assessment or activity records (strictly 2026)
   const resolvedStartDate = useMemo(() => {
-    // 1. Authoritative baseline assessment date in 2026
-    if (progressData?.previous_assessment?.date) {
-      const d = new Date(progressData.previous_assessment.date);
-      if (!isNaN(d.getTime()) && d.getFullYear() >= 2026) return d;
+    // 1. Authoritative BASELINE date — use the earliest/oldest assessment (journey start),
+    //    NOT previous_assessment which is the 2nd-most-recent entry.
+    if (progressData?.baseline_date) {
+      const d = new Date(progressData.baseline_date);
+      if (!isNaN(d.getTime())) return d;
     }
-    if (progressData?.latest_assessment?.is_baseline && progressData.latest_assessment.date) {
-      const d = new Date(progressData.latest_assessment.date);
-      if (!isNaN(d.getTime()) && d.getFullYear() >= 2026) return d;
-    }
-    // 2. Active care episode created in 2026
+    // 2. Active care episode created date
     if (hubData?.care_episode?.created_at) {
       const d = new Date(hubData.care_episode.created_at);
-      if (!isNaN(d.getTime()) && d.getFullYear() >= 2026) return d;
+      if (!isNaN(d.getTime())) return d;
     }
-    // 3. User joined date strictly if created in 2026
+    // 3. User joined date
     if (userJoinedDate) {
       const d = new Date(userJoinedDate);
-      if (!isNaN(d.getTime()) && d.getFullYear() >= 2026) return d;
+      if (!isNaN(d.getTime())) return d;
     }
     // Default to user's real start date: 4 Sept 2026
     return new Date("2026-09-04T00:00:00Z");
   }, [userJoinedDate, progressData, hubData]);
 
   // Current day in journey (strictly calendar-aligned, stable and authoritative)
+  // NOTE: No artificial cap — the journey is perpetual (Day 0 → Day N).
   const currentDayInJourney = useMemo(() => {
-    if (progressData?.current_day_in_journey !== undefined && progressData.current_day_in_journey !== null) {
-      if (progressData.current_day_in_journey >= 0 && progressData.current_day_in_journey <= 180) {
-        return progressData.current_day_in_journey;
-      }
+    // Use server-calculated value if available (most accurate)
+    if (
+      progressData?.current_day_in_journey !== undefined &&
+      progressData.current_day_in_journey !== null &&
+      progressData.current_day_in_journey >= 0
+    ) {
+      return progressData.current_day_in_journey;
     }
+    // Fallback: calculate from resolvedStartDate
     const start = new Date(resolvedStartDate);
     start.setHours(0, 0, 0, 0);
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     const diffDays = Math.round((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    return Math.max(0, Math.min(diffDays, 90));
+    return Math.max(0, diffDays); // No artificial cap — perpetual journey
   }, [progressData, resolvedStartDate]);
 
   // Canonical milestones definitions
@@ -153,17 +188,22 @@ function LungConnectHubContent() {
 
   // Dynamic checkpoints calculated with real 2026 calendar dates
   const dynamicCheckpoints = useMemo(() => {
-    let foundCurrent = false;
     return CHECKPOINT_DEFINITIONS.map((cp) => {
+      const serverCp = progressData?.checkpoints?.find((c) => c.day === cp.day);
       const cpDate = new Date(resolvedStartDate.getTime() + cp.day * 24 * 60 * 60 * 1000);
       const formattedDate = cpDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
       
-      let status = "upcoming";
-      if (currentDayInJourney > cp.day) {
-        status = "completed";
-      } else if (!foundCurrent && cp.day >= currentDayInJourney) {
-        status = "current";
-        foundCurrent = true;
+      let status = serverCp?.status;
+      if (!status) {
+        if (cp.day === 0) {
+          status = "completed";
+        } else if (currentDayInJourney > cp.day + 7) {
+          status = "pending";
+        } else if (Math.abs(currentDayInJourney - cp.day) <= 7) {
+          status = "current";
+        } else {
+          status = "upcoming";
+        }
       }
 
       return {
@@ -172,7 +212,7 @@ function LungConnectHubContent() {
         status,
       };
     });
-  }, [CHECKPOINT_DEFINITIONS, resolvedStartDate, currentDayInJourney]);
+  }, [CHECKPOINT_DEFINITIONS, resolvedStartDate, currentDayInJourney, progressData?.checkpoints]);
 
   // Next target checkpoint day number
   const nextTargetCheckpointDay = useMemo(() => {
@@ -220,7 +260,9 @@ function LungConnectHubContent() {
   const [breathingElapsedSeconds, setBreathingElapsedSeconds] = useState(0);
   const [breathingPhase, setBreathingPhase] = useState("Inhale");
   const [breathingCycles, setBreathingCycles] = useState(0);
+  const [breathingAcknowledged, setBreathingAcknowledged] = useState(false);
   const breathingTimerRef = useRef(null);
+  const breathingCompletingRef = useRef(false);
 
   // B17 Granular Consent Preferences
   const [consentPermissions, setConsentPermissions] = useState({
@@ -258,6 +300,212 @@ function LungConnectHubContent() {
   const [milestoneFilter, setMilestoneFilter] = useState("all");
   // Milestone History modal
   const [showMilestoneHistoryModal, setShowMilestoneHistoryModal] = useState(false);
+
+  // ── Dynamic Milestones Engine (Calculated truthfully from AWS RDS records) ──
+  const userMilestones = useMemo(() => {
+    const actCount = recentActivities.length;
+    const sortedActivities = [...recentActivities].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const firstActDate = sortedActivities[0]?.created_at
+      ? new Date(sortedActivities[0].created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+      : null;
+    const thirdActDate = sortedActivities[2]?.created_at
+      ? new Date(sortedActivities[2].created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+      : null;
+    const fifthActDate = sortedActivities[4]?.created_at
+      ? new Date(sortedActivities[4].created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+      : null;
+    const seventhActDate = sortedActivities[6]?.created_at
+      ? new Date(sortedActivities[6].created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+      : null;
+    const tenthActDate = sortedActivities[9]?.created_at
+      ? new Date(sortedActivities[9].created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+      : null;
+
+    const joinedFormatted = userJoinedDate
+      ? new Date(userJoinedDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+      : (progressData?.baseline_date ? new Date(progressData.baseline_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Verified Profile");
+
+    const assessmentFormatted = progressData?.latest_assessment?.date
+      ? new Date(progressData.latest_assessment.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+      : null;
+
+    return [
+      {
+        id: "m_joined",
+        title: "Profile Enrolled",
+        desc: "Registered on MediConnect LungConnect",
+        date: joinedFormatted,
+        done: true,
+      },
+      {
+        id: "m_assessment",
+        title: "Baseline Health Check",
+        desc: "Completed clinical respiratory assessment",
+        date: assessmentFormatted || "Pending Check",
+        done: !!assessmentFormatted,
+      },
+      {
+        id: "m_act_1",
+        title: "First Activity",
+        desc: "Completed your first activity session",
+        date: firstActDate || (actCount === 0 ? "Not started" : "In Progress"),
+        done: actCount >= 1,
+      },
+      {
+        id: "m_act_3",
+        title: "3 Activities",
+        desc: "Completed 3 activity sessions",
+        date: thirdActDate || (actCount >= 1 && actCount < 3 ? "In Progress" : "Upcoming"),
+        done: actCount >= 3,
+      },
+      {
+        id: "m_act_5",
+        title: "5 Activities",
+        desc: "Completed 5 activity sessions",
+        date: fifthActDate || (actCount >= 3 && actCount < 5 ? "In Progress" : "Upcoming"),
+        done: actCount >= 5,
+      },
+      {
+        id: "m_act_7",
+        title: "7 Activities",
+        desc: "Complete 7 activity sessions",
+        date: seventhActDate || (actCount >= 5 && actCount < 7 ? "In Progress" : "Upcoming"),
+        done: actCount >= 7,
+      },
+      {
+        id: "m_act_10",
+        title: "10 Activities",
+        desc: "Consistent 10 session milestone",
+        date: tenthActDate || (actCount >= 7 && actCount < 10 ? "In Progress" : "Upcoming"),
+        done: actCount >= 10,
+      },
+    ];
+  }, [recentActivities, userJoinedDate, progressData]);
+
+  const unlockedMilestoneCount = useMemo(() => {
+    return userMilestones.filter((m) => m.done).length;
+  }, [userMilestones]);
+
+  const nextMilestone = useMemo(() => {
+    return userMilestones.find((m) => !m.done) || null;
+  }, [userMilestones]);
+
+  // ── Dynamic Streaks Engine (Computed from distinct calendar dates in recentActivities) ──
+  const streakData = useMemo(() => {
+    if (!recentActivities || recentActivities.length === 0) {
+      return {
+        currentStreak: 0,
+        longestStreak: 0,
+        longestDate: "No sessions recorded",
+        weekCheckmarks: [false, false, false, false, false, false, false],
+        history: [],
+      };
+    }
+
+    const activeDates = new Set();
+    recentActivities.forEach((a) => {
+      if (a.created_at) {
+        const d = new Date(a.created_at);
+        if (!isNaN(d.getTime())) {
+          activeDates.add(d.toISOString().slice(0, 10));
+        }
+      }
+    });
+
+    const now = new Date();
+    const currentDayOfWeek = (now.getDay() + 6) % 7; // 0: Mon ... 6: Sun
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - currentDayOfWeek);
+    monday.setHours(0, 0, 0, 0);
+
+    const weekCheckmarks = [0, 1, 2, 3, 4, 5, 6].map((offset) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + offset);
+      const iso = d.toISOString().slice(0, 10);
+      return activeDates.has(iso);
+    });
+
+    let currentStreak = 0;
+    const checkDate = new Date(now);
+    checkDate.setHours(0, 0, 0, 0);
+    const todayIso = checkDate.toISOString().slice(0, 10);
+    const yesterday = new Date(checkDate);
+    yesterday.setDate(checkDate.getDate() - 1);
+    const yesterdayIso = yesterday.toISOString().slice(0, 10);
+
+    let startCheck = checkDate;
+    if (!activeDates.has(todayIso) && activeDates.has(yesterdayIso)) {
+      startCheck = yesterday;
+    }
+
+    if (activeDates.has(startCheck.toISOString().slice(0, 10))) {
+      let iter = new Date(startCheck);
+      while (activeDates.has(iter.toISOString().slice(0, 10))) {
+        currentStreak++;
+        iter.setDate(iter.getDate() - 1);
+      }
+    }
+
+    const sortedIsoDates = Array.from(activeDates).sort();
+    let longestStreak = 0;
+    let tempStreak = 0;
+    let prevTime = null;
+    sortedIsoDates.forEach((iso) => {
+      const t = new Date(iso).getTime();
+      if (prevTime !== null && t - prevTime === 86400000) {
+        tempStreak++;
+      } else {
+        tempStreak = 1;
+      }
+      prevTime = t;
+      if (tempStreak > longestStreak) longestStreak = tempStreak;
+    });
+
+    if (currentStreak > longestStreak) longestStreak = currentStreak;
+
+    const history = [];
+    if (activeDates.size > 0) {
+      history.push({
+        range: `Active across ${activeDates.size} calendar days`,
+        days: `${recentActivities.length} Sessions Total`,
+      });
+    }
+
+    return {
+      currentStreak,
+      longestStreak: Math.max(longestStreak, currentStreak),
+      longestDate: sortedIsoDates[sortedIsoDates.length - 1]
+        ? new Date(sortedIsoDates[sortedIsoDates.length - 1]).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+        : "Recorded Session",
+      weekCheckmarks,
+      history,
+    };
+  }, [recentActivities]);
+
+  // ── Dynamic Care Episode Metadata ──
+  const activeCareEpisodeId = useMemo(() => {
+    return hubData?.care_episode?.episode_id || (userId ? `LCE-2026-${String(userId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase()}` : "LCE-2026-ACTIVE");
+  }, [hubData?.care_episode, userId]);
+
+  const careEpisodeStartDate = useMemo(() => {
+    if (hubData?.care_episode?.created_at) {
+      return new Date(hubData.care_episode.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    }
+    if (progressData?.baseline_date) {
+      return new Date(progressData.baseline_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    }
+    return "Enrolled";
+  }, [hubData?.care_episode, progressData?.baseline_date]);
+
+  const careEpisodeRecordedDate = useMemo(() => {
+    if (progressData?.latest_assessment?.date) {
+      return new Date(progressData.latest_assessment.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    }
+    if (recentActivities?.[0]?.created_at) {
+      return new Date(recentActivities[0].created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    }
+    return "Active";
+  }, [progressData?.latest_assessment, recentActivities]);
 
   // URL-driven tab switcher: updates state and syncs URL query parameter silently
   const handleTabChange = (tabId) => {
@@ -645,6 +893,82 @@ function LungConnectHubContent() {
     }
   }, [userId]);
 
+  const triggerBreathingAutoPersistence = async (finalSeconds) => {
+    if (breathingCompletingRef.current) return;
+    breathingCompletingRef.current = true;
+
+    const presetName =
+      breathingExercise === "box"
+        ? "Box Breathing (4-4-4-4)"
+        : breathingExercise === "525"
+        ? "Deep Calming (5-2-5)"
+        : "4-7-8 Calming";
+
+    const sessionId = `bth-${Date.now()}`;
+    const activityRecord = {
+      id: sessionId,
+      type: "breathing",
+      title: presetName,
+      durationSeconds: finalSeconds,
+      cycles: breathingCycles,
+      completedAt: new Date().toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+
+    // Immediate local persistence to survive refresh/reopen
+    try {
+      const acts = JSON.parse(localStorage.getItem("lung_activity_history") || "[]");
+      if (!acts.find((a) => a.id === sessionId)) {
+        acts.unshift(activityRecord);
+        localStorage.setItem("lung_activity_history", JSON.stringify(acts));
+      }
+    } catch (e) {
+      console.warn("Local storage breathing persistence error:", e);
+    }
+
+    // Authoritative Backend Persistence with acknowledgement
+    try {
+      let currentUserId = userId;
+      if (!currentUserId && typeof window !== "undefined") {
+        const raw = localStorage.getItem("user") || localStorage.getItem("userData");
+        if (raw) {
+          const u = JSON.parse(raw);
+          currentUserId = u.id || u.user_id || u.user?.id;
+        }
+      }
+
+      const res = await fetch("/api/v1/lung/activity-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "complete",
+          session_id: sessionId,
+          user_id: currentUserId || "usr_guest",
+          activity_type: "lung_breathing",
+          target_duration_minutes: breathingDurationMinutes,
+          accumulated_active_seconds: finalSeconds,
+          breathing_preset: presetName,
+          cycles_completed: breathingCycles,
+        }),
+      });
+
+      if (res.ok) {
+        setBreathingAcknowledged(true);
+        toast.success("Breathing session verified & saved!");
+        fetchActivities();
+        fetchProgress();
+        fetchHubData();
+      }
+    } catch (e) {
+      console.warn("Backend breathing session error:", e);
+    }
+  };
+
   // Breathing Loop
   useEffect(() => {
     if (breathingState === "active") {
@@ -654,7 +978,7 @@ function LungConnectHubContent() {
           if (prev + 1 >= totalSecondsTarget) {
             clearInterval(breathingTimerRef.current);
             setBreathingState("completed");
-            toast.success("Breathing session completed! Well done.");
+            triggerBreathingAutoPersistence(totalSecondsTarget);
             return totalSecondsTarget;
           }
 
@@ -700,6 +1024,8 @@ function LungConnectHubContent() {
   }, [breathingState, breathingDurationMinutes, breathingExercise]);
 
   const handleStartBreathing = () => {
+    breathingCompletingRef.current = false;
+    setBreathingAcknowledged(false);
     setBreathingElapsedSeconds(0);
     setBreathingCycles(0);
     setBreathingPhase("Inhale");
@@ -707,37 +1033,13 @@ function LungConnectHubContent() {
   };
 
   const handleSaveBreathingSession = async () => {
-    const sessionRecord = {
-      action: "complete",
-      user_id: userId || "usr_guest",
-      activity_type: "lung_breathing",
-      target_duration_minutes: breathingDurationMinutes,
-      accumulated_active_seconds: breathingElapsedSeconds,
-      breathing_preset:
-        breathingExercise === "box"
-          ? "Box Breathing (4-4-4-4)"
-          : breathingExercise === "525"
-          ? "Deep Calming (5-2-5)"
-          : "4-7-8 Calming",
-      cycles_completed: breathingCycles,
-    };
-
-    try {
-      await fetch("/api/v1/lung/activity-sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sessionRecord),
-      });
-      toast.success("Breathing session saved successfully!");
-      fetchActivities();
-      fetchProgress();
-      fetchHubData();
-    } catch (e) {
-      console.warn("Could not save breathing session:", e);
+    if (!breathingAcknowledged) {
+      await triggerBreathingAutoPersistence(breathingElapsedSeconds);
     }
-
     setIsBreathingModalOpen(false);
     setBreathingState("setup");
+    breathingCompletingRef.current = false;
+    setBreathingAcknowledged(false);
   };
 
   // Consultation Handoff simulation (B12-S03)
@@ -843,7 +1145,7 @@ function LungConnectHubContent() {
             {/* Care Episode Active Pill (B11) */}
             <div className="hidden sm:flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-xs px-2.5 py-1 rounded-[5px] border border-emerald-200 font-medium">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Episode: LCE-2026-0842</span>
+              <span>Episode: {hubData?.care_episode?.episode_id || (userId ? `LCE-2026-${String(userId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase()}` : "LCE-2026-ACTIVE")}</span>
             </div>
 
             <Link
@@ -967,7 +1269,7 @@ function LungConnectHubContent() {
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] text-slate-700 uppercase font-semibold">Clinical Status</div>
+                        <div className="text-[10px] text-slate-700 uppercase font-semibold">Assessment Status</div>
                         <div className="mt-0.5">
                           <span className="inline-block text-[11px] font-bold px-2 py-0.5 rounded-[4px] border bg-emerald-50 text-emerald-700 border-emerald-200">
                             Validated & Active
@@ -1181,9 +1483,7 @@ function LungConnectHubContent() {
                         Status: Baseline Verified
                       </div>
                     </div>
-                    <div className="text-[11px] text-slate-600 mt-2">
-                      Calculated Respiratory Age: {progressData?.latest_assessment?.calculated_age || 38} years
-                    </div>
+
                   </div>
                 </div>
               )}
@@ -1192,7 +1492,7 @@ function LungConnectHubContent() {
               {currentB21State === "S03" && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Latest Card */}
+                    {/* Latest Assessment Card */}
                     <div className="bg-white border border-slate-200 rounded-[5px] p-4 shadow-xs">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] font-bold uppercase bg-blue-100 text-[#003358] px-2 py-0.5 rounded-[5px]">
@@ -1201,18 +1501,15 @@ function LungConnectHubContent() {
                         <span className="text-xs text-slate-800 font-medium">
                           {progressData?.latest_assessment?.date
                             ? new Date(progressData.latest_assessment.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-                            : "17 Sept 2026"}
+                            : "—"}
                         </span>
                       </div>
                       <div className="text-xl sm:text-2xl font-bold font-mono text-[#003358]">
-                        Status: Validated Check
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-1">
-                        Respiratory Age: {progressData?.latest_assessment?.calculated_age || 38} yrs
+                        Assessment Recorded
                       </div>
                     </div>
 
-                    {/* Previous Card */}
+                    {/* Previous Assessment Card */}
                     <div className="bg-white border border-slate-200 rounded-[5px] p-4 shadow-xs">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-900 px-2 py-0.5 rounded-[5px]">
@@ -1221,14 +1518,11 @@ function LungConnectHubContent() {
                         <span className="text-xs text-slate-800 font-medium">
                           {progressData?.previous_assessment?.date
                             ? new Date(progressData.previous_assessment.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-                            : "4 Sept 2026"}
+                            : "—"}
                         </span>
                       </div>
                       <div className="text-xl sm:text-2xl font-bold font-mono text-slate-900">
-                        Status: Baseline Verified
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-1">
-                        Respiratory Age: {progressData?.previous_assessment?.calculated_age || 38} yrs
+                        Baseline Recorded
                       </div>
                     </div>
                   </div>
@@ -1262,7 +1556,7 @@ function LungConnectHubContent() {
                             : "text-slate-700 bg-slate-100 border-slate-300"
                         }`}>
                           <span>{isPositive ? "↑" : isNegative ? "↓" : "•"}</span>
-                          <span>{progressData?.recorded_change?.formatted || "Consistent & Maintained"}</span>
+                          <span>{(progressData?.recorded_change?.formatted || "Consistent & Maintained").replace(/score/gi, "Status")}</span>
                         </div>
                       </div>
                     );
@@ -1572,7 +1866,7 @@ function LungConnectHubContent() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-extrabold text-[#0067A1] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-[5px]">
-                      6 / 12 Unlocked
+                      {unlockedMilestoneCount} / {userMilestones.length} Unlocked
                     </span>
                     <button
                       type="button"
@@ -1608,27 +1902,24 @@ function LungConnectHubContent() {
                 </div>
 
                 <div className="flex items-center justify-center py-1">
-                  <AnimatedTrophyMilestone unlockedCount={6} totalCount={12} size="sm" />
+                  <AnimatedTrophyMilestone unlockedCount={unlockedMilestoneCount} totalCount={userMilestones.length} size="sm" />
                 </div>
 
                 {/* Next Milestone Card (ui15.png) */}
                 <div className="bg-sky-50/70 border border-sky-200 rounded-[5px] p-3 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-[#0067A1] block">Next Milestone</span>
-                    <span className="text-xs font-bold text-slate-950">7 Activities</span>
+                    <span className="text-xs font-bold text-slate-950">
+                      {nextMilestone ? nextMilestone.title : "All Current Milestones Achieved"}
+                    </span>
                   </div>
-                  <span className="text-xs font-medium text-slate-800">Complete 1 more activity</span>
+                  <span className="text-xs font-medium text-slate-800">
+                    {nextMilestone ? nextMilestone.desc : "Consistent wellness practice maintained"}
+                  </span>
                 </div>
 
                 <div className="space-y-2">
-                  {[
-                    { title: "Getting Started", desc: "Joined MediConnect.Fit", date: "4 Sept 2026", done: true },
-                    { title: "First Activity", desc: "Completed your first activity", date: "5 Sept 2026", done: true },
-                    { title: "3 Activities", desc: "Completed 3 activity sessions", date: "8 Sept 2026", done: true },
-                    { title: "5 Activities", desc: "Completed 5 activity sessions", date: "12 Sept 2026", done: true },
-                    { title: "7 Activities", desc: "Complete 1 more activity", date: "In Progress", done: false },
-                    { title: "10 Activities", desc: "Complete 3 more activities", date: "Upcoming", done: false },
-                  ]
+                  {userMilestones
                     .filter((m) => {
                       if (milestoneFilter === "achieved") return m.done;
                       if (milestoneFilter === "in_progress") return !m.done;
@@ -1664,20 +1955,23 @@ function LungConnectHubContent() {
                 </div>
 
                 <div className="bg-amber-50/70 border border-amber-200 rounded-[5px] p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <AnimatedFlameStreak days={5} size="md" showCount={true} />
+                  <AnimatedFlameStreak days={streakData.currentStreak} size="md" showCount={true} />
 
                   {/* Weekday dots (M T W T F S S) */}
                   <div className="flex gap-1.5">
-                    {["M", "T", "W", "T", "F", "S", "S"].map((day, idx) => (
-                      <div key={idx} className="flex flex-col items-center">
-                        <div className={`w-7 h-7 rounded-[4px] flex items-center justify-center text-[10px] font-bold ${
-                          idx < 5 ? "bg-amber-600 text-white shadow-2xs" : "bg-white border border-amber-200 text-slate-800"
-                        }`}>
-                          {idx < 5 ? "✓" : day}
+                    {["M", "T", "W", "T", "F", "S", "S"].map((day, idx) => {
+                      const isDayChecked = streakData.weekCheckmarks[idx];
+                      return (
+                        <div key={idx} className="flex flex-col items-center">
+                          <div className={`w-7 h-7 rounded-[4px] flex items-center justify-center text-[10px] font-bold ${
+                            isDayChecked ? "bg-amber-600 text-white shadow-2xs" : "bg-white border border-slate-200 text-slate-700"
+                          }`}>
+                            {isDayChecked ? "✓" : day}
+                          </div>
+                          <span className="text-[9px] font-bold text-slate-700 mt-0.5">{day}</span>
                         </div>
-                        <span className="text-[9px] font-bold text-slate-700 mt-0.5">{day}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1686,8 +1980,10 @@ function LungConnectHubContent() {
                   <div className="flex items-center gap-2.5">
                     <Award className="w-5 h-5 text-amber-600" />
                     <div>
-                      <div className="font-bold text-slate-950">Longest Streak: 12 Days</div>
-                      <div className="text-[11px] text-slate-800">Achieved on 12 Sept 2026</div>
+                      <div className="font-bold text-slate-950">Longest Streak: {streakData.longestStreak} {streakData.longestStreak === 1 ? "Day" : "Days"}</div>
+                      <div className="text-[11px] text-slate-800">
+                        {streakData.currentStreak > 0 ? `Active streak recorded` : `Complete daily activities to build your streak`}
+                      </div>
                     </div>
                   </div>
                   <span className="text-xs font-mono font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-[5px]">Personal Best</span>
@@ -1696,17 +1992,18 @@ function LungConnectHubContent() {
                 {/* Streak History List (ui15.png B10-S02) */}
                 <div className="space-y-1.5 pt-1">
                   <span className="text-[10px] uppercase font-bold text-slate-700 block">Streak History</span>
-                  {[
-                    { range: "12 Sept – 16 Sept 2026", days: "5 Days" },
-                    { range: "5 Sept – 10 Sept 2026", days: "6 Days" },
-                    { range: "28 Aug – 31 Aug 2026", days: "4 Days" },
-                    { range: "21 Aug – 23 Aug 2026", days: "3 Days" },
-                  ].map((s, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2 rounded-[5px] bg-slate-50 border border-slate-200 text-xs">
-                      <span className="text-slate-800 font-medium">{s.range}</span>
-                      <span className="font-bold text-[#003358]">{s.days}</span>
+                  {streakData.history.length > 0 ? (
+                    streakData.history.map((s, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 rounded-[5px] bg-slate-50 border border-slate-200 text-xs">
+                        <span className="text-slate-800 font-medium">{s.range}</span>
+                        <span className="font-bold text-[#003358]">{s.days}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-3 text-center bg-slate-50 border border-dashed border-slate-200 rounded-[5px] text-xs text-slate-500">
+                      No streak history yet. Log activities daily to establish records.
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
 
@@ -2166,7 +2463,7 @@ function LungConnectHubContent() {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-slate-950">Care Episode Continuity</h3>
-                    <p className="text-xs text-slate-800">Active Care Episode: LCE-2026-0842</p>
+                    <p className="text-xs text-slate-800">Active Care Episode: {activeCareEpisodeId}</p>
                   </div>
                 </div>
                 <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-[5px] border border-emerald-200">
@@ -2176,18 +2473,10 @@ function LungConnectHubContent() {
 
               {/* Animated Care Episode Pulse Continuity Line (ui17.png B11-S01) */}
               <AnimatedCarePulse
-                episodeId={hubData?.care_episode?.id ? `LCE-2026-${String(hubData.care_episode.id).slice(-4).toUpperCase()}` : "LCE-2026-0842"}
+                episodeId={activeCareEpisodeId}
                 activeStage={2}
-                startDate={
-                  hubData?.care_episode?.created_at
-                    ? new Date(hubData.care_episode.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-                    : "4 Sep 2026"
-                }
-                recordedDate={
-                  recentActivities?.[0]?.created_at
-                    ? new Date(recentActivities[0].created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
-                    : "28 Sep 2026"
-                }
+                startDate={careEpisodeStartDate}
+                recordedDate={careEpisodeRecordedDate}
               />
 
               <div className="text-xs text-slate-800 bg-slate-50 border border-slate-200 p-3 rounded-[5px] space-y-1">
@@ -2747,7 +3036,9 @@ function LungConnectHubContent() {
                         </div>
                         <div className="flex justify-between pt-1 border-t border-slate-200 text-[10px] text-slate-600">
                           <span>Recording Mode:</span>
-                          <span>Authoritative Activity Session</span>
+                          <span className={breathingAcknowledged ? "text-emerald-700 font-bold" : "text-slate-600 font-medium"}>
+                            {breathingAcknowledged ? "✓ Backend Persisted & Verified" : "Authoritative Activity Session"}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -2755,7 +3046,11 @@ function LungConnectHubContent() {
                     <div className="flex gap-2 pt-2">
                       <button
                         type="button"
-                        onClick={() => setBreathingState("setup")}
+                        onClick={() => {
+                          setBreathingState("setup");
+                          breathingCompletingRef.current = false;
+                          setBreathingAcknowledged(false);
+                        }}
                         className="flex-1 py-2.5 rounded-[5px] border border-slate-300 text-xs font-bold text-slate-900 hover:bg-slate-50 cursor-pointer"
                       >
                         Do Another
@@ -2984,7 +3279,7 @@ function LungConnectHubContent() {
                   <div className="py-6 space-y-3">
                     <LottieAnimation type="loading" className="w-16 h-16 mx-auto" />
                     <h4 className="text-sm font-bold text-slate-950">Connecting...</h4>
-                    <p className="text-slate-800 text-xs">Verifying Care Episode LCE-2026-0842 and patient authorization...</p>
+                    <p className="text-slate-800 text-xs">Verifying Care Episode {activeCareEpisodeId} and patient authorization...</p>
                   </div>
                 )}
 
@@ -3241,6 +3536,8 @@ function LungConnectHubContent() {
                           ? "border-emerald-600 bg-emerald-600"
                           : cp.status === "current"
                           ? "border-[#0067A1] bg-[#0067A1] ring-2 ring-blue-200"
+                          : cp.status === "pending"
+                          ? "border-amber-500 bg-amber-500 ring-2 ring-amber-100"
                           : "border-slate-300 bg-white"
                       }`} />
 
@@ -3251,6 +3548,8 @@ function LungConnectHubContent() {
                             ? "bg-emerald-100 text-emerald-800"
                             : cp.status === "current"
                             ? "bg-blue-100 text-blue-900 animate-pulse"
+                            : cp.status === "pending"
+                            ? "bg-amber-100 text-amber-800 border border-amber-200"
                             : "bg-slate-200 text-slate-700"
                         }`}>
                           {cp.status === "completed" ? (
@@ -3263,6 +3562,11 @@ function LungConnectHubContent() {
                               <MapPin className="w-3 h-3 text-blue-700" />
                               <span>Current Target</span>
                             </>
+                          ) : cp.status === "pending" ? (
+                            <>
+                              <Clock className="w-3 h-3 text-amber-700" />
+                              <span>Pending Check</span>
+                            </>
                           ) : (
                             "Upcoming"
                           )}
@@ -3270,7 +3574,7 @@ function LungConnectHubContent() {
                       </div>
                       <p className="text-[11px] text-slate-700 mt-1">{cp.desc}</p>
                       <span className="text-[10px] font-mono text-slate-600 mt-1 block font-medium">
-                        Target Date: {cp.date} {cp.status === "current" ? "(Next Milestone Target)" : ""}
+                        Target Date: {cp.date} {cp.status === "current" ? "(Next Milestone Target)" : cp.status === "pending" ? "(No assessment recorded)" : ""}
                       </span>
                     </div>
                   ))}
@@ -3371,7 +3675,6 @@ function LungConnectHubContent() {
                     </div>
 
                     <div className="text-[11px] text-slate-800 space-y-1">
-                      <div><strong>Respiratory Age:</strong> {progressData?.latest_assessment?.calculated_age || 38} years</div>
                       <div><strong>Functional Status:</strong> Normal outdoor walking tolerance maintained</div>
                       <div><strong>Status:</strong> Authoritative clinical assessment verified</div>
                     </div>
@@ -3406,7 +3709,6 @@ function LungConnectHubContent() {
                       </div>
 
                       <div className="text-[11px] text-slate-800 space-y-1">
-                        <div><strong>Respiratory Age:</strong> {progressData.previous_assessment.calculated_age || 38} years</div>
                         <div><strong>Clinical Note:</strong> Initial clinical baseline established on enrolment</div>
                       </div>
                     </div>
@@ -3463,57 +3765,35 @@ function LungConnectHubContent() {
                 <div className="bg-amber-50/70 border border-amber-200 rounded-[5px] p-3 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] font-bold uppercase text-amber-900 block">Total Progression</span>
-                    <div className="text-sm font-extrabold text-[#003358]">6 of 12 Milestones Unlocked</div>
+                    <div className="text-sm font-extrabold text-[#003358]">{unlockedMilestoneCount} of {userMilestones.length} Milestones Unlocked</div>
                   </div>
                   <span className="text-xs font-mono font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-[5px]">
-                    50% Complete
+                    {Math.round((unlockedMilestoneCount / userMilestones.length) * 100)}% Complete
                   </span>
                 </div>
 
-                {/* September 2026 Group */}
                 <div className="space-y-2">
-                  <span className="text-[10px] uppercase font-bold text-slate-700 block tracking-wider">September 2026</span>
-                  {[
-                    { title: "5 Activities Completed", desc: "Completed 5 activity sessions across Move, 6MWT, and Breathing", date: "15 Sept 2026" },
-                    { title: "3 Activities Completed", desc: "Sustained respiratory activity progression", date: "12 Sept 2026" },
-                    { title: "First Activity Completed", desc: "Logged initial 15-minute outdoor walk session", date: "6 Sept 2026" },
-                    { title: "Getting Started", desc: "Joined MediConnect LungConnect wellness hub", date: "4 Sept 2026" },
-                    { title: "5-Day Streak", desc: "Maintained 5 consecutive days of daily respiratory wellness", date: "10 Sept 2026" },
-                  ].map((m, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2.5 rounded-[5px] bg-slate-50 border border-slate-200 text-xs">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0">
-                          ✓
+                  <span className="text-[10px] uppercase font-bold text-slate-700 block tracking-wider">Unlocked Milestones</span>
+                  {userMilestones.filter((m) => m.done).length > 0 ? (
+                    userMilestones.filter((m) => m.done).map((m, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2.5 rounded-[5px] bg-slate-50 border border-slate-200 text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0">
+                            ✓
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-950">{m.title}</div>
+                            <div className="text-[11px] text-slate-700">{m.desc}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-bold text-slate-950">{m.title}</div>
-                          <div className="text-[11px] text-slate-700">{m.desc}</div>
-                        </div>
+                        <span className="text-[11px] font-mono text-slate-600 shrink-0 ml-2">{m.date}</span>
                       </div>
-                      <span className="text-[11px] font-mono text-slate-600 shrink-0 ml-2">{m.date}</span>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center bg-slate-50 border border-dashed border-slate-200 rounded-[5px] text-xs text-slate-500">
+                      No milestones unlocked yet. Complete your first activity or assessment to unlock!
                     </div>
-                  ))}
-                </div>
-
-                {/* August 2026 Group */}
-                <div className="space-y-2">
-                  <span className="text-[10px] uppercase font-bold text-slate-700 block tracking-wider">August 2026</span>
-                  {[
-                    { title: "Profile Registered", desc: "Enrolled in personalized lung health management", date: "28 Aug 2026" },
-                  ].map((m, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2.5 rounded-[5px] bg-slate-50 border border-slate-200 text-xs">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0">
-                          ✓
-                        </div>
-                        <div>
-                          <div className="font-bold text-slate-950">{m.title}</div>
-                          <div className="text-[11px] text-slate-700">{m.desc}</div>
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-mono text-slate-600 shrink-0 ml-2">{m.date}</span>
-                    </div>
-                  ))}
+                  )}
                 </div>
 
                 <button

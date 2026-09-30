@@ -197,6 +197,34 @@ const BUILTIN_LOTTIE_PRESETS = {
   },
 };
 
+class SafeLottieErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.warn("LottieAnimation caught runtime error gracefully:", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-center justify-center w-full h-full text-amber-500 animate-pulse">
+          <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+          </svg>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 /**
  * LottieAnimation
  * Universal client-side Lottie player supporting built-in presets ('celebration', 'breathing', 'loading')
@@ -233,13 +261,16 @@ export default function LottieAnimation({
   }
 
   return (
-    <div className={`flex items-center justify-center ${className}`}>
-      <Lottie
-        animationData={activeData}
-        loop={loop}
-        autoPlay={autoplay}
-        style={{ width: "100%", height: "100%" }}
-      />
-    </div>
+    <SafeLottieErrorBoundary>
+      <div className={`flex items-center justify-center ${className}`}>
+        <Lottie
+          animationData={activeData}
+          loop={loop}
+          autoPlay={autoplay}
+          style={{ width: "100%", height: "100%" }}
+        />
+      </div>
+    </SafeLottieErrorBoundary>
   );
 }
+

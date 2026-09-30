@@ -143,7 +143,7 @@ export default function LungConnectFullReport({
         {/* 4-Quadrant Clinical Matrix Table */}
         <div style={{ marginBottom: "14px" }}>
           <div style={{ fontSize: "11.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
-            CLINICAL EVALUATION MATRIX
+            ASSESSMENT SUMMARY MATRIX
           </div>
           <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #cbd5e1", fontSize: "10.5px" }}>
             <thead>

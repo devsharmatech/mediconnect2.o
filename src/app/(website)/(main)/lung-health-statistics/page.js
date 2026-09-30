@@ -69,14 +69,43 @@ export default function LungHealthStatisticsPage() {
   const [graphData, setGraphData] = useState(null);
   const [summary, setSummary] = useState(null);
   const [history, setHistory] = useState([]);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        let resolvedId = localStorage.getItem("userId") || localStorage.getItem("patient_id");
+        if (resolvedId === "undefined" || resolvedId === "null" || resolvedId === "guest") {
+          resolvedId = null;
+        }
+        let resolvedName = "Patient";
+        let extraUser = {};
+
+        const raw = localStorage.getItem("user") || localStorage.getItem("userData");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          extraUser = parsed;
+          resolvedId = resolvedId || parsed.id || parsed.user_id || parsed.user?.id || null;
+          resolvedName = parsed.name || parsed.full_name || parsed.details?.full_name || resolvedName;
+        }
+
+        if (resolvedId) {
+          return {
+            id: resolvedId,
+            name: resolvedName,
+            ...extraUser,
+          };
+        }
+      } catch (e) {
+        console.warn("Could not read user data:", e);
+      }
+    }
+    return null;
+  });
   const [breathingStats, setBreathingStats] = useState({ totalSessions: 0, totalMinutes: 0 });
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
 
   // Modal and print report states
   const [selectedAssessmentForModal, setSelectedAssessmentForModal] = useState(null);
@@ -112,11 +141,14 @@ export default function LungHealthStatisticsPage() {
       }
     }
 
-    setUser({
-      id: resolvedId || "guest",
-      name: resolvedName,
-      ...extraUser,
-    });
+    if (resolvedId) {
+      setUser((prev) => ({
+        ...(prev || {}),
+        id: resolvedId,
+        name: resolvedName,
+        ...extraUser,
+      }));
+    }
   }, []);
 
   useEffect(() => {
@@ -125,12 +157,31 @@ export default function LungHealthStatisticsPage() {
         setLoading(true);
         setError(null);
 
-        const targetUserId = user?.id && user.id !== "guest" ? user.id : "";
+        let targetUserId = user?.id && user.id !== "guest" ? user.id : "";
+        if (!targetUserId && typeof window !== "undefined") {
+          targetUserId = localStorage.getItem("userId") || localStorage.getItem("patient_id") || "";
+          if (targetUserId === "undefined" || targetUserId === "null" || targetUserId === "guest") targetUserId = "";
+          if (!targetUserId) {
+            try {
+              const raw = localStorage.getItem("user") || localStorage.getItem("userData");
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                targetUserId = parsed.id || parsed.user_id || parsed.user?.id || "";
+              }
+            } catch (_) {}
+          }
+        }
 
-        // 1. Fetch graph data & history
-        const graphUrl = targetUserId
-          ? `/api/health/assessments/graph?user_id=${targetUserId}&type=lung&timeframe=${timeframe}&limit=100`
-          : `/api/health/assessments/graph?type=lung&timeframe=${timeframe}&limit=100`;
+        if (!targetUserId) {
+          setLoading(false);
+          setGraphData(null);
+          setSummary(null);
+          setHistory([]);
+          return;
+        }
+
+        // 1. Fetch graph data & history for the authenticated user
+        const graphUrl = `/api/health/assessments/graph?user_id=${targetUserId}&type=lung&timeframe=${timeframe}&limit=100`;
 
         const graphRes = await fetch(graphUrl);
         const graphJson = await graphRes.json();
@@ -142,9 +193,7 @@ export default function LungHealthStatisticsPage() {
 
         // 2. Fetch breathing wellness sessions
         try {
-          const breathUrl = targetUserId
-            ? `/api/health/breathing?user_id=${targetUserId}&limit=50`
-            : `/api/health/breathing?limit=50`;
+          const breathUrl = `/api/health/breathing?user_id=${targetUserId}&limit=50`;
           const breathRes = await fetch(breathUrl);
           const breathJson = await breathRes.json();
           let sessions = 0;
@@ -157,7 +206,7 @@ export default function LungHealthStatisticsPage() {
           // Also check lung_activity_sessions breathing stats via lung progress API
           if (sessions === 0) {
             try {
-              const progUrl = targetUserId ? `/api/v1/lung/progress?user_id=${targetUserId}` : `/api/v1/lung/progress`;
+              const progUrl = `/api/v1/lung/progress?user_id=${targetUserId}`;
               const progRes = await fetch(progUrl);
               const progJson = await progRes.json();
               if (progJson.success && progJson.data?.stats) {
@@ -178,12 +227,12 @@ export default function LungHealthStatisticsPage() {
     };
 
     fetchAllData();
-  }, [user, timeframe]);
+  }, [user?.id, timeframe]);
 
   // Extract raw trend points
   const rawTrend = graphData?.healthScoreTrend?.filter((p) => p.type === "lung") || [];
 
-  // Match detailed inputs to trend points
+  // Match detailed inputs to trend points with strict numeric validation
   const enrichedTrend = useMemo(() => {
     return rawTrend.map((point) => {
       const historyMatch = history.find((h) => h.id === point.assessmentId);
@@ -193,13 +242,18 @@ export default function LungHealthStatisticsPage() {
         ? `LCN-${new Date(point.date).getFullYear()}-${String(point.assessmentId).replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`
         : "LCN-REC");
 
+      const rawBH = Number(lungInputs.breathHoldingTime);
+      const rawPF = Number(lungInputs.peakFlow);
+      const rawAQI = Number(envInputs.aqi);
+      const rawBPM = Number(lungInputs.breathsPerMinute);
+
       return {
         ...point,
         serialNo,
-        breathHold: lungInputs.breathHoldingTime || 35,
-        peakFlow: lungInputs.peakFlow || 450,
-        aqi: envInputs.aqi || 60,
-        breathsPerMinute: lungInputs.breathsPerMinute || 16,
+        breathHold: !isNaN(rawBH) && rawBH > 0 ? rawBH : (Number(point.breathHold) || 35),
+        peakFlow: !isNaN(rawPF) && rawPF > 0 ? rawPF : (Number(point.peakFlow) || 450),
+        aqi: !isNaN(rawAQI) && rawAQI > 0 ? rawAQI : (Number(point.aqi) || 60),
+        breathsPerMinute: !isNaN(rawBPM) && rawBPM > 0 ? rawBPM : (Number(point.breathsPerMinute) || 16),
         historyRecord: historyMatch
       };
     });
@@ -210,7 +264,7 @@ export default function LungHealthStatisticsPage() {
   const latestScore = summary?.lung?.latestScore ?? (enrichedTrend[enrichedTrend.length - 1]?.score || 75);
   const averageScore = summary?.lung?.averageScore ?? (
     enrichedTrend.length > 0
-      ? Math.round(enrichedTrend.reduce((acc, p) => acc + (p.score || 0), 0) / enrichedTrend.length)
+      ? Math.round(enrichedTrend.reduce((acc, p) => acc + (Number(p.score) || 0), 0) / enrichedTrend.length)
       : 75
   );
 
@@ -219,15 +273,15 @@ export default function LungHealthStatisticsPage() {
   const firstScore = enrichedTrend[0]?.score ?? latestScore;
   const recordedChange = latestScore - firstScore;
 
-  // Average vitals across records
+  // Average vitals across records with strict numeric parsing
   const avgBreathHold = enrichedTrend.length > 0
-    ? Math.round(enrichedTrend.reduce((acc, p) => acc + (p.breathHold || 35), 0) / enrichedTrend.length)
+    ? Math.round(enrichedTrend.reduce((acc, p) => acc + (Number(p.breathHold) || 35), 0) / enrichedTrend.length)
     : 35;
   const avgPeakFlow = enrichedTrend.length > 0
-    ? Math.round(enrichedTrend.reduce((acc, p) => acc + (p.peakFlow || 450), 0) / enrichedTrend.length)
+    ? Math.round(enrichedTrend.reduce((acc, p) => acc + (Number(p.peakFlow) || 450), 0) / enrichedTrend.length)
     : 450;
   const avgAQI = enrichedTrend.length > 0
-    ? Math.round(enrichedTrend.reduce((acc, p) => acc + (p.aqi || 60), 0) / enrichedTrend.length)
+    ? Math.round(enrichedTrend.reduce((acc, p) => acc + (Number(p.aqi) || 60), 0) / enrichedTrend.length)
     : 60;
 
   // Helper to build complete assessment object for modals and prints
@@ -437,27 +491,27 @@ export default function LungHealthStatisticsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
               
               {/* 1. Total Assessments */}
-              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between min-w-0">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
                     Total Assessments
                   </p>
                   <p className="text-2xl font-bold text-slate-900 font-mono mt-1">
                     {totalAssessments}
                   </p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                     Recorded in time window
                   </p>
                 </div>
-                <div className="w-10 h-10 rounded-[5px] bg-sky-50 flex items-center justify-center text-[#0067A1]">
+                <div className="w-10 h-10 rounded-[5px] bg-sky-50 flex items-center justify-center text-[#0067A1] shrink-0">
                   <FileText className="w-5 h-5" />
                 </div>
               </div>
 
               {/* 2. Avg Breath-Hold */}
-              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between min-w-0">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
                     Avg Breath-Hold
                   </p>
                   <div className="flex items-baseline gap-1 mt-1">
@@ -474,15 +528,15 @@ export default function LungHealthStatisticsPage() {
                     </span>
                   </div>
                 </div>
-                <div className="w-10 h-10 rounded-[5px] bg-emerald-50 flex items-center justify-center text-emerald-600">
+                <div className="w-10 h-10 rounded-[5px] bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
                   <Clock className="w-5 h-5" />
                 </div>
               </div>
 
               {/* 3. Avg Peak Flow */}
-              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between min-w-0">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
                     Avg Peak Flow
                   </p>
                   <div className="flex items-baseline gap-1 mt-1">
@@ -497,15 +551,15 @@ export default function LungHealthStatisticsPage() {
                     </span>
                   </div>
                 </div>
-                <div className="w-10 h-10 rounded-[5px] bg-blue-50 flex items-center justify-center text-[#0067A1]">
+                <div className="w-10 h-10 rounded-[5px] bg-blue-50 flex items-center justify-center text-[#0067A1] shrink-0">
                   <Wind className="w-5 h-5" />
                 </div>
               </div>
 
               {/* 4. Breathing Wellness Sessions */}
-              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+              <div className="bg-white rounded-[5px] p-4 border border-slate-200 shadow-xs flex items-center justify-between min-w-0">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider truncate">
                     Breathing Sessions
                   </p>
                   <div className="flex items-baseline gap-1 mt-1">
@@ -514,11 +568,11 @@ export default function LungHealthStatisticsPage() {
                     </span>
                     <span className="text-xs text-slate-400">completed</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
+                  <p className="text-[11px] text-slate-500 mt-0.5 truncate">
                     {breathingStats.totalMinutes} total minutes logged
                   </p>
                 </div>
-                <div className="w-10 h-10 rounded-[5px] bg-purple-50 flex items-center justify-center text-purple-600">
+                <div className="w-10 h-10 rounded-[5px] bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
                   <Sparkles className="w-5 h-5" />
                 </div>
               </div>
@@ -577,15 +631,27 @@ export default function LungHealthStatisticsPage() {
                     };
                     const cfg = metricConfig[selectedMetric] || metricConfig.score;
 
-                    // Prepare sanitized chart data
+                    // Prepare sanitized chart data with distinct chronological labels
                     const rechartsData = (enrichedTrend || [])
-                      .map((p, idx) => {
+                      .map((p, idx, arr) => {
                         const rawVal = Number(p?.[cfg.dataKey]);
                         const currentVal = (!isNaN(rawVal) && isFinite(rawVal)) ? rawVal : 0;
                         const d = p?.date ? new Date(p.date) : null;
-                        const dateLabel = d && !isNaN(d.getTime())
-                          ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                          : `Record ${idx + 1}`;
+                        let dateLabel = `Record ${idx + 1}`;
+                        if (d && !isNaN(d.getTime())) {
+                          const baseLabel = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                          const sameDayCount = arr.filter((other) => {
+                            const od = other?.date ? new Date(other.date) : null;
+                            return od && !isNaN(od.getTime()) && od.toDateString() === d.toDateString();
+                          }).length;
+
+                          if (sameDayCount > 1) {
+                            const timeStr = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+                            dateLabel = `${baseLabel} (${timeStr})`;
+                          } else {
+                            dateLabel = baseLabel;
+                          }
+                        }
 
                         return {
                           ...p,
@@ -597,7 +663,7 @@ export default function LungHealthStatisticsPage() {
 
                     // Compute average for reference line
                     const avgVal = rechartsData.length > 0
-                      ? Math.round(rechartsData.reduce((acc, p) => acc + p.currentVal, 0) / rechartsData.length)
+                      ? Math.round(rechartsData.reduce((acc, p) => acc + (Number(p.currentVal) || 0), 0) / rechartsData.length)
                       : 0;
 
                     // Custom tooltip renderer
@@ -611,7 +677,7 @@ export default function LungHealthStatisticsPage() {
                             <span>{new Date(data.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
                           </div>
                           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-                            <div><span className="text-slate-400">Score: </span><span className="font-bold text-white font-mono">{data.score}/100</span></div>
+                            <div><span className="text-slate-400">Breaths: </span><span className="font-bold text-white font-mono">{data.breathsPerMinute || 16} bpm</span></div>
                             <div><span className="text-slate-400">Breath-Hold: </span><span className="font-bold text-white font-mono">{data.breathHold}s</span></div>
                             <div><span className="text-slate-400">Peak Flow: </span><span className="font-bold text-white font-mono">{data.peakFlow} L/m</span></div>
                             <div><span className="text-slate-400">AQI: </span><span className="font-bold text-white font-mono">{data.aqi}</span></div>
@@ -731,12 +797,12 @@ export default function LungHealthStatisticsPage() {
               {/* Right Column (1/3 width): Risk Breakdown & Respiratory Benchmarks */}
               <div className="space-y-4 flex flex-col justify-between">
                 
-                {/* 1. Clinical Observation Standards */}
+                {/* 1. Assessment Benchmark Reference */}
                 <div className="bg-white rounded-[5px] p-4 sm:p-5 border border-slate-200 shadow-xs space-y-2.5">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                       <CheckCircle2 className="w-4 h-4 text-[#0067A1]" />
-                      Clinical Standards
+                      Assessment Benchmarks
                     </h3>
                     <span className="text-[10px] text-slate-400">Reference Range</span>
                   </div>
@@ -745,7 +811,7 @@ export default function LungHealthStatisticsPage() {
                   </p>
                   <div className="p-2.5 bg-sky-50/70 border border-sky-200/80 rounded-[5px] text-[11px] text-sky-950 flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-[#0067A1] shrink-0" />
-                    <span>Non-diagnostic wellness tracking under ATS/ERS clinical functional guidelines.</span>
+                    <span>Standardized respiratory wellness and functional capacity tracking protocols.</span>
                   </div>
                 </div>
 
@@ -907,7 +973,7 @@ export default function LungHealthStatisticsPage() {
                           {/* Evaluation Status */}
                           <td className="py-3 px-3 whitespace-nowrap">
                             <span className="inline-block px-2 py-0.5 rounded-[5px] text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                              Clinical Evaluation
+                              Assessment Summary
                             </span>
                           </td>
 

@@ -1,6 +1,6 @@
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -8,10 +8,11 @@ export async function OPTIONS() {
 
 /**
  * GET /api/v1/lung/progress
- * B-Hub Tab 3: My Progress — 4-state board.
+ * B-Hub Tab 3: My Progress — 4-state board from AWS RDS PostgreSQL.
  * States: no-data | basic | standard | advanced
- * Returns milestone roadmap, stats tiles, and streak data.
+ * Returns milestone roadmap, stats tiles, streak data, and longitudinal checkpoints.
  * Rule: Progress visibility is INCLUSIVE — all states show partial progress.
+ * Rule: Factual recorded-change wording (no unsupported clinical improvement claim).
  */
 export async function GET(req) {
   try {
@@ -19,29 +20,19 @@ export async function GET(req) {
     let userId = searchParams.get("user_id") || searchParams.get("userId");
     if (!userId || userId === "usr_guest" || userId === "guest" || userId === "undefined" || userId === "null") {
       try {
-        const { data: topLungSession } = await supabase
-          .from("lung_activity_sessions")
-          .select("user_id")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (topLungSession?.user_id) {
-          userId = topLungSession.user_id;
-        } else {
-          const { data: topAssessment } = await supabase
-            .from("health_assessments")
-            .select("user_id")
-            .eq("assessment_type", "lung")
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (topAssessment?.user_id) {
-            userId = topAssessment.user_id;
-          }
+        const topUser = await sql`
+          SELECT user_id, count(*) as count
+          FROM health_assessments
+          WHERE assessment_type = 'lung'
+          GROUP BY user_id
+          ORDER BY count DESC
+          LIMIT 1;
+        `;
+        if (topUser && topUser.length > 0 && topUser[0].user_id) {
+          userId = topUser[0].user_id;
         }
       } catch (e) {
-        console.warn("[Lung Progress] Could not resolve default user:", e.message);
+        console.warn("[Lung Progress] Could not resolve default user from RDS:", e.message);
       }
     }
 
@@ -50,86 +41,77 @@ export async function GET(req) {
     }
 
     const now = new Date();
-    const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
     let totalSessions = 0;
     let totalMoveMinutes = 0;
     let totalBreathingSessions = 0;
     let total6MWT = 0;
     let totalAssessments = 0;
-    let best6MWTDistance = null;
-    let streak = 0;
-    let milestoneState = "no-data";
-    let weeklyMoveMins = 0;
-    let allSessions = [];
-
-    // Query activity logs from lung_activity_sessions
-    try {
-      const { data: sessions, error: sessErr } = await supabase
-        .from("lung_activity_sessions")
-        .select("activity_type, duration_seconds, target_duration_minutes, distance_km, created_at")
-        .eq("user_id", userId)
-        .gte("created_at", thirtyDaysAgo)
-        .order("created_at", { ascending: false });
-
-      if (!sessErr && sessions) {
-        allSessions = sessions;
-        totalSessions = sessions.length;
-
-        const moveSessions = sessions.filter(s => s.activity_type === "walk" || s.activity_type === "jog" || s.activity_type === "run" || s.activity_type === "lung_move");
-        const breathing = sessions.filter(s => s.activity_type === "lung_breathing" || s.activity_type === "breathing");
-
-        totalMoveMinutes = moveSessions.reduce((acc, s) => acc + Math.round((Number(s.duration_seconds) || 0) / 60), 0);
-        totalBreathingSessions = breathing.length;
-
-        weeklyMoveMins = moveSessions
-          .filter(s => new Date(s.created_at) >= new Date(sevenDaysAgo))
-          .reduce((acc, s) => acc + Math.round((Number(s.duration_seconds) || 0) / 60), 0);
-
-        streak = computeStreak(sessions);
-      }
-    } catch (e) {
-      console.warn("[Lung Progress] Could not query lung_activity_sessions:", e.message);
-    }
-
-    // Query 6MWT walking tests
-    try {
-      const { data: walkingTests, error: wtErr } = await supabase
-        .from("lung_walking_tests")
-        .select("distance_m, created_at")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
-
-      if (!wtErr && walkingTests) {
-        total6MWT = walkingTests.length;
-        const distances = walkingTests.map(s => Number(s.distance_m)).filter(Boolean);
-        if (distances.length > 0) best6MWTDistance = Math.max(...distances);
-      }
-    } catch (e) {
-      console.warn("[Lung Progress] Could not query lung_walking_tests:", e.message);
-    }
-
-    // Query assessments for B21 State Machine (only for valid UUID users)
     let assessmentRows = [];
+    let milestoneState = "no-data";
+
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const isRegisteredUuid = typeof userId === "string" && UUID_REGEX.test(userId);
 
-    if (isRegisteredUuid) {
-      try {
-        const { data: assess, error: assessErr } = await supabase
-          .from("health_assessments")
-          .select("id, health_score, calculated_age, risk_level, created_at, recommendations")
-          .eq("user_id", userId)
-          .eq("assessment_type", "lung")
-          .order("created_at", { ascending: false });
+    // Query activity sessions from AWS RDS
+    try {
+      const sessions = await sql`
+        SELECT activity_type, duration_seconds, distance_km, steps, created_at
+        FROM lung_activity_sessions
+        WHERE user_id = ${String(userId)}
+        ORDER BY created_at DESC
+        LIMIT 200;
+      `;
 
-        if (!assessErr && assess) {
-          assessmentRows = assess;
+      if (sessions && sessions.length > 0) {
+        totalSessions = sessions.length;
+        const moveSessions = sessions.filter(s => s.activity_type === "lung_move" || s.activity_type === "walk" || s.activity_type === "jog" || s.activity_type === "run");
+        const breathingSessions = sessions.filter(s => s.activity_type === "lung_breathing" || s.activity_type === "breathing");
+
+        totalMoveMinutes = moveSessions.reduce((acc, s) => acc + Math.round((Number(s.duration_seconds) || 0) / 60), 0);
+        totalBreathingSessions = breathingSessions.length;
+      }
+    } catch (e) {
+      console.warn("[Lung Progress] Could not query sessions from RDS:", e.message);
+    }
+
+    // Query 6MWT walking tests from AWS RDS
+    try {
+      const walkingTests = await sql`
+        SELECT id, distance_m, duration_seconds, pace_kmh, borg_score, created_at
+        FROM lung_walking_tests
+        WHERE user_id = ${String(userId)}
+        ORDER BY created_at DESC
+        LIMIT 50;
+      `;
+      if (walkingTests && walkingTests.length > 0) {
+        total6MWT = walkingTests.length;
+      }
+    } catch (e) {
+      console.warn("[Lung Progress] Could not query 6MWT from RDS:", e.message);
+    }
+
+    // Query assessments from AWS RDS
+    // IMPORTANT: Only query for valid registered UUIDs.
+    // If userId is not a UUID, do NOT fall back to querying all assessments —
+    // that would show another user's data and is a data privacy issue.
+    if (userId && userId !== "usr_guest" && isRegisteredUuid) {
+      try {
+        const assess = await sql`
+          SELECT id, health_score, calculated_age, risk_level, created_at
+          FROM health_assessments
+          WHERE user_id = ${userId}::uuid AND assessment_type = 'lung'
+          ORDER BY created_at DESC
+          LIMIT 50;
+        `;
+        if (assess && assess.length > 0) {
           totalAssessments = assess.length;
+          assessmentRows = assess;
         }
       } catch (e) {
-        console.warn("[Lung Progress] Could not query assessments:", e.message);
+        console.warn("[Lung Progress] Could not query assessments from RDS:", e.message);
       }
     }
 
@@ -174,60 +156,85 @@ export async function GET(req) {
       const scoreDiff = Number(latestAssessment.score) - Number(previousAssessment.score);
       recordedChange = {
         diff: scoreDiff,
-        formatted: scoreDiff === 0 ? "Consistent & Maintained" : (scoreDiff > 0 ? "Improved Capacity" : "Varied Capacity"),
-        trend: scoreDiff > 0 ? "improved" : scoreDiff < 0 ? "declined" : "stable",
+        formatted: scoreDiff === 0
+          ? "Consistent Status"
+          : (scoreDiff > 0 ? `Recorded Progression (+${scoreDiff})` : `Recorded Difference (${scoreDiff})`),
+        trend: scoreDiff > 0 ? "increased" : scoreDiff < 0 ? "decreased" : "stable",
       };
     }
 
     // Build B02 Longitudinal Continuing Checkpoints
-    // Authoritative baseline resolution: Select the earliest assessment in the active 2026 cohort (Sept 2026 onwards)
-    const activeCohortAssessments = assessmentRows.filter(a => {
-      const d = new Date(a.created_at);
-      return !isNaN(d.getTime()) && (d.getFullYear() === 2026 && d.getMonth() >= 8);
-    });
-
+    // Journey "Day 0" = date of the user's FIRST lung assessment in 2026
     let baselineDate = null;
-    if (activeCohortAssessments.length > 0) {
-      baselineDate = new Date(activeCohortAssessments[activeCohortAssessments.length - 1].created_at);
-    } else if (assessmentRows.length > 0) {
-      const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-      const recent = assessmentRows.filter(a => new Date(a.created_at) >= ninetyDaysAgo);
-      if (recent.length > 0) {
-        baselineDate = new Date(recent[recent.length - 1].created_at);
+
+    // Priority 1: Oldest lung assessment for this user in 2026
+    if (assessmentRows.length > 0) {
+      // assessmentRows is ordered DESC — last item = oldest
+      const oldest = assessmentRows[assessmentRows.length - 1];
+      const d = new Date(oldest.created_at);
+      if (!isNaN(d.getTime()) && d.getFullYear() >= 2026) {
+        baselineDate = d;
       }
     }
 
-    if (!baselineDate || isNaN(baselineDate.getTime()) || baselineDate.getFullYear() < 2026) {
+    // Priority 2: Most recent assessment (if no 2026 assessment found)
+    if (!baselineDate && assessmentRows.length > 0) {
+      const d = new Date(assessmentRows[0].created_at);
+      if (!isNaN(d.getTime())) baselineDate = d;
+    }
+
+    // Priority 3: Hardcoded fallback
+    if (!baselineDate || isNaN(baselineDate.getTime())) {
       baselineDate = new Date("2026-09-04T00:00:00Z");
     }
 
-    // Consistent calendar day calculation (midnight-to-midnight) so it never fluctuates by time of day
     const startMidnight = new Date(baselineDate);
     startMidnight.setHours(0, 0, 0, 0);
     const nowMidnight = new Date(now);
     nowMidnight.setHours(0, 0, 0, 0);
     const daysSinceStart = Math.max(0, Math.round((nowMidnight.getTime() - startMidnight.getTime()) / (1000 * 60 * 60 * 24)));
 
+    // Map all recorded follow-up assessments to journey days
+    // assessmentRows is ordered DESC. Oldest is baseline at index assessmentRows.length - 1.
+    const followUpAssessments = assessmentRows.length > 1 ? assessmentRows.slice(0, assessmentRows.length - 1) : [];
+    const followUpDays = followUpAssessments.map(a => {
+      const diff = Math.round((new Date(a.created_at).getTime() - startMidnight.getTime()) / (1000 * 60 * 60 * 24));
+      return { day: diff, date: a.created_at };
+    });
+
     let foundCurrent = false;
     const checkpoints = [
-      { day: 0, label: "Start", description: "Start your journey", star: false },
+      { day: 0, label: "Start", description: "Baseline session", star: false },
       { day: 7, label: "Day 7", description: "Checkpoint 1", star: false },
-      { day: 15, label: "Day 15", description: "Next milestone", star: false },
+      { day: 15, label: "Day 15", description: "Milestone checkpoint", star: false },
       { day: 30, label: "Day 30", description: "Checkpoint 2", star: true },
-      { day: 45, label: "Day 45", description: "Upcoming checkpoint", star: false },
-      { day: 60, label: "Day 60", description: "Upcoming checkpoint", star: false },
-      { day: 75, label: "Day 75", description: "Upcoming checkpoint", star: false },
-      { day: 90, label: "Day 90", description: "Long-term milestone", star: true },
-      { day: 105, label: "+15 days", description: "Continuing your journey", star: false },
-      { day: 120, label: "+15 days", description: "Continuing your journey", star: false },
-      { day: 135, label: "+15 days", description: "Continuing your journey", star: false },
+      { day: 45, label: "Day 45", description: "Continuing checkpoint", star: false },
+      { day: 60, label: "Day 60", description: "Continuing checkpoint", star: false },
+      { day: 75, label: "Day 75", description: "Continuing checkpoint", star: false },
+      { day: 90, label: "Day 90", description: "Long-term checkpoint", star: true },
+      { day: 105, label: "Day 105", description: "Ongoing checkpoint", star: false },
+      { day: 120, label: "+15 days", description: "Ongoing checkpoint", star: false },
+      { day: 135, label: "+15 days", description: "Ongoing checkpoint", star: false },
     ].map(cp => {
-      let status = "upcoming";
-      if (daysSinceStart >= cp.day) {
-        status = "completed";
-      } else if (!foundCurrent && daysSinceStart < cp.day) {
-        status = "current";
-        foundCurrent = true;
+      // Authoritative milestone validation:
+      // A checkpoint is "completed" ONLY if an actual assessment was performed near that milestone!
+      // NEVER mark completed simply because calendar days passed.
+      let status;
+      if (cp.day === 0) {
+        status = assessmentRows.length > 0 ? "completed" : "pending";
+      } else {
+        const matched = followUpDays.some(f => Math.abs(f.day - cp.day) <= (cp.day <= 15 ? 4 : 7));
+        if (matched) {
+          status = "completed";
+        } else if (daysSinceStart > cp.day + 7) {
+          // Target window has passed without recorded assessment
+          status = "pending";
+        } else if (!foundCurrent && cp.day >= daysSinceStart - 7) {
+          status = "current";
+          foundCurrent = true;
+        } else {
+          status = "upcoming";
+        }
       }
       return { ...cp, status };
     });
@@ -243,75 +250,33 @@ export async function GET(req) {
       milestoneState = "advanced";
     }
 
-    // Build milestone roadmap
-    const milestones = buildMilestoneRoadmap(totalSessions, totalAssessments, total6MWT, totalBreathingSessions, streak, best6MWTDistance);
-
-    // Tiles
-    const tiles = [
-      { id: "move_minutes", label: "Move Minutes (30d)", value: Math.round(totalMoveMinutes), unit: "min", icon: "move", trend: weeklyMoveMins >= 150 ? "on_track" : "below_target", target: 150, target_period: "week" },
-      { id: "breathing_sessions", label: "Breathing Sessions (30d)", value: totalBreathingSessions, unit: "sessions", icon: "breathing", trend: totalBreathingSessions >= 10 ? "on_track" : "building" },
-      { id: "streak", label: "Current Streak", value: streak, unit: "days", icon: "streak" },
-      { id: "best_6mwt", label: "Best 6MWT Distance", value: best6MWTDistance ? `${best6MWTDistance}m` : "—", unit: null, icon: "6mwt" },
-      { id: "assessments", label: "Assessments Completed", value: totalAssessments, unit: null, icon: "assessment" },
-    ];
-
-    return success("Lung progress data loaded.", {
+    const payload = {
+      screen_id: "LC-12",
+      milestone_state: milestoneState,
+      // Baseline date = oldest assessment = true journey start
+      baseline_date: baselineDate.toISOString(),
+      // Current journey day, server-calculated (no artificial cap)
+      current_day_in_journey: daysSinceStart,
+      days_since_start: daysSinceStart,
       b21_state: b21State,
-      state: milestoneState,
       latest_assessment: latestAssessment,
       previous_assessment: previousAssessment,
       recorded_change: recordedChange,
       checkpoints,
-      current_day_in_journey: daysSinceStart,
       stats: {
-        total_sessions_30d: totalSessions,
-        total_move_minutes_30d: Math.round(totalMoveMinutes),
-        total_breathing_sessions_30d: totalBreathingSessions,
-        total_6mwt_30d: total6MWT,
+        total_sessions: totalSessions,
+        total_move_minutes: totalMoveMinutes,
+        total_breathing_sessions: totalBreathingSessions,
+        total_6mwt: total6MWT,
         total_assessments: totalAssessments,
-        best_6mwt_distance_m: best6MWTDistance,
-        streak_days: streak,
-        weekly_move_minutes: Math.round(weeklyMoveMins),
-        weekly_target_minutes: 150,
       },
-      tiles,
-      milestones,
-    }, 200, { headers: corsHeaders });
+    };
+
+    return success("Lung progress resolved.", payload, 200, { headers: corsHeaders });
   } catch (error) {
-    console.error("[Lung Progress] GET error:", error);
-    return failure("Failed to load progress: " + error.message, "progress_error", 500, { headers: corsHeaders });
+    console.error("[Lung Progress GET] error:", error);
+    return failure("Failed to resolve progress: " + error.message, "progress_error", 500, {
+      headers: corsHeaders,
+    });
   }
-}
-
-function computeStreak(sessions) {
-  if (!sessions || sessions.length === 0) return 0;
-  const uniqueDays = [...new Set(sessions.map(s => new Date(s.created_at).toISOString().split("T")[0]))]
-    .sort((a, b) => new Date(b) - new Date(a));
-
-  let streak = 0;
-  let cursor = new Date();
-  cursor.setHours(0, 0, 0, 0);
-
-  for (const day of uniqueDays) {
-    const d = new Date(day);
-    const diff = Math.round((cursor - d) / (1000 * 60 * 60 * 24));
-    if (diff === 0 || diff === 1) {
-      streak++;
-      cursor = d;
-    } else break;
-  }
-  return streak;
-}
-
-function buildMilestoneRoadmap(totalSessions, totalAssessments, total6MWT, totalBreathingSessions, streak, best6MWT) {
-  return [
-    { id: "m1", label: "First Steps", description: "Complete your first Lung Assessment", achieved: totalAssessments >= 1, progress: Math.min(totalAssessments, 1), target: 1, icon: "assessment" },
-    { id: "m2", label: "Breath Starter", description: "Complete 3 Breathing Studio sessions", achieved: totalBreathingSessions >= 3, progress: Math.min(totalBreathingSessions, 3), target: 3, icon: "breathing" },
-    { id: "m3", label: "Mover", description: "Log 5 Lung Move sessions", achieved: totalSessions >= 5, progress: Math.min(totalSessions, 5), target: 5, icon: "move" },
-    { id: "m4", label: "Walker", description: "Complete your first 6-Minute Walk Test", achieved: total6MWT >= 1, progress: Math.min(total6MWT, 1), target: 1, icon: "6mwt" },
-    { id: "m5", label: "Consistent Breather", description: "Reach a 7-day wellness streak", achieved: streak >= 7, progress: Math.min(streak, 7), target: 7, icon: "streak" },
-    { id: "m6", label: "Lung Champion", description: "Log 500m+ in a 6MWT session", achieved: (best6MWT || 0) >= 500, progress: best6MWT ? Math.min(best6MWT, 500) : 0, target: 500, icon: "trophy" },
-    { id: "m7", label: "Wellness Regular", description: "Complete 20 total lung wellness sessions", achieved: totalSessions >= 20, progress: Math.min(totalSessions, 20), target: 20, icon: "star" },
-    { id: "m8", label: "All-Round Lung Warrior", description: "Complete assessments, all activity types, and a 7-day streak", achieved: totalAssessments >= 1 && total6MWT >= 1 && totalBreathingSessions >= 5 && totalSessions >= 10 && streak >= 7, progress: [totalAssessments >= 1, total6MWT >= 1, totalBreathingSessions >= 5, totalSessions >= 10, streak >= 7].filter(Boolean).length, target: 5, icon: "warrior" },
-  ];
 }

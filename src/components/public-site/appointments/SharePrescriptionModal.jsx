@@ -15,7 +15,6 @@ import {
   Radio,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { supabase } from "@/lib/supabaseClient";
 import { loadRazorpayScript } from "@/lib/razorpay";
 
 /* ─── Share Prescription Modal ────────────────────────── */
@@ -558,15 +557,26 @@ function SharePrescriptionModal({
         finalNotes = `[PATIENT_CONSENT_FOR_CUSTOM_TESTS: AGREED] Patient explicitly consented to add these custom tests not in original prescription: ${listStr}.\n${finalNotes}`;
       }
 
-      const { data: userProfile } = await supabase
-        .from("users")
-        .select("phone_number, details:patient_details(full_name, email)")
-        .eq("id", patientId)
-        .maybeSingle();
+      let prefName = "Patient";
+      let prefEmail = "";
+      let prefPhone = "";
 
-      const prefName = userProfile?.details?.full_name || "Patient";
-      const prefEmail = userProfile?.details?.email || "";
-      const prefPhone = userProfile?.phone_number || "";
+      if (patientId) {
+        try {
+          const profileRes = await fetch(`/api/patient/profile?id=${encodeURIComponent(patientId)}`);
+          if (profileRes.ok) {
+            const profileJson = await profileRes.json();
+            const pData = profileJson?.data?.profile || profileJson?.data?.user;
+            if (pData) {
+              prefName = pData.full_name || prefName;
+              prefEmail = pData.email || prefEmail;
+              prefPhone = pData.phone_number || prefPhone;
+            }
+          }
+        } catch (e) {
+          console.warn("[SharePrescriptionModal] Could not fetch patient profile:", e);
+        }
+      }
 
       const initRes = await fetch("/api/patient/lab/orders/initiate", {
         method: "POST",

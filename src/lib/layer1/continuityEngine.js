@@ -1,65 +1,40 @@
 /**
- * LAYER-111: State Continuity & Sequence Validation Engine
+ * LAYER-111: State Continuity & Sequence Validation Engine — AWS RDS PostgreSQL Direct
  * 
  * Enforces strict monotonic ordering for all state-changing orchestration events.
  * Prevents concurrent modifications, replayed events, and out-of-order state transitions.
- * Uses direct fetch to bypass PostgREST schema cache issues.
+ * Directly backed by AWS RDS PostgreSQL.
  */
 
-import { supabase } from "../supabaseAdmin";
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-async function callRpc(functionName, params) {
-  const url = `${SUPABASE_URL}/rest/v1/rpc/${functionName}`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Prefer': 'return=representation'
-    },
-    body: JSON.stringify(params)
-  });
-  const text = await response.text();
-  let data = null;
-  try { data = JSON.parse(text); } catch { data = text; }
-  if (!response.ok) {
-    return { data: null, error: { message: typeof data === 'object' && data?.message ? data.message : text } };
-  }
-  return { data, error: null };
-}
+import sql from "@/lib/db";
 
 /**
- * Initializes care_episode_states via RPC if not exists
+ * Initializes care_episode_states via AWS RDS if not exists
  * @private
  */
 async function ensureEpisodeStateExists(careEpisodeId) {
-  const { data, error } = await callRpc("get_episode_state", {
-    p_care_episode_id: careEpisodeId
-  });
+  try {
+    const rows = await sql`
+      SELECT * FROM care_episode_states
+      WHERE care_episode_id = ${careEpisodeId}
+      LIMIT 1
+    `;
 
-  if (error) {
-    throw new Error(`DATABASE_ERROR: Failed to fetch state for episode ${careEpisodeId}: ${error.message}`);
-  }
-
-  const existing = Array.isArray(data) ? data[0] : data;
-
-  if (!existing) {
-    const { error: upsertErr } = await callRpc("upsert_episode_state", {
-      p_care_episode_id: careEpisodeId,
-      p_current_state: "INITIATED",
-      p_state_version: 1,
-      p_event_sequence: 0
-    });
-
-    if (upsertErr) {
-      throw new Error(`DATABASE_ERROR: Failed to initialize state for episode ${careEpisodeId}: ${upsertErr.message}`);
+    if (rows && rows.length > 0) {
+      return rows[0];
     }
 
-    return {
+    const inserted = await sql`
+      INSERT INTO care_episode_states (
+        care_episode_id, current_state, state_version, event_sequence, updated_at
+      ) VALUES (
+        ${careEpisodeId}, 'INITIATED', 1, 0, NOW()
+      )
+      ON CONFLICT (care_episode_id) DO UPDATE SET updated_at = NOW()
+      RETURNING *
+    `;
+
+    return inserted[0] || {
       care_episode_id: careEpisodeId,
       current_state: "INITIATED",
       state_version: 1,
@@ -67,9 +42,9 @@ async function ensureEpisodeStateExists(careEpisodeId) {
       locked_by: null,
       locked_at: null
     };
+  } catch (err) {
+    throw new Error(`DATABASE_ERROR: Failed to fetch/init state for episode ${careEpisodeId}: ${err.message}`);
   }
-
-  return existing;
 }
 
 /**
@@ -128,70 +103,56 @@ export async function acquireStateLock(careEpisodeId, executionId) {
   try {
     await ensureEpisodeStateExists(careEpisodeId);
 
-    const now = new Date().toISOString();
-    const lockExpiry = new Date(Date.now() - 10000).toISOString();
+    const lockExpiry = new Date(Date.now() - 10000);
 
-    const { data, error } = await supabase
-      .from("care_episode_states")
-      .update({ locked_by: executionId, locked_at: now })
-      .eq("care_episode_id", careEpisodeId)
-      .or(`locked_by.is.null,locked_at.lt.${lockExpiry}`)
-      .select();
+    const rows = await sql`
+      UPDATE care_episode_states
+      SET locked_by = ${executionId},
+          locked_at = NOW()
+      WHERE care_episode_id = ${careEpisodeId}
+        AND (locked_by IS NULL OR locked_at < ${lockExpiry})
+      RETURNING *
+    `;
 
-    if (error) throw error;
-    if (data && data.length > 0) return true;
+    if (rows && rows.length > 0) return true;
 
-    // Fallback: use upsert RPC
-    await callRpc("upsert_episode_state", {
-      p_care_episode_id: careEpisodeId,
-      p_current_state: "INITIATED",
-      p_state_version: 1,
-      p_event_sequence: 0,
-      p_locked_by: executionId,
-      p_locked_at: now
-    });
-    return true;
+    // Retry upsert lock
+    const fallback = await sql`
+      INSERT INTO care_episode_states (
+        care_episode_id, current_state, state_version, event_sequence, locked_by, locked_at
+      ) VALUES (
+        ${careEpisodeId}, 'INITIATED', 1, 0, ${executionId}, NOW()
+      )
+      ON CONFLICT (care_episode_id) DO UPDATE
+      SET locked_by = ${executionId}, locked_at = NOW()
+      RETURNING *
+    `;
+    return Boolean(fallback && fallback.length > 0);
   } catch (err) {
-    console.error("acquireStateLock failed:", err.message);
+    console.error("acquireStateLock failed in RDS:", err.message);
     return false;
   }
 }
 
 /**
- * Persists new state values and releases the lock.
+ * Persists new state values and releases the lock in AWS RDS.
  */
 export async function releaseStateLock(careEpisodeId, executionId, nextState, nextSequence, nextVersion) {
   try {
-    const { error } = await supabase
-      .from("care_episode_states")
-      .update({
-        current_state: nextState,
-        event_sequence: nextSequence,
-        state_version: nextVersion,
-        last_execution_id: executionId,
-        locked_by: null,
-        locked_at: null,
-        updated_at: new Date().toISOString()
-      })
-      .eq("care_episode_id", careEpisodeId);
-
-    if (error) throw error;
+    await sql`
+      UPDATE care_episode_states
+      SET current_state = ${nextState},
+          event_sequence = ${nextSequence},
+          state_version = ${nextVersion},
+          last_execution_id = ${executionId},
+          locked_by = NULL,
+          locked_at = NULL,
+          updated_at = NOW()
+      WHERE care_episode_id = ${careEpisodeId}
+    `;
     return true;
-  } catch {
-    try {
-      await callRpc("upsert_episode_state", {
-        p_care_episode_id: careEpisodeId,
-        p_current_state: nextState,
-        p_state_version: nextVersion,
-        p_event_sequence: nextSequence,
-        p_execution_id: executionId,
-        p_locked_by: null,
-        p_locked_at: null
-      });
-      return true;
-    } catch (err) {
-      console.error("releaseStateLock failed:", err.message);
-      return false;
-    }
+  } catch (err) {
+    console.error("releaseStateLock failed in RDS:", err.message);
+    return false;
   }
 }

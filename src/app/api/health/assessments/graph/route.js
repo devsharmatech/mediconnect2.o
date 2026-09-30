@@ -18,34 +18,9 @@ export async function GET(req) {
     const limit = parseInt(searchParams.get("limit"), 10) || 50;
     const includeHistory = searchParams.get("include_history") !== "false"; // Default true
 
-    // Resolve user ID if not provided: find top active user with assessments in AWS RDS
+    // If user ID is not provided, do not hijack another patient's records
     if (!userId) {
-      try {
-        let topQuery;
-        if (assessmentType && assessmentType !== "all") {
-          topQuery = await sql`
-            SELECT user_id, count(*) as count
-            FROM health_assessments
-            WHERE assessment_type = ${assessmentType}
-            GROUP BY user_id
-            ORDER BY count DESC
-            LIMIT 1;
-          `;
-        } else {
-          topQuery = await sql`
-            SELECT user_id, count(*) as count
-            FROM health_assessments
-            GROUP BY user_id
-            ORDER BY count DESC
-            LIMIT 1;
-          `;
-        }
-        if (topQuery && topQuery.length > 0 && topQuery[0].user_id) {
-          userId = topQuery[0].user_id;
-        }
-      } catch (findErr) {
-        console.warn("[Assessments Graph] Could not resolve default user from RDS:", findErr.message);
-      }
+      console.log("[Assessments Graph] No user_id provided, returning empty history.");
     }
 
     if (!userId) {
@@ -319,21 +294,21 @@ function formatLungInputs(lungInput) {
   
   return {
     demographics: {
-      age: lungInput.age,
+      age: Number(lungInput.age) || 0,
       gender: lungInput.gender,
-      height: lungInput.height_cm,
-      weight: lungInput.weight_kg
+      height: Number(lungInput.height_cm) || 0,
+      weight: Number(lungInput.weight_kg) || 0
     },
     lifestyle: {
       smokingStatus: lungInput.smoking_status,
-      smokingPackYears: lungInput.smoking_pack_years,
+      smokingPackYears: Number(lungInput.smoking_pack_years) || 0,
       pollutionExposure: lungInput.pollution_exposure,
       occupationalRisk: lungInput.occupational_risk
     },
     respiratoryTests: {
-      breathHoldingTime: lungInput.breath_holding_time,
-      breathsPerMinute: lungInput.breaths_per_minute,
-      peakFlow: lungInput.peak_flow
+      breathHoldingTime: Number(lungInput.breath_holding_time) || 0,
+      breathsPerMinute: Number(lungInput.breaths_per_minute) || 0,
+      peakFlow: Number(lungInput.peak_flow) || 0
     },
     symptoms: {
       coughFrequency: lungInput.cough_frequency,
@@ -341,7 +316,7 @@ function formatLungInputs(lungInput) {
       wheezing: lungInput.wheezing
     },
     environment: {
-      aqi: lungInput.aqi,
+      aqi: Number(lungInput.aqi) || 0,
       location: lungInput.location,
       pollutantData: lungInput.pollutant_data
     }

@@ -1,5 +1,5 @@
 /**
- * LAYER-111: Prescription Legality Validator — Phase 4 Hardened
+ * LAYER-111: Prescription Legality Validator — Phase 4 Hardened (AWS RDS PostgreSQL)
  *
  * CRITICAL legal validation gate that MUST run before POST /consultation/complete.
  *
@@ -14,82 +14,10 @@
  * Returns: { valid, critical_violations[], non_critical_warnings[] }
  * RULE: Only critical_violations BLOCK completion.
  *
- * Uses direct HTTP fetch to bypass PostgREST schema cache.
+ * 100% Direct AWS RDS PostgreSQL - Zero Supabase HTTP REST dependencies.
  */
 
-function getDbCredentials() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  return { url, key };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Utility
-// ─────────────────────────────────────────────────────────────────────────────
-async function dbSelect(table, filters = '', options = {}) {
-  const { url, key } = getDbCredentials();
-  if (!url || !key) return [];
-  const select = options.select || '*';
-  const limit  = options.limit ? `&limit=${options.limit}` : '';
-  const path   = `${table}?select=${select}${filters ? '&' + filters : ''}${limit}`;
-  const res    = await fetch(`${url}/rest/v1/${path}`, {
-    headers: {
-      'apikey':        key,
-      'Authorization': `Bearer ${key}`,
-      'Content-Type':  'application/json',
-    }
-  });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
-}
-
-async function dbSelectCount(table, filters = '') {
-  const { url, key } = getDbCredentials();
-  if (!url || !key) return 0;
-  const path = `${table}?select=id${filters ? '&' + filters : ''}`;
-  const res  = await fetch(`${url}/rest/v1/${path}`, {
-    headers: {
-      'apikey':           key,
-      'Authorization':    `Bearer ${key}`,
-      'Prefer':           'count=exact',
-    }
-  });
-  const count = res.headers.get('content-range')?.split('/')[1];
-  return count ? parseInt(count, 10) : 0;
-}
-
-async function dbInsert(table, payload) {
-  const { url, key } = getDbCredentials();
-  if (!url || !key) return false;
-  const res = await fetch(`${url}/rest/v1/${table}`, {
-    method:  'POST',
-    headers: {
-      'apikey':        key,
-      'Authorization': `Bearer ${key}`,
-      'Content-Type':  'application/json',
-      'Prefer':        'return=minimal',
-    },
-    body: JSON.stringify(Array.isArray(payload) ? payload : [payload])
-  });
-  return res.ok;
-}
-
-async function dbUpsert(table, payload, onConflict) {
-  const { url, key } = getDbCredentials();
-  if (!url || !key) return false;
-  const res = await fetch(`${url}/rest/v1/${table}`, {
-    method:  'POST',
-    headers: {
-      'apikey':        key,
-      'Authorization': `Bearer ${key}`,
-      'Content-Type':  'application/json',
-      'Prefer':        `resolution=merge-duplicates,return=minimal`,
-    },
-    body: JSON.stringify(Array.isArray(payload) ? payload : [payload])
-  });
-  return res.ok;
-}
+import sql from "@/lib/db";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN: Validate Prescription Legality
@@ -99,43 +27,75 @@ export async function validatePrescriptionLegality(consultation_id, mode_used = 
   const non_critical_warnings = [];
 
   try {
-    // ── Fetch core records ──────────────────────────────────────────────────
-    const consultations = await dbSelect('consultations', `id=eq.${consultation_id}`, { limit: 1 });
-    const consultation  = consultations[0];
+    // ── Fetch core records via direct AWS RDS SQL ───────────────────────────
+    let consultation = null;
+    try {
+      const rows = await sql`SELECT * FROM consultations WHERE id = ${consultation_id} LIMIT 1`;
+      consultation = rows[0] || null;
+    } catch (err) {
+      console.warn("[PrescriptionValidator] Consultations query warning:", err.message);
+    }
 
     if (!consultation) {
       return { valid: false, critical_violations: ['Consultation not found'], non_critical_warnings: [] };
     }
 
-    const doctors     = await dbSelect('doctor_details', `id=eq.${consultation.doctor_id}`, { select: 'id,full_name,registration_verified,kyc_status,onboarding_status,specialization', limit: 1 });
-    const doctor      = doctors[0] || null;
-    const clinicals   = await dbSelect('consultation_clinical', `consultation_id=eq.${consultation_id}`, { limit: 1 });
-    const clinical    = clinicals[0] || null;
-    const medications = await dbSelect('consultation_medications', `consultation_id=eq.${consultation_id}`);
-    const consents    = await dbSelect('patient_consent_log', `patient_id=eq.${consultation.patient_id}`, { select: 'consent_type' });
+    let doctor = null;
+    if (consultation.doctor_id) {
+      try {
+        const docRows = await sql`
+          SELECT id, full_name, registration_verified, kyc_status, onboarding_status, specialization
+          FROM doctor_details
+          WHERE id = ${consultation.doctor_id}
+          LIMIT 1
+        `;
+        doctor = docRows[0] || null;
+      } catch (err) {
+        console.warn("[PrescriptionValidator] Doctor query warning:", err.message);
+      }
+    }
+
+    let clinical = null;
+    try {
+      const clinRows = await sql`SELECT * FROM consultation_clinical WHERE consultation_id = ${consultation_id} LIMIT 1`;
+      clinical = clinRows[0] || null;
+    } catch {}
+
+    let medications = [];
+    try {
+      medications = await sql`SELECT * FROM consultation_medications WHERE consultation_id = ${consultation_id}`;
+    } catch {}
+
+    const allConsentTypes = [];
+    if (consultation.patient_id) {
+      try {
+        const consents = await sql`SELECT consent_type FROM patient_consent_log WHERE patient_id = ${consultation.patient_id}`;
+        (consents || []).forEach(c => { if (c.consent_type) allConsentTypes.push(c.consent_type); });
+      } catch {}
+
+      try {
+        const consentLogs = await sql`SELECT consent_type FROM consent_logs WHERE patient_id = ${consultation.patient_id}`;
+        (consentLogs || []).forEach(c => { if (c.consent_type && !allConsentTypes.includes(c.consent_type)) allConsentTypes.push(c.consent_type); });
+      } catch {}
+    }
 
     // ── CHECK 1: Doctor Registration ────────────────────────────────────────
     if (!doctor) {
       critical_violations.push('Doctor record not found');
     } else {
       const isDoctorVerified = doctor.registration_verified === true || 
-        (doctor.onboarding_status && ['approved', 'active'].includes(doctor.onboarding_status.toLowerCase())) || 
-        (doctor.kyc_status && ['verified', 'approved'].includes(doctor.kyc_status.toLowerCase()));
+        (doctor.onboarding_status && ['approved', 'active'].includes(String(doctor.onboarding_status).toLowerCase())) || 
+        (doctor.kyc_status && ['verified', 'approved'].includes(String(doctor.kyc_status).toLowerCase()));
       if (!isDoctorVerified) {
         critical_violations.push('Doctor registration not verified — cannot prescribe');
       }
     }
 
     // ── CHECK 2: Patient Consent ────────────────────────────────────────────
-    const required      = ['CONSULTATION_CONSENT', 'TELEMEDICINE_CONSENT', 'DATA_PROCESSING_CONSENT', 'PRESCRIPTION_CONSENT'];
-    const activeTypes   = (consents || []).map(c => c.consent_type);
-    // Also check consent_logs (alias table from Phase 2)
-    const consentLogs   = await dbSelect('consent_logs', `patient_id=eq.${consultation.patient_id}`, { select: 'consent_type' });
-    const allConsentTypes = [...new Set([...activeTypes, ...(consentLogs || []).map(c => c.consent_type)])];
+    const required = ['CONSULTATION_CONSENT', 'TELEMEDICINE_CONSENT', 'DATA_PROCESSING_CONSENT', 'PRESCRIPTION_CONSENT'];
     const missing = required.filter(r => !allConsentTypes.includes(r));
     if (missing.length > 0) {
       // Non-critical if consent was captured via control layer (DATA_SHARING + TELECONSULTATION)
-      // Map: DATA_SHARING → DATA_PROCESSING_CONSENT, TELECONSULTATION → TELEMEDICINE_CONSENT
       const mappedMissing = missing.filter(m => {
         if (m === 'DATA_PROCESSING_CONSENT' && allConsentTypes.includes('DATA_SHARING')) return false;
         if (m === 'TELEMEDICINE_CONSENT'    && allConsentTypes.includes('TELECONSULTATION')) return false;
@@ -148,7 +108,7 @@ export async function validatePrescriptionLegality(consultation_id, mode_used = 
     }
 
     // ── CHECK 3: Consultation Mode ──────────────────────────────────────────
-    const mode               = consultation.consultation_mode;
+    const mode = consultation.consultation_mode;
     const isFirstConsultation = !consultation.parent_consultation_id;
     if (isFirstConsultation && mode && !['VIDEO', 'IN_PERSON'].includes(mode)) {
       critical_violations.push(`First consultation must be VIDEO or IN_PERSON (current: ${mode})`);
@@ -158,20 +118,26 @@ export async function validatePrescriptionLegality(consultation_id, mode_used = 
     // ── CHECK 4: Drug Category Compliance ──────────────────────────────────
     if (medications && medications.length > 0) {
       for (const med of medications) {
-        const name     = encodeURIComponent(med.normalized_name || med.medicine_name || '');
-        const classes  = await dbSelect('drug_regulatory_class', `medicine_name=ilike.${name}`, { select: 'category', limit: 1 });
-        const drugClass = classes[0];
+        const medName = (med.normalized_name || med.medicine_name || '').trim();
+        if (!medName) continue;
 
-        if (drugClass) {
-          if (drugClass.category === 'PROHIBITED') {
-            critical_violations.push(`Prohibited drug prescribed: ${med.medicine_name}`);
+        try {
+          const classes = await sql`SELECT category FROM drug_regulatory_class WHERE medicine_name ILIKE ${medName} LIMIT 1`;
+          const drugClass = classes[0];
+
+          if (drugClass) {
+            if (drugClass.category === 'PROHIBITED') {
+              critical_violations.push(`Prohibited drug prescribed: ${med.medicine_name}`);
+            }
+            if (drugClass.category === 'A' && mode && !['VIDEO', 'IN_PERSON'].includes(mode)) {
+              critical_violations.push(`Category A drug "${med.medicine_name}" requires VIDEO/IN_PERSON consultation`);
+            }
+            if (drugClass.category === 'B' && isFirstConsultation) {
+              critical_violations.push(`Category B drug "${med.medicine_name}" not allowed on first consultation`);
+            }
           }
-          if (drugClass.category === 'A' && mode && !['VIDEO', 'IN_PERSON'].includes(mode)) {
-            critical_violations.push(`Category A drug "${med.medicine_name}" requires VIDEO/IN_PERSON consultation`);
-          }
-          if (drugClass.category === 'B' && isFirstConsultation) {
-            critical_violations.push(`Category B drug "${med.medicine_name}" not allowed on first consultation`);
-          }
+        } catch {
+          // ignore table absence
         }
 
         if (!med.normalized_name) {
@@ -180,10 +146,17 @@ export async function validatePrescriptionLegality(consultation_id, mode_used = 
 
         // ── CHECK 6: Specialty-Drug Match ──────────────────────────────────
         if (med.normalized_name && doctor?.specialization) {
-          const specName  = encodeURIComponent(med.normalized_name);
-          const allowed   = await dbSelect('drug_specialty_map', `normalized_name=ilike.${specName}`, { select: 'allowed_specialty_id' });
-          if (allowed.length > 0 && !allowed.some(s => s.allowed_specialty_id === doctor.specialization)) {
-            non_critical_warnings.push(`Specialty mismatch: ${med.medicine_name} — verify clinical appropriateness`);
+          try {
+            const allowed = await sql`
+              SELECT allowed_specialty_id
+              FROM drug_specialty_map
+              WHERE normalized_name ILIKE ${med.normalized_name}
+            `;
+            if (allowed.length > 0 && !allowed.some(s => s.allowed_specialty_id === doctor.specialization)) {
+              non_critical_warnings.push(`Specialty mismatch: ${med.medicine_name} — verify clinical appropriateness`);
+            }
+          } catch {
+            // ignore
           }
         }
       }
@@ -197,7 +170,12 @@ export async function validatePrescriptionLegality(consultation_id, mode_used = 
       if (!clinical.problem_id  && !clinical.problem_text)   non_critical_warnings.push('Missing problem/complaint');
     }
 
-    const symptomCount = await dbSelectCount('consultation_symptoms', `consultation_id=eq.${consultation_id}`);
+    let symptomCount = 0;
+    try {
+      const sympRows = await sql`SELECT count(*)::int as count FROM consultation_symptoms WHERE consultation_id = ${consultation_id}`;
+      symptomCount = sympRows[0]?.count || 0;
+    } catch {}
+
     if (symptomCount === 0) non_critical_warnings.push('No symptoms recorded');
     if (!medications || medications.length === 0) non_critical_warnings.push('No medications prescribed');
     if (consultation.follow_up_required === null || consultation.follow_up_required === undefined) {
@@ -206,22 +184,30 @@ export async function validatePrescriptionLegality(consultation_id, mode_used = 
 
     // ── LOG VALIDATION RESULT ────────────────────────────────────────────────
     const validation_status = critical_violations.length > 0 ? 'BLOCKED' : 'PASSED';
-    await dbInsert('prescription_validation_log', {
-      consultation_id,
-      doctor_id:          consultation.doctor_id,
-      consultation_mode:  mode,
-      validation_status,
-      violations:         [...critical_violations, ...non_critical_warnings],
-      is_override:        false
-    }).catch(() => {}); // Non-blocking — do not throw
+    try {
+      const allViolations = JSON.stringify([...critical_violations, ...non_critical_warnings]);
+      await sql`
+        INSERT INTO prescription_validation_log (
+          consultation_id, doctor_id, consultation_mode, validation_status, violations, is_override
+        ) VALUES (
+          ${consultation_id}, ${consultation.doctor_id}, ${mode}, ${validation_status}, ${allViolations}::jsonb, false
+        )
+      `;
+    } catch (logErr) {
+      // Non-blocking
+    }
 
     // ── FLAG QUALITY IF NON-CRITICAL ─────────────────────────────────────────
     if (non_critical_warnings.length > 0 && critical_violations.length === 0) {
-      await dbUpsert('consultation_quality_flag', {
-        consultation_id,
-        quality_level: 'LOW',
-        flagged_at: new Date().toISOString()
-      }).catch(() => {});
+      try {
+        await sql`
+          INSERT INTO consultation_quality_flag (consultation_id, quality_level, flagged_at)
+          VALUES (${consultation_id}, 'LOW', NOW())
+          ON CONFLICT (consultation_id) DO UPDATE SET quality_level = 'LOW', flagged_at = NOW()
+        `;
+      } catch {
+        // Non-blocking
+      }
     }
 
     return {
@@ -249,20 +235,20 @@ export async function validatePrescriptionLegality(consultation_id, mode_used = 
 // ─────────────────────────────────────────────────────────────────────────────
 export async function logValidationOverride(consultation_id, doctor_id, override_reason) {
   try {
-    await dbInsert('prescription_validation_log', {
-      consultation_id,
-      doctor_id,
-      validation_status: 'OVERRIDDEN',
-      violations:        null,
-      is_override:       true,
-      override_reason
-    });
-    await dbInsert('clinical_override_log', {
-      consultation_id,
-      doctor_id,
-      override_type: 'PRESCRIPTION_LEGALITY',
-      reason: override_reason
-    });
+    await sql`
+      INSERT INTO prescription_validation_log (
+        consultation_id, doctor_id, validation_status, violations, is_override, override_reason
+      ) VALUES (
+        ${consultation_id}, ${doctor_id}, 'OVERRIDDEN', null, true, ${override_reason}
+      )
+    `;
+    await sql`
+      INSERT INTO clinical_override_log (
+        consultation_id, doctor_id, override_type, reason
+      ) VALUES (
+        ${consultation_id}, ${doctor_id}, 'PRESCRIPTION_LEGALITY', ${override_reason}
+      )
+    `;
   } catch (err) {
     console.error('[PrescriptionValidator] logValidationOverride error:', err.message);
   }

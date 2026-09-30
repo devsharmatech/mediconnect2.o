@@ -1,6 +1,6 @@
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -8,7 +8,7 @@ export async function OPTIONS() {
 
 /**
  * GET /api/v1/lung/consent
- * Check consent status for a user (LC-07: Consent Gate).
+ * Check consent status for a user (LC-07: Consent Gate) from AWS RDS.
  */
 export async function GET(req) {
   try {
@@ -28,12 +28,13 @@ export async function GET(req) {
     };
 
     try {
-      const { data, error } = await supabase
-        .from("user_consent_log")
-        .select("purpose_key, is_granted, policy_version, updated_at")
-        .eq("user_id", userId);
+      const data = await sql`
+        SELECT purpose_key, is_granted, policy_version, updated_at
+        FROM user_consent_log
+        WHERE user_id = ${String(userId)};
+      `;
 
-      if (!error && data && data.length > 0) {
+      if (data && data.length > 0) {
         data.forEach(item => {
           if (item.purpose_key in permissions) {
             permissions[item.purpose_key] = Boolean(item.is_granted);
@@ -58,7 +59,7 @@ export async function GET(req) {
 
 /**
  * POST /api/v1/lung/consent
- * Record purpose-specific user consent for LungConnect (B17-S01 / B17-S02).
+ * Record purpose-specific user consent for LungConnect (B17-S01 / B17-S02) in AWS RDS.
  */
 export async function POST(req) {
   try {
@@ -85,28 +86,29 @@ export async function POST(req) {
       for (const key of purposeKeys) {
         if (key in permissions) {
           const isGranted = Boolean(permissions[key]);
-          await supabase.from("user_consent_log").insert([{
-            user_id,
-            purpose_key: key,
-            is_granted: isGranted,
-            policy_version,
-            metadata: JSON.stringify({ updated_at: new Date().toISOString() }),
-            updated_at: new Date().toISOString(),
-          }]);
+          await sql`
+            INSERT INTO user_consent_log (
+              user_id, purpose_key, is_granted, policy_version, metadata, created_at, updated_at
+            ) VALUES (
+              ${String(user_id)}, ${key}, ${isGranted}, ${policy_version},
+              ${JSON.stringify({ updated_at: new Date().toISOString() })},
+              NOW(), NOW()
+            );
+          `;
         }
       }
     } catch (e) {
       console.warn("[Lung Consent POST] DB error:", e.message);
     }
 
-    return success("Consent preferences confirmed.", {
+    return success("Consent preferences saved.", {
       user_id,
       permissions,
       policy_version,
-      confirmed_at: new Date().toISOString(),
+      saved_at: new Date().toISOString(),
     }, 200, { headers: corsHeaders });
   } catch (error) {
     console.error("[Lung Consent POST] error:", error);
-    return failure("Failed to record consent: " + error.message, "consent_error", 500, { headers: corsHeaders });
+    return failure("Failed to save consent: " + error.message, "consent_error", 500, { headers: corsHeaders });
   }
 }

@@ -1,25 +1,10 @@
 /**
- * LAYER-111: Incident Service — Phase 5 Hardened
+ * LAYER-111: Incident Service — AWS RDS PostgreSQL Direct
  *
- * Creates and manages operational incident logs.
- * Uses direct HTTP fetch (schema cache bypass).
+ * Creates and manages operational incident logs in AWS RDS PostgreSQL.
  */
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-async function dbFetch(path, options = {}) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: {
-      'apikey':        SERVICE_KEY,
-      'Authorization': `Bearer ${SERVICE_KEY}`,
-      'Content-Type':  'application/json',
-      'Prefer':        options.prefer || 'return=representation',
-    },
-    ...options
-  });
-  return res;
-}
+import sql from "@/lib/db";
 
 /**
  * Creates an operational incident log.
@@ -32,22 +17,16 @@ export async function createIncident(source, priority, description, params = {})
   try {
     const { reference_id = null, care_episode_id = null, metadata = {} } = params;
 
-    await dbFetch('ops_incident_log', {
-      method:  'POST',
-      prefer:  'return=minimal',
-      body: JSON.stringify([{
-        source,
-        priority,
-        description,
-        reference_id,
-        care_episode_id,
-        status:   'OPEN',
-        metadata
-      }])
-    });
+    await sql`
+      INSERT INTO ops_incident_log (
+        source, priority, description, reference_id, care_episode_id, status, metadata
+      ) VALUES (
+        ${source}, ${priority}, ${description}, ${reference_id}, ${care_episode_id}, 'OPEN', ${JSON.stringify(metadata)}
+      )
+    `;
   } catch (err) {
     // Incident service must never throw — log to stderr only
-    console.error('[IncidentService] Failed to create incident:', err.message);
+    console.error('[IncidentService] Failed to create incident in RDS:', err.message);
   }
 }
 
@@ -59,19 +38,23 @@ export async function createIncident(source, priority, description, params = {})
  */
 export async function updateIncidentStatus(incidentId, status, resolvedBy = null) {
   try {
-    const updatePayload = { status };
     if (status === 'RESOLVED') {
-      updatePayload.resolved_at = new Date().toISOString();
-      if (resolvedBy) updatePayload.resolved_by = resolvedBy;
+      await sql`
+        UPDATE ops_incident_log
+        SET status = ${status},
+            resolved_at = NOW(),
+            resolved_by = ${resolvedBy}
+        WHERE id = ${incidentId}
+      `;
+    } else {
+      await sql`
+        UPDATE ops_incident_log
+        SET status = ${status}
+        WHERE id = ${incidentId}
+      `;
     }
-
-    await dbFetch(`ops_incident_log?id=eq.${incidentId}`, {
-      method:  'PATCH',
-      prefer:  'return=minimal',
-      body: JSON.stringify(updatePayload)
-    });
   } catch (err) {
-    console.error('[IncidentService] Failed to update incident:', err.message);
+    console.error('[IncidentService] Failed to update incident in RDS:', err.message);
   }
 }
 
@@ -80,14 +63,23 @@ export async function updateIncidentStatus(incidentId, status, resolvedBy = null
  * @param {string} priority — P1 | P2 | P3 (optional)
  * @returns {Array}
  */
-export async function getOpenIncidents(priority = null) {
+export async function getOpenIncidents(priority = null, limit = 50) {
   try {
-    let path = 'ops_incident_log?status=eq.OPEN&order=created_at.desc';
-    if (priority) path += `&priority=eq.${priority}`;
-    const res = await dbFetch(path, { method: 'GET', prefer: '' });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
+    const lim = Math.max(1, Math.min(Number(limit) || 50, 100));
+    if (priority) {
+      return await sql`
+        SELECT * FROM ops_incident_log
+        WHERE status = 'OPEN' AND priority = ${priority}
+        ORDER BY created_at DESC
+        LIMIT ${lim}
+      `;
+    }
+    return await sql`
+      SELECT * FROM ops_incident_log
+      WHERE status = 'OPEN'
+      ORDER BY created_at DESC
+      LIMIT ${lim}
+    `;
   } catch {
     return [];
   }

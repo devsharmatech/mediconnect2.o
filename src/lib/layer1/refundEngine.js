@@ -1,77 +1,32 @@
 /**
- * LAYER-111: Refund Orchestration Engine — Phase 5
+ * LAYER-111: Refund Orchestration Engine — AWS RDS PostgreSQL Direct
  *
  * Handles the complete refund lifecycle:
  * 1. Request initiation (via outbox PAYMENT_REFUND_REQUESTED events)
  * 2. Razorpay gateway call
- * 3. Status tracking and dead-letter handling
+ * 3. Status tracking and dead-letter handling in AWS RDS
  * 4. Ledger credit entry creation
  * 5. Patient notification dispatch
  *
- * Called by: outbox-processor (PAYMENT_REFUND_REQUESTED events)
- *            and /api/cron/payment-reconciler (stuck refunds)
+ * Direct AWS RDS PostgreSQL queries (no Supabase REST).
  */
 
+import sql from "@/lib/db";
 import { recordRefundEntry } from './financialLedger.js';
-import { insertOutboxEvent } from './eventOutbox.js';
 import { sendPaymentUpdate } from '../sms.js';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const RZP_KEY_ID   = process.env.RAZORPAY_KEY_ID;
 const RZP_KEY_SEC  = process.env.RAZORPAY_KEY_SECRET;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Utility
-// ─────────────────────────────────────────────────────────────────────────────
-async function dbInsert(table, payload) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-    method:  'POST',
-    headers: {
-      'apikey':        SERVICE_KEY,
-      'Authorization': `Bearer ${SERVICE_KEY}`,
-      'Content-Type':  'application/json',
-      'Prefer':        'return=representation',
-    },
-    body: JSON.stringify(Array.isArray(payload) ? payload : [payload])
-  });
-  if (!res.ok) throw new Error(`dbInsert ${table} [${res.status}]: ${(await res.text()).substring(0, 150)}`);
-  const d = await res.json();
-  return Array.isArray(d) ? d[0] : d;
-}
-
-async function dbPatch(table, filters, payload) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filters}`, {
-    method:  'PATCH',
-    headers: {
-      'apikey':        SERVICE_KEY,
-      'Authorization': `Bearer ${SERVICE_KEY}`,
-      'Content-Type':  'application/json',
-      'Prefer':        'return=minimal',
-    },
-    body: JSON.stringify(payload)
-  });
-  return res.ok;
-}
-
-async function dbSelect(table, filters, options = {}) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filters}${options.limit ? '&limit=' + options.limit : ''}`, {
-    headers: { 'apikey': SERVICE_KEY, 'Authorization': `Bearer ${SERVICE_KEY}` }
-  });
-  if (!res.ok) return [];
-  const d = await res.json();
-  return Array.isArray(d) ? d : [];
-}
+const PLATFORM_FEE_RATE = 0.10; // 10% platform fee
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Initiate Refund Request
-//    Creates a tracked refund_request record before hitting Razorpay
 // ─────────────────────────────────────────────────────────────────────────────
 export async function initiateRefund({
   patient_id,
   care_episode_id,
   consultation_id,
-  original_payment_id,  // Razorpay payment_id (pay_xxx)
+  original_payment_id,
   razorpay_order_id,
   amount,
   reason,
@@ -81,38 +36,43 @@ export async function initiateRefund({
     throw new Error('original_payment_id and amount are required for refund');
   }
 
-  // 1a. Create refund request record
-  const refundRequest = await dbInsert('refund_requests', {
-    patient_id,
-    care_episode_id,
-    consultation_id,
-    original_payment_id,
-    razorpay_order_id,
-    amount,
-    reason,
-    status:       'PENDING',
-    initiated_by
-  });
+  // Create refund request record in AWS RDS
+  const rows = await sql`
+    INSERT INTO refund_requests (
+      patient_id, care_episode_id, consultation_id, original_payment_id,
+      razorpay_order_id, amount, reason, status, initiated_by
+    ) VALUES (
+      ${patient_id}, ${care_episode_id || null}, ${consultation_id || null},
+      ${original_payment_id}, ${razorpay_order_id || null}, ${amount},
+      ${reason}, 'PENDING', ${initiated_by}
+    )
+    RETURNING *
+  `;
 
-  console.log(`[RefundEngine] Created refund request ${refundRequest.id} for payment ${original_payment_id} (₹${amount})`);
+  const refundRequest = rows[0];
+  console.log(`[RefundEngine] Created refund request ${refundRequest?.id} for payment ${original_payment_id} (₹${amount}) in AWS RDS`);
 
-  // 1b. Process immediately
+  // Process immediately
   return processRefund(refundRequest.id);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. Process Refund (hit Razorpay API)
+// 2. Process Refund (hit Razorpay API & update AWS RDS)
 // ─────────────────────────────────────────────────────────────────────────────
 export async function processRefund(refundRequestId) {
-  const requests = await dbSelect('refund_requests', `id=eq.${refundRequestId}`, { limit: 1 });
-  const req      = requests[0];
+  const requests = await sql`
+    SELECT * FROM refund_requests WHERE id = ${refundRequestId} LIMIT 1
+  `;
+  const req = requests[0];
 
-  if (!req) throw new Error(`Refund request ${refundRequestId} not found`);
+  if (!req) throw new Error(`Refund request ${refundRequestId} not found in RDS`);
   if (req.status === 'COMPLETED') return { success: true, already_processed: true };
 
   try {
-    // Mark as processing
-    await dbPatch('refund_requests', `id=eq.${refundRequestId}`, { status: 'PROCESSING' });
+    // Mark as processing in AWS RDS
+    await sql`
+      UPDATE refund_requests SET status = 'PROCESSING' WHERE id = ${refundRequestId}
+    `;
 
     // Call Razorpay Refund API
     const credentials = Buffer.from(`${RZP_KEY_ID}:${RZP_KEY_SEC}`).toString('base64');
@@ -136,13 +96,15 @@ export async function processRefund(refundRequestId) {
       throw new Error(errorMsg);
     }
 
-    // Success — mark completed and log to ledger
-    await dbPatch('refund_requests', `id=eq.${refundRequestId}`, {
-      status:            'COMPLETED',
-      razorpay_refund_id: rzpData.id,
-      gateway_response:  rzpData,
-      processed_at:      new Date().toISOString()
-    });
+    // Success — mark completed in AWS RDS
+    await sql`
+      UPDATE refund_requests
+      SET status = 'COMPLETED',
+          razorpay_refund_id = ${rzpData.id},
+          gateway_response = ${JSON.stringify(rzpData)},
+          processed_at = NOW()
+      WHERE id = ${refundRequestId}
+    `;
 
     // Record refund in financial ledger
     await recordRefundEntry({
@@ -155,26 +117,33 @@ export async function processRefund(refundRequestId) {
       reason:            req.reason
     });
 
-    // Notify patient via database notifications
-    await dbInsert('notifications', {
-      user_id: req.patient_id,
-      title:   'Refund Initiated',
-      message: `Your refund of ₹${req.amount} has been initiated. It will reflect in 5-7 business days.`,
-      type:    'refund_success',
-      metadata: { refund_id: rzpData.id, amount: req.amount, reason: req.reason }
-    }).catch(() => {});
+    // Notify patient in AWS RDS
+    try {
+      await sql`
+        INSERT INTO notifications (
+          user_id, title, message, type, metadata
+        ) VALUES (
+          ${req.patient_id}, 'Refund Initiated',
+          ${`Your refund of ₹${req.amount} has been initiated. It will reflect in 5-7 business days.`},
+          'refund_success',
+          ${JSON.stringify({ refund_id: rzpData.id, amount: req.amount, reason: req.reason })}
+        )
+      `;
+    } catch {}
 
     // Notify patient via WhatsApp template
     (async () => {
       try {
-        const patientUsers = await dbSelect('users', `id=eq.${req.patient_id}`, { limit: 1 });
+        const patientUsers = await sql`
+          SELECT u.phone_number, pd.full_name
+          FROM users u
+          LEFT JOIN patient_details pd ON pd.id::text = u.id::text
+          WHERE u.id = ${req.patient_id}
+          LIMIT 1
+        `;
         const patientUser = patientUsers[0];
-
-        const patientDetailsList = await dbSelect('patient_details', `id=eq.${req.patient_id}`, { limit: 1 });
-        const patientDetails = patientDetailsList[0];
-
         const phoneNumber = patientUser?.phone_number;
-        const patientName = patientDetails?.full_name || "Customer";
+        const patientName = patientUser?.full_name || "Customer";
 
         if (phoneNumber) {
           await sendPaymentUpdate({
@@ -192,50 +161,74 @@ export async function processRefund(refundRequestId) {
       }
     })();
 
-    console.log(`[RefundEngine] Refund ${rzpData.id} processed successfully for ₹${req.amount}`);
+    console.log(`[RefundEngine] Refund ${rzpData.id} processed successfully for ₹${req.amount} (AWS RDS)`);
     return { success: true, refund_id: rzpData.id, amount: req.amount };
 
   } catch (err) {
     console.error(`[RefundEngine] Refund ${refundRequestId} failed:`, err.message);
 
-    // Mark failed + add to dead-letter
-    await dbPatch('refund_requests', `id=eq.${refundRequestId}`, {
-      status: 'FAILED',
-      gateway_response: { error: err.message }
-    });
+    // Mark failed in AWS RDS
+    try {
+      await sql`
+        UPDATE refund_requests
+        SET status = 'FAILED',
+            gateway_response = ${JSON.stringify({ error: err.message })}
+        WHERE id = ${refundRequestId}
+      `;
+    } catch {}
 
-    await dbInsert('refund_dead_letter', {
-      refund_request_id: refundRequestId,
-      failure_reason:    err.message,
-      attempt_count:     1
-    }).catch(() => {});
+    // Add to refund_dead_letter in AWS RDS
+    try {
+      await sql`
+        INSERT INTO refund_dead_letter (
+          refund_request_id, failure_reason, attempt_count
+        ) VALUES (
+          ${refundRequestId}, ${err.message}, 1
+        )
+      `;
+    } catch {}
 
-    // P1 Incident for finance team
-    await dbInsert('ops_incident_log', {
-      priority:    'P1',
-      source:      'REFUND_ENGINE',
-      reference_id: refundRequestId,
-      care_episode_id: req?.care_episode_id || null,
-      description: `REFUND FAILED: ${err.message} | Payment: ${req?.original_payment_id} | ₹${req?.amount}`
-    }).catch(() => {});
+    // P1 Incident in AWS RDS
+    try {
+      await sql`
+        INSERT INTO ops_incident_log (
+          priority, source, reference_id, care_episode_id, description
+        ) VALUES (
+          'P1', 'REFUND_ENGINE', ${refundRequestId}, ${req?.care_episode_id || null},
+          ${`REFUND FAILED: ${err.message} | Payment: ${req?.original_payment_id} | ₹${req?.amount}`}
+        )
+      `;
+    } catch {}
 
     return { success: false, error: err.message };
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. Retry Failed Refunds (called by reconciler cron)
+// 3. Retry Failed Refunds
 // ─────────────────────────────────────────────────────────────────────────────
 export async function retryFailedRefunds() {
-  const deadLetters = await dbSelect('refund_dead_letter', `attempt_count=lt.3`, { limit: 10 });
-  const results     = { retried: 0, succeeded: 0, failed: 0 };
+  let deadLetters = [];
+  try {
+    deadLetters = await sql`
+      SELECT * FROM refund_dead_letter
+      WHERE attempt_count < 3
+      LIMIT 10
+    `;
+  } catch {
+    return { retried: 0, succeeded: 0, failed: 0 };
+  }
+
+  const results = { retried: 0, succeeded: 0, failed: 0 };
 
   for (const dl of deadLetters) {
     try {
-      await dbPatch('refund_dead_letter', `id=eq.${dl.id}`, {
-        attempt_count:     dl.attempt_count + 1,
-        last_attempted_at: new Date().toISOString()
-      });
+      await sql`
+        UPDATE refund_dead_letter
+        SET attempt_count = attempt_count + 1,
+            last_attempted_at = NOW()
+        WHERE id = ${dl.id}
+      `;
 
       const result = await processRefund(dl.refund_request_id);
       results.retried++;
@@ -251,27 +244,25 @@ export async function retryFailedRefunds() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. Provider Payout Calculation
-//    Called after consultation completion to schedule doctor payout
 // ─────────────────────────────────────────────────────────────────────────────
-const PLATFORM_FEE_RATE = 0.10; // 10% platform fee
-
 export async function scheduleProviderPayout({ provider_id, care_episode_id, consultation_id, gross_amount }) {
   try {
     const platform_fee = Math.round(gross_amount * PLATFORM_FEE_RATE * 100) / 100;
     const net_payout   = Math.round((gross_amount - platform_fee) * 100) / 100;
 
-    const payout = await dbInsert('provider_payout_ledger', {
-      provider_id,
-      care_episode_id,
-      consultation_id,
-      gross_amount,
-      platform_fee,
-      net_payout,
-      status: 'PENDING'
-    });
+    const rows = await sql`
+      INSERT INTO provider_payout_ledger (
+        provider_id, care_episode_id, consultation_id, gross_amount, platform_fee, net_payout, status
+      ) VALUES (
+        ${provider_id}, ${care_episode_id || null}, ${consultation_id || null},
+        ${gross_amount}, ${platform_fee}, ${net_payout}, 'PENDING'
+      )
+      RETURNING *
+    `;
 
-    console.log(`[RefundEngine] Payout scheduled for provider ${provider_id}: net ₹${net_payout}`);
-    return { success: true, payout_id: payout.id, net_payout };
+    const payout = rows[0];
+    console.log(`[RefundEngine] Payout scheduled in AWS RDS for provider ${provider_id}: net ₹${net_payout}`);
+    return { success: true, payout_id: payout?.id, net_payout };
   } catch (err) {
     console.error('[RefundEngine] scheduleProviderPayout error:', err.message);
     return { success: false, error: err.message };

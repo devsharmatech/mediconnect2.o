@@ -1,54 +1,19 @@
 /**
- * ENGAGEMENT ENGINE — Layer-111 Phase 3
+ * ENGAGEMENT ENGINE — Layer-111 Phase 3 (Hardened for AWS RDS PostgreSQL)
  *
  * Non-blocking intelligence layer that:
  * 1. Evaluates CTA routing (SHOW / DELAY / SUPPRESS) per user
  * 2. Tracks engagement signals into service_signal_log
  * 3. Updates user engagement/fatigue profiles
  *
- * Uses direct HTTP fetch to bypass PostgREST schema cache issues.
+ * 100% Direct AWS RDS PostgreSQL - Zero Supabase HTTP REST dependencies.
  */
 
-const SUPABASE_URL   = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY   = process.env.SUPABASE_SERVICE_ROLE_KEY;
+import sql from "@/lib/db";
 
 // In-memory config cache (60s TTL) to avoid DB hits on every CTA eval
 let configCache = null;
 let cacheTimestamp = 0;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Utility: direct fetch wrapper
-// ─────────────────────────────────────────────────────────────────────────────
-async function dbFetch(path, options = {}) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: {
-      'apikey':        SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type':  'application/json',
-      'Prefer':        options.prefer || 'return=representation',
-    },
-    ...options
-  });
-  if (!res.ok && res.status !== 404) {
-    const err = await res.text();
-    throw new Error(`DB fetch failed [${res.status}]: ${err.substring(0, 200)}`);
-  }
-  return res.status === 404 ? null : res.json();
-}
-
-async function callRpc(fnName, params) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
-    method:  'POST',
-    headers: {
-      'apikey':        SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type':  'application/json',
-    },
-    body: JSON.stringify(params)
-  });
-  if (!res.ok) throw new Error(`RPC ${fnName} failed [${res.status}]`);
-  return res.json();
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. System Config — cached for 60s
@@ -58,12 +23,11 @@ async function getSystemConfig() {
   if (configCache && (now - cacheTimestamp) < 60000) return configCache;
 
   try {
-    const data = await dbFetch('system_config?select=config_key,config_value', {
-      method: 'GET',
-      prefer: ''
-    });
+    const rows = await sql`SELECT config_key, config_value FROM system_config`;
     const map = {};
-    if (Array.isArray(data)) data.forEach(c => { map[c.config_key] = c.config_value; });
+    if (Array.isArray(rows)) {
+      rows.forEach(c => { map[c.config_key] = c.config_value; });
+    }
 
     configCache = {
       ENGAGEMENT_THRESHOLDS: map['ENGAGEMENT_THRESHOLDS'] || { highly_engaged: 80, moderate: 50, low: 20 },
@@ -90,16 +54,24 @@ export async function evaluateCTA(userId, ctaType, ctaPriority = 3) {
   try {
     const config = await getSystemConfig();
 
-    if (!config.FEATURE_FLAGS.enable_decision_engine) {
+    if (!config.FEATURE_FLAGS?.enable_decision_engine) {
       return { decision: 'SHOW', intensity: 'STRONG' };
     }
 
-    // Fetch user engagement profile
-    const profiles = await dbFetch(
-      `user_engagement_profile?user_id=eq.${userId}&limit=1`,
-      { method: 'GET', prefer: '' }
-    );
-    const profile    = Array.isArray(profiles) && profiles.length > 0 ? profiles[0] : null;
+    // Fetch user engagement profile via AWS RDS
+    let profile = null;
+    try {
+      const rows = await sql`
+        SELECT engagement_score, fatigue_score, last_state
+        FROM user_engagement_profile
+        WHERE user_id = ${userId}
+        LIMIT 1
+      `;
+      profile = rows[0] || null;
+    } catch {
+      // ignore if table does not exist
+    }
+
     const engScore   = profile?.engagement_score  ?? 50;
     const fatigue    = profile?.fatigue_score     ?? 0;
     const state      = profile?.last_state        ?? 'EXPLORING';
@@ -142,18 +114,18 @@ export async function evaluateCTA(userId, ctaType, ctaPriority = 3) {
 // 3. Track Signal — fire-and-forget signal logging
 // ─────────────────────────────────────────────────────────────────────────────
 export function trackSignal({ userId, signalCode, type, confidence = 1.0, metadata = {} }) {
-  // Non-blocking — does not await
-  dbFetch('service_signal_log', {
-    method: 'POST',
-    prefer: 'return=minimal',
-    body: JSON.stringify({
-      user_id:          userId,
-      signal_code:      signalCode,
-      type,             // EVENT | INTENT | DROPOFF | TIME
-      confidence_score: confidence,
-      metadata
-    })
-  }).catch(err => console.warn('[EngagementEngine] Signal log failed:', err.message));
+  // Non-blocking fire-and-forget directly into AWS RDS
+  (async () => {
+    try {
+      const metaJson = typeof metadata === "string" ? metadata : JSON.stringify(metadata);
+      await sql`
+        INSERT INTO service_signal_log (user_id, signal_code, type, confidence_score, metadata)
+        VALUES (${userId}, ${signalCode}, ${type}, ${confidence}, ${metaJson}::jsonb)
+      `;
+    } catch (err) {
+      // Non-blocking warn
+    }
+  })();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -161,58 +133,36 @@ export function trackSignal({ userId, signalCode, type, confidence = 1.0, metada
 // ─────────────────────────────────────────────────────────────────────────────
 export async function updateEngagementProfile(userId, action, scoreBoost = 5) {
   try {
-    const profiles = await dbFetch(
-      `user_engagement_profile?user_id=eq.${userId}&limit=1`,
-      { method: 'GET', prefer: '' }
-    );
-    const current = Array.isArray(profiles) && profiles.length > 0 ? profiles[0] : null;
+    let current = null;
+    try {
+      const rows = await sql`
+        SELECT engagement_score, fatigue_score
+        FROM user_engagement_profile
+        WHERE user_id = ${userId}
+        LIMIT 1
+      `;
+      current = rows[0] || null;
+    } catch {
+      return;
+    }
+
     const newScore = Math.min(100, (current?.engagement_score ?? 50) + scoreBoost);
     const newFatigue = Math.min(20, (current?.fatigue_score ?? 0) + 1);
 
-    await dbFetch('user_engagement_profile', {
-      method:  current ? 'PATCH' : 'POST',
-      prefer:  'return=minimal',
-      ...(current ? {} : {}),
-      body: JSON.stringify(
-        current
-          ? { engagement_score: newScore, fatigue_score: newFatigue, last_action: action, updated_at: new Date().toISOString() }
-          : { user_id: userId, engagement_score: newScore, fatigue_score: newFatigue, last_action: action }
-      )
-    });
-
     if (current) {
-      // PATCH needs eq filter — use separate fetch
-      await fetch(`${SUPABASE_URL}/rest/v1/user_engagement_profile?user_id=eq.${userId}`, {
-        method:  'PATCH',
-        headers: {
-          'apikey':        SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Content-Type':  'application/json',
-          'Prefer':        'return=minimal',
-        },
-        body: JSON.stringify({
-          engagement_score: newScore,
-          fatigue_score:    newFatigue,
-          last_action:      action,
-          updated_at:       new Date().toISOString()
-        })
-      });
+      await sql`
+        UPDATE user_engagement_profile
+        SET engagement_score = ${newScore},
+            fatigue_score = ${newFatigue},
+            last_action = ${action},
+            updated_at = NOW()
+        WHERE user_id = ${userId}
+      `;
     } else {
-      await fetch(`${SUPABASE_URL}/rest/v1/user_engagement_profile`, {
-        method:  'POST',
-        headers: {
-          'apikey':        SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Content-Type':  'application/json',
-          'Prefer':        'return=minimal',
-        },
-        body: JSON.stringify({
-          user_id:          userId,
-          engagement_score: newScore,
-          fatigue_score:    newFatigue,
-          last_action:      action
-        })
-      });
+      await sql`
+        INSERT INTO user_engagement_profile (user_id, engagement_score, fatigue_score, last_action)
+        VALUES (${userId}, ${newScore}, ${newFatigue}, ${action})
+      `;
     }
   } catch (err) {
     console.warn('[EngagementEngine] Profile update failed:', err.message);
@@ -223,9 +173,14 @@ export async function updateEngagementProfile(userId, action, scoreBoost = 5) {
 // Internal: fire-and-forget decision logging
 // ─────────────────────────────────────────────────────────────────────────────
 function logDecision(userId, state, engScore, fatigueScore, decision, ctaType, reason) {
-  dbFetch('engagement_decision_log', {
-    method:  'POST',
-    prefer:  'return=minimal',
-    body: JSON.stringify({ user_id: userId, state, engagement_score: engScore, fatigue_score: fatigueScore, decision, cta_type: ctaType, reason })
-  }).catch(() => {}); // Never blocks
+  (async () => {
+    try {
+      await sql`
+        INSERT INTO engagement_decision_log (user_id, state, engagement_score, fatigue_score, decision, cta_type, reason)
+        VALUES (${userId}, ${state}, ${engScore}, ${fatigueScore}, ${decision}, ${ctaType}, ${reason})
+      `;
+    } catch {
+      // Non-blocking
+    }
+  })();
 }

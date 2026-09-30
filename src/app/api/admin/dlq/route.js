@@ -1,26 +1,10 @@
 import { success, failure } from "@/lib/response";
 import { replayDeadLetterItem } from "@/lib/layer1/retryWorker";
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-async function dbFetch(path, opts = {}) {
-  const { headers, ...restOpts } = opts;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: { 
-      apikey: SERVICE_KEY, 
-      Authorization: `Bearer ${SERVICE_KEY}`, 
-      "Content-Type": "application/json", 
-      ...headers 
-    },
-    ...restOpts,
-  });
-  return res;
-}
+import sql from "@/lib/db";
 
 /**
  * GET /api/admin/dlq
- * Returns paginated dead_letter_queue items with filter support.
+ * Returns paginated dead_letter_queue items from AWS RDS PostgreSQL.
  * Query params: page, limit, replayed, is_payment_event, event_type
  */
 export async function GET(req) {
@@ -28,37 +12,86 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const page          = parseInt(searchParams.get("page") || "1");
     const limit         = parseInt(searchParams.get("limit") || "20");
-    const replayed      = searchParams.get("replayed");        // "true" | "false" | null
-    const isPayment     = searchParams.get("is_payment_event"); // "true" | "false" | null
+    const replayedParam = searchParams.get("replayed");
+    const isPaymentParam = searchParams.get("is_payment_event");
     const eventType     = searchParams.get("event_type");
     const offset        = (page - 1) * limit;
 
-    let filters = `order=created_at.desc&limit=${limit}&offset=${offset}`;
-    if (replayed !== null && replayed !== "")       filters += `&replayed=eq.${replayed}`;
-    if (isPayment !== null && isPayment !== "")     filters += `&is_payment_event=eq.${isPayment}`;
-    if (eventType)                                  filters += `&event_type=eq.${eventType}`;
+    let items = [];
+    let total = 0;
 
-    // Fetch items
-    const res = await dbFetch(`dead_letter_queue?${filters}`, {
-      headers: { Prefer: "count=exact" },
-    });
-    const items = await res.json();
-    const total = parseInt(res.headers.get("content-range")?.split("/")[1] || "0", 10);
+    try {
+      if (replayedParam !== null && replayedParam !== "") {
+        const isReplayed = replayedParam === 'true';
+        items = await sql`
+          SELECT * FROM dead_letter_queue
+          WHERE replayed = ${isReplayed}
+          ORDER BY created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `;
+        const countRes = await sql`
+          SELECT COUNT(*)::int as count FROM dead_letter_queue
+          WHERE replayed = ${isReplayed}
+        `;
+        total = countRes[0]?.count || 0;
+      } else if (isPaymentParam !== null && isPaymentParam !== "") {
+        const isPayment = isPaymentParam === 'true';
+        items = await sql`
+          SELECT * FROM dead_letter_queue
+          WHERE is_payment_event = ${isPayment}
+          ORDER BY created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `;
+        const countRes = await sql`
+          SELECT COUNT(*)::int as count FROM dead_letter_queue
+          WHERE is_payment_event = ${isPayment}
+        `;
+        total = countRes[0]?.count || 0;
+      } else {
+        items = await sql`
+          SELECT * FROM dead_letter_queue
+          ORDER BY created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `;
+        const countRes = await sql`
+          SELECT COUNT(*)::int as count FROM dead_letter_queue
+        `;
+        total = countRes[0]?.count || 0;
+      }
+    } catch (e) {
+      console.warn("Could not query dead_letter_queue from RDS:", e.message);
+    }
 
-    // Summary counts
-    const [pendingRes, paymentRes, replayedRes] = await Promise.all([
-      dbFetch("dead_letter_queue?replayed=eq.false&select=id", { headers: { Prefer: "count=exact" } }),
-      dbFetch("dead_letter_queue?is_payment_event=eq.true&replayed=eq.false&select=id", { headers: { Prefer: "count=exact" } }),
-      dbFetch("dead_letter_queue?replayed=eq.true&select=id", { headers: { Prefer: "count=exact" } }),
-    ]);
-    const pendingTotal   = parseInt(pendingRes.headers.get("content-range")?.split("/")[1] || "0", 10);
-    const paymentTotal   = parseInt(paymentRes.headers.get("content-range")?.split("/")[1] || "0", 10);
-    const replayedTotal  = parseInt(replayedRes.headers.get("content-range")?.split("/")[1] || "0", 10);
+    // Summary counts directly from AWS RDS
+    let pendingTotal = 0;
+    let paymentTotal = 0;
+    let replayedTotal = 0;
 
-    return success("Dead letter queue fetched", {
+    try {
+      const summaryRows = await sql`
+        SELECT 
+          replayed,
+          is_payment_event,
+          COUNT(*)::int as count
+        FROM dead_letter_queue
+        GROUP BY replayed, is_payment_event
+      `;
+      for (const row of summaryRows) {
+        const c = parseInt(row.count, 10);
+        if (row.replayed) {
+          replayedTotal += c;
+        } else {
+          pendingTotal += c;
+          if (row.is_payment_event) paymentTotal += c;
+        }
+      }
+    } catch {}
+
+    return success("Dead letter queue fetched (AWS RDS)", {
       items: Array.isArray(items) ? items : [],
       summary: { pending: pendingTotal, payment_events: paymentTotal, replayed: replayedTotal },
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      database: "AWS RDS PostgreSQL"
     });
   } catch (err) {
     console.error("GET /api/admin/dlq error:", err);
@@ -69,7 +102,7 @@ export async function GET(req) {
 /**
  * POST /api/admin/dlq
  * Body: { dlq_id, admin_id, reason }
- * Replays a dead letter item by re-enqueuing it to retry_queue.
+ * Replays a dead letter item by re-enqueuing it in AWS RDS PostgreSQL.
  */
 export async function POST(req) {
   try {
@@ -81,24 +114,25 @@ export async function POST(req) {
 
     const result = await replayDeadLetterItem(dlq_id, admin_id);
 
-    // Log admin action
-    await dbFetch("admin_action_log", {
-      method: "POST",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify([{
-        admin_id,
-        action_type:     "REPLAY_DLQ",
-        target_table:    "dead_letter_queue",
-        reason,
-        input_payload:   { dlq_id },
-        result_payload:  result,
-        status:          result.success ? "SUCCESS" : "FAILED",
-      }]),
-    });
+    // Log admin action directly in AWS RDS
+    try {
+      await sql`
+        INSERT INTO admin_action_log (
+          admin_id, action_type, target_table, reason, input_payload, result_payload, status
+        ) VALUES (
+          ${admin_id}, 'REPLAY_DLQ', 'dead_letter_queue', ${reason},
+          ${JSON.stringify({ dlq_id })},
+          ${JSON.stringify(result)},
+          ${result.success ? 'SUCCESS' : 'FAILED'}
+        )
+      `;
+    } catch (e) {
+      console.warn("Could not insert admin_action_log in RDS:", e.message);
+    }
 
     if (!result.success) return failure("Replay failed", result.error, 500);
 
-    return success("DLQ item replayed successfully", { dlq_id, re_queued_action: result.re_queued_action });
+    return success("DLQ item replayed successfully (AWS RDS)", { dlq_id, re_queued_action: result.re_queued_action });
   } catch (err) {
     console.error("POST /api/admin/dlq error:", err);
     return failure("Failed to replay DLQ item", err.message, 500);

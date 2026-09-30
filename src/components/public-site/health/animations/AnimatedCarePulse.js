@@ -9,9 +9,9 @@ import { motion } from "framer-motion";
  */
 export default function AnimatedCarePulse({
   activeStage = 2, // 0: Started, 1: Recorded, 2: In Progress, 3: Resolved
-  episodeId = "LCE-2026-0842",
-  startDate = "4 Sep 2026",
-  recordedDate = "28 Sep 2026",
+  episodeId = "LCE-ACTIVE",
+  startDate = "Initial Enrolment",
+  recordedDate = "Active Monitoring",
   className = "",
 }) {
   const stages = [

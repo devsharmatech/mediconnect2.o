@@ -1,5 +1,4 @@
 import sql from "@/lib/db";
-import { supabase } from "@/lib/supabaseAdmin";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { analyzeHealthData, generateHealthRecommendations } from "@/lib/openai";
@@ -162,146 +161,121 @@ export async function POST(req) {
         "Missing required fields: user_id, assessment_type, inputs",
         "validation_error",
         400,
-        {
-          headers: corsHeaders,
-        }
+        { headers: corsHeaders }
       );
     }
 
-    // Validate assessment type
     if (!["heart", "lung"].includes(assessment_type)) {
       return failure(
         "Invalid assessment type. Must be 'heart' or 'lung'",
         "validation_error",
         400,
-        {
-          headers: corsHeaders,
-        }
+        { headers: corsHeaders }
       );
     }
 
-    // 0. Canonical Age Derivation (SP-07 P0-02 & SP-06 LC-02): Age derives from canonical DOB
+    // 0. Canonical Age from patient_details (AWS RDS)
     try {
-      const { data: profile } = await supabase
-        .from("patient_details")
-        .select("date_of_birth")
-        .eq("id", user_id)
-        .maybeSingle();
-
-      if (profile?.date_of_birth) {
-        const dob = new Date(profile.date_of_birth);
+      const profileRows = await sql`
+        SELECT date_of_birth FROM patient_details
+        WHERE id = ${user_id}::uuid
+        LIMIT 1;
+      `;
+      if (profileRows && profileRows.length > 0 && profileRows[0].date_of_birth) {
+        const dob = new Date(profileRows[0].date_of_birth);
         if (!isNaN(dob.getTime())) {
           const today = new Date();
           let canonicalAge = today.getFullYear() - dob.getFullYear();
           const m = today.getMonth() - dob.getMonth();
-          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
-            canonicalAge--;
-          }
-          if (canonicalAge > 0) {
-            inputs.age = canonicalAge;
-          }
+          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) canonicalAge--;
+          if (canonicalAge > 0) inputs.age = canonicalAge;
         }
       }
     } catch (dobErr) {
-      console.warn("Could not query DOB for canonical age:", dobErr.message);
+      console.warn("[Assessments POST] Could not query DOB from RDS:", dobErr.message);
     }
 
-    // Calculate health score based on assessment type
+    // 1. Calculate health score
     let healthScore, calculatedAge, riskLevel, riskFactors;
-
     if (assessment_type === "heart") {
-      const result = calculateHeartHealth(inputs);
-      healthScore = result.healthScore;
-      calculatedAge = result.calculatedAge;
-      riskLevel = result.riskLevel;
-      riskFactors = result.riskFactors;
+      ({ healthScore, calculatedAge, riskLevel, riskFactors } = calculateHeartHealth(inputs));
     } else {
-      const result = calculateLungHealth(inputs);
-      healthScore = result.healthScore;
-      calculatedAge = result.calculatedAge;
-      riskLevel = result.riskLevel;
-      riskFactors = result.riskFactors;
+      ({ healthScore, calculatedAge, riskLevel, riskFactors } = calculateLungHealth(inputs));
     }
 
-    // Generate assistive analysis and recommendations
+    // 2. Generate AI analysis and recommendations
     const [aiAnalysis, recommendations] = await Promise.all([
       analyzeHealthData(assessment_type, inputs, healthScore, riskFactors),
       generateHealthRecommendations(assessment_type, inputs, riskFactors),
     ]);
 
-    // Create health assessment record (with safe non-null calculated_age)
     const safeCalculatedAge = (calculatedAge !== null && calculatedAge !== undefined)
       ? Number(calculatedAge)
       : (parseInt(inputs.age) || 45);
 
-    const { data: assessment, error: assessmentError } = await supabase
-      .from("health_assessments")
-      .insert([
-        {
-          user_id,
-          assessment_type,
-          health_score: healthScore,
-          calculated_age: safeCalculatedAge,
-          risk_level: riskLevel,
-          ai_analysis: aiAnalysis,
-          recommendations: recommendations,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ])
-      .select()
-      .single();
+    const now = new Date().toISOString();
 
-    if (assessmentError) throw assessmentError;
+    // 3. Insert assessment into AWS RDS
+    let assessmentId;
+    try {
+      const inserted = await sql`
+        INSERT INTO health_assessments
+          (user_id, assessment_type, health_score, calculated_age, risk_level, ai_analysis, recommendations, created_at, updated_at)
+        VALUES
+          (${user_id}::uuid, ${assessment_type}, ${healthScore}, ${safeCalculatedAge}, ${riskLevel}, ${aiAnalysis}, ${JSON.stringify(recommendations)}, ${now}, ${now})
+        RETURNING id, user_id, assessment_type, health_score, calculated_age, risk_level, created_at, updated_at;
+      `;
+      if (!inserted || inserted.length === 0) throw new Error("Insert returned no rows");
+      assessmentId = inserted[0].id;
+    } catch (insertErr) {
+      console.error("[Assessments POST] Failed to insert assessment into RDS:", insertErr.message);
+      throw insertErr;
+    }
 
-    // Create specific input record
-    const inputTable =
-      assessment_type === "heart"
-        ? "heart_health_inputs"
-        : "lung_health_inputs";
+    // 4. Insert health inputs into AWS RDS
+    const inputTable = assessment_type === "heart" ? "heart_health_inputs" : "lung_health_inputs";
     const cleanInputs = { ...inputs };
     delete cleanInputs.bmi;
     delete cleanInputs.calculated_bmi;
-    const { error: inputError } = await supabase.from(inputTable).insert([
-      {
-        assessment_id: assessment.id,
-        ...cleanInputs,
-        created_at: new Date().toISOString(),
-      },
-    ]);
 
-    if (inputError) throw inputError;
+    try {
+      const inputColumns = Object.keys(cleanInputs);
+      const inputValues = Object.values(cleanInputs);
+      // Build dynamic insert using parameterized query
+      await sql`
+        INSERT INTO ${sql(inputTable)} ${sql({ assessment_id: assessmentId, ...cleanInputs, created_at: now })}
+        ON CONFLICT DO NOTHING;
+      `;
+    } catch (inputErr) {
+      console.warn("[Assessments POST] Could not insert health inputs into RDS:", inputErr.message);
+      // Non-fatal: assessment was saved, inputs are supplementary
+    }
 
-    // Check and award badges
+    // 5. Award badges (RDS-based)
     await checkAndAwardBadges(user_id, assessment_type, healthScore);
 
-    // Get complete assessment with inputs
-    const { data: completeAssessment, error: fetchError } = await supabase
-      .from("health_assessments")
-      .select(
-        `
-        *,
-        heart_health_inputs(*),
-        lung_health_inputs(*)
-      `
-      )
-      .eq("id", assessment.id)
-      .single();
-
-    if (fetchError) throw fetchError;
-
+    // 6. Build serial number and return response
     const serialPrefix = assessment_type === "lung" ? "LCN" : "CCN";
-    const serialYear = new Date(completeAssessment.created_at || Date.now()).getFullYear();
-    const serialCode = (completeAssessment.id || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
-    completeAssessment.serial_no = `${serialPrefix}-${serialYear}-${serialCode}`;
+    const serialYear = new Date(now).getFullYear();
+    const serialCode = String(assessmentId).replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
+    const serial_no = `${serialPrefix}-${serialYear}-${serialCode}`;
 
     return success(
-      "Health assessment created successfully with assistive analysis.",
-      completeAssessment,
-      201,
+      "Health assessment created successfully.",
       {
-        headers: corsHeaders,
-      }
+        id: assessmentId,
+        user_id,
+        assessment_type,
+        health_score: healthScore,
+        calculated_age: safeCalculatedAge,
+        risk_level: riskLevel,
+        ai_analysis: aiAnalysis,
+        recommendations,
+        serial_no,
+        created_at: now,
+      },
+      201,
+      { headers: corsHeaders }
     );
   } catch (error) {
     console.error("POST Health Assessment Error:", error);
@@ -309,9 +283,7 @@ export async function POST(req) {
       "Failed to create health assessment. " + error.message,
       "creation_failed",
       500,
-      {
-        headers: corsHeaders,
-      }
+      { headers: corsHeaders }
     );
   }
 }
@@ -500,42 +472,41 @@ function calculateLungHealth(inputs) {
 }
 
 async function checkAndAwardBadges(userId, assessmentType, score) {
-  const badgesToAward = [];
+  try {
+    const badgesToAward = [];
 
-  // First assessment badge
-  const { count } = await supabase
-    .from("health_assessments")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("assessment_type", assessmentType);
+    // Check if this is their first assessment of this type
+    const countRes = await sql`
+      SELECT count(*)::int as cnt
+      FROM health_assessments
+      WHERE user_id = ${userId}::uuid AND assessment_type = ${assessmentType};
+    `;
+    const count = countRes[0]?.cnt || 0;
 
-  if (count === 1) {
-    badgesToAward.push({
-      badge_name: `${
-        assessmentType === "heart" ? "Heart" : "Lung"
-      } Health Starter`,
-      badge_type: assessmentType,
-      description: `Completed first ${assessmentType} health assessment`,
-    });
-  }
+    if (count === 1) {
+      badgesToAward.push({
+        badge_name: `${assessmentType === "heart" ? "Heart" : "Lung"} Health Starter`,
+        badge_type: assessmentType,
+        description: `Completed first ${assessmentType} health assessment`,
+      });
+    }
 
-  // Score-based badges
-  if (score >= 80) {
-    badgesToAward.push({
-      badge_name: `${assessmentType === "heart" ? "Heart" : "Lung"} Champion`,
-      badge_type: assessmentType,
-      description: `Achieved excellent ${assessmentType} health score`,
-    });
-  }
+    if (score >= 80) {
+      badgesToAward.push({
+        badge_name: `${assessmentType === "heart" ? "Heart" : "Lung"} Champion`,
+        badge_type: assessmentType,
+        description: `Achieved excellent ${assessmentType} health score`,
+      });
+    }
 
-  // Award badges
-  for (const badge of badgesToAward) {
-    await supabase.from("user_badges").insert([
-      {
-        user_id: userId,
-        ...badge,
-        earned_at: new Date().toISOString(),
-      },
-    ]);
+    for (const badge of badgesToAward) {
+      await sql`
+        INSERT INTO user_badges (user_id, badge_name, badge_type, description, earned_at)
+        VALUES (${userId}::uuid, ${badge.badge_name}, ${badge.badge_type}, ${badge.description}, ${new Date().toISOString()})
+        ON CONFLICT DO NOTHING;
+      `;
+    }
+  } catch (e) {
+    console.warn("[checkAndAwardBadges] Non-fatal badge error:", e.message);
   }
 }

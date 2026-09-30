@@ -20,9 +20,16 @@ const sql = globalForDb.sql || postgres({
   username: dbUser,
   password: dbPassword,
   ssl: sslConfig,
-  max: process.env.DB_MAX_CONNECTIONS ? parseInt(process.env.DB_MAX_CONNECTIONS, 10) : 50,
-  idle_timeout: 30,
-  connect_timeout: 10,
+  // Keep pool small — avoids exhausting RDS connection limit
+  max: process.env.DB_MAX_CONNECTIONS ? parseInt(process.env.DB_MAX_CONNECTIONS, 10) : 10,
+  // Fail fast — 5s so API routes don't chain-hang (3 queries x 10s = 30s hang)
+  connect_timeout: 5,
+  // Recycle idle connections quickly to avoid stale AWS socket errors
+  idle_timeout: 20,
+  // Recycle after 5 min to prevent AWS RDS forced disconnects
+  max_lifetime: 300,
+  // Disable prepared statements — prevents conflicts on Next.js hot-reload
+  prepare: false,
 });
 
 if (process.env.NODE_ENV !== 'production') {

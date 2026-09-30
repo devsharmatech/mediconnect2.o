@@ -1,5 +1,5 @@
 /**
- * LAYER-111: Orchestration State Machine — Phase 6
+ * LAYER-111: Orchestration State Machine — AWS RDS PostgreSQL Direct
  *
  * Manages care episode state transitions with:
  * 1. Optimistic concurrency (state_version locking)
@@ -7,15 +7,10 @@
  * 3. Full timeline audit trail
  * 4. Execution tracking
  *
- * State machine: INITIATED → PAYMENT_PENDING → ACTIVE →
- *                CONSULTATION_SCHEDULED → CONSULTATION_COMPLETED →
- *                FOLLOW_UP_PENDING → CLOSED / ABANDONED
- *
- * Uses direct HTTP fetch (schema cache bypass).
+ * Direct AWS RDS PostgreSQL queries (no Supabase REST).
  */
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+import sql from "@/lib/db";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Valid state transitions
@@ -33,75 +28,27 @@ const VALID_TRANSITIONS = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Utility
-// ─────────────────────────────────────────────────────────────────────────────
-async function dbSelect(table, filters, limit = 1) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filters}&limit=${limit}`, {
-    headers: { 'apikey': SERVICE_KEY, 'Authorization': `Bearer ${SERVICE_KEY}` }
-  });
-  if (!res.ok) return [];
-  const d = await res.json();
-  return Array.isArray(d) ? d : [];
-}
-
-async function dbInsert(table, payload) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-    method: 'POST',
-    headers: {
-      'apikey': SERVICE_KEY, 'Authorization': `Bearer ${SERVICE_KEY}`,
-      'Content-Type': 'application/json', 'Prefer': 'return=representation'
-    },
-    body: JSON.stringify(Array.isArray(payload) ? payload : [payload])
-  });
-  const d = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(`dbInsert ${table} [${res.status}]: ${JSON.stringify(d).substring(0, 150)}`);
-  return Array.isArray(d) ? d[0] : d;
-}
-
-async function dbUpsert(table, payload, onConflict) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}${onConflict ? '?on_conflict=' + onConflict : ''}`, {
-    method: 'POST',
-    headers: {
-      'apikey': SERVICE_KEY, 'Authorization': `Bearer ${SERVICE_KEY}`,
-      'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=representation'
-    },
-    body: JSON.stringify(Array.isArray(payload) ? payload : [payload])
-  });
-  const d = await res.json().catch(() => null);
-  return Array.isArray(d) ? d[0] : d;
-}
-
-async function dbPatch(table, filters, payload) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filters}`, {
-    method: 'PATCH',
-    headers: {
-      'apikey': SERVICE_KEY, 'Authorization': `Bearer ${SERVICE_KEY}`,
-      'Content-Type': 'application/json', 'Prefer': 'return=representation'
-    },
-    body: JSON.stringify(payload)
-  });
-  const d = await res.json().catch(() => null);
-  return Array.isArray(d) ? d[0] : d;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. Initialize Episode State (called when care episode is created)
+// 1. Initialize Episode State
 // ─────────────────────────────────────────────────────────────────────────────
 export async function initEpisodeState(care_episode_id) {
   try {
-    const existing = await dbSelect('care_episode_states', `care_episode_id=eq.${care_episode_id}`);
+    const existing = await sql`
+      SELECT * FROM care_episode_states WHERE care_episode_id = ${care_episode_id} LIMIT 1
+    `;
     if (existing.length > 0) return { success: true, state: existing[0], already_initialized: true };
 
-    const state = await dbUpsert('care_episode_states', {
-      care_episode_id,
-      current_state:  'INITIATED',
-      state_version:  1,
-      event_sequence: 0,
-      updated_at:     new Date().toISOString()
-    }, 'care_episode_id');
+    const rows = await sql`
+      INSERT INTO care_episode_states (
+        care_episode_id, current_state, state_version, event_sequence, updated_at
+      ) VALUES (
+        ${care_episode_id}, 'INITIATED', 1, 0, NOW()
+      )
+      ON CONFLICT (care_episode_id) DO UPDATE SET updated_at = NOW()
+      RETURNING *
+    `;
 
-    console.log(`[StateMachine] Episode ${care_episode_id} initialized: INITIATED`);
-    return { success: true, state };
+    console.log(`[StateMachine] Episode ${care_episode_id} initialized: INITIATED (AWS RDS)`);
+    return { success: true, state: rows[0] };
   } catch (err) {
     console.error('[StateMachine] initEpisodeState error:', err.message);
     return { success: false, error: err.message };
@@ -109,7 +56,7 @@ export async function initEpisodeState(care_episode_id) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. Transition State (the core state machine function)
+// 2. Transition State (core state machine function)
 // ─────────────────────────────────────────────────────────────────────────────
 export async function transitionEpisodeState({
   care_episode_id,
@@ -121,19 +68,18 @@ export async function transitionEpisodeState({
   payload    = {}
 }) {
   try {
-    // Fetch current state with version
-    const states = await dbSelect('care_episode_states', `care_episode_id=eq.${care_episode_id}`);
+    const states = await sql`
+      SELECT * FROM care_episode_states WHERE care_episode_id = ${care_episode_id} LIMIT 1
+    `;
     const current = states[0];
 
     if (!current) {
-      // Auto-initialize if missing
       await initEpisodeState(care_episode_id);
       return transitionEpisodeState({ care_episode_id, to_state, event_type, actor_id, actor_type, execution_id, payload });
     }
 
     const from_state = current.current_state;
 
-    // Validate transition is allowed
     const allowed = VALID_TRANSITIONS[from_state] || [];
     if (!allowed.includes(to_state)) {
       const msg = `Invalid transition: ${from_state} → ${to_state} for episode ${care_episode_id}`;
@@ -144,23 +90,21 @@ export async function transitionEpisodeState({
     const new_version  = current.state_version + 1;
     const new_sequence = current.event_sequence + 1;
 
-    // Optimistic concurrency update (only succeeds if version matches)
-    const updated = await dbPatch(
-      'care_episode_states',
-      `care_episode_id=eq.${care_episode_id}&state_version=eq.${current.state_version}`,
-      {
-        current_state:     to_state,
-        state_version:     new_version,
-        event_sequence:    new_sequence,
-        last_execution_id: execution_id,
-        locked_by:         null,
-        locked_at:         null,
-        updated_at:        new Date().toISOString()
-      }
-    );
+    // Optimistic concurrency update in AWS RDS
+    const updated = await sql`
+      UPDATE care_episode_states
+      SET current_state = ${to_state},
+          state_version = ${new_version},
+          event_sequence = ${new_sequence},
+          last_execution_id = ${execution_id},
+          locked_by = NULL,
+          locked_at = NULL,
+          updated_at = NOW()
+      WHERE care_episode_id = ${care_episode_id} AND state_version = ${current.state_version}
+      RETURNING *
+    `;
 
-    if (!updated) {
-      // Concurrency conflict — another worker updated simultaneously
+    if (!updated || updated.length === 0) {
       return { success: false, error: 'CONCURRENCY_CONFLICT', from_state, to_state };
     }
 
@@ -177,7 +121,7 @@ export async function transitionEpisodeState({
       execution_id
     });
 
-    console.log(`[StateMachine] Episode ${care_episode_id}: ${from_state} → ${to_state} (v${new_version})`);
+    console.log(`[StateMachine] Episode ${care_episode_id}: ${from_state} → ${to_state} (v${new_version}) in AWS RDS`);
     return { success: true, from_state, to_state, state_version: new_version, event_sequence: new_sequence };
 
   } catch (err) {
@@ -201,20 +145,17 @@ export async function appendTimeline({
   execution_id = null
 }) {
   try {
-    await dbInsert('care_episode_timeline', {
-      care_episode_id,
-      event_sequence,
-      event_type,
-      actor_id,
-      actor_type,
-      from_state,
-      to_state,
-      payload,
-      execution_id
-    });
+    await sql`
+      INSERT INTO care_episode_timeline (
+        care_episode_id, event_sequence, event_type, actor_id, actor_type,
+        from_state, to_state, payload, execution_id
+      ) VALUES (
+        ${care_episode_id}, ${event_sequence}, ${event_type}, ${actor_id}, ${actor_type},
+        ${from_state}, ${to_state}, ${JSON.stringify(payload)}, ${execution_id}
+      )
+    `;
   } catch (err) {
-    // Timeline write failures are non-blocking — log but don't propagate
-    console.error('[StateMachine] appendTimeline error:', err.message);
+    console.error('[StateMachine] appendTimeline error in RDS:', err.message);
   }
 }
 
@@ -230,65 +171,91 @@ export async function createExecution({
   input_payload = {}
 }) {
   try {
-    const execution = await dbInsert('orchestration_executions', {
-      care_episode_id,
-      action_type,
-      actor_id,
-      actor_type,
-      idempotency_key,
-      status:        'PROCESSING',
-      input_payload,
-      started_at:    new Date().toISOString()
-    });
-    return { success: true, execution_id: execution?.id };
+    const rows = await sql`
+      INSERT INTO orchestration_executions (
+        care_episode_id, action_type, actor_id, actor_type,
+        idempotency_key, status, input_payload, started_at
+      ) VALUES (
+        ${care_episode_id}, ${action_type}, ${actor_id}, ${actor_type},
+        ${idempotency_key}, 'PROCESSING', ${JSON.stringify(input_payload)}, NOW()
+      )
+      RETURNING *
+    `;
+    return { success: true, execution_id: rows[0]?.id };
   } catch (err) {
-    // If idempotency_key conflict — return existing execution
     if (err.message?.includes('unique') || err.message?.includes('duplicate')) {
-      const existing = await dbSelect('orchestration_executions', `idempotency_key=eq.${idempotency_key}`);
+      const existing = await sql`
+        SELECT id FROM orchestration_executions WHERE idempotency_key = ${idempotency_key} LIMIT 1
+      `;
       if (existing.length) return { success: true, execution_id: existing[0].id, is_duplicate: true };
     }
-    console.error('[StateMachine] createExecution error:', err.message);
+    console.error('[StateMachine] createExecution error in RDS:', err.message);
     return { success: false, error: err.message };
   }
 }
 
 export async function completeExecution(execution_id, output_payload = {}) {
-  const started = await dbSelect('orchestration_executions', `id=eq.${execution_id}`);
-  const startedAt = started[0]?.started_at ? new Date(started[0].started_at).getTime() : Date.now();
+  try {
+    const started = await sql`
+      SELECT started_at FROM orchestration_executions WHERE id = ${execution_id} LIMIT 1
+    `;
+    const startedAt = started[0]?.started_at ? new Date(started[0].started_at).getTime() : Date.now();
 
-  await dbPatch('orchestration_executions', `id=eq.${execution_id}`, {
-    status:         'COMPLETED',
-    output_payload,
-    completed_at:   new Date().toISOString(),
-    duration_ms:    Date.now() - startedAt
-  }).catch(() => {});
+    await sql`
+      UPDATE orchestration_executions
+      SET status = 'COMPLETED',
+          output_payload = ${JSON.stringify(output_payload)},
+          completed_at = NOW(),
+          duration_ms = ${Date.now() - startedAt}
+      WHERE id = ${execution_id}
+    `;
+  } catch (err) {
+    console.warn('[StateMachine] completeExecution error in RDS:', err.message);
+  }
 }
 
 export async function failExecution(execution_id, error_message) {
-  const started = await dbSelect('orchestration_executions', `id=eq.${execution_id}`);
-  const startedAt = started[0]?.started_at ? new Date(started[0].started_at).getTime() : Date.now();
+  try {
+    const started = await sql`
+      SELECT started_at FROM orchestration_executions WHERE id = ${execution_id} LIMIT 1
+    `;
+    const startedAt = started[0]?.started_at ? new Date(started[0].started_at).getTime() : Date.now();
 
-  await dbPatch('orchestration_executions', `id=eq.${execution_id}`, {
-    status:        'FAILED',
-    error_message,
-    completed_at:  new Date().toISOString(),
-    duration_ms:   Date.now() - startedAt
-  }).catch(() => {});
+    await sql`
+      UPDATE orchestration_executions
+      SET status = 'FAILED',
+          error_message = ${error_message},
+          completed_at = NOW(),
+          duration_ms = ${Date.now() - startedAt}
+      WHERE id = ${execution_id}
+    `;
+  } catch (err) {
+    console.warn('[StateMachine] failExecution error in RDS:', err.message);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. Get Episode State + Timeline
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getEpisodeState(care_episode_id) {
-  const states = await dbSelect('care_episode_states', `care_episode_id=eq.${care_episode_id}`);
-  return states[0] || null;
+  try {
+    const states = await sql`
+      SELECT * FROM care_episode_states WHERE care_episode_id = ${care_episode_id} LIMIT 1
+    `;
+    return states[0] || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getEpisodeTimeline(care_episode_id) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/care_episode_timeline?care_episode_id=eq.${care_episode_id}&order=event_sequence.asc`,
-    { headers: { 'apikey': SERVICE_KEY, 'Authorization': `Bearer ${SERVICE_KEY}` } }
-  );
-  if (!res.ok) return [];
-  return res.json();
+  try {
+    return await sql`
+      SELECT * FROM care_episode_timeline
+      WHERE care_episode_id = ${care_episode_id}
+      ORDER BY event_sequence ASC
+    `;
+  } catch {
+    return [];
+  }
 }

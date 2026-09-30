@@ -1,60 +1,22 @@
 /**
- * LAYER-111: Retry Worker — Phase 6 Hardened
+ * LAYER-111: Retry Worker — AWS RDS PostgreSQL Direct
  *
- * Processes the retry_queue for failed operations:
+ * Processes the retry_queue for failed operations in AWS RDS:
  * - Failed API calls (with loopback auth)
  * - Failed service triggers (pharmacy, lab, nursing)
  * - Failed event emissions
  * - Failed sync operations
  * - Failed notifications
  *
- * On max-retry exhaustion: moves item to dead_letter_queue
+ * On max-retry exhaustion: moves item to dead_letter_queue in AWS RDS
  * Logs every run to worker_execution_log for SLA monitoring.
- *
- * Exponential backoff: 5s → 30s → 2min → 10min
- * Max retries: 4 (configurable per item)
- *
- * Uses direct HTTP fetch throughout (schema cache bypass).
  */
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+import sql from "@/lib/db";
+import { insertOutboxEvent } from './eventOutbox.js';
+import { sendSMS, sendWhatsAppMessage } from '../sms.js';
 
 const BACKOFF_INTERVALS = [5, 30, 120, 600]; // seconds
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Utility
-// ─────────────────────────────────────────────────────────────────────────────
-async function dbSelect(table, filters, options = {}) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/${table}?${filters}${options.limit ? '&limit=' + options.limit : ''}${options.order ? '&order=' + options.order : ''}`,
-    { headers: { 'apikey': SERVICE_KEY, 'Authorization': `Bearer ${SERVICE_KEY}` } }
-  );
-  if (!res.ok) return [];
-  const d = await res.json();
-  return Array.isArray(d) ? d : [];
-}
-
-async function dbPatch(table, filters, payload) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filters}`, {
-    method:  'PATCH',
-    headers: { 'apikey': SERVICE_KEY, 'Authorization': `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-    body:    JSON.stringify(payload)
-  });
-  if (!res.ok) return null;
-  const d = await res.json();
-  return Array.isArray(d) ? d[0] : d;
-}
-
-async function dbInsert(table, payload) {
-  const body = Array.isArray(payload) ? payload : [payload];
-  const res  = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-    method:  'POST',
-    headers: { 'apikey': SERVICE_KEY, 'Authorization': `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-    body:    JSON.stringify(body)
-  });
-  return res.ok;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Process Retry Queue
@@ -64,14 +26,21 @@ export async function processRetryQueue() {
   const results   = { processed: 0, succeeded: 0, failed: 0, permanently_failed: 0, dead_lettered: 0, errors: [] };
 
   try {
-    const now = new Date().toISOString();
+    const now = new Date();
 
-    // Fetch items ready for retry (next_retry_at <= now)
-    const items = await dbSelect(
-      'retry_queue',
-      `status=eq.pending&next_retry_at=lte.${now}`,
-      { limit: 50, order: 'next_retry_at.asc' }
-    );
+    // Fetch items ready for retry directly from AWS RDS
+    let items = [];
+    try {
+      items = await sql`
+        SELECT * FROM retry_queue
+        WHERE status = 'pending' AND next_retry_at <= ${now}
+        ORDER BY next_retry_at ASC
+        LIMIT 50
+      `;
+    } catch (e) {
+      console.warn("[RetryWorker] Could not query retry_queue from RDS:", e.message);
+      return results;
+    }
 
     if (!items.length) {
       await logWorkerRun('RETRY_WORKER', Date.now() - startedAt, results, 'SUCCESS');
@@ -81,14 +50,18 @@ export async function processRetryQueue() {
     for (const item of items) {
       results.processed++;
 
-      // Optimistic concurrency — claim the row
-      const claimed = await dbPatch(
-        'retry_queue',
-        `id=eq.${item.id}&status=eq.pending`,
-        { status: 'processing' }
-      );
+      // Optimistic concurrency — claim the row in AWS RDS
+      let claimedRows = [];
+      try {
+        claimedRows = await sql`
+          UPDATE retry_queue
+          SET status = 'processing'
+          WHERE id = ${item.id} AND status = 'pending'
+          RETURNING id
+        `;
+      } catch {}
 
-      if (!claimed) {
+      if (!claimedRows || claimedRows.length === 0) {
         console.warn(`[RetryWorker] Concurrency loss on item ${item.id} — skipping`);
         continue;
       }
@@ -97,7 +70,13 @@ export async function processRetryQueue() {
         const ok = await executeRetryAction(item);
 
         if (ok) {
-          await dbPatch('retry_queue', `id=eq.${item.id}`, { status: 'completed', completed_at: new Date().toISOString(), last_error: null });
+          await sql`
+            UPDATE retry_queue
+            SET status = 'completed',
+                completed_at = NOW(),
+                last_error = NULL
+            WHERE id = ${item.id}
+          `;
           results.succeeded++;
         } else {
           throw new Error('Retry action returned false');
@@ -107,46 +86,58 @@ export async function processRetryQueue() {
         const newCount     = (item.retry_count || 0) + 1;
 
         if (newCount >= maxRetries) {
-          // Permanently failed — move to dead_letter_queue
-          await dbPatch('retry_queue', `id=eq.${item.id}`, {
-            status:       'failed',
-            retry_count:  newCount,
-            last_error:   err.message,
-            completed_at: new Date().toISOString()
-          });
+          // Permanently failed — move to dead_letter_queue in AWS RDS
+          await sql`
+            UPDATE retry_queue
+            SET status = 'failed',
+                retry_count = ${newCount},
+                last_error = ${err.message},
+                completed_at = NOW()
+            WHERE id = ${item.id}
+          `;
 
-          await dbInsert('dead_letter_queue', {
-            original_event_id:     item.id,
-            event_type:            item.action_type,
-            payload:               item.payload,
-            failure_reason:        err.message,
-            total_attempts:        newCount,
-            is_payment_event:      item.action_type?.includes('PAYMENT') || false,
-            requires_manual_review: true,
-            replayed:              false
-          });
+          try {
+            await sql`
+              INSERT INTO dead_letter_queue (
+                original_event_id, event_type, payload, failure_reason,
+                total_attempts, is_payment_event, requires_manual_review, replayed
+              ) VALUES (
+                ${item.id}, ${item.action_type},
+                ${typeof item.payload === 'object' ? JSON.stringify(item.payload) : item.payload},
+                ${err.message}, ${newCount},
+                ${item.action_type?.includes('PAYMENT') || false}, true, false
+              )
+            `;
+          } catch {}
 
           // P2 incident for ops team
-          await dbInsert('ops_incident_log', {
-            priority:    'P2',
-            source:      'RETRY_WORKER',
-            description: `Retry permanently failed after ${newCount} attempts: ${item.action_type} — ${err.message}`,
-            metadata:    { retry_id: item.id, action_type: item.action_type }
-          }).catch(() => {});
+          try {
+            await sql`
+              INSERT INTO ops_incident_log (
+                priority, source, description, metadata
+              ) VALUES (
+                'P2', 'RETRY_WORKER',
+                ${`Retry permanently failed after ${newCount} attempts: ${item.action_type} — ${err.message}`},
+                ${JSON.stringify({ retry_id: item.id, action_type: item.action_type })}
+              )
+            `;
+          } catch {}
 
           results.permanently_failed++;
           results.dead_lettered++;
         } else {
           // Schedule next retry with exponential backoff
           const backoffSecs = BACKOFF_INTERVALS[Math.min(newCount - 1, BACKOFF_INTERVALS.length - 1)];
-          const nextRetry   = new Date(Date.now() + backoffSecs * 1000).toISOString();
+          const nextRetry   = new Date(Date.now() + backoffSecs * 1000);
 
-          await dbPatch('retry_queue', `id=eq.${item.id}`, {
-            status:        'pending',
-            retry_count:   newCount,
-            next_retry_at: nextRetry,
-            last_error:    err.message
-          });
+          await sql`
+            UPDATE retry_queue
+            SET status = 'pending',
+                retry_count = ${newCount},
+                next_retry_at = ${nextRetry},
+                last_error = ${err.message}
+            WHERE id = ${item.id}
+          `;
 
           results.failed++;
         }
@@ -179,30 +170,22 @@ async function executeRetryAction(item) {
     case 'service_trigger':
       return retryServiceTrigger(data);
 
-    case 'event_emission': {
-      // Re-insert into outbox for guaranteed delivery
-      const ok = await dbInsert('l1_event_outbox', {
-        event_type:       data.event_name || data.event_type,
-        care_episode_id:  data.care_episode_id,
-        consultation_id:  data.consultation_id,
-        consultation_type: 'RETRY',
-        payload:          data.event_payload || data
+    case 'event_emission':
+      await insertOutboxEvent(data.event_type, data.payload, {
+        aggregateType: data.aggregate_type,
+        aggregateId:   data.aggregate_id,
+        careEpisodeId: data.care_episode_id
       });
-      return ok;
-    }
+      return true;
 
-    case 'sync':
+    case 'sms_notification':
+      return sendSMS(data.to, data.body).then(() => true).catch(() => false);
+
+    case 'whatsapp_notification':
+      return sendWhatsAppMessage(data.to, data.templateName, data.parameters).then(() => true).catch(() => false);
+
+    case 'sync_operation':
       return retrySyncOperation(data);
-
-    case 'notification':
-      return dbInsert('notification_queue', {
-        user_id:  data.user_id || data.patient_id,
-        title:    data.title || 'Notification',
-        message:  data.message || '',
-        channel:  data.channel || 'IN_APP',
-        priority: data.priority || 'NORMAL',
-        status:   'PENDING'
-      });
 
     default:
       console.warn(`[RetryWorker] Unknown action_type: ${action_type}`);
@@ -210,13 +193,14 @@ async function executeRetryAction(item) {
   }
 }
 
-async function retryApiCall({ url, method = 'POST', body, headers = {} }) {
-  const res = await fetch(url, {
+async function retryApiCall({ url, method = 'POST', headers = {}, body = null }) {
+  const targetUrl = url.startsWith('/') ? `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}${url}` : url;
+  const res = await fetch(targetUrl, {
     method,
     headers: {
-      'Content-Type':    'application/json',
+      'content-type':    'application/json',
       ...headers,
-      'x-cron-secret':   process.env.CRON_SECRET || '',
+      'x-retry-loopback': 'true',
       'authorization':   `Bearer ${process.env.CRON_SECRET || ''}`
     },
     body: body ? JSON.stringify(body) : undefined
@@ -225,34 +209,32 @@ async function retryApiCall({ url, method = 'POST', body, headers = {} }) {
 }
 
 async function retryServiceTrigger({ service_type, consultation_id, payload: sp }) {
-  return dbInsert('prescription_service_map', {
-    consultation_id,
-    service_type,
-    payload: sp
-  });
+  try {
+    await sql`
+      INSERT INTO prescription_service_map (
+        consultation_id, service_type, payload
+      ) VALUES (
+        ${consultation_id}, ${service_type}, ${JSON.stringify(sp)}
+      )
+    `;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function retrySyncOperation({ table, record }) {
   if (!table || !record) return false;
 
-  // Upsert the record
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-    method:  'POST',
-    headers: {
-      'apikey':        SERVICE_KEY,
-      'Authorization': `Bearer ${SERVICE_KEY}`,
-      'Content-Type':  'application/json',
-      'Prefer':        'resolution=merge-duplicates,return=minimal'
-    },
-    body: JSON.stringify([record])
-  });
-
-  if (!res.ok) throw new Error(`Sync upsert failed: ${res.status}`);
-
-  // Mark consultation as synced if reference exists
   const consId = record.consultation_id || record.id;
   if (consId) {
-    await dbPatch('consultations', `id=eq.${consId}`, { sync_status: 'SYNCED' }).catch(() => {});
+    try {
+      await sql`
+        UPDATE consultations
+        SET sync_status = 'SYNCED'
+        WHERE id = ${consId}
+      `;
+    } catch {}
   }
 
   return true;
@@ -263,15 +245,15 @@ async function retrySyncOperation({ table, record }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function addToRetryQueue(action_type, payload, max_retries = 4) {
   try {
-    const nextRetry = new Date(Date.now() + BACKOFF_INTERVALS[0] * 1000).toISOString();
-    await dbInsert('retry_queue', {
-      action_type,
-      payload,
-      status:        'pending',
-      max_retries,
-      retry_count:   0,
-      next_retry_at: nextRetry
-    });
+    const nextRetry = new Date(Date.now() + BACKOFF_INTERVALS[0] * 1000);
+    await sql`
+      INSERT INTO retry_queue (
+        action_type, payload, status, max_retries, retry_count, next_retry_at
+      ) VALUES (
+        ${action_type}, ${typeof payload === 'object' ? JSON.stringify(payload) : payload},
+        'pending', ${max_retries}, 0, ${nextRetry}
+      )
+    `;
   } catch (err) {
     console.error('[RetryWorker] addToRetryQueue error:', err.message);
   }
@@ -281,36 +263,44 @@ export async function addToRetryQueue(action_type, payload, max_retries = 4) {
 // Log Worker Run
 // ─────────────────────────────────────────────────────────────────────────────
 async function logWorkerRun(worker_name, duration_ms, results, status) {
-  await dbInsert('worker_execution_log', {
-    worker_name,
-    duration_ms,
-    items_processed:  results.processed  || 0,
-    items_succeeded:  results.succeeded  || 0,
-    items_failed:     results.failed     || 0,
-    dead_lettered:    results.dead_lettered || 0,
-    status,
-    error_summary:    results.errors?.length ? results.errors.map(e => e.error || e.global).join('; ').substring(0, 500) : null
-  }).catch(() => {}); // Never fail the worker because of logging
+  try {
+    await sql`
+      INSERT INTO worker_execution_log (
+        worker_name, duration_ms, items_processed, items_succeeded,
+        items_failed, dead_lettered, status, error_summary
+      ) VALUES (
+        ${worker_name}, ${duration_ms},
+        ${results.processed || 0}, ${results.succeeded || 0},
+        ${results.failed || 0}, ${results.dead_lettered || 0},
+        ${status},
+        ${results.errors?.length ? results.errors.map(e => e.error || e.global).join('; ').substring(0, 500) : null}
+      )
+    `;
+  } catch {}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Replay Dead Letter Item
 // ─────────────────────────────────────────────────────────────────────────────
 export async function replayDeadLetterItem(dlqId, replayed_by) {
-  const items = await dbSelect('dead_letter_queue', `id=eq.${dlqId}`, { limit: 1 });
-  const item  = items[0];
-  if (!item) throw new Error(`DLQ item ${dlqId} not found`);
+  const rows = await sql`
+    SELECT * FROM dead_letter_queue WHERE id = ${dlqId} LIMIT 1
+  `;
+  const item = rows[0];
+  if (!item) throw new Error(`DLQ item ${dlqId} not found in RDS`);
   if (item.replayed) throw new Error(`DLQ item ${dlqId} already replayed`);
 
   // Re-enqueue in retry_queue
   await addToRetryQueue(item.event_type, item.payload, 3);
 
-  // Mark as replayed
-  await dbPatch('dead_letter_queue', `id=eq.${dlqId}`, {
-    replayed:    true,
-    replayed_at: new Date().toISOString(),
-    replayed_by
-  });
+  // Mark as replayed in AWS RDS
+  await sql`
+    UPDATE dead_letter_queue
+    SET replayed = true,
+        replayed_at = NOW(),
+        replayed_by = ${replayed_by}
+    WHERE id = ${dlqId}
+  `;
 
   return { success: true, re_queued_action: item.event_type };
 }

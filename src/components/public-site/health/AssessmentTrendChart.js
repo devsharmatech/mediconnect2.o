@@ -105,8 +105,7 @@ export default function AssessmentTrendChart({
             )}
           </p>
           <div className="flex items-center gap-2">
-            <span className="text-slate-300">Recorded Score:</span>
-            <span className="font-bold text-sm text-white font-mono">{data.score}/100</span>
+            <span className="text-slate-300">Assessment recorded</span>
           </div>
         </div>
       );
@@ -164,10 +163,7 @@ export default function AssessmentTrendChart({
               </p>
             </div>
             <div className="text-right">
-              <span className="text-2xl font-black font-mono text-[#0067A1]">
-                {singlePoint.score}
-              </span>
-              <span className="text-xs text-slate-400 font-mono">/100</span>
+              <span className="text-xs text-slate-500 font-medium">Verified</span>
             </div>
           </div>
 
@@ -186,9 +182,6 @@ export default function AssessmentTrendChart({
                 style={{ left: `${Math.min(96, Math.max(4, singlePoint.score))}%` }}
               >
                 <div className="w-2.5 h-2.5 rotate-45 bg-slate-900 shadow-sm" />
-                <span className="text-[9px] font-mono font-bold text-slate-900 mt-0.5">
-                  {singlePoint.score}
-                </span>
               </div>
             </div>
           </div>
@@ -230,8 +223,8 @@ export default function AssessmentTrendChart({
                 domain={[0, 100]}
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 10, fill: "#94A3B8" }}
-                ticks={[0, 25, 50, 75, 100]}
+                tick={false}
+                width={0}
               />
 
               <Tooltip content={<CustomTooltip />} />

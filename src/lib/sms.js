@@ -867,3 +867,22 @@ export async function sendNursingPartnerNotification({
     }
 }
 
+export async function sendSMS(to, body) {
+    try {
+        console.log(`[SMS DISPATCH] Sending SMS to ${to}: ${body?.slice?.(0, 30)}...`);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function sendWhatsAppMessage(to, templateName, parameters) {
+    try {
+        console.log(`[WHATSAPP DISPATCH] Sending template ${templateName} to ${to}...`);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+

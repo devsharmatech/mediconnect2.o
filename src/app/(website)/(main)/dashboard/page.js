@@ -603,20 +603,15 @@ const Dashboard = () => {
                     <span className="text-[10px] text-gray-800">{new Date(a.created_at).toLocaleDateString()}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-900">Risk Level</span>
-                    <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-[5px] ${a.risk_level === "low" ? "bg-green-50 text-green-600" :
-                        a.risk_level === "moderate" ? "bg-amber-50 text-amber-600" :
-                          "bg-red-50 text-red-600"
-                      }`}>
-                      {a.risk_level ? a.risk_level.charAt(0).toUpperCase() + a.risk_level.slice(1) : "N/A"}
+                    <span className="text-xs text-gray-900">Assessment Status</span>
+                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-[5px] bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Verified
                     </span>
                   </div>
-                  {(a.health_score || a.overall_score) && (
-                    <div className="flex items-center justify-between mt-1.5">
-                      <span className="text-xs text-gray-900">Score</span>
-                      <span className="text-xs font-semibold text-gray-700">{a.health_score || a.overall_score}/100</span>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between mt-1.5">
+                    <span className="text-xs text-gray-900">Record Type</span>
+                    <span className="text-xs font-medium text-gray-600">Self-Reported Telemetry</span>
+                  </div>
                 </div>
               ))}
             </div>

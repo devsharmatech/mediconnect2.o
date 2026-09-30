@@ -1,5 +1,5 @@
 /**
- * LAYER-111: Event Outbox Helper
+ * LAYER-111: Event Outbox Helper (AWS RDS PostgreSQL)
  *
  * ALL system events MUST be written here.
  * No direct Kafka / queue emission allowed.
@@ -10,7 +10,7 @@
  *   - consultation_type
  */
 
-import { supabase } from "../supabaseAdmin";
+import sql from "@/lib/db.js";
 
 /**
  * Insert an event into the l1_event_outbox table.
@@ -30,25 +30,22 @@ export async function insertOutboxEvent({
     payload = {},
 }) {
     // Enforce mandatory fields — hard reject, not silent failure
-    if (!event_type)       throw new Error("OUTBOX_ERROR: event_type is required");
-    if (!care_episode_id)  throw new Error("OUTBOX_ERROR: care_episode_id is required");
-    if (!consultation_id)  throw new Error("OUTBOX_ERROR: consultation_id is required");
+    if (!event_type)        throw new Error("OUTBOX_ERROR: event_type is required");
+    if (!care_episode_id)   throw new Error("OUTBOX_ERROR: care_episode_id is required");
+    if (!consultation_id)   throw new Error("OUTBOX_ERROR: consultation_id is required");
     if (!consultation_type) throw new Error("OUTBOX_ERROR: consultation_type is required");
 
-    const { error } = await supabase
-        .from("l1_event_outbox")
-        .insert({
-            event_type,
-            consultation_id,
-            care_episode_id,
-            consultation_type,
-            payload,
-            status: "PENDING",
-        });
-
-    if (error) {
-        // Log but still throw — outbox failure is CRITICAL
-        console.error("OUTBOX INSERT FAILED:", error);
+    try {
+        const payloadJson = typeof payload === "string" ? payload : JSON.stringify(payload);
+        await sql`
+            INSERT INTO l1_event_outbox (
+                event_type, consultation_id, care_episode_id, consultation_type, payload, status
+            ) VALUES (
+                ${event_type}, ${consultation_id}, ${care_episode_id}, ${consultation_type}, ${payloadJson}::jsonb, 'PENDING'
+            )
+        `;
+    } catch (error) {
+        console.error("OUTBOX INSERT FAILED:", error.message);
         throw new Error("OUTBOX_ERROR: Failed to persist event — " + error.message);
     }
 }

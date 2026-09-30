@@ -1,6 +1,6 @@
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -225,15 +225,16 @@ export async function GET(req) {
     let cachedAqi = null;
     if (!isGpsCoordinates && !forceRefresh) {
       try {
-        const { data } = await supabase
-          .from("aqi_cache")
-          .select("*")
-          .ilike("location", `%${locationName.split(",")[0]}%`)
-          .order("fetched_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const queryPattern = `%${locationName.split(",")[0].trim()}%`;
+        const cachedRows = await sql`
+          SELECT * FROM aqi_cache
+          WHERE location ILIKE ${queryPattern}
+          ORDER BY fetched_at DESC
+          LIMIT 1;
+        `;
 
-        if (data) {
+        if (cachedRows && cachedRows.length > 0) {
+          const data = cachedRows[0];
           const ageMs = Date.now() - new Date(data.fetched_at).getTime();
           if (ageMs < 30 * 60 * 1000) { // Cache valid for 30 minutes
             cachedAqi = data;
@@ -285,7 +286,9 @@ export async function GET(req) {
                 extraComputations: [
                   "LOCAL_AQI",
                   "HEALTH_RECOMMENDATIONS",
-                  "POLLUTANT_ADDITIONAL_INFO"
+                  "POLLUTANT_ADDITIONAL_INFO",
+                  "DOMINANT_POLLUTANT_CONCENTRATION",
+                  "POLLUTANT_CONCENTRATION"
                 ],
                 languageCode: "en"
               }),
@@ -305,9 +308,32 @@ export async function GET(req) {
               aqiVal = resolvedIndex.aqi;
               aqiCat = resolvedIndex.category || aqiCategory(aqiVal);
               dominantPollutant = (resolvedIndex.dominantPollutant || gAqiJson.dominantPollutant || dominantPollutant).toUpperCase();
+              if (dominantPollutant === "PM25") dominantPollutant = "PM2.5";
               sourceName = "Google Air Quality API";
               lastUpdated = gAqiJson.dateTime || new Date().toISOString();
               googleAqiLoaded = true;
+
+              // Extract pollutant concentrations from Google
+              const rawPollutants = gAqiJson.pollutants || [];
+              const getVal = (code) => {
+                const item = rawPollutants.find(p => p.code?.toLowerCase() === code.toLowerCase());
+                const val = item?.concentration?.value;
+                return val !== undefined && val !== null ? Math.round(val * 10) / 10 : null;
+              };
+
+              weather.pollutant_data = {
+                pm2_5: getVal("pm25"),
+                pm10: getVal("pm10"),
+                no2: getVal("no2"),
+                so2: getVal("so2"),
+                ozone: getVal("o3"),
+                co: getVal("co"),
+                nh3: getVal("nh3"),
+              };
+
+              if (gAqiJson.healthRecommendations?.generalPopulation) {
+                weather.health_advisory = gAqiJson.healthRecommendations.generalPopulation;
+              }
             }
           } else {
             console.warn("[Lung Env] Google Air Quality API returned status:", gAqiRes.status);
@@ -372,6 +398,7 @@ export async function GET(req) {
           const weatherJson = await weatherFetchRes.json();
           const curWeather = weatherJson.current || {};
           weather = {
+            ...weather,
             temp_c: Math.round(curWeather.temperature_2m ?? 26),
             condition: weatherCodeToCondition(curWeather.weather_code),
             humidity_pct: Math.round(curWeather.relative_humidity_2m ?? 65),
@@ -381,18 +408,17 @@ export async function GET(req) {
           };
         }
 
-        // Cache to PostgreSQL
+        // Cache to PostgreSQL (AWS RDS)
         try {
-          await supabase.from("aqi_cache").insert([{
-            location: locationName,
-            aqi_value: aqiVal,
-            category: aqiCat,
-            source: sourceName,
-            dominant_pollutant: dominantPollutant,
-            weather_json: weather,
-            freshness_status: "Current",
-            fetched_at: lastUpdated
-          }]);
+          await sql`
+            INSERT INTO aqi_cache (
+              location, aqi_value, category, source, dominant_pollutant,
+              weather_json, freshness_status, fetched_at
+            ) VALUES (
+              ${locationName}, ${aqiVal}, ${aqiCat}, ${sourceName}, ${dominantPollutant},
+              ${JSON.stringify(weather)}, 'Current', ${lastUpdated}::timestamptz
+            );
+          `;
         } catch (dbInsertErr) {
           console.warn("[Lung Env] Failed to cache AQI to DB:", dbInsertErr.message);
         }

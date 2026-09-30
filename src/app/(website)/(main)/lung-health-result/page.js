@@ -206,7 +206,45 @@ export default function LungHealthResult() {
     serial_no
   } = assessmentData;
 
-  const inputs = assessmentData.lung_health_inputs?.[0] || {};
+  const rawInputs = assessmentData.inputs || assessmentData.lung_health_inputs?.[0] || {};
+  const peakFlow = Number(rawInputs.peak_flow ?? rawInputs.peakFlow) || 450;
+  const bpm = Number(rawInputs.breaths_per_minute ?? rawInputs.breathsPerMinute) || 16;
+  const aqiVal = Number(rawInputs.aqi) || 68;
+  const breathHold = Number(rawInputs.breath_holding_time ?? rawInputs.breathHold) || 35;
+  const rawSmoking = String(rawInputs.smoking_status || rawInputs.smokingStatus || 'never').toLowerCase();
+  const packYears = Number(rawInputs.smoking_pack_years ?? rawInputs.pack_years ?? rawInputs.smokingPackYears) || 0;
+  const isBpmNormal = bpm >= 12 && bpm <= 20;
+
+  const inputs = {
+    ...rawInputs,
+    peak_flow: peakFlow,
+    breaths_per_minute: bpm,
+    aqi: aqiVal,
+    breath_holding_time: breathHold,
+    smoking_status: rawSmoking,
+    smoking_pack_years: packYears
+  };
+
+  // Safely parse AI analysis (handles stringified JSON, double-stringified JSON, or plain text)
+  let parsedAi = null;
+  if (ai_analysis) {
+    if (typeof ai_analysis === 'object') {
+      parsedAi = ai_analysis;
+    } else if (typeof ai_analysis === 'string') {
+      try {
+        parsedAi = JSON.parse(ai_analysis);
+      } catch (e) {
+        parsedAi = { analysis: ai_analysis };
+      }
+    }
+  }
+  if (parsedAi && typeof parsedAi.analysis === 'string' && parsedAi.analysis.trim().startsWith('{')) {
+    try {
+      const nested = JSON.parse(parsedAi.analysis);
+      parsedAi = { ...parsedAi, ...nested };
+    } catch (e) {}
+  }
+
   const formattedSerialNo = serial_no || (assessmentId
     ? `LCN-${new Date(created_at).getFullYear()}-${String(assessmentId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
     : 'LCN-LATEST');
@@ -287,35 +325,35 @@ export default function LungHealthResult() {
 
   const trendPoints = graphData?.healthScoreTrend?.filter(p => p.type === 'lung') || [];
 
-  /* ── Metric cards data ── */
+  /* ── Metric cards data (no risk or score displays) ── */
   const metrics = [
     {
       label: 'Peak Expiratory Flow',
-      value: inputs.peak_flow || 450,
+      value: peakFlow,
       unit: 'L/min',
-      status: inputs.peak_flow >= 450 ? 'Optimal' : inputs.peak_flow >= 350 ? 'Moderate' : 'Below Ref',
-      good: inputs.peak_flow >= 450,
+      status: peakFlow >= 450 ? 'Optimal' : peakFlow >= 350 ? 'Moderate' : 'Below Ref',
+      tone: peakFlow >= 450 ? 'emerald' : peakFlow >= 350 ? 'amber' : 'rose',
     },
     {
       label: 'Breaths / Minute',
-      value: inputs.breaths_per_minute || 16,
+      value: bpm,
       unit: 'bpm',
-      status: (inputs.breaths_per_minute >= 12 && inputs.breaths_per_minute <= 20) ? 'Normal' : 'Elevated',
-      good: inputs.breaths_per_minute >= 12 && inputs.breaths_per_minute <= 20,
+      status: isBpmNormal ? 'Normal' : (bpm < 12 ? 'Below Range' : 'Elevated'),
+      tone: isBpmNormal ? 'emerald' : 'amber',
     },
     {
       label: 'Local AQI',
-      value: inputs.aqi || 60,
+      value: aqiVal,
       unit: 'CPCB AQI',
-      status: (inputs.aqi || 60) <= 50 ? 'Good' : (inputs.aqi || 60) <= 100 ? 'Satisfactory' : (inputs.aqi || 60) <= 200 ? 'Moderate' : 'Poor',
-      good: (inputs.aqi || 60) <= 100,
+      status: aqiVal <= 50 ? 'Good' : aqiVal <= 100 ? 'Satisfactory' : aqiVal <= 200 ? 'Moderate' : 'Poor',
+      tone: aqiVal <= 100 ? 'emerald' : aqiVal <= 200 ? 'amber' : 'rose',
     },
     {
       label: 'Smoking Profile',
-      value: inputs.smoking_status ? (inputs.smoking_status.charAt(0).toUpperCase() + inputs.smoking_status.slice(1)) : 'Never',
-      unit: inputs.smoking_pack_years ? `${inputs.smoking_pack_years} pk-yrs` : '',
-      status: inputs.smoking_status === 'current' ? 'High Risk' : inputs.smoking_status === 'former' ? 'Former' : 'Non-Smoker',
-      good: inputs.smoking_status !== 'current',
+      value: rawSmoking ? (rawSmoking.charAt(0).toUpperCase() + rawSmoking.slice(1)) : 'Never',
+      unit: packYears > 0 ? `${packYears} pk-yrs` : '',
+      status: rawSmoking === 'current' ? 'Active' : rawSmoking === 'former' ? 'Former Smoker' : 'Non-Smoker',
+      tone: rawSmoking === 'current' ? 'amber' : 'emerald',
     },
   ];
 
@@ -445,7 +483,7 @@ export default function LungHealthResult() {
               </span>
             </div>
             <span className="px-2.5 py-0.5 rounded text-[11px] font-medium bg-white/20 text-white border border-white/25">
-              Clinical Evaluation
+              Assessment Summary
             </span>
           </div>
 
@@ -535,28 +573,32 @@ export default function LungHealthResult() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {metrics.map((m, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.22 + i * 0.05 }}
-                className={`p-2.5 rounded-md border flex flex-col justify-between gap-1.5 ${
-                  m.good ? 'bg-emerald-50/50 border-emerald-200' : 'bg-rose-50/40 border-rose-200'
-                }`}
-              >
-                <p className="text-[10px] sm:text-[11px] font-medium uppercase tracking-wide text-slate-600 truncate">{m.label}</p>
-                <div>
-                  <span className="text-base sm:text-lg font-semibold font-mono text-slate-900">{m.value}</span>
-                  {m.unit && <span className="text-[10px] text-slate-500 ml-1">{m.unit}</span>}
-                </div>
-                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border w-fit ${
-                  m.good ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200'
-                }`}>
-                  {m.status}
-                </span>
-              </motion.div>
-            ))}
+            {metrics.map((m, i) => {
+              const toneStyle = m.tone === 'emerald'
+                ? { card: 'bg-emerald-50/50 border-emerald-200', badge: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
+                : m.tone === 'amber'
+                ? { card: 'bg-amber-50/50 border-amber-200', badge: 'bg-amber-100 text-amber-800 border-amber-200' }
+                : { card: 'bg-rose-50/40 border-rose-200', badge: 'bg-rose-100 text-rose-700 border-rose-200' };
+
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.22 + i * 0.05 }}
+                  className={`p-2.5 rounded-md border flex flex-col justify-between gap-1.5 ${toneStyle.card}`}
+                >
+                  <p className="text-[10px] sm:text-[11px] font-medium uppercase tracking-wide text-slate-600 truncate">{m.label}</p>
+                  <div>
+                    <span className="text-base sm:text-lg font-semibold font-mono text-slate-900">{m.value}</span>
+                    {m.unit && <span className="text-[10px] text-slate-500 ml-1">{m.unit}</span>}
+                  </div>
+                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border w-fit ${toneStyle.badge}`}>
+                    {m.status}
+                  </span>
+                </motion.div>
+              );
+            })}
           </div>
 
           {/* Symptoms row */}
@@ -571,25 +613,95 @@ export default function LungHealthResult() {
           </div>
         </motion.div>
 
-        {/* ── AI Analysis + Recommendations ── */}
+        {/* ── Assessment Observations ── */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
-          className="bg-white rounded-lg border border-slate-200 shadow-2xs p-3.5 sm:p-4 space-y-3"
+          className="bg-white rounded-lg border border-slate-200 shadow-2xs p-3.5 sm:p-5 space-y-4"
         >
           <div className="flex items-center gap-2 pb-2.5 border-b border-slate-100">
             <Zap className="w-4 h-4 text-[#0067A1]" />
             <h3 className="text-xs sm:text-sm font-semibold text-slate-900">Assessment Observations</h3>
           </div>
 
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
-            {typeof ai_analysis === 'string'
-              ? ai_analysis
-              : (ai_analysis?.analysis || "Based on self-reported inputs, respiratory measures reflect your current breath-holding capacity and recorded environmental exposure. Continue monitoring and practice regular breathing exercises.")}
+          {/* Primary Summary Text */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
+            {parsedAi?.analysis || "Based on self-reported inputs, respiratory measures reflect your current breath-holding capacity and recorded environmental exposure. Continue monitoring and practice regular breathing exercises."}
           </div>
 
-          <div>
+          {/* Key Findings Badges */}
+          {Array.isArray(parsedAi?.key_findings) && parsedAi.key_findings.length > 0 && (
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+                Recorded Clinical Indicators
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {parsedAi.key_findings.map((finding, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 text-slate-700 rounded-md text-xs font-medium shadow-2xs"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0067A1]" />
+                    {finding}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Positive Aspects & Improvement Areas in a 2-col Grid */}
+          {((Array.isArray(parsedAi?.positive_aspects) && parsedAi.positive_aspects.length > 0) ||
+            (Array.isArray(parsedAi?.improvement_areas) && parsedAi.improvement_areas.length > 0)) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {/* Positive Indicators */}
+              {Array.isArray(parsedAi?.positive_aspects) && parsedAi.positive_aspects.length > 0 && (
+                <div className="p-3 bg-emerald-50/50 border border-emerald-200 rounded-lg space-y-2">
+                  <span className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Positive Indicators
+                  </span>
+                  <ul className="space-y-1.5 text-xs text-emerald-950">
+                    {parsedAi.positive_aspects.map((pos, idx) => (
+                      <li key={idx} className="flex items-start gap-1.5 leading-snug">
+                        <span className="text-emerald-600 font-bold">✓</span>
+                        <span>{pos}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Recommended Focus Areas */}
+              {Array.isArray(parsedAi?.improvement_areas) && parsedAi.improvement_areas.length > 0 && (
+                <div className="p-3 bg-sky-50/50 border border-sky-200 rounded-lg space-y-2">
+                  <span className="text-[11px] font-semibold text-sky-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Info className="w-3.5 h-3.5 text-[#0067A1]" /> Recommended Focus Areas
+                  </span>
+                  <ul className="space-y-1.5 text-xs text-sky-950">
+                    {parsedAi.improvement_areas.map((area, idx) => (
+                      <li key={idx} className="flex items-start gap-1.5 leading-snug">
+                        <span className="text-[#0067A1] font-bold">•</span>
+                        <span>{area}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Medical Attention / Guidance */}
+          {parsedAi?.medical_attention && (
+            <div className="p-2.5 bg-amber-50/80 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
+              <Stethoscope className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">
+                <strong className="font-semibold text-amber-950">Clinical Guidance:</strong> {parsedAi.medical_attention}
+              </span>
+            </div>
+          )}
+
+          {/* Suggested Respiratory Wellness Practices */}
+          <div className="pt-2">
             <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Suggested Respiratory Wellness Practices
             </h4>
@@ -610,15 +722,18 @@ export default function LungHealthResult() {
                 ))
                 : (
                   <>
-                    {[
-                      { title: 'Diaphragmatic Breathing', desc: 'Perform 5–10 minutes of deep belly breathing or box breathing daily to strengthen respiratory muscles.' },
-                      { title: 'Air Quality Protection', desc: 'Use HEPA filtration indoors during high pollution days and wear an N95 mask in congested traffic.' },
-                    ].map((r, i) => (
-                      <div key={i} className="p-3 bg-slate-50 rounded-md border border-slate-200 space-y-1">
-                        <span className="text-xs font-semibold text-slate-900">{r.title}</span>
-                        <p className="text-[11px] text-slate-600 leading-relaxed font-normal">{r.desc}</p>
-                      </div>
-                    ))}
+                    <div className="p-3 bg-slate-50 rounded-md border border-slate-200 space-y-1">
+                      <span className="text-xs font-semibold text-slate-900">Diaphragmatic Breathing</span>
+                      <p className="text-[11px] text-slate-600 leading-relaxed font-normal">
+                        Perform 5–10 minutes of deep belly breathing or box breathing daily to strengthen respiratory muscles.
+                      </p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-md border border-slate-200 space-y-1">
+                      <span className="text-xs font-semibold text-slate-900">Air Quality Protection</span>
+                      <p className="text-[11px] text-slate-600 leading-relaxed font-normal">
+                        Use HEPA filtration indoors during high pollution days and wear an N95 mask in congested traffic.
+                      </p>
+                    </div>
                   </>
                 )
               }

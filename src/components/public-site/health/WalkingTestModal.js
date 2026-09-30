@@ -40,9 +40,20 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
   const TOTAL_TEST_SECONDS = 360;
   const METERS_PER_LAP = 30;
 
-  // Check GPS permission
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (typeof window !== 'undefined') {
+      const isMob = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+        (navigator.maxTouchPoints > 1 && window.innerWidth < 1024);
+      setIsMobileDevice(isMob);
+    }
+  }, []);
+
+  // Check GPS permission (Mobile only)
+  useEffect(() => {
+    if (isOpen && isMobileDevice) {
       const savedLoc = getSavedPatientLocation();
       const initialLat = userCoords?.lat || savedLoc?.lat;
       const initialLng = userCoords?.lng || savedLoc?.lng;
@@ -63,7 +74,7 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
         }
       }
     }
-  }, [isOpen, userCoords]);
+  }, [isOpen, userCoords, isMobileDevice]);
 
   const requestGps = () => {
     if (typeof window === 'undefined' || !navigator.geolocation) {
@@ -101,17 +112,19 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
     );
   };
 
-  // Watch position during active 6MWT
+  // Watch position during active 6MWT (strictly on Mobile devices with real GPS hardware)
   useEffect(() => {
-    if (isActive && gpsStatus === 'granted' && typeof window !== 'undefined' && navigator.geolocation) {
+    if (isActive && isMobileDevice && gpsStatus === 'granted' && typeof window !== 'undefined' && navigator.geolocation) {
       watchIdRef.current = navigator.geolocation.watchPosition(
         (pos) => {
           const { latitude, longitude, accuracy, speed } = pos.coords;
           const acc = Math.round(accuracy || 999);
           setGpsAccuracy(acc);
 
-          const isStationaryBySpeed = typeof speed === 'number' && !isNaN(speed) && speed < 0.5;
-          if (acc > 45 || isStationaryBySpeed) {
+          // Strictly filter stationary jitter:
+          // If accuracy is poor (> 25m) or reported speed < 0.6 m/s, user is stationary!
+          const isStationaryBySpeed = typeof speed === 'number' && !isNaN(speed) && speed < 0.6;
+          if (acc > 25 || isStationaryBySpeed) {
             return;
           }
 
@@ -122,11 +135,11 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
               const timeDeltaSec = (Date.now() - (last.time || Date.now())) / 1000;
               const calcSpeedMps = timeDeltaSec > 0 ? (dist / timeDeltaSec) : 0;
 
-              // Require true physical movement:
-              // - Minimum displacement of at least 10 meters (or 40% of accuracy radius)
-              // - Speed must be within normal walking range (0.5 m/s to 7.0 m/s)
-              const minDisplacement = Math.max(10, acc * 0.4);
-              if (dist >= minDisplacement && dist < 150 && calcSpeedMps >= 0.5 && calcSpeedMps <= 7.0) {
+              // Require true physical walking displacement:
+              // - Minimum displacement of at least 15 meters
+              // - Speed must be within normal walking range (0.6 m/s to 3.0 m/s)
+              const minDisplacement = Math.max(15, acc * 0.7);
+              if (dist >= minDisplacement && dist < 100 && calcSpeedMps >= 0.6 && calcSpeedMps <= 3.0) {
                 setGpsDistanceMeters((d) => Math.round(d + dist));
                 return [...prev, { lat: latitude, lng: longitude, time: Date.now() }];
               }
@@ -150,7 +163,7 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
         watchIdRef.current = null;
       }
     };
-  }, [isActive, gpsStatus]);
+  }, [isActive, isMobileDevice, gpsStatus]);
 
   // Countdown timer
   useEffect(() => {
@@ -172,9 +185,19 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
 
   if (!isOpen) return null;
 
-  const isGpsActive = gpsStatus === 'granted';
+  const isGpsActive = isMobileDevice && gpsStatus === 'granted';
   const manualDistanceMeters = lapsCompleted * METERS_PER_LAP;
-  const totalDistanceMeters = isGpsActive ? Math.max(gpsDistanceMeters, manualDistanceMeters) : manualDistanceMeters;
+  // If laps are completed, manual laps take absolute precedence (ATS/ERS 30m corridor protocol).
+  // On Desktop Web, distance is strictly manualDistanceMeters (0 m if 0 laps).
+  // On Mobile, if GPS was active and recorded distance without manual button taps, use gpsDistanceMeters.
+  const totalDistanceMeters = lapsCompleted > 0
+    ? manualDistanceMeters
+    : (isGpsActive ? gpsDistanceMeters : 0);
+
+  // Reconcile effective laps to eliminate contradictory "68m with 0 laps"
+  const effectiveLaps = lapsCompleted > 0
+    ? lapsCompleted
+    : Math.floor(totalDistanceMeters / METERS_PER_LAP);
 
   const formatCountdown = (secs) => {
     const m = Math.floor(secs / 60);
@@ -225,32 +248,42 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
     setStep(4);
   };
 
-  const handleSaveResult = () => {
+  const handleSaveResult = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+
+    const testId = `6mwt-${Date.now()}`;
+    const duration = TOTAL_TEST_SECONDS - secondsRemaining;
     const testRecord = {
-      id: `6mwt-${Date.now()}`,
+      id: testId,
       distanceMeters: totalDistanceMeters,
-      durationSeconds: TOTAL_TEST_SECONDS - secondsRemaining,
+      lapsCompleted: effectiveLaps,
+      durationSeconds: duration,
       borgRating: borgRating,
       completedAt: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
     };
 
     try {
       const history = JSON.parse(localStorage.getItem('lung_6mwt_history') || '[]');
-      history.unshift(testRecord);
-      localStorage.setItem('lung_6mwt_history', JSON.stringify(history));
+      if (!history.find(h => h.id === testId)) {
+        history.unshift(testRecord);
+        localStorage.setItem('lung_6mwt_history', JSON.stringify(history));
+      }
 
       const acts = JSON.parse(localStorage.getItem('lung_activity_history') || '[]');
-      acts.unshift({
-        id: testRecord.id,
-        type: 'walk',
-        title: `6MWT (${totalDistanceMeters}m)`,
-        durationSeconds: testRecord.durationSeconds,
-        distanceKm: (totalDistanceMeters / 1000).toFixed(2),
-        calories: Math.round((testRecord.durationSeconds / 60) * 5),
-        steps: Math.round(totalDistanceMeters * 1.35),
-        completedAt: testRecord.completedAt,
-      });
-      localStorage.setItem('lung_activity_history', JSON.stringify(acts));
+      if (!acts.find(a => a.id === testId)) {
+        acts.unshift({
+          id: testId,
+          type: 'walk',
+          title: `6MWT (${totalDistanceMeters}m)`,
+          durationSeconds: duration,
+          distanceKm: (totalDistanceMeters / 1000).toFixed(2),
+          calories: Math.round((duration / 60) * 5),
+          steps: Math.round(totalDistanceMeters * 1.35),
+          completedAt: testRecord.completedAt,
+        });
+        localStorage.setItem('lung_activity_history', JSON.stringify(acts));
+      }
     } catch (e) {
       console.warn("Could not save walking test to localStorage:", e);
     }
@@ -265,20 +298,23 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
         }
       }
 
-      fetch('/api/v1/lung/walking-tests', {
+      await fetch('/api/v1/lung/walking-tests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'complete',
+          test_id: testId,
           user_id: currentUserId || 'usr_guest',
           distance_m: totalDistanceMeters,
-          duration_seconds: TOTAL_TEST_SECONDS - secondsRemaining,
+          duration_seconds: duration,
           borg_score: borgRating,
           stops: 0,
         })
-      }).catch(err => console.warn("Backend 6MWT sync error:", err));
+      });
     } catch (err) {
-      console.warn("Failed to dispatch walking test to API:", err);
+      console.warn("Backend 6MWT sync error:", err);
+    } finally {
+      setIsSaving(false);
     }
 
     toast.success("Walking test result saved to your clinical record!");
@@ -293,6 +329,7 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
     setIsActive(false);
     setLapsCompleted(0);
     setBorgRating(3);
+    setIsSaving(false);
   };
 
   const borgDescriptions = [
@@ -355,7 +392,7 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
               <div className="space-y-4">
                 <div className="p-4 bg-sky-50 border border-sky-200 rounded-[5px]">
                   <span className="text-xs font-semibold uppercase tracking-wider text-[#003358] block mb-1">
-                    Clinical Standard: ATS / ERS Guidelines
+                    Functional Protocol: Standard 30-Meter Corridor
                   </span>
                   <p className="text-xs text-slate-700 leading-relaxed font-normal">
                     The 6MWT measures the total distance walked over a continuous 6-minute period along a flat 30-meter indoor path. It provides a reliable baseline of functional aerobic capacity and endurance.
@@ -415,33 +452,45 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
                   </div>
                 </div>
 
-                {/* GPS Status & Automated Distance Tracking */}
-                {gpsStatus !== 'granted' ? (
-                  <div className="bg-amber-50/90 border border-amber-200 rounded-[5px] p-3 flex items-center justify-between gap-2.5 text-xs text-amber-900">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-amber-700 shrink-0" />
-                      <div>
-                        <span className="font-bold">Real GPS Tracking Disabled</span>
-                        <p className="text-[11px] text-amber-800">Enable GPS for automatic 6MWT distance measurement, or count 30m laps manually.</p>
+                {/* GPS Status & Automated Distance Tracking (Mobile only) */}
+                {isMobileDevice ? (
+                  gpsStatus !== 'granted' ? (
+                    <div className="bg-amber-50/90 border border-amber-200 rounded-[5px] p-3 flex items-center justify-between gap-2.5 text-xs text-amber-900">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-amber-700 shrink-0" />
+                        <div>
+                          <span className="font-bold">Mobile GPS Inactive</span>
+                          <p className="text-[11px] text-amber-800">Enable GPS for automatic mobile distance, or count 30m laps manually.</p>
+                        </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={requestGps}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded-[4px] shrink-0 cursor-pointer shadow-2xs flex items-center gap-1"
+                      >
+                        <Navigation className="w-3 h-3" />
+                        <span>Enable GPS</span>
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={requestGps}
-                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded-[4px] shrink-0 cursor-pointer shadow-2xs flex items-center gap-1"
-                    >
-                      <Navigation className="w-3 h-3" />
-                      <span>Enable GPS</span>
-                    </button>
-                  </div>
+                  ) : (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-[5px] p-2.5 flex items-center justify-between text-xs text-emerald-950">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                        <span className="font-semibold">GPS Active ({gpsAccuracy ? `${gpsAccuracy}m precision` : 'Ready'})</span>
+                      </div>
+                      <span className="text-[10px] font-mono uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-[4px] font-bold">
+                        Mobile Telemetry
+                      </span>
+                    </div>
+                  )
                 ) : (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-[5px] p-2.5 flex items-center justify-between text-xs text-emerald-950">
+                  <div className="bg-slate-50 border border-slate-200 rounded-[5px] p-2.5 flex items-center justify-between text-xs text-slate-700">
                     <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
-                      <span className="font-semibold">GPS Tracking Active ({gpsAccuracy ? `${gpsAccuracy}m precision` : 'Ready'})</span>
+                      <Footprints className="w-4 h-4 text-[#0067A1]" />
+                      <span className="font-semibold">Web Corridor Mode: Standard 30m Manual Lap Logging</span>
                     </div>
-                    <span className="text-[10px] font-mono uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-[4px] font-bold">
-                      Automated 6MWT Distance
+                    <span className="text-[10px] font-mono uppercase bg-slate-200 text-slate-700 px-2 py-0.5 rounded-[4px] font-bold">
+                      Desktop Protocol
                     </span>
                   </div>
                 )}
@@ -482,7 +531,7 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
                         ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                         : 'bg-slate-100 text-slate-600 border-slate-200'
                     }`}>
-                      {isGpsActive ? `GPS LIVE (${totalDistanceMeters}m)` : 'MANUAL LAPS'}
+                      {isGpsActive ? `GPS LIVE (${totalDistanceMeters}m)` : isMobileDevice ? 'MOBILE MANUAL LAPS' : 'WEB (30M CORRIDOR)'}
                     </span>
                     <span className="text-xs font-mono font-medium text-[#003358] bg-white px-2 py-0.5 rounded-[4px] border border-slate-200">
                       Track: 30m Hallway
@@ -508,24 +557,26 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="bg-slate-50/70 p-3.5 rounded-[5px] border border-slate-200/80 text-center">
                     <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block">Laps Logged</span>
-                    <p className="text-3xl font-bold font-mono text-slate-800 mt-1">{lapsCompleted}</p>
+                    <p className="text-3xl font-bold font-mono text-slate-800 mt-1">{effectiveLaps}</p>
                     <span className="text-xs font-normal text-slate-500 mt-0.5 block">× 30 meters per lap</span>
                   </div>
                   <div className="bg-slate-50/70 p-3.5 rounded-[5px] border border-slate-200/80 text-center">
                     <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block">
-                      Total Distance {isGpsActive ? '(GPS Auto)' : '(Laps)'}
+                      Total Distance {isGpsActive ? '(GPS Auto)' : '(Corridor)'}
                     </span>
                     <p className="text-3xl font-bold font-mono text-[#0067A1] mt-1">
                       {totalDistanceMeters} <span className="text-sm font-semibold text-slate-700 font-sans">m</span>
                     </p>
-                    <span className="text-xs font-normal text-slate-500 mt-0.5 block">Cumulative walked</span>
+                    <span className="text-xs font-normal text-slate-500 mt-0.5 block">
+                      {totalDistanceMeters === 0 ? "Stationary (0 m)" : "Cumulative walked"}
+                    </span>
                   </div>
                 </div>
 
-                {/* Real GPS 30m Corridor / Track Visualizer (ui5.png B04-S03) */}
+                {/* Real GPS 30m Corridor / Track Visualizer */}
                 <RealGpsMap
                   isLiveTracking={isActive}
-                  distanceKm={`${totalDistanceMeters} m (${lapsCompleted} laps)`}
+                  distanceKm={`${totalDistanceMeters} m (${effectiveLaps} laps)`}
                   activity="6MWT Track"
                   coords={userCoords}
                   points={gpsPoints}
@@ -583,11 +634,13 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
                 <div className="grid grid-cols-2 gap-2.5 p-3.5 bg-slate-50/60 rounded-[5px] border border-slate-200">
                   <div>
                     <span className="text-[11px] uppercase font-semibold text-slate-500 tracking-wide block">Total Distance</span>
-                    <p className="text-xl font-bold font-mono text-[#0067A1] mt-0.5">{totalDistanceMeters} meters</p>
+                    <p className="text-xl font-bold font-mono text-[#0067A1] mt-0.5">
+                      {totalDistanceMeters > 0 ? `${totalDistanceMeters} meters` : '0 m (Stationary)'}
+                    </p>
                   </div>
                   <div className="text-right">
                     <span className="text-[11px] uppercase font-semibold text-slate-500 tracking-wide block">Laps Completed</span>
-                    <p className="text-lg font-bold font-mono text-slate-800 mt-0.5">{lapsCompleted} laps (30m)</p>
+                    <p className="text-lg font-bold font-mono text-slate-800 mt-0.5">{effectiveLaps} laps (30m)</p>
                   </div>
                 </div>
 
@@ -639,10 +692,11 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
                   </button>
                   <button
                     type="button"
+                    disabled={isSaving}
                     onClick={handleSaveResult}
-                    className="flex-1 py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold text-xs rounded-[5px] transition-all shadow-xs cursor-pointer"
+                    className="flex-1 py-2.5 bg-[#0067A1] hover:bg-[#004F7C] disabled:bg-slate-400 text-white font-semibold text-xs rounded-[5px] transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    Save 6MWT Result
+                    {isSaving ? "Saving..." : "Save 6MWT Result"}
                   </button>
                 </div>
               </div>

@@ -1,16 +1,16 @@
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * GET /api/v1/lung/care-episode
- * Retrieve current or most recent LungConnect care episode for a user.
- * Rule: Care Episodes are only created on deliberate clinical action (e.g. assessment submission).
- *       Browsing the Hub or activities does NOT trigger episode creation.
+ * Retrieve current or most recent LungConnect care episode for a user from AWS RDS.
  */
 export async function GET(req) {
   try {
@@ -22,17 +22,30 @@ export async function GET(req) {
     }
 
     let episode = null;
-    try {
-      const { data } = await supabase
-        .from("care_episodes")
-        .select("id, episode_id, status, created_at, updated_at, service_type, notes")
-        .eq("patient_id", userId)
-        .eq("service_type", "lungconnect")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    const isUuid = UUID_REGEX.test(userId);
 
-      if (data) {
+    try {
+      let rows = [];
+      if (isUuid) {
+        rows = await sql`
+          SELECT id, episode_id, status, created_at, updated_at, service_type, notes
+          FROM care_episodes
+          WHERE patient_id = ${userId}::uuid
+          ORDER BY (CASE WHEN service_type = 'lungconnect' THEN 1 ELSE 2 END), created_at DESC
+          LIMIT 1;
+        `;
+      } else {
+        rows = await sql`
+          SELECT id, episode_id, status, created_at, updated_at, service_type, notes
+          FROM care_episodes
+          WHERE (patient_id::text = ${String(userId)} OR episode_id = ${String(userId)})
+          ORDER BY (CASE WHEN service_type = 'lungconnect' THEN 1 ELSE 2 END), created_at DESC
+          LIMIT 1;
+        `;
+      }
+
+      if (rows && rows.length > 0) {
+        const data = rows[0];
         let parsedNotes = {};
         try { parsedNotes = data.notes ? JSON.parse(data.notes) : {}; } catch (_) {}
         episode = {
@@ -63,9 +76,8 @@ export async function GET(req) {
 
 /**
  * POST /api/v1/lung/care-episode
- * Create a new LungConnect care episode upon first clinical action (e.g. assessment submission).
- * Rule: Check for existing open episode first — do not duplicate.
- * Rule: Actions: open | close | update_status
+ * Create a new LungConnect care episode in AWS RDS.
+ * Rule: Single continuity model — check for existing open episode first to prevent duplicates.
  */
 export async function POST(req) {
   try {
@@ -83,27 +95,38 @@ export async function POST(req) {
       return failure("user_id is required", "validation_error", 400, { headers: corsHeaders });
     }
 
+    const isUuid = UUID_REGEX.test(user_id);
+
     // --- OPEN ---
     if (action === "open") {
-      // Check for existing open episode
       try {
-        const { data: existing } = await supabase
-          .from("care_episodes")
-          .select("id, episode_id, status, created_at")
-          .eq("patient_id", user_id)
-          .eq("service_type", "lungconnect")
-          .eq("status", "active")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        let existing = [];
+        if (isUuid) {
+          existing = await sql`
+            SELECT id, episode_id, status, created_at
+            FROM care_episodes
+            WHERE patient_id = ${user_id}::uuid AND service_type = 'lungconnect' AND status = 'active'
+            ORDER BY created_at DESC
+            LIMIT 1;
+          `;
+        } else {
+          existing = await sql`
+            SELECT id, episode_id, status, created_at
+            FROM care_episodes
+            WHERE patient_id::text = ${String(user_id)} AND service_type = 'lungconnect' AND status = 'active'
+            ORDER BY created_at DESC
+            LIMIT 1;
+          `;
+        }
 
-        if (existing) {
+        if (existing && existing.length > 0) {
+          const ex = existing[0];
           return success("Existing care episode found. No duplicate created.", {
             episode: {
-              id: existing.id,
-              episode_id: existing.episode_id || `LCE-${existing.id}`,
-              status: existing.status,
-              created_at: existing.created_at,
+              id: ex.id,
+              episode_id: ex.episode_id || `LCE-${ex.id}`,
+              status: ex.status,
+              created_at: ex.created_at,
               is_existing: true,
             }
           }, 200, { headers: corsHeaders });
@@ -112,26 +135,22 @@ export async function POST(req) {
         console.warn("[Lung CareEpisode] Existence check warning:", e.message);
       }
 
-      const newEpisodeId = `LCE-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      const newEpisodeId = episode_id || `LCE-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
       let createdId = null;
+      const notesJson = notes ? JSON.stringify({ assessment_id, raw: notes }) : JSON.stringify({ assessment_id });
 
       try {
-        const { data, error } = await supabase
-          .from("care_episodes")
-          .insert([{
-            patient_id: user_id,
-            episode_id: newEpisodeId,
-            service_type: "lungconnect",
-            status: "active",
-            notes: notes ? JSON.stringify({ assessment_id, raw: notes }) : JSON.stringify({ assessment_id }),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }])
-          .select("id")
-          .single();
-
-        if (!error) createdId = data?.id;
-        else console.warn("[Lung CareEpisode] Insert warning:", error.message);
+        if (isUuid) {
+          const inserted = await sql`
+            INSERT INTO care_episodes (
+              patient_id, episode_id, service_type, status, notes, created_at, updated_at
+            ) VALUES (
+              ${user_id}::uuid, ${newEpisodeId}, 'lungconnect', 'active', ${notesJson}, NOW(), NOW()
+            )
+            RETURNING id;
+          `;
+          createdId = inserted[0]?.id;
+        }
       } catch (e) {
         console.warn("[Lung CareEpisode] DB insert warning:", e.message);
       }
@@ -152,12 +171,14 @@ export async function POST(req) {
       const newStatus = action === "close" ? "closed" : status;
 
       try {
-        await supabase
-          .from("care_episodes")
-          .update({ status: newStatus, updated_at: new Date().toISOString() })
-          .eq("patient_id", user_id)
-          .eq("service_type", "lungconnect")
-          .eq("status", "active");
+        if (isUuid) {
+          await sql`
+            UPDATE care_episodes
+            SET status = ${newStatus}, updated_at = NOW(),
+                closed_at = ${action === "close" ? sql`NOW()` : sql`closed_at`}
+            WHERE patient_id = ${user_id}::uuid AND service_type = 'lungconnect' AND status = 'active';
+          `;
+        }
       } catch (e) {
         console.warn("[Lung CareEpisode] Update warning:", e.message);
       }

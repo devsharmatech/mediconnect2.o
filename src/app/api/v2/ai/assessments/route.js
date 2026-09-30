@@ -338,14 +338,25 @@ export async function POST(req) {
     }
 
     // 7. Fetch complete assessment with inputs to return same shape as V1
-    let completeAssessment = { ...assessment };
+    let completeAssessment = { ...assessment, inputs: cleanInputs };
     try {
       const inputRows = assessment_type === "heart"
         ? await sql`SELECT * FROM heart_health_inputs WHERE assessment_id = ${assessment.id} LIMIT 1`
         : await sql`SELECT * FROM lung_health_inputs WHERE assessment_id = ${assessment.id} LIMIT 1`;
 
       const inputKey = assessment_type === "heart" ? "heart_health_inputs" : "lung_health_inputs";
-      completeAssessment[inputKey] = inputRows;
+      const dbRow = inputRows[0] || {};
+      completeAssessment[inputKey] = [{
+        ...cleanInputs,
+        ...dbRow,
+        aqi: cleanInputs.aqi ?? dbRow.aqi,
+        breaths_per_minute: cleanInputs.breaths_per_minute ?? dbRow.breaths_per_minute,
+        location: cleanInputs.location ?? dbRow.location,
+        pollution_exposure: cleanInputs.pollution_exposure ?? dbRow.pollution_exposure,
+        occupational_exposure: cleanInputs.occupational_exposure ?? dbRow.occupational_exposure,
+        pack_years: cleanInputs.pack_years ?? dbRow.pack_years,
+        bmi: cleanInputs.bmi ?? dbRow.bmi,
+      }];
     } catch (fetchErr) {
       console.warn("Could not re-fetch inputs (non-fatal):", fetchErr.message);
       // Fallback — build the shape from what we inserted

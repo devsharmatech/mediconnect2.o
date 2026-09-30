@@ -95,21 +95,15 @@ export const supabase = {
     if (typeof window === 'undefined') {
       return new DeferredQueryBuilder(tableName);
     }
-    // Browser-side: route through compatibility layer if realSupabase is unavailable
-    if (!realSupabase) {
-      return new DeferredQueryBuilder(tableName);
-    }
-    return realSupabase.from(tableName);
+    console.error(`[supabaseClient] Direct browser-side query on '${tableName}' is blocked. All queries must go through Next.js API endpoints connected to AWS RDS PostgreSQL.`);
+    throw new Error(`Direct client-side database queries are disabled. Use API routes connected to AWS RDS PostgreSQL.`);
   },
   rpc(funcName, params) {
     if (typeof window === 'undefined') {
       return new DeferredRpcBuilder(funcName, params);
     }
-    // Browser-side: route through compatibility layer if realSupabase is unavailable
-    if (!realSupabase) {
-      return new DeferredRpcBuilder(funcName, params);
-    }
-    return realSupabase.rpc(funcName, params);
+    console.error(`[supabaseClient] Direct browser-side RPC '${funcName}' is blocked. All procedures must go through Next.js API endpoints connected to AWS RDS PostgreSQL.`);
+    throw new Error(`Direct client-side database RPCs are disabled. Use API routes connected to AWS RDS PostgreSQL.`);
   }
 };
 

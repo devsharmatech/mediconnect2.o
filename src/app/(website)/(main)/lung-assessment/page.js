@@ -146,7 +146,7 @@ export default function GamifiedLungAssessment() {
     setAqiLoading(true);
     let toastId = null;
     if (showToast) {
-      toastId = toast.loading("Detecting current location & CPCB AQI...");
+      toastId = toast.loading("Detecting live location & Google Air Quality...");
     }
 
     // 0. Prioritize existing saved patient location if set
@@ -154,12 +154,12 @@ export default function GamifiedLungAssessment() {
     if (saved?.city && saved.city !== 'Delhi') {
       const item = await fetchAqiForLocation(saved.city, saved.lat, saved.lng);
       if (item) {
-        if (showToast && toastId) toast.success(`Location: ${item.location} (CPCB AQI: ${item.aqi})`, { id: toastId });
+        if (showToast && toastId) toast.success(`Location: ${item.location} (Google AQI: ${item.aqi})`, { id: toastId });
         return item;
       }
     }
 
-    // 1. Try browser GPS first (fast timeout, low accuracy is faster and works across desktop/laptops)
+    // 1. Try browser GPS first (fast timeout, works across desktop/mobile)
     if (typeof window !== 'undefined' && navigator.geolocation) {
       try {
         const pos = await new Promise((resolve, reject) => {
@@ -172,7 +172,7 @@ export default function GamifiedLungAssessment() {
         if (pos?.coords) {
           const item = await fetchAqiForLocation(null, pos.coords.latitude, pos.coords.longitude);
           if (item) {
-            if (showToast && toastId) toast.success(`Detected: ${item.location} (CPCB AQI: ${item.aqi})`, { id: toastId });
+            if (showToast && toastId) toast.success(`Detected: ${item.location} (Google AQI: ${item.aqi})`, { id: toastId });
             return item;
           }
         }
@@ -189,7 +189,7 @@ export default function GamifiedLungAssessment() {
         const city = ipData.city || ipData.region || saved?.city || 'Delhi';
         const item = await fetchAqiForLocation(city, ipData.latitude, ipData.longitude);
         if (item) {
-          if (showToast && toastId) toast.success(`Region: ${item.location} (CPCB AQI: ${item.aqi})`, { id: toastId });
+          if (showToast && toastId) toast.success(`Region: ${item.location} (Google AQI: ${item.aqi})`, { id: toastId });
           return item;
         }
       }
@@ -212,7 +212,7 @@ export default function GamifiedLungAssessment() {
       toast.error("Please enter a city name.");
       return;
     }
-    const tId = toast.loading(`Checking CPCB AQI for ${query}...`);
+    const tId = toast.loading(`Fetching live Google AQI for ${query}...`);
     fetchAqiForLocation(query).then(item => {
       if (item) {
         savePatientLocation({
@@ -220,7 +220,7 @@ export default function GamifiedLungAssessment() {
           aqi: item.aqi,
           forceReset: true,
         });
-        toast.success(`${item.location} · CPCB AQI: ${item.aqi} (${item.category || 'Satisfactory'})`, { id: tId });
+        toast.success(`${item.location} · Google AQI: ${item.aqi} (${item.category || 'Satisfactory'})`, { id: tId });
       } else {
         toast.error(`Could not update air quality for "${query}"`, { id: tId });
       }
@@ -709,7 +709,7 @@ export default function GamifiedLungAssessment() {
                         ))}
                       </div>
 
-                      {/* Live CPCB Telemetry Display */}
+                      {/* Live Google Air Quality Telemetry Display */}
                       <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs">
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                           <div className="flex items-center gap-3.5">
@@ -745,10 +745,18 @@ export default function GamifiedLungAssessment() {
                                 <span className="text-sm font-semibold text-slate-800">
                                   {formData.location || 'Current Station'}
                                 </span>
+                                {aqiInfo?.dominant_pollutant && (
+                                  <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium border border-slate-200">
+                                    Dominant: {aqiInfo.dominant_pollutant}
+                                  </span>
+                                )}
                               </div>
-                              <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5">
+                              <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                Official CPCB Air Quality Telemetry
+                                <span className="font-medium text-slate-600">
+                                  {aqiInfo?.provider || aqiInfo?.source || 'Google Air Quality API'}
+                                </span>
+                                <span>· CPCB NAQI Standard (Live)</span>
                               </p>
                             </div>
                           </div>
@@ -763,6 +771,11 @@ export default function GamifiedLungAssessment() {
                               {aqiInfo.pollutant_data.pm10 !== null && aqiInfo.pollutant_data.pm10 !== undefined && (
                                 <div className="bg-slate-50 px-2.5 py-1.5 rounded-md border border-slate-200 text-center sm:text-left">
                                   PM10: <span className="text-slate-800 font-bold">{aqiInfo.pollutant_data.pm10}</span> µg/m³
+                                </div>
+                              )}
+                              {aqiInfo.pollutant_data.no2 !== null && aqiInfo.pollutant_data.no2 !== undefined && (
+                                <div className="hidden lg:block bg-slate-50 px-2.5 py-1.5 rounded-md border border-slate-200 text-center sm:text-left">
+                                  NO₂: <span className="text-slate-800 font-bold">{aqiInfo.pollutant_data.no2}</span> ppb
                                 </div>
                               )}
                             </div>

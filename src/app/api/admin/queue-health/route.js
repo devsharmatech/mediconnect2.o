@@ -1,66 +1,63 @@
 export const dynamic = 'force-dynamic';
 import { success, failure } from "@/lib/response";
+import sql from "@/lib/db";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-async function dbFetch(path, opts = {}) {
-  const { headers, ...restOpts } = opts;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: { 
-      apikey: SERVICE_KEY, 
-      Authorization: `Bearer ${SERVICE_KEY}`, 
-      "Content-Type": "application/json", 
-      ...headers 
-    },
-    ...restOpts, cache: 'no-store',
-  });
-  return res;
-}
-
-async function getCount(path) {
-  const res = await dbFetch(path, { headers: { Prefer: "count=exact" } });
-  return parseInt(res.headers.get("content-range")?.split("/")[1] || "0", 10);
+async function safeCount(queryFn) {
+  try {
+    const res = await queryFn();
+    return parseInt(res[0]?.count || 0, 10);
+  } catch {
+    return 0;
+  }
 }
 
 /**
  * GET /api/admin/queue-health
- * Comprehensive health report for all Layer-111 queues.
+ * Comprehensive health report for all Layer-111 queues powered directly by AWS RDS PostgreSQL.
  */
 export async function GET() {
   try {
-    const tenMinsAgo = new Date(Date.now() - 10 * 60000).toISOString();
-    const oneDayAgo  = new Date(Date.now() - 24 * 60 * 60000).toISOString();
+    const tenMinsAgo = new Date(Date.now() - 10 * 60000);
 
-const [
+    const [
       outboxPending, outboxDelayed, outboxFailed,
       retryPending, retryProcessing, retryFailed,
       dlqTotal, dlqPayment, dlqUnreplayed,
       notifPending, notifFailed,
       p1Open, p2Open
     ] = await Promise.all([
-      getCount("l1_event_outbox?status=eq.PENDING&select=id"),
-      getCount(`l1_event_outbox?status=eq.PENDING&available_at=lt.${tenMinsAgo}&select=id`),
-      getCount("l1_event_outbox?status=eq.FAILED&select=id"),
-      getCount("retry_queue?status=eq.pending&select=id"),
-      getCount("retry_queue?status=eq.processing&select=id"),
-      getCount("retry_queue?status=eq.failed&select=id"),
-      getCount("dead_letter_queue?select=id"),
-      getCount("dead_letter_queue?is_payment_event=eq.true&replayed=eq.false&select=id"),
-      getCount("dead_letter_queue?replayed=eq.false&select=id"),
-      getCount("notification_queue?status=eq.PENDING&select=id"),
-      getCount("notification_queue?status=eq.FAILED&select=id"),
-      getCount("ops_incident_log?priority=eq.P1&status=eq.OPEN&select=id"),
-      getCount("ops_incident_log?priority=eq.P2&status=eq.OPEN&select=id")
+      safeCount(() => sql`SELECT COUNT(*)::int AS count FROM l1_event_outbox WHERE status = 'PENDING'`),
+      safeCount(() => sql`SELECT COUNT(*)::int AS count FROM l1_event_outbox WHERE status = 'PENDING' AND available_at < ${tenMinsAgo}`),
+      safeCount(() => sql`SELECT COUNT(*)::int AS count FROM l1_event_outbox WHERE status = 'FAILED'`),
+      safeCount(() => sql`SELECT COUNT(*)::int AS count FROM retry_queue WHERE status = 'pending'`),
+      safeCount(() => sql`SELECT COUNT(*)::int AS count FROM retry_queue WHERE status = 'processing'`),
+      safeCount(() => sql`SELECT COUNT(*)::int AS count FROM retry_queue WHERE status = 'failed'`),
+      safeCount(() => sql`SELECT COUNT(*)::int AS count FROM dead_letter_queue`),
+      safeCount(() => sql`SELECT COUNT(*)::int AS count FROM dead_letter_queue WHERE is_payment_event = true AND replayed = false`),
+      safeCount(() => sql`SELECT COUNT(*)::int AS count FROM dead_letter_queue WHERE replayed = false`),
+      safeCount(() => sql`SELECT COUNT(*)::int AS count FROM notification_queue WHERE status = 'PENDING'`),
+      safeCount(() => sql`SELECT COUNT(*)::int AS count FROM (SELECT 1 FROM ops_incident_log WHERE priority = 'P1' AND status = 'OPEN' LIMIT 10) t`),
+      safeCount(() => sql`SELECT COUNT(*)::int AS count FROM (SELECT 1 FROM ops_incident_log WHERE priority = 'P2' AND status = 'OPEN' LIMIT 10) t`)
     ]);
 
-    // Last 5 worker execution runs
-    const workerRes  = await dbFetch("worker_execution_log?order=run_at.desc&limit=5");
-    const workerLogs = await workerRes.json().catch(() => []);
+    // Last 5 worker execution runs from AWS RDS
+    let workerLogs = [];
+    try {
+      workerLogs = await sql`
+        SELECT * FROM worker_execution_log 
+        ORDER BY run_at DESC 
+        LIMIT 5
+      `;
+    } catch {}
 
-    // Signal phase config
-    const signalRes   = await dbFetch("signal_phase_config?order=phase.asc");
-    const signalPhases = await signalRes.json().catch(() => []);
+    // Signal phase config from AWS RDS
+    let signalPhases = [];
+    try {
+      signalPhases = await sql`
+        SELECT * FROM signal_phase_config 
+        ORDER BY phase ASC
+      `;
+    } catch {}
 
     // Determine overall system status
     let systemStatus = "HEALTHY";
@@ -75,22 +72,18 @@ const [
       systemStatus = "CRITICAL";
       statusMessage = "CRITICAL: Immediate intervention required.";
 
-      // Auto-create P1 incident for critical queue state
+      // Auto-create P1 incident for critical queue state in AWS RDS
       if (outboxFailed > 20 || outboxDelayed > 50) {
-        await dbFetch("ops_incident_log", {
-          method: "POST",
-          headers: { Prefer: "return=minimal" },
-          body: JSON.stringify([{
-            priority:    "P1",
-            source:      "QUEUE_MONITOR",
-            description: `CRITICAL QUEUE FAILURE: ${outboxDelayed} delayed, ${outboxFailed} failed outbox events.`,
-            status:      "OPEN",
-          }]),
-        }).then(null, () => {});
+        try {
+          await sql`
+            INSERT INTO ops_incident_log (priority, source, description, status)
+            VALUES ('P1', 'QUEUE_MONITOR', ${`CRITICAL QUEUE FAILURE: ${outboxDelayed} delayed, ${outboxFailed} failed outbox events.`}, 'OPEN')
+          `;
+        } catch {}
       }
     }
 
-    return success("Queue health report", {
+    return success("Queue health report (AWS RDS)", {
       status:  systemStatus,
       message: statusMessage,
       outbox: {
@@ -118,7 +111,8 @@ const [
       },
       worker_logs:   Array.isArray(workerLogs) ? workerLogs : [],
       signal_phases: Array.isArray(signalPhases) ? signalPhases : [],
-      last_check:    new Date().toISOString(), debug_url: SUPABASE_URL,
+      last_check:    new Date().toISOString(),
+      database:      "AWS RDS PostgreSQL"
     });
   } catch (err) {
     console.error("GET /api/admin/queue-health error:", err);

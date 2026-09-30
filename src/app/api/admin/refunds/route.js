@@ -1,26 +1,10 @@
 import { success, failure } from "@/lib/response";
 import { initiateRefund } from "@/lib/layer1/refundEngine";
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-async function dbFetch(path, opts = {}) {
-  const { headers, ...restOpts } = opts;
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: { 
-      apikey: SERVICE_KEY, 
-      Authorization: `Bearer ${SERVICE_KEY}`, 
-      "Content-Type": "application/json", 
-      ...headers 
-    },
-    ...restOpts,
-  });
-  return res;
-}
+import sql from "@/lib/db";
 
 /**
  * GET /api/admin/refunds
- * Returns paginated refund_requests with summary counts.
+ * Returns paginated refund_requests with summary counts from AWS RDS PostgreSQL.
  * Query params: page, limit, status (PENDING|PROCESSING|COMPLETED|FAILED), patient_id
  */
 export async function GET(req) {
@@ -32,57 +16,106 @@ export async function GET(req) {
     const patientId = searchParams.get("patient_id");
     const offset    = (page - 1) * limit;
 
-    let filters = `order=created_at.desc&limit=${limit}&offset=${offset}`;
-    if (status)    filters += `&status=eq.${status}`;
-    if (patientId) filters += `&patient_id=eq.${patientId}`;
+    let items = [];
+    let total = 0;
 
-    const res   = await dbFetch(`refund_requests?${filters}`, { headers: { Prefer: "count=exact" } });
-    const items = await res.json();
-    const total = parseInt(res.headers.get("content-range")?.split("/")[1] || "0", 10);
-
-    // Resolve patient un_id and role dynamically
-    if (Array.isArray(items) && items.length > 0) {
-      const patientIds = [...new Set(items.map(item => item.patient_id).filter(Boolean))];
-      if (patientIds.length > 0) {
-        const userRes = await dbFetch(`users?id=in.(${patientIds.join(",")})&select=id,un_id,role`);
-        const users = await userRes.json().catch(() => []);
-        if (Array.isArray(users)) {
-          const userMap = {};
-          users.forEach(u => {
-            userMap[u.id] = { un_id: u.un_id, role: u.role };
-          });
-          items.forEach(item => {
-            const u = userMap[item.patient_id] || {};
-            item.patient_un_id = u.un_id || null;
-            item.patient_role = u.role || null;
-          });
-        }
+    try {
+      if (status && patientId) {
+        items = await sql`
+          SELECT r.*, u.un_id as patient_un_id, u.role as patient_role
+          FROM refund_requests r
+          LEFT JOIN users u ON u.id::text = r.patient_id::text
+          WHERE r.status = ${status} AND r.patient_id = ${patientId}
+          ORDER BY r.created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `;
+        const countRes = await sql`
+          SELECT COUNT(*)::int as count FROM refund_requests
+          WHERE status = ${status} AND patient_id = ${patientId}
+        `;
+        total = countRes[0]?.count || 0;
+      } else if (status) {
+        items = await sql`
+          SELECT r.*, u.un_id as patient_un_id, u.role as patient_role
+          FROM refund_requests r
+          LEFT JOIN users u ON u.id::text = r.patient_id::text
+          WHERE r.status = ${status}
+          ORDER BY r.created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `;
+        const countRes = await sql`
+          SELECT COUNT(*)::int as count FROM refund_requests
+          WHERE status = ${status}
+        `;
+        total = countRes[0]?.count || 0;
+      } else if (patientId) {
+        items = await sql`
+          SELECT r.*, u.un_id as patient_un_id, u.role as patient_role
+          FROM refund_requests r
+          LEFT JOIN users u ON u.id::text = r.patient_id::text
+          WHERE r.patient_id = ${patientId}
+          ORDER BY r.created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `;
+        const countRes = await sql`
+          SELECT COUNT(*)::int as count FROM refund_requests
+          WHERE patient_id = ${patientId}
+        `;
+        total = countRes[0]?.count || 0;
+      } else {
+        items = await sql`
+          SELECT r.*, u.un_id as patient_un_id, u.role as patient_role
+          FROM refund_requests r
+          LEFT JOIN users u ON u.id::text = r.patient_id::text
+          ORDER BY r.created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `;
+        const countRes = await sql`
+          SELECT COUNT(*)::int as count FROM refund_requests
+        `;
+        total = countRes[0]?.count || 0;
       }
+    } catch (e) {
+      console.warn("Could not query refund_requests from RDS:", e.message);
     }
 
-    // Summary
-    const [pendingRes, completedRes, failedRes, totalAmtRes] = await Promise.all([
-      dbFetch("refund_requests?status=eq.PENDING&select=id",    { headers: { Prefer: "count=exact" } }),
-      dbFetch("refund_requests?status=eq.COMPLETED&select=id",  { headers: { Prefer: "count=exact" } }),
-      dbFetch("refund_requests?status=eq.FAILED&select=id",     { headers: { Prefer: "count=exact" } }),
-      dbFetch("refund_requests?status=eq.COMPLETED&select=amount"),
-    ]);
-    const completedItems = await totalAmtRes.json().catch(() => []);
-    const totalRefunded  = Array.isArray(completedItems)
-      ? completedItems.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0)
-      : 0;
+    // Summary directly from AWS RDS
+    let pendingCount = 0;
+    let completedCount = 0;
+    let failedCount = 0;
+    let totalRefunded = 0;
+
+    try {
+      const summaryRows = await sql`
+        SELECT 
+          status,
+          COUNT(*)::int as count,
+          COALESCE(SUM(amount::numeric), 0) as total_amount
+        FROM refund_requests
+        GROUP BY status
+      `;
+      for (const row of summaryRows) {
+        if (row.status === 'PENDING') pendingCount = parseInt(row.count, 10);
+        if (row.status === 'COMPLETED') {
+          completedCount = parseInt(row.count, 10);
+          totalRefunded = parseFloat(row.total_amount) || 0;
+        }
+        if (row.status === 'FAILED') failedCount = parseInt(row.count, 10);
+      }
+    } catch {}
 
     const summary = {
-      pending:          parseInt(pendingRes.headers.get("content-range")?.split("/")[1] || "0", 10),
-      completed:        parseInt(completedRes.headers.get("content-range")?.split("/")[1] || "0", 10),
-      failed:           parseInt(failedRes.headers.get("content-range")?.split("/")[1] || "0", 10),
-      total_refunded:   totalRefunded,
+      pending:        pendingCount,
+      completed:      completedCount,
+      failed:         failedCount,
+      total_refunded: totalRefunded,
     };
 
-    return success("Refund requests fetched", {
+    return success("Refund requests fetched (AWS RDS)", {
       items: Array.isArray(items) ? items : [],
       summary,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      database: "AWS RDS PostgreSQL"
     });
   } catch (err) {
     console.error("GET /api/admin/refunds error:", err);
@@ -93,7 +126,7 @@ export async function GET(req) {
 /**
  * POST /api/admin/refunds
  * Body: { patient_id, care_episode_id, consultation_id, original_payment_id, amount, reason, admin_id }
- * Manually triggers a refund via RefundEngine.
+ * Manually triggers a refund via RefundEngine and logs to admin_action_log in AWS RDS.
  */
 export async function POST(req) {
   try {
@@ -114,20 +147,21 @@ export async function POST(req) {
       initiated_by: `admin:${admin_id}`,
     });
 
-    // Log admin action
-    await dbFetch("admin_action_log", {
-      method: "POST",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify([{
-        admin_id,
-        action_type:   "MANUAL_REFUND",
-        target_table:  "refund_requests",
-        reason,
-        input_payload: { patient_id, amount, original_payment_id },
-        result_payload: result,
-        status:        result.success ? "SUCCESS" : "FAILED",
-      }]),
-    });
+    // Log admin action directly to AWS RDS PostgreSQL
+    try {
+      await sql`
+        INSERT INTO admin_action_log (
+          admin_id, action_type, target_table, reason, input_payload, result_payload, status
+        ) VALUES (
+          ${admin_id}, 'MANUAL_REFUND', 'refund_requests', ${reason},
+          ${JSON.stringify({ patient_id, amount, original_payment_id })},
+          ${JSON.stringify(result)},
+          ${result.success ? 'SUCCESS' : 'FAILED'}
+        )
+      `;
+    } catch (e) {
+      console.warn("Could not insert admin_action_log in RDS:", e.message);
+    }
 
     if (!result.success) return failure("Refund initiation failed", result.error, 500);
 
