@@ -45,7 +45,7 @@ export async function POST(request) {
       adminUser = data;
     }
 
-    const isTestOTP = otp === "123456" && (process.env.NODE_ENV === "development" || admin_phone?.includes("7017580125"));
+    const isTestOTP = false;
 
     if (!adminUser && !isTestOTP) {
       return NextResponse.json(

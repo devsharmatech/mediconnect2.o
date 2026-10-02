@@ -16,7 +16,9 @@ export async function middleware(req) {
     pathname.startsWith("/chemist/login") ||
     pathname.startsWith("/chemist/onboarding") ||
     pathname.startsWith("/lab/login") ||
-    pathname.startsWith("/lab/onboarding")
+    pathname.startsWith("/lab/onboarding") ||
+    pathname.startsWith("/partner/login") ||
+    pathname.startsWith("/api/partner/auth")
   ) {
     return NextResponse.next();
   }
@@ -71,10 +73,13 @@ export async function middleware(req) {
         }
     }
 
+  // Partner routes — layout handles auth client-side, middleware just passthrough
+  // (partner session is in localStorage, not cookies, so no server-side check possible)
+
   return NextResponse.next();
 }
 
 // Apply middleware to all dashboard routes
 export const config = {
-  matcher: ["/admin/:path*", "/chemist/:path*", "/lab/:path*"],
+  matcher: ["/admin/:path*", "/chemist/:path*", "/lab/:path*", "/partner/:path*"],
 };

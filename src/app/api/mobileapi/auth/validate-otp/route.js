@@ -55,7 +55,12 @@ export async function POST(req) {
 
     if (!user) return respondMobileFailure("User not found.", null, 404);
 
-    const isTestOTP = otp === "123456" && (user.phone_number?.includes("7017580125") || process.env.NODE_ENV === "development");
+    const isPermanentTestUser = Boolean(
+      user.phone_number?.includes("9999999991") ||
+      user.phone_number?.includes("9999999992") ||
+      user.phone_number?.includes("9999999993")
+    );
+    const isTestOTP = otp === "123456" && isPermanentTestUser;
     if (user.otp_code !== otp && !isTestOTP)
       return respondMobileFailure("Invalid OTP.", null, 400);
 

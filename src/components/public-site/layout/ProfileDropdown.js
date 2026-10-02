@@ -106,13 +106,28 @@ const ProfileDropdown = ({ user, userRole, onLogout }) => {
     setImageError(false);
   }, [avatarUrl]);
 
-  const isDoctor = userRole === "doctor";
-  const isChemist =
-    userRole === "chemist" ||
-    (typeof window !== "undefined" && Boolean(localStorage.getItem("chemistUser")));
-  const isLab =
-    userRole === "lab" ||
-    (typeof window !== "undefined" && Boolean(localStorage.getItem("labUser")));
+  const isPatient = userRole === "patient" || user?.role === "patient";
+  const isDoctor = !isPatient && (userRole === "doctor" || user?.role === "doctor");
+  const isChemist = !isPatient && (userRole === "chemist" || user?.role === "chemist");
+  const isLab = !isPatient && (userRole === "lab" || user?.role === "lab");
+
+  // Clean up any stale lab/chemist session from localStorage if current user is a patient
+  useEffect(() => {
+    if (typeof window !== "undefined" && isPatient) {
+      try {
+        const labRaw = localStorage.getItem("labUser");
+        if (labRaw) {
+          const lu = JSON.parse(labRaw);
+          if (lu?.id !== user?.id) localStorage.removeItem("labUser");
+        }
+        const chemRaw = localStorage.getItem("chemistUser");
+        if (chemRaw) {
+          const cu = JSON.parse(chemRaw);
+          if (cu?.id !== user?.id) localStorage.removeItem("chemistUser");
+        }
+      } catch {}
+    }
+  }, [isPatient, user?.id]);
 
   return (
     <div className="relative hidden sm:block" ref={dropdownRef}>

@@ -39,12 +39,19 @@ import { getLoggedInUser, logoutUser } from "@/lib/authHelpers";
 
 export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
   const [role, setRole] = useState("admin");
+  const [adminUser, setAdminUser] = useState(null);
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
-    const user = getLoggedInUser("admin");
-    if (user?.role) setRole(user.role);
+    const loadUser = () => {
+      const user = getLoggedInUser("admin");
+      if (user?.role) setRole(user.role);
+      setAdminUser(user);
+    };
+    loadUser();
+    window.addEventListener("adminProfileUpdated", loadUser);
+    return () => window.removeEventListener("adminProfileUpdated", loadUser);
   }, []);
 
   const menuItems = [
@@ -180,8 +187,13 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
     {
       name: "Nursing Care",
       icon: <Heart />,
-      path: `/admin/nursing`,
+      submenu: true,
+      subItems: [
+        { name: "Nursing Leads", path: `/admin/nursing` },
+        { name: "Partners", path: `/admin/nursing/partners` },
+      ]
     },
+
     {
       name: "Notifications",
       icon: <Bell />,
@@ -311,7 +323,14 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
         </div>
 
         {/* Navigation Menu - Scrollable */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1.5 custom-scrollbar min-h-0">
+        <nav
+          className="flex-1 overflow-y-auto py-4 px-3 space-y-1.5 custom-scrollbar admin-sidebar-scroll min-h-0"
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(255, 255, 255, 0.2) transparent',
+            pointerEvents: 'auto',
+          }}
+        >
           {menuItems.map((item, idx) => {
             const isActive = pathname === item.path || (item.submenu && item.subItems.some(sub => pathname === sub.path || pathname.startsWith(`${sub.path}/`)));
             
@@ -391,12 +410,21 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
         <div className="p-4 shrink-0 border-t border-white/10 bg-black/10">
           {open && (
             <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-xl border border-white/10 mb-3 overflow-hidden">
-              <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-400 flex items-center justify-center text-[#003358] font-bold text-sm shadow-md">
-                <User size={18} />
+              <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-400 flex items-center justify-center text-[#003358] font-bold text-sm shadow-md overflow-hidden">
+                {adminUser?.profile_picture ? (
+                  <img
+                    src={adminUser.profile_picture}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.currentTarget.style.display = "none"; }}
+                  />
+                ) : (
+                  <User size={18} />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white truncate">
-                  Admin User
+                  {adminUser?.admin_details?.full_name || adminUser?.full_name || "Dev Sharma"}
                 </p>
                 <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -420,6 +448,31 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
             {open && <span>Logout</span>}
           </button>
         </div>
+
+        <style jsx>{`
+          .admin-sidebar-scroll {
+            scrollbar-width: thin !important;
+            scrollbar-color: rgba(255, 255, 255, 0.2) transparent !important;
+          }
+          .admin-sidebar-scroll::-webkit-scrollbar {
+            width: 3px !important;
+          }
+          .admin-sidebar-scroll::-webkit-scrollbar-track {
+            background: transparent !important;
+          }
+          .admin-sidebar-scroll::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.2) !important;
+            border-radius: 9999px !important;
+          }
+          .admin-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255, 255, 255, 0.45) !important;
+          }
+          .admin-sidebar-scroll::-webkit-scrollbar-button {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+          }
+        `}</style>
       </aside>
     </>
   );

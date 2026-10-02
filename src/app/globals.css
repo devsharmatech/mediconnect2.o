@@ -213,36 +213,98 @@ button{
   background-clip: text;
 }
 
-/* Global scrollbar (thin, neutral, used across the app) */
-html,
-body {
-  scrollbar-width: thin; /* Firefox */
-  scrollbar-color: #CBD5E1 transparent;
+/* ========================================================
+   UNIVERSAL ULTRA-THIN SCROLLBAR (Chrome, Edge, Safari, Firefox)
+   ======================================================== */
+*,
+*::before,
+*::after {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(156, 163, 175, 0.4) transparent !important;
 }
 
-::-webkit-scrollbar {
-  width: 4px;  /* vertical */
-  height: 4px; /* horizontal */
+/* Hide all scrollbar arrow buttons (Windows classic arrows) */
+::-webkit-scrollbar-button,
+*::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+/* Ultra-thin scrollbar width */
+::-webkit-scrollbar,
+*::-webkit-scrollbar {
+  width: 3px !important;
+  height: 3px !important;
 }
 
-::-webkit-scrollbar-thumb {
-  background-color: #CBD5E1;
-  border-radius: 9999px;
+::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track {
+  background: transparent !important;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background-color: #94A3B8;
-}
-.scrollbar-thin-x::-webkit-scrollbar:horizontal {
-  height: 3px; /* horizontal height */
+::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.4) !important;
+  border-radius: 9999px !important;
 }
 
-.scrollbar-thin-x::-webkit-scrollbar-thumb:horizontal {
-  border-radius: 9999px;
+::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 116, 139, 0.7) !important;
+}
+
+::-webkit-scrollbar-corner,
+*::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+/* Custom scrollbar utility for dark panels & sidebars */
+.custom-scrollbar,
+.admin-sidebar-scroll,
+aside nav,
+aside .overflow-y-auto {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar,
+.admin-sidebar-scroll::-webkit-scrollbar,
+aside nav::-webkit-scrollbar,
+aside .overflow-y-auto::-webkit-scrollbar {
+  width: 3px !important;
+  height: 3px !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track,
+.admin-sidebar-scroll::-webkit-scrollbar-track,
+aside nav::-webkit-scrollbar-track,
+aside .overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb,
+.admin-sidebar-scroll::-webkit-scrollbar-thumb,
+aside nav::-webkit-scrollbar-thumb,
+aside .overflow-y-auto::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.25) !important;
+  border-radius: 9999px !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover,
+.admin-sidebar-scroll::-webkit-scrollbar-thumb:hover,
+aside nav::-webkit-scrollbar-thumb:hover,
+aside .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-button,
+.admin-sidebar-scroll::-webkit-scrollbar-button,
+aside nav::-webkit-scrollbar-button,
+aside .overflow-y-auto::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 /* Glass morphism */

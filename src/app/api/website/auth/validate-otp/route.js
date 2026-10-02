@@ -53,9 +53,9 @@ export async function POST(req) {
     const isPermanentTestUser = Boolean(
       user.phone_number?.includes("9999999991") ||
       user.phone_number?.includes("9999999992") ||
-      user.phone_number?.includes("7017580125")
+      user.phone_number?.includes("9999999993")
     );
-    const isTestOTP = otp === "123456" && (isPermanentTestUser || process.env.NODE_ENV === "development");
+    const isTestOTP = otp === "123456" && isPermanentTestUser;
 
     // Validate OTP against database record
     if (user.otp_code !== otp && !isTestOTP)

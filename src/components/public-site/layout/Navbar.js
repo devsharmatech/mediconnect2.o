@@ -188,6 +188,8 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
       localStorage.removeItem("userData");
       localStorage.removeItem("authToken");
       localStorage.removeItem("userId");
+      localStorage.removeItem("labUser");
+      localStorage.removeItem("chemistUser");
     }
     // Close mobile menu if open
     if (isMenuOpen) {

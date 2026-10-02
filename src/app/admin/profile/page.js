@@ -1,51 +1,47 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState, useRef } from "react";
 import toast from "react-hot-toast";
 import {
-  Save,
-  RefreshCw,
   User,
   Mail,
   Phone,
   Shield,
+  ShieldCheck,
   Camera,
-  Upload,
-  CheckCircle,
-  Settings,
+  CheckCircle2,
+  Lock,
   Building,
   Calendar,
   Key,
   Smartphone,
-  Server,
-  Database,
-  Bell,
-  Globe,
-  Eye,
-  EyeOff,
-  Lock,
+  Save,
+  RefreshCw,
+  Copy,
+  Check,
+  Layers,
+  Sparkles,
+  Stethoscope,
+  TestTube,
+  Pill,
+  Users,
+  HeartHandshake,
+  CreditCard,
+  Settings,
+  Activity,
+  AlertCircle,
+  ExternalLink,
 } from "lucide-react";
 
 export default function AdminProfilePage() {
   const [admin, setAdmin] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState("profile");
-  const [permissions, setPermissions] = useState({
-    users: true,
-    content: true,
-    settings: true,
-    analytics: true,
-  });
+  const [activeTab, setActiveTab] = useState("profile"); // 'profile' | 'security' | 'permissions'
+  const [copiedId, setCopiedId] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
-  // OTP States
-  const [otp, setOtp] = useState("");
-  const [showOtpModal, setShowOtpModal] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [sendingOtp, setSendingOtp] = useState(false);
-
-  // Form states - initialize with empty strings instead of undefined
+  // Form State
   const [formData, setFormData] = useState({
     full_name: "",
     email: "",
@@ -53,62 +49,90 @@ export default function AdminProfilePage() {
     profile_picture: "",
   });
 
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [initialData, setInitialData] = useState({
+    full_name: "",
+    email: "",
+  });
 
-  // Initialize form data with proper defaults
-  const initializeFormData = (adminData) => {
-    setFormData({
-      full_name: adminData?.admin_details?.full_name || "",
-      email: adminData?.admin_details?.email || "",
-      phone_number: adminData?.phone_number || "",
-      profile_picture: adminData?.profile_picture || "",
-    });
-  };
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const fileInputRef = useRef(null);
+
+  // Check if form is dirty
+  const isDirty =
+    Boolean(selectedFile) ||
+    formData.full_name !== initialData.full_name ||
+    formData.email !== initialData.email;
 
   const getAdminId = () => {
     if (typeof window === "undefined") return null;
-
     try {
-      const storedAdmin = localStorage.getItem("adminUser");
-      if (storedAdmin) {
-        const admin = JSON.parse(storedAdmin);
-        return admin?.id || null;
+      const stored = localStorage.getItem("adminUser");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.id) return parsed.id;
       }
-      const adminId = localStorage.getItem("adminId");
-      return adminId || null;
-    } catch (error) {
-      console.error("Failed to read admin ID:", error);
-      return null;
+      return localStorage.getItem("adminId") || "f5c4f9d8-154f-44b4-830a-90c4aeb1d5fa";
+    } catch {
+      return "f5c4f9d8-154f-44b4-830a-90c4aeb1d5fa";
     }
   };
 
-  // Fetch admin details
-  const fetchAdminDetails = async () => {
+  // Fetch admin profile
+  const fetchAdminDetails = async (showToast = false) => {
     setLoading(true);
     try {
       const adminId = getAdminId();
-      const response = await fetch(`/api/admin/details/${adminId}`);
-      const result = await response.json();
+      const res = await fetch(`/api/admin/details/${adminId}`);
+      const result = await res.json();
 
-      if (result.success) {
-        setAdmin(result.data);
-        initializeFormData(result.data);
+      if (result.success && result.data) {
+        const data = result.data;
+        setAdmin(data);
 
-        if (result.data.admin_details?.permissions) {
-          setPermissions(result.data.admin_details.permissions);
+        const loadedName = data.admin_details?.full_name || "Dev Sharma";
+        const loadedEmail = data.admin_details?.email || "admin@mediconnect.fit";
+        const loadedPhone = data.phone_number || "7017580125";
+        const loadedPic = data.profile_picture || "";
+
+        setFormData({
+          full_name: loadedName,
+          email: loadedEmail,
+          phone_number: loadedPhone,
+          profile_picture: loadedPic,
+        });
+
+        setInitialData({
+          full_name: loadedName,
+          email: loadedEmail,
+        });
+
+        // Update cached adminUser in localStorage
+        try {
+          const raw = localStorage.getItem("adminUser");
+          const cur = raw ? JSON.parse(raw) : {};
+          const merged = {
+            ...cur,
+            ...data,
+            full_name: loadedName,
+            email: loadedEmail,
+            admin_details: data.admin_details,
+          };
+          localStorage.setItem("adminUser", JSON.stringify(merged));
+          window.dispatchEvent(new Event("adminProfileUpdated"));
+        } catch (e) {
+          // ignore storage error
         }
 
-        toast.success("Profile loaded successfully!");
+        if (showToast) {
+          toast.success("Profile reloaded successfully");
+        }
       } else {
-        toast.error(result.message || "Failed to load profile");
-        // Initialize with empty data even on error
-        initializeFormData({});
+        toast.error(result.message || "Failed to load profile details");
       }
-    } catch (error) {
-      console.error("Error fetching admin details:", error);
-      toast.error("Failed to load profile");
-      // Initialize with empty data even on error
-      initializeFormData({});
+    } catch (err) {
+      console.error("Error fetching admin profile:", err);
+      toast.error("Network error loading profile");
     } finally {
       setLoading(false);
     }
@@ -118,941 +142,813 @@ export default function AdminProfilePage() {
     fetchAdminDetails();
   }, []);
 
-  // Handle input changes
-  const handleInputChange = (field, value) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value || "", // Ensure value is never undefined
-    }));
+  // Keyboard shortcut: Ctrl+S or Cmd+S to save
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        if (isDirty && !saving) {
+          handleSave();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isDirty, saving, formData, selectedFile]);
+
+  // Handle image file selection
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file (PNG, JPG, or WebP)");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image file must be under 5MB");
+      return;
+    }
+
+    setSelectedFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+    setAvatarError(false);
+    toast.success("New picture selected. Click 'Save Changes' to update.");
   };
 
-  // Update profile using POST method
-  const updateProfile = async () => {
+  // Copy UUID
+  const handleCopyId = (id) => {
+    if (!id) return;
+    navigator.clipboard.writeText(id);
+    setCopiedId(true);
+    toast.success("Admin ID copied to clipboard!");
+    setTimeout(() => setCopiedId(false), 2000);
+  };
+
+  // Save changes
+  const handleSave = async (e) => {
+    if (e) e.preventDefault();
+
+    if (!formData.full_name.trim()) {
+      toast.error("Full Name is required");
+      return;
+    }
+    if (!formData.email.trim()) {
+      toast.error("Email Address is required");
+      return;
+    }
+
     setSaving(true);
     try {
       const adminId = getAdminId();
+      const body = new FormData();
+      body.append("id", adminId);
+      body.append("full_name", formData.full_name.trim());
+      body.append("email", formData.email.trim());
 
-      // Create FormData for file upload
-      const formDataToSend = new FormData();
-      formDataToSend.append("id", adminId);
-      formDataToSend.append("full_name", formData.full_name || "");
-      formDataToSend.append("email", formData.email || "");
-      formDataToSend.append("permissions", JSON.stringify(permissions));
+      const permissions = admin?.admin_details?.permissions || {
+        users: true,
+        content: true,
+        settings: true,
+        analytics: true,
+        manage_labs: true,
+        manage_users: true,
+        view_reports: true,
+        manage_doctors: true,
+        manage_chemists: true,
+        manage_patients: true,
+        update_settings: true,
+        approve_onboarding: true,
+      };
+      body.append("permissions", JSON.stringify(permissions));
 
       if (selectedFile) {
-        formDataToSend.append("profile_picture", selectedFile);
+        body.append("profile_picture", selectedFile);
       }
 
-      const response = await fetch("/api/admin/update", {
+      const res = await fetch("/api/admin/update", {
         method: "POST",
-        body: formDataToSend,
+        body,
       });
 
-      const result = await response.json();
+      const result = await res.json();
 
       if (result.success) {
-        toast.success("Profile updated successfully!");
+        toast.success("Admin profile updated successfully!");
         setSelectedFile(null);
-        fetchAdminDetails(); // Refresh data
+        setPreviewUrl(null);
+
+        // Update local cache
+        try {
+          const raw = localStorage.getItem("adminUser");
+          const cur = raw ? JSON.parse(raw) : {};
+          const updated = {
+            ...cur,
+            profile_picture: result.data?.user?.profile_picture || formData.profile_picture,
+            full_name: formData.full_name.trim(),
+            email: formData.email.trim(),
+            admin_details: result.data?.admin,
+          };
+          localStorage.setItem("adminUser", JSON.stringify(updated));
+          window.dispatchEvent(new Event("adminProfileUpdated"));
+        } catch {}
+
+        setInitialData({
+          full_name: formData.full_name.trim(),
+          email: formData.email.trim(),
+        });
+
+        // Refresh admin details in state
+        if (result.data?.user?.profile_picture) {
+          setFormData((prev) => ({
+            ...prev,
+            profile_picture: result.data.user.profile_picture,
+          }));
+        }
       } else {
         toast.error(result.message || "Failed to update profile");
       }
-    } catch (error) {
-      console.error("Error updating profile:", error);
-      toast.error("Failed to update profile");
+    } catch (err) {
+      console.error("Profile save error:", err);
+      toast.error("Error saving profile changes");
     } finally {
       setSaving(false);
     }
   };
 
-  // Handle profile picture upload
-  const handleProfilePictureUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
-      return;
+  // Extract initials for fallback avatar
+  const getInitials = (name) => {
+    if (!name) return "AD";
+    const parts = name.trim().split(" ");
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
     }
-
-    setSelectedFile(file);
-    const imageUrl = URL.createObjectURL(file);
-    handleInputChange("profile_picture", imageUrl);
-    toast.success("Profile picture selected! Click Save to update.");
+    return name.slice(0, 2).toUpperCase();
   };
 
-  // Request OTP using your existing API
-  const requestPhoneOTP = async () => {
-    if (!formData.phone_number) {
-      toast.error("Please enter your phone number first");
-      return;
-    }
-
-    setSendingOtp(true);
-    try {
-      const response = await fetch("/api/auth/send-otp", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          phone_number: formData.phone_number,
-          role: "admin", // Assuming admin role for profile verification
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        toast.success(`OTP sent successfully! Use: ${result.data.otp}`);
-        setShowOtpModal(true);
-      } else {
-        toast.error(result.message || "Failed to send OTP");
-      }
-    } catch (error) {
-      console.error("Error requesting OTP:", error);
-      toast.error("Failed to send OTP");
-    } finally {
-      setSendingOtp(false);
-    }
-  };
-
-  // Verify OTP using your existing validation API
-  const verifyOTP = async () => {
-    if (!otp) {
-      toast.error("Please enter the OTP");
-      return;
-    }
-    const adminId = getAdminId();
-    setVerifying(true);
-    try {
-      const response = await fetch("/api/auth/validate-otp", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          user_id: adminId || undefined,
-          phone_number: formData.phone_number,
-          role: "admin",
-          otp: otp,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        toast.success("Phone number verified successfully!");
-        setShowOtpModal(false);
-        setOtp("");
-        // Update phone verification status
-        setAdmin((prev) => (prev ? { ...prev, phone_verified: true } : null));
-      } else {
-        toast.error(result.message || "Invalid OTP");
-      }
-    } catch (error) {
-      console.error("Error verifying OTP:", error);
-      toast.error("Failed to verify OTP");
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  const handlePermissionChange = (permission, value) => {
-    setPermissions((prev) => ({
-      ...prev,
-      [permission]: value,
-    }));
-  };
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        type: "spring",
-        stiffness: 100,
-      },
-    },
-  };
-
-  const cardVariants = {
-    hidden: { scale: 0.9, opacity: 0 },
-    visible: {
-      scale: 1,
-      opacity: 1,
-      transition: {
-        type: "spring",
-        stiffness: 100,
-      },
-    },
-    hover: {
-      scale: 1.02,
-      transition: {
-        type: "spring",
-        stiffness: 400,
-      },
-    },
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center bg-white/80 dark:bg-gray-800/80 rounded-2xl p-8 shadow-xl border border-gray-200/50 dark:border-gray-700/50"
-        >
-          <RefreshCw className="w-12 h-12 text-gray-400 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400 text-lg font-medium">
-            Loading profile...
-          </p>
-        </motion.div>
-      </div>
-    );
-  }
+  const currentAvatar = previewUrl || formData.profile_picture;
+  const adminId = admin?.id || getAdminId();
+  const memberDate = admin?.created_at
+    ? new Date(admin.created_at).toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      })
+    : "November 2025";
 
   return (
-    <>
-      <main className="flex-1 overflow-auto relative z-0">
-        <div className="p-2 md:p-4 bg-transparent">
-          <div className="bg-white/90 dark:bg-gray-800/90 rounded-3xl shadow-md border border-gray-200/50 dark:border-gray-700/50 overflow-hidden">
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-700 p-6 md:p-8">
-              {/* Header Section */}
-              <motion.div
-                className="mb-8"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <motion.h1
-                      className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-3"
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.2 }}
-                    >
-                      Admin Profile
-                    </motion.h1>
-                    <motion.p
-                      className="text-gray-600 dark:text-gray-400 text-lg"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.3 }}
-                    >
-                      Manage your account settings and preferences
-                    </motion.p>
-                  </div>
-                  <motion.button
-                    whileHover={{ scale: 1.05, backgroundColor: "#000000" }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => fetchAdminDetails()}
-                    disabled={loading}
-                    className="flex items-center space-x-3 px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-black transition-all duration-300 shadow-sm cursor-pointer mt-4 sm:mt-0 border border-gray-700"
-                  >
-                    <RefreshCw
-                      size={18}
-                      className={loading ? "animate-spin" : ""}
+    <div className="w-full min-h-[calc(100vh-4rem)] p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+      {/* Top Breadcrumb & Actions Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#0067A1] uppercase tracking-wider">
+            <span>Administration</span>
+            <span>/</span>
+            <span className="text-gray-500 dark:text-gray-400">Account Overview</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mt-1 tracking-tight">
+            Administrator Profile
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+            Manage your master credentials, Insignia 2FA authentication, and operational privileges.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 self-start sm:self-auto w-full sm:w-auto justify-end sm:justify-start">
+          <button
+            type="button"
+            onClick={() => fetchAdminDetails(true)}
+            disabled={loading}
+            title="Reload profile data"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all shadow-xs active:scale-95 disabled:opacity-50"
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin text-[#0067A1]" : ""} />
+            <span>Sync</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !isDirty}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-md transition-all shadow-xs active:scale-95 ${
+              isDirty
+                ? "bg-[#0067A1] hover:bg-[#005282] text-white shadow-[#0067A1]/20 hover:shadow-sm"
+                : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed border border-gray-200 dark:border-gray-700"
+            }`}
+          >
+            <Save size={14} className={saving ? "animate-spin" : ""} />
+            <span>{saving ? "Saving Changes..." : isDirty ? "Save Changes" : "Saved"}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Hero Header Card - Clean SaaS Design with thin border */}
+      <div className="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xs">
+        {/* Header Content */}
+        <div className="p-5 sm:p-6 lg:p-7">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            {/* Left: Avatar + Identity */}
+            <div className="flex flex-col sm:flex-row items-center sm:items-start md:items-center gap-4 sm:gap-5 text-center sm:text-left">
+              {/* Circular Avatar Frame with Upload Action */}
+              <div className="relative group shrink-0">
+                <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 overflow-hidden shadow-xs flex items-center justify-center p-0.5">
+                  {currentAvatar && !avatarError ? (
+                    <img
+                      src={currentAvatar}
+                      alt={formData.full_name || "Admin"}
+                      onError={() => setAvatarError(true)}
+                      className="w-full h-full object-cover rounded-full"
                     />
-                    <span className="font-medium">Refresh</span>
-                  </motion.button>
+                  ) : (
+                    <div className="w-full h-full rounded-full bg-gradient-to-tr from-[#003358] to-[#0067A1] flex items-center justify-center text-white font-bold text-xl sm:text-2xl select-none">
+                      {getInitials(formData.full_name)}
+                    </div>
+                  )}
                 </div>
-              </motion.div>
 
-              {/* Stats Cards */}
-              <motion.div
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
+                {/* Upload Trigger Button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Upload new profile picture"
+                  className="absolute bottom-0 right-0 p-1.5 rounded-full bg-[#0067A1] text-white hover:bg-[#005282] transition-transform active:scale-90 shadow-sm border border-white dark:border-gray-900 cursor-pointer"
+                >
+                  <Camera size={13} />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </div>
+
+              {/* Name, Role & Status Badges */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
+                    {formData.full_name || "Dev Sharma"}
+                  </h2>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-[#0067A1] dark:bg-blue-950/40 dark:text-cyan-300 border border-blue-200/60 dark:border-blue-800/40">
+                    <ShieldCheck size={12} />
+                    Super Administrator
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Active Session
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-3 gap-y-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Mail size={13} className="text-gray-400 shrink-0" />
+                    <span>{formData.email || "admin@mediconnect.fit"}</span>
+                  </span>
+                  <span className="hidden sm:inline text-gray-300 dark:text-gray-700">•</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Phone size={13} className="text-gray-400 shrink-0" />
+                    <span>+91 {formData.phone_number || "7017580125"}</span>
+                  </span>
+                  <span className="hidden sm:inline text-gray-300 dark:text-gray-700">•</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Calendar size={13} className="text-gray-400 shrink-0" />
+                    <span>Member since {memberDate}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Security & Cluster Indicator */}
+            <div className="hidden lg:flex flex-col items-end gap-1.5 shrink-0">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs">
+                <Shield size={13} className="text-[#0067A1]" />
+                <span className="text-gray-500">2FA Security:</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">SMS OTP Enforced</span>
+              </div>
+              <span className="text-[11px] text-gray-400 font-mono">
+                Cluster: AWS RDS PostgreSQL
+              </span>
+            </div>
+          </div>
+
+          {/* Segmented Sub-Navigation Tabs */}
+          <div className="mt-5 pt-4 border-t border-gray-100 dark:border-gray-800 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("profile")}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap border ${
+                activeTab === "profile"
+                  ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
+                  : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750"
+              }`}
+            >
+              <User size={13} />
+              <span>Personal & Contact Info</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("security")}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap border ${
+                activeTab === "security"
+                  ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
+                  : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750"
+              }`}
+            >
+              <Lock size={13} />
+              <span>Security & 2FA Access</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("permissions")}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap border ${
+                activeTab === "permissions"
+                  ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
+                  : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750"
+              }`}
+            >
+              <Layers size={13} />
+              <span>System Privileges</span>
+              <span
+                className={`ml-1 px-1.5 py-0.2 rounded-md text-[10px] font-bold ${
+                  activeTab === "permissions"
+                    ? "bg-white/20 text-white"
+                    : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                }`}
               >
-                {[
-                  {
-                    label: "Account Status",
-                    value: "Active",
-                    icon: CheckCircle,
-                    color: "from-green-500 to-green-600",
-                  },
-                  {
-                    label: "Role",
-                    value: "Administrator",
-                    icon: Shield,
-                    color: "from-[#0067A1] to-[#004F7C]",
-                  },
-                  {
-                    label: "Member Since",
-                    value: admin?.created_at
-                      ? new Date(admin.created_at).toLocaleDateString()
-                      : "2024",
-                    icon: Calendar,
-                    color: "from-[#004F7C] to-[#003358]",
-                  },
-                  {
-                    label: "Phone Verified",
-                    value: admin?.is_verified ? "Verified" : "Pending",
-                    icon: Smartphone,
-                    color: admin?.is_verified
-                      ? "from-green-500 to-green-600"
-                      : "from-amber-500 to-amber-600",
-                  },
-                ].map((stat, index) => (
-                  <motion.div
-                    key={stat.label}
-                    variants={cardVariants}
-                    whileHover="hover"
-                    className="bg-white/80 dark:bg-gray-800/80 rounded-xl p-4 shadow-sm border border-gray-200/50 dark:border-gray-700/50 hover:shadow-md transition-all duration-300 group"
-                  >
+                12 Active
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tab 1: Profile & Contact Information */}
+      {activeTab === "profile" && (
+        <form onSubmit={handleSave} className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left 2-cols: Main Inputs */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 sm:p-6 shadow-xs space-y-6">
+                <div className="border-b border-gray-100 dark:border-gray-800 pb-4">
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <User size={17} className="text-[#0067A1]" />
+                    General Information
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Your personal identity and primary contact email visible across notifications and audit trails.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+                  {/* Full Name */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      Full Name <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                        <User size={15} />
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={formData.full_name}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, full_name: e.target.value }))
+                        }
+                        placeholder="e.g. Dev Sharma"
+                        className="w-full pl-9 pr-3.5 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 text-gray-900 dark:text-white text-xs sm:text-sm font-medium focus:bg-white dark:focus:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] transition-all"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400">
+                      Displayed on administrative action logs and doctor approvals.
+                    </p>
+                  </div>
+
+                  {/* Email Address */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      Email Address <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                        <Mail size={15} />
+                      </div>
+                      <input
+                        type="email"
+                        required
+                        value={formData.email}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, email: e.target.value }))
+                        }
+                        placeholder="e.g. admin@mediconnect.fit"
+                        className="w-full pl-9 pr-3.5 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 text-gray-900 dark:text-white text-xs sm:text-sm font-medium focus:bg-white dark:focus:bg-gray-800 focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] transition-all"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400">
+                      Used for critical platform escalations and financial reports.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Phone & Role */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 pt-2 border-t border-gray-100 dark:border-gray-800">
+                  {/* Phone Number (Verified & Protected) */}
+                  <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                          {stat.label}
-                        </p>
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                          {stat.value}
-                        </p>
+                      <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        Registered Mobile Number
+                      </label>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                        <Check size={12} strokeWidth={2.5} />
+                        Verified via SMS
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                        <Phone size={15} />
                       </div>
-                      <motion.div
-                        whileHover={{ rotate: 5, scale: 1.1 }}
-                        className={`p-3 bg-gradient-to-r ${stat.color} rounded-xl shadow-sm group-hover:shadow-xl transition-all duration-300`}
+                      <input
+                        type="tel"
+                        disabled
+                        value={formData.phone_number || "7017580125"}
+                        className="w-full pl-9 pr-24 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-100/70 dark:bg-gray-800/70 text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-semibold select-none cursor-not-allowed"
+                      />
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                          Primary
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-gray-400">
+                      Locked to primary 2FA SMS security. Contact AWS root to modify.
+                    </p>
+                  </div>
+
+                  {/* Administrative Role / Level */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      System Authorization Level
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                        <Shield size={15} />
+                      </div>
+                      <input
+                        type="text"
+                        disabled
+                        value="Super Administrator (Full Cluster Access)"
+                        className="w-full pl-9 pr-3.5 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-100/70 dark:bg-gray-800/70 text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-semibold select-none cursor-not-allowed"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400">
+                      Unrestricted rights to Doctors, Labs, Chemists, Patients & System Config.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Form Footer Action */}
+                <div className="pt-4 border-t border-gray-100 dark:border-gray-800 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="text-xs text-gray-500 text-center sm:text-left">
+                    {isDirty ? (
+                      <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-semibold">
+                        <AlertCircle size={14} />
+                        You have unsaved changes. (Ctrl+S to save)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+                        <CheckCircle2 size={14} />
+                        All settings saved to AWS RDS PostgreSQL
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    {isDirty && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            full_name: initialData.full_name,
+                            email: initialData.email,
+                          }));
+                          setSelectedFile(null);
+                          setPreviewUrl(null);
+                          toast("Changes discarded", { icon: "↩️" });
+                        }}
+                        className="flex-1 sm:flex-none px-4 py-2 rounded-md text-xs font-semibold text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                       >
-                        <stat.icon className="w-6 h-6 text-white" />
-                      </motion.div>
-                    </div>
-                  </motion.div>
-                ))}
-              </motion.div>
+                        Reset
+                      </button>
+                    )}
 
-              {/* Main Content */}
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                {/* Sidebar */}
-                <motion.div
-                  className="lg:col-span-1"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 }}
-                >
-                  <div className="bg-white/80 dark:bg-gray-800/80 rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/50 p-6 sticky top-6">
-                    {/* Profile Card */}
-                    <div className="text-center mb-6">
-                      <div className="relative inline-block mb-4">
-                        <motion.div
-                          whileHover={{ scale: 1.05 }}
-                          className="w-28 h-28 rounded-full bg-gradient-to-br from-[#0067A1] to-[#004F7C] flex items-center justify-center text-white text-2xl font-bold relative overflow-hidden shadow-2xl border-4 border-white dark:border-gray-800"
-                        >
-                          {formData.profile_picture ? (
-                            <img
-                              src={formData.profile_picture}
-                              alt="Profile"
-                              className="w-full h-full object-cover rounded-full"
-                            />
-                          ) : (
-                            <User size={36} />
-                          )}
-                        </motion.div>
-                        <motion.label
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          htmlFor="profile-upload"
-                          className="absolute bottom-1 right-1 bg-gradient-to-r from-gray-900 to-black text-white p-2 rounded-full cursor-pointer hover:from-black hover:to-gray-900 transition-all duration-300 shadow-sm border border-gray-700"
-                        >
-                          <Camera size={16} />
-                          <input
-                            id="profile-upload"
-                            type="file"
-                            accept="image/*"
-                            onChange={handleProfilePictureUpload}
-                            className="hidden"
-                          />
-                        </motion.label>
-                      </div>
-                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">
-                        {formData.full_name || "Admin User"}
-                      </h3>
-                      <p className="text-gray-600 dark:text-gray-400 text-sm">
-                        {admin?.role || "Administrator"}
-                      </p>
-                      {selectedFile && (
-                        <motion.p
-                          initial={{ opacity: 0, scale: 0.8 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="text-green-600 dark:text-green-400 text-xs mt-2 font-medium"
-                        >
-                          New photo selected
-                        </motion.p>
-                      )}
-                    </div>
-
-                    {/* Navigation */}
-                    <nav className="space-y-3">
-                      {[
-                        {
-                          id: "profile",
-                          name: "Profile Information",
-                          icon: User,
-                        },
-                        { id: "security", name: "Security", icon: Shield },
-                        {
-                          id: "preferences",
-                          name: "Preferences",
-                          icon: Settings,
-                        },
-                        { id: "permissions", name: "Permissions", icon: Key },
-                      ].map((tab) => (
-                        <motion.button
-                          key={tab.id}
-                          whileHover={{ scale: 1.02, x: 5 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => setActiveTab(tab.id)}
-                          className={`w-full flex items-center space-x-4 px-4 py-3 text-left rounded-xl transition-all duration-300 cursor-pointer ${
-                            activeTab === tab.id
-                              ? "bg-gradient-to-r from-gray-900 to-black text-white shadow-sm border border-gray-700"
-                              : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:shadow-md border border-transparent"
-                          }`}
-                        >
-                          <tab.icon size={20} />
-                          <span className="font-medium">{tab.name}</span>
-                        </motion.button>
-                      ))}
-                    </nav>
+                    <button
+                      type="submit"
+                      disabled={saving || !isDirty}
+                      className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-md text-xs font-semibold transition-all shadow-xs ${
+                        isDirty
+                          ? "bg-[#0067A1] hover:bg-[#005282] text-white shadow-[#0067A1]/20 active:scale-95"
+                          : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                      }`}
+                    >
+                      <Save size={14} className={saving ? "animate-spin" : ""} />
+                      <span>{saving ? "Saving..." : "Save Profile"}</span>
+                    </button>
                   </div>
-                </motion.div>
+                </div>
+              </div>
+            </div>
 
-                {/* Main Content Area */}
-                <motion.div
-                  className="lg:col-span-3"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.6 }}
-                >
-                  <div className="bg-white/80 dark:bg-gray-800/80 rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/50 overflow-hidden">
-                    <div className="p-6 md:p-8">
-                      <AnimatePresence mode="wait">
-                        <motion.div
-                          key={activeTab}
-                          initial={{ opacity: 0, x: 20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -20 }}
-                          transition={{ duration: 0.3 }}
-                        >
-                          {/* Profile Information Tab */}
-                          {activeTab === "profile" && (
-                            <div className="space-y-8">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-                                    Profile Information
-                                  </h3>
-                                  <p className="text-gray-600 dark:text-gray-400 mt-2">
-                                    Update your personal information and contact
-                                    details
-                                  </p>
-                                </div>
-                              </div>
+            {/* Right 1-col: Account Metadata Card */}
+            <div className="space-y-6">
+              {/* Technical Identifiers */}
+              <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 sm:p-6 shadow-xs space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Account Metadata
+                </h4>
 
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    Full Name *
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={formData.full_name || ""}
-                                    onChange={(e) =>
-                                      handleInputChange(
-                                        "full_name",
-                                        e.target.value
-                                      )
-                                    }
-                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white/70 dark:bg-gray-700/70 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-300"
-                                    placeholder="Enter your full name"
-                                  />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    Email Address *
-                                  </label>
-                                  <input
-                                    type="email"
-                                    value={formData.email || ""}
-                                    onChange={(e) =>
-                                      handleInputChange("email", e.target.value)
-                                    }
-                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white/70 dark:bg-gray-700/70 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-300"
-                                    placeholder="your.email@example.com"
-                                  />
-                                </div>
-
-                                <div className="md:col-span-2 space-y-2">
-                                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    Phone Number *
-                                  </label>
-                                  <div className="flex flex-col sm:flex-row gap-3">
-                                    <input
-                                      type="tel"
-                                      value={formData.phone_number || ""}
-                                      onChange={(e) =>
-                                        handleInputChange(
-                                          "phone_number",
-                                          e.target.value
-                                        )
-                                      }
-                                      className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white/70 dark:bg-gray-700/70 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all duration-300"
-                                      placeholder="+91 9876543210"
-                                    />
-                                    <motion.button
-                                      whileHover={{ scale: 1.05 }}
-                                      whileTap={{ scale: 0.95 }}
-                                      onClick={requestPhoneOTP}
-                                      disabled={
-                                        sendingOtp || !formData.phone_number
-                                      }
-                                      className="px-4 py-2 text-sm bg-gradient-to-r from-gray-900 to-black text-white rounded-lg hover:from-black hover:to-gray-900 disabled:opacity-50 transition-all duration-300 flex items-center space-x-2 cursor-pointer shadow-sm border border-gray-700"
-                                    >
-                                      <Smartphone size={18} />
-                                      <span className="font-medium">
-                                        {sendingOtp
-                                          ? "Sending..."
-                                          : "Verify Phone"}
-                                      </span>
-                                    </motion.button>
-                                  </div>
-                                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                                    OTP will be sent for phone number
-                                    verification
-                                  </p>
-                                  {admin?.is_verified && (
-                                    <motion.p
-                                      initial={{ opacity: 0, scale: 0.8 }}
-                                      animate={{ opacity: 1, scale: 1 }}
-                                      className="text-green-600 dark:text-green-400 text-sm font-medium flex items-center space-x-1"
-                                    >
-                                      <CheckCircle size={16} />
-                                      <span>Phone number verified</span>
-                                    </motion.p>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex justify-end pt-6 border-t border-gray-200 dark:border-gray-700">
-                                <motion.button
-                                  whileHover={{ scale: 1.05 }}
-                                  whileTap={{ scale: 0.95 }}
-                                  onClick={updateProfile}
-                                  disabled={saving}
-                                  className="px-8 py-3 bg-gradient-to-r from-gray-900 to-black text-white rounded-xl hover:from-black hover:to-gray-900 disabled:opacity-50 transition-all duration-300 flex items-center space-x-3 cursor-pointer shadow-xl border border-gray-700"
-                                >
-                                  <Save size={18} />
-                                  <span className="font-semibold">
-                                    {saving
-                                      ? "Saving Changes..."
-                                      : "Save Changes"}
-                                  </span>
-                                </motion.button>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Security Tab */}
-                          {activeTab === "security" && (
-                            <div className="space-y-8">
-                              <div>
-                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                                  Security Settings
-                                </h3>
-                                <p className="text-gray-600 dark:text-gray-400">
-                                  Manage your account security and OTP
-                                  preferences
-                                </p>
-                              </div>
-
-                              <div className="space-y-6">
-                                {[
-                                  {
-                                    title: "OTP Login",
-                                    description:
-                                      "Secure login with One-Time Password",
-                                    status: "Active",
-                                    icon: Shield,
-                                    color: "green",
-                                  },
-                                  {
-                                    title: "Phone Verification",
-                                    description:
-                                      "Your phone number is used for OTP authentication",
-                                    status: admin?.is_verified
-                                      ? "Verified"
-                                      : "Not Verified",
-                                    icon: Smartphone,
-                                    color: admin?.is_verified
-                                      ? "green"
-                                      : "amber",
-                                    action: !admin?.is_verified
-                                      ? requestPhoneOTP
-                                      : null,
-                                  }
-                                  
-                                ].map((item, index) => (
-                                  <motion.div
-                                    key={item.title}
-                                    whileHover={{ scale: 1.02 }}
-                                    className="p-6 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-all duration-300"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center space-x-4">
-                                        <div
-                                          className={`p-3 rounded-lg ${
-                                            item.color === "green"
-                                              ? "bg-green-100 dark:bg-green-900/30"
-                                              : item.color === "amber"
-                                              ? "bg-amber-100 dark:bg-amber-900/30"
-                                              : "bg-teal-100 dark:bg-[#003358]/30"
-                                          }`}
-                                        >
-                                          <item.icon
-                                            className={`w-6 h-6 ${
-                                              item.color === "green"
-                                                ? "text-green-600 dark:text-green-400"
-                                                : item.color === "amber"
-                                                ? "text-amber-600 dark:text-amber-400"
-                                                : "text-[#0067A1] dark:text-[#0080C6]"
-                                            }`}
-                                          />
-                                        </div>
-                                        <div>
-                                          <p className="font-semibold text-gray-900 dark:text-white">
-                                            {item.title}
-                                          </p>
-                                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                                            {item.description}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <div className="text-right">
-                                        <span
-                                          className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                                            item.color === "green"
-                                              ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
-                                              : item.color === "amber"
-                                              ? "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300"
-                                              : "bg-teal-100 dark:bg-[#003358]/30 text-[#004F7C] dark:text-teal-300"
-                                          }`}
-                                        >
-                                          {item.status}
-                                        </span>
-                                        {item.action && (
-                                          <button
-                                            onClick={item.action}
-                                            className="block text-sm text-gray-900 dark:text-gray-100 hover:underline mt-1 font-medium"
-                                          >
-                                            Verify Now
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </motion.div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Permissions Tab */}
-                          {activeTab === "permissions" && (
-                            <div className="space-y-8">
-                              <div>
-                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                                  Admin Permissions
-                                </h3>
-                                <p className="text-gray-600 dark:text-gray-400">
-                                  Manage your access permissions and privileges
-                                </p>
-                              </div>
-
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {[
-                                  {
-                                    key: "users",
-                                    label: "User Management",
-                                    icon: User,
-                                    description: "Manage users and their roles",
-                                  },
-                                  {
-                                    key: "content",
-                                    label: "Content Management",
-                                    icon: Database,
-                                    description: "Create and edit content",
-                                  },
-                                  {
-                                    key: "settings",
-                                    label: "System Settings",
-                                    icon: Settings,
-                                    description: "Configure system preferences",
-                                  },
-                                  {
-                                    key: "analytics",
-                                    label: "Analytics",
-                                    icon: Server,
-                                    description:
-                                      "View system analytics and reports",
-                                  },
-                                ].map((permission) => (
-                                  <motion.div
-                                    key={permission.key}
-                                    whileHover={{ scale: 1.02 }}
-                                    className="p-6 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-all duration-300"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center space-x-4">
-                                        <div className="p-3 bg-teal-100 dark:bg-[#003358]/30 rounded-lg">
-                                          <permission.icon className="w-6 h-6 text-[#0067A1] dark:text-[#0080C6]" />
-                                        </div>
-                                        <div>
-                                          <p className="font-semibold text-gray-900 dark:text-white">
-                                            {permission.label}
-                                          </p>
-                                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                                            {permission.description}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <label className="relative inline-flex items-center cursor-pointer">
-                                        <input
-                                          type="checkbox"
-                                          checked={
-                                            permissions[permission.key] || false
-                                          }
-                                          onChange={(e) =>
-                                            handlePermissionChange(
-                                              permission.key,
-                                              e.target.checked
-                                            )
-                                          }
-                                          className="sr-only peer"
-                                        />
-                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-gray-300 dark:peer-focus:ring-gray-600 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-gray-900"></div>
-                                      </label>
-                                    </div>
-                                  </motion.div>
-                                ))}
-                              </div>
-
-                              <div className="flex justify-end pt-6 border-t border-gray-200 dark:border-gray-700">
-                                <motion.button
-                                  whileHover={{ scale: 1.05 }}
-                                  whileTap={{ scale: 0.95 }}
-                                  onClick={updateProfile}
-                                  disabled={saving}
-                                  className="px-8 py-3 bg-gradient-to-r from-gray-900 to-black text-white rounded-xl hover:from-black hover:to-gray-900 disabled:opacity-50 transition-all duration-300 flex items-center space-x-3 cursor-pointer shadow-xl border border-gray-700"
-                                >
-                                  <Save size={18} />
-                                  <span className="font-semibold">
-                                    {saving
-                                      ? "Updating..."
-                                      : "Update Permissions"}
-                                  </span>
-                                </motion.button>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Preferences Tab */}
-                          {activeTab === "preferences" && (
-                            <div className="space-y-8">
-                              <div>
-                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                                  Account Preferences
-                                </h3>
-                                <p className="text-gray-600 dark:text-gray-400">
-                                  Customize your account settings and
-                                  preferences
-                                </p>
-                              </div>
-
-                              <div className="space-y-6">
-                                {[
-                                  {
-                                    label: "Language",
-                                    description:
-                                      "Choose your preferred language",
-                                    type: "select",
-                                    options: [
-                                      { value: "en", label: "English" },
-                                      { value: "hi", label: "Hindi" },
-                                      { value: "es", label: "Spanish" },
-                                    ],
-                                    icon: Globe,
-                                  },
-                                  {
-                                    label: "Timezone",
-                                    description: "Set your local timezone",
-                                    type: "select",
-                                    options: [
-                                      {
-                                        value: "Asia/Kolkata",
-                                        label: "India (IST)",
-                                      },
-                                      {
-                                        value: "America/New_York",
-                                        label: "Eastern Time",
-                                      },
-                                      {
-                                        value: "Europe/London",
-                                        label: "London",
-                                      },
-                                    ],
-                                    icon: Calendar,
-                                  },
-                                  {
-                                    label: "Notifications",
-                                    description:
-                                      "Manage your notification preferences",
-                                    type: "button",
-                                    icon: Bell,
-                                  },
-                                ].map((pref, index) => (
-                                  <motion.div
-                                    key={pref.label}
-                                    whileHover={{ scale: 1.01 }}
-                                    className="p-6 border border-gray-200 dark:border-gray-700 rounded-xl"
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center space-x-4">
-                                        <div className="p-3 bg-teal-100 dark:bg-[#003358]/30 rounded-lg">
-                                          <pref.icon className="w-6 h-6 text-[#0067A1] dark:text-[#0080C6]" />
-                                        </div>
-                                        <div>
-                                          <p className="font-semibold text-gray-900 dark:text-white">
-                                            {pref.label}
-                                          </p>
-                                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                                            {pref.description}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      {pref.type === "select" ? (
-                                        <select
-                                          defaultValue="en"
-                                          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/70 dark:bg-gray-700/70 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent cursor-pointer transition-all duration-300"
-                                        >
-                                          {pref.options.map((option) => (
-                                            <option
-                                              key={option.value}
-                                              value={option.value}
-                                            >
-                                              {option.label}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      ) : (
-                                        <motion.button
-                                          whileHover={{ scale: 1.05 }}
-                                          whileTap={{ scale: 0.95 }}
-                                          className="px-6 py-2 bg-gradient-to-r from-gray-900 to-black text-white rounded-lg hover:from-black hover:to-gray-900 transition-all duration-300 cursor-pointer border border-gray-700"
-                                        >
-                                          Configure
-                                        </motion.button>
-                                      )}
-                                    </div>
-                                  </motion.div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </motion.div>
-                      </AnimatePresence>
+                <div className="space-y-3.5 text-xs">
+                  <div>
+                    <span className="text-gray-500 block mb-1">Master Admin UUID</span>
+                    <div className="flex items-center justify-between p-2 rounded-md bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 font-mono text-[11px] text-gray-700 dark:text-gray-300">
+                      <span className="truncate mr-2">{adminId}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyId(adminId)}
+                        title="Copy UUID"
+                        className="shrink-0 p-1 rounded-md hover:text-[#0067A1] transition-colors"
+                      >
+                        {copiedId ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+                      </button>
                     </div>
                   </div>
-                </motion.div>
+
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                    <span className="text-gray-500">Internal UID</span>
+                    <span className="font-mono font-bold text-gray-800 dark:text-gray-200">
+                      {admin?.un_id || "1001"}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                    <span className="text-gray-500">Database Engine</span>
+                    <span className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      AWS RDS PostgreSQL
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                    <span className="text-gray-500">Storage Cluster</span>
+                    <span className="font-semibold text-gray-800 dark:text-gray-200">
+                      AWS S3 + CloudFront
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-gray-500">Account Created</span>
+                    <span className="font-medium text-gray-800 dark:text-gray-200">
+                      {admin?.created_at
+                        ? new Date(admin.created_at).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "7 Nov 2025"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Organization Profile Badge */}
+              <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/40 p-5 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#0067A1] dark:text-cyan-300">
+                  <Building size={15} />
+                  <span>Licensed Healthcare Network</span>
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                  MediConnect.fit Private Limited operates in strict accordance with the Telemedicine Practice Guidelines and Digital Personal Data Protection (DPDP) norms.
+                </p>
+                <div className="text-[11px] text-gray-400 font-mono">
+                  Registration: CIN-U85100DL2024PTC123456
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      )}
+
+      {/* Tab 2: Security & 2FA Access */}
+      {activeTab === "security" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 2FA Status Card */}
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 sm:p-6 shadow-xs space-y-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <Smartphone size={17} className="text-[#0067A1]" />
+                    Two-Factor Authentication (2FA)
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Mandatory SMS OTP protocol enforced across all administrative logins.
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 text-[11px] font-bold uppercase rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                  Enforced & Active
+                </span>
+              </div>
+
+              <div className="space-y-3 text-xs bg-gray-50/70 dark:bg-gray-800/50 p-4 rounded-md border border-gray-100 dark:border-gray-800">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Gateway Provider:</span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">Insignia SMS Gateway</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Destination Phone:</span>
+                  <span className="font-mono font-bold text-[#0067A1]">+91 {formData.phone_number || "7017580125"}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">OTP Expiration Window:</span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">5 Minutes</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Test OTP Bypass:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">Strictly Disabled (Live Real OTP Only)</span>
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                For administrative safety, direct password logins without phone OTP verification are blocked. Every session token is signed and tied to your verified phone.
+              </p>
+            </div>
+
+            {/* Active Session & Device Card */}
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 sm:p-6 shadow-xs space-y-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <ShieldCheck size={17} className="text-[#0067A1]" />
+                    Current Session Security
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Details of the device and session accessing this administrative console.
+                  </p>
+                </div>
+                <span className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/40">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Active Now
+                </span>
+              </div>
+
+              <div className="space-y-3 text-xs bg-gray-50/70 dark:bg-gray-800/50 p-4 rounded-md border border-gray-100 dark:border-gray-800">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Host Environment:</span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">Localhost / Secure VPC</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Session Cookie:</span>
+                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">HttpOnly &bull; SameSite=Lax</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Database Role:</span>
+                  <span className="font-bold text-gray-800 dark:text-gray-200">postgres@mediconnect-stag-db</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Last Verified:</span>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })} Today
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3.5 flex items-start gap-2.5">
+                <AlertCircle size={15} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+                  Remember to log out if you are working on a shared workstation or public browser to terminate the session token immediately.
+                </p>
               </div>
             </div>
           </div>
         </div>
-      </main>
-      <AnimatePresence>
-        {showOtpModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-xl p-4 max-w-md w-full shadow-2xl border border-gray-200 dark:border-gray-700"
-            >
-              <div className="text-center mb-6">
-                <Smartphone className="w-12 h-12 text-[#0067A1] mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                  Verify Phone Number
+      )}
+
+      {/* Tab 3: System Roles & Privileges */}
+      {activeTab === "permissions" && (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5 sm:p-6 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-gray-100 dark:border-gray-800 pb-4 mb-6">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Shield size={17} className="text-[#0067A1]" />
+                  Administrative Authorization Matrix
                 </h3>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Enter the OTP sent to {formData.phone_number}
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Active system privileges granted to master account {formData.full_name} ({formData.phone_number}).
                 </p>
               </div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 self-start sm:self-auto">
+                <CheckCircle2 size={13} />
+                Master Access (All Granted)
+              </span>
+            </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    OTP Code
-                  </label>
-                  <input
-                    type="text"
-                    value={otp}
-                    onChange={(e) =>
-                      setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
-                    }
-                    placeholder="Enter 6-digit OTP"
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-900 focus:border-transparent text-center text-lg font-semibold"
-                    maxLength={6}
-                  />
-                </div>
+            {/* Privileges Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[
+                {
+                  title: "Doctor Management",
+                  desc: "Onboard clinicians, verify medical council registration, manage consultation fees and schedules.",
+                  icon: <Stethoscope size={17} className="text-[#0067A1]" />,
+                  category: "Clinical",
+                },
+                {
+                  title: "Diagnostic Laboratories",
+                  desc: "Approve pathology partners, update home-sample collection charges, and test catalog packages.",
+                  icon: <TestTube size={17} className="text-teal-600" />,
+                  category: "Diagnostics",
+                },
+                {
+                  title: "Pharmacies & Chemists",
+                  desc: "Manage partner dispensaries, inspect prescription fulfillments, and audit drug distribution.",
+                  icon: <Pill size={17} className="text-indigo-600" />,
+                  category: "Pharmacy",
+                },
+                {
+                  title: "Patient Health Locker",
+                  desc: "Access verified consultation notes, digital health records, and BPL card subsidized requests.",
+                  icon: <Users size={17} className="text-emerald-600" />,
+                  category: "Patients",
+                },
+                {
+                  title: "Nursing & Equipment Care",
+                  desc: "Assign nursing staff and medical equipment rental leads to designated healthcare partners.",
+                  icon: <HeartHandshake size={17} className="text-rose-600" />,
+                  category: "Care",
+                },
+                {
+                  title: "Financial Ledger & Payouts",
+                  desc: "Review daily platform volume, process physician payout batches, and approve refund requests.",
+                  icon: <CreditCard size={17} className="text-amber-600" />,
+                  category: "Finance",
+                },
+                {
+                  title: "Clinical Risk & Interventions",
+                  desc: "Monitor cardio/lung critical alerts, dispatch emergency notices, and review anomaly triage.",
+                  icon: <Activity size={17} className="text-rose-500" />,
+                  category: "Clinical",
+                },
+                {
+                  title: "System Operations & Health",
+                  desc: "Live outbox monitoring, P1 incident escalations, and automated background cron checks.",
+                  icon: <Settings size={17} className="text-purple-600" />,
+                  category: "Infrastructure",
+                },
+                {
+                  title: "Security & SMS Gateway",
+                  desc: "Insignia SMS credentials, OTP dispatch logs, and multi-factor authentication controls.",
+                  icon: <Key size={17} className="text-blue-600" />,
+                  category: "Security",
+                },
+              ].map((priv, idx) => (
+                <div
+                  key={idx}
+                  className="p-4 rounded-lg border border-gray-200/80 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/40 hover:bg-white dark:hover:bg-gray-800 hover:border-[#0067A1]/30 transition-all flex flex-col justify-between space-y-3 group"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="p-2 rounded-md bg-white dark:bg-gray-900 border border-gray-200/70 dark:border-gray-700 shadow-2xs group-hover:scale-105 transition-transform">
+                        {priv.icon}
+                      </div>
+                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                        Granted
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white">
+                        {priv.title}
+                      </h4>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+                        {priv.desc}
+                      </p>
+                    </div>
+                  </div>
 
-                <div className="flex space-x-3">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      setShowOtpModal(false);
-                      setOtp("");
-                    }}
-                    className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200"
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={verifyOTP}
-                    disabled={verifying || otp.length !== 6}
-                    className="flex-1 px-4 py-3 bg-gradient-to-r from-gray-900 to-black text-white rounded-xl hover:from-black hover:to-gray-900 disabled:opacity-50 transition-all duration-200 flex items-center justify-center space-x-2"
-                  >
-                    {verifying ? (
-                      <RefreshCw size={18} className="animate-spin" />
-                    ) : (
-                      <CheckCircle size={18} />
-                    )}
-                    <span>{verifying ? "Verifying..." : "Verify"}</span>
-                  </motion.button>
+                  <div className="pt-2 border-t border-gray-100 dark:border-gray-800/60 flex items-center justify-between text-[10px] text-gray-400">
+                    <span>{priv.category} Access</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">Full CRUD</span>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

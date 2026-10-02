@@ -117,10 +117,18 @@ export default function Navbar({ onMenuClick, sidebarOpen }) {
     logoutUser(role);
   };
   const [notifications, setNotifications] = useState([]);
+  const [adminUser, setAdminUser] = useState(null);
 
   useEffect(() => {
+    const loadUser = () => {
+      const user = getLoggedInUser("admin");
+      if (user?.role) setRole(user.role);
+      setAdminUser(user);
+    };
+    loadUser();
+    window.addEventListener("adminProfileUpdated", loadUser);
+
     const user = getLoggedInUser("admin");
-    if (user?.role) setRole(user.role);
     if (user?.id) fetchNotifications(user.id);
 
     const storedTheme = localStorage.getItem("theme") || "light";
@@ -360,15 +368,24 @@ export default function Navbar({ onMenuClick, sidebarOpen }) {
                 onClick={() => setProfileOpen(!profileOpen)}
                 className="flex items-center space-x-3 p-1.5 pr-4 rounded-full bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer group"
               >
-                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#0067A1] to-teal-500 flex items-center justify-center p-[2px] shadow-sm">
-                  <div className="w-full h-full bg-white dark:bg-gray-900 rounded-full flex items-center justify-center border border-transparent">
-                    <User className="w-4 h-4 text-[#0067A1]" />
+                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#0067A1] to-teal-500 flex items-center justify-center p-[2px] shadow-sm overflow-hidden">
+                  <div className="w-full h-full bg-white dark:bg-gray-900 rounded-full flex items-center justify-center border border-transparent overflow-hidden">
+                    {adminUser?.profile_picture ? (
+                      <img
+                        src={adminUser.profile_picture}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    ) : (
+                      <User className="w-4 h-4 text-[#0067A1]" />
+                    )}
                   </div>
                 </div>
                 {/* Hide user info on mobile, show on desktop */}
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-bold text-gray-800 dark:text-gray-100 group-hover:text-[#0067A1] transition-colors">
-                    Admin User
+                    {adminUser?.admin_details?.full_name || adminUser?.full_name || "Dev Sharma"}
                   </p>
                   <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium tracking-wide uppercase mt-0.5">
                     {role

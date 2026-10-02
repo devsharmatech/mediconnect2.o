@@ -234,6 +234,10 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
           if (user_id) localStorage.setItem('userId', String(user_id));
           if (role) localStorage.setItem('userRole', role);
           if (user) localStorage.setItem('userData', JSON.stringify(user));
+          if (role === 'patient') {
+            localStorage.removeItem('labUser');
+            localStorage.removeItem('chemistUser');
+          }
           sessionStorage.removeItem('loginPhoneNumber');
           sessionStorage.removeItem('loginEmail');
           sessionStorage.removeItem('loginMethod');

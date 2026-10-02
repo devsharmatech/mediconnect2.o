@@ -86,6 +86,9 @@ export default function AdminNursingLeadDetailPage({ params }) {
   const [referralChannel, setReferralChannel] = useState("whatsapp");
   const [messageSent, setMessageSent] = useState(false);
   const [referralNotes, setReferralNotes] = useState("");
+  const [nursingPartners, setNursingPartners] = useState([]);
+  const [selectedPartnerId, setSelectedPartnerId] = useState("");
+  const [isCustomPartner, setIsCustomPartner] = useState(false);
 
   const [showIntentForm, setShowIntentForm] = useState(false);
   const [leadIntent, setLeadIntent] = useState("");
@@ -136,7 +139,17 @@ export default function AdminNursingLeadDetailPage({ params }) {
     } catch { /* ignore */ }
   };
 
-  useEffect(() => { loadLead(); loadStaff(); }, [id]);
+  const loadNursingPartners = async () => {
+    try {
+      const res = await fetch("/api/admin/partners/by-service?service=nursing");
+      const data = await res.json();
+      if (data.success) setNursingPartners(data.data.partners || []);
+    } catch (err) {
+      console.error("Failed to load nursing partners", err);
+    }
+  };
+
+  useEffect(() => { loadLead(); loadStaff(); loadNursingPartners(); }, [id]);
 
   const handleStatusChange = async () => {
     if (!newStatus || !statusNote.trim()) {
@@ -208,6 +221,24 @@ export default function AdminNursingLeadDetailPage({ params }) {
     setError("");
     try {
       const admin = getAdminInfo();
+
+      // If a registered partner was selected, assign lead to partner in partner_lead_assignments
+      if (selectedPartnerId && lead?.lead_id) {
+        try {
+          await fetch(`/api/admin/partners/${selectedPartnerId}/assign`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              lead_id: lead.lead_id,
+              lead_type: "nursing",
+              notes: referralNotes || undefined,
+            }),
+          });
+        } catch (assignErr) {
+          console.error("Partner auto-assign error:", assignErr);
+        }
+      }
+
       const res = await fetch(`/api/nursing/leads/${id}/referral`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -223,10 +254,12 @@ export default function AdminNursingLeadDetailPage({ params }) {
       });
       const data = await res.json();
       if (!data.success) { setError(data.message); return; }
-      setSuccessMsg("Referral logged!");
+      setSuccessMsg("Referral logged & assigned to partner!");
       setShowReferralForm(false);
       setPartnerName("");
       setPartnerPhone("");
+      setSelectedPartnerId("");
+      setIsCustomPartner(false);
       setReferralNotes("");
       loadLead();
     } catch { setError("Failed to log referral."); }
@@ -652,56 +685,129 @@ export default function AdminNursingLeadDetailPage({ params }) {
           {/* Referral (only when QUALIFIED) */}
           {lead.lead_status === "QUALIFIED" && (
             <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-              <h3 className="font-bold text-gray-800 text-sm mb-3">Share with Partner</h3>
+              <h3 className="font-bold text-gray-800 text-sm mb-3 flex items-center gap-1.5">
+                <Heart className="w-4 h-4 text-[#0067A1]" /> Share with Nursing Partner
+              </h3>
               {!showReferralForm ? (
-                <button onClick={() => setShowReferralForm(true)}
-                  className="w-full py-2.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 cursor-pointer">
-                  Log Referral
+                <button
+                  onClick={() => { setShowReferralForm(true); loadNursingPartners(); }}
+                  className="w-full py-2.5 bg-[#0067A1] text-white text-sm font-medium rounded-lg hover:bg-[#004F7C] cursor-pointer transition-colors"
+                >
+                  Assign / Log Referral
                 </button>
               ) : (
                 <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={partnerName}
-                    onChange={(e) => setPartnerName(e.target.value)}
-                    placeholder="Partner name *"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  />
-                  <input
-                    type="tel"
-                    value={partnerPhone}
-                    onChange={(e) => setPartnerPhone(e.target.value)}
-                    placeholder="Partner phone (e.g. +91XXXXXXXXXX)"
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  />
-                  <select
-                    value={referralChannel}
-                    onChange={(e) => setReferralChannel(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  >
-                    <option value="whatsapp">WhatsApp</option>
-                    <option value="sms">SMS</option>
-                    <option value="website">Partner Website</option>
-                  </select>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Select Nursing Partner
+                    </label>
+                    <select
+                      value={isCustomPartner ? "custom" : selectedPartnerId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "custom") {
+                          setIsCustomPartner(true);
+                          setSelectedPartnerId("");
+                          setPartnerName("");
+                          setPartnerPhone("");
+                        } else if (val) {
+                          setIsCustomPartner(false);
+                          const p = nursingPartners.find(x => x.id === val);
+                          if (p) {
+                            setSelectedPartnerId(p.id);
+                            setPartnerName(p.name);
+                            setPartnerPhone(p.phone || "");
+                          }
+                        } else {
+                          setIsCustomPartner(false);
+                          setSelectedPartnerId("");
+                          setPartnerName("");
+                          setPartnerPhone("");
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30"
+                    >
+                      <option value="">-- Choose Nursing Partner ({nursingPartners.length} active) --</option>
+                      {nursingPartners.map(p => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} {p.city ? `(${p.city})` : ""} • {p.phone}
+                        </option>
+                      ))}
+                      <option value="custom">+ Manual / Other Partner</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Partner Name *</label>
+                    <input
+                      type="text"
+                      value={partnerName}
+                      onChange={(e) => setPartnerName(e.target.value)}
+                      placeholder="Partner name *"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Partner Phone</label>
+                    <input
+                      type="tel"
+                      value={partnerPhone}
+                      onChange={(e) => setPartnerPhone(e.target.value)}
+                      placeholder="Partner phone (e.g. +91XXXXXXXXXX)"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Notification Channel</label>
+                    <select
+                      value={referralChannel}
+                      onChange={(e) => setReferralChannel(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    >
+                      <option value="whatsapp">WhatsApp</option>
+                      <option value="sms">SMS</option>
+                      <option value="website">Partner Portal / Direct</option>
+                    </select>
+                  </div>
+
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input type="checkbox" checked={messageSent} onChange={(e) => setMessageSent(e.target.checked)}
-                      className="accent-[#0067A1]" />
-                    Message sent to partner
+                    <input
+                      type="checkbox"
+                      checked={messageSent}
+                      onChange={(e) => setMessageSent(e.target.checked)}
+                      className="accent-[#0067A1]"
+                    />
+                    Send notification to partner
                   </label>
+
                   <textarea
                     value={referralNotes}
                     onChange={(e) => setReferralNotes(e.target.value)}
                     placeholder="Referral notes (optional)"
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg resize-none text-sm"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg resize-none text-sm focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30"
                   />
-                  <div className="flex gap-2">
-                    <button onClick={handleReferral} disabled={saving}
-                      className="flex-1 py-2 bg-indigo-600 text-white text-sm rounded-lg disabled:opacity-50 cursor-pointer">
-                      {saving ? "Saving..." : "Log Referral"}
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      onClick={handleReferral}
+                      disabled={saving || !partnerName.trim()}
+                      className="flex-1 py-2 bg-[#0067A1] text-white text-sm font-medium rounded-lg disabled:opacity-50 hover:bg-[#004F7C] cursor-pointer transition-colors"
+                    >
+                      {saving ? "Saving..." : selectedPartnerId ? "Assign & Log Referral" : "Log Referral"}
                     </button>
-                    <button onClick={() => setShowReferralForm(false)}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg cursor-pointer">Cancel</button>
+                    <button
+                      onClick={() => {
+                        setShowReferralForm(false);
+                        setIsCustomPartner(false);
+                        setSelectedPartnerId("");
+                      }}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 cursor-pointer transition-colors"
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </div>
               )}
