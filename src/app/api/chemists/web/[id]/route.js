@@ -1,4 +1,3 @@
-import { supabase } from "@/lib/supabaseAdmin";
 import { uploadToS3 } from "@/lib/s3";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
@@ -8,21 +7,25 @@ export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(req, { params }) {
   try {
     const { id } = await params;
+    if (!id || !UUID_REGEX.test(id)) {
+      return failure("Chemist not found.", null, 404, { headers: corsHeaders });
+    }
 
-    const { data, error } = await supabase
-      .from("chemist_details")
-      .select("*")
-      .eq("id", id)
-      .single();
+    const [data] = await sql`
+      SELECT c.*, json_build_object('id', u.id, 'phone_number', u.phone_number, 'role', u.role, 'status', u.status) as user
+      FROM chemist_details c
+      LEFT JOIN users u ON u.id = c.id
+      WHERE c.id = ${id}
+      LIMIT 1
+    `;
 
-    if (error) {
-      if (error.code === "PGRST116") {
-        return failure("Chemist not found.", null, 404, { headers: corsHeaders });
-      }
-      throw error;
+    if (!data) {
+      return failure("Chemist not found.", null, 404, { headers: corsHeaders });
     }
 
     return success("Chemist details fetched successfully.", data, 200, { headers: corsHeaders });
@@ -35,6 +38,10 @@ export async function GET(req, { params }) {
 export async function PUT(req, { params }) {
   try {
     const { id } = await params;
+    if (!id || !UUID_REGEX.test(id)) {
+      return failure("Invalid chemist ID.", null, 400, { headers: corsHeaders });
+    }
+
     const formData = await req.formData();
 
     const updateData = {
@@ -47,6 +54,7 @@ export async function PUT(req, { params }) {
       registration_no: formData.get("registration_no"),
       consent_terms: formData.get("consent_terms") === "true",
       upi_id: formData.get("upi_id"),
+      updated_at: new Date(),
     };
 
     // Remove undefined fields
@@ -58,18 +66,11 @@ export async function PUT(req, { params }) {
 
     const phone_number = formData.get("phone_number");
     if (phone_number) {
-      const { data: chemistData } = await supabase
-        .from("chemist_details")
-        .select("user_id")
-        .eq("id", id)
-        .single();
-        
-      if (chemistData?.user_id) {
-        await supabase
-          .from("users")
-          .update({ phone_number })
-          .eq("id", chemistData.user_id);
-      }
+      await sql`
+        UPDATE users
+        SET phone_number = ${phone_number}, updated_at = NOW()
+        WHERE id = ${id}
+      `;
     }
 
     // Handle file uploads with folder organization
@@ -77,7 +78,6 @@ export async function PUT(req, { params }) {
       if (!file || file.size === 0) return null;
 
       const fileExt = file.name.split(".").pop();
-      // Organize by user ID and document type folder
       const fileName = `${fieldName}/${fieldName}-${Date.now()}.${fileExt}`;
 
       try {
@@ -108,12 +108,12 @@ export async function PUT(req, { params }) {
       }
     }
 
-    const { error } = await supabase
-      .from("chemist_details")
-      .update(updateData)
-      .eq("id", id);
-
-    if (error) throw error;
+    const keys = Object.keys(updateData);
+    await sql`
+      UPDATE chemist_details
+      SET ${sql(updateData, ...keys)}
+      WHERE id = ${id}
+    `;
 
     return success("Chemist details updated successfully.", null, 200, { headers: corsHeaders });
   } catch (error) {
@@ -125,10 +125,17 @@ export async function PUT(req, { params }) {
 export async function PATCH(req, { params }) {
   try {
     const { id } = await params;
+    if (!id || !UUID_REGEX.test(id)) {
+      return failure("Invalid chemist ID.", null, 400, { headers: corsHeaders });
+    }
+
     const { status } = await req.json();
 
-    const { error } = await supabase.from("users").update({ status }).eq("id", id);
-    if (error) throw error;
+    await sql`
+      UPDATE users
+      SET status = ${status}, updated_at = NOW()
+      WHERE id = ${id}
+    `;
 
     return success("Chemist status updated successfully.", null, 200, { headers: corsHeaders });
   } catch (error) {
@@ -140,6 +147,9 @@ export async function PATCH(req, { params }) {
 export async function DELETE(req, { params }) {
   try {
     const { id } = await params;
+    if (!id || !UUID_REGEX.test(id)) {
+      return failure("Invalid chemist ID.", null, 400, { headers: corsHeaders });
+    }
     const ids = [id];
 
     await sql.begin(async (sqlTrans) => {
@@ -153,29 +163,24 @@ export async function DELETE(req, { params }) {
       // 3. Delete chemist inventory batches
       await sqlTrans`DELETE FROM chemist_inventory_batches WHERE chemist_id = ANY(${ids})`;
 
-      // 4. Delete chemist inventory
-      await sqlTrans`DELETE FROM chemist_inventory WHERE chemist_id = ANY(${ids})`;
-
-      // 5. Delete chemist medicines
+      // 4. Delete chemist medicines
       await sqlTrans`DELETE FROM chemist_medicines WHERE chemist_id = ANY(${ids})`;
 
-      // 6. Delete medicine orders
+      // 5. Delete medicine orders
       const orders = await sqlTrans`SELECT id FROM medicine_orders WHERE chemist_id = ANY(${ids})`;
       if (orders.length > 0) {
         const orderIds = orders.map(o => o.id);
-        // Delete medicine_order_items
         await sqlTrans`DELETE FROM medicine_order_items WHERE order_id = ANY(${orderIds})`;
-        // Delete medicine_orders
         await sqlTrans`DELETE FROM medicine_orders WHERE id = ANY(${orderIds})`;
       }
 
-      // 7. Delete medicine_order_price_history
+      // 6. Delete medicine_order_price_history
       await sqlTrans`DELETE FROM medicine_order_price_history WHERE chemist_id = ANY(${ids})`;
 
-      // 8. Delete from users (cascades to chemist_details)
+      // 7. Delete from users (cascades to chemist_details)
       await sqlTrans`DELETE FROM users WHERE id = ANY(${ids})`;
 
-      // 9. Re-enable audit log triggers
+      // 8. Re-enable audit log triggers
       await sqlTrans`ALTER TABLE audit_log ENABLE TRIGGER prevent_audit_log_delete`;
       await sqlTrans`ALTER TABLE audit_log ENABLE TRIGGER prevent_audit_log_update`;
     });

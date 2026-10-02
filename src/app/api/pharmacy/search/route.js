@@ -1,24 +1,28 @@
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseClient";
+import sql from "@/lib/db";
 
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
     const query = searchParams.get("q") || "";
     
-    let dbQuery = supabase
-      .from("chemist_details")
-      .select("*")
-      .eq("onboarding_status", "approved")
-      .order("rating", { ascending: false });
-
+    let pharmacies;
     if (query) {
-      dbQuery = dbQuery.ilike("pharmacy_name", `%${query}%`);
+      pharmacies = await sql`
+        SELECT * FROM chemist_details
+        WHERE onboarding_status = 'approved'
+          AND (pharmacy_name ILIKE ${'%' + query + '%'} OR address ILIKE ${'%' + query + '%'})
+        ORDER BY rating DESC NULLS LAST
+        LIMIT 20
+      `;
+    } else {
+      pharmacies = await sql`
+        SELECT * FROM chemist_details
+        WHERE onboarding_status = 'approved'
+        ORDER BY rating DESC NULLS LAST
+        LIMIT 20
+      `;
     }
-
-    const { data: pharmacies, error } = await dbQuery.limit(20);
-
-    if (error) throw error;
 
     return success("Pharmacies fetched successfully", { pharmacies }, 200);
   } catch (error) {

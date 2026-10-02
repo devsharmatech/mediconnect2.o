@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -6,18 +6,24 @@ export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function safeUuid(val) {
+  if (!val || typeof val !== "string") return null;
+  return UUID_REGEX.test(val.trim()) ? val.trim() : null;
+}
+
 /* -----------------------------------------------------
     CREATE A STOCK LOG ENTRY
 ----------------------------------------------------- */
 async function writeLog({ chemist_id, medicine_id, batch_id, change_type, qty, reason }) {
-  await supabase.from("chemist_stock_logs").insert({
-    chemist_id,
-    medicine_id,
-    batch_id,
-    change_type,
-    qty_changed: qty,
-    reason,
-  });
+  try {
+    await sql`
+      INSERT INTO chemist_stock_logs (chemist_id, medicine_id, batch_id, change_type, qty_changed, reason, created_at)
+      VALUES (${chemist_id}, ${medicine_id}, ${batch_id}, ${change_type}, ${qty}, ${reason || null}, NOW())
+    `;
+  } catch (err) {
+    console.warn("Failed to write stock log:", err.message);
+  }
 }
 
 /* -----------------------------------------------------
@@ -28,30 +34,26 @@ export async function POST(req) {
     const body = await req.json();
     const { chemist_id, medicine_id, batch_no, expiry_date, stock_qty, purchase_price, selling_price } = body;
 
-    if (!chemist_id || !medicine_id) return failure("chemist_id and medicine_id required");
+    const chemUuid = safeUuid(chemist_id);
+    const medUuid = safeUuid(medicine_id);
 
-    const payload = {
-      chemist_id,
-      medicine_id,
-      batch_no,
-      expiry_date,
-      stock_qty: stock_qty || 0,
-      purchase_price,
-      selling_price,
-    };
+    if (!chemUuid || !medUuid) return failure("valid chemist_id and medicine_id required", null, 400, { headers: corsHeaders });
 
-    const { data, error } = await supabase
-      .from("chemist_inventory_batches")
-      .insert(payload)
-      .select()
-      .single();
+    const [data] = await sql`
+      INSERT INTO chemist_inventory_batches (
+        chemist_id, medicine_id, batch_no, expiry_date, stock_qty, purchase_price, selling_price, created_at, updated_at
+      )
+      VALUES (
+        ${chemUuid}, ${medUuid}, ${batch_no || null}, ${expiry_date || null},
+        ${stock_qty || 0}, ${purchase_price || null}, ${selling_price || null}, NOW(), NOW()
+      )
+      RETURNING *
+    `;
 
-    if (error) throw error;
-
-    if (stock_qty > 0) {
+    if (stock_qty > 0 && data?.id) {
       await writeLog({
-        chemist_id,
-        medicine_id,
+        chemist_id: chemUuid,
+        medicine_id: medUuid,
         batch_id: data.id,
         change_type: "stock_in",
         qty: stock_qty,
@@ -59,9 +61,10 @@ export async function POST(req) {
       });
     }
 
-    return success("Batch created", { batch: data });
+    return success("Batch created", { batch: data }, 200, { headers: corsHeaders });
   } catch (err) {
-    return failure("Failed to create batch", err.message);
+    console.error("POST batch error:", err);
+    return failure("Failed to create batch", err.message, 500, { headers: corsHeaders });
   }
 }
 
@@ -79,63 +82,48 @@ export async function GET(req) {
     const limit = Number(url.searchParams.get("limit")) || 10;
     const offset = (page - 1) * limit;
 
-    if (!chemist_id) return failure("chemist_id required");
+    const chemUuid = safeUuid(chemist_id);
+    if (!chemUuid && !id) return failure("chemist_id required", null, 400, { headers: corsHeaders });
 
-    // ----------------------------------------------
-    // GET SINGLE BATCH (with medicine info)
-    // ----------------------------------------------
+    // Single batch
     if (id) {
-      const { data, error } = await supabase
-        .from("chemist_inventory_batches")
-        .select(
-          `
-            *,
-            medicine:chemist_medicines (
-              id,
-              name,
-              brand,
-              category,
-              strength,
-              type
-            )
-          `
-        )
-        .eq("id", id)
-        .maybeSingle();
+      const batchUuid = safeUuid(id);
+      if (!batchUuid) return failure("Invalid batch id", null, 400, { headers: corsHeaders });
 
-      if (error) throw error;
+      const [data] = await sql`
+        SELECT 
+          b.*,
+          json_build_object('id', m.id, 'name', m.name, 'brand', m.brand, 'category', m.category, 'strength', m.strength, 'type', m.type) as medicine
+        FROM chemist_inventory_batches b
+        LEFT JOIN chemist_medicines m ON m.id = b.medicine_id
+        WHERE b.id = ${batchUuid}
+        LIMIT 1
+      `;
 
-      return success("Batch fetched", { batch: data });
+      return success("Batch fetched", { batch: data || null }, 200, { headers: corsHeaders });
     }
 
-    // ----------------------------------------------
-    // GET LIST OF BATCHES (with medicine info)
-    // ----------------------------------------------
-    let query = supabase
-      .from("chemist_inventory_batches")
-      .select(
-        `
-          *,
-          medicine:chemist_medicines (
-            id,
-            name,
-            brand,
-            category,
-            strength,
-            type
-          )
-        `,
-        { count: "exact" }
-      )
-      .eq("chemist_id", chemist_id)
-      .range(offset, offset + limit - 1)
-      .order("expiry_date", { ascending: true });
+    const conditions = [sql`b.chemist_id = ${chemUuid}`];
+    if (safeUuid(medicine_id)) conditions.push(sql`b.medicine_id = ${safeUuid(medicine_id)}`);
+    if (search) conditions.push(sql`b.batch_no ILIKE ${'%' + search + '%'}`);
 
-    if (medicine_id) query = query.eq("medicine_id", medicine_id);
-    if (search) query = query.ilike("batch_no", `%${search}%`);
+    const whereClause = sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`;
 
-    const { data, error, count } = await query;
-    if (error) throw error;
+    const [countRes, data] = await Promise.all([
+      sql`SELECT count(*)::int as count FROM chemist_inventory_batches b ${whereClause}`,
+      sql`
+        SELECT 
+          b.*,
+          json_build_object('id', m.id, 'name', m.name, 'brand', m.brand, 'category', m.category, 'strength', m.strength, 'type', m.type) as medicine
+        FROM chemist_inventory_batches b
+        LEFT JOIN chemist_medicines m ON m.id = b.medicine_id
+        ${whereClause}
+        ORDER BY b.expiry_date ASC NULLS LAST
+        LIMIT ${limit} OFFSET ${offset}
+      `
+    ]);
+
+    const count = countRes[0]?.count || 0;
 
     return success("Batches loaded", {
       pagination: {
@@ -145,12 +133,12 @@ export async function GET(req) {
         total_pages: Math.ceil(count / limit),
       },
       data,
-    });
+    }, 200, { headers: corsHeaders });
   } catch (err) {
-    return failure("Failed to fetch batches", err.message);
+    console.error("GET batches error:", err);
+    return failure("Failed to fetch batches", err.message, 500, { headers: corsHeaders });
   }
 }
-
 
 /* -----------------------------------------------------
     PUT → UPDATE BATCH + LOG STOCK CHANGE
@@ -160,37 +148,39 @@ export async function PUT(req) {
     const body = await req.json();
     const { id, chemist_id, stock_qty, reason } = body;
 
-    if (!id || !chemist_id) return failure("id and chemist_id required");
+    const batchUuid = safeUuid(id);
+    const chemUuid = safeUuid(chemist_id);
 
-    const { data: old, error: e1 } = await supabase
-      .from("chemist_inventory_batches")
-      .select()
-      .eq("id", id)
-      .single();
+    if (!batchUuid || !chemUuid) return failure("valid id and chemist_id required", null, 400, { headers: corsHeaders });
 
-    if (e1) throw e1;
+    const [old] = await sql`
+      SELECT * FROM chemist_inventory_batches
+      WHERE id = ${batchUuid} AND chemist_id = ${chemUuid}
+      LIMIT 1
+    `;
 
-    const payload = { ...body };
-    delete payload.id;
+    if (!old) return failure("Batch not found", null, 404, { headers: corsHeaders });
 
-    const { data, error } = await supabase
-      .from("chemist_inventory_batches")
-      .update(payload)
-      .eq("id", id)
-      .select()
-      .single();
+    const updatePayload = { updated_at: new Date() };
+    ["batch_no", "expiry_date", "stock_qty", "purchase_price", "selling_price"].forEach(k => {
+      if (k in body) updatePayload[k] = body[k];
+    });
 
-    if (error) throw error;
+    const keys = Object.keys(updatePayload);
+    const [data] = await sql`
+      UPDATE chemist_inventory_batches
+      SET ${sql(updatePayload, ...keys)}
+      WHERE id = ${batchUuid} AND chemist_id = ${chemUuid}
+      RETURNING *
+    `;
 
-    // Stock difference → log it
     if (typeof stock_qty === "number") {
       const diff = stock_qty - old.stock_qty;
-
       if (diff !== 0) {
         await writeLog({
-          chemist_id,
+          chemist_id: chemUuid,
           medicine_id: old.medicine_id,
-          batch_id: id,
+          batch_id: batchUuid,
           change_type: diff > 0 ? "stock_in" : "stock_out",
           qty: Math.abs(diff),
           reason: reason || "manual_update",
@@ -198,9 +188,10 @@ export async function PUT(req) {
       }
     }
 
-    return success("Batch updated", { batch: data });
+    return success("Batch updated", { batch: data }, 200, { headers: corsHeaders });
   } catch (err) {
-    return failure("Failed to update batch", err.message);
+    console.error("PUT batch error:", err);
+    return failure("Failed to update batch", err.message, 500, { headers: corsHeaders });
   }
 }
 
@@ -212,37 +203,38 @@ export async function DELETE(req) {
     const body = await req.json();
     const { id, chemist_id } = body;
 
-    if (!id || !chemist_id) return failure("id and chemist_id required");
+    const batchUuid = safeUuid(id);
+    const chemUuid = safeUuid(chemist_id);
 
-    const { data: old, error: e1 } = await supabase
-      .from("chemist_inventory_batches")
-      .select()
-      .eq("id", id)
-      .single();
+    if (!batchUuid || !chemUuid) return failure("valid id and chemist_id required", null, 400, { headers: corsHeaders });
 
-    if (e1) throw e1;
+    const [old] = await sql`
+      SELECT * FROM chemist_inventory_batches
+      WHERE id = ${batchUuid} AND chemist_id = ${chemUuid}
+      LIMIT 1
+    `;
 
-    const { error } = await supabase
-      .from("chemist_inventory_batches")
-      .delete()
-      .eq("id", id);
+    if (!old) return failure("Batch not found", null, 404, { headers: corsHeaders });
 
-    if (error) throw error;
+    await sql`
+      DELETE FROM chemist_inventory_batches
+      WHERE id = ${batchUuid} AND chemist_id = ${chemUuid}
+    `;
 
-    // Log termination of stock
     if (old.stock_qty > 0) {
       await writeLog({
-        chemist_id,
+        chemist_id: chemUuid,
         medicine_id: old.medicine_id,
-        batch_id: id,
+        batch_id: batchUuid,
         change_type: "adjustment",
         qty: old.stock_qty,
         reason: "batch_deleted",
       });
     }
 
-    return success("Batch deleted");
+    return success("Batch deleted", null, 200, { headers: corsHeaders });
   } catch (err) {
-    return failure("Failed to delete batch", err.message);
+    console.error("DELETE batch error:", err);
+    return failure("Failed to delete batch", err.message, 500, { headers: corsHeaders });
   }
 }

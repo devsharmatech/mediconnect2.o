@@ -1,10 +1,12 @@
-import { supabase } from "@/lib/supabaseAdmin";
-import { uploadToS3, getCloudFrontUrl, extractKeyFromUrl } from "@/lib/s3";
+import sql from "@/lib/db";
+import { uploadToS3 } from "@/lib/s3";
 import { corsHeaders } from "@/lib/cors";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(req) {
   try {
@@ -13,9 +15,9 @@ export async function POST(req) {
     const lab_id = formData.get("lab_id");
     const file = formData.get("file");
 
-    if (!lab_id)
+    if (!lab_id || !UUID_REGEX.test(lab_id))
       return new Response(
-        JSON.stringify({ status: false, message: "lab_id required" }),
+        JSON.stringify({ status: false, message: "valid lab_id required" }),
         { headers: corsHeaders }
       );
 
@@ -25,7 +27,6 @@ export async function POST(req) {
         { headers: corsHeaders }
       );
 
-    // Upload to Supabase Storage
     const fileExt = file.name.split(".").pop();
     const filePath = `lab_${lab_id}.${fileExt}`;
 
@@ -33,12 +34,11 @@ export async function POST(req) {
     const publicUrl = url;
 
     // Save URL in users table
-    const { error } = await supabase
-      .from("users")
-      .update({ profile_picture: publicUrl })
-      .eq("id", lab_id);
-
-    if (error) throw error;
+    await sql`
+      UPDATE users
+      SET profile_picture = ${publicUrl}, updated_at = NOW()
+      WHERE id = ${lab_id}
+    `;
 
     return new Response(
       JSON.stringify({
@@ -49,7 +49,7 @@ export async function POST(req) {
       { headers: corsHeaders }
     );
   } catch (err) {
-    console.log(err);
+    console.error("Lab profile picture error:", err);
     return new Response(
       JSON.stringify({ status: false, message: err.message }),
       { headers: corsHeaders }

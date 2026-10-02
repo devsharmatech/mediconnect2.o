@@ -2,7 +2,22 @@ import { NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import { uploadToS3 } from "@/lib/s3";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+const ALLOWED_DOC_COLUMNS = [
+  "drug_license",
+  "pharmacist_certificate",
+  "pan_aadhaar",
+  "gstin_certificate",
+  "cancelled_cheque",
+  "store_photo",
+  "consent_form",
+  "declaration_form",
+  "digital_signature",
+  "mou",
+];
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(req) {
   try {
@@ -11,9 +26,16 @@ export async function POST(req) {
     const chemist_id = formData.get("chemist_id");
     const doc_type = formData.get("doc_type");
 
-    if (!file || !chemist_id || !doc_type) {
+    if (!file || !chemist_id || !doc_type || !UUID_REGEX.test(chemist_id)) {
       return NextResponse.json(
-        { success: false, message: "Missing required fields." },
+        { success: false, message: "Missing required fields or invalid chemist ID." },
+        { status: 400 }
+      );
+    }
+
+    if (!ALLOWED_DOC_COLUMNS.includes(doc_type)) {
+      return NextResponse.json(
+        { success: false, message: `Invalid document type '${doc_type}'.` },
         { status: 400 }
       );
     }
@@ -43,19 +65,11 @@ export async function POST(req) {
     // Upload to S3
     const { url } = await uploadToS3(buffer, key, file.type);
 
-    // Update chemist_details in database
-    const { error } = await supabase
-      .from("chemist_details")
-      .update({ [doc_type]: url, updated_at: new Date() })
-      .eq("id", chemist_id);
-
-    if (error) {
-      console.error("Database update error:", error);
-      return NextResponse.json(
-        { success: false, message: "Failed to update database." },
-        { status: 500 }
-      );
-    }
+    // Update chemist_details in AWS RDS PostgreSQL
+    await sql.unsafe(
+      `UPDATE chemist_details SET ${doc_type} = $1, updated_at = NOW() WHERE id = $2`,
+      [url, chemist_id]
+    );
 
     return NextResponse.json(
       { success: true, url },

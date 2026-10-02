@@ -1,6 +1,8 @@
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
 import { corsHeaders } from "@/lib/cors";
+
+const safeUuid = (val) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val) ? val : null);
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -9,38 +11,40 @@ export async function OPTIONS() {
 export async function GET(req, { params }) {
   try {
     const { id } = await params;
+    const cleanId = safeUuid(id);
+    if (!cleanId) {
+      return failure("Valid order ID is required", null, 400, { headers: corsHeaders });
+    }
 
     // Fetch the real order
-    const { data: order, error: orderErr } = await supabase
-      .from("lab_test_orders")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
+    const orders = await sql`
+      SELECT * FROM lab_test_orders WHERE id = ${cleanId} LIMIT 1
+    `;
+    const order = orders[0];
 
-    if (orderErr) throw orderErr;
+    if (!order) {
+      return failure("Order not found", null, 404, { headers: corsHeaders });
+    }
 
     let labName = "Laboratory";
-    if (order && order.lab_id) {
-      const { data: labData } = await supabase
-        .from("lab_details")
-        .select("lab_name")
-        .eq("id", order.lab_id)
-        .maybeSingle();
-      if (labData) {
-        labName = labData.lab_name;
+    if (order.lab_id) {
+      const labs = await sql`SELECT lab_name FROM lab_details WHERE id = ${order.lab_id} LIMIT 1`;
+      if (labs.length > 0 && labs[0].lab_name) {
+        labName = labs[0].lab_name;
       }
     }
     const totalAmount = order?.total_amount || 499;
 
     let reportData = null;
     if (order?.status?.toLowerCase() === "completed") {
-      const { data: report } = await supabase
-        .from("lab_reports")
-        .select("report_url, result_summary, structured_results")
-        .eq("order_id", id)
-        .maybeSingle();
-      if (report) {
-        reportData = report;
+      const reports = await sql`
+        SELECT report_url, result_summary, structured_results
+        FROM lab_reports
+        WHERE order_id = ${cleanId}
+        LIMIT 1
+      `;
+      if (reports.length > 0) {
+        reportData = reports[0];
       }
     }
 
@@ -54,7 +58,7 @@ export async function GET(req, { params }) {
     const isCompleted = statusVal === "completed";
 
     const status = {
-      orderId: id,
+      orderId: cleanId,
       labName,
       totalAmount,
       status: order?.status || "pending",

@@ -1,5 +1,5 @@
-import { supabase } from "@/lib/supabaseAdmin";
-import { uploadToS3, deleteFromS3, getCloudFrontUrl, extractKeyFromUrl } from "@/lib/s3";
+import sql from "@/lib/db";
+import { uploadToS3, deleteFromS3 } from "@/lib/s3";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -23,8 +23,12 @@ export async function PUT(req) {
     if (!user_id || !store_name || !email)
       return failure("Missing required fields: user_id, store_name, or email.", null, 400, { headers: corsHeaders });
 
-    const { data: userData, error: fetchError } = await supabase.from("users").select("id, profile_picture, role").eq("id", user_id).maybeSingle();
-    if (fetchError) throw fetchError;
+    const [userData] = await sql`
+      SELECT id, profile_picture, role
+      FROM users
+      WHERE id = ${user_id}
+      LIMIT 1
+    `;
     if (!userData) return failure("User not found.", null, 404, { headers: corsHeaders });
     if (userData.role !== "chemist") return failure("Invalid role.", null, 403, { headers: corsHeaders });
 
@@ -41,17 +45,36 @@ export async function PUT(req) {
       profile_picture_url = url;
     }
 
-    const { error: updateError } = await supabase
-      .from("chemist_details")
-      .update({ store_name, owner_name, email, gst_number, license_number, address, upi_id, updated_at: new Date() })
-      .eq("id", user_id);
+    await sql`
+      INSERT INTO chemist_details (
+        id, pharmacy_name, owner_name, email, gstin, drug_license_no, drug_license, address, upi_id, updated_at
+      )
+      VALUES (
+        ${user_id}, ${store_name}, ${owner_name}, ${email}, ${gst_number}, ${license_number}, ${license_number}, ${address}, ${upi_id}, NOW()
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        pharmacy_name = COALESCE(EXCLUDED.pharmacy_name, chemist_details.pharmacy_name),
+        owner_name = COALESCE(EXCLUDED.owner_name, chemist_details.owner_name),
+        email = COALESCE(EXCLUDED.email, chemist_details.email),
+        gstin = COALESCE(EXCLUDED.gstin, chemist_details.gstin),
+        drug_license_no = COALESCE(EXCLUDED.drug_license_no, chemist_details.drug_license_no),
+        drug_license = COALESCE(EXCLUDED.drug_license, chemist_details.drug_license),
+        address = COALESCE(EXCLUDED.address, chemist_details.address),
+        upi_id = COALESCE(EXCLUDED.upi_id, chemist_details.upi_id),
+        updated_at = NOW()
+    `;
 
-    if (updateError) throw updateError;
-
-    await supabase.from("users").update({ profile_picture: profile_picture_url, updated_at: new Date() }).eq("id", user_id);
+    if (profile_picture_url !== userData.profile_picture) {
+      await sql`
+        UPDATE users
+        SET profile_picture = ${profile_picture_url}, updated_at = NOW()
+        WHERE id = ${user_id}
+      `;
+    }
 
     return success("Chemist profile updated successfully.", { user_id, store_name, email, profile_picture: profile_picture_url }, 200, { headers: corsHeaders });
   } catch (error) {
+    console.error("Chemist update error:", error);
     return failure("Server error occurred.", error.message, 500, { headers: corsHeaders });
   }
 }

@@ -1,10 +1,12 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * GET — Check if lab has accepted DPDP consent today (Asia/Kolkata timezone)
@@ -14,26 +16,22 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const lab_id = searchParams.get("lab_id");
 
-    if (!lab_id) {
-      return failure("lab_id is required", null, 400, { headers: corsHeaders });
+    if (!lab_id || !UUID_REGEX.test(lab_id)) {
+      return failure("valid lab_id is required", null, 400, { headers: corsHeaders });
     }
 
-    // Fetch the last daily consent log
-    const { data: logs, error } = await supabase
-      .from("lab_activity_logs")
-      .select("created_at, details")
-      .eq("lab_id", lab_id)
-      .eq("action", "DAILY_DPDP_CONSENT")
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    if (error) throw error;
+    const logs = await sql`
+      SELECT created_at, details
+      FROM lab_activity_logs
+      WHERE lab_id = ${lab_id} AND action = 'DAILY_DPDP_CONSENT'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
 
     const lastLog = logs && logs[0];
     let acceptedToday = false;
 
     if (lastLog) {
-      // Robust comparison in Indian Standard Time (IST, Asia/Kolkata)
       const options = { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" };
       const formatter = new Intl.DateTimeFormat("en-US", options);
       
@@ -66,30 +64,28 @@ export async function POST(req) {
     const body = await req.json();
     const { lab_id, ip_address, device_info } = body || {};
 
-    if (!lab_id) {
-      return failure("lab_id is required", null, 400, { headers: corsHeaders });
+    if (!lab_id || !UUID_REGEX.test(lab_id)) {
+      return failure("valid lab_id is required", null, 400, { headers: corsHeaders });
     }
 
     const now = new Date().toISOString();
 
-    // Insert daily consent log
-    const { data, error } = await supabase
-      .from("lab_activity_logs")
-      .insert({
-        lab_id,
-        action: "DAILY_DPDP_CONSENT",
-        details: {
+    const [data] = await sql`
+      INSERT INTO lab_activity_logs (lab_id, action, details, created_at)
+      VALUES (
+        ${lab_id},
+        'DAILY_DPDP_CONSENT',
+        ${sql.json({
           timestamp: now,
           ip_address: ip_address || null,
           device_info: device_info || null,
           compliance: "DPDP_ACT_2023",
           version: "1.0",
-        },
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
+        })},
+        NOW()
+      )
+      RETURNING *
+    `;
 
     return success("DPDP Consent recorded successfully", data, 200, { headers: corsHeaders });
   } catch (err) {

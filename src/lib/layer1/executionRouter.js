@@ -246,7 +246,7 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
       care_episode_id: careEpisodeId,
       service_type: "consultation",
       reference_id: appointment.id,
-      debit_credit: "debit",
+      debit_credit: "credit",
       amount: fee,
       status: "success",
       payment_mode: payment_id ? "Razorpay" : "Free/Other",

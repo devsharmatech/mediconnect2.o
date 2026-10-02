@@ -1,20 +1,20 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { buildInvoiceHtml } from "@/lib/buildInvoiceHtml";
-
-
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(req) {
   try {
     const { order_id, chemist_id } = await req.json();
 
-    if (!order_id || !chemist_id) {
-      return failure("order_id and chemist_id required", null, 400, {
+    if (!order_id || !chemist_id || !UUID_REGEX.test(order_id) || !UUID_REGEX.test(chemist_id)) {
+      return failure("valid order_id and chemist_id required", null, 400, {
         headers: corsHeaders,
       });
     }
@@ -22,29 +22,17 @@ export async function POST(req) {
     /* ------------------------------------------------
        1️⃣ FETCH INVOICE
     ------------------------------------------------ */
-    const { data: invoice, error } = await supabase
-      .from("medicine_order_invoices")
-      .select(`
-        id,
-        order_id,
-        chemist_id,
-        patient_id,
-        invoice_number,
-        invoice_date,
-        subtotal,
-        tax_amount,
-        total_amount,
-        invoice_data,
-        download_url,
-        status,
-        created_at
-      `)
-      .eq("order_id", order_id)
-      .eq("chemist_id", chemist_id)
-      .single();
+    const [invoice] = await sql`
+      SELECT 
+        id, order_id, chemist_id, patient_id, invoice_number, invoice_date,
+        subtotal, tax_amount, total_amount, invoice_data, download_url, status, created_at
+      FROM medicine_order_invoices
+      WHERE order_id = ${order_id} AND chemist_id = ${chemist_id}
+      LIMIT 1
+    `;
 
-    if (error || !invoice) {
-      return failure("Invoice not found", error, 404, {
+    if (!invoice) {
+      return failure("Invoice not found", null, 404, {
         headers: corsHeaders,
       });
     }
@@ -89,17 +77,12 @@ export async function POST(req) {
     /* ------------------------------------------------
        5️⃣ UPDATE download_url IN DB
     ------------------------------------------------ */
-    const { data: updatedInvoice, error: updateErr } = await supabase
-      .from("medicine_order_invoices")
-      .update({
-        download_url: pdfJson.url,
-        status: "pdf_generated",
-      })
-      .eq("id", invoice.id)
-      .select()
-      .single();
-
-    if (updateErr) throw updateErr;
+    const [updatedInvoice] = await sql`
+      UPDATE medicine_order_invoices
+      SET download_url = ${pdfJson.url}, status = 'pdf_generated'
+      WHERE id = ${invoice.id}
+      RETURNING *
+    `;
 
     /* ------------------------------------------------
        6️⃣ RETURN SAME RESPONSE AS GENERATE INVOICE API

@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -13,52 +13,96 @@ export async function GET(req) {
         const searchQuery = searchParams.get('q');
         const categoryFilter = searchParams.get('category');
 
-        // Start query on lab_tests joining with active categories and the lab details
-        let query = supabase
-            .from("lab_tests")
-            .select(`
-        *,
-        category:lab_test_categories!inner (
-          id,
-          name,
-          slug,
-          icon,
-          status
-        ),
-        lab:users!inner (
-          id,
-          phone_number,
-          lab_details:lab_details!inner (
-            lab_name,
-            address
-          )
-        )
-      `)
-            .eq("is_active", true)
-            .eq("category.status", true);
+        let tests = [];
 
-        // Apply strict text search if provided
-        if (searchQuery) {
-            query = query.or(`test_name.ilike.%${searchQuery}%,test_code.ilike.%${searchQuery}%`);
+        if (searchQuery && categoryFilter) {
+            tests = await sql`
+                SELECT 
+                    lt.*,
+                    json_build_object(
+                        'id', c.id,
+                        'name', c.name,
+                        'slug', c.slug,
+                        'icon', c.icon,
+                        'status', c.status
+                    ) as category,
+                    ld.lab_name,
+                    ld.address as lab_address
+                FROM lab_tests lt
+                JOIN lab_test_categories c ON c.id = lt.category_id AND c.status = true
+                JOIN lab_details ld ON ld.id = lt.lab_id
+                WHERE lt.is_active = true
+                  AND c.slug = ${categoryFilter}
+                  AND (lt.test_name ILIKE ${'%' + searchQuery + '%'} OR lt.test_code ILIKE ${'%' + searchQuery + '%'})
+                ORDER BY lt.created_at DESC
+            `;
+        } else if (searchQuery) {
+            tests = await sql`
+                SELECT 
+                    lt.*,
+                    json_build_object(
+                        'id', c.id,
+                        'name', c.name,
+                        'slug', c.slug,
+                        'icon', c.icon,
+                        'status', c.status
+                    ) as category,
+                    ld.lab_name,
+                    ld.address as lab_address
+                FROM lab_tests lt
+                LEFT JOIN lab_test_categories c ON c.id = lt.category_id
+                LEFT JOIN lab_details ld ON ld.id = lt.lab_id
+                WHERE lt.is_active = true
+                  AND (c.status = true OR c.status IS NULL)
+                  AND (lt.test_name ILIKE ${'%' + searchQuery + '%'} OR lt.test_code ILIKE ${'%' + searchQuery + '%'})
+                ORDER BY lt.created_at DESC
+            `;
+        } else if (categoryFilter) {
+            tests = await sql`
+                SELECT 
+                    lt.*,
+                    json_build_object(
+                        'id', c.id,
+                        'name', c.name,
+                        'slug', c.slug,
+                        'icon', c.icon,
+                        'status', c.status
+                    ) as category,
+                    ld.lab_name,
+                    ld.address as lab_address
+                FROM lab_tests lt
+                JOIN lab_test_categories c ON c.id = lt.category_id AND c.status = true
+                LEFT JOIN lab_details ld ON ld.id = lt.lab_id
+                WHERE lt.is_active = true
+                  AND c.slug = ${categoryFilter}
+                ORDER BY lt.created_at DESC
+            `;
+        } else {
+            tests = await sql`
+                SELECT 
+                    lt.*,
+                    json_build_object(
+                        'id', c.id,
+                        'name', c.name,
+                        'slug', c.slug,
+                        'icon', c.icon,
+                        'status', c.status
+                    ) as category,
+                    ld.lab_name,
+                    ld.address as lab_address
+                FROM lab_tests lt
+                LEFT JOIN lab_test_categories c ON c.id = lt.category_id
+                LEFT JOIN lab_details ld ON ld.id = lt.lab_id
+                WHERE lt.is_active = true
+                  AND (c.status = true OR c.status IS NULL)
+                ORDER BY lt.created_at DESC
+            `;
         }
 
-        // Apply category filter if provided
-        if (categoryFilter) {
-            query = query.eq("category.slug", categoryFilter);
-        }
-
-        // Order by newest or popular
-        query = query.order("created_at", { ascending: false });
-
-        const { data, error } = await query;
-
-        if (error) throw error;
-
-        // Clean up the nested structure slightly for the UI
-        const formattedData = data.map(test => ({
+        const formattedData = tests.map(test => ({
             ...test,
-            lab_name: test.lab?.lab_details?.[0]?.lab_name || "Independent Lab",
-            lab_address: test.lab?.lab_details?.[0]?.address || "",
+            lab_name: test.lab_name || "Independent Lab",
+            lab_address: test.lab_address || "",
         }));
 
         return success("Lab tests fetched successfully", formattedData, 200, { headers: corsHeaders });

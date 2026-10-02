@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -6,44 +6,42 @@ export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function safeUuid(val) {
+  if (!val || typeof val !== "string") return null;
+  return UUID_REGEX.test(val.trim()) ? val.trim() : null;
+}
+
 /* ---------------------------
    POST → Create medicine
-   chemist_id comes from BODY
 ----------------------------*/
 export async function POST(req) {
   try {
     const body = await req.json();
-    const chemist_id = body.chemist_id;
+    const chemUuid = safeUuid(body.chemist_id);
 
-    if (!chemist_id) return failure("chemist_id is required");
+    if (!chemUuid) return failure("valid chemist_id is required", null, 400, { headers: corsHeaders });
 
-    const payload = {
-      chemist_id,
-      name: body.name,
-      brand: body.brand ?? null,
-      category: body.category ?? null,
-      strength: body.strength ?? null,
-      type: body.type ?? null,
-      description: body.description ?? null,
-    };
+    const [data] = await sql`
+      INSERT INTO chemist_medicines (
+        chemist_id, name, brand, category, strength, type, description, created_at, updated_at
+      )
+      VALUES (
+        ${chemUuid}, ${body.name || ''}, ${body.brand ?? null}, ${body.category ?? null},
+        ${body.strength ?? null}, ${body.type ?? null}, ${body.description ?? null}, NOW(), NOW()
+      )
+      RETURNING *
+    `;
 
-    const { data, error } = await supabase
-      .from("chemist_medicines")
-      .insert(payload)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    return success("Medicine created", { medicine: data });
+    return success("Medicine created", { medicine: data }, 200, { headers: corsHeaders });
   } catch (err) {
-    return failure("Failed to create medicine", err.message);
+    console.error("POST chemist medicine error:", err);
+    return failure("Failed to create medicine", err.message, 500, { headers: corsHeaders });
   }
 }
 
 /* ---------------------------
    GET → LIST or FETCH SINGLE
-   chemist_id must come from URL
 ----------------------------*/
 export async function GET(req) {
   try {
@@ -54,20 +52,24 @@ export async function GET(req) {
     const id = q.get("id");
 
     if (!chemist_id && !id)
-      return failure("chemist_id or id is required");
+      return failure("chemist_id or id is required", null, 400, { headers: corsHeaders });
 
     // Get single item
     if (id) {
-      const { data, error } = await supabase
-        .from("chemist_medicines")
-        .select()
-        .eq("id", id)
-        .single();
+      const medUuid = safeUuid(id);
+      if (!medUuid) return failure("Invalid medicine ID", null, 400, { headers: corsHeaders });
 
-      if (error) throw error;
+      const [data] = await sql`
+        SELECT * FROM chemist_medicines WHERE id = ${medUuid} LIMIT 1
+      `;
 
-      return success("Medicine fetched", { medicine: data });
+      if (!data) return failure("Medicine not found", null, 404, { headers: corsHeaders });
+
+      return success("Medicine fetched", { medicine: data }, 200, { headers: corsHeaders });
     }
+
+    const chemUuid = safeUuid(chemist_id);
+    if (!chemUuid) return failure("Invalid chemist_id", null, 400, { headers: corsHeaders });
 
     // Pagination + filters
     const page = Number(q.get("page")) || 1;
@@ -78,19 +80,24 @@ export async function GET(req) {
     const category = q.get("category");
     const type = q.get("type");
 
-    let query = supabase
-      .from("chemist_medicines")
-      .select("*", { count: "exact" })
-      .eq("chemist_id", chemist_id)
-      .range(offset, offset + limit - 1)
-      .order("created_at", { ascending: false });
+    const conditions = [sql`chemist_id = ${chemUuid}`];
+    if (search) conditions.push(sql`name ILIKE ${'%' + search + '%'}`);
+    if (category) conditions.push(sql`category = ${category}`);
+    if (type) conditions.push(sql`type = ${type}`);
 
-    if (search) query = query.ilike("name", `%${search}%`);
-    if (category) query = query.eq("category", category);
-    if (type) query = query.eq("type", type);
+    const whereClause = sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`;
 
-    const { data, error, count } = await query;
-    if (error) throw error;
+    const [countRes, data] = await Promise.all([
+      sql`SELECT count(*)::int as count FROM chemist_medicines ${whereClause}`,
+      sql`
+        SELECT * FROM chemist_medicines
+        ${whereClause}
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `
+    ]);
+
+    const count = countRes[0]?.count || 0;
 
     return success("Medicines list", {
       pagination: {
@@ -100,53 +107,49 @@ export async function GET(req) {
         total_pages: Math.ceil(count / limit),
       },
       data,
-    });
+    }, 200, { headers: corsHeaders });
   } catch (err) {
-    return failure("Failed to fetch medicines", err.message);
+    console.error("GET chemist medicines error:", err);
+    return failure("Failed to fetch medicines", err.message, 500, { headers: corsHeaders });
   }
 }
 
 /* ---------------------------
    PUT → Update
-   chemist_id comes from BODY
 ----------------------------*/
 export async function PUT(req) {
   try {
     const body = await req.json();
-    const id = body.id;
-    const chemist_id = body.chemist_id;
+    const id = safeUuid(body.id);
+    const chemist_id = safeUuid(body.chemist_id);
 
     if (!id || !chemist_id)
-      return failure("id and chemist_id are required");
+      return failure("valid id and chemist_id are required", null, 400, { headers: corsHeaders });
 
-    const updatePayload = {};
-    ["name", "brand", "category", "strength", "type", "description"].forEach(
-      (k) => {
-        if (k in body) updatePayload[k] = body[k];
-      }
-    );
+    const updatePayload = { updated_at: new Date() };
+    ["name", "brand", "category", "strength", "type", "description"].forEach((k) => {
+      if (k in body) updatePayload[k] = body[k];
+    });
 
-    updatePayload.updated_at = new Date().toISOString();
+    const keys = Object.keys(updatePayload);
+    const [data] = await sql`
+      UPDATE chemist_medicines
+      SET ${sql(updatePayload, ...keys)}
+      WHERE id = ${id} AND chemist_id = ${chemist_id}
+      RETURNING *
+    `;
 
-    const { data, error } = await supabase
-      .from("chemist_medicines")
-      .update(updatePayload)
-      .eq("id", id)
-      .eq("chemist_id", chemist_id)
-      .select()
-      .single();
+    if (!data) return failure("Medicine not found", null, 404, { headers: corsHeaders });
 
-    if (error) throw error;
-
-    return success("Medicine updated", { medicine: data });
+    return success("Medicine updated", { medicine: data }, 200, { headers: corsHeaders });
   } catch (err) {
-    return failure("Failed to update medicine", err.message);
+    console.error("PUT chemist medicine error:", err);
+    return failure("Failed to update medicine", err.message, 500, { headers: corsHeaders });
   }
 }
 
 /* ---------------------------
    DELETE → id from body or url
-   chemist_id must come from BODY
 ----------------------------*/
 export async function DELETE(req) {
   try {
@@ -157,24 +160,21 @@ export async function DELETE(req) {
       body = await req.json();
     } catch {}
 
-    const id = body.id || url.searchParams.get("id");
-    const chemist_id = body.chemist_id;
+    const id = safeUuid(body.id || url.searchParams.get("id"));
+    const chemist_id = safeUuid(body.chemist_id || url.searchParams.get("chemist_id"));
 
     if (!id || !chemist_id)
-      return failure("id and chemist_id are required");
+      return failure("valid id and chemist_id are required", null, 400, { headers: corsHeaders });
 
-    const { data, error } = await supabase
-      .from("chemist_medicines")
-      .delete()
-      .eq("id", id)
-      .eq("chemist_id", chemist_id)
-      .select()
-      .single();
+    const [data] = await sql`
+      DELETE FROM chemist_medicines
+      WHERE id = ${id} AND chemist_id = ${chemist_id}
+      RETURNING *
+    `;
 
-    if (error) throw error;
-
-    return success("Medicine deleted", { medicine: data });
+    return success("Medicine deleted", { medicine: data || null }, 200, { headers: corsHeaders });
   } catch (err) {
-    return failure("Failed to delete medicine", err.message);
+    console.error("DELETE chemist medicine error:", err);
+    return failure("Failed to delete medicine", err.message, 500, { headers: corsHeaders });
   }
 }

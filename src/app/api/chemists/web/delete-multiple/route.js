@@ -1,4 +1,3 @@
-import { supabase } from "@/lib/supabaseAdmin";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import sql from "@/lib/db";

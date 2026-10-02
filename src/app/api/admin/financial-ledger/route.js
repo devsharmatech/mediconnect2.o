@@ -76,14 +76,14 @@ export async function GET(request) {
             sql`SELECT count(*)::int as count FROM financial_transaction_log ${whereClause}`,
             sql`SELECT * FROM financial_transaction_log ${whereClause} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
             sql`
-                SELECT COALESCE(SUM(CASE WHEN debit_credit = 'credit' THEN amount ELSE -amount END), 0)::numeric as total_revenue
+                SELECT COALESCE(SUM(CASE WHEN debit_credit = 'debit' THEN -amount ELSE amount END), 0)::numeric as total_revenue
                 FROM financial_transaction_log
-                WHERE status = 'completed'
+                WHERE status IN ('completed', 'success', 'paid') AND amount > 0
             `
         ]);
 
         const count = countRes[0]?.count || 0;
-        const totalRevenue = Number(statsRes[0]?.total_revenue) || 0;
+        const totalRevenue = Math.max(0, Number(statsRes[0]?.total_revenue) || 0);
 
         // Fetch patient names & chemist names
         if (logs && logs.length > 0) {

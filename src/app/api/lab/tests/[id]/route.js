@@ -1,8 +1,9 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-
 import { cookies } from "next/headers";
+
+const safeUuid = (val) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val) ? val : null);
 
 export async function OPTIONS() {
     return new Response("OK", { headers: corsHeaders });
@@ -15,77 +16,88 @@ export async function PUT(req, { params }) {
         const body = await req.json();
         const { lab_id, category_id, test_code, test_name, price, specimen_type, clinical_history_required, turnaround_time, is_active, container, temperature, remarks, schedule, reporting_schedule, collection_type } = body;
 
-        if (!id || !lab_id) {
-            return failure("Test ID and lab_id are required", null, 400, { headers: corsHeaders });
+        const cleanId = safeUuid(id);
+        const cleanLabId = safeUuid(lab_id);
+
+        if (!cleanId || !cleanLabId) {
+            return failure("Valid Test ID and lab_id are required", null, 400, { headers: corsHeaders });
         }
 
         // --- OTP Consent Verification ---
         const cookieStore = await cookies();
         const consentCookie = cookieStore.get("lab_catalog_consent");
-        if (!consentCookie || consentCookie.value !== lab_id) {
+        if (!consentCookie || consentCookie.value !== cleanLabId) {
             return failure("Consent required. Please verify OTP first.", { code: "CONSENT_REQUIRED" }, 403, { headers: corsHeaders });
         }
-        // --------------------------------
 
         // Verify ownership
-        const { data: testData, error: verifyError } = await supabase
-            .from("lab_tests")
-            .select("lab_id")
-            .eq("id", id)
-            .single();
+        const existing = await sql`
+            SELECT lab_id
+            FROM lab_tests
+            WHERE id = ${cleanId}
+            LIMIT 1
+        `;
 
-        if (verifyError || !testData) {
+        if (!existing.length) {
             return failure("Test not found", null, 404, { headers: corsHeaders });
         }
 
-        if (testData.lab_id !== lab_id) {
+        if (existing[0].lab_id !== cleanLabId) {
             return failure("Unauthorized to edit this test", null, 403, { headers: corsHeaders });
         }
 
-        const updateData = { updated_at: new Date().toISOString() };
-        if (category_id !== undefined) updateData.category_id = category_id || null;
-        if (test_code !== undefined) updateData.test_code = test_code;
-        if (test_name !== undefined) updateData.test_name = test_name;
-        if (price !== undefined) updateData.price = price;
-        if (specimen_type !== undefined) updateData.specimen_type = specimen_type;
-        if (clinical_history_required !== undefined) updateData.clinical_history_required = clinical_history_required;
-        if (turnaround_time !== undefined) updateData.turnaround_time = turnaround_time;
-        if (is_active !== undefined) updateData.is_active = is_active;
-        if (container !== undefined) updateData.container = container || null;
-        if (temperature !== undefined) updateData.temperature = temperature || null;
-        if (remarks !== undefined) updateData.remarks = remarks || null;
-        if (schedule !== undefined) updateData.schedule = schedule || null;
-        if (reporting_schedule !== undefined) updateData.reporting_schedule = reporting_schedule || null;
-        if (collection_type !== undefined) {
-            updateData.collection_type = ['home', 'lab', 'both'].includes((collection_type || '').toLowerCase())
-                ? collection_type.toLowerCase()
-                : 'lab';
+        const cleanCatId = safeUuid(category_id);
+        const normalizedCollectionType = collection_type !== undefined
+            ? (['home', 'lab', 'both'].includes((collection_type || '').toLowerCase()) ? collection_type.toLowerCase() : 'lab')
+            : undefined;
+
+        const updated = await sql`
+            UPDATE lab_tests
+            SET
+                category_id = COALESCE(${cleanCatId}, category_id),
+                test_code = COALESCE(${test_code ?? null}, test_code),
+                test_name = COALESCE(${test_name ?? null}, test_name),
+                price = COALESCE(${price !== undefined ? Number(price) : null}, price),
+                specimen_type = COALESCE(${specimen_type ?? null}, specimen_type),
+                clinical_history_required = COALESCE(${clinical_history_required !== undefined ? Boolean(clinical_history_required) : null}, clinical_history_required),
+                turnaround_time = COALESCE(${turnaround_time ?? null}, turnaround_time),
+                is_active = COALESCE(${is_active !== undefined ? Boolean(is_active) : null}, is_active),
+                container = COALESCE(${container ?? null}, container),
+                temperature = COALESCE(${temperature ?? null}, temperature),
+                remarks = COALESCE(${remarks ?? null}, remarks),
+                schedule = COALESCE(${schedule ?? null}, schedule),
+                reporting_schedule = COALESCE(${reporting_schedule ?? null}, reporting_schedule),
+                collection_type = COALESCE(${normalizedCollectionType ?? null}, collection_type),
+                updated_at = NOW()
+            WHERE id = ${cleanId}
+            RETURNING *
+        `;
+
+        const testData = updated[0];
+
+        // Fetch category
+        let category = null;
+        if (testData.category_id) {
+            const cat = await sql`SELECT id, name, icon FROM lab_test_categories WHERE id = ${testData.category_id} LIMIT 1`;
+            if (cat.length > 0) category = cat[0];
         }
 
-        const { data, error } = await supabase
-            .from("lab_tests")
-            .update(updateData)
-            .eq("id", id)
-            .select(`
-        *,
-        category:lab_test_categories (
-          id,
-          name,
-          icon
-        )
-      `)
-            .single();
-
-        if (error) throw error;
-
         // Log activity
-        await supabase.from("lab_activity_logs").insert({
-            lab_id,
-            action: "UPDATE_TEST",
-            details: { test_id: id, test_name: data.test_name },
-        });
+        await sql`
+            INSERT INTO lab_activity_logs (
+                lab_id,
+                action,
+                details,
+                created_at
+            ) VALUES (
+                ${cleanLabId},
+                'UPDATE_TEST',
+                ${JSON.stringify({ test_id: cleanId, test_name: testData.test_name })}::jsonb,
+                NOW()
+            )
+        `.catch(e => console.warn("Failed to insert lab_activity_log:", e.message));
 
-        return success("Test updated successfully", data, 200, { headers: corsHeaders });
+        return success("Test updated successfully", { ...testData, category }, 200, { headers: corsHeaders });
     } catch (error) {
         console.error("Error updating lab test:", error);
         return failure("Failed to update test", error.message, 500, { headers: corsHeaders });
@@ -99,46 +111,55 @@ export async function DELETE(req, { params }) {
         const { searchParams } = new URL(req.url);
         const lab_id = searchParams.get('lab_id');
 
-        if (!id || !lab_id) {
-            return failure("Test ID and lab_id are required", null, 400, { headers: corsHeaders });
+        const cleanId = safeUuid(id);
+        const cleanLabId = safeUuid(lab_id);
+
+        if (!cleanId || !cleanLabId) {
+            return failure("Valid Test ID and lab_id are required", null, 400, { headers: corsHeaders });
         }
 
         // --- OTP Consent Verification ---
         const cookieStore = await cookies();
         const consentCookie = cookieStore.get("lab_catalog_consent");
-        if (!consentCookie || consentCookie.value !== lab_id) {
+        if (!consentCookie || consentCookie.value !== cleanLabId) {
             return failure("Consent required. Please verify OTP first.", { code: "CONSENT_REQUIRED" }, 403, { headers: corsHeaders });
         }
-        // --------------------------------
 
         // Verify ownership
-        const { data: testData, error: verifyError } = await supabase
-            .from("lab_tests")
-            .select("lab_id")
-            .eq("id", id)
-            .single();
+        const existing = await sql`
+            SELECT lab_id
+            FROM lab_tests
+            WHERE id = ${cleanId}
+            LIMIT 1
+        `;
 
-        if (verifyError || !testData) {
+        if (!existing.length) {
             return failure("Test not found", null, 404, { headers: corsHeaders });
         }
 
-        if (testData.lab_id !== lab_id) {
+        if (existing[0].lab_id !== cleanLabId) {
             return failure("Unauthorized to delete this test", null, 403, { headers: corsHeaders });
         }
 
-        const { error } = await supabase
-            .from("lab_tests")
-            .delete()
-            .eq("id", id);
-
-        if (error) throw error;
+        await sql`
+            DELETE FROM lab_tests
+            WHERE id = ${cleanId}
+        `;
 
         // Log activity
-        await supabase.from("lab_activity_logs").insert({
-            lab_id,
-            action: "DELETE_TEST",
-            details: { test_id: id },
-        });
+        await sql`
+            INSERT INTO lab_activity_logs (
+                lab_id,
+                action,
+                details,
+                created_at
+            ) VALUES (
+                ${cleanLabId},
+                'DELETE_TEST',
+                ${JSON.stringify({ test_id: cleanId })}::jsonb,
+                NOW()
+            )
+        `.catch(e => console.warn("Failed to insert lab_activity_log:", e.message));
 
         return success("Test deleted successfully", null, 200, { headers: corsHeaders });
     } catch (error) {

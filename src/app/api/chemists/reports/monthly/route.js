@@ -1,10 +1,12 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders() });
 }
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
@@ -29,19 +31,20 @@ export async function POST(req) {
 }
 
 async function generateMonthlyReport({ chemist_id, month, year }) {
-  if (!chemist_id) {
-    return failure("chemist_id is required", null, 400);
+  if (!chemist_id || !UUID_REGEX.test(chemist_id)) {
+    return failure("valid chemist_id is required", null, 400);
   }
 
   try {
     // 1. Fetch Chemist Profile
-    const { data: chemist, error: chemistErr } = await supabase
-      .from("chemist_details")
-      .select("id, pharmacy_name, owner_name, gstin, address, rating, total_reviews")
-      .eq("id", chemist_id)
-      .maybeSingle();
+    const [chemist] = await sql`
+      SELECT id, pharmacy_name, owner_name, gstin, address, rating, total_reviews
+      FROM chemist_details
+      WHERE id = ${chemist_id}
+      LIMIT 1
+    `;
 
-    if (chemistErr || !chemist) {
+    if (!chemist) {
       return failure("Chemist profile not found", null, 404);
     }
 
@@ -55,26 +58,15 @@ async function generateMonthlyReport({ chemist_id, month, year }) {
     const periodLabel = `${monthNames[month - 1]} ${year}`;
 
     // 3. Fetch all orders for this chemist in the time window
-    const { data: orders, error: ordersErr } = await supabase
-      .from("medicine_orders")
-      .select(`
-        id,
-        unid,
-        status,
-        total_amount,
-        medicine_subtotal,
-        delivery_charge,
-        discount,
-        sla_status,
-        prescription_id,
-        created_at,
-        actual_delivery_at
-      `)
-      .eq("chemist_id", chemist_id)
-      .gte("created_at", startDate.toISOString())
-      .lte("created_at", endDate.toISOString());
-
-    if (ordersErr) throw ordersErr;
+    const orders = await sql`
+      SELECT 
+        id, unid, status, total_amount, medicine_subtotal, delivery_charge,
+        discount, sla_status, prescription_id, created_at, actual_delivery_at
+      FROM medicine_orders
+      WHERE chemist_id = ${chemist_id}
+        AND created_at >= ${startDate.toISOString()}
+        AND created_at <= ${endDate.toISOString()}
+    `;
 
     const allOrders = orders || [];
 
@@ -92,31 +84,33 @@ async function generateMonthlyReport({ chemist_id, month, year }) {
     const prescriptionLinkedOrders = completedOrders.filter(o => !!o.prescription_id);
     const exceptionOrders = allOrders.filter(o => exceptionStatuses.includes(String(o.status).toLowerCase()));
 
-    // Gross Transaction Value (GTV) - Only actual fulfilled transactions per Section 12
+    // Gross Transaction Value (GTV)
     const grossTransactionValue = completedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
 
     // Refunds Calculation
     const refundedOrders = allOrders.filter(o => String(o.status).toLowerCase() === "refunded");
     const refundsAmount = refundedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
 
-    // Platform Commission (Agreed rate: 5% default, non-selected excluded)
-    const commissionRate = 0.05; // 5% MediConnect service commission
+    // Platform Commission (5% default)
+    const commissionRate = 0.05;
     const mediconnectRevenue = parseFloat((grossTransactionValue * commissionRate).toFixed(2));
 
-    // Net Pharmacy Settlement Amount (Gross - Refunds - Platform Commission)
+    // Net Pharmacy Settlement Amount
     const pharmacySettlementAmount = parseFloat((grossTransactionValue - refundsAmount - mediconnectRevenue).toFixed(2));
 
     // SLA Breaches
     const slaBreachesCount = allOrders.filter(o => o.sla_status === "SLA_BREACHED").length;
 
-    // 5. Query Non-Selected Quotes (Audit only - strictly excluded from revenue/settlement)
-    const { count: nonSelectedQuotesCount } = await supabase
-      .from("medicine_order_quotes")
-      .select("id", { count: "exact", head: true })
-      .eq("chemist_id", chemist_id)
-      .eq("status", "not_selected")
-      .gte("created_at", startDate.toISOString())
-      .lte("created_at", endDate.toISOString());
+    // 5. Query Non-Selected Quotes
+    const [quotesRes] = await sql`
+      SELECT count(*)::int as count
+      FROM medicine_order_quotes
+      WHERE chemist_id = ${chemist_id}
+        AND status = 'not_selected'
+        AND created_at >= ${startDate.toISOString()}
+        AND created_at <= ${endDate.toISOString()}
+    `;
+    const nonSelectedQuotesCount = quotesRes?.count || 0;
 
     // 6. Assemble Financial Report Payload
     const report = {

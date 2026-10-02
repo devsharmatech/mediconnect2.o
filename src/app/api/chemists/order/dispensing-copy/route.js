@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { buildPrescriptionHtml } from "@/lib/buildPrescriptionHtml";
@@ -30,80 +30,62 @@ async function handleDispensingCopy({ order_id, chemist_id, format = "json" }) {
     return failure("order_id and chemist_id are required", null, 400);
   }
 
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuidRegex.test(order_id) || !uuidRegex.test(chemist_id)) {
     return failure("Order not found or invalid ID format", null, 404);
   }
 
   try {
-    // 1. Fetch Order and verify chemist authorization
-    const { data: order, error: orderErr } = await supabase
-      .from("medicine_orders")
-      .select(`
-        id,
-        prescription_id,
-        patient_id,
-        chemist_id,
-        status,
-        total_amount,
-        medicine_subtotal,
-        delivery_charge,
-        discount,
-        promised_delivery_at,
-        warning_at,
-        breach_at,
-        sla_status,
-        created_at,
-        payment_verified_at,
-        patient_notes,
-        chemist_notes
-      `)
-      .eq("id", order_id)
-      .eq("chemist_id", chemist_id)
-      .single();
+    // 1. Fetch Order
+    const [order] = await sql`
+      SELECT 
+        id, prescription_id, patient_id, chemist_id, status, total_amount,
+        medicine_subtotal, delivery_charge, discount, promised_delivery_at,
+        warning_at, breach_at, sla_status, created_at, payment_verified_at,
+        patient_notes, chemist_notes
+      FROM medicine_orders
+      WHERE id = ${order_id} AND chemist_id = ${chemist_id}
+      LIMIT 1
+    `;
 
-    if (orderErr || !order) {
+    if (!order) {
       return failure("Order not found or not authorized for this pharmacy", null, 404);
     }
 
     // 2. Fetch Prescription details
-    const { data: prescription, error: presErr } = await supabase
-      .from("prescriptions")
-      .select(`
-        id,
-        appointment_id,
-        doctor_id,
-        medicines,
-        follow_up,
-        created_at,
-        signed_at
-      `)
-      .eq("id", order.prescription_id)
-      .single();
+    const [prescription] = await sql`
+      SELECT id, appointment_id, doctor_id, medicines, follow_up, created_at, signed_at
+      FROM prescriptions
+      WHERE id = ${order.prescription_id}
+      LIMIT 1
+    `;
 
-    if (presErr || !prescription) {
+    if (!prescription) {
       return failure("Prescription record not found", null, 404);
     }
 
     // 3. Fetch Doctor & Prescriber details
-    const { data: doctorDetails } = await supabase
-      .from("doctor_details")
-      .select("id, full_name, qualification, specialization, license_number, signature_url, clinic_name")
-      .eq("id", prescription.doctor_id)
-      .maybeSingle();
+    const [doctorDetails] = prescription.doctor_id ? await sql`
+      SELECT id, full_name, qualification, specialization, license_number, signature_url, clinic_name
+      FROM doctor_details
+      WHERE id = ${prescription.doctor_id}
+      LIMIT 1
+    ` : [null];
 
     // 4. Fetch Patient details
-    const { data: patientDetails } = await supabase
-      .from("patient_details")
-      .select("id, full_name, gender, date_of_birth, address, city, state, pincode")
-      .eq("id", order.patient_id)
-      .maybeSingle();
+    const [patientDetails] = await sql`
+      SELECT id, full_name, gender, date_of_birth, address, city, state, pincode
+      FROM patient_details
+      WHERE id = ${order.patient_id}
+      LIMIT 1
+    `;
 
-    const { data: patientUser } = await supabase
-      .from("users")
-      .select("phone_number")
-      .eq("id", order.patient_id)
-      .maybeSingle();
+    const [patientUser] = await sql`
+      SELECT phone_number
+      FROM users
+      WHERE id = ${order.patient_id}
+      LIMIT 1
+    `;
 
     // 5. Evaluate Address Gating (Only released after verified payment)
     const isPaymentVerified = [
@@ -146,7 +128,7 @@ async function handleDispensingCopy({ order_id, chemist_id, format = "json" }) {
       instructions: m.instructions || m.notes || "",
     }));
 
-    // 7. Assemble Dispensing Copy Payload (DPDP Compliant - strictly 0 diagnosis/vitals)
+    // 7. Assemble Dispensing Copy Payload
     const dispensingCopy = {
       document_type: "PHARMACY_DISPENSING_COPY",
       compliance: "DPDP_ACT_2023_MINIMUM_NECESSARY_DISCLOSURE",
@@ -188,14 +170,12 @@ async function handleDispensingCopy({ order_id, chemist_id, format = "json" }) {
       legal_notice: "This is a dedicated Pharmacy Dispensing Copy issued in accordance with the Pharmacy Act, 1948 and DPDP Act, 2023. Non-dispensing clinical information (diagnosis, vitals, investigation results) has been redacted to ensure patient medical confidentiality.",
     };
 
-    // 8. Log immutable audit access
+    // 8. Log activity
     try {
-      await supabase.from("activity_log").insert({
-        user_id: chemist_id,
-        action: "DISPENSING_COPY_ACCESSED",
-        details: JSON.stringify({ order_id: order.id, is_payment_verified: isPaymentVerified }),
-        created_at: new Date(),
-      });
+      await sql`
+        INSERT INTO activity_log (user_id, action, details, created_at)
+        VALUES (${chemist_id}, 'DISPENSING_COPY_ACCESSED', ${JSON.stringify({ order_id: order.id, is_payment_verified: isPaymentVerified })}, NOW())
+      `;
     } catch {}
 
     // Return HTML if format=html requested

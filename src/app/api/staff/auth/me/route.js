@@ -2,9 +2,10 @@
  * Staff Profile API
  * GET /api/staff/auth/me — get current staff profile + permissions
  */
-import { supabase } from "@/lib/supabaseAdmin";
 import { success, failure } from "@/lib/response";
 import { getAuthenticatedStaff, getStaffPermissions } from "@/lib/staffAuth";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
   try {

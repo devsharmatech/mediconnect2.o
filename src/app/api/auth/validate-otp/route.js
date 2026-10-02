@@ -1,7 +1,9 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { rateLimit, clearRateLimit } from "@/lib/rateLimit";
+
+const safeUuid = (val) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val) ? val : null);
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -21,40 +23,44 @@ export async function POST(req) {
       return failure("OTP is required.", null, 400, { headers: corsHeaders });
     }
 
-    const isUserIdValid = user_id && user_id !== "undefined" && user_id !== "null";
-    let resolvedUser = null;
+    const cleanUserId = safeUuid(user_id);
+    let user = null;
 
-    if (!isUserIdValid && !phone_number && !email) {
-      return failure("User identification (user_id, phone_number, or email) is required.", null, 400, { headers: corsHeaders });
-    }
-
-    let user = resolvedUser;
-    if (!user) {
-      let query = supabase.from("users").select("*");
-      if (isUserIdValid) {
-        query = query.eq("id", user_id);
-      } else if (phone_number) {
-        const cleanPhone = phone_number.replace(/\D/g, "").slice(-10);
-        query = query.like("phone_number", `%${cleanPhone}%`);
-        if (role) {
-          query = query.eq("role", role);
-        }
-      } else if (email) {
-        // Find in patient_details
-        const { data: detail, error: detailErr } = await supabase
-          .from("patient_details")
-          .select("id")
-          .eq("email", email)
-          .maybeSingle();
-        if (detailErr) throw detailErr;
-        if (!detail) return failure("User not found.", null, 404, { headers: corsHeaders });
-        query = query.eq("id", detail.id);
+    if (cleanUserId) {
+      const rows = await sql`SELECT * FROM users WHERE id = ${cleanUserId} LIMIT 1`;
+      user = rows[0];
+    } else if (phone_number) {
+      const cleanPhone = String(phone_number).replace(/\D/g, "").slice(-10);
+      if (role) {
+        const rows = await sql`
+          SELECT * FROM users 
+          WHERE phone_number LIKE ${'%' + cleanPhone + '%'} AND role = ${role}
+          ORDER BY created_at DESC LIMIT 1
+        `;
+        user = rows[0];
+      } else {
+        const rows = await sql`
+          SELECT * FROM users 
+          WHERE phone_number LIKE ${'%' + cleanPhone + '%'}
+          ORDER BY created_at DESC LIMIT 1
+        `;
+        user = rows[0];
       }
-
-      const { data: dbUser, error: userError } = await query.maybeSingle();
-      if (userError) throw userError;
-      user = dbUser;
+    } else if (email) {
+      const cleanEmail = String(email).trim().toLowerCase();
+      const docs = await sql`
+        SELECT u.* FROM users u JOIN doctor_details dd ON dd.id = u.id WHERE LOWER(dd.email) = ${cleanEmail} LIMIT 1
+      `;
+      if (docs.length > 0) {
+        user = docs[0];
+      } else {
+        const pts = await sql`
+          SELECT u.* FROM users u JOIN patient_details pd ON pd.id = u.id WHERE LOWER(pd.email) = ${cleanEmail} LIMIT 1
+        `;
+        if (pts.length > 0) user = pts[0];
+      }
     }
+
     if (!user) return failure("User not found.", null, 404, { headers: corsHeaders });
 
     const isPermanentTestUser = Boolean(
@@ -62,25 +68,24 @@ export async function POST(req) {
       user.phone_number?.includes("9999999992") ||
       user.phone_number?.includes("9999999993")
     );
-    const isTestOTP = otp === "123456" && isPermanentTestUser;
+    const isTestOTP = String(otp).trim() === "123456" && isPermanentTestUser;
 
-    if (user.otp_code !== otp && !isTestOTP)
+    if (String(user.otp_code).trim() !== String(otp).trim() && !isTestOTP) {
       return failure("Invalid OTP.", null, 400, { headers: corsHeaders });
+    }
 
-    if (!isTestOTP && new Date(user.otp_expires_at) < new Date())
+    if (!isTestOTP && user.otp_expires_at && new Date(user.otp_expires_at) < new Date()) {
       return failure("OTP expired. Please request a new one.", null, 400, { headers: corsHeaders });
+    }
 
-    const { error: updateError } = await supabase
-      .from("users")
-      .update({
-        is_verified: true,
-        otp_code: isPermanentTestUser ? "123456" : null,
-        otp_expires_at: isPermanentTestUser ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) : null,
-        updated_at: new Date(),
-      })
-      .eq("id", user.id);
-
-    if (updateError) throw updateError;
+    await sql`
+      UPDATE users
+      SET is_verified = true,
+          otp_code = ${isPermanentTestUser ? "123456" : null},
+          otp_expires_at = ${isPermanentTestUser ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) : null},
+          updated_at = NOW()
+      WHERE id = ${user.id}
+    `;
 
     const roleData = await getUserDetailsByRole(user.id, user.role);
 
@@ -104,24 +109,39 @@ export async function POST(req) {
 }
 
 async function getUserDetailsByRole(userId, role) {
-  const roleTables = {
-    admin: "admin_details",
-    patient: "patient_details",
-    doctor: "doctor_details",
-    chemist: "chemist_details",
-    pharmacist: "pharmacist_details",
-    lab: "lab_details",
-  };
+  try {
+    const roleTableMap = {
+      admin: "admin_details",
+      patient: "patient_details",
+      doctor: "doctor_details",
+      chemist: "chemist_details",
+      pharmacist: "pharmacist_details",
+      lab: "lab_details",
+    };
 
-  const table = roleTables[role];
-  if (!table) return null;
+    const targetRole = String(role || "").toLowerCase();
+    const table = roleTableMap[targetRole];
+    if (!table) return null;
 
-  const { data, error } = await supabase
-    .from(table)
-    .select("*")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data;
+    if (targetRole === "patient") {
+      const rows = await sql`SELECT * FROM patient_details WHERE id = ${userId} LIMIT 1`;
+      return rows[0] || null;
+    } else if (targetRole === "doctor") {
+      const rows = await sql`SELECT * FROM doctor_details WHERE id = ${userId} LIMIT 1`;
+      return rows[0] || null;
+    } else if (targetRole === "chemist") {
+      const rows = await sql`SELECT * FROM chemist_details WHERE id = ${userId} LIMIT 1`;
+      return rows[0] || null;
+    } else if (targetRole === "lab") {
+      const rows = await sql`SELECT * FROM lab_details WHERE id = ${userId} LIMIT 1`;
+      return rows[0] || null;
+    } else if (targetRole === "admin") {
+      const rows = await sql`SELECT * FROM admin_details WHERE id = ${userId} LIMIT 1`;
+      return rows[0] || null;
+    }
+    return null;
+  } catch (err) {
+    console.warn("getUserDetailsByRole error:", err.message);
+    return null;
+  }
 }

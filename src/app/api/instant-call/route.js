@@ -73,18 +73,21 @@ export async function POST(req) {
       .single();
 
     if (careEpisodeId) {
-      await createLedgerEntry({
-        patient_id,
-        care_episode_id: careEpisodeId,
-        service_type: "consultation",
-        reference_id: appointment.id,
-        debit_credit: "debit",
-        amount: doctorDetails?.video_consultation_fee ?? doctorDetails?.consultation_fee ?? doctorDetails?.clinic_consultation_fee ?? 0,
-        status: "completed",
-        payment_mode: payment_id ? "Razorpay" : "Free",
-        payment_gateway_id: payment_id || null,
-        description: payment_id ? `Instant video consultation fee (Paid via Razorpay: ${payment_id})` : "Instant video consultation fee",
-      });
+      const callFee = doctorDetails?.video_consultation_fee ?? doctorDetails?.consultation_fee ?? doctorDetails?.clinic_consultation_fee ?? 0;
+      if (callFee > 0 || payment_id) {
+        await createLedgerEntry({
+          patient_id,
+          care_episode_id: careEpisodeId,
+          service_type: "consultation",
+          reference_id: appointment.id,
+          debit_credit: "credit",
+          amount: callFee,
+          status: "completed",
+          payment_mode: payment_id ? "Razorpay" : "Free",
+          payment_gateway_id: payment_id || null,
+          description: payment_id ? `Instant video consultation fee (Paid via Razorpay: ${payment_id})` : "Instant video consultation fee",
+        });
+      }
     }
 
     // ✅ LAYER-1: Initialize Clinical Consultation (Stage: STARTED)

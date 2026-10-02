@@ -1,7 +1,8 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { sendOTPViaGateway } from "@/lib/sms";
+import { sendEmailOTP, generateNumericOTP } from "@/lib/emailOtp";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -15,11 +16,9 @@ export async function POST(req) {
       return failure("Phone number or email is required.", null, 400, { headers: corsHeaders });
     }
 
-    let query = supabase
-      .from("users")
-      .select("id, role, phone_number")
-      .eq("role", "doctor");
-    
+    let user = null;
+    let recipientName = "Doctor";
+
     if (phone_number) {
       const digitsOnly = String(phone_number).replace(/\D/g, "");
       let cleanPhone = digitsOnly;
@@ -29,39 +28,68 @@ export async function POST(req) {
       if (cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
         return failure("Please enter a valid 10-digit mobile number.", null, 400, { headers: corsHeaders });
       }
-      query = query.like("phone_number", `%${cleanPhone}%`);
+
+      const users = await sql`
+        SELECT u.id, u.role, u.phone_number, dd.full_name
+        FROM users u
+        LEFT JOIN doctor_details dd ON dd.id = u.id
+        WHERE u.phone_number LIKE ${'%' + cleanPhone + '%'}
+          AND u.role = 'doctor'
+        LIMIT 1
+      `;
+      user = users[0];
+      if (users[0]?.full_name) recipientName = users[0].full_name;
     } else if (email) {
-      // Join with doctor_details to find by email
-      const { data: doctorDetail, error: detailError } = await supabase
-        .from("doctor_details")
-        .select("id")
-        .eq("email", email)
-        .maybeSingle();
-      
-      if (detailError) throw detailError;
-      if (!doctorDetail) return failure("Doctor not found.", null, 404, { headers: corsHeaders });
-      
-      query = query.eq("id", doctorDetail.id);
+      const cleanEmail = String(email).trim().toLowerCase();
+      const docs = await sql`
+        SELECT u.id, u.role, u.phone_number, dd.full_name, dd.email
+        FROM doctor_details dd
+        JOIN users u ON u.id = dd.id
+        WHERE LOWER(dd.email) = ${cleanEmail}
+        LIMIT 1
+      `;
+      user = docs[0];
+      if (docs[0]?.full_name) recipientName = docs[0].full_name;
     }
 
-    const { data: user, error } = await query.maybeSingle();
-
-    if (error) throw error;
-    if (!user) return failure("No doctor account found with this phone number. Please check your credentials or register as a doctor.", null, 404, { headers: corsHeaders });
+    if (!user) {
+      return failure(
+        email
+          ? "No doctor account found with this email address. Please check your credentials or register as a doctor."
+          : "No doctor account found with this phone number. Please check your credentials or register as a doctor.",
+        null,
+        404,
+        { headers: corsHeaders }
+      );
+    }
 
     // Send real OTP via gateway if phone_number is provided
     if (phone_number) {
       await sendOTPViaGateway(user.id, phone_number);
     } else {
-      // Fallback for email-only user
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-      const { error: updateError } = await supabase
-        .from("users")
-        .update({ otp_code: otp, otp_expires_at: expiresAt })
-        .eq("id", user.id);
+      const otp = generateNumericOTP(6);
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-      if (updateError) throw updateError;
+      await sql`
+        UPDATE users
+        SET otp_code = ${otp},
+            otp_expires_at = ${expiresAt},
+            updated_at = NOW()
+        WHERE id = ${user.id}
+      `;
+
+      try {
+        await sendEmailOTP({
+          toEmail: email.trim().toLowerCase(),
+          otpCode: otp,
+          recipientName: recipientName.startsWith("Dr.") ? recipientName : `Dr. ${recipientName}`,
+          purpose: "Doctor Portal Login",
+        });
+        console.log(`[EmailOTP] Doctor OTP sent to ${email}`);
+      } catch (mailErr) {
+        console.error("[EmailOTP] Failed to send doctor email OTP:", mailErr);
+        return failure("Failed to deliver OTP email. Please try again or use phone login.", mailErr.message, 500, { headers: corsHeaders });
+      }
     }
 
     return success("OTP sent successfully.", {
@@ -76,4 +104,3 @@ export async function POST(req) {
     return failure("Login failed.", error.message, 500, { headers: corsHeaders });
   }
 }
-

@@ -1,22 +1,23 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { corsHeaders } from "@/lib/cors";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(req) {
   try {
     const body = await req.json();
     const { lab_id, services } = body;
 
-    if (!lab_id)
+    if (!lab_id || !UUID_REGEX.test(lab_id))
       return new Response(
-        JSON.stringify({ status: false, message: "lab_id required" }),
+        JSON.stringify({ status: false, message: "valid lab_id required" }),
         { headers: corsHeaders }
       );
 
-    // Validate services is an array
     if (!Array.isArray(services)) {
       return new Response(
         JSON.stringify({ status: false, message: "Services must be an array" }),
@@ -24,16 +25,11 @@ export async function POST(req) {
       );
     }
 
-    // Update only services field
-    const { error } = await supabase
-      .from("lab_details")
-      .update({ 
-        services,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", lab_id);
-
-    if (error) throw error;
+    await sql`
+      UPDATE lab_details
+      SET services = ${sql.json(services)}, updated_at = NOW()
+      WHERE id = ${lab_id}
+    `;
 
     return new Response(
       JSON.stringify({ 

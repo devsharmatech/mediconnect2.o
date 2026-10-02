@@ -2,9 +2,11 @@
  * Staff Profile Update API
  * PUT /api/staff/auth/profile — update own profile fields
  */
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { getAuthenticatedStaff } from "@/lib/staffAuth";
+
+export const dynamic = 'force-dynamic';
 
 export async function PUT(req) {
   try {
@@ -16,26 +18,28 @@ export async function PUT(req) {
     const body = await req.json();
     const { full_name, email, phone, address } = body;
 
-    const updates = {};
-    if (full_name !== undefined) updates.full_name = full_name;
-    if (email !== undefined) updates.email = email;
+    const updates = { updated_at: new Date().toISOString() };
+    if (full_name !== undefined) updates.full_name = full_name.trim();
+    if (email !== undefined) updates.email = email.toLowerCase().trim();
     if (phone !== undefined) updates.phone = phone;
     if (address !== undefined) updates.address = address;
 
-    if (Object.keys(updates).length === 0) {
+    if (Object.keys(updates).length <= 1) {
       return failure("No fields to update", null, 400);
     }
 
-    const { data, error } = await supabase
-      .from("staffs")
-      .update(updates)
-      .eq("id", staff.id)
-      .select()
-      .single();
+    const rows = await sql`
+      UPDATE staffs
+      SET ${sql(updates)}
+      WHERE id = ${staff.id}
+      RETURNING *
+    `;
 
-    if (error) throw error;
+    if (!rows || rows.length === 0) {
+      return failure("Staff not found", null, 404);
+    }
 
-    const { password_hash, ...safeData } = data;
+    const { password_hash, ...safeData } = rows[0];
     return success("Profile updated", safeData);
   } catch (err) {
     console.error("[staff/auth/profile] Error:", err);

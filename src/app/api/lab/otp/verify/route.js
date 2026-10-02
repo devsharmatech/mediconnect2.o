@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { corsHeaders } from "@/lib/cors";
 import { cookies } from "next/headers";
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -11,21 +13,22 @@ export async function POST(request) {
   try {
     const { lab_id, otp } = await request.json();
 
-    if (!lab_id || !otp) {
+    if (!lab_id || !otp || !UUID_REGEX.test(lab_id)) {
       return NextResponse.json(
-        { success: false, error: "lab_id and otp are required" },
+        { success: false, error: "valid lab_id and otp are required" },
         { status: 400, headers: corsHeaders }
       );
     }
 
     // 1. Fetch user to verify OTP
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("id, phone_number, otp_code, otp_expires_at")
-      .eq("id", lab_id)
-      .single();
+    const [user] = await sql`
+      SELECT id, phone_number, otp_code, otp_expires_at
+      FROM users
+      WHERE id = ${lab_id}
+      LIMIT 1
+    `;
 
-    if (userError || !user) {
+    if (!user) {
       return NextResponse.json(
         { success: false, error: "Lab user not found" },
         { status: 404, headers: corsHeaders }
@@ -54,29 +57,30 @@ export async function POST(request) {
     }
 
     // 3. Clear OTP (keep for permanent test users)
-    await supabase
-      .from("users")
-      .update({
-        otp_code: isPermanentTestUser ? "123456" : null,
-        otp_expires_at: isPermanentTestUser ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) : null,
-      })
-      .eq("id", user.id);
+    const newOtp = isPermanentTestUser ? "123456" : null;
+    const newExpiry = isPermanentTestUser ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) : null;
+
+    await sql`
+      UPDATE users
+      SET otp_code = ${newOtp}, otp_expires_at = ${newExpiry}, updated_at = NOW()
+      WHERE id = ${user.id}
+    `;
 
     // 4. Log the consent
-    await supabase.from("lab_activity_logs").insert({
-      lab_id,
-      action: "CATALOG_CONSENT_VERIFIED",
-      details: { timestamp: new Date().toISOString() },
-    });
+    try {
+      await sql`
+        INSERT INTO lab_activity_logs (lab_id, action, details, created_at)
+        VALUES (${lab_id}, 'CATALOG_CONSENT_VERIFIED', ${sql.json({ timestamp: new Date().toISOString() })}, NOW())
+      `;
+    } catch {}
 
     // 5. Set the consent cookie (valid for 15 minutes)
-    // We use next/headers cookies() to set an HttpOnly cookie
     const cookieStore = await cookies();
     cookieStore.set("lab_catalog_consent", lab_id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 15 * 60, // 15 minutes in seconds
+      maxAge: 15 * 60,
       path: "/",
     });
 

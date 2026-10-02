@@ -1,26 +1,29 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 export const dynamic = 'force-dynamic';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(request, { params }) {
   try {
-    const orderId = params.id;
-    if (!orderId) {
-      return NextResponse.json({ success: false, error: 'Order ID is required' }, { status: 400 });
+    const { id: orderId } = await params;
+    if (!orderId || !UUID_REGEX.test(orderId)) {
+      return NextResponse.json({ success: false, error: 'Valid Order ID is required' }, { status: 400 });
     }
 
     const body = await request.json();
     const { reason, user_id } = body;
 
     // Verify order exists and belongs to user
-    const { data: order, error: orderError } = await supabase
-      .from('pharmacy_orders')
-      .select('id, status, patient_id')
-      .eq('id', orderId)
-      .single();
+    const [order] = await sql`
+      SELECT id, status, patient_id
+      FROM pharmacy_orders
+      WHERE id = ${orderId}
+      LIMIT 1
+    `;
 
-    if (orderError || !order) {
+    if (!order) {
       return NextResponse.json({ success: false, error: 'Order not found' }, { status: 404 });
     }
 
@@ -28,23 +31,19 @@ export async function POST(request, { params }) {
        return NextResponse.json({ success: false, error: 'Unauthorized to return this order' }, { status: 403 });
     }
 
-    if (order.status !== 'delivered') {
+    if (String(order.status).toLowerCase() !== 'delivered') {
       return NextResponse.json({ success: false, error: 'Only delivered orders can be returned/replaced' }, { status: 400 });
     }
 
     // Update order status to return_requested
-    const { error: updateError } = await supabase
-      .from('pharmacy_orders')
-      .update({
-        status: 'return_requested',
-        return_reason: reason || 'No reason provided',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', orderId);
-
-    if (updateError) {
-      throw updateError;
-    }
+    await sql`
+      UPDATE pharmacy_orders
+      SET 
+        status = 'return_requested',
+        return_reason = ${reason || 'No reason provided'},
+        updated_at = NOW()
+      WHERE id = ${orderId}
+    `;
 
     return NextResponse.json({
       success: true,

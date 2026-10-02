@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { uploadToS3, deleteFromS3, extractKeyFromUrl } from "@/lib/s3";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
@@ -18,18 +18,12 @@ export async function PUT(req) {
       return failure("user_id is required.", null, 400, { headers: corsHeaders });
     }
 
-    const { data: userData, error: fetchError } = await supabase
-      .from("users")
-      .select("id, profile_picture, role")
-      .eq("id", user_id)
-      .maybeSingle();
-
-    if (fetchError) {
-      console.error("Error fetching user:", fetchError);
-      return failure("Unable to fetch user details.", fetchError.message, 500, {
-        headers: corsHeaders,
-      });
-    }
+    const [userData] = await sql`
+      SELECT id, profile_picture, role
+      FROM users
+      WHERE id = ${user_id}
+      LIMIT 1
+    `;
 
     if (!userData) {
       return failure("User not found.", null, 404, { headers: corsHeaders });
@@ -50,7 +44,6 @@ export async function PUT(req) {
     let profile_picture_url = userData.profile_picture || null;
 
     try {
-      // Delete old file if exists (non-fatal if old key is external/invalid)
       if (userData.profile_picture) {
         try {
           const oldKey = extractKeyFromUrl(userData.profile_picture);
@@ -82,20 +75,11 @@ export async function PUT(req) {
     }
 
     if (profile_picture_url && profile_picture_url !== userData.profile_picture) {
-      const { error: userUpdateError } = await supabase
-        .from("users")
-        .update({ profile_picture: profile_picture_url, updated_at: new Date() })
-        .eq("id", user_id);
-
-      if (userUpdateError) {
-        console.error("Error updating doctor profile picture URL:", userUpdateError);
-        return failure(
-          "Failed to update profile picture URL.",
-          userUpdateError.message,
-          500,
-          { headers: corsHeaders }
-        );
-      }
+      await sql`
+        UPDATE users
+        SET profile_picture = ${profile_picture_url}, updated_at = NOW()
+        WHERE id = ${user_id}
+      `;
     }
 
     return success(

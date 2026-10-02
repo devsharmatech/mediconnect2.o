@@ -2,9 +2,11 @@
  * Staff Login API
  * POST /api/staff/auth/login
  */
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { verifyPassword, generateStaffToken, logStaffActivity, getStaffPermissions } from "@/lib/staffAuth";
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req) {
   try {
@@ -14,17 +16,24 @@ export async function POST(req) {
       return failure("Email and password are required", null, 400);
     }
 
-    // Find staff by email (not soft-deleted)
-    const { data: staff, error } = await supabase
-      .from("staffs")
-      .select("*, staff_roles(id, name)")
-      .eq("email", email.toLowerCase().trim())
-      .is("deleted_at", null)
-      .single();
+    const cleanEmail = email.toLowerCase().trim();
 
-    if (error || !staff) {
+    // Find staff by email in AWS RDS PostgreSQL
+    const rows = await sql`
+      SELECT 
+        s.*,
+        r.id as role_rel_id, r.name as role_rel_name
+      FROM staffs s
+      LEFT JOIN staff_roles r ON s.role_id = r.id
+      WHERE s.email = ${cleanEmail} AND s.deleted_at IS NULL
+      LIMIT 1
+    `;
+
+    if (!rows || rows.length === 0) {
       return failure("Invalid email or password", null, 401);
     }
+
+    const staff = rows[0];
 
     // Check if active
     if (!staff.is_active) {
@@ -38,10 +47,19 @@ export async function POST(req) {
     }
 
     // Update last login
-    await supabase
-      .from("staffs")
-      .update({ last_login_at: new Date().toISOString() })
-      .eq("id", staff.id);
+    await sql`
+      UPDATE staffs
+      SET last_login_at = NOW()
+      WHERE id = ${staff.id}
+    `;
+
+    if (staff.role_rel_id) {
+      staff.staff_roles = { id: staff.role_rel_id, name: staff.role_rel_name };
+    } else {
+      staff.staff_roles = null;
+    }
+    delete staff.role_rel_id;
+    delete staff.role_rel_name;
 
     // Generate token
     const token = generateStaffToken(staff);
@@ -55,7 +73,7 @@ export async function POST(req) {
     // Log activity
     await logStaffActivity(staff.id, staff.full_name, "login", "auth", { method: "email" }, req);
 
-    // Sanitize response (remove password_hash)
+    // Sanitize response
     const { password_hash, ...safeStaff } = staff;
 
     return success("Login successful", {

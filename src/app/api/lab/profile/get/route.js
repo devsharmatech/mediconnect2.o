@@ -1,43 +1,43 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { corsHeaders } from "@/lib/cors";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(req) {
   try {
     const { lab_id } = await req.json();
 
-    if (!lab_id)
+    if (!lab_id || !UUID_REGEX.test(lab_id))
       return new Response(
-        JSON.stringify({ status: false, message: "lab_id required" }),
+        JSON.stringify({ status: false, message: "valid lab_id required" }),
         { headers: corsHeaders }
       );
 
-    // GET LAB DETAILS + USER DETAILS
-    const { data, error } = await supabase
-      .from("lab_details")
-      .select(`
-        *,
-        user:users (
-          id,
-          phone_number,
-          profile_picture,
-          role,
-          status
-        )
-      `)
-      .eq("id", lab_id)
-      .maybeSingle();
-
-    if (error) throw error;
+    const [data] = await sql`
+      SELECT 
+        l.*,
+        json_build_object(
+          'id', u.id,
+          'phone_number', u.phone_number,
+          'profile_picture', u.profile_picture,
+          'role', u.role,
+          'status', u.status
+        ) as user
+      FROM lab_details l
+      LEFT JOIN users u ON u.id = l.id
+      WHERE l.id = ${lab_id}
+      LIMIT 1
+    `;
 
     return new Response(
       JSON.stringify({
         status: true,
         message: "Lab profile fetched",
-        data,
+        data: data || null,
       }),
       { headers: corsHeaders }
     );

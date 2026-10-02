@@ -1,8 +1,8 @@
-import { supabase } from "@/lib/supabaseAdmin";
-import { uploadToS3, getCloudFrontUrl } from "@/lib/s3";
+import { uploadToS3 } from "@/lib/s3";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import nodemailer from "nodemailer";
+import sql from "@/lib/db";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -60,22 +60,18 @@ export async function POST(req) {
     const contentType = req.headers.get("content-type") || "";
     let fields = {};
 
-    // ── Detect if request is JSON (signed-URL flow) or FormData (legacy) ──
+    // Detect if request is JSON (signed-URL flow) or FormData (legacy)
     if (contentType.includes("application/json")) {
-      // New flow: all documents already uploaded via signed URLs, we receive URLs as strings
       fields = await req.json();
     } else {
-      // Legacy FormData flow (backward compatibility)
       const formData = await req.formData();
 
-      // Extract all text fields
       for (const [key, value] of formData.entries()) {
         if (typeof value === "string") {
           fields[key] = value;
         }
       }
 
-      // Upload any File objects and replace with public URLs
       const documentFields = [
         "drug_license",
         "pharmacist_certificate",
@@ -109,7 +105,6 @@ export async function POST(req) {
       }
     }
 
-    // ── Common processing for both flows ──
     const raw_phone = fields.phone_number || "";
     const phone_number = String(raw_phone).replace(/\D/g, "").slice(-10);
     const owner_name = fields.owner_name;
@@ -141,11 +136,11 @@ export async function POST(req) {
       });
     }
 
-    const { data: existingPhone } = await supabase
-      .from("users")
-      .select("id")
-      .like("phone_number", `%${phone_number}%`)
-      .maybeSingle();
+    const [existingPhone] = await sql`
+      SELECT id FROM users
+      WHERE phone_number LIKE ${'%' + phone_number + '%'}
+      LIMIT 1
+    `;
 
     if (existingPhone) {
       return failure(
@@ -156,11 +151,11 @@ export async function POST(req) {
       );
     }
 
-    const { data: existingReg } = await supabase
-      .from("chemist_details")
-      .select("id")
-      .eq("registration_no", registration_no)
-      .maybeSingle();
+    const [existingReg] = await sql`
+      SELECT id FROM chemist_details
+      WHERE registration_no = ${registration_no}
+      LIMIT 1
+    `;
 
     if (existingReg) {
       return failure(
@@ -171,22 +166,13 @@ export async function POST(req) {
       );
     }
 
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .insert([
-        {
-          phone_number,
-          role: "chemist",
-          is_verified: true,
-          status: 1,
-        },
-      ])
-      .select()
-      .single();
+    // Insert user row
+    const [user] = await sql`
+      INSERT INTO users (phone_number, role, is_verified, status)
+      VALUES (${phone_number}, 'chemist', true, 1)
+      RETURNING id
+    `;
 
-    if (userError) throw userError;
-
-    // Collect document URLs (either from signed-URL flow or legacy upload)
     const documentFieldNames = [
       "drug_license",
       "pharmacist_certificate",
@@ -208,33 +194,30 @@ export async function POST(req) {
 
     const upi_id = fields.upi_id;
 
-    // Insert chemist details
-    const { error: chemistError } = await supabase
-      .from("chemist_details")
-      .insert([
-        {
-          id: user.id,
-          owner_name,
-          email,
-          address,
-          gstin,
-          drug_license_no,
-          kyc_data: parseJSON(fields.kyc_data || []),
-          mobile,
-          whatsapp,
-          pharmacy_name,
-          registration_no,
-          terms_conditions_agreement,
-          digital_consent,
-          consent_terms,
-          upi_id,
-          ...uploadedDocs,
-        },
-      ]);
+    // Insert chemist details row
+    await sql`
+      INSERT INTO chemist_details (
+        id, owner_name, email, address, gstin, drug_license_no, drug_license,
+        kyc_data, mobile, whatsapp, pharmacy_name, registration_no,
+        terms_conditions_agreement, digital_consent, consent_terms, upi_id,
+        pharmacist_certificate, pan_aadhaar, gstin_certificate, store_photo,
+        consent_form, declaration_form, digital_signature, mou, payment_qr_url,
+        updated_at
+      )
+      VALUES (
+        ${user.id}, ${owner_name}, ${email || null}, ${address || null}, ${gstin || null},
+        ${drug_license_no || null}, ${uploadedDocs.drug_license || null},
+        ${sql.json(parseJSON(fields.kyc_data || []))}, ${mobile || null}, ${whatsapp || null},
+        ${pharmacy_name}, ${registration_no}, ${terms_conditions_agreement},
+        ${digital_consent}, ${consent_terms}, ${upi_id || null},
+        ${uploadedDocs.pharmacist_certificate || null}, ${uploadedDocs.pan_aadhaar || null},
+        ${uploadedDocs.gstin_certificate || null}, ${uploadedDocs.store_photo || null},
+        ${uploadedDocs.consent_form || null}, ${uploadedDocs.declaration_form || null},
+        ${uploadedDocs.digital_signature || null}, ${uploadedDocs.mou || null},
+        ${uploadedDocs.payment_qr_url || null}, NOW()
+      )
+    `;
 
-    if (chemistError) throw chemistError;
-
-    // Fire-and-forget email notification to chemist
     sendChemistOnboardingEmail(email, owner_name, pharmacy_name);
 
     return success("Chemist onboarded successfully.", { id: user.id }, 201, {
@@ -258,70 +241,74 @@ export async function GET(req) {
     const sortBy = searchParams.get("sortBy") || "created_at";
     const sortOrder = searchParams.get("sortOrder") || "desc";
 
-    // Calculate pagination
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
+    const offset = (page - 1) * limit;
 
-    // Build query
-    let query = supabase.from("chemist_details").select(
-      `*,
-     users!chemist_details_id_fkey(
-        id,
-        un_id,
-        phone_number,
-        role,
-        status,
-        created_at,
-        profile_picture
-     )`,
-      { count: "exact" }
-    );
-
-    // --- SEARCH LOGIC ---
+    const conditions = [];
     if (search) {
-      query = query.or(
-        `owner_name.ilike.%${search}%,pharmacy_name.ilike.%${search}%,email.ilike.%${search}%,registration_no.ilike.%${search}%`
-      );
+      const p = `%${search}%`;
+      conditions.push(sql`(c.owner_name ILIKE ${p} OR c.pharmacy_name ILIKE ${p} OR c.email ILIKE ${p} OR c.registration_no ILIKE ${p})`);
     }
 
-    // --- STATUS FILTER ---
     if (status) {
-      query = query.eq("users.status", status === "active" ? 1 : 0);
+      const statusNum = status === "active" ? 1 : 0;
+      conditions.push(sql`u.status = ${statusNum}`);
     }
 
-    // Apply sorting
+    const whereClause = conditions.length > 0
+      ? sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`
+      : sql``;
+
+    // Sorting
+    let orderBy = sql`ORDER BY c.created_at DESC`;
     if (sortBy === "name") {
-      query = query.order("owner_name", { ascending: sortOrder === "asc" });
+      orderBy = sortOrder === "asc" ? sql`ORDER BY c.owner_name ASC` : sql`ORDER BY c.owner_name DESC`;
     } else if (sortBy === "pharmacy_name") {
-      query = query.order("pharmacy_name", { ascending: sortOrder === "asc" });
+      orderBy = sortOrder === "asc" ? sql`ORDER BY c.pharmacy_name ASC` : sql`ORDER BY c.pharmacy_name DESC`;
     } else if (sortBy === "registration_no") {
-      query = query.order("registration_no", {
-        ascending: sortOrder === "asc",
-      });
-    } else {
-      query = query.order("created_at", { ascending: sortOrder === "asc" });
+      orderBy = sortOrder === "asc" ? sql`ORDER BY c.registration_no ASC` : sql`ORDER BY c.registration_no DESC`;
+    } else if (sortOrder === "asc") {
+      orderBy = sql`ORDER BY c.created_at ASC`;
     }
 
-    // Apply pagination
-    query = query.range(from, to);
-
-    // Calculate global stats for summary
     const [
-      { count: activeCount },
-      { count: inactiveCount },
-      { count: gstinCount },
-      { count: totalCount }
+      countRes,
+      data,
+      activeCountRes,
+      inactiveCountRes,
+      gstinCountRes,
+      totalCountRes
     ] = await Promise.all([
-      supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "chemist").eq("status", 1),
-      supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "chemist").eq("status", 0),
-      supabase.from("chemist_details").select("id", { count: "exact", head: true }).not("gstin", "is", null),
-      supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "chemist")
+      sql`
+        SELECT count(*)::int as count
+        FROM chemist_details c
+        JOIN users u ON u.id = c.id
+        ${whereClause}
+      `,
+      sql`
+        SELECT 
+          c.*,
+          json_build_object(
+            'id', u.id,
+            'un_id', u.un_id,
+            'phone_number', u.phone_number,
+            'role', u.role,
+            'status', u.status,
+            'created_at', u.created_at,
+            'profile_picture', u.profile_picture
+          ) as users
+        FROM chemist_details c
+        JOIN users u ON u.id = c.id
+        ${whereClause}
+        ${orderBy}
+        LIMIT ${limit} OFFSET ${offset}
+      `,
+      sql`SELECT count(*)::int as count FROM users WHERE role = 'chemist' AND status = 1`,
+      sql`SELECT count(*)::int as count FROM users WHERE role = 'chemist' AND status = 0`,
+      sql`SELECT count(*)::int as count FROM chemist_details WHERE gstin IS NOT NULL AND gstin != ''`,
+      sql`SELECT count(*)::int as count FROM users WHERE role = 'chemist'`
     ]);
 
-    const { data, error, count } = await query;
-
-    if (error) throw error;
-
+    const count = countRes[0]?.count || 0;
     const totalPages = Math.ceil(count / limit);
     const hasNextPage = page < totalPages;
     const hasPrevPage = page > 1;
@@ -331,10 +318,10 @@ export async function GET(req) {
       {
         data,
         summary: {
-          total: totalCount || 0,
-          active: activeCount || 0,
-          inactive: inactiveCount || 0,
-          gstin: gstinCount || 0
+          total: totalCountRes[0]?.count || 0,
+          active: activeCountRes[0]?.count || 0,
+          inactive: inactiveCountRes[0]?.count || 0,
+          gstin: gstinCountRes[0]?.count || 0
         },
         pagination: {
           currentPage: page,

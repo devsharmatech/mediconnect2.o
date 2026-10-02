@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -6,12 +6,14 @@ export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(req) {
   try {
     const { lab_id, time_range = "30d" } = await req.json();
 
-    if (!lab_id) {
-      return failure("lab_id required", null, 400, { headers: corsHeaders });
+    if (!lab_id || !UUID_REGEX.test(lab_id)) {
+      return failure("valid lab_id required", null, 400, { headers: corsHeaders });
     }
 
     // Calculate date ranges
@@ -38,41 +40,28 @@ export async function POST(req) {
     startDate.setHours(0, 0, 0, 0);
     endDate.setHours(23, 59, 59, 999);
 
-    // 1. Get Lab Info
-    const { data: labData, error: labError } = await supabase
-      .from("lab_details")
-      .select("*")
-      .eq("id", lab_id)
-      .single();
+    // 1. Get Lab Info and User Info
+    const [labData] = await sql`
+      SELECT l.*, u.profile_picture
+      FROM lab_details l
+      LEFT JOIN users u ON u.id = l.id
+      WHERE l.id = ${lab_id}
+      LIMIT 1
+    `;
 
-    if (labError) throw labError;
+    if (!labData) return failure("Lab not found", null, 404, { headers: corsHeaders });
 
-    // 2. Get User Info for profile picture
-    const { data: userData } = await supabase
-      .from("users")
-      .select("profile_picture")
-      .eq("id", lab_id)
-      .single();
+    // 3. Get Orders and status counts
+    const ordersByStatus = await sql`
+      SELECT id, status, total_amount, created_at
+      FROM lab_test_orders
+      WHERE lab_id = ${lab_id}
+        AND created_at >= ${startDate.toISOString()}
+        AND created_at <= ${endDate.toISOString()}
+    `;
 
-    // 3. Get Total Orders Count
-    const { count: totalOrders, error: totalError } = await supabase
-      .from("lab_test_orders")
-      .select("*", { count: 'exact', head: true })
-      .eq("lab_id", lab_id)
-      .gte("created_at", startDate.toISOString())
-      .lte("created_at", endDate.toISOString());
+    const totalOrders = ordersByStatus.length;
 
-    if (totalError) throw totalError;
-
-    // 4. Get Orders by Status
-    const { data: ordersByStatus } = await supabase
-      .from("lab_test_orders")
-      .select("status")
-      .eq("lab_id", lab_id)
-      .gte("created_at", startDate.toISOString())
-      .lte("created_at", endDate.toISOString());
-
-    // Calculate status counts
     const statusCounts = {
       pending: 0,
       sent_to_lab: 0,
@@ -85,83 +74,44 @@ export async function POST(req) {
       cancelled: 0
     };
 
-    ordersByStatus?.forEach(order => {
+    ordersByStatus.forEach(order => {
       if (statusCounts[order.status] !== undefined) {
         statusCounts[order.status]++;
       }
     });
 
-    // 5. Get Recent Orders - FIXED: Correct relationship query
-    const { data: recentOrders, error: recentError } = await supabase
-      .from("lab_test_orders")
-      .select(`
-        *,
-        patient:patient_id (
-          id,
-          phone_number
-        )
-      `)
-      .eq("lab_id", lab_id)
-      .order("created_at", { ascending: false })
-      .limit(10);
+    // 5. Get Recent Orders with Patient Names
+    const recentOrders = await sql`
+      SELECT 
+        o.*,
+        p.full_name as patient_name,
+        u.phone_number as patient_phone,
+        (SELECT count(*)::int FROM lab_test_order_items i WHERE i.order_id = o.id) as tests_count
+      FROM lab_test_orders o
+      LEFT JOIN patient_details p ON p.id = o.patient_id
+      LEFT JOIN users u ON u.id = o.patient_id
+      WHERE o.lab_id = ${lab_id}
+      ORDER BY o.created_at DESC
+      LIMIT 10
+    `;
 
-    if (recentError) throw recentError;
-
-    // Get patient details separately for patient names
-    const patientIds = [...new Set(recentOrders?.map(order => order.patient_id).filter(id => id))];
-    
-    let patientDetailsMap = {};
-    if (patientIds.length > 0) {
-      const { data: patientDetails } = await supabase
-        .from("patient_details")
-        .select("id, full_name")
-        .in("id", patientIds);
-
-      if (patientDetails) {
-        patientDetailsMap = patientDetails.reduce((map, patient) => {
-          map[patient.id] = patient.full_name;
-          return map;
-        }, {});
-      }
-    }
-
-    // 6. Get Order Items Count for Recent Orders
-    const orderIds = recentOrders?.map(order => order.id) || [];
-    let orderItemsCount = {};
-    
-    if (orderIds.length > 0) {
-      const { data: orderItems } = await supabase
-        .from("lab_test_order_items")
-        .select("order_id")
-        .in("order_id", orderIds);
-
-      if (orderItems) {
-        orderItemsCount = orderItems.reduce((count, item) => {
-          count[item.order_id] = (count[item.order_id] || 0) + 1;
-          return count;
-        }, {});
-      }
-    }
+    const enhancedRecentOrders = recentOrders.map(order => ({
+      ...order,
+      patient_details: {
+        full_name: order.patient_name || 'Unknown Patient',
+        phone_number: order.patient_phone || null,
+      },
+      tests_count: order.tests_count || 0,
+    }));
 
     // 7. Get Revenue Data (Completed Orders)
-    const { data: completedOrders, error: revenueError } = await supabase
-      .from("lab_test_orders")
-      .select("total_amount, created_at")
-      .eq("lab_id", lab_id)
-      .eq("status", "completed")
-      .gte("created_at", startDate.toISOString())
-      .lte("created_at", endDate.toISOString());
-
-    if (revenueError) throw revenueError;
-
-    // Calculate total revenue
-    const totalRevenue = completedOrders?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+    const completedOrders = ordersByStatus.filter(o => o.status === 'completed');
+    const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
 
     // 8. Generate Daily Revenue Data for Chart
     const dailyRevenue = [];
     const daysCount = time_range === "7d" ? 7 : time_range === "30d" ? 30 : time_range === "90d" ? 90 : 365;
     
-    // Create array of dates for the selected period
     for (let i = daysCount - 1; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
@@ -171,13 +121,12 @@ export async function POST(req) {
         day: 'numeric' 
       });
       
-      // Find revenue for this date
       const revenueForDate = completedOrders
-        ?.filter(order => {
+        .filter(order => {
           const orderDate = new Date(order.created_at).toISOString().split('T')[0];
           return orderDate === dateString;
         })
-        .reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+        .reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
 
       dailyRevenue.push({
         date: formattedDate,
@@ -186,35 +135,40 @@ export async function POST(req) {
       });
     }
 
-    // 9. Get Previous Period for Comparison
+    // 9. Previous Period Comparison
     const previousStartDate = new Date(startDate);
     const previousEndDate = new Date(startDate);
     const periodDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
     previousStartDate.setDate(previousStartDate.getDate() - periodDays);
     previousEndDate.setDate(previousEndDate.getDate() - 1);
 
-    const { data: previousOrders } = await supabase
-      .from("lab_test_orders")
-      .select("total_amount")
-      .eq("lab_id", lab_id)
-      .eq("status", "completed")
-      .gte("created_at", previousStartDate.toISOString())
-      .lte("created_at", previousEndDate.toISOString());
+    const previousOrders = await sql`
+      SELECT total_amount
+      FROM lab_test_orders
+      WHERE lab_id = ${lab_id}
+        AND status = 'completed'
+        AND created_at >= ${previousStartDate.toISOString()}
+        AND created_at <= ${previousEndDate.toISOString()}
+    `;
 
-    const previousRevenue = previousOrders?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+    const previousRevenue = (previousOrders || []).reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
     const revenueChange = previousRevenue > 0 
       ? parseFloat(((totalRevenue - previousRevenue) / previousRevenue * 100).toFixed(1))
       : totalRevenue > 0 ? 100 : 0;
 
-    // 10. Get Test Distribution from Order Items
-    const { data: allOrderItems } = await supabase
-      .from("lab_test_order_items")
-      .select("test_name")
-      .in("order_id", orderIds);
+    // 10. Test Distribution
+    const recentOrderIds = recentOrders.map(o => o.id);
+    let allOrderItems = [];
+    if (recentOrderIds.length > 0) {
+      allOrderItems = await sql`
+        SELECT test_name
+        FROM lab_test_order_items
+        WHERE order_id = ANY(${recentOrderIds})
+      `;
+    }
 
-    // Analyze test types
     const testCategories = {};
-    allOrderItems?.forEach(item => {
+    allOrderItems.forEach(item => {
       const testName = (item.test_name || '').toLowerCase();
       let category = 'Other Tests';
       
@@ -235,31 +189,16 @@ export async function POST(req) {
       testCategories[category] = (testCategories[category] || 0) + 1;
     });
 
-    // Convert to array for chart
     const testDistribution = Object.entries(testCategories).map(([name, value]) => ({
       name,
       value,
-      percentage: Math.round((value / (allOrderItems?.length || 1)) * 100)
+      percentage: Math.round((value / (allOrderItems.length || 1)) * 100)
     })).sort((a, b) => b.value - a.value);
 
-    // 11. Prepare Recent Orders with Patient Names
-    const enhancedRecentOrders = recentOrders?.map(order => ({
-      ...order,
-      patient_details: {
-        full_name: patientDetailsMap[order.patient_id] || 'Unknown Patient',
-        phone_number: order.patient?.phone_number
-      },
-      tests_count: orderItemsCount[order.id] || 0
-    })) || [];
-
-    // 12. Prepare Dashboard Data
     const dashboardData = {
-      lab: {
-        ...labData,
-        profile_picture: userData?.profile_picture
-      },
+      lab: labData,
       stats: {
-        total_orders: totalOrders || 0,
+        total_orders: totalOrders,
         pending_orders: statusCounts.pending + statusCounts.sent_to_lab,
         completed_orders: statusCounts.completed,
         revenue_30_days: totalRevenue,
@@ -285,11 +224,6 @@ export async function POST(req) {
     });
   } catch (err) {
     console.error("Dashboard API Error:", err);
-    return failure(
-      "Failed to fetch dashboard data",
-      err.message,
-      500,
-      { headers: corsHeaders }
-    );
+    return failure("Failed to fetch dashboard data", err.message, 500, { headers: corsHeaders });
   }
 }

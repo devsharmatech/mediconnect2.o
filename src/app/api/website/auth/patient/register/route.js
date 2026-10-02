@@ -1,7 +1,8 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { sendOTPViaGateway } from "@/lib/sms";
+import { sendEmailOTP, generateNumericOTP } from "@/lib/emailOtp";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -26,35 +27,55 @@ export async function POST(req) {
     }
 
     // Check if user already exists
-    const { data: phoneExists, error: phoneError } = await supabase
-      .from("users")
-      .select("id, is_verified, phone_number, role")
-      .like("phone_number", `%${cleanPhone}%`)
-      .maybeSingle();
+    const existingUsers = await sql`
+      SELECT id, is_verified, phone_number, role
+      FROM users
+      WHERE phone_number LIKE ${'%' + cleanPhone + '%'}
+      LIMIT 1
+    `;
 
-    if (phoneError) throw phoneError;
-
-    if (phoneExists) {
-      // User exists — check verification status
+    if (existingUsers.length > 0) {
+      const phoneExists = existingUsers[0];
       if (phoneExists.is_verified) {
         return failure("This phone number is already registered and verified. Please log in using OTP.", null, 409, { headers: corsHeaders });
       }
 
       // User exists but is UNVERIFIED — update details & send new OTP to complete verification
-      await supabase
-        .from("patient_details")
-        .upsert({
-          id: phoneExists.id,
-          full_name,
-          email: email || null,
-          gender: gender || null,
-          date_of_birth: date_of_birth || null,
-          address: address || null,
-          updated_at: new Date(),
-        });
+      await sql`
+        INSERT INTO patient_details (id, full_name, email, gender, date_of_birth, address, updated_at)
+        VALUES (${phoneExists.id}, ${full_name}, ${email || null}, ${gender || null}, ${date_of_birth || null}, ${address || null}, NOW())
+        ON CONFLICT (id) DO UPDATE SET
+          full_name = EXCLUDED.full_name,
+          email = EXCLUDED.email,
+          gender = EXCLUDED.gender,
+          date_of_birth = EXCLUDED.date_of_birth,
+          address = EXCLUDED.address,
+          updated_at = NOW()
+      `;
 
-      // Send fresh OTP to complete registration verification
+      // Send fresh OTP
       await sendOTPViaGateway(phoneExists.id, phoneExists.phone_number);
+
+      if (email) {
+        const emailOtp = generateNumericOTP(6);
+        await sql`
+          UPDATE users
+          SET otp_code = ${emailOtp},
+              otp_expires_at = NOW() + INTERVAL '10 minutes',
+              updated_at = NOW()
+          WHERE id = ${phoneExists.id}
+        `;
+        try {
+          await sendEmailOTP({
+            toEmail: email,
+            otpCode: emailOtp,
+            recipientName: full_name,
+            purpose: "Registration Verification",
+          });
+        } catch (e) {
+          console.warn("Registration email OTP error:", e.message);
+        }
+      }
 
       return success(
         "Account pending verification. OTP sent to your registered phone number.",
@@ -70,48 +91,36 @@ export async function POST(req) {
 
     // Email duplicate check for new user
     if (email) {
-      const { data: emailExists, error: emailError } = await supabase
-        .from("patient_details")
-        .select("id")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (emailError) throw emailError;
-      if (emailExists) {
+      const emailExists = await sql`
+        SELECT id FROM patient_details WHERE LOWER(email) = ${email.trim().toLowerCase()} LIMIT 1
+      `;
+      if (emailExists.length > 0) {
         return failure("Email address already registered.", null, 409, { headers: corsHeaders });
       }
     }
 
-    // Create new unverified user
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .insert([
-        {
-          phone_number: cleanPhone,
-          role: "patient",
-          is_verified: false,
-          created_at: new Date(),
-        },
-      ])
-      .select()
-      .single();
+    // Create new unverified user in users table
+    const createdUsers = await sql`
+      INSERT INTO users (phone_number, role, is_verified, created_at, updated_at)
+      VALUES (${cleanPhone}, 'patient', false, NOW(), NOW())
+      RETURNING *
+    `;
 
-    if (userError) throw userError;
-    const { error: detailsError } = await supabase.from("patient_details").insert([
-      {
-        id: user.id,
-        full_name,
-        email: email || null,
-        gender: gender || null,
-        date_of_birth: date_of_birth || null,
-        address: address || null,
-      },
-    ]);
+    const user = createdUsers[0];
 
-    if (detailsError) {
-      await supabase.from("users").delete().eq("id", user.id);
-      throw detailsError;
-    }
+    await sql`
+      INSERT INTO patient_details (id, full_name, email, gender, date_of_birth, address, created_at, updated_at)
+      VALUES (
+        ${user.id},
+        ${full_name},
+        ${email || null},
+        ${gender || null},
+        ${date_of_birth || null},
+        ${address || null},
+        NOW(),
+        NOW()
+      )
+    `;
 
     // Log explicit DPDP registration consent (J01 / J16)
     try {
@@ -134,8 +143,30 @@ export async function POST(req) {
     // Send real OTP via SMS gateway
     await sendOTPViaGateway(user.id, user.phone_number);
 
+    // If email provided, also send email OTP
+    if (email) {
+      const emailOtp = generateNumericOTP(6);
+      await sql`
+        UPDATE users
+        SET otp_code = ${emailOtp},
+            otp_expires_at = NOW() + INTERVAL '10 minutes',
+            updated_at = NOW()
+        WHERE id = ${user.id}
+      `;
+      try {
+        await sendEmailOTP({
+          toEmail: email,
+          otpCode: emailOtp,
+          recipientName: full_name,
+          purpose: "Registration Verification",
+        });
+      } catch (e) {
+        console.warn("Registration email OTP note:", e.message);
+      }
+    }
+
     return success(
-      "Registration successful. Please enter the OTP sent to your phone number to complete verification.",
+      "Registration successful. Please enter the OTP sent to complete verification.",
       {
         user_id: user.id,
         phone_number: user.phone_number,

@@ -1,5 +1,7 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { corsHeaders } from "@/lib/cors";
+
+const safeUuid = (val) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val) ? val : null);
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -9,72 +11,68 @@ export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
 
-    const lab_id = searchParams.get("lab_id");
-    const page = Number(searchParams.get("page") || 1);
-    const limit = Number(searchParams.get("limit") || 10);
+    const rawLabId = searchParams.get("lab_id");
+    const cleanLabId = safeUuid(rawLabId);
+    const page = Math.max(1, Number(searchParams.get("page") || 1));
+    const limit = Math.max(1, Number(searchParams.get("limit") || 10));
 
-    if (!lab_id) {
+    if (!cleanLabId) {
       return new Response(
-        JSON.stringify({ status: false, message: "lab_id missing" }),
-        {
-          headers: corsHeaders,
-        }
+        JSON.stringify({ status: false, message: "Valid lab_id missing" }),
+        { headers: corsHeaders, status: 400 }
       );
     }
 
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
+    const offset = (page - 1) * limit;
 
     // Count total orders
-    const { count } = await supabase
-      .from("lab_test_orders")
-      .select("*", { count: "exact", head: true })
-      .eq("lab_id", lab_id);
+    const countRes = await sql`
+      SELECT COUNT(*)::int as count
+      FROM lab_test_orders
+      WHERE lab_id = ${cleanLabId}
+    `;
+    const total = countRes[0]?.count || 0;
 
-    // Fetch orders
-    const { data, error } = await supabase
-      .from("lab_test_orders")
-      .select(
-        `
-      id,
-      unid,
-      status,
-      total_amount,
-      created_at,
-      patient:patient_id (
-          phone_number,
-          patient_details:patient_details (
-              full_name,
-              email,
-              gender,
-              address
+    // Fetch orders with patient info
+    const orders = await sql`
+      SELECT 
+        lto.id,
+        lto.unid,
+        lto.status,
+        lto.total_amount,
+        lto.created_at,
+        json_build_object(
+          'phone_number', u.phone_number,
+          'patient_details', json_build_object(
+            'full_name', pd.full_name,
+            'email', pd.email,
+            'gender', pd.gender,
+            'address', pd.address
           )
-      )
-  `
-      )
-      .eq("lab_id", lab_id)
-      .order("created_at", { ascending: false })
-      .range(from, to);
-
-    if (error) throw error;
+        ) as patient
+      FROM lab_test_orders lto
+      LEFT JOIN users u ON u.id = lto.patient_id
+      LEFT JOIN patient_details pd ON pd.id = lto.patient_id
+      WHERE lto.lab_id = ${cleanLabId}
+      ORDER BY lto.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
 
     return new Response(
       JSON.stringify({
         status: true,
-        total: count,
+        total,
         page,
         limit,
-        orders: data,
+        orders,
       }),
-      { headers: corsHeaders }
+      { headers: corsHeaders, status: 200 }
     );
   } catch (err) {
-    console.log(err);
+    console.error("GET lab/order/get error:", err);
     return new Response(
       JSON.stringify({ status: false, message: err.message }),
-      {
-        headers: corsHeaders,
-      }
+      { headers: corsHeaders, status: 500 }
     );
   }
 }

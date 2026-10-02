@@ -1,5 +1,5 @@
-import { supabase } from "@/lib/supabaseAdmin";
-import { uploadToS3, deleteFromS3, getCloudFrontUrl, extractKeyFromUrl } from "@/lib/s3";
+import sql from "@/lib/db";
+import { uploadToS3, deleteFromS3, getCloudFrontUrl } from "@/lib/s3";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -25,48 +25,133 @@ export async function GET(req) {
     const status = searchParams.get("status") || "";
     const offset = (page - 1) * limit;
 
-    let query = supabase
-      .from("lab_details")
-      .select("*, users!inner(id, phone_number, profile_picture, role)", {
-        count: "exact",
-      })
-      .eq("users.role", "lab")
-      .range(offset, offset + limit - 1)
-      .order("created_at", { ascending: false });
+    // Summary counts
+    const [counts] = await sql`
+      SELECT 
+        COUNT(*)::int as total,
+        COUNT(*) FILTER (WHERE onboarding_status = 'approved')::int as approved,
+        COUNT(*) FILTER (WHERE onboarding_status = 'pending')::int as pending,
+        COUNT(*) FILTER (WHERE accepts_home_collection = true)::int as home_collection
+      FROM lab_details
+    `;
 
-    if (search) query = query.ilike("lab_name", `%${search}%`);
-    if (status) query = query.eq("onboarding_status", status);
+    // Filtered list
+    let labs = [];
+    let totalFiltered = 0;
 
-    const [
-      { count: totalCount },
-      { count: approvedCount },
-      { count: pendingCount },
-      { count: homeCollectionCount }
-    ] = await Promise.all([
-      supabase.from("lab_details").select("id", { count: "exact", head: true }),
-      supabase.from("lab_details").select("id", { count: "exact", head: true }).eq("onboarding_status", "approved"),
-      supabase.from("lab_details").select("id", { count: "exact", head: true }).eq("onboarding_status", "pending"),
-      supabase.from("lab_details").select("id", { count: "exact", head: true }).eq("accepts_home_collection", true),
-    ]);
+    if (search && status) {
+      const countRes = await sql`
+        SELECT COUNT(*)::int as count
+        FROM lab_details ld
+        JOIN users u ON u.id = ld.id
+        WHERE ld.onboarding_status = ${status}
+          AND ld.lab_name ILIKE ${'%' + search + '%'}
+      `;
+      totalFiltered = countRes[0]?.count || 0;
 
-    const { data, count, error } = await query;
-    if (error) throw error;
+      labs = await sql`
+        SELECT 
+          ld.*,
+          json_build_object(
+            'id', u.id,
+            'phone_number', u.phone_number,
+            'profile_picture', u.profile_picture,
+            'role', u.role
+          ) as users
+        FROM lab_details ld
+        JOIN users u ON u.id = ld.id
+        WHERE ld.onboarding_status = ${status}
+          AND ld.lab_name ILIKE ${'%' + search + '%'}
+        ORDER BY ld.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+    } else if (search) {
+      const countRes = await sql`
+        SELECT COUNT(*)::int as count
+        FROM lab_details ld
+        JOIN users u ON u.id = ld.id
+        WHERE ld.lab_name ILIKE ${'%' + search + '%'}
+      `;
+      totalFiltered = countRes[0]?.count || 0;
+
+      labs = await sql`
+        SELECT 
+          ld.*,
+          json_build_object(
+            'id', u.id,
+            'phone_number', u.phone_number,
+            'profile_picture', u.profile_picture,
+            'role', u.role
+          ) as users
+        FROM lab_details ld
+        JOIN users u ON u.id = ld.id
+        WHERE ld.lab_name ILIKE ${'%' + search + '%'}
+        ORDER BY ld.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+    } else if (status) {
+      const countRes = await sql`
+        SELECT COUNT(*)::int as count
+        FROM lab_details ld
+        JOIN users u ON u.id = ld.id
+        WHERE ld.onboarding_status = ${status}
+      `;
+      totalFiltered = countRes[0]?.count || 0;
+
+      labs = await sql`
+        SELECT 
+          ld.*,
+          json_build_object(
+            'id', u.id,
+            'phone_number', u.phone_number,
+            'profile_picture', u.profile_picture,
+            'role', u.role
+          ) as users
+        FROM lab_details ld
+        JOIN users u ON u.id = ld.id
+        WHERE ld.onboarding_status = ${status}
+        ORDER BY ld.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+    } else {
+      const countRes = await sql`
+        SELECT COUNT(*)::int as count
+        FROM lab_details ld
+        JOIN users u ON u.id = ld.id
+      `;
+      totalFiltered = countRes[0]?.count || 0;
+
+      labs = await sql`
+        SELECT 
+          ld.*,
+          json_build_object(
+            'id', u.id,
+            'phone_number', u.phone_number,
+            'profile_picture', u.profile_picture,
+            'role', u.role
+          ) as users
+        FROM lab_details ld
+        JOIN users u ON u.id = ld.id
+        ORDER BY ld.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+    }
 
     return success(
       "Labs fetched successfully.",
       {
-        labs: data,
+        labs,
         summary: {
-          total: totalCount || 0,
-          approved: approvedCount || 0,
-          pending: pendingCount || 0,
-          homeCollection: homeCollectionCount || 0,
+          total: counts?.total || 0,
+          approved: counts?.approved || 0,
+          pending: counts?.pending || 0,
+          homeCollection: counts?.home_collection || 0,
         },
         pagination: {
           page,
           limit,
-          total: count,
-          totalPages: Math.ceil(count / limit),
+          total: totalFiltered,
+          totalPages: Math.ceil(totalFiltered / limit),
         },
       },
       200,
@@ -74,14 +159,7 @@ export async function GET(req) {
     );
   } catch (error) {
     console.error("GET Labs Error:", error);
-    return failure(
-      "Failed to fetch labs. " + error.message,
-      "lab_list_failed",
-      500,
-      {
-        headers: corsHeaders,
-      }
-    );
+    return failure("Failed to fetch labs. " + error.message, "lab_list_failed", 500, { headers: corsHeaders });
   }
 }
 
@@ -109,7 +187,7 @@ export async function POST(req) {
         const fileExt = file.name.split(".").pop();
         const fileName = `${fieldName}/${fieldName}_${Date.now()}_${fileExt}`;
         const buffer = Buffer.from(await file.arrayBuffer());
-        const { url: _uploadedUrl } = await uploadToS3(buffer, `lab-documents/${fileName}`, "application/octet-stream");
+        await uploadToS3(buffer, `lab-documents/${fileName}`, "application/octet-stream");
         uploadedFiles.push(fileName);
         return getCloudFrontUrl(`lab-documents/${fileName}`);
       }
@@ -126,14 +204,7 @@ export async function POST(req) {
     const required = ["lab_name", "owner_name", "phone_number", "email"];
     for (const f of required) {
       if (!fields[f]) {
-        return failure(
-          `Missing required field: ${f}`,
-          "validation_error",
-          400,
-          {
-            headers: corsHeaders,
-          }
-        );
+        return failure(`Missing required field: ${f}`, "validation_error", 400, { headers: corsHeaders });
       }
     }
 
@@ -142,36 +213,22 @@ export async function POST(req) {
     const email = fields.email.trim();
 
     // Check if user already registered
-    const { data: existing } = await supabase
-      .from("users")
-      .select("id")
-      .like("phone_number", `%${phone_number}%`)
-      .maybeSingle();
+    const existing = await sql`
+      SELECT id FROM users WHERE phone_number LIKE ${'%' + phone_number + '%'} LIMIT 1
+    `;
 
-    if (existing)
-      return failure(
-        "User already registered with this phone.",
-        "user_already_registered",
-        409,
-        { headers: corsHeaders }
-      );
+    if (existing.length > 0) {
+      return failure("User already registered with this phone.", "user_already_registered", 409, { headers: corsHeaders });
+    }
 
-    // Create user
-    const { data: user, error: userErr } = await supabase
-      .from("users")
-      .insert({
-        phone_number,
-        role: "lab",
-        is_verified: true,
-        status: 1,
-      })
-      .select()
-      .single();
-    if (userErr) throw new Error(userErr.message);
-    createdUserId = user.id;
+    // Create user in RDS
+    const createdUsers = await sql`
+      INSERT INTO users (phone_number, role, is_verified, status, created_at, updated_at)
+      VALUES (${phone_number}, 'lab', true, 1, NOW(), NOW())
+      RETURNING id
+    `;
+    createdUserId = createdUsers[0]?.id;
 
-    // Upload files (if any are sent in legacy formData, but we already handled them above)
-    // For new flow, fields already contains the publicUrls directly
     const pan_card_url = fields.pan_card || null;
     const aadhaar_card_url = fields.aadhaar_card || null;
     const lab_license_url = fields.lab_license || null;
@@ -182,86 +239,73 @@ export async function POST(req) {
     const json = (f) => (fields[f] && typeof fields[f] === "string" ? JSON.parse(fields[f]) : fields[f] || null);
 
     // Insert into lab_details
-    const { data, error } = await supabase
-      .from("lab_details")
-      .insert([
-        {
-          id: createdUserId,
-          lab_name: fields.lab_name,
-          owner_name: fields.owner_name,
-          email,
-          phone_number,
-          contact_person: fields.contact_person,
-          address: fields.address,
-          license_number: fields.license_number,
-          registration_number: fields.registration_number,
-          gst_number: fields.gst_number,
-          pan_number: fields.pan_number,
-          latitude: fields.latitude,
-          longitude: fields.longitude,
-          opening_hours: json("opening_hours"),
-          kyc_data: parseJSON(fields.kyc_data || []),
-          services: json("services") || [],
-          accepts_home_collection: fields.accepts_home_collection === "true" || fields.accepts_home_collection === true,
-          general_turnaround: fields.general_turnaround,
-          onboarding_status: "pending",
-          pan_card_url,
-          aadhaar_card_url,
-          lab_license_url,
-          gst_certificate_url,
-          owner_photo_url,
-          signature_url,
-        },
-      ])
-      .select()
-      .single();
+    const createdLabs = await sql`
+      INSERT INTO lab_details (
+        id,
+        lab_name,
+        owner_name,
+        email,
+        phone_number,
+        contact_person,
+        address,
+        license_number,
+        registration_number,
+        gst_number,
+        pan_number,
+        latitude,
+        longitude,
+        opening_hours,
+        kyc_data,
+        services,
+        accepts_home_collection,
+        general_turnaround,
+        onboarding_status,
+        pan_card_url,
+        aadhaar_card_url,
+        lab_license_url,
+        gst_certificate_url,
+        owner_photo_url,
+        signature_url,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${createdUserId},
+        ${fields.lab_name},
+        ${fields.owner_name},
+        ${email},
+        ${phone_number},
+        ${fields.contact_person || null},
+        ${fields.address || null},
+        ${fields.license_number || null},
+        ${fields.registration_number || null},
+        ${fields.gst_number || null},
+        ${fields.pan_number || null},
+        ${fields.latitude ? Number(fields.latitude) : null},
+        ${fields.longitude ? Number(fields.longitude) : null},
+        ${json("opening_hours") ? JSON.stringify(json("opening_hours")) : null}::jsonb,
+        ${JSON.stringify(parseJSON(fields.kyc_data || []))}::jsonb,
+        ${JSON.stringify(json("services") || [])}::jsonb,
+        ${fields.accepts_home_collection === "true" || fields.accepts_home_collection === true},
+        ${fields.general_turnaround || null},
+        'pending',
+        ${pan_card_url},
+        ${aadhaar_card_url},
+        ${lab_license_url},
+        ${gst_certificate_url},
+        ${owner_photo_url},
+        ${signature_url},
+        NOW(),
+        NOW()
+      )
+      RETURNING *
+    `;
 
-    if (error) throw new Error(error.message);
-
-    // Insert services into lab_tests table for catalog visibility
-    const servicesList = json("services") || [];
-    if (Array.isArray(servicesList) && servicesList.length > 0) {
-      const testsToInsert = servicesList.map((service) => {
-        const testCode = 'ONB' + Math.floor(1000 + Math.random() * 9000);
-        return {
-          lab_id: createdUserId,
-          category_id: '836ca71f-cd88-42f7-9e93-514da1d16c1a', // Biochemistry default
-          test_code: testCode,
-          test_name: service.service_name || service.name,
-          price: String(service.price || 499),
-          specimen_type: 'Serum',
-          clinical_history_required: false,
-          is_active: true,
-        };
-      });
-
-      const { error: testsErr } = await supabase
-        .from("lab_tests")
-        .insert(testsToInsert);
-
-      if (testsErr) {
-        console.error("Error inserting onboarding lab tests:", testsErr);
-      }
-    }
-
-    return success("Lab created successfully.", data, 201, {
-      headers: corsHeaders,
-    });
+    return success("Lab created successfully.", createdLabs[0], 201, { headers: corsHeaders });
   } catch (error) {
     console.error("Create Lab Error:", error);
-
-    if (createdUserId)
-      await supabase.from("users").delete().eq("id", createdUserId);
-    if (uploadedFiles.length)
-      await deleteMultipleFromS3((uploadedFiles || []).map(p => `lab-documents/${p}`));
-
-    return failure(
-      "Failed to create lab. " + error.message,
-      "lab_creation_failed",
-      500,
-      {
-        headers: corsHeaders,
-      }
-    );
+    if (createdUserId) {
+      await sql`DELETE FROM users WHERE id = ${createdUserId}`.catch(() => {});
+    }
+    return failure("Failed to create lab. " + error.message, "lab_creation_failed", 500, { headers: corsHeaders });
   }
 }

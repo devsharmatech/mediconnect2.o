@@ -1,5 +1,5 @@
-import { supabase } from "@/lib/supabaseAdmin";
-import { uploadToS3, deleteFromS3, getCloudFrontUrl, extractKeyFromUrl } from "@/lib/s3";
+import sql from "@/lib/db";
+import { uploadToS3, deleteFromS3 } from "@/lib/s3";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -39,21 +39,12 @@ export async function PUT(req) {
     }
 
     // ✅ Fetch current user details
-    const { data: userData, error: fetchError } = await supabase
-      .from("users")
-      .select("id, profile_picture, role")
-      .eq("id", user_id)
-      .maybeSingle();
-
-    if (fetchError) {
-      console.error("Error fetching user:", fetchError);
-      return failure(
-        "Unable to fetch user details.",
-        fetchError.message,
-        500,
-        { headers: corsHeaders }
-      );
-    }
+    const [userData] = await sql`
+      SELECT id, profile_picture, role
+      FROM users
+      WHERE id = ${user_id}
+      LIMIT 1
+    `;
 
     if (!userData) {
       return failure("User not found.", null, 404, { headers: corsHeaders });
@@ -70,13 +61,11 @@ export async function PUT(req) {
 
     if (file && file.name) {
       try {
-        // Delete old file if exists
         if (userData.profile_picture) {
           const oldFile = userData.profile_picture.split("/").pop();
           await deleteFromS3(`profile-pictures/${oldFile}`);
         }
 
-        // Upload new profile picture
         const ext = file.name.split(".").pop();
         const fileName = `${user_id}_${Date.now()}.${ext}`;
 
@@ -94,49 +83,27 @@ export async function PUT(req) {
     }
 
     // ✅ Update pharmacist_details table
-    const { error: updateError } = await supabase
-      .from("pharmacist_details")
-      .update({
-        full_name,
-        email,
-        store_name,
-        license_number,
-        address,
-        phone,
-        updated_at: new Date(),
-      })
-      .eq("id", user_id);
+    await sql`
+      INSERT INTO pharmacist_details (id, full_name, email, store_name, pharmacy_name, license_number, address)
+      VALUES (${user_id}, ${full_name}, ${email}, ${store_name}, ${store_name}, ${license_number}, ${address})
+      ON CONFLICT (id) DO UPDATE SET
+        full_name = EXCLUDED.full_name,
+        email = EXCLUDED.email,
+        store_name = EXCLUDED.store_name,
+        pharmacy_name = EXCLUDED.pharmacy_name,
+        license_number = EXCLUDED.license_number,
+        address = EXCLUDED.address
+    `;
 
-    if (updateError) {
-      console.error("Error updating pharmacist details:", updateError);
-      return failure(
-        "Failed to update pharmacist profile.",
-        updateError.message,
-        500,
-        { headers: corsHeaders }
-      );
-    }
-
-    // ✅ Update user profile picture if changed
-    if (profile_picture_url !== userData.profile_picture) {
-      const { error: userUpdateError } = await supabase
-        .from("users")
-        .update({
-          profile_picture: profile_picture_url,
-          updated_at: new Date(),
-        })
-        .eq("id", user_id);
-
-      if (userUpdateError) {
-        console.error("Error updating user picture:", userUpdateError);
-        return failure(
-          "Failed to update profile picture URL.",
-          userUpdateError.message,
-          500,
-          { headers: corsHeaders }
-        );
-      }
-    }
+    // ✅ Update user profile picture / phone if changed
+    await sql`
+      UPDATE users
+      SET 
+        profile_picture = ${profile_picture_url},
+        phone_number = COALESCE(${phone || null}, phone_number),
+        updated_at = NOW()
+      WHERE id = ${user_id}
+    `;
 
     // ✅ Return success
     return success(

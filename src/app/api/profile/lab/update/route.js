@@ -1,5 +1,5 @@
-import { supabase } from "@/lib/supabaseAdmin";
-import { uploadToS3, deleteFromS3, getCloudFrontUrl, extractKeyFromUrl } from "@/lib/s3";
+import sql from "@/lib/db";
+import { uploadToS3, deleteFromS3 } from "@/lib/s3";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -21,8 +21,12 @@ export async function PUT(req) {
     if (!user_id || !lab_name || !email)
       return failure("Missing required fields: user_id, lab_name, or email.", null, 400, { headers: corsHeaders });
 
-    const { data: userData, error: fetchError } = await supabase.from("users").select("id, profile_picture, role").eq("id", user_id).maybeSingle();
-    if (fetchError) throw fetchError;
+    const [userData] = await sql`
+      SELECT id, profile_picture, role
+      FROM users
+      WHERE id = ${user_id}
+      LIMIT 1
+    `;
     if (!userData) return failure("User not found.", null, 404, { headers: corsHeaders });
     if (userData.role !== "lab") return failure("Invalid role.", null, 403, { headers: corsHeaders });
 
@@ -39,17 +43,29 @@ export async function PUT(req) {
       profile_picture_url = url;
     }
 
-    const { error: updateError } = await supabase
-      .from("lab_details")
-      .update({ lab_name, owner_name, email, address, license_number, updated_at: new Date() })
-      .eq("id", user_id);
+    await sql`
+      INSERT INTO lab_details (id, lab_name, owner_name, email, address, license_number, updated_at)
+      VALUES (${user_id}, ${lab_name}, ${owner_name}, ${email}, ${address}, ${license_number}, NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        lab_name = EXCLUDED.lab_name,
+        owner_name = EXCLUDED.owner_name,
+        email = EXCLUDED.email,
+        address = EXCLUDED.address,
+        license_number = EXCLUDED.license_number,
+        updated_at = NOW()
+    `;
 
-    if (updateError) throw updateError;
-
-    await supabase.from("users").update({ profile_picture: profile_picture_url, updated_at: new Date() }).eq("id", user_id);
+    if (profile_picture_url !== userData.profile_picture) {
+      await sql`
+        UPDATE users
+        SET profile_picture = ${profile_picture_url}, updated_at = NOW()
+        WHERE id = ${user_id}
+      `;
+    }
 
     return success("Lab profile updated successfully.", { user_id, lab_name, email, profile_picture: profile_picture_url }, 200, { headers: corsHeaders });
   } catch (error) {
+    console.error("Lab profile update error:", error);
     return failure("Server error occurred.", error.message, 500, { headers: corsHeaders });
   }
 }

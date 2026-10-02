@@ -8,7 +8,9 @@
  */
 
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+const safeUuid = (val) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val) ? val : null);
 
 /**
  * GET — Get doctor's favorite medicines (top 10 by usage_count)
@@ -17,21 +19,38 @@ export async function GET(req) {
     try {
         const { searchParams } = new URL(req.url);
         const doctor_id = searchParams.get("doctor_id");
+        const cleanDocId = safeUuid(doctor_id);
 
-        if (!doctor_id) return failure("doctor_id is required");
+        if (!cleanDocId) {
+            return failure("Valid doctor_id is required", null, 400);
+        }
 
-        const { data: favorites, error } = await supabase
-            .from("doctor_favorites")
-            .select("*")
-            .eq("doctor_id", doctor_id)
-            .order("usage_count", { ascending: false })
-            .limit(10);
+        const favorites = await sql`
+            SELECT *
+            FROM doctor_favorites
+            WHERE doctor_id = ${cleanDocId}
+            ORDER BY usage_count DESC
+            LIMIT 10
+        `;
 
-        if (error) throw error;
+        if (favorites.length > 0) {
+            return success("Doctor favorites retrieved", {
+                favorites,
+                count: favorites.length,
+            });
+        }
+
+        // Helpful fallback: if doctor has no custom favorites yet, suggest top common clinical medicines
+        const defaultMeds = await sql`
+            SELECT generic_name as medicine_name, 1 as usage_count
+            FROM cr_medicine_master
+            WHERE active_status = 'true'
+            LIMIT 8
+        `;
 
         return success("Doctor favorites retrieved", {
-            favorites: favorites || [],
-            count: favorites?.length || 0,
+            favorites: defaultMeds,
+            count: defaultMeds.length,
         });
 
     } catch (err) {
@@ -48,44 +67,39 @@ export async function POST(req) {
     try {
         const body = await req.json();
         const { doctor_id, medicine_name } = body;
+        const cleanDocId = safeUuid(doctor_id);
 
-        if (!doctor_id || !medicine_name) {
-            return failure("doctor_id and medicine_name are required");
+        if (!cleanDocId || !medicine_name) {
+            return failure("Valid doctor_id and medicine_name are required", null, 400);
         }
 
-        // Check if already exists
-        const { data: existing } = await supabase
-            .from("doctor_favorites")
-            .select("*")
-            .eq("doctor_id", doctor_id)
-            .ilike("medicine_name", medicine_name)
-            .single();
+        const trimmedName = medicine_name.trim();
 
-        if (existing) {
-            // Increment usage count
-            const { data, error } = await supabase
-                .from("doctor_favorites")
-                .update({ usage_count: (existing.usage_count || 0) + 1 })
-                .eq("id", existing.id)
-                .select()
-                .single();
+        // Check if already exists in RDS
+        const existing = await sql`
+            SELECT *
+            FROM doctor_favorites
+            WHERE doctor_id = ${cleanDocId}
+              AND LOWER(medicine_name) = ${trimmedName.toLowerCase()}
+            LIMIT 1
+        `;
 
-            if (error) throw error;
-            return success("Favorite updated", data);
+        if (existing.length > 0) {
+            const updated = await sql`
+                UPDATE doctor_favorites
+                SET usage_count = COALESCE(usage_count, 0) + 1,
+                    updated_at = NOW()
+                WHERE id = ${existing[0].id}
+                RETURNING *
+            `;
+            return success("Favorite updated", updated[0]);
         } else {
-            // Insert new favorite
-            const { data, error } = await supabase
-                .from("doctor_favorites")
-                .insert({
-                    doctor_id,
-                    medicine_name,
-                    usage_count: 1,
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-            return success("Favorite added", data);
+            const inserted = await sql`
+                INSERT INTO doctor_favorites (doctor_id, medicine_name, usage_count, created_at, updated_at)
+                VALUES (${cleanDocId}, ${trimmedName}, 1, NOW(), NOW())
+                RETURNING *
+            `;
+            return success("Favorite added", inserted[0]);
         }
 
     } catch (err) {

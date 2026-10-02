@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { logAudit } from "@/lib/layer1/auditLogger";
@@ -19,22 +19,24 @@ export async function GET(req) {
       return failure("chemist_id is required", null, 400, { headers: corsHeaders });
     }
 
-    // Fetch the last audit log for daily consent
-    const { data: logs, error } = await supabase
-      .from("audit_log")
-      .select("changed_at, new_state")
-      .eq("entity_type", "chemist")
-      .eq("entity_id", chemist_id)
-      .order("changed_at", { ascending: false })
-      .limit(1);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(chemist_id)) {
+      return success("Daily DPDP consent status", { accepted_today: false, last_accepted_at: null }, 200, { headers: corsHeaders });
+    }
 
-    if (error) throw error;
+    // Fetch the last audit log for daily consent
+    const logs = await sql`
+      SELECT changed_at, new_state
+      FROM audit_log
+      WHERE entity_type = 'chemist' AND entity_id = ${chemist_id}
+      ORDER BY changed_at DESC
+      LIMIT 1
+    `;
 
     const lastLog = logs && logs[0];
     let acceptedToday = false;
 
     if (lastLog) {
-      // Robust comparison in Indian Standard Time (IST, Asia/Kolkata)
       const options = { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" };
       const formatter = new Intl.DateTimeFormat("en-US", options);
       

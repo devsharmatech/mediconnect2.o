@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import nodemailer from "nodemailer";
@@ -19,13 +19,14 @@ const chemistStatusTransporter = nodemailer.createTransport({
 
 async function sendChemistOnboardingStatusEmail(chemistId, onboarding_status) {
   try {
-    const { data: chemist, error } = await supabase
-      .from("chemist_details")
-      .select("email, owner_name, pharmacy_name")
-      .eq("id", chemistId)
-      .maybeSingle();
+    const [chemist] = await sql`
+      SELECT email, owner_name, pharmacy_name
+      FROM chemist_details
+      WHERE id = ${chemistId}
+      LIMIT 1
+    `;
 
-    if (error || !chemist?.email) return;
+    if (!chemist?.email) return;
 
     const email = chemist.email;
     const owner = chemist.owner_name || "Chemist";
@@ -73,17 +74,14 @@ export async function POST(req) {
       });
     }
 
-    const { data, error } = await supabase
-      .from("chemist_details")
-      .update({
-        onboarding_status,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .select()
-      .single();
+    const [data] = await sql`
+      UPDATE chemist_details
+      SET onboarding_status = ${onboarding_status}, updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING *
+    `;
 
-    if (error) throw error;
+    if (!data) return failure("Chemist not found", "not_found", 404, { headers: corsHeaders });
 
     // Fire-and-forget email notification
     sendChemistOnboardingStatusEmail(id, onboarding_status);

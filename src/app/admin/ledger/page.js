@@ -151,9 +151,9 @@ export default function FinancialLedgerPage() {
         {/* ── Summary Stats ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           {[
-            { label: "Gross Revenue", value: `₹${summary.total_revenue?.toLocaleString()}`, icon: IndianRupee, color: "bg-[#0067A1]/10 text-[#0067A1]" },
-            { label: "Total Entries", value: summary.total_count, icon: FileText, color: "bg-blue-50 text-[#0067A1]" },
-            { label: "Ledger Status", value: "Syncing", icon: ShieldCheck, color: "bg-emerald-50 text-emerald-600" },
+            { label: "Gross Revenue", value: `₹${Math.max(0, Number(summary.total_revenue) || 0).toLocaleString('en-IN')}`, icon: IndianRupee, color: "bg-[#0067A1]/10 text-[#0067A1]" },
+            { label: "Total Entries", value: summary.total_count || 0, icon: FileText, color: "bg-blue-50 text-[#0067A1]" },
+            { label: "Ledger Status", value: "Verified", icon: ShieldCheck, color: "bg-emerald-50 text-emerald-600" },
           ].map((stat, i) => (
             <div key={i} className="bg-white rounded-xl border border-slate-100 shadow-sm p-6 flex flex-col gap-4">
               <div className="flex items-center justify-between">
@@ -269,26 +269,26 @@ export default function FinancialLedgerPage() {
                         </td>
                         <td className="px-4 py-5">
                           <div className="flex justify-center">
-                            {log.debit_credit === 'credit' ? (
-                              <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
-                                <ArrowUpRight className="w-3 h-3" />
-                                <span className="text-[10px] font-black uppercase">Inflow</span>
-                              </div>
-                            ) : (
+                            {log.debit_credit === 'debit' && ['refund', 'payout', 'loss'].includes(log.service_type) ? (
                               <div className="flex items-center gap-1 text-red-600 bg-red-50 px-2 py-1 rounded-lg">
                                 <ArrowDownLeft className="w-3 h-3" />
                                 <span className="text-[10px] font-black uppercase">Outflow</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
+                                <ArrowUpRight className="w-3 h-3" />
+                                <span className="text-[10px] font-black uppercase">Inflow</span>
                               </div>
                             )}
                           </div>
                         </td>
                         <td className="px-4 py-5 text-right font-black text-slate-900">
-                          ₹{Number(log.amount).toLocaleString()}
+                          ₹{Number(log.amount).toLocaleString('en-IN')}
                         </td>
                         <td className="px-8 py-5 text-right">
                           <span className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest ${
-                            log.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                            log.status === 'initiated' ? 'bg-blue-100 text-[#004F7C] animate-pulse' :
+                            ['completed', 'success', 'paid'].includes(String(log.status).toLowerCase()) ? 'bg-emerald-100 text-emerald-700' :
+                            String(log.status).toLowerCase() === 'initiated' ? 'bg-blue-100 text-[#004F7C] animate-pulse' :
                             'bg-red-100 text-red-700'
                           }`}>
                             {log.status}

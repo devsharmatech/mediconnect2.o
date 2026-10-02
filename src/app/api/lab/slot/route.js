@@ -1,7 +1,9 @@
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
 import { acquireIdempotencyLock, releaseIdempotencyLock } from "@/lib/layer1/idempotencyService";
 import { insertOutboxEvent } from "@/lib/layer1/eventOutbox";
+
+const safeUuid = (val) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val) ? val : null);
 
 /**
  * POST /api/lab/slot
@@ -14,7 +16,10 @@ export async function POST(req) {
         const body = await req.json();
         const { care_episode_id, patient_id, lab_tests, scheduled_time, address, idempotency_key } = body;
 
-        if (!care_episode_id || !patient_id || !lab_tests || lab_tests.length === 0 || !idempotency_key) {
+        const cleanPatientId = safeUuid(patient_id);
+        const cleanEpisodeId = safeUuid(care_episode_id);
+
+        if (!cleanPatientId || !lab_tests || !Array.isArray(lab_tests) || lab_tests.length === 0 || !idempotency_key) {
             return failure("Missing required fields for lab booking", null, 400);
         }
 
@@ -24,53 +29,78 @@ export async function POST(req) {
         const { isLocked, isDuplicate, responseBody, responseStatus, error } = await acquireIdempotencyLock(
             idempotencyKey,
             "/api/lab/slot",
-            care_episode_id
+            cleanEpisodeId
         );
 
         if (error) return failure("Lab booking orchestration locked or failed", error, 500);
         if (isDuplicate) return success(responseBody?.message || "Lab already booked", responseBody?.data, responseStatus);
 
         // Calculate amount or fetch from DB
-        const amount = 500; // Mock fixed amount for now
+        const amount = 500; // Fixed standard amount
 
-        // Create Lab Order
-        const { data: labOrder, error: labErr } = await supabase
-            .from("lab_test_orders")
-            .insert([{
+        // Create Lab Order in RDS
+        const createdOrders = await sql`
+            INSERT INTO lab_test_orders (
                 patient_id,
                 care_episode_id,
-                status: "REQUESTED",
-                payment_status: "pending",
-                address: address || "",
-                scheduled_time: scheduled_time || new Date().toISOString()
-            }])
-            .select("id")
-            .single();
+                status,
+                payment_status,
+                delivery_address,
+                scheduled_at,
+                total_amount,
+                created_at,
+                updated_at
+            ) VALUES (
+                ${cleanPatientId},
+                ${cleanEpisodeId},
+                'REQUESTED',
+                'pending',
+                ${JSON.stringify({ address: address || "" })}::jsonb,
+                ${scheduled_time ? new Date(scheduled_time) : new Date()},
+                ${amount},
+                NOW(),
+                NOW()
+            )
+            RETURNING id
+        `;
 
-        if (labErr) {
+        const labOrderId = createdOrders[0]?.id;
+        if (!labOrderId) {
             await releaseIdempotencyLock(idempotencyKey, { message: "Failed to create lab order" }, 500, "FAILED");
             throw new Error("Failed to create lab test order");
         }
 
-        // Insert individual tests
-        const testsToInsert = lab_tests.map(test => ({
-            order_id: labOrder.id,
-            test_name: test.name,
-            test_id: test.id || null
-        }));
-        await supabase.from("lab_test_items").insert(testsToInsert);
+        // Insert individual tests into lab_test_order_items
+        for (const test of lab_tests) {
+            const cleanTestId = safeUuid(test.id);
+            await sql`
+                INSERT INTO lab_test_order_items (
+                    order_id,
+                    test_name,
+                    test_id,
+                    price,
+                    status
+                ) VALUES (
+                    ${labOrderId},
+                    ${test.name || "Lab Test"},
+                    ${cleanTestId},
+                    ${test.price ? Number(test.price) : 0},
+                    'pending'
+                )
+            `;
+        }
 
         // Dispatch outbox event for state machine
         await insertOutboxEvent({
             event_type: "LAB_STATUS_UPDATE",
-            consultation_id: labOrder.id, // Using order ID as reference
-            care_episode_id,
+            consultation_id: labOrderId,
+            care_episode_id: cleanEpisodeId,
             consultation_type: "LAB_ORDER",
-            payload: { status: "REQUESTED", order_id: labOrder.id }
+            payload: { status: "REQUESTED", order_id: labOrderId }
         });
 
         const successData = {
-            order_id: labOrder.id,
+            order_id: labOrderId,
             status: "REQUESTED",
             payment_amount: amount
         };

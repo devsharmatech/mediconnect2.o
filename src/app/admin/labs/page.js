@@ -1027,16 +1027,20 @@ function AdminCsvUploadModal({ isOpen, onClose, preselectedLabId, onUploaded }) 
   const fetchLabOptions = async () => {
     setLoadingLabs(true);
     try {
-      const res = await fetch("/api/lab/web?limit=1000");
+      const res = await fetch("/api/lab/web?status=approved&limit=1000");
       const json = await res.json();
       if (json.success && json.data?.labs) {
-        setLabs(json.data.labs);
-        if (!selectedLabId && json.data.labs.length > 0 && !preselectedLabId) {
-          setSelectedLabId(json.data.labs[0].id);
+        // Filter strictly for approved diagnostic labs only
+        const approvedLabs = (json.data.labs || []).filter(
+          (l) => (l.onboarding_status || l.status || "").toLowerCase() === "approved"
+        );
+        setLabs(approvedLabs);
+        if (!selectedLabId && approvedLabs.length > 0 && !preselectedLabId) {
+          setSelectedLabId(approvedLabs[0].id);
         }
       }
     } catch (e) {
-      console.error("Failed to load labs dropdown", e);
+      console.error("Failed to load approved labs dropdown", e);
     } finally {
       setLoadingLabs(false);
     }
@@ -1236,11 +1240,15 @@ function AdminCsvUploadModal({ isOpen, onClose, preselectedLabId, onUploaded }) 
                   className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-[#0067A1] focus:outline-none transition-all"
                 >
                   <option value="" disabled>Select Target Diagnostic Lab...</option>
-                  {labs.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.lab_name} {l.address ? `— ${l.address.slice(0, 45)}...` : ""} ({l.status || 'approved'})
-                    </option>
-                  ))}
+                  {labs.length === 0 ? (
+                    <option value="" disabled>No approved diagnostic labs available</option>
+                  ) : (
+                    labs.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.lab_name} {l.address ? `— ${l.address.slice(0, 45)}...` : ""}
+                      </option>
+                    ))
+                  )}
                 </select>
               )}
             </div>

@@ -1,5 +1,7 @@
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseClient";
+import sql from "@/lib/db";
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(req) {
   try {
@@ -10,13 +12,15 @@ export async function GET(req) {
       return failure("Missing user_id", null, 400);
     }
 
-    const { data: dbOrders, error } = await supabase
-      .from('medicine_orders')
-      .select('*')
-      .eq('patient_id', user_id)
-      .order('created_at', { ascending: false });
-      
-    if (error) throw error;
+    if (!UUID_REGEX.test(user_id)) {
+      return success("Orders fetched successfully", [], 200);
+    }
+
+    const dbOrders = await sql`
+      SELECT * FROM medicine_orders
+      WHERE patient_id = ${user_id}
+      ORDER BY created_at DESC
+    `;
 
     const formattedOrders = (dbOrders || []).map(o => ({
       id: o.id,

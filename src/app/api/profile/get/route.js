@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { resolveCallerFromRequest } from "@/lib/layer1/authGuard";
@@ -23,13 +23,13 @@ export async function POST(req) {
     }
 
     // 🧩 Get base user
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("id, un_id, role, phone_number, profile_picture, is_verified, created_at")
-      .eq("id", user_id)
-      .maybeSingle();
+    const [user] = await sql`
+      SELECT id, un_id, role, phone_number, profile_picture, is_verified, created_at
+      FROM users
+      WHERE id = ${user_id}
+      LIMIT 1
+    `;
 
-    if (userError) throw userError;
     if (!user)
       return failure("User not found.", null, 404, { headers: corsHeaders });
 
@@ -49,13 +49,11 @@ export async function POST(req) {
       });
 
     // 🧩 Fetch role details
-    const { data: details, error: detailsError } = await supabase
-      .from(table)
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
+    const [details] = await sql.unsafe(
+      `SELECT * FROM ${table} WHERE id = $1 LIMIT 1`,
+      [user.id]
+    );
 
-    if (detailsError) throw detailsError;
     if (!details)
       return failure("Profile details not found.", null, 404, { headers: corsHeaders });
 

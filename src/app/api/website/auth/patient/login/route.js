@@ -1,7 +1,8 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { sendOTPViaGateway } from "@/lib/sms";
+import { sendEmailOTP, generateNumericOTP } from "@/lib/emailOtp";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -15,10 +16,8 @@ export async function POST(req) {
       return failure("Phone number or email is required.", null, 400, { headers: corsHeaders });
     }
 
-    let query = supabase
-      .from("users")
-      .select("id, role, phone_number, is_verified")
-      .in("role", ["patient", "chemist", "lab"]);
+    let user = null;
+    let recipientName = "User";
 
     if (phone_number) {
       const digitsOnly = String(phone_number).replace(/\D/g, "");
@@ -29,69 +28,136 @@ export async function POST(req) {
       if (cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
         return failure("Please enter a valid 10-digit mobile number.", null, 400, { headers: corsHeaders });
       }
-      query = query.like("phone_number", `%${cleanPhone}%`);
+
+      const users = await sql`
+        SELECT id, role, phone_number, is_verified 
+        FROM users 
+        WHERE phone_number LIKE ${'%' + cleanPhone + '%'}
+          AND role IN ('patient', 'chemist', 'lab', 'doctor')
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `;
+      user = users[0];
     } else if (email) {
-      const { data: patientDetails, error: detailsError } = await supabase
-        .from("patient_details")
-        .select("id")
-        .eq("email", email)
-        .maybeSingle();
+      const cleanEmail = String(email).trim().toLowerCase();
+      
+      // 1. Check patient_details
+      const pts = await sql`
+        SELECT pd.id, pd.full_name, pd.email, u.role, u.phone_number, u.is_verified
+        FROM patient_details pd
+        JOIN users u ON u.id = pd.id
+        WHERE LOWER(pd.email) = ${cleanEmail}
+        LIMIT 1
+      `;
 
-      if (detailsError) throw detailsError;
-      if (!patientDetails) {
-        return failure("Patient not found with this email.", null, 404, { headers: corsHeaders });
+      if (pts.length > 0) {
+        user = pts[0];
+        recipientName = pts[0].full_name || "Patient";
+      } else {
+        // 2. Check doctor_details
+        const docs = await sql`
+          SELECT dd.id, dd.full_name, dd.email, u.role, u.phone_number, u.is_verified
+          FROM doctor_details dd
+          JOIN users u ON u.id = dd.id
+          WHERE LOWER(dd.email) = ${cleanEmail}
+          LIMIT 1
+        `;
+        if (docs.length > 0) {
+          user = docs[0];
+          recipientName = docs[0].full_name || "Doctor";
+        } else {
+          // 3. Check chemist_details or lab_details
+          const chemists = await sql`
+            SELECT cd.id, cd.pharmacy_name as full_name, cd.email, u.role, u.phone_number, u.is_verified
+            FROM chemist_details cd
+            JOIN users u ON u.id = cd.id
+            WHERE LOWER(cd.email) = ${cleanEmail}
+            LIMIT 1
+          `;
+          if (chemists.length > 0) {
+            user = chemists[0];
+            recipientName = chemists[0].full_name || "Chemist";
+          } else {
+            const labs = await sql`
+              SELECT ld.id, ld.lab_name as full_name, ld.email, u.role, u.phone_number, u.is_verified
+              FROM lab_details ld
+              JOIN users u ON u.id = ld.id
+              WHERE LOWER(ld.email) = ${cleanEmail}
+              LIMIT 1
+            `;
+            if (labs.length > 0) {
+              user = labs[0];
+              recipientName = labs[0].full_name || "Lab";
+            }
+          }
+        }
       }
-
-      query = query.eq("id", patientDetails.id);
     }
 
-    const { data: user, error } = await query.maybeSingle();
-
-    if (error) throw error;
     if (!user) {
-      return failure("No patient account found with this phone number. Please register first.", null, 404, { headers: corsHeaders });
+      return failure(
+        email 
+          ? "No account found with this email address. Please register first." 
+          : "No patient account found with this phone number. Please register first.",
+        null, 
+        404, 
+        { headers: corsHeaders }
+      );
     }
 
     // Auto-provision patient_details record for chemist or lab to enable doctor consultation
     if (user.role === "chemist" || user.role === "lab") {
-      const { data: existingPt } = await supabase
-        .from("patient_details")
-        .select("id")
-        .eq("id", user.id)
-        .maybeSingle();
+      const existingPt = await sql`
+        SELECT id FROM patient_details WHERE id = ${user.id} LIMIT 1
+      `;
 
-      if (!existingPt) {
+      if (existingPt.length === 0) {
         let defaultName = user.role === "chemist" ? "Chemist User" : "Lab User";
         if (user.role === "chemist") {
-          const { data: ch } = await supabase.from("chemist_details").select("pharmacy_name").eq("id", user.id).maybeSingle();
-          if (ch?.pharmacy_name) defaultName = `${ch.pharmacy_name} (Chemist)`;
+          const ch = await sql`SELECT pharmacy_name FROM chemist_details WHERE id = ${user.id} LIMIT 1`;
+          if (ch[0]?.pharmacy_name) defaultName = `${ch[0].pharmacy_name} (Chemist)`;
         } else if (user.role === "lab") {
-          const { data: lb } = await supabase.from("lab_details").select("lab_name").eq("id", user.id).maybeSingle();
-          if (lb?.lab_name) defaultName = `${lb.lab_name} (Lab)`;
+          const lb = await sql`SELECT lab_name FROM lab_details WHERE id = ${user.id} LIMIT 1`;
+          if (lb[0]?.lab_name) defaultName = `${lb[0].lab_name} (Lab)`;
         }
 
-        await supabase.from("patient_details").insert({
-          id: user.id,
-          full_name: defaultName,
-          gender: "other",
-          created_at: new Date(),
-          updated_at: new Date(),
-        });
+        await sql`
+          INSERT INTO patient_details (id, full_name, gender, created_at, updated_at)
+          VALUES (${user.id}, ${defaultName}, 'other', NOW(), NOW())
+          ON CONFLICT (id) DO NOTHING
+        `;
       }
     }
 
-    // Send real OTP via gateway if phone_number is provided
+    // Send real OTP
     if (phone_number) {
       await sendOTPViaGateway(user.id, phone_number);
     } else {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-      const { error: updateError } = await supabase
-        .from("users")
-        .update({ otp_code: otp, otp_expires_at: expiresAt })
-        .eq("id", user.id);
+      const otp = generateNumericOTP(6);
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-      if (updateError) throw updateError;
+      // Store in AWS RDS PostgreSQL
+      await sql`
+        UPDATE users
+        SET otp_code = ${otp},
+            otp_expires_at = ${expiresAt},
+            updated_at = NOW()
+        WHERE id = ${user.id}
+      `;
+
+      // Send OTP via nodemailer
+      try {
+        await sendEmailOTP({
+          toEmail: email.trim().toLowerCase(),
+          otpCode: otp,
+          recipientName,
+          purpose: "MediConnect Login",
+        });
+        console.log(`[EmailOTP] Successfully sent OTP to ${email}`);
+      } catch (mailErr) {
+        console.error("[EmailOTP] Failed to send email via SMTP:", mailErr);
+        return failure("Failed to deliver OTP email. Please try again or use phone login.", mailErr.message, 500, { headers: corsHeaders });
+      }
     }
 
     const isVerified = user.is_verified !== false;

@@ -1,9 +1,15 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function safeUuid(val) {
+  if (!val || typeof val !== "string") return null;
+  return UUID_REGEX.test(val.trim()) ? val.trim() : null;
 }
 
 /* -----------------------------------------------------
@@ -20,39 +26,33 @@ export async function GET(req) {
     const limit = Number(url.searchParams.get("limit")) || 20;
     const offset = (page - 1) * limit;
 
-    if (!chemist_id) return failure("chemist_id required");
+    const chemUuid = safeUuid(chemist_id);
+    if (!chemUuid) return failure("valid chemist_id required", null, 400, { headers: corsHeaders });
 
-    // Main query with JOINS
-    let q = supabase
-      .from("chemist_stock_logs")
-      .select(
-        `
-          *,
-          medicine:chemist_medicines (
-            id,
-            name,
-            brand,
-            strength,
-            type
-          ),
-          batch:chemist_inventory_batches (
-            id,
-            batch_no,
-            expiry_date
-          )
-        `,
-        { count: "exact" }
-      )
-      .eq("chemist_id", chemist_id)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+    const conditions = [sql`l.chemist_id = ${chemUuid}`];
+    if (safeUuid(medicine_id)) conditions.push(sql`l.medicine_id = ${safeUuid(medicine_id)}`);
+    if (safeUuid(batch_id)) conditions.push(sql`l.batch_id = ${safeUuid(batch_id)}`);
+    if (change_type) conditions.push(sql`l.change_type = ${change_type}`);
 
-    if (medicine_id) q = q.eq("medicine_id", medicine_id);
-    if (batch_id) q = q.eq("batch_id", batch_id);
-    if (change_type) q = q.eq("change_type", change_type);
+    const whereClause = sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`;
 
-    const { data, error, count } = await q;
-    if (error) throw error;
+    const [countRes, logs] = await Promise.all([
+      sql`SELECT count(*)::int as count FROM chemist_stock_logs l ${whereClause}`,
+      sql`
+        SELECT 
+          l.*,
+          json_build_object('id', m.id, 'name', m.name, 'brand', m.brand, 'strength', m.strength, 'type', m.type) as medicine,
+          json_build_object('id', b.id, 'batch_no', b.batch_no, 'expiry_date', b.expiry_date) as batch
+        FROM chemist_stock_logs l
+        LEFT JOIN chemist_medicines m ON m.id = l.medicine_id
+        LEFT JOIN chemist_inventory_batches b ON b.id = l.batch_id
+        ${whereClause}
+        ORDER BY l.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `
+    ]);
+
+    const count = countRes[0]?.count || 0;
 
     return success("Logs loaded", {
       pagination: {
@@ -61,10 +61,11 @@ export async function GET(req) {
         total: count,
         total_pages: Math.ceil(count / limit),
       },
-      logs: data,
-    });
+      logs,
+    }, 200, { headers: corsHeaders });
   } catch (err) {
-    return failure("Failed to fetch logs", err.message);
+    console.error("GET chemist logs error:", err);
+    return failure("Failed to fetch logs", err.message, 500, { headers: corsHeaders });
   }
 }
 
@@ -75,25 +76,23 @@ export async function POST(req) {
   try {
     const body = await req.json();
 
-    if (
-      !body.chemist_id ||
-      !body.medicine_id ||
-      !body.change_type ||
-      typeof body.qty_changed !== "number"
-    ) {
-      return failure("Required fields missing");
+    const chemUuid = safeUuid(body.chemist_id);
+    const medUuid = safeUuid(body.medicine_id);
+    const batchUuid = safeUuid(body.batch_id);
+
+    if (!chemUuid || !medUuid || !body.change_type || typeof body.qty_changed !== "number") {
+      return failure("Required fields missing", null, 400, { headers: corsHeaders });
     }
 
-    const { data, error } = await supabase
-      .from("chemist_stock_logs")
-      .insert(body)
-      .select()
-      .single();
+    const [data] = await sql`
+      INSERT INTO chemist_stock_logs (chemist_id, medicine_id, batch_id, change_type, qty_changed, reason, created_at)
+      VALUES (${chemUuid}, ${medUuid}, ${batchUuid}, ${body.change_type}, ${body.qty_changed}, ${body.reason || null}, NOW())
+      RETURNING *
+    `;
 
-    if (error) throw error;
-
-    return success("Log created", { log: data });
+    return success("Log created", { log: data }, 200, { headers: corsHeaders });
   } catch (err) {
-    return failure("Failed to create log", err.message);
+    console.error("POST chemist logs error:", err);
+    return failure("Failed to create log", err.message, 500, { headers: corsHeaders });
   }
 }

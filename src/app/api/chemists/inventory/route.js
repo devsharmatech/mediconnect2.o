@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -6,8 +6,14 @@ export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function safeUuid(val) {
+  if (!val || typeof val !== "string") return null;
+  return UUID_REGEX.test(val.trim()) ? val.trim() : null;
+}
+
 /* -----------------------------------------------------
-    GET → INVENTORY LIST (GENERATED FROM BATCHES)
+    GET → INVENTORY LIST (AGGREGATED FROM BATCHES)
 ----------------------------------------------------- */
 export async function GET(req) {
   try {
@@ -18,27 +24,42 @@ export async function GET(req) {
     const limit = Number(url.searchParams.get("limit")) || 10;
     const offset = (page - 1) * limit;
 
-    if (!chemist_id) return failure("chemist_id is required");
+    const chemUuid = safeUuid(chemist_id);
+    if (!chemUuid) return failure("valid chemist_id is required", null, 400, { headers: corsHeaders });
 
-    // Step 1: Select total stock per medicine
-    const { data: inventory, error } = await supabase
-      .rpc("chemist_inventory_view", {
-        chemist_id_input: chemist_id,
-        search_input: search,
-        offset_input: offset,
-        limit_input: limit
-      });
+    const conditions = [sql`m.chemist_id = ${chemUuid}`];
+    if (search) {
+      conditions.push(sql`m.name ILIKE ${'%' + search + '%'}`);
+    }
 
-    if (error) throw error;
+    const whereClause = sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`;
 
-    // Step 2: Count total items
-    const { count, error: countErr } = await supabase
-      .from("chemist_medicines")
-      .select("*", { count: "exact", head: true })
-      .eq("chemist_id", chemist_id)
-      .ilike("name", `%${search}%`);
+    const [countRes, inventory] = await Promise.all([
+      sql`SELECT count(*)::int as count FROM chemist_medicines m ${whereClause}`,
+      sql`
+        SELECT 
+          m.id,
+          m.name,
+          m.brand,
+          m.category,
+          m.strength,
+          m.type,
+          m.description,
+          COALESCE(SUM(b.stock_qty), 0)::int as total_stock,
+          COUNT(b.id)::int as batch_count,
+          MIN(b.expiry_date) as nearest_expiry,
+          MIN(b.selling_price) as min_price,
+          MAX(b.selling_price) as max_price
+        FROM chemist_medicines m
+        LEFT JOIN chemist_inventory_batches b ON b.medicine_id = m.id AND b.chemist_id = m.chemist_id
+        ${whereClause}
+        GROUP BY m.id
+        ORDER BY m.name ASC
+        LIMIT ${limit} OFFSET ${offset}
+      `
+    ]);
 
-    if (countErr) throw countErr;
+    const count = countRes[0]?.count || 0;
 
     return success("Inventory loaded", {
       pagination: {
@@ -48,21 +69,19 @@ export async function GET(req) {
         total_pages: Math.ceil(count / limit),
       },
       data: inventory,
-    });
+    }, 200, { headers: corsHeaders });
   } catch (err) {
-    return failure("Failed to load inventory", err.message);
+    console.error("GET chemist inventory error:", err);
+    return failure("Failed to load inventory", err.message, 500, { headers: corsHeaders });
   }
 }
 
-/* -----------------------------------------------------
-    POST, PUT, DELETE → NOT USED FOR INVENTORY
------------------------------------------------------ */
 export function POST() {
-  return failure("Inventory can't be created manually");
+  return failure("Inventory can't be created manually", null, 400, { headers: corsHeaders });
 }
 export function PUT() {
-  return failure("Inventory can't be updated directly");
+  return failure("Inventory can't be updated directly", null, 400, { headers: corsHeaders });
 }
 export function DELETE() {
-  return failure("Inventory can't be deleted");
+  return failure("Inventory can't be deleted", null, 400, { headers: corsHeaders });
 }

@@ -1,5 +1,5 @@
-import { supabase } from "@/lib/supabaseAdmin";
-import { uploadToS3, deleteFromS3, getCloudFrontUrl, extractKeyFromUrl } from "@/lib/s3";
+import sql from "@/lib/db";
+import { uploadToS3, deleteFromS3 } from "@/lib/s3";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -33,16 +33,12 @@ export async function PUT(req) {
     }
 
     // ✅ Fetch current user data
-    const { data: userData, error: fetchError } = await supabase
-      .from("users")
-      .select("id, profile_picture, role")
-      .eq("id", user_id)
-      .maybeSingle();
-
-    if (fetchError) {
-      console.error("Error fetching user:", fetchError);
-      return failure("Unable to fetch user details.", fetchError.message, 500, { headers: corsHeaders });
-    }
+    const [userData] = await sql`
+      SELECT id, profile_picture, role
+      FROM users
+      WHERE id = ${user_id}
+      LIMIT 1
+    `;
 
     if (!userData) {
       return failure("User not found.", null, 404, { headers: corsHeaders });
@@ -74,35 +70,25 @@ export async function PUT(req) {
       }
     }
 
-    // ✅ Update admin details table
-    const { error: adminError } = await supabase
-      .from("admin_details")
-      .update({
-        full_name,
-        email,
-        permissions: permissions ? JSON.parse(permissions) : {},
-      })
-      .eq("id", user_id);
+    const parsedPermissions = permissions ? (typeof permissions === "string" ? JSON.parse(permissions) : permissions) : {};
 
-    if (adminError) {
-      console.error("Error updating admin details:", adminError);
-      return failure("Failed to update admin profile.", adminError.message, 500, { headers: corsHeaders });
-    }
+    // ✅ Update admin details table
+    await sql`
+      INSERT INTO admin_details (id, full_name, email, permissions)
+      VALUES (${user_id}, ${full_name}, ${email}, ${sql.json(parsedPermissions)})
+      ON CONFLICT (id) DO UPDATE SET
+        full_name = EXCLUDED.full_name,
+        email = EXCLUDED.email,
+        permissions = EXCLUDED.permissions
+    `;
 
     // ✅ Update user profile picture if changed
     if (profile_picture_url !== userData.profile_picture) {
-      const { error: userUpdateError } = await supabase
-        .from("users")
-        .update({
-          profile_picture: profile_picture_url,
-          updated_at: new Date(),
-        })
-        .eq("id", user_id);
-
-      if (userUpdateError) {
-        console.error("Error updating user picture:", userUpdateError);
-        return failure("Failed to update profile picture URL.", userUpdateError.message, 500, { headers: corsHeaders });
-      }
+      await sql`
+        UPDATE users
+        SET profile_picture = ${profile_picture_url}, updated_at = NOW()
+        WHERE id = ${user_id}
+      `;
     }
 
     return success(
@@ -111,7 +97,7 @@ export async function PUT(req) {
         user_id,
         full_name,
         email,
-        permissions: permissions ? JSON.parse(permissions) : {},
+        permissions: parsedPermissions,
         profile_picture: profile_picture_url,
       },
       200,

@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -16,29 +16,19 @@ export async function POST(req) {
       });
     }
 
-    /* ---------------------------------------
-       1️⃣ FETCH CHEMIST QR DETAILS
-    --------------------------------------- */
-    const { data: chemist, error } = await supabase
-      .from("chemist_details")
-      .select(`
-        id,
-        payment_qr_url,
-        payment_qr_payload,
-        payment_qr_label
-      `)
-      .eq("id", chemist_id)
-      .single();
+    const [chemist] = await sql`
+      SELECT id, payment_qr_url, payment_qr_payload, payment_qr_label
+      FROM chemist_details
+      WHERE id = ${chemist_id}
+      LIMIT 1
+    `;
 
-    if (error || !chemist) {
+    if (!chemist) {
       return failure("Chemist not found", null, 404, {
         headers: corsHeaders,
       });
     }
 
-    /* ---------------------------------------
-       2️⃣ CHECK IF QR EXISTS
-    --------------------------------------- */
     if (!chemist.payment_qr_payload) {
       return success(
         "No saved QR found",
@@ -48,9 +38,6 @@ export async function POST(req) {
       );
     }
 
-    /* ---------------------------------------
-       3️⃣ RETURN QR DETAILS
-    --------------------------------------- */
     return success(
       "QR details fetched",
       {
