@@ -2,8 +2,10 @@
  * Admin → Staff Activity Logs
  * GET /api/admin/staff-logs — list activity logs (immutable, read-only)
  */
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
   try {
@@ -14,23 +16,30 @@ export async function GET(req) {
     const limit = parseInt(searchParams.get("limit") || "100");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    let query = supabase
-      .from("staff_activity_logs")
-      .select("*", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+    const conditions = [];
 
-    if (staffId) query = query.eq("staff_id", staffId);
-    if (action) query = query.ilike("action", `%${action}%`);
-    if (module) query = query.eq("module", module);
+    if (staffId) conditions.push(sql`staff_id = ${staffId}`);
+    if (action) conditions.push(sql`action ILIKE ${'%' + action + '%'}`);
+    if (module) conditions.push(sql`module = ${module}`);
 
-    const { data, count, error } = await query;
+    const whereClause = conditions.length > 0
+      ? sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`
+      : sql``;
 
-    if (error) {
-      return failure("Failed to fetch logs", error.message, 500);
-    }
+    const [countRes, logs] = await Promise.all([
+      sql`SELECT count(*)::int as count FROM staff_activity_logs ${whereClause}`,
+      sql`
+        SELECT * 
+        FROM staff_activity_logs 
+        ${whereClause} 
+        ORDER BY created_at DESC 
+        LIMIT ${limit} OFFSET ${offset}
+      `
+    ]);
 
-    return success("Activity logs", { logs: data || [], total: count });
+    const total = countRes[0]?.count || 0;
+
+    return success("Activity logs", { logs: logs || [], total });
   } catch (err) {
     console.error("[admin/staff-logs] Error:", err);
     return failure("Failed to fetch logs", err.message, 500);

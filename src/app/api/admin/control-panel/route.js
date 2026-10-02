@@ -1,13 +1,24 @@
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function safeUuid(val) {
+  if (!val) return null;
+  return UUID_REGEX.test(val) ? val : null;
+}
 
 /**
  * GET /api/admin/control-panel
- * Fetches current engagement and fatigue thresholds from system_config.
+ * Fetches current engagement and fatigue thresholds from system_config via AWS RDS.
  */
 export async function GET() {
     try {
-        const { data: configs } = await supabase.from("system_config").select("*");
+        const configs = await sql`
+            SELECT config_key, config_value
+            FROM system_config
+        `;
         
         const responseData = {};
         if (configs) {
@@ -36,26 +47,42 @@ export async function POST(req) {
             return failure("Missing required fields (config_key, config_value, admin_id, reason)", null, 400);
         }
 
-        // 1. Update Config
-        const { error: updateErr } = await supabase
-            .from("system_config")
-            .upsert({ 
-                config_key, 
-                config_value, 
-                updated_at: new Date().toISOString(),
-                updated_by: admin_id
-            });
+        const validAdminId = safeUuid(admin_id);
 
-        if (updateErr) throw updateErr;
+        // 1. Update Config in RDS
+        await sql`
+            INSERT INTO system_config (
+                config_key, config_value, updated_at, updated_by
+            ) VALUES (
+                ${config_key},
+                ${JSON.stringify(config_value)},
+                NOW(),
+                ${validAdminId}
+            )
+            ON CONFLICT (config_key)
+            DO UPDATE SET
+                config_value = EXCLUDED.config_value,
+                updated_at = NOW(),
+                updated_by = EXCLUDED.updated_by
+        `;
 
         // 2. Log Admin Action
-        await supabase.from("admin_action_log").insert([{
-            admin_id,
-            action_type: "UPDATE_CONFIG",
-            target_type: "SYSTEM_CONFIG",
-            target_id: null,
-            reason: `Updated ${config_key} to ${JSON.stringify(config_value)}. Reason: ${reason}`
-        }]);
+        try {
+            await sql`
+                INSERT INTO admin_action_log (
+                    admin_id, action_type, target_type, target_id, reason, created_at
+                ) VALUES (
+                    ${validAdminId},
+                    'UPDATE_CONFIG',
+                    'SYSTEM_CONFIG',
+                    null,
+                    ${`Updated ${config_key} to ${JSON.stringify(config_value)}. Reason: ${reason}`},
+                    NOW()
+                )
+            `;
+        } catch (logErr) {
+            console.warn("Failed to write to admin_action_log:", logErr.message);
+        }
 
         return success("Configuration updated and logged successfully", { config_key, config_value });
 

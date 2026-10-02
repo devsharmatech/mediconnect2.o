@@ -7,7 +7,9 @@
  */
 
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
     try {
@@ -20,46 +22,45 @@ export async function GET(req) {
         let totalCount = 0;
 
         try {
-            const { data, count, error } = await supabase
-                .from("data_access_log")
-                .select("*", { count: "exact" })
-                .order("created_at", { ascending: false })
-                .range(offset, offset + limit - 1);
+            const [countRes, logsRes] = await Promise.all([
+                sql`SELECT count(*)::int as count FROM data_access_log`,
+                sql`
+                    SELECT * 
+                    FROM data_access_log 
+                    ORDER BY created_at DESC 
+                    LIMIT ${limit} OFFSET ${offset}
+                `
+            ]);
 
-            if (!error) {
-                logs = data || [];
-                totalCount = count || 0;
+            totalCount = countRes[0]?.count || 0;
+            logs = logsRes || [];
 
-                // Fetch patient names and un_ids separately
-                if (logs.length > 0) {
-                    const patientIds = [...new Set(logs.map(l => l.patient_id).filter(Boolean))];
-                    if (patientIds.length > 0) {
-                        const [patientsRes, usersRes] = await Promise.all([
-                            supabase.from("patient_details").select("id, full_name, email").in("id", patientIds),
-                            supabase.from("users").select("id, un_id").in("id", patientIds)
-                        ]);
+            // Fetch patient names and un_ids
+            if (logs.length > 0) {
+                const patientIds = [...new Set(logs.map(l => l.patient_id).filter(Boolean))];
+                if (patientIds.length > 0) {
+                    const [patientsRes, usersRes] = await Promise.all([
+                        sql`SELECT id, full_name, email FROM patient_details WHERE id = ANY(${patientIds})`,
+                        sql`SELECT id, un_id FROM users WHERE id = ANY(${patientIds})`
+                    ]);
 
-                        const patients = patientsRes.data || [];
-                        const usersList = usersRes.data || [];
+                    const pMap = {};
+                    (patientsRes || []).forEach(p => { pMap[p.id] = p; });
 
-                        const pMap = {};
-                        patients.forEach(p => { pMap[p.id] = p; });
+                    const uMap = {};
+                    (usersRes || []).forEach(u => { uMap[u.id] = u.un_id; });
 
-                        const uMap = {};
-                        usersList.forEach(u => { uMap[u.id] = u.un_id; });
-
-                        logs.forEach(l => {
-                            const p = pMap[l.patient_id] || null;
-                            if (p) {
-                                p.un_id = uMap[l.patient_id] || null;
-                            }
-                            l.patient = p;
-                        });
-                    }
+                    logs.forEach(l => {
+                        const p = pMap[l.patient_id] ? { ...pMap[l.patient_id] } : null;
+                        if (p) {
+                            p.un_id = uMap[l.patient_id] || null;
+                        }
+                        l.patient = p;
+                    });
                 }
             }
         } catch (e) {
-            console.warn("data_access_log query failed (table may not exist yet):", e.message);
+            console.warn("data_access_log query failed (table may not exist or query error):", e.message);
         }
 
         return success("Audit logs retrieved", {

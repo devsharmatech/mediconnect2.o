@@ -1,6 +1,8 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+
+export const dynamic = 'force-dynamic';
 
 export async function OPTIONS() {
     return new Response("OK", { headers: corsHeaders });
@@ -21,21 +23,25 @@ export async function POST(req) {
         }
 
         // ── 1. Validate that the Lab exists ───────────────────────
-        const { data: lab, error: labErr } = await supabase
-            .from("lab_details")
-            .select("id, lab_name")
-            .eq("id", lab_id)
-            .single();
+        const labRows = await sql`
+            SELECT id, lab_name
+            FROM lab_details
+            WHERE id = ${lab_id}
+            LIMIT 1
+        `;
 
-        if (labErr || !lab) {
+        if (!labRows || labRows.length === 0) {
             return failure("Selected lab not found", null, 404, { headers: corsHeaders });
         }
 
+        const lab = labRows[0];
+
         // ── 2. Fetch existing categories ──────────────────────────
-        const { data: existingCategories } = await supabase
-            .from("lab_test_categories")
-            .select("id, name, slug")
-            .eq("status", true);
+        const existingCategories = await sql`
+            SELECT id, name, slug
+            FROM lab_test_categories
+            WHERE status = true
+        `;
 
         // Build a lookup map: lowercase name → category
         const categoryMap = {};
@@ -54,46 +60,46 @@ export async function POST(req) {
 
         // ── 4. Create missing categories ──────────────────────────
         if (newCategoryNames.size > 0) {
-            const newCats = [...newCategoryNames].map(name => ({
-                name: name,
-                slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
-                status: true,
-            }));
-
-            const { data: createdCats, error: catError } = await supabase
-                .from("lab_test_categories")
-                .upsert(newCats, { onConflict: "slug", ignoreDuplicates: true })
-                .select("id, name, slug");
-
-            if (catError) {
-                console.error("Error creating categories:", catError);
+            for (const name of newCategoryNames) {
+                const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+                try {
+                    const inserted = await sql`
+                        INSERT INTO lab_test_categories (name, slug, status, created_at, updated_at)
+                        VALUES (${name}, ${slug}, true, NOW(), NOW())
+                        ON CONFLICT (slug) DO NOTHING
+                        RETURNING id, name, slug
+                    `;
+                    if (inserted.length > 0) {
+                        categoryMap[name.toLowerCase()] = inserted[0];
+                    }
+                } catch (catErr) {
+                    console.error("Error creating category:", name, catErr.message);
+                }
             }
 
-            (createdCats || []).forEach(cat => {
-                categoryMap[cat.name.toLowerCase()] = cat;
-            });
-
-            // Re-fetch for any that already existed with that slug
-            if (createdCats && createdCats.length < newCategoryNames.size) {
-                const slugs = [...newCategoryNames].map(n => n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""));
-                const { data: refetched } = await supabase
-                    .from("lab_test_categories")
-                    .select("id, name, slug")
-                    .in("slug", slugs);
-                (refetched || []).forEach(cat => {
+            // Refetch any category not yet mapped
+            const unmapped = [...newCategoryNames].filter(n => !categoryMap[n.toLowerCase()]);
+            if (unmapped.length > 0) {
+                const slugs = unmapped.map(n => n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""));
+                const refetched = await sql`
+                    SELECT id, name, slug
+                    FROM lab_test_categories
+                    WHERE slug = ANY(${slugs})
+                `;
+                refetched.forEach(cat => {
                     categoryMap[cat.name.toLowerCase()] = cat;
                 });
             }
         }
 
         // ── 5. Get the latest MGR code for this lab ───────────────
-        const { data: latestTest } = await supabase
-            .from("lab_tests")
-            .select("test_code")
-            .eq("lab_id", lab_id)
-            .like("test_code", "%MGR%")
-            .order("created_at", { ascending: false })
-            .limit(1);
+        const latestTest = await sql`
+            SELECT test_code
+            FROM lab_tests
+            WHERE lab_id = ${lab_id} AND test_code LIKE '%MGR%'
+            ORDER BY created_at DESC
+            LIMIT 1
+        `;
 
         let nextNumber = 1;
         if (latestTest && latestTest.length > 0 && latestTest[0].test_code) {
@@ -163,35 +169,38 @@ export async function POST(req) {
             return failure("No valid tests to import. All rows had errors.", errors, 400, { headers: corsHeaders });
         }
 
-        // ── 7. Insert tests in batches of 500 if large ─────────────
+        // ── 7. Insert tests in batches of 500 ─────────────
         const batchSize = 500;
         let totalInserted = 0;
         const insertedData = [];
 
         for (let i = 0; i < insertRows.length; i += batchSize) {
             const batch = insertRows.slice(i, i + batchSize);
-            const { data, error } = await supabase
-                .from("lab_tests")
-                .insert(batch)
-                .select("id, test_code, test_name, price, collection_type");
-
-            if (error) throw error;
-            totalInserted += (data || []).length;
-            if (data) insertedData.push(...data);
+            const inserted = await sql`
+                INSERT INTO lab_tests ${sql(batch)}
+                RETURNING id, test_code, test_name, price, collection_type
+            `;
+            totalInserted += inserted.length;
+            insertedData.push(...inserted);
         }
 
         // ── 8. Log the admin activity ─────────────────────────────
         try {
-            await supabase.from("lab_activity_logs").insert({
-                lab_id,
-                action: "ADMIN_BULK_UPLOAD_TESTS",
-                details: {
-                    count: totalInserted,
-                    skipped: errors.length,
-                    new_categories: [...newCategoryNames],
-                    timestamp: new Date().toISOString(),
-                },
-            });
+            await sql`
+                INSERT INTO lab_activity_logs (
+                    lab_id, action, details, created_at
+                ) VALUES (
+                    ${lab_id},
+                    'ADMIN_BULK_UPLOAD_TESTS',
+                    ${JSON.stringify({
+                        count: totalInserted,
+                        skipped: errors.length,
+                        new_categories: [...newCategoryNames],
+                        timestamp: new Date().toISOString(),
+                    })},
+                    NOW()
+                )
+            `;
         } catch (logErr) {
             console.warn("Lab activity log warning:", logErr?.message);
         }

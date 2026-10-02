@@ -1,8 +1,10 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import Papa from "papaparse";
 import { resolveCallerFromRequest } from "@/lib/layer1/authGuard";
+
+export const dynamic = 'force-dynamic';
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -27,7 +29,7 @@ export async function POST(req) {
       );
     }
 
-    // Mandatory Layer-111 Cryptographic Session Privilege Validation (Gap 2.3 Remediation)
+    // Mandatory Layer-111 Cryptographic Session Privilege Validation
     const adminUser = await resolveCallerFromRequest(req);
     if (!adminUser || adminUser.role !== "admin") {
       return failure(
@@ -38,47 +40,41 @@ export async function POST(req) {
       );
     }
 
-    const executingAdminId = adminUser.id || admin_id;
+    const rawAdminId = adminUser.id || admin_id;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const executingAdminId = uuidRegex.test(rawAdminId) ? rawAdminId : "00000000-0000-0000-0000-000000000000";
 
-    // 2. Fetch Data
-    let query = supabase
-      .from("users")
-      .select(`
-        id,
-        phone_number,
-        status,
-        created_at,
-        doctor_details (
-          full_name,
-          email,
-          specialization,
-          license_number,
-          clinic_name,
-          clinic_address,
-          experience_years,
-          consultation_fee,
-          onboarding_status,
-          rating,
-          total_reviews,
-          dmc_mci_certificate,
-          aadhaar_pan_license,
-          address_proof,
-          passport_photo,
-          signature_url,
-          clinic_photos,
-          kyc_data,
-          meta
-        )
-      `)
-      .eq("role", "doctor");
-
+    // 2. Fetch Data from RDS PostgreSQL
+    let doctors;
     if (ids !== "all" && Array.isArray(ids) && ids.length > 0) {
-      query = query.in("id", ids);
+      doctors = await sql`
+        SELECT 
+          u.id, u.phone_number, u.status, u.created_at,
+          d.full_name, d.email, d.specialization, d.license_number, d.clinic_name,
+          d.clinic_address, d.experience_years, d.consultation_fee, d.onboarding_status,
+          d.rating, d.total_reviews, d.dmc_mci_certificate, d.aadhaar_pan_license,
+          d.address_proof, d.passport_photo, d.signature_url, d.clinic_photos,
+          d.kyc_data, d.meta
+        FROM users u
+        LEFT JOIN doctor_details d ON u.id = d.id
+        WHERE u.role = 'doctor' AND u.id = ANY(${ids})
+        ORDER BY u.created_at DESC
+      `;
+    } else {
+      doctors = await sql`
+        SELECT 
+          u.id, u.phone_number, u.status, u.created_at,
+          d.full_name, d.email, d.specialization, d.license_number, d.clinic_name,
+          d.clinic_address, d.experience_years, d.consultation_fee, d.onboarding_status,
+          d.rating, d.total_reviews, d.dmc_mci_certificate, d.aadhaar_pan_license,
+          d.address_proof, d.passport_photo, d.signature_url, d.clinic_photos,
+          d.kyc_data, d.meta
+        FROM users u
+        LEFT JOIN doctor_details d ON u.id = d.id
+        WHERE u.role = 'doctor'
+        ORDER BY u.created_at DESC
+      `;
     }
-
-    const { data: doctors, error: fetchErr } = await query;
-
-    if (fetchErr) throw fetchErr;
 
     if (!doctors || doctors.length === 0) {
       return failure("No doctor records found to export.", null, 404, {
@@ -86,7 +82,7 @@ export async function POST(req) {
       });
     }
 
-    // Helper to handle potential array fields in CSV
+    // Helper to handle potential array/object fields in CSV
     const formatValue = (val) => {
       if (Array.isArray(val)) return val.join(" ; ");
       if (typeof val === 'object' && val !== null) return JSON.stringify(val);
@@ -96,43 +92,50 @@ export async function POST(req) {
     // 3. Flatten Data for Export
     const flattenedData = doctors.map((d) => ({
       ID: d.id,
-      FullName: d.doctor_details?.full_name || "N/A",
-      Email: d.doctor_details?.email || "N/A",
+      FullName: d.full_name || "N/A",
+      Email: d.email || "N/A",
       Phone: d.phone_number || "N/A",
-      Specialization: formatValue(d.doctor_details?.specialization),
-      LicenseNumber: d.doctor_details?.license_number || "N/A",
-      ClinicName: d.doctor_details?.clinic_name || "N/A",
-      ClinicAddress: d.doctor_details?.clinic_address || "N/A",
-      Experience: `${d.doctor_details?.experience_years || 0} years`,
-      Fee: d.doctor_details?.consultation_fee || 0,
+      Specialization: formatValue(d.specialization),
+      LicenseNumber: d.license_number || "N/A",
+      ClinicName: d.clinic_name || "N/A",
+      ClinicAddress: d.clinic_address || "N/A",
+      Experience: `${d.experience_years || 0} years`,
+      Fee: d.consultation_fee || 0,
       Status: d.status === 1 ? "Active" : "Inactive",
-      Onboarding: d.doctor_details?.onboarding_status || "pending",
-      Rating: d.doctor_details?.rating || 0,
-      Reviews: d.doctor_details?.total_reviews || 0,
+      Onboarding: d.onboarding_status || "pending",
+      Rating: d.rating || 0,
+      Reviews: d.total_reviews || 0,
       JoinedAt: new Date(d.created_at).toLocaleDateString(),
       // Documents & Images
-      MCICertificate: formatValue(d.doctor_details?.dmc_mci_certificate),
-      IDProof: formatValue(d.doctor_details?.aadhaar_pan_license),
-      AddressProof: formatValue(d.doctor_details?.address_proof),
-      PassportPhoto: formatValue(d.doctor_details?.passport_photo),
-      Signature: formatValue(d.doctor_details?.signature_url),
-      ClinicPhotos: formatValue(d.doctor_details?.clinic_photos),
-      KYC_Data: formatValue(d.doctor_details?.kyc_data),
-      Meta: formatValue(d.doctor_details?.meta)
+      MCICertificate: formatValue(d.dmc_mci_certificate),
+      IDProof: formatValue(d.aadhaar_pan_license),
+      AddressProof: formatValue(d.address_proof),
+      PassportPhoto: formatValue(d.passport_photo),
+      Signature: formatValue(d.signature_url),
+      ClinicPhotos: formatValue(d.clinic_photos),
+      KYC_Data: formatValue(d.kyc_data),
+      Meta: formatValue(d.meta)
     }));
 
     // 4. Log the Data Access (Audit)
-    await supabase.from("data_access_log").insert({
-      action_type: `doctor_export_complete_${format}`,
-      requested_by: executingAdminId,
-      metadata: {
-        record_count: flattenedData.length,
-        export_ids: ids === "all" ? "ALL" : ids,
-        fields_included: ["profile", "documents", "images", "kyc", "meta"],
-        legal_consent_version: "DPDP_ADMIN_V1",
-        timestamp: new Date().toISOString()
-      },
-    });
+    try {
+      await sql`
+        INSERT INTO data_access_log (action_type, requested_by, metadata)
+        VALUES (
+          ${`doctor_export_complete_${format}`},
+          ${executingAdminId},
+          ${JSON.stringify({
+            record_count: flattenedData.length,
+            export_ids: ids === "all" ? "ALL" : ids,
+            fields_included: ["profile", "documents", "images", "kyc", "meta"],
+            legal_consent_version: "DPDP_ADMIN_V1",
+            timestamp: new Date().toISOString()
+          })}
+        )
+      `;
+    } catch (logErr) {
+      console.warn("Could not log data_access_log for doctor export:", logErr.message);
+    }
 
     // 5. Format and Return
     if (format === "csv") {

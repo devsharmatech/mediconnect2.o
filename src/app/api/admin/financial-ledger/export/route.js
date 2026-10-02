@@ -1,8 +1,10 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import Papa from "papaparse";
 import { resolveCallerFromRequest } from "@/lib/layer1/authGuard";
+
+export const dynamic = 'force-dynamic';
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -17,7 +19,7 @@ export async function POST(req) {
     const body = await req.json();
     const { service_type, format = "csv", admin_id = "admin-system" } = body;
 
-    // 1. Cryptographic Session Privilege Validation (Layer-111 compliance)
+    // 1. Cryptographic Session Privilege Validation
     const adminUser = await resolveCallerFromRequest(req);
     const rawAdminId = adminUser?.id || admin_id || "admin-system";
     
@@ -27,30 +29,32 @@ export async function POST(req) {
       ? rawAdminId 
       : "00000000-0000-0000-0000-000000000000";
 
-    // 2. Fetch all matching ledger records (without paginated range for a complete audit dataset)
-    let query = supabase
-      .from("financial_transaction_log")
-      .select("*")
-      .order("created_at", { ascending: false });
+    // 2. Fetch all matching ledger records
+    const logs = service_type
+      ? await sql`
+          SELECT * 
+          FROM financial_transaction_log 
+          WHERE service_type = ${service_type}
+          ORDER BY created_at DESC
+        `
+      : await sql`
+          SELECT * 
+          FROM financial_transaction_log 
+          ORDER BY created_at DESC
+        `;
 
-    if (service_type) {
-      query = query.eq("service_type", service_type);
-    }
-
-    const { data: logs, error: fetchErr } = await query;
-    if (fetchErr) throw fetchErr;
-
-    // 3. Batch query patient details to avoid N+1 issues and merge them safely
+    // 3. Batch query patient details
     if (logs && logs.length > 0) {
       const patientIds = [...new Set(logs.map((l) => l.patient_id).filter(Boolean))];
       if (patientIds.length > 0) {
-        const { data: patientDetails } = await supabase
-          .from("patient_details")
-          .select("id, full_name")
-          .in("id", patientIds);
+        const patientDetails = await sql`
+          SELECT id, full_name 
+          FROM patient_details 
+          WHERE id = ANY(${patientIds})
+        `;
 
         const pMap = {};
-        patientDetails?.forEach((p) => {
+        patientDetails.forEach((p) => {
           pMap[p.id] = p;
         });
 
@@ -76,15 +80,18 @@ export async function POST(req) {
 
     // 5. Compliance Auditing - Insert entry into DPDP-compliant data_access_log
     try {
-      await supabase.from("data_access_log").insert({
-        action_type: `ledger_export_${format}`,
-        requested_by: executingAdminId,
-        metadata: {
-          record_count: formattedData.length,
-          filter_service_type: service_type || "ALL",
-          timestamp: new Date().toISOString()
-        },
-      });
+      await sql`
+        INSERT INTO data_access_log (action_type, requested_by, metadata)
+        VALUES (
+          ${`ledger_export_${format}`},
+          ${executingAdminId},
+          ${JSON.stringify({
+            record_count: formattedData.length,
+            filter_service_type: service_type || "ALL",
+            timestamp: new Date().toISOString()
+          })}
+        )
+      `;
     } catch (auditErr) {
       console.warn("Failed to write to compliance data_access_log:", auditErr.message);
     }

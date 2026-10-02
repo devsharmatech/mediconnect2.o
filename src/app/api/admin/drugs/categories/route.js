@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { logAudit } from "@/lib/layer1/auditLogger";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
     try {
-        const { data, error } = await supabase
-            .from("drug_categories")
-            .select("*")
-            .order("name");
-        if (error) throw error;
+        const data = await sql`
+            SELECT * 
+            FROM drug_categories 
+            ORDER BY name ASC
+        `;
         return NextResponse.json({ success: true, data }, { status: 200 });
     } catch (err) {
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -20,13 +22,17 @@ export async function POST(req) {
         const body = await req.json();
         const { name, description, admin_id } = body;
 
-        const { data, error } = await supabase
-            .from("drug_categories")
-            .insert({ name, description })
-            .select()
-            .single();
+        if (!name || !name.trim()) {
+            return NextResponse.json({ success: false, error: "Category name is required" }, { status: 400 });
+        }
 
-        if (error) throw error;
+        const rows = await sql`
+            INSERT INTO drug_categories (name, description, created_at, updated_at)
+            VALUES (${name.trim()}, ${description || null}, NOW(), NOW())
+            RETURNING *
+        `;
+
+        const data = rows[0];
 
         await logAudit({
             entity_type: "drug_categories",
@@ -48,16 +54,28 @@ export async function PATCH(req) {
         const body = await req.json();
         const { id, name, description, admin_id } = body;
 
-        const { data: old } = await supabase.from("drug_categories").select("*").eq("id", id).single();
+        if (!id) {
+            return NextResponse.json({ success: false, error: "id is required" }, { status: 400 });
+        }
 
-        const { data, error } = await supabase
-            .from("drug_categories")
-            .update({ name, description, updated_at: new Date().toISOString() })
-            .eq("id", id)
-            .select()
-            .single();
+        const oldRows = await sql`SELECT * FROM drug_categories WHERE id = ${id} LIMIT 1`;
+        if (oldRows.length === 0) {
+            return NextResponse.json({ success: false, error: "Category not found" }, { status: 404 });
+        }
+        const old = oldRows[0];
 
-        if (error) throw error;
+        const updates = { updated_at: new Date().toISOString() };
+        if (name !== undefined) updates.name = name.trim();
+        if (description !== undefined) updates.description = description;
+
+        const updatedRows = await sql`
+            UPDATE drug_categories
+            SET ${sql(updates)}
+            WHERE id = ${id}
+            RETURNING *
+        `;
+
+        const data = updatedRows[0];
 
         await logAudit({
             entity_type: "drug_categories",
@@ -80,10 +98,17 @@ export async function DELETE(req) {
         const id = searchParams.get("id");
         const admin_id = searchParams.get("admin_id");
 
-        const { data: old } = await supabase.from("drug_categories").select("*").eq("id", id).single();
+        if (!id) {
+            return NextResponse.json({ success: false, error: "id is required" }, { status: 400 });
+        }
 
-        const { error } = await supabase.from("drug_categories").delete().eq("id", id);
-        if (error) throw error;
+        const oldRows = await sql`SELECT * FROM drug_categories WHERE id = ${id} LIMIT 1`;
+        if (oldRows.length === 0) {
+            return NextResponse.json({ success: false, error: "Category not found" }, { status: 404 });
+        }
+        const old = oldRows[0];
+
+        await sql`DELETE FROM drug_categories WHERE id = ${id}`;
 
         await logAudit({
             entity_type: "drug_categories",

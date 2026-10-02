@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
 
 export async function PATCH(request) {
   try {
@@ -14,31 +16,35 @@ export async function PATCH(request) {
     }
 
     // Get request details
-    const { data: req, error: reqErr } = await supabase
-      .from("bpl_requests")
-      .select("*")
-      .eq("id", request_id)
-      .single();
+    const existingReq = await sql`
+      SELECT * FROM bpl_requests WHERE id = ${request_id} LIMIT 1
+    `;
 
-    if (reqErr) throw reqErr;
+    if (!existingReq || existingReq.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "BPL request not found" },
+        { status: 404 }
+      );
+    }
+
+    const bplReq = existingReq[0];
 
     // Update request status
-    const { error: updateErr } = await supabase
-      .from("bpl_requests")
-      .update({ status })
-      .eq("id", request_id);
+    await sql`
+      UPDATE bpl_requests 
+      SET status = ${status} 
+      WHERE id = ${request_id}
+    `;
 
-    if (updateErr) throw updateErr;
-
-    // Update is_bpl in patient_details
+    // Update is_bpl in patient_details if user_id exists
     const is_bpl = status === "approved";
-
-    const { error: pdErr } = await supabase
-      .from("patient_details")
-      .update({ is_bpl })
-      .eq("id", req.user_id);
-
-    if (pdErr) throw pdErr;
+    if (bplReq.user_id) {
+      await sql`
+        UPDATE patient_details 
+        SET is_bpl = ${is_bpl} 
+        WHERE id = ${bplReq.user_id}
+      `;
+    }
 
     return NextResponse.json({
       success: true,

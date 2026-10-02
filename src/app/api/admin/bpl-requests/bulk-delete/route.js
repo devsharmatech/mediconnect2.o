@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
@@ -12,12 +14,10 @@ export async function POST(request) {
       );
     }
 
-    const { data, error } = await supabase
-      .from("bpl_requests")
-      .delete()
-      .in("id", ids);
-
-    if (error) throw error;
+    await sql`
+      DELETE FROM bpl_requests
+      WHERE id = ANY(${ids})
+    `;
 
     return NextResponse.json({
       success: true,

@@ -1,22 +1,22 @@
 /**
  * LAYER-1: Audit Logger
  * 
- * Immutable state change tracker for compliance and traceability.
+ * Immutable state change tracker for compliance and traceability using AWS RDS PostgreSQL.
  * Used for: status changes, overrides, financial actions, admin actions.
- * Insert-only — no updates, no deletes (enforced by DB trigger).
+ * Insert-only — no updates, no deletes.
  */
 
-import { supabase } from "../supabaseAdmin";
+import sql from "@/lib/db";
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function safeUuid(val) {
+  if (!val) return null;
+  return UUID_REGEX.test(val) ? val : null;
+}
 
 /**
  * Log an audit entry
- * @param {object} params
- * @param {string} params.entity_type - consultation | appointment | lab_order | nursing_lead | financial | user
- * @param {string} params.entity_id - UUID of the entity
- * @param {object} [params.previous_state] - snapshot of state before change
- * @param {object} [params.new_state] - snapshot of state after change
- * @param {string} [params.change_description] - human-readable summary
- * @param {string} [params.changed_by] - UUID of user who made the change
  */
 export async function logAudit({
     entity_type,
@@ -27,52 +27,68 @@ export async function logAudit({
     changed_by = null,
 }) {
     try {
-        const { error } = await supabase
-            .from("audit_log")
-            .insert({
+        const cleanEntityId = safeUuid(entity_id);
+        const cleanChangedBy = safeUuid(changed_by);
+
+        await sql`
+            INSERT INTO audit_log (
                 entity_type,
                 entity_id,
                 previous_state,
                 new_state,
                 change_description,
                 changed_by,
-            });
-
-        if (error) {
-            console.error("Audit log insert error:", error);
-        }
+                changed_at
+            ) VALUES (
+                ${entity_type || 'unknown'},
+                ${cleanEntityId},
+                ${previous_state ? JSON.stringify(previous_state) : null},
+                ${new_state ? JSON.stringify(new_state) : null},
+                ${change_description || null},
+                ${cleanChangedBy},
+                NOW()
+            )
+        `;
     } catch (err) {
         // Audit logging should never block the main flow
-        console.error("logAudit error:", err);
+        console.warn("logAudit error:", err.message);
     }
 }
 
 /**
  * Query audit logs for a specific entity
- * @param {object} filters - { entity_type, entity_id, changed_by, page, limit }
- * @returns {object} { success, data, pagination, error }
  */
 export async function queryAuditLogs(filters = {}) {
     try {
         const { entity_type, entity_id, changed_by, page = 1, limit = 50 } = filters;
         const offset = (page - 1) * limit;
 
-        let query = supabase
-            .from("audit_log")
-            .select("*", { count: "exact" })
-            .order("changed_at", { ascending: false })
-            .range(offset, offset + limit - 1);
+        const conditions = [];
 
-        if (entity_type) query = query.eq("entity_type", entity_type);
-        if (entity_id) query = query.eq("entity_id", entity_id);
-        if (changed_by) query = query.eq("changed_by", changed_by);
+        if (entity_type) conditions.push(sql`entity_type = ${entity_type}`);
+        if (entity_id && safeUuid(entity_id)) conditions.push(sql`entity_id = ${entity_id}`);
+        if (changed_by && safeUuid(changed_by)) conditions.push(sql`changed_by = ${changed_by}`);
 
-        const { data, count, error } = await query;
-        if (error) throw error;
+        const whereClause = conditions.length > 0
+            ? sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`
+            : sql``;
+
+        const [countRes, data] = await Promise.all([
+            sql`SELECT count(*)::int as count FROM audit_log ${whereClause}`,
+            sql`
+                SELECT * 
+                FROM audit_log 
+                ${whereClause} 
+                ORDER BY changed_at DESC 
+                LIMIT ${limit} OFFSET ${offset}
+            `
+        ]);
+
+        const count = countRes[0]?.count || 0;
 
         return {
             success: true,
-            data,
+            data: data || [],
             pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
         };
     } catch (err) {

@@ -1,9 +1,11 @@
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/readiness
- * Calculates a production readiness score based on system health, compliance, and backlog.
+ * Calculates a production readiness score based on system health, compliance, and backlog via AWS RDS.
  */
 export async function GET(req) {
     try {
@@ -15,38 +17,28 @@ export async function GET(req) {
             score: 100
         };
 
-        // 1. Check Outbox Backlog
-        const { count: pendingOutbox } = await supabase
-            .from("l1_event_outbox")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "PENDING");
-        stats.outbox_backlog = pendingOutbox || 0;
+        const [
+            [{ count: pendingOutbox }],
+            [{ count: openP1 }],
+            [{ count: consents }],
+            [{ count: activeLocks }]
+        ] = await Promise.all([
+            sql`SELECT count(*)::int as count FROM l1_event_outbox WHERE status = 'PENDING'`,
+            sql`SELECT count(*)::int as count FROM ops_incident_log WHERE priority = 'P1' AND status != 'RESOLVED'`,
+            sql`SELECT count(*)::int as count FROM consent_logs`,
+            sql`SELECT count(*)::int as count FROM idempotency_locks WHERE status = 'PROCESSING'`
+        ]);
+
+        stats.outbox_backlog = Number(pendingOutbox) || 0;
         if (stats.outbox_backlog > 50) stats.score -= 20;
 
-        // 2. Check Unresolved P1 Incidents
-        // Schema: ops_incident_log.status is TEXT ('OPEN', 'IN_PROGRESS', 'RESOLVED') — no boolean column
-        const { count: openP1 } = await supabase
-            .from("ops_incident_log")
-            .select("id", { count: "exact", head: true })
-            .eq("priority", "P1")
-            .neq("status", "RESOLVED");
-        stats.p1_incidents = openP1 || 0;
+        stats.p1_incidents = Number(openP1) || 0;
         if (stats.p1_incidents > 0) stats.score -= 40;
 
-        // 3. Check Compliance Coverage (Consent Logs)
-        const { count: consents } = await supabase
-            .from("consent_logs")
-            .select("id", { count: "exact", head: true });
-        stats.compliance_logs = consents || 0;
+        stats.compliance_logs = Number(consents) || 0;
         if (stats.compliance_logs === 0) stats.score -= 10;
 
-        // 4. Check Idempotency Health (table is idempotency_locks per phase1 schema)
-        const { count: activeLocks } = await supabase
-            .from("idempotency_locks")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "PROCESSING");
-        stats.idempotency_coverage = activeLocks || 0;
-        // Flag stale locks as a health concern
+        stats.idempotency_coverage = Number(activeLocks) || 0;
         if (stats.idempotency_coverage > 10) stats.score -= 10;
 
         // Final Assessment

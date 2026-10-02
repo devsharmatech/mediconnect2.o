@@ -3,93 +3,85 @@
  * 
  * GET /api/admin/reports/board-audit
  * 
- * Returns a high-level clinical audit summary for the medical board.
+ * Returns a high-level clinical audit summary for the medical board via AWS RDS PostgreSQL.
  * Includes: High-severity overrides, Quality trends, and Outcome metrics.
  */
 
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
     try {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const sevenDaysAgoISO = sevenDaysAgo.toISOString();
 
-        // 1. Fetch consultations with override_reason in past 7 days
+        // 1. Fetch consultations with override_reason in past 7 days joined with doctor_details
         let overrides = [];
         try {
-            const { data: overrideData, error: oErr } = await supabase
-                .from("consultations")
-                .select("id, doctor_id, patient_id, override_reason, completed_at")
-                .not("override_reason", "is", null)
-                .gte("completed_at", sevenDaysAgo.toISOString())
-                .order("completed_at", { ascending: false });
+            const overrideData = await sql`
+                SELECT 
+                    c.id, c.doctor_id, c.patient_id, c.override_reason, c.completed_at,
+                    d.full_name as doctor_name
+                FROM consultations c
+                LEFT JOIN doctor_details d ON c.doctor_id = d.id
+                WHERE c.override_reason IS NOT NULL
+                  AND c.completed_at >= ${sevenDaysAgoISO}
+                ORDER BY c.completed_at DESC
+            `;
 
-            if (!oErr && overrideData) {
-                // Fetch doctor names separately
-                const doctorIds = [...new Set(overrideData.map(o => o.doctor_id).filter(Boolean))];
-                let doctorMap = {};
-                if (doctorIds.length > 0) {
-                    const { data: doctors } = await supabase
-                        .from("doctor_details")
-                        .select("id, full_name")
-                        .in("id", doctorIds);
-                    if (doctors) {
-                        doctors.forEach(d => { doctorMap[d.id] = d.full_name; });
-                    }
-                }
-                overrides = overrideData.map(o => ({
-                    consultation_id: o.id,
-                    doctor: doctorMap[o.doctor_id] || "Unknown",
-                    reason: o.override_reason,
-                    timestamp: o.completed_at
-                }));
-            }
+            overrides = (overrideData || []).map(o => ({
+                consultation_id: o.id,
+                doctor: o.doctor_name || "Unknown",
+                reason: o.override_reason,
+                timestamp: o.completed_at
+            }));
         } catch (e) {
-            console.warn("Override query failed (column may not exist yet):", e.message);
+            console.warn("Override query failed:", e.message);
         }
 
-        // 2. Fetch quality flag summary (graceful if table missing)
+        // 2. Fetch quality flag summary
         let totalSessions = 0;
         let lowQualityCount = 0;
         try {
-            const { data: qualityData, error: qErr } = await supabase
-                .from("consultation_quality_flag")
-                .select("id, quality_level, created_at")
-                .gte("created_at", sevenDaysAgo.toISOString());
+            const qualityData = await sql`
+                SELECT id, quality_level, created_at
+                FROM consultation_quality_flag
+                WHERE created_at >= ${sevenDaysAgoISO}
+            `;
 
-            if (!qErr && qualityData) {
+            if (qualityData) {
                 totalSessions = qualityData.length;
                 lowQualityCount = qualityData.filter(q => q.quality_level === 'LOW').length;
             }
         } catch (e) {
-            console.warn("Quality flag query failed (table may not exist yet):", e.message);
+            console.warn("Quality flag query failed:", e.message);
         }
 
         // 3. Fetch Outcomes for past 7 days
         let totalOutcomes = 0;
         let improvedOutcomes = 0;
         try {
-            const { count: tCount } = await supabase
-                .from("consultation_outcome")
-                .select("id", { count: "exact", head: true })
-                .gte("reported_at", sevenDaysAgo.toISOString());
-            totalOutcomes = tCount || 0;
+            const [
+                [{ count: tCount }],
+                [{ count: iCount }]
+            ] = await Promise.all([
+                sql`SELECT count(*)::int as count FROM consultation_outcome WHERE reported_at >= ${sevenDaysAgoISO}`,
+                sql`SELECT count(*)::int as count FROM consultation_outcome WHERE improvement_status = 'better' AND reported_at >= ${sevenDaysAgoISO}`
+            ]);
 
-            const { count: iCount } = await supabase
-                .from("consultation_outcome")
-                .select("id", { count: "exact", head: true })
-                .eq("improvement_status", "better")  // lowercase — matches DB enum values
-                .gte("reported_at", sevenDaysAgo.toISOString());
-            improvedOutcomes = iCount || 0;
+            totalOutcomes = Number(tCount) || 0;
+            improvedOutcomes = Number(iCount) || 0;
         } catch (e) {
-            console.warn("Outcome query failed (table may not exist yet):", e.message);
+            console.warn("Outcome query failed:", e.message);
         }
 
         // 4. Aggregate Results
         const report = {
             period: {
-                start: sevenDaysAgo.toISOString(),
+                start: sevenDaysAgoISO,
                 end: new Date().toISOString()
             },
             safety_audit: {
@@ -118,4 +110,3 @@ export async function GET(req) {
         return failure("Internal server error", err.message, 500);
     }
 }
-

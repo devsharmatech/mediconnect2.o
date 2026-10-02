@@ -1,8 +1,9 @@
-import { supabase } from "@/lib/supabaseAdmin";
-import { uploadToS3, deleteFromS3, getCloudFrontUrl, extractKeyFromUrl } from "@/lib/s3";
+import sql from "@/lib/db";
+import { uploadToS3, deleteFromS3 } from "@/lib/s3";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
+export const dynamic = 'force-dynamic';
 export const runtime = "nodejs";
 
 export async function OPTIONS() {
@@ -22,30 +23,30 @@ export async function PUT(req, { params }) {
         const form = await req.formData();
         const name = form.get("name");
         const description = form.get("description");
-        const status = form.get("status") === "true";
-        const file = form.get("icon_file"); // Newly uploaded file, if any
+        const status = form.has("status") ? form.get("status") === "true" : null;
+        const file = form.get("icon_file");
 
         const updateData = { updated_at: new Date().toISOString() };
 
-        if (name) updateData.name = name;
+        if (name) {
+            updateData.name = name.trim();
+            updateData.slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+        }
         if (description !== null) updateData.description = description;
         if (status !== null) updateData.status = status;
 
         // Handle Image Upload if a new file is provided
         if (file && file.size > 0 && file.name) {
-            // 1. We should ideally delete the old image if there is one. We can fetch it first:
-            const { data: existingCat } = await supabase
-                .from("lab_test_categories")
-                .select("icon")
-                .eq("id", id)
-                .single();
+            const existingRows = await sql`
+                SELECT icon FROM lab_test_categories WHERE id = ${id} LIMIT 1
+            `;
+            const existingCat = existingRows[0];
 
             if (existingCat?.icon && existingCat.icon.includes("/profile-pictures/categories/")) {
                 const oldPath = existingCat.icon.split("/profile-pictures/")[1];
                 await deleteFromS3(`profile-pictures/${oldPath}`);
             }
 
-            // 2. Upload the new file
             const filename = `categories/cat_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
             const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -60,33 +61,31 @@ export async function PUT(req, { params }) {
             uploadedPath = filename;
             updateData.icon = publicUrl;
         } else if (form.has("icon")) {
-            // If no file but there's a string passed, update it (useful if clearing image or falling back to a string)
             updateData.icon = form.get("icon");
         }
 
-        const { data, error } = await supabase
-            .from("lab_test_categories")
-            .update(updateData)
-            .eq("id", id)
-            .select()
-            .single();
+        try {
+            const updatedRows = await sql`
+                UPDATE lab_test_categories
+                SET ${sql(updateData)}
+                WHERE id = ${id}
+                RETURNING *
+            `;
 
-        if (error) {
-            // rollback image if db insert fails
+            if (!updatedRows || updatedRows.length === 0) {
+                return failure("Category not found", null, 404, { headers: corsHeaders });
+            }
+
+            return success("Category updated successfully", updatedRows[0], 200, { headers: corsHeaders });
+        } catch (dbErr) {
             if (uploadedPath) {
                 await deleteFromS3(`profile-pictures/${uploadedPath}`);
             }
-            if (error.code === '23505') {
-                return failure("Category with this name already exists", error.message, 409, { headers: corsHeaders });
+            if (dbErr.code === '23505') {
+                return failure("Category with this name already exists", dbErr.message, 409, { headers: corsHeaders });
             }
-            throw error;
+            throw dbErr;
         }
-
-        if (!data) {
-            return failure("Category not found", null, 404, { headers: corsHeaders });
-        }
-
-        return success("Category updated successfully", data, 200, { headers: corsHeaders });
     } catch (error) {
         console.error("Error updating lab category:", error);
         if (uploadedPath) {
@@ -99,30 +98,26 @@ export async function PUT(req, { params }) {
 // DELETE category
 export async function DELETE(req, { params }) {
     try {
-        const { id } = params;
+        const { id } = await params;
 
         if (!id) {
             return failure("Category ID is required", null, 400, { headers: corsHeaders });
         }
 
         // Attempt to delete image if exists
-        const { data: existingCat } = await supabase
-            .from("lab_test_categories")
-            .select("icon")
-            .eq("id", id)
-            .single();
+        const existingRows = await sql`
+            SELECT icon FROM lab_test_categories WHERE id = ${id} LIMIT 1
+        `;
+        const existingCat = existingRows[0];
 
         if (existingCat?.icon && existingCat.icon.includes("/profile-pictures/categories/")) {
             const oldPath = existingCat.icon.split("/profile-pictures/")[1];
             await deleteFromS3(`profile-pictures/${oldPath}`);
         }
 
-        const { error } = await supabase
-            .from("lab_test_categories")
-            .delete()
-            .eq("id", id);
-
-        if (error) throw error;
+        await sql`
+            DELETE FROM lab_test_categories WHERE id = ${id}
+        `;
 
         return success("Category deleted successfully", null, 200, { headers: corsHeaders });
     } catch (error) {

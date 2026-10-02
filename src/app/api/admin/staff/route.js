@@ -3,9 +3,11 @@
  * GET  /api/admin/staff         — list all staff
  * POST /api/admin/staff         — create new staff
  */
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
-import { hashPassword, generateEmployeeCode, logStaffActivity } from "@/lib/staffAuth";
+import { hashPassword, generateEmployeeCode } from "@/lib/staffAuth";
+
+export const dynamic = 'force-dynamic';
 
 // GET — List all staff (with filters)
 export async function GET(req) {
@@ -18,33 +20,48 @@ export async function GET(req) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    let query = supabase
-      .from("staffs")
-      .select("*, staff_roles(id, name)", { count: "exact" })
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+    const conditions = [sql`s.deleted_at IS NULL`];
 
     if (search) {
-      query = query.or(
-        `full_name.ilike.%${search}%,email.ilike.%${search}%,employee_code.ilike.%${search}%,phone.ilike.%${search}%`
-      );
+      const pattern = `%${search}%`;
+      conditions.push(sql`(
+        s.full_name ILIKE ${pattern} OR 
+        s.email ILIKE ${pattern} OR 
+        s.employee_code ILIKE ${pattern} OR 
+        s.phone ILIKE ${pattern}
+      )`);
     }
 
-    if (status === "active") query = query.eq("is_active", true);
-    if (status === "disabled") query = query.eq("is_active", false);
-    if (designation) query = query.eq("designation", designation);
-    if (department) query = query.ilike("department", `%${department}%`);
+    if (status === "active") conditions.push(sql`s.is_active = true`);
+    if (status === "disabled") conditions.push(sql`s.is_active = false`);
+    if (designation) conditions.push(sql`s.designation = ${designation}`);
+    if (department) conditions.push(sql`s.department ILIKE ${'%' + department + '%'}`);
 
-    const { data, count, error } = await query;
+    const whereClause = sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`;
 
-    if (error) {
-      console.error("[admin/staff] list error:", error);
-      return failure("Failed to fetch staff", error.message, 500);
-    }
+    const [countRes, staffRows] = await Promise.all([
+      sql`SELECT count(*)::int as count FROM staffs s ${whereClause}`,
+      sql`
+        SELECT 
+          s.id, s.admin_id, s.full_name, s.email, s.phone, s.gender,
+          s.date_of_birth, s.address, s.designation, s.department,
+          s.employee_code, s.profile_picture, s.is_active, s.is_verified,
+          s.last_login_at, s.created_at, s.updated_at, s.deleted_at, s.role_id,
+          r.id as role_rel_id, r.name as role_rel_name
+        FROM staffs s
+        LEFT JOIN staff_roles r ON s.role_id = r.id
+        ${whereClause}
+        ORDER BY s.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `
+    ]);
 
-    // Remove password_hash from response
-    const safeData = (data || []).map(({ password_hash, ...rest }) => rest);
+    const count = countRes[0]?.count || 0;
+    const safeData = staffRows.map(row => {
+      const { role_rel_id, role_rel_name, ...staffObj } = row;
+      staffObj.staff_roles = role_rel_id ? { id: role_rel_id, name: role_rel_name } : null;
+      return staffObj;
+    });
 
     return success("Staff list", { staff: safeData, total: count });
   } catch (err) {
@@ -72,15 +89,14 @@ export async function POST(req) {
       return failure("Password must be at least 6 characters", null, 400);
     }
 
-    // Check duplicate email
-    const { data: existing } = await supabase
-      .from("staffs")
-      .select("id")
-      .eq("email", email.toLowerCase().trim())
-      .is("deleted_at", null)
-      .single();
+    const cleanEmail = email.toLowerCase().trim();
 
-    if (existing) {
+    // Check duplicate email
+    const existing = await sql`
+      SELECT id FROM staffs WHERE email = ${cleanEmail} AND deleted_at IS NULL LIMIT 1
+    `;
+
+    if (existing.length > 0) {
       return failure("A staff member with this email already exists", null, 409);
     }
 
@@ -88,37 +104,46 @@ export async function POST(req) {
     const employee_code = await generateEmployeeCode();
     const password_hash = await hashPassword(password);
 
-    const insertData = {
-      full_name: full_name.trim(),
-      email: email.toLowerCase().trim(),
-      phone: phone || null,
-      gender: gender || null,
-      date_of_birth: date_of_birth || null,
-      address: address || null,
-      designation: designation || "general",
-      department: department || null,
-      employee_code,
-      password_hash,
-      role_id: role_id || null,
-      profile_picture: profile_picture || null,
-      is_active: true,
-      is_verified: false,
-    };
+    const newRows = await sql`
+      INSERT INTO staffs (
+        full_name, email, phone, gender, date_of_birth,
+        address, designation, department, employee_code,
+        password_hash, role_id, profile_picture, is_active, is_verified
+      ) VALUES (
+        ${full_name.trim()},
+        ${cleanEmail},
+        ${phone || null},
+        ${gender || null},
+        ${date_of_birth || null},
+        ${address || null},
+        ${designation || "general"},
+        ${department || null},
+        ${employee_code},
+        ${password_hash},
+        ${role_id || null},
+        ${profile_picture || null},
+        true,
+        false
+      )
+      RETURNING *
+    `;
 
-    const { data: newStaff, error } = await supabase
-      .from("staffs")
-      .insert(insertData)
-      .select("*, staff_roles(id, name)")
-      .single();
-
-    if (error) {
-      console.error("[admin/staff] create error:", error);
-      return failure("Failed to create staff", error.message, 500);
+    if (!newRows || newRows.length === 0) {
+      return failure("Failed to create staff", null, 500);
     }
 
-    const { password_hash: _, ...safeStaff } = newStaff;
+    const createdStaff = newRows[0];
+    delete createdStaff.password_hash;
 
-    return success("Staff member created", safeStaff, 201);
+    // Attach role if exists
+    if (createdStaff.role_id) {
+      const roleRow = await sql`SELECT id, name FROM staff_roles WHERE id = ${createdStaff.role_id} LIMIT 1`;
+      createdStaff.staff_roles = roleRow[0] || null;
+    } else {
+      createdStaff.staff_roles = null;
+    }
+
+    return success("Staff member created", createdStaff, 201);
   } catch (err) {
     console.error("[admin/staff] Error:", err);
     return failure("Failed to create staff", err.message, 500);

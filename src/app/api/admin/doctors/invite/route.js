@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
-import { getAppBaseUrl } from "@/lib/utils";
 import { sendDoctorWhatsAppInvite } from "@/lib/sms";
+
+export const dynamic = 'force-dynamic';
 
 function formatDoctorName(name) {
   if (!name) return "";
@@ -15,7 +16,7 @@ function formatDoctorName(name) {
   return "Dr. " + trimmed;
 }
 
-// Configure nodemailer for synchronous sending (as requested by user)
+// Configure nodemailer for synchronous sending
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT || "465"),
@@ -38,48 +39,53 @@ export async function POST(request) {
     }
 
     // 1. Get doctor details
-    const { data: doctor, error: doctorError } = await supabase
-      .from("users")
-      .select("phone_number, role")
-      .eq("id", doctor_id)
-      .eq("role", "doctor")
-      .single();
+    const userRows = await sql`
+      SELECT id, phone_number, role
+      FROM users
+      WHERE id = ${doctor_id} AND role = 'doctor'
+      LIMIT 1
+    `;
 
-    if (doctorError || !doctor) {
+    if (!userRows || userRows.length === 0) {
       return NextResponse.json(
         { success: false, error: "Doctor not found" },
         { status: 404 }
       );
     }
 
-    const { data: details } = await supabase
-      .from("doctor_details")
-      .select("full_name, email, meta")
-      .eq("id", doctor_id)
-      .single();
+    const doctorUser = userRows[0];
 
+    const detailRows = await sql`
+      SELECT full_name, email, meta
+      FROM doctor_details
+      WHERE id = ${doctor_id}
+      LIMIT 1
+    `;
+
+    const details = detailRows[0] || null;
     const email = details?.email;
     const name = formatDoctorName(details?.full_name || "Doctor");
-    const phone = doctor.phone_number;
+    const phone = doctorUser.phone_number;
 
     if (!email) {
       return NextResponse.json(
         {
           success: false,
-          error:
-            "Doctor email not found. Please fill doctor details first.",
+          error: "Doctor email not found. Please fill doctor details first.",
         },
         { status: 400 }
       );
     }
 
     // 2. Check if a valid (non-expired) token already exists for this doctor
-    const { data: existingStatus } = await supabase
-      .from("doctor_onboarding_status")
-      .select("invitation_token, token_expires_at, status")
-      .eq("doctor_id", doctor_id)
-      .maybeSingle();
+    const statusRows = await sql`
+      SELECT invitation_token, token_expires_at, status
+      FROM doctor_onboarding_status
+      WHERE doctor_id = ${doctor_id}
+      LIMIT 1
+    `;
 
+    const existingStatus = statusRows[0] || null;
     let token;
     let expiresAt;
 
@@ -97,19 +103,21 @@ export async function POST(request) {
         Date.now() + expiry_hours * 60 * 60 * 1000
       ).toISOString();
 
-      const { error: statusError } = await supabase
-        .from("doctor_onboarding_status")
-        .upsert({
-          doctor_id: doctor_id,
-          invitation_token: token,
-          token_expires_at: expiresAt,
-          status: "PENDING",
-          otp_verified: false,
-          agreement_accepted: false,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "doctor_id" });
-
-      if (statusError) throw statusError;
+      await sql`
+        INSERT INTO doctor_onboarding_status (
+          doctor_id, invitation_token, token_expires_at, status, otp_verified, agreement_accepted, updated_at
+        ) VALUES (
+          ${doctor_id}, ${token}, ${expiresAt}, 'PENDING', false, false, NOW()
+        )
+        ON CONFLICT (doctor_id)
+        DO UPDATE SET
+          invitation_token = EXCLUDED.invitation_token,
+          token_expires_at = EXCLUDED.token_expires_at,
+          status = 'PENDING',
+          otp_verified = false,
+          agreement_accepted = false,
+          updated_at = NOW()
+      `;
     }
 
     const host = request.headers.get("host") || "localhost:3000";
@@ -167,8 +175,8 @@ export async function POST(request) {
     if (phone) {
       try {
         const waResult = await sendDoctorWhatsAppInvite(phone, name, whatsappInviteLink);
-        whatsappSent = waResult.success;
-        whatsappError = waResult.error;
+        whatsappSent = waResult?.success || false;
+        whatsappError = waResult?.error || null;
       } catch (waErr) {
         console.error("[Invite] Failed to send WhatsApp invite:", waErr.message);
         whatsappError = waErr.message;
@@ -177,7 +185,11 @@ export async function POST(request) {
 
     // 5. Log the invitation in doctor_details.meta
     try {
-      const currentMeta = details?.meta || {};
+      let currentMeta = details?.meta;
+      if (typeof currentMeta === 'string') {
+        try { currentMeta = JSON.parse(currentMeta); } catch { currentMeta = {}; }
+      }
+      currentMeta = currentMeta || {};
       const logs = Array.isArray(currentMeta.invitation_logs) ? currentMeta.invitation_logs : [];
       
       logs.push({
@@ -188,10 +200,11 @@ export async function POST(request) {
       currentMeta.invitation_logs = logs;
       currentMeta.invitation_count = logs.length;
 
-      await supabase
-        .from("doctor_details")
-        .update({ meta: currentMeta })
-        .eq("id", doctor_id);
+      await sql`
+        UPDATE doctor_details
+        SET meta = ${JSON.stringify(currentMeta)}
+        WHERE id = ${doctor_id}
+      `;
     } catch (logErr) {
       console.error("[Invite] Failed to log invitation:", logErr);
     }

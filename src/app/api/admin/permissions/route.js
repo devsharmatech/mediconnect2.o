@@ -2,20 +2,18 @@
  * Admin → Permissions Master List
  * GET /api/admin/permissions — list all available permissions (grouped by module)
  */
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const { data, error } = await supabase
-      .from("staff_permissions_master")
-      .select("*")
-      .order("module", { ascending: true })
-      .order("key", { ascending: true });
-
-    if (error) {
-      return failure("Failed to fetch permissions", error.message, 500);
-    }
+    const data = await sql`
+      SELECT * 
+      FROM staff_permissions_master 
+      ORDER BY module ASC, key ASC
+    `;
 
     // Group by module
     const grouped = {};

@@ -4,39 +4,51 @@
  * GET /api/admin/analytics/clinical-efficacy
  * 
  * Correlates initial symptoms (Baseline) with patient feedback (Outcome)
- * to demonstrate platform medical impact.
+ * to demonstrate platform medical impact via AWS RDS PostgreSQL.
  */
 
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
     try {
         const { searchParams } = new URL(req.url);
         const limit = parseInt(searchParams.get("limit") || "1000");
 
-        // 1. Fetch outcomes (simple query, no broken joins)
-        const { data: outcomes, error: outErr } = await supabase
-            .from("consultation_outcome")
-            .select("*")
-            .order("reported_at", { ascending: false })
-            .limit(limit);
+        // 1. Fetch outcomes
+        let outcomes = [];
+        try {
+            outcomes = await sql`
+                SELECT *
+                FROM consultation_outcome
+                ORDER BY reported_at DESC
+                LIMIT ${limit}
+            `;
+        } catch (outErr) {
+            console.warn("consultation_outcome fetch warning:", outErr.message);
+        }
 
-        // Graceful fallback if table doesn't exist yet
-        const data = outErr ? [] : (outcomes || []);
+        const data = outcomes || [];
 
         // 2. Fetch baselines separately for severity correlation
         let baselineMap = {};
         if (data.length > 0) {
             const consultationIds = [...new Set(data.map(d => d.consultation_id).filter(Boolean))];
             if (consultationIds.length > 0) {
-                const { data: baselines } = await supabase
-                    .from("consultation_baseline")
-                    .select("consultation_id, severity, duration")
-                    .in("consultation_id", consultationIds);
-                
-                if (baselines) {
-                    baselines.forEach(b => { baselineMap[b.consultation_id] = b; });
+                try {
+                    const baselines = await sql`
+                        SELECT consultation_id, severity, duration
+                        FROM consultation_baseline
+                        WHERE consultation_id = ANY(${consultationIds})
+                    `;
+                    
+                    if (baselines) {
+                        baselines.forEach(b => { baselineMap[b.consultation_id] = b; });
+                    }
+                } catch (bErr) {
+                    console.warn("consultation_baseline fetch warning:", bErr.message);
                 }
             }
         }
@@ -99,4 +111,3 @@ export async function GET(req) {
         return failure("Internal server error", err.message, 500);
     }
 }
-

@@ -6,8 +6,10 @@
  */
 
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { updateConsultationStatus } from "@/lib/layer1/consultationStateMachine";
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req) {
     try {
@@ -19,46 +21,50 @@ export async function POST(req) {
         }
 
         // Fetch consultation
-        let { data: consultation, error: fetchErr } = await supabase
-            .from("consultations")
-            .select("*")
-            .eq("id", consultation_id)
-            .single();
+        const consultations = await sql`
+            SELECT * FROM consultations WHERE id = ${consultation_id} LIMIT 1
+        `;
+
+        const consultation = consultations[0] || null;
 
         // If no consultation row, check if it's an appointment that hasn't started yet
-        if (fetchErr || !consultation) {
-            const { data: apt, error: aptErr } = await supabase
-                .from("appointments")
-                .select("*")
-                .eq("id", consultation_id)
-                .single();
+        if (!consultation) {
+            const appointments = await sql`
+                SELECT * FROM appointments WHERE id = ${consultation_id} LIMIT 1
+            `;
 
-            if (aptErr || !apt) {
+            const apt = appointments[0] || null;
+            if (!apt) {
                 return failure("Consultation/Appointment not found", null, 404);
             }
 
             if (action === "trigger_nudge") {
-                await supabase.from("follow_up_reminders").insert({
-                    consultation_id,
-                    reminder_type: "MANUAL_NUDGE",
-                    status: "sent",
-                    sent_at: new Date().toISOString()
-                });
+                await sql`
+                    INSERT INTO follow_up_reminders (
+                        consultation_id, reminder_type, status, sent_at
+                    ) VALUES (
+                        ${consultation_id}, 'MANUAL_NUDGE', 'sent', NOW()
+                    )
+                `;
                 return success("Manual follow-up nudge triggered for appointment");
             }
 
             if (action === "force_resolve") {
                 // Initialize consultation row directly as resolved
-                await supabase.from("consultations").insert({
-                    id: apt.id,
-                    appointment_id: apt.id,
-                    patient_id: apt.patient_id,
-                    doctor_id: apt.doctor_id,
-                    case_status: "CLOSED_RESOLVED",
-                    created_at: new Date().toISOString()
-                });
+                await sql`
+                    INSERT INTO consultations (
+                        id, appointment_id, patient_id, doctor_id, case_status, created_at
+                    ) VALUES (
+                        ${apt.id}, ${apt.id}, ${apt.patient_id}, ${apt.doctor_id}, 'CLOSED_RESOLVED', NOW()
+                    )
+                    ON CONFLICT (id)
+                    DO UPDATE SET case_status = 'CLOSED_RESOLVED', updated_at = NOW()
+                `;
+
                 // Update appointment status to completed
-                await supabase.from("appointments").update({ status: "completed" }).eq("id", apt.id);
+                await sql`
+                    UPDATE appointments SET status = 'completed' WHERE id = ${apt.id}
+                `;
                 
                 return success("Consultation manually resolved (initialized from appointment)");
             }
@@ -68,12 +74,13 @@ export async function POST(req) {
 
         if (action === "trigger_nudge") {
             // Log manual nudge activity
-            await supabase.from("follow_up_reminders").insert({
-                consultation_id,
-                reminder_type: "MANUAL_NUDGE",
-                status: "sent",
-                sent_at: new Date().toISOString()
-            });
+            await sql`
+                INSERT INTO follow_up_reminders (
+                    consultation_id, reminder_type, status, sent_at
+                ) VALUES (
+                    ${consultation_id}, 'MANUAL_NUDGE', 'sent', NOW()
+                )
+            `;
 
             return success("Manual follow-up nudge triggered");
         }
@@ -87,7 +94,9 @@ export async function POST(req) {
             );
             
             // Also update appointment status
-            await supabase.from("appointments").update({ status: "completed" }).eq("id", consultation_id);
+            await sql`
+                UPDATE appointments SET status = 'completed' WHERE id = ${consultation_id}
+            `;
 
             return success("Consultation manually resolved", stateResult);
         }

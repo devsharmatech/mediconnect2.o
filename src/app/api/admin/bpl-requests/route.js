@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   try {
@@ -10,28 +12,40 @@ export async function GET(request) {
     const status = url.searchParams.get("status");
     const search = url.searchParams.get("search");
 
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
+    const offset = (page - 1) * limit;
 
-    let query = supabase
-      .from("bpl_requests")
-      .select("*", { count: "exact" })
-      .order("created_at", { ascending: false });
+    const conditions = [];
 
-    if (status) query = query.eq("status", status);
+    if (status) {
+      conditions.push(sql`status = ${status}`);
+    }
 
     if (search) {
       const like = `%${search}%`;
-      query = query.or(
-        `name.ilike.${like},mobile.ilike.${like},aadhaar_no.ilike.${like},ration_card_no.ilike.${like}`
-      );
+      conditions.push(sql`(
+        name ILIKE ${like} OR 
+        mobile ILIKE ${like} OR 
+        aadhaar_no ILIKE ${like} OR 
+        ration_card_no ILIKE ${like}
+      )`);
     }
 
-    query = query.range(from, to);
+    const whereClause = conditions.length > 0
+      ? sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`
+      : sql``;
 
-    const { data, count, error } = await query;
+    const [countRes, data] = await Promise.all([
+      sql`SELECT count(*)::int as count FROM bpl_requests ${whereClause}`,
+      sql`
+        SELECT * 
+        FROM bpl_requests 
+        ${whereClause} 
+        ORDER BY created_at DESC 
+        LIMIT ${limit} OFFSET ${offset}
+      `
+    ]);
 
-    if (error) throw error;
+    const count = countRes[0]?.count || 0;
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { logAudit } from "@/lib/layer1/auditLogger";
+
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/drugs
@@ -15,20 +17,32 @@ export async function GET(req) {
         const limit = parseInt(searchParams.get("limit")) || 50;
         const offset = (page - 1) * limit;
 
-        let query = supabase.from("drug_master").select("*", { count: "exact" });
+        const conditions = [];
 
         if (query_str) {
-            query = query.or(`name.ilike.%${query_str}%,salt.ilike.%${query_str}%`);
+            const pattern = `%${query_str}%`;
+            conditions.push(sql`(name ILIKE ${pattern} OR salt ILIKE ${pattern})`);
         }
         if (category) {
-            query = query.eq("category", category);
+            conditions.push(sql`category = ${category}`);
         }
 
-        const { data, count, error } = await query
-            .order("name", { ascending: true })
-            .range(offset, offset + limit - 1);
+        const whereClause = conditions.length > 0
+            ? sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`
+            : sql``;
 
-        if (error) throw error;
+        const [countRes, data] = await Promise.all([
+            sql`SELECT count(*)::int as count FROM drug_master ${whereClause}`,
+            sql`
+                SELECT * 
+                FROM drug_master 
+                ${whereClause} 
+                ORDER BY name ASC 
+                LIMIT ${limit} OFFSET ${offset}
+            `
+        ]);
+
+        const count = countRes[0]?.count || 0;
 
         return NextResponse.json({
             success: true,
@@ -54,19 +68,20 @@ export async function POST(req) {
             return NextResponse.json({ success: false, error: "name, category, and admin_id are required" }, { status: 400 });
         }
 
-        const { data, error } = await supabase
-            .from("drug_master")
-            .insert({ 
-                name, 
-                salt, 
-                power, 
-                category, 
-                is_active: is_active !== false 
-            })
-            .select()
-            .single();
+        const rows = await sql`
+            INSERT INTO drug_master (
+                name, salt, power, category, is_active
+            ) VALUES (
+                ${name}, 
+                ${salt || null}, 
+                ${power || null}, 
+                ${category}, 
+                ${is_active !== false}
+            )
+            RETURNING *
+        `;
 
-        if (error) throw error;
+        const data = rows[0];
 
         await logAudit({
             entity_type: "drug_master",
@@ -97,23 +112,27 @@ export async function PATCH(req) {
         }
 
         // Fetch old state
-        const { data: oldData } = await supabase.from("drug_master").select("*").eq("id", id).single();
+        const oldRows = await sql`SELECT * FROM drug_master WHERE id = ${id} LIMIT 1`;
+        if (oldRows.length === 0) {
+            return NextResponse.json({ success: false, error: "Drug not found" }, { status: 404 });
+        }
+        const oldData = oldRows[0];
 
-        const { data, error } = await supabase
-            .from("drug_master")
-            .update({ 
-                name, 
-                salt, 
-                power, 
-                category, 
-                is_active, 
-                updated_at: new Date().toISOString() 
-            })
-            .eq("id", id)
-            .select()
-            .single();
+        const updates = { updated_at: new Date().toISOString() };
+        if (name !== undefined) updates.name = name;
+        if (salt !== undefined) updates.salt = salt;
+        if (power !== undefined) updates.power = power;
+        if (category !== undefined) updates.category = category;
+        if (is_active !== undefined) updates.is_active = is_active;
 
-        if (error) throw error;
+        const updatedRows = await sql`
+            UPDATE drug_master
+            SET ${sql(updates)}
+            WHERE id = ${id}
+            RETURNING *
+        `;
+
+        const data = updatedRows[0];
 
         await logAudit({
             entity_type: "drug_master",
@@ -144,10 +163,13 @@ export async function DELETE(req) {
             return NextResponse.json({ success: false, error: "id and admin_id are required" }, { status: 400 });
         }
 
-        const { data: oldData } = await supabase.from("drug_master").select("*").eq("id", id).single();
+        const oldRows = await sql`SELECT * FROM drug_master WHERE id = ${id} LIMIT 1`;
+        if (oldRows.length === 0) {
+            return NextResponse.json({ success: false, error: "Drug not found" }, { status: 404 });
+        }
+        const oldData = oldRows[0];
 
-        const { error } = await supabase.from("drug_master").delete().eq("id", id);
-        if (error) throw error;
+        await sql`DELETE FROM drug_master WHERE id = ${id}`;
 
         await logAudit({
             entity_type: "drug_master",

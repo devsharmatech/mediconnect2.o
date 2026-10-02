@@ -4,23 +4,46 @@
  * PUT    /api/admin/roles/[id]  — update role + permissions
  * DELETE /api/admin/roles/[id]  — delete role
  */
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
+
+export const dynamic = 'force-dynamic';
 
 // GET — Role detail with assigned permissions
 export async function GET(req, { params }) {
   try {
     const { id } = await params;
 
-    const { data: role, error } = await supabase
-      .from("staff_roles")
-      .select("*, staff_role_permissions(permission_id, staff_permissions_master(*))")
-      .eq("id", id)
-      .single();
+    const roleRows = await sql`
+      SELECT * FROM staff_roles WHERE id = ${id} LIMIT 1
+    `;
 
-    if (error || !role) {
+    if (!roleRows || roleRows.length === 0) {
       return failure("Role not found", null, 404);
     }
+
+    const role = roleRows[0];
+
+    const rolePerms = await sql`
+      SELECT 
+        rp.permission_id,
+        p.id as perm_id, p.key, p.label, p.module, p.description, p.created_at
+      FROM staff_role_permissions rp
+      JOIN staff_permissions_master p ON rp.permission_id = p.id
+      WHERE rp.role_id = ${id}
+    `;
+
+    role.staff_role_permissions = rolePerms.map((rp) => ({
+      permission_id: rp.permission_id,
+      staff_permissions_master: {
+        id: rp.perm_id,
+        key: rp.key,
+        label: rp.label,
+        module: rp.module,
+        description: rp.description,
+        created_at: rp.created_at
+      }
+    }));
 
     return success("Role details", role);
   } catch (err) {
@@ -35,27 +58,28 @@ export async function PUT(req, { params }) {
     const { id } = await params;
     const { name, description, permission_ids } = await req.json();
 
-    // Update name/description
-    const updateData = { updated_at: new Date().toISOString() };
-    if (name !== undefined) updateData.name = name.trim();
-    if (description !== undefined) updateData.description = description;
-
-    const { error: updateError } = await supabase
-      .from("staff_roles")
-      .update(updateData)
-      .eq("id", id);
-
-    if (updateError) {
-      return failure("Failed to update role", updateError.message, 500);
+    const roleExists = await sql`SELECT id FROM staff_roles WHERE id = ${id} LIMIT 1`;
+    if (roleExists.length === 0) {
+      return failure("Role not found", null, 404);
     }
+
+    // Update name/description
+    const updates = { updated_at: new Date().toISOString() };
+    if (name !== undefined) updates.name = name.trim();
+    if (description !== undefined) updates.description = description;
+
+    await sql`
+      UPDATE staff_roles
+      SET ${sql(updates)}
+      WHERE id = ${id}
+    `;
 
     // Re-assign permissions if provided
     if (Array.isArray(permission_ids)) {
       // Delete old mappings
-      await supabase
-        .from("staff_role_permissions")
-        .delete()
-        .eq("role_id", id);
+      await sql`
+        DELETE FROM staff_role_permissions WHERE role_id = ${id}
+      `;
 
       // Insert new ones
       if (permission_ids.length > 0) {
@@ -64,13 +88,9 @@ export async function PUT(req, { params }) {
           permission_id: pid,
         }));
 
-        const { error: insertError } = await supabase
-          .from("staff_role_permissions")
-          .insert(inserts);
-
-        if (insertError) {
-          console.error("[admin/roles/[id]] permission insert error:", insertError);
-        }
+        await sql`
+          INSERT INTO staff_role_permissions ${sql(inserts)}
+        `;
       }
     }
 
@@ -87,25 +107,22 @@ export async function DELETE(req, { params }) {
     const { id } = await params;
 
     // Remove role assignment from staff
-    await supabase
-      .from("staffs")
-      .update({ role_id: null })
-      .eq("role_id", id);
+    await sql`
+      UPDATE staffs SET role_id = NULL WHERE role_id = ${id}
+    `;
 
     // Delete role-permission mappings
-    await supabase
-      .from("staff_role_permissions")
-      .delete()
-      .eq("role_id", id);
+    await sql`
+      DELETE FROM staff_role_permissions WHERE role_id = ${id}
+    `;
 
     // Delete role
-    const { error } = await supabase
-      .from("staff_roles")
-      .delete()
-      .eq("id", id);
+    const deleted = await sql`
+      DELETE FROM staff_roles WHERE id = ${id} RETURNING id
+    `;
 
-    if (error) {
-      return failure("Failed to delete role", error.message, 500);
+    if (deleted.length === 0) {
+      return failure("Failed to delete role (role not found)", null, 404);
     }
 
     return success("Role deleted");

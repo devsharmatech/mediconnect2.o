@@ -1,24 +1,17 @@
 /**
  * LAYER-1: Activity Logger
  * 
- * Logs cross-module events for patient activity tracking.
- * Examples: consultation created, service updates, payments, follow-ups.
+ * Logs cross-module events for patient activity tracking via AWS RDS PostgreSQL.
  */
 
-import { supabase } from "../supabaseAdmin";
+import sql from "@/lib/db";
 
-/**
- * Log an activity event
- * @param {object} params
- * @param {string} params.patient_id
- * @param {string} [params.care_episode_id]
- * @param {string} [params.actor_id] - who performed the action
- * @param {string} params.module_type - consultation | lab | pharmacy | nursing | payment | auth | system
- * @param {string} params.action_type - created | updated | status_changed | payment_received | etc.
- * @param {string} [params.reference_id] - FK to specific entity
- * @param {string} [params.description] - human-readable summary
- * @param {object} [params.metadata] - additional context
- */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function safeUuid(val) {
+  if (!val) return null;
+  return UUID_REGEX.test(val) ? val : null;
+}
+
 export async function logActivity({
     patient_id,
     care_episode_id = null,
@@ -30,9 +23,8 @@ export async function logActivity({
     metadata = null,
 }) {
     try {
-        const { error } = await supabase
-            .from("activity_log")
-            .insert({
+        await sql`
+            INSERT INTO activity_log (
                 patient_id,
                 care_episode_id,
                 actor_id,
@@ -41,44 +33,56 @@ export async function logActivity({
                 reference_id,
                 description,
                 metadata,
-            });
-
-        if (error) {
-            console.error("Activity log insert error:", error);
-        }
+                created_at
+            ) VALUES (
+                ${safeUuid(patient_id)},
+                ${safeUuid(care_episode_id)},
+                ${safeUuid(actor_id)},
+                ${module_type},
+                ${action_type},
+                ${safeUuid(reference_id)},
+                ${description},
+                ${metadata ? JSON.stringify(metadata) : null},
+                NOW()
+            )
+        `;
     } catch (err) {
-        // Activity logging should never block the main flow
-        console.error("logActivity error:", err);
+        console.warn("logActivity error:", err.message);
     }
 }
 
-/**
- * Query activity logs
- * @param {object} filters - { patient_id, care_episode_id, module_type, action_type, page, limit }
- * @returns {object} { success, data, pagination, error }
- */
 export async function queryActivityLogs(filters = {}) {
     try {
         const { patient_id, care_episode_id, module_type, action_type, page = 1, limit = 50 } = filters;
         const offset = (page - 1) * limit;
 
-        let query = supabase
-            .from("activity_log")
-            .select("*", { count: "exact" })
-            .order("created_at", { ascending: false })
-            .range(offset, offset + limit - 1);
+        const conditions = [];
 
-        if (patient_id) query = query.eq("patient_id", patient_id);
-        if (care_episode_id) query = query.eq("care_episode_id", care_episode_id);
-        if (module_type) query = query.eq("module_type", module_type);
-        if (action_type) query = query.eq("action_type", action_type);
+        if (patient_id && safeUuid(patient_id)) conditions.push(sql`patient_id = ${patient_id}`);
+        if (care_episode_id && safeUuid(care_episode_id)) conditions.push(sql`care_episode_id = ${care_episode_id}`);
+        if (module_type) conditions.push(sql`module_type = ${module_type}`);
+        if (action_type) conditions.push(sql`action_type = ${action_type}`);
 
-        const { data, count, error } = await query;
-        if (error) throw error;
+        const whereClause = conditions.length > 0
+            ? sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`
+            : sql``;
+
+        const [countRes, data] = await Promise.all([
+            sql`SELECT count(*)::int as count FROM activity_log ${whereClause}`,
+            sql`
+                SELECT * 
+                FROM activity_log 
+                ${whereClause} 
+                ORDER BY created_at DESC 
+                LIMIT ${limit} OFFSET ${offset}
+            `
+        ]);
+
+        const count = countRes[0]?.count || 0;
 
         return {
             success: true,
-            data,
+            data: data || [],
             pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
         };
     } catch (err) {

@@ -1,9 +1,11 @@
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/metrics/services
- * Provides conversion and success metrics for Lab and Pharmacy services.
+ * Provides conversion and success metrics for Lab and Pharmacy services via AWS RDS PostgreSQL.
  */
 export async function GET() {
     try {
@@ -11,46 +13,47 @@ export async function GET() {
         today.setHours(0, 0, 0, 0);
         const todayISO = today.toISOString();
 
-        // 1. Lab Metrics
+        // 1. Lab, Pharmacy, and Home Visit metrics executed concurrently
         const [
-            { count: labRequested },
-            { count: labCompleted },
-            { count: labFailed }
+            [{ count: labRequested }],
+            [{ count: labCompleted }],
+            [{ count: labFailed }],
+            [{ count: pharmRequested }],
+            [{ count: pharmCompleted }],
+            [{ count: pharmFailed }],
+            [{ count: homeVisits }]
         ] = await Promise.all([
-            supabase.from("lab_test_orders").select("*", { count: "exact", head: true }).gte("created_at", todayISO),
-            supabase.from("lab_test_orders").select("*", { count: "exact", head: true }).eq("status", "COMPLETED").gte("created_at", todayISO),
-            supabase.from("lab_test_orders").select("*", { count: "exact", head: true }).eq("status", "FAILED").gte("created_at", todayISO)
+            sql`SELECT count(*)::int as count FROM lab_test_orders WHERE created_at >= ${todayISO}`,
+            sql`SELECT count(*)::int as count FROM lab_test_orders WHERE status = 'COMPLETED' AND created_at >= ${todayISO}`,
+            sql`SELECT count(*)::int as count FROM lab_test_orders WHERE status = 'FAILED' AND created_at >= ${todayISO}`,
+
+            sql`SELECT count(*)::int as count FROM medicine_orders WHERE created_at >= ${todayISO}`,
+            sql`SELECT count(*)::int as count FROM medicine_orders WHERE status = 'completed' AND created_at >= ${todayISO}`,
+            sql`SELECT count(*)::int as count FROM medicine_orders WHERE status = 'cancelled' AND created_at >= ${todayISO}`,
+
+            sql`SELECT count(*)::int as count FROM home_visit_request WHERE created_at >= ${todayISO}`
         ]);
 
-        // 2. Pharmacy Metrics
-        const [
-            { count: pharmRequested },
-            { count: pharmCompleted },
-            { count: pharmFailed }
-        ] = await Promise.all([
-            supabase.from("medicine_orders").select("*", { count: "exact", head: true }).gte("created_at", todayISO),
-            supabase.from("medicine_orders").select("*", { count: "exact", head: true }).eq("status", "completed").gte("created_at", todayISO),
-            supabase.from("medicine_orders").select("*", { count: "exact", head: true }).eq("status", "cancelled").gte("created_at", todayISO)
-        ]);
-
-        // 3. Home Visit Metrics
-        const { count: homeVisits } = await supabase.from("home_visit_request").select("*", { count: "exact", head: true }).gte("created_at", todayISO);
+        const lReq = Number(labRequested) || 0;
+        const lComp = Number(labCompleted) || 0;
+        const pReq = Number(pharmRequested) || 0;
+        const pComp = Number(pharmCompleted) || 0;
 
         return success("Service metrics fetched successfully", {
             lab: {
-                total_orders: labRequested || 0,
-                completed: labCompleted || 0,
-                failed: labFailed || 0,
-                success_rate: labRequested ? ((labCompleted || 0) / labRequested * 100).toFixed(2) + "%" : "0%"
+                total_orders: lReq,
+                completed: lComp,
+                failed: Number(labFailed) || 0,
+                success_rate: lReq > 0 ? ((lComp / lReq) * 100).toFixed(2) + "%" : "0%"
             },
             pharmacy: {
-                total_orders: pharmRequested || 0,
-                delivered: pharmCompleted || 0,
-                failed: pharmFailed || 0,
-                success_rate: pharmRequested ? ((pharmCompleted || 0) / pharmRequested * 100).toFixed(2) + "%" : "0%"
+                total_orders: pReq,
+                delivered: pComp,
+                failed: Number(pharmFailed) || 0,
+                success_rate: pReq > 0 ? ((pComp / pReq) * 100).toFixed(2) + "%" : "0%"
             },
             home_visits: {
-                total: homeVisits || 0
+                total: Number(homeVisits) || 0
             }
         });
 

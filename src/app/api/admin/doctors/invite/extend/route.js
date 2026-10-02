@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
 
 // Extend an existing invitation token's expiry without resending email
 export async function POST(request) {
@@ -17,17 +19,16 @@ export async function POST(request) {
       Date.now() + expiry_days * 24 * 60 * 60 * 1000
     ).toISOString();
 
-    const { data, error } = await supabase
-      .from("doctor_onboarding_status")
-      .update({
-        token_expires_at: newExpiry,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("invitation_token", token)
-      .select("doctor_id, token_expires_at")
-      .single();
+    const updated = await sql`
+      UPDATE doctor_onboarding_status
+      SET 
+        token_expires_at = ${newExpiry},
+        updated_at = NOW()
+      WHERE invitation_token = ${token}
+      RETURNING doctor_id, token_expires_at
+    `;
 
-    if (error || !data) {
+    if (!updated || updated.length === 0) {
       return NextResponse.json(
         { success: false, error: "Token not found" },
         { status: 404 }
@@ -38,7 +39,7 @@ export async function POST(request) {
       success: true,
       message: `Token extended by ${expiry_days} days`,
       new_expiry: newExpiry,
-      doctor_id: data.doctor_id,
+      doctor_id: updated[0].doctor_id,
     });
   } catch (error) {
     console.error("Error extending token:", error);

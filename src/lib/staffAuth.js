@@ -1,8 +1,8 @@
 /**
  * Staff Authentication & Permission Helpers (Server-side)
- * Medical-grade RBAC system for MediConnect
+ * Medical-grade RBAC system for MediConnect using AWS RDS PostgreSQL
  */
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { failure } from "@/lib/response";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -52,14 +52,21 @@ export async function getAuthenticatedStaff(req) {
   const payload = verifyStaffToken(token);
   if (!payload || payload.type !== "staff") return null;
 
-  const { data: staff } = await supabase
-    .from("staffs")
-    .select("*, staff_roles(id, name)")
-    .eq("id", payload.id)
-    .is("deleted_at", null)
-    .single();
+  const rows = await sql`
+    SELECT s.*, r.name as role_name
+    FROM staffs s
+    LEFT JOIN staff_roles r ON s.role_id = r.id
+    WHERE s.id = ${payload.id} AND s.deleted_at IS NULL
+    LIMIT 1
+  `;
 
-  if (!staff || !staff.is_active) return null;
+  if (!rows || rows.length === 0) return null;
+  const staff = rows[0];
+  if (!staff.is_active) return null;
+
+  if (staff.role_id) {
+    staff.staff_roles = { id: staff.role_id, name: staff.role_name };
+  }
 
   return staff;
 }
@@ -68,96 +75,77 @@ export async function getAuthenticatedStaff(req) {
 /**
  * Checks if a staff member has a specific permission.
  * Priority: staff_permission_overrides > staff_role_permissions
- *
- * @param {string} staffId - UUID of the staff
- * @param {string} permissionKey - e.g. "manage_patients"
- * @param {string} action - "view" | "create" | "update" | "delete"
- * @returns {boolean}
  */
 export async function staffHasPermission(staffId, permissionKey, action = "view") {
   // 1. Get permission ID
-  const { data: perm } = await supabase
-    .from("staff_permissions_master")
-    .select("id")
-    .eq("key", permissionKey)
-    .single();
+  const perm = await sql`
+    SELECT id FROM staff_permissions_master WHERE key = ${permissionKey} LIMIT 1
+  `;
 
-  if (!perm) return false;
+  if (!perm || perm.length === 0) return false;
+  const permId = perm[0].id;
 
   // 2. Check direct override first (highest priority)
-  const { data: override } = await supabase
-    .from("staff_permission_overrides")
-    .select("*")
-    .eq("staff_id", staffId)
-    .eq("permission_id", perm.id)
-    .single();
+  const override = await sql`
+    SELECT * FROM staff_permission_overrides
+    WHERE staff_id = ${staffId} AND permission_id = ${permId}
+    LIMIT 1
+  `;
 
-  if (override) {
+  if (override && override.length > 0) {
+    const o = override[0];
     const actionMap = {
-      view: override.can_view,
-      create: override.can_create,
-      update: override.can_update,
-      delete: override.can_delete,
+      view: o.can_view,
+      create: o.can_create,
+      update: o.can_update,
+      delete: o.can_delete,
     };
     return actionMap[action] ?? false;
   }
 
   // 3. Fall back to role-based permission
-  const { data: staff } = await supabase
-    .from("staffs")
-    .select("role_id")
-    .eq("id", staffId)
-    .single();
+  const staff = await sql`
+    SELECT role_id FROM staffs WHERE id = ${staffId} LIMIT 1
+  `;
 
-  if (!staff?.role_id) return false;
+  if (!staff || staff.length === 0 || !staff[0].role_id) return false;
 
-  const { data: rolePerm } = await supabase
-    .from("staff_role_permissions")
-    .select("id")
-    .eq("role_id", staff.role_id)
-    .eq("permission_id", perm.id)
-    .single();
+  const rolePerm = await sql`
+    SELECT id FROM staff_role_permissions
+    WHERE role_id = ${staff[0].role_id} AND permission_id = ${permId}
+    LIMIT 1
+  `;
 
-  return !!rolePerm;
+  return rolePerm.length > 0;
 }
 
 // ─── Get All Permissions for a Staff (merged) ──────────────────
 export async function getStaffPermissions(staffId) {
-  // Get staff with role
-  const { data: staff } = await supabase
-    .from("staffs")
-    .select("role_id")
-    .eq("id", staffId)
-    .single();
+  const staffRes = await sql`
+    SELECT role_id FROM staffs WHERE id = ${staffId} LIMIT 1
+  `;
 
-  if (!staff) return [];
+  if (!staffRes || staffRes.length === 0) return [];
 
-  // Get all master permissions
-  const { data: allPerms } = await supabase
-    .from("staff_permissions_master")
-    .select("*")
-    .order("module", { ascending: true });
+  const allPerms = await sql`
+    SELECT * FROM staff_permissions_master ORDER BY module ASC, key ASC
+  `;
 
-  if (!allPerms) return [];
+  if (!allPerms || allPerms.length === 0) return [];
 
-  // Get role permissions
   let rolePermIds = new Set();
-  if (staff.role_id) {
-    const { data: rolePerms } = await supabase
-      .from("staff_role_permissions")
-      .select("permission_id")
-      .eq("role_id", staff.role_id);
-
+  if (staffRes[0].role_id) {
+    const rolePerms = await sql`
+      SELECT permission_id FROM staff_role_permissions WHERE role_id = ${staffRes[0].role_id}
+    `;
     if (rolePerms) {
       rolePermIds = new Set(rolePerms.map((rp) => rp.permission_id));
     }
   }
 
-  // Get direct overrides
-  const { data: overrides } = await supabase
-    .from("staff_permission_overrides")
-    .select("*")
-    .eq("staff_id", staffId);
+  const overrides = await sql`
+    SELECT * FROM staff_permission_overrides WHERE staff_id = ${staffId}
+  `;
 
   const overrideMap = {};
   if (overrides) {
@@ -166,7 +154,6 @@ export async function getStaffPermissions(staffId) {
     });
   }
 
-  // Merge
   return allPerms.map((p) => {
     const override = overrideMap[p.id];
     const hasRolePerm = rolePermIds.has(p.id);
@@ -182,7 +169,6 @@ export async function getStaffPermissions(staffId) {
             can_delete: override.can_delete,
           }
         : null,
-      // Effective access
       effective: override
         ? {
             can_view: override.can_view,
@@ -219,26 +205,29 @@ export function requireStaffPermission(permissionKey, action = "view") {
 
 // ─── Activity Logger ────────────────────────────────────────────
 export async function logStaffActivity(staffId, staffName, action, module, details = null, req = null) {
-  const logEntry = {
-    staff_id: staffId,
-    staff_name: staffName,
-    action,
-    module,
-    details: details ? JSON.stringify(details) : null,
-    ip_address: req?.headers?.get("x-forwarded-for") || req?.headers?.get("x-real-ip") || null,
-    user_agent: req?.headers?.get("user-agent") || null,
-  };
-
-  await supabase.from("staff_activity_logs").insert(logEntry);
+  try {
+    const ip = req?.headers?.get("x-forwarded-for") || req?.headers?.get("x-real-ip") || null;
+    const ua = req?.headers?.get("user-agent") || null;
+    await sql`
+      INSERT INTO staff_activity_logs (
+        staff_id, staff_name, action, module, details, ip_address, user_agent
+      ) VALUES (
+        ${staffId}, ${staffName}, ${action}, ${module},
+        ${details ? JSON.stringify(details) : null},
+        ${ip}, ${ua}
+      )
+    `;
+  } catch (e) {
+    console.warn("Failed to write to staff_activity_logs:", e.message);
+  }
 }
 
 // ─── Generate Employee Code ────────────────────────────────────
 export async function generateEmployeeCode() {
   const prefix = "MC";
-  const { count } = await supabase
-    .from("staffs")
-    .select("*", { count: "exact", head: true });
-
+  const [{ count }] = await sql`
+    SELECT count(*)::int as count FROM staffs
+  `;
   const num = (count || 0) + 1;
   return `${prefix}${String(num).padStart(5, "0")}`;
 }

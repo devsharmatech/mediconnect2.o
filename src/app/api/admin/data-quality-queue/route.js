@@ -3,18 +3,21 @@
  * 
  * GET  /api/admin/data-quality-queue — List LOW quality consultations + unstructured meds
  * PUT  /api/admin/data-quality-queue — Resolve/clean a data quality issue
- * 
- * Shows:
- * - LOW quality consultations (from consultation_quality_flag)
- * - Unstructured medication entries (from data_quality_queue)
  */
 
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function safeUuid(val) {
+  if (!val) return null;
+  return UUID_REGEX.test(val) ? val : null;
+}
 
 /**
  * GET — List data quality issues
- * Query: ?type=all|quality_flag|unstructured_med&status=pending|resolved&page=1&limit=20
  */
 export async function GET(req) {
     try {
@@ -32,24 +35,29 @@ export async function GET(req) {
         // Fetch LOW quality consultations
         if (type === "all" || type === "quality_flag") {
             try {
-                const { data, count } = await supabase
-                    .from("consultation_quality_flag")
-                    .select("*", { count: "exact" })
-                    .eq("quality_level", "LOW")
-                    .order("created_at", { ascending: false })
-                    .range(offset, offset + limit - 1);
+                const [countRes, flags] = await Promise.all([
+                    sql`SELECT count(*)::int as count FROM consultation_quality_flag WHERE quality_level = 'LOW'`,
+                    sql`
+                        SELECT * 
+                        FROM consultation_quality_flag 
+                        WHERE quality_level = 'LOW' 
+                        ORDER BY created_at DESC 
+                        LIMIT ${limit} OFFSET ${offset}
+                    `
+                ]);
 
-                qualityFlags = data || [];
-                totalCount += count || 0;
+                qualityFlags = flags || [];
+                totalCount += countRes[0]?.count || 0;
 
                 // Fetch related consultations separately
                 if (qualityFlags.length > 0) {
                     const cIds = [...new Set(qualityFlags.map(f => f.consultation_id).filter(Boolean))];
                     if (cIds.length > 0) {
-                        const { data: consultations } = await supabase
-                            .from("consultations")
-                            .select("id, patient_id, doctor_id, case_status, created_at")
-                            .in("id", cIds);
+                        const consultations = await sql`
+                            SELECT id, patient_id, doctor_id, case_status, created_at
+                            FROM consultations
+                            WHERE id = ANY(${cIds})
+                        `;
                         const cMap = {};
                         (consultations || []).forEach(c => { cMap[c.id] = c; });
                         qualityFlags.forEach(f => { f.consultation = cMap[f.consultation_id] || null; });
@@ -62,18 +70,27 @@ export async function GET(req) {
 
         // Fetch unstructured medication issues
         if (type === "all" || type === "unstructured_med") {
-            let query = supabase
-                .from("data_quality_queue")
-                .select("*", { count: "exact" })
-                .order("created_at", { ascending: false })
-                .range(offset, offset + limit - 1);
+            const conditions = [];
+            if (status === "pending") conditions.push(sql`status = 'pending'`);
+            if (status === "resolved") conditions.push(sql`status = 'resolved'`);
 
-            if (status === "pending") query = query.eq("status", "pending");
-            if (status === "resolved") query = query.eq("status", "resolved");
+            const whereClause = conditions.length > 0
+                ? sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`
+                : sql``;
 
-            const { data, count } = await query;
-            unstructuredMeds = data || [];
-            totalCount += count || 0;
+            const [countRes, meds] = await Promise.all([
+                sql`SELECT count(*)::int as count FROM data_quality_queue ${whereClause}`,
+                sql`
+                    SELECT * 
+                    FROM data_quality_queue 
+                    ${whereClause} 
+                    ORDER BY created_at DESC 
+                    LIMIT ${limit} OFFSET ${offset}
+                `
+            ]);
+
+            unstructuredMeds = meds || [];
+            totalCount += countRes[0]?.count || 0;
         }
 
         return success("Data quality queue retrieved", {
@@ -101,36 +118,40 @@ export async function PUT(req) {
             return failure("item_id, table, and resolved_by are required");
         }
 
-        if (table === "data_quality_queue") {
-            const { data, error } = await supabase
-                .from("data_quality_queue")
-                .update({
-                    status: "resolved",
-                    resolved_by,
-                    resolved_at: new Date().toISOString(),
-                })
-                .eq("id", item_id)
-                .select()
-                .single();
+        const validResolvedBy = safeUuid(resolved_by);
 
-            if (error) throw error;
-            return success("Issue resolved", data);
+        if (table === "data_quality_queue") {
+            const updatedRows = await sql`
+                UPDATE data_quality_queue
+                SET
+                    status = 'resolved',
+                    resolved_by = ${validResolvedBy},
+                    resolved_at = NOW()
+                WHERE id = ${item_id}
+                RETURNING *
+            `;
+
+            if (!updatedRows || updatedRows.length === 0) {
+                return failure("Queue item not found", null, 404);
+            }
+
+            return success("Issue resolved", updatedRows[0]);
         }
 
         if (table === "consultation_quality_flag") {
-            const { data, error } = await supabase
-                .from("consultation_quality_flag")
-                .update({
-                    quality_level: action === "upgrade" ? "MEDIUM" : "LOW",
-                    reviewed_by: resolved_by,
-                    reviewed_at: new Date().toISOString(),
-                })
-                .eq("consultation_id", item_id)
-                .select()
-                .single();
+            const newQuality = action === "upgrade" ? "MEDIUM" : "LOW";
+            const updatedRows = await sql`
+                UPDATE consultation_quality_flag
+                SET quality_level = ${newQuality}
+                WHERE consultation_id = ${item_id} OR id = ${item_id}
+                RETURNING *
+            `;
 
-            if (error) throw error;
-            return success("Quality flag updated", data);
+            if (!updatedRows || updatedRows.length === 0) {
+                return failure("Quality flag not found", null, 404);
+            }
+
+            return success("Quality flag updated", updatedRows[0]);
         }
 
         return failure("Invalid table. Use 'data_quality_queue' or 'consultation_quality_flag'.");

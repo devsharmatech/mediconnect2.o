@@ -1,6 +1,8 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+
+export const dynamic = 'force-dynamic';
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders() });
@@ -36,28 +38,24 @@ async function generatePlatformMonthlyReport({ month, year }) {
     ];
     const periodLabel = `${monthNames[month - 1]} ${year}`;
 
-    // 1. Query all orders within period
-    const { data: orders, error: ordersErr } = await supabase
-      .from("medicine_orders")
-      .select(`
-        id,
-        unid,
-        patient_id,
-        chemist_id,
-        status,
-        total_amount,
-        sla_status,
-        created_at,
-        actual_delivery_at,
-        chemist:chemist_id(
-          id,
-          pharmacy_name
-        )
-      `)
-      .gte("created_at", startDate.toISOString())
-      .lte("created_at", endDate.toISOString());
-
-    if (ordersErr) throw ordersErr;
+    // 1. Query all orders within period joined with chemist_details
+    const orders = await sql`
+      SELECT 
+        m.id,
+        m.unid,
+        m.patient_id,
+        m.chemist_id,
+        m.status,
+        m.total_amount,
+        m.sla_status,
+        m.created_at,
+        m.actual_delivery_at,
+        c.pharmacy_name
+      FROM medicine_orders m
+      LEFT JOIN chemist_details c ON m.chemist_id = c.id
+      WHERE m.created_at >= ${startDate.toISOString()}
+        AND m.created_at <= ${endDate.toISOString()}
+    `;
 
     const allOrders = orders || [];
 
@@ -87,7 +85,7 @@ async function generatePlatformMonthlyReport({ month, year }) {
     const pharmacyMap = {};
     for (const order of completedOrders) {
       const chemId = order.chemist_id || "unassigned";
-      const chemName = order.chemist?.pharmacy_name || "Unknown Pharmacy";
+      const chemName = order.pharmacy_name || "Unknown Pharmacy";
 
       if (!pharmacyMap[chemId]) {
         pharmacyMap[chemId] = {
@@ -123,7 +121,7 @@ async function generatePlatformMonthlyReport({ month, year }) {
       };
     });
 
-    // 4. Assemble Platform Totals per Section 12
+    // 4. Assemble Platform Totals
     const report = {
       report_type: "PLATFORM_MONTHLY_PHARMACY_SETTLEMENT_TOTALS",
       compliance: "V3_MASTER_SPECIFICATION_SECTION_12",

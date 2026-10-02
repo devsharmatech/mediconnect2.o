@@ -1,5 +1,7 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
+
+export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/admin/doctors/fix-prescription-rights
@@ -14,41 +16,42 @@ export async function POST(req) {
       return failure("Doctor ID is required", "validation_error", 400);
     }
 
-    // Check the doctor exists and is approved
-    const { data: doctor, error: fetchError } = await supabase
-      .from("doctor_details")
-      .select("id, full_name, onboarding_status, registration_verified")
-      .eq("id", id)
-      .maybeSingle();
+    // Check the doctor exists
+    const doctorRows = await sql`
+      SELECT id, full_name, onboarding_status, registration_verified
+      FROM doctor_details
+      WHERE id = ${id}
+      LIMIT 1
+    `;
 
-    if (fetchError || !doctor) {
+    if (!doctorRows || doctorRows.length === 0) {
       return failure("Doctor not found", "not_found", 404);
     }
 
-    // Update registration_verified and kyc_status
-    const { data, error } = await supabase
-      .from("doctor_details")
-      .update({
-        registration_verified: true,
-        kyc_status: "verified",
-        onboarding_status: "approved",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .select()
-      .single();
+    const doctor = doctorRows[0];
 
-    if (error) throw error;
+    // Update registration_verified, kyc_status, onboarding_status in doctor_details
+    const updatedRows = await sql`
+      UPDATE doctor_details
+      SET 
+        registration_verified = true,
+        kyc_status = 'verified',
+        onboarding_status = 'approved',
+        updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING *
+    `;
 
     // Also ensure the user account is active
-    await supabase
-      .from("users")
-      .update({ status: 1, updated_at: new Date().toISOString() })
-      .eq("id", id);
+    await sql`
+      UPDATE users
+      SET status = 1, updated_at = NOW()
+      WHERE id = ${id}
+    `;
 
     console.log(`[Admin] Prescription rights fixed for doctor ${id} (${doctor.full_name})`);
 
-    return success("Prescription rights enabled successfully.", data, 200);
+    return success("Prescription rights enabled successfully.", updatedRows[0] || null, 200);
   } catch (error) {
     console.error("Fix prescription rights error:", error);
     return failure("Failed to fix prescription rights: " + error.message, "fix_failed", 500);

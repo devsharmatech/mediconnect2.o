@@ -1,9 +1,11 @@
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/admin/overview
- * High-level system overview for ops dashboard
+ * High-level system overview for ops dashboard via AWS RDS PostgreSQL
  */
 export async function GET() {
     try {
@@ -11,52 +13,57 @@ export async function GET() {
         today.setHours(0, 0, 0, 0);
         const todayISO = today.toISOString();
 
-        // Run aggregated count queries concurrently
+        // Run aggregated count queries concurrently in RDS
         const [
-            { count: startedCount },
-            { count: completedCount },
-            { count: failedCount },
-            { count: paymentSuccess },
-            { count: paymentFailed },
-            { count: openIncidents },
-            { count: p1Incidents }
+            [{ count: startedCount }],
+            [{ count: completedCount }],
+            [{ count: failedCount }],
+            [{ count: paymentSuccess }],
+            [{ count: paymentFailed }],
+            [{ count: openIncidents }],
+            [{ count: p1Incidents }],
+            [{ count: funnelStart }],
+            [{ count: funnelPayment }],
+            [{ count: mismatchCount }]
         ] = await Promise.all([
-            supabase.from("consultations").select("*", { count: "exact", head: true }).eq("case_status", "STARTED").gte("created_at", todayISO),
-            supabase.from("consultations").select("*", { count: "exact", head: true }).eq("case_status", "COMPLETED").gte("created_at", todayISO),
-            supabase.from("consultations").select("*", { count: "exact", head: true }).eq("case_status", "FAILED").gte("created_at", todayISO),
+            sql`SELECT count(*)::int as count FROM consultations WHERE case_status = 'STARTED' AND created_at >= ${todayISO}`,
+            sql`SELECT count(*)::int as count FROM consultations WHERE case_status = 'COMPLETED' AND created_at >= ${todayISO}`,
+            sql`SELECT count(*)::int as count FROM consultations WHERE case_status = 'FAILED' AND created_at >= ${todayISO}`,
             
-            supabase.from("financial_transaction_log").select("*", { count: "exact", head: true }).eq("status", "success").gte("created_at", todayISO),
-            supabase.from("financial_transaction_log").select("*", { count: "exact", head: true }).eq("status", "failed").gte("created_at", todayISO),
+            sql`SELECT count(*)::int as count FROM financial_transaction_log WHERE status = 'success' AND created_at >= ${todayISO}`,
+            sql`SELECT count(*)::int as count FROM financial_transaction_log WHERE status = 'failed' AND created_at >= ${todayISO}`,
             
-            supabase.from("ops_incident_log").select("*", { count: "exact", head: true }).eq("status", "OPEN"),
-            supabase.from("ops_incident_log").select("*", { count: "exact", head: true }).eq("status", "OPEN").eq("priority", "P1")
+            sql`SELECT count(*)::int as count FROM ops_incident_log WHERE status = 'OPEN'`,
+            sql`SELECT count(*)::int as count FROM ops_incident_log WHERE status = 'OPEN' AND priority = 'P1'`,
+
+            sql`SELECT count(*)::int as count FROM funnel_tracking_log WHERE stage = 'START' AND created_at >= ${todayISO}`,
+            sql`SELECT count(*)::int as count FROM funnel_tracking_log WHERE stage = 'PAYMENT' AND created_at >= ${todayISO}`,
+
+            sql`SELECT count(*)::int as count FROM payment_reconciliation_log WHERE mismatch = true AND created_at >= ${todayISO}`
         ]);
 
-        // Simple Funnel Metrics (Mocked efficient counts - a real system might use materialized views)
-        const { count: funnelStart } = await supabase.from("funnel_tracking_log").select("*", { count: "exact", head: true }).eq("stage", "START").gte("created_at", todayISO);
-        const { count: funnelPayment } = await supabase.from("funnel_tracking_log").select("*", { count: "exact", head: true }).eq("stage", "PAYMENT").gte("created_at", todayISO);
-        
-        // Mismatch is a manual calculation or derived from reconciliation logs
-        const { count: mismatchCount } = await supabase.from("payment_reconciliation_log").select("*", { count: "exact", head: true }).eq("status", "MISMATCH").gte("created_at", todayISO);
+        const fStart = Number(funnelStart) || 0;
+        const fPay = Number(funnelPayment) || 0;
+        const cComp = Number(completedCount) || 0;
 
         return success("Admin overview fetched successfully", {
             consultations: {
-                started: startedCount || 0,
-                completed: completedCount || 0,
-                failed: failedCount || 0
+                started: Number(startedCount) || 0,
+                completed: cComp,
+                failed: Number(failedCount) || 0
             },
             payments: {
-                success: paymentSuccess || 0,
-                failed: paymentFailed || 0,
-                mismatch: mismatchCount || 0
+                success: Number(paymentSuccess) || 0,
+                failed: Number(paymentFailed) || 0,
+                mismatch: Number(mismatchCount) || 0
             },
             funnel: {
-                start_to_payment: funnelStart ? ((funnelPayment || 0) / funnelStart * 100).toFixed(2) + "%" : "0%",
-                payment_to_complete: funnelPayment ? ((completedCount || 0) / funnelPayment * 100).toFixed(2) + "%" : "0%"
+                start_to_payment: fStart > 0 ? ((fPay / fStart) * 100).toFixed(2) + "%" : "0%",
+                payment_to_complete: fPay > 0 ? ((cComp / fPay) * 100).toFixed(2) + "%" : "0%"
             },
             incidents: {
-                open: openIncidents || 0,
-                p1: p1Incidents || 0
+                open: Number(openIncidents) || 0,
+                p1: Number(p1Incidents) || 0
             }
         });
 

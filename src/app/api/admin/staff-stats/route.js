@@ -2,25 +2,33 @@
  * Admin → Staff Dashboard Stats
  * GET /api/admin/staff-stats — counts for dashboard cards
  */
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const [totalRes, activeRes, disabledRes, rolesRes, recentLogsRes] = await Promise.all([
-      supabase.from("staffs").select("*", { count: "exact", head: true }).is("deleted_at", null),
-      supabase.from("staffs").select("*", { count: "exact", head: true }).is("deleted_at", null).eq("is_active", true),
-      supabase.from("staffs").select("*", { count: "exact", head: true }).is("deleted_at", null).eq("is_active", false),
-      supabase.from("staff_roles").select("*", { count: "exact", head: true }),
-      supabase.from("staff_activity_logs").select("*").order("created_at", { ascending: false }).limit(10),
+    const [
+      [{ count: totalStaff }],
+      [{ count: activeStaff }],
+      [{ count: disabledStaff }],
+      [{ count: totalRoles }],
+      recentLogs
+    ] = await Promise.all([
+      sql`SELECT count(*)::int as count FROM staffs WHERE deleted_at IS NULL`,
+      sql`SELECT count(*)::int as count FROM staffs WHERE deleted_at IS NULL AND is_active = true`,
+      sql`SELECT count(*)::int as count FROM staffs WHERE deleted_at IS NULL AND is_active = false`,
+      sql`SELECT count(*)::int as count FROM staff_roles`,
+      sql`SELECT * FROM staff_activity_logs ORDER BY created_at DESC LIMIT 10`,
     ]);
 
     return success("Staff stats", {
-      total_staff: totalRes.count || 0,
-      active_staff: activeRes.count || 0,
-      disabled_staff: disabledRes.count || 0,
-      total_roles: rolesRes.count || 0,
-      recent_activity: recentLogsRes.data || [],
+      total_staff: totalStaff || 0,
+      active_staff: activeStaff || 0,
+      disabled_staff: disabledStaff || 0,
+      total_roles: totalRoles || 0,
+      recent_activity: recentLogs || [],
     });
   } catch (err) {
     console.error("[admin/staff-stats] Error:", err);

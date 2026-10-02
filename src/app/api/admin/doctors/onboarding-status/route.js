@@ -1,7 +1,9 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import admin from "@/lib/firebaseAdmin";
 import { sendWhatsAppText } from "@/lib/whatsappBot";
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
   try {
@@ -12,13 +14,14 @@ export async function GET(req) {
       return failure("Doctor ID is required", "validation_error", 400);
     }
 
-    let { data, error } = await supabase
-      .from("doctor_onboarding_status")
-      .select("*")
-      .eq("doctor_id", doctorId)
-      .maybeSingle();
+    const rows = await sql`
+      SELECT *
+      FROM doctor_onboarding_status
+      WHERE doctor_id = ${doctorId}
+      LIMIT 1
+    `;
 
-    if (error) throw error;
+    let data = rows[0] || null;
     
     // If not found, return default false states
     if (!data) {
@@ -46,39 +49,54 @@ export async function POST(req) {
     }
 
     // Fetch old status to detect changes
-    const { data: oldStatus } = await supabase
-      .from("doctor_onboarding_status")
-      .select("*")
-      .eq("doctor_id", doctor_id)
-      .maybeSingle();
+    const oldStatusRows = await sql`
+      SELECT *
+      FROM doctor_onboarding_status
+      WHERE doctor_id = ${doctor_id}
+      LIMIT 1
+    `;
+    const oldStatus = oldStatusRows[0] || null;
 
     // Upsert the record
-    const { data, error } = await supabase
-      .from("doctor_onboarding_status")
-      .upsert({
-        doctor_id,
-        allowed_to_consult,
-        registration_verified,
-        agreement_accepted,
-        otp_verified
-      }, { onConflict: "doctor_id" })
-      .select()
-      .single();
+    const updatedRows = await sql`
+      INSERT INTO doctor_onboarding_status (
+        doctor_id, allowed_to_consult, registration_verified, agreement_accepted, otp_verified, updated_at
+      ) VALUES (
+        ${doctor_id},
+        ${allowed_to_consult ?? false},
+        ${registration_verified ?? false},
+        ${agreement_accepted ?? false},
+        ${otp_verified ?? false},
+        NOW()
+      )
+      ON CONFLICT (doctor_id)
+      DO UPDATE SET
+        allowed_to_consult = EXCLUDED.allowed_to_consult,
+        registration_verified = EXCLUDED.registration_verified,
+        agreement_accepted = EXCLUDED.agreement_accepted,
+        otp_verified = EXCLUDED.otp_verified,
+        updated_at = NOW()
+      RETURNING *
+    `;
 
-    if (error) throw error;
+    const data = updatedRows[0];
 
     // Notifications Logic
-    const { data: userDetails } = await supabase
-      .from("users")
-      .select("phone_number, fcm_token")
-      .eq("id", doctor_id)
-      .maybeSingle();
+    const userRows = await sql`
+      SELECT phone_number, fcm_token
+      FROM users
+      WHERE id = ${doctor_id}
+      LIMIT 1
+    `;
+    const userDetails = userRows[0] || null;
 
-    const { data: doctorDetails } = await supabase
-      .from("doctor_details")
-      .select("full_name")
-      .eq("id", doctor_id)
-      .maybeSingle();
+    const doctorRows = await sql`
+      SELECT full_name
+      FROM doctor_details
+      WHERE id = ${doctor_id}
+      LIMIT 1
+    `;
+    const doctorDetails = doctorRows[0] || null;
 
     const phone = userDetails?.phone_number;
     const fcmToken = userDetails?.fcm_token;

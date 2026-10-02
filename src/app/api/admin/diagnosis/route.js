@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { logAudit } from "@/lib/layer1/auditLogger";
+
+export const dynamic = 'force-dynamic';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function safeUuid(val) {
+  if (!val) return null;
+  return UUID_REGEX.test(val) ? val : null;
+}
 
 /**
  * GET /api/admin/diagnosis
- * List all diagnoses with pagination and search
+ * List all diagnoses with pagination and search via AWS RDS
  */
 export async function GET(req) {
   try {
@@ -15,46 +23,45 @@ export async function GET(req) {
     const offset = (page - 1) * limit;
     const categoryFilter = searchParams.get("category") || "";
 
-    let query = supabase.from("diagnosis_master").select("*", { count: "exact" });
+    const conditions = [];
 
     if (q) {
-      query = query.or(`name.ilike.%${q}%,icd_code.ilike.%${q}%,category.ilike.%${q}%`);
+      const pattern = `%${q}%`;
+      conditions.push(sql`(name ILIKE ${pattern} OR icd_code ILIKE ${pattern} OR category ILIKE ${pattern})`);
     }
+
     if (categoryFilter) {
-      query = query.eq("category", categoryFilter);
+      conditions.push(sql`category = ${categoryFilter}`);
     }
 
-    // Set sorting: order alphabetically by name
-    query = query.order("name", { ascending: true });
+    const whereClause = conditions.length > 0
+      ? sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`
+      : sql``;
 
-    // Apply range pagination unless a high limit (e.g. bulk autocomplete/export) is specified
-    if (limit < 10000) {
-      query = query.range(offset, offset + limit - 1);
-    } else {
-      query = query.limit(10000);
-    }
+    const [countRes, data] = await Promise.all([
+      sql`SELECT count(*)::int as count FROM diagnosis_master ${whereClause}`,
+      limit < 10000
+        ? sql`
+            SELECT * 
+            FROM diagnosis_master 
+            ${whereClause} 
+            ORDER BY name ASC 
+            LIMIT ${limit} OFFSET ${offset}
+          `
+        : sql`
+            SELECT * 
+            FROM diagnosis_master 
+            ${whereClause} 
+            ORDER BY name ASC 
+            LIMIT 10000
+          `
+    ]);
 
-    const { data, count, error } = await query;
-
-    if (error) {
-      if (error.code === "PGRST103") {
-        return NextResponse.json({
-          success: true,
-          data: [],
-          pagination: {
-            page,
-            limit,
-            total: 0,
-            totalPages: 1
-          }
-        });
-      }
-      throw error;
-    }
+    const count = countRes[0]?.count || 0;
     
     return NextResponse.json({ 
       success: true, 
-      data,
+      data: data || [],
       pagination: {
         page,
         limit,
@@ -76,19 +83,17 @@ export async function POST(req) {
   try {
     const body = await req.json();
 
-    // 1. Dynamic specialty_id fallback lookup to bypass the NOT-NULL constraint
-    let fallbackSpecialtyId = "549f3a82-8cb0-458c-aa2b-3f3f76c1ac69";
+    // 1. Dynamic specialty_id fallback lookup
+    let fallbackSpecialtyId = null;
     try {
-      const { data: existing } = await supabase
-        .from("diagnosis_master")
-        .select("specialty_id")
-        .not("specialty_id", "is", null)
-        .limit(1);
+      const existing = await sql`
+        SELECT specialty_id FROM diagnosis_master WHERE specialty_id IS NOT NULL LIMIT 1
+      `;
       if (existing && existing.length > 0) {
         fallbackSpecialtyId = existing[0].specialty_id;
       }
     } catch (e) {
-      console.warn("Failed to dynamically look up fallback specialty ID:", e.message);
+      console.warn("Failed to look up fallback specialty ID:", e.message);
     }
 
     // Handle Bulk Import
@@ -99,15 +104,17 @@ export async function POST(req) {
         description: row.description ? row.description.trim() : null,
         category: row.category ? row.category.trim() : null,
         is_active: row.is_active !== false,
-        specialty_id: row.specialty_id || fallbackSpecialtyId
+        specialty_id: safeUuid(row.specialty_id) || fallbackSpecialtyId
       })).filter(r => r.name);
 
-      const { data, error } = await supabase
-        .from("diagnosis_master")
-        .insert(formattedRows)
-        .select();
+      if (formattedRows.length === 0) {
+        return NextResponse.json({ success: true, data: [], message: "No valid diagnosis rows." });
+      }
 
-      if (error) throw error;
+      const data = await sql`
+        INSERT INTO diagnosis_master ${sql(formattedRows)}
+        RETURNING *
+      `;
 
       const admin_id = req.headers.get("x-admin-id") || null;
 
@@ -131,24 +138,25 @@ export async function POST(req) {
     // Handle Single Insert
     const { name, icd_code, description, is_active, specialty_id, category, admin_id } = body;
 
-    if (!name) {
+    if (!name || !name.trim()) {
       return NextResponse.json({ success: false, error: "Diagnosis Name is required" }, { status: 400 });
     }
 
-    const { data, error } = await supabase
-      .from("diagnosis_master")
-      .insert({
-        name: name.trim(),
-        icd_code: icd_code ? icd_code.trim() : null,
-        description: description ? description.trim() : null,
-        category: category ? category.trim() : null,
-        is_active: is_active !== false,
-        specialty_id: specialty_id || fallbackSpecialtyId
-      })
-      .select()
-      .single();
+    const rows = await sql`
+      INSERT INTO diagnosis_master (
+        name, icd_code, description, category, is_active, specialty_id
+      ) VALUES (
+        ${name.trim()},
+        ${icd_code ? icd_code.trim() : null},
+        ${description ? description.trim() : null},
+        ${category ? category.trim() : null},
+        ${is_active !== false},
+        ${safeUuid(specialty_id) || fallbackSpecialtyId}
+      )
+      RETURNING *
+    `;
 
-    if (error) throw error;
+    const data = rows[0];
 
     await logAudit({
       entity_type: "diagnosis_master",
@@ -180,28 +188,28 @@ export async function PATCH(req) {
     }
 
     // Fetch previous state for audit logging
-    const { data: oldData } = await supabase
-      .from("diagnosis_master")
-      .select("*")
-      .eq("id", id)
-      .single();
+    const oldRows = await sql`SELECT * FROM diagnosis_master WHERE id = ${id} LIMIT 1`;
+    if (oldRows.length === 0) {
+      return NextResponse.json({ success: false, error: "Diagnosis not found" }, { status: 404 });
+    }
+    const oldData = oldRows[0];
 
-    const { data, error } = await supabase
-      .from("diagnosis_master")
-      .update({
-        name: name ? name.trim() : undefined,
-        icd_code: icd_code !== undefined ? (icd_code ? icd_code.trim() : null) : undefined,
-        description: description !== undefined ? (description ? description.trim() : null) : undefined,
-        category: category !== undefined ? (category ? category.trim() : null) : undefined,
-        is_active: is_active !== undefined ? is_active : undefined,
-        specialty_id: specialty_id !== undefined ? specialty_id : undefined,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", id)
-      .select()
-      .single();
+    const updates = { updated_at: new Date().toISOString() };
+    if (name !== undefined) updates.name = name.trim();
+    if (icd_code !== undefined) updates.icd_code = icd_code ? icd_code.trim() : null;
+    if (description !== undefined) updates.description = description ? description.trim() : null;
+    if (category !== undefined) updates.category = category ? category.trim() : null;
+    if (is_active !== undefined) updates.is_active = is_active;
+    if (specialty_id !== undefined && safeUuid(specialty_id)) updates.specialty_id = specialty_id;
 
-    if (error) throw error;
+    const updatedRows = await sql`
+      UPDATE diagnosis_master
+      SET ${sql(updates)}
+      WHERE id = ${id}
+      RETURNING *
+    `;
+
+    const data = updatedRows[0];
 
     await logAudit({
       entity_type: "diagnosis_master",
@@ -233,18 +241,13 @@ export async function DELETE(req) {
       return NextResponse.json({ success: false, error: "ID is required" }, { status: 400 });
     }
 
-    const { data: oldData } = await supabase
-      .from("diagnosis_master")
-      .select("*")
-      .eq("id", id)
-      .single();
+    const oldRows = await sql`SELECT * FROM diagnosis_master WHERE id = ${id} LIMIT 1`;
+    if (oldRows.length === 0) {
+      return NextResponse.json({ success: false, error: "Diagnosis not found" }, { status: 404 });
+    }
+    const oldData = oldRows[0];
 
-    const { error } = await supabase
-      .from("diagnosis_master")
-      .delete()
-      .eq("id", id);
-
-    if (error) throw error;
+    await sql`DELETE FROM diagnosis_master WHERE id = ${id}`;
 
     await logAudit({
       entity_type: "diagnosis_master",

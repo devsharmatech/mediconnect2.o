@@ -2,8 +2,10 @@
  * Admin → Staff Permission Overrides
  * PUT /api/admin/staff/[id]/permissions — set per-staff permission overrides
  */
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
+
+export const dynamic = 'force-dynamic';
 
 export async function PUT(req, { params }) {
   try {
@@ -16,25 +18,21 @@ export async function PUT(req, { params }) {
     }
 
     // Verify staff exists
-    const { data: staff } = await supabase
-      .from("staffs")
-      .select("id")
-      .eq("id", id)
-      .is("deleted_at", null)
-      .single();
+    const staff = await sql`
+      SELECT id FROM staffs WHERE id = ${id} AND deleted_at IS NULL LIMIT 1
+    `;
 
-    if (!staff) {
+    if (!staff || staff.length === 0) {
       return failure("Staff not found", null, 404);
     }
 
     // Delete existing overrides for this staff
-    await supabase
-      .from("staff_permission_overrides")
-      .delete()
-      .eq("staff_id", id);
+    await sql`
+      DELETE FROM staff_permission_overrides WHERE staff_id = ${id}
+    `;
 
-    // Insert new overrides (only if any action is true)
-    const inserts = permissions
+    // Filter and prepare inserts
+    const validOverrides = permissions
       .filter((p) => p.can_view || p.can_create || p.can_update || p.can_delete)
       .map((p) => ({
         staff_id: id,
@@ -45,18 +43,13 @@ export async function PUT(req, { params }) {
         can_delete: !!p.can_delete,
       }));
 
-    if (inserts.length > 0) {
-      const { error } = await supabase
-        .from("staff_permission_overrides")
-        .insert(inserts);
-
-      if (error) {
-        console.error("[admin/staff/permissions] insert error:", error);
-        return failure("Failed to set permissions", error.message, 500);
-      }
+    if (validOverrides.length > 0) {
+      await sql`
+        INSERT INTO staff_permission_overrides ${sql(validOverrides)}
+      `;
     }
 
-    return success("Staff permissions updated", { count: inserts.length });
+    return success("Staff permissions updated", { count: validOverrides.length });
   } catch (err) {
     console.error("[admin/staff/permissions] Error:", err);
     return failure("Failed to update permissions", err.message, 500);

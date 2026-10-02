@@ -1,26 +1,26 @@
 /**
- * LAYER-111: Consultation State Machine (UPGRADED)
+ * LAYER-111: Consultation State Machine
  * 
  * Manages consultation lifecycle with the NEW state definitions from Layer-111.
  * Direct database updates to case_status are NOT allowed — all changes
  * must go through updateConsultationStatus().
  * 
- * NEW States: STARTED → ACTIVE → COMPLETED → FOLLOW_UP_PENDING → CLOSED_RESOLVED | CLOSED_NO_RESPONSE
- * 
- * STRICT RULES:
- * - ACTIVE → CLOSED ❌ (forbidden)
- * - STARTED → COMPLETED ❌ (forbidden)
- * - COMPLETED → ACTIVE ❌ (forbidden)
- * - On COMPLETED + follow_up_required=TRUE → auto-set FOLLOW_UP_PENDING
+ * Uses AWS RDS PostgreSQL via sql client.
  */
 
-import { supabase } from "../supabaseAdmin";
+import sql from "@/lib/db";
 import { logAudit } from "./auditLogger";
 import { logActivity } from "./activityLogger";
 import { emit } from "./eventEmitter";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function safeUuid(val) {
+  if (!val) return null;
+  return UUID_REGEX.test(val) ? val : null;
+}
+
 // ─────────────────────────────────────────────────────────
-// STATE DEFINITIONS (from PDF Part 2)
+// STATE DEFINITIONS
 // ─────────────────────────────────────────────────────────
 
 const STATES = {
@@ -42,7 +42,7 @@ const ALLOWED_TRANSITIONS = {
     [STATES.CLOSED_NO_RESPONSE]: [],   // terminal
 };
 
-// Event mapping per state change (PDF Part 2-5)
+// Event mapping per state change
 const EVENT_MAP = {
     [STATES.STARTED]:            "CONSULTATION_CREATED",
     [STATES.ACTIVE]:             "CONSULTATION_ACTIVE",
@@ -58,19 +58,8 @@ const ALL_STATES = Object.values(STATES);
 // MAIN FUNCTION: updateConsultationStatus
 // ─────────────────────────────────────────────────────────
 
-/**
- * Update consultation status with validation, audit, activity log, and event emission.
- * This is the ONLY way to change consultation status.
- * 
- * @param {string} consultation_id - consultation UUID
- * @param {string} new_status - target state
- * @param {string} user_id - who is making the change
- * @param {string} [reason] - optional reason for transition
- * @returns {object} { success, data, error }
- */
 export async function updateConsultationStatus(consultation_id, new_status, user_id, reason = null) {
     try {
-        // ── Validate inputs ──
         if (!consultation_id || !new_status || !user_id) {
             return { success: false, error: "consultation_id, new_status, and user_id are required" };
         }
@@ -79,19 +68,19 @@ export async function updateConsultationStatus(consultation_id, new_status, user
             return { success: false, error: `Invalid status '${new_status}'. Must be one of: ${ALL_STATES.join(", ")}` };
         }
 
-        // ── Fetch current consultation ──
-        const { data: consultation, error: fetchErr } = await supabase
-            .from("consultations")
-            .select("*")
-            .eq("id", consultation_id)
-            .single();
+        // Fetch current consultation
+        const rows = await sql`
+            SELECT * FROM consultations WHERE id = ${consultation_id} LIMIT 1
+        `;
 
-        if (fetchErr) throw fetchErr;
-        if (!consultation) return { success: false, error: "Consultation not found" };
+        if (!rows || rows.length === 0) {
+            return { success: false, error: "Consultation not found" };
+        }
 
+        const consultation = rows[0];
         const current_status = consultation.case_status;
 
-        // ── Validate transition ──
+        // Validate transition
         const allowed = ALLOWED_TRANSITIONS[current_status] || [];
         if (!allowed.includes(new_status)) {
             return {
@@ -100,16 +89,15 @@ export async function updateConsultationStatus(consultation_id, new_status, user
             };
         }
 
-        // ── HARD BLOCK: Prevent ACTIVE → COMPLETED if unresolved HIGH risk flags exist ──
-        // Layer-111 Rule: clinical risk gates must live in the state machine itself,
-        // not just in manage/route.js, to prevent bypass via the status endpoint.
+        // Prevent ACTIVE → COMPLETED if unresolved HIGH risk flags exist
         if (new_status === STATES.COMPLETED) {
-            const { count: unresolvedHighFlags } = await supabase
-                .from("clinical_risk_flags")
-                .select("id", { count: "exact", head: true })
-                .eq("consultation_id", consultation_id)
-                .eq("severity", "HIGH")
-                .eq("resolved", false);
+            const [{ count: unresolvedHighFlags }] = await sql`
+                SELECT count(*)::int as count 
+                FROM clinical_risk_flags 
+                WHERE consultation_id = ${consultation_id} 
+                  AND severity = 'HIGH' 
+                  AND resolved = false
+            `;
 
             if (unresolvedHighFlags > 0) {
                 return {
@@ -119,45 +107,41 @@ export async function updateConsultationStatus(consultation_id, new_status, user
             }
         }
 
-        // ── Build update payload ──
-        const updatePayload = {
-            case_status: new_status,
-            updated_at: new Date().toISOString(),
-        };
-
-        // ── COMPLETED logic: check follow_up_required ──
+        let targetStatus = new_status;
         let autoFollowUp = false;
+        let followUpDateVal = consultation.follow_up_date;
+
         if (new_status === STATES.COMPLETED && consultation.follow_up_required === true) {
-            // PDF Rule: on COMPLETED + follow_up_required=TRUE → status MUST become FOLLOW_UP_PENDING
-            updatePayload.case_status = STATES.FOLLOW_UP_PENDING;
+            targetStatus = STATES.FOLLOW_UP_PENDING;
             autoFollowUp = true;
 
-            // Auto-calculate follow_up_date if not set
             if (consultation.follow_up_days && !consultation.follow_up_date) {
-                const followUpDate = new Date();
-                followUpDate.setDate(followUpDate.getDate() + consultation.follow_up_days);
-                updatePayload.follow_up_date = followUpDate.toISOString().split("T")[0];
+                const fDate = new Date();
+                fDate.setDate(fDate.getDate() + consultation.follow_up_days);
+                followUpDateVal = fDate.toISOString().split("T")[0];
             }
         }
 
-        // ── Update consultation ──
-        const { data, error } = await supabase
-            .from("consultations")
-            .update(updatePayload)
-            .eq("id", consultation_id)
-            .select()
-            .single();
+        // Update consultation
+        const updatedRows = await sql`
+            UPDATE consultations
+            SET 
+                case_status = ${targetStatus},
+                follow_up_date = ${followUpDateVal || null},
+                updated_at = NOW()
+            WHERE id = ${consultation_id}
+            RETURNING *
+        `;
 
-        if (error) throw error;
+        const data = updatedRows[0];
+        const final_status = targetStatus;
 
-        const final_status = updatePayload.case_status;
-
-        // ── Create care_followup_commitment if auto follow-up ──
+        // Create care_followup_commitment if auto follow-up
         if (autoFollowUp) {
             await createFollowUpCommitment(consultation);
         }
 
-        // ── Write audit log ──
+        // Write audit log
         await logAudit({
             entity_type: "consultation",
             entity_id: consultation_id,
@@ -167,7 +151,7 @@ export async function updateConsultationStatus(consultation_id, new_status, user
             changed_by: user_id,
         });
 
-        // ── Write activity log ──
+        // Write activity log
         await logActivity({
             patient_id: consultation.patient_id,
             care_episode_id: consultation.care_episode_id,
@@ -178,7 +162,7 @@ export async function updateConsultationStatus(consultation_id, new_status, user
             description: `Consultation status: ${current_status} → ${final_status}`,
         });
 
-        // ── Emit event ──
+        // Emit event
         const event = EVENT_MAP[final_status];
         if (event) {
             emit(event, {
@@ -191,15 +175,12 @@ export async function updateConsultationStatus(consultation_id, new_status, user
             });
         }
 
-        // ── Update care_episode_summary on COMPLETED ──
+        // Update care_episode_summary on COMPLETED
         if (final_status === STATES.COMPLETED || final_status === STATES.FOLLOW_UP_PENDING) {
             await updateCareEpisodeSummary(consultation);
         }
 
-        // ── MC-4: Capture baseline at STARTED → ACTIVE transition ──
-        // The baseline is the patient's clinical context when the doctor
-        // first activates the consultation. Outcome analytics compare
-        // post-consultation outcomes against this baseline.
+        // Capture baseline at STARTED → ACTIVE transition
         if (current_status === STATES.STARTED && final_status === STATES.ACTIVE) {
             await captureBaseline(consultation_id);
         }
@@ -211,113 +192,86 @@ export async function updateConsultationStatus(consultation_id, new_status, user
     }
 }
 
-// ─────────────────────────────────────────────────────────
-// HELPER: Create follow-up commitment
-// ─────────────────────────────────────────────────────────
-
 async function createFollowUpCommitment(consultation) {
     try {
-        const { error } = await supabase
-            .from("care_followup_commitment")
-            .insert({
-                consultation_id: consultation.id,
-                care_episode_id: consultation.care_episode_id,
-                patient_id: consultation.patient_id,
-                doctor_id: consultation.doctor_id,
-                follow_up_days: consultation.follow_up_days || 7,
-                follow_up_date: consultation.follow_up_date,
-                status: "PENDING",
-            });
-
-        if (error) console.error("Failed to create follow-up commitment:", error);
+        await sql`
+            INSERT INTO care_followup_commitment (
+                consultation_id, care_episode_id, patient_id, doctor_id, follow_up_days, follow_up_date, status
+            ) VALUES (
+                ${consultation.id},
+                ${safeUuid(consultation.care_episode_id)},
+                ${safeUuid(consultation.patient_id)},
+                ${safeUuid(consultation.doctor_id)},
+                ${consultation.follow_up_days || 7},
+                ${consultation.follow_up_date || null},
+                'PENDING'
+            )
+        `;
     } catch (err) {
-        console.error("createFollowUpCommitment error:", err);
+        console.warn("createFollowUpCommitment error:", err.message);
     }
 }
-
-// ─────────────────────────────────────────────────────────
-// HELPER: Update care episode summary
-// ─────────────────────────────────────────────────────────
 
 async function updateCareEpisodeSummary(consultation) {
+    if (!consultation.care_episode_id) return;
     try {
-        const { error } = await supabase
-            .from("care_episode_summary")
-            .upsert({
-                care_episode_id: consultation.care_episode_id,
-                latest_status: consultation.case_status,
-                last_consultation_id: consultation.id,
-                updated_at: new Date().toISOString(),
-            }, { onConflict: "care_episode_id" });
-
-        if (error) console.error("Failed to update care_episode_summary:", error);
+        await sql`
+            INSERT INTO care_episode_summary (
+                care_episode_id, latest_status, last_consultation_id, updated_at
+            ) VALUES (
+                ${consultation.care_episode_id},
+                ${consultation.case_status},
+                ${consultation.id},
+                NOW()
+            )
+            ON CONFLICT (care_episode_id)
+            DO UPDATE SET
+                latest_status = EXCLUDED.latest_status,
+                last_consultation_id = EXCLUDED.last_consultation_id,
+                updated_at = NOW()
+        `;
     } catch (err) {
-        console.error("updateCareEpisodeSummary error:", err);
+        console.warn("updateCareEpisodeSummary error:", err.message);
     }
 }
 
-// ─────────────────────────────────────────────────────────
-// HELPER: Capture clinical baseline at ACTIVE
-// ─────────────────────────────────────────────────────────
-
-/**
- * MC-4: Capture baseline at STARTED → ACTIVE.
- * Reads current consultation_clinical state and stores it in
- * consultation_baseline for outcome efficacy comparison.
- * Idempotent — only writes if no baseline exists.
- */
 async function captureBaseline(consultation_id) {
     try {
-        // Skip if baseline already exists
-        const { data: existing } = await supabase
-            .from("consultation_baseline")
-            .select("id")
-            .eq("consultation_id", consultation_id)
-            .single();
+        const existing = await sql`
+            SELECT id FROM consultation_baseline WHERE consultation_id = ${consultation_id} LIMIT 1
+        `;
+        if (existing.length > 0) return;
 
-        if (existing) return;
+        const clinical = await sql`
+            SELECT severity, duration, complaint_id
+            FROM consultation_clinical
+            WHERE consultation_id = ${consultation_id}
+            LIMIT 1
+        `;
 
-        // Read current clinical state at activation time
-        const { data: clinical } = await supabase
-            .from("consultation_clinical")
-            .select("severity, duration, complaint_id")
-            .eq("consultation_id", consultation_id)
-            .single();
+        const symptoms = await sql`
+            SELECT symptom_id FROM consultation_symptoms WHERE consultation_id = ${consultation_id}
+        `;
 
-        const { data: symptoms } = await supabase
-            .from("consultation_symptoms")
-            .select("symptom_id")
-            .eq("consultation_id", consultation_id);
-
-        await supabase
-            .from("consultation_baseline")
-            .insert({
-                consultation_id,
-                symptom_ids: (symptoms || []).map(s => s.symptom_id),
-                severity: clinical?.severity || null,
-                duration: clinical?.duration || null,
-            });
-
+        await sql`
+            INSERT INTO consultation_baseline (
+                consultation_id, symptom_ids, severity, duration
+            ) VALUES (
+                ${consultation_id},
+                ${(symptoms || []).map(s => s.symptom_id)},
+                ${clinical[0]?.severity || null},
+                ${clinical[0]?.duration || null}
+            )
+        `;
     } catch (err) {
-        // Non-fatal — log but never block the state transition
-        console.warn("[MC-4] captureBaseline failed (non-fatal):", err.message);
+        console.warn("[MC-4] captureBaseline failed:", err.message);
     }
 }
 
-// ─────────────────────────────────────────────────────────
-// UTILITY EXPORTS
-// ─────────────────────────────────────────────────────────
-
-/**
- * Get allowed transitions for a given status
- */
 export function getAllowedTransitions(current_status) {
     return ALLOWED_TRANSITIONS[current_status] || [];
 }
 
-/**
- * Check if a transition is valid
- */
 export function isValidTransition(from_status, to_status) {
     const allowed = ALLOWED_TRANSITIONS[from_status] || [];
     return allowed.includes(to_status);

@@ -4,32 +4,41 @@
  * PUT    /api/admin/staff/[id]   — update staff
  * DELETE /api/admin/staff/[id]   — soft delete staff
  */
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { hashPassword, getStaffPermissions } from "@/lib/staffAuth";
+
+export const dynamic = 'force-dynamic';
 
 // GET — Single staff detail with permissions
 export async function GET(req, { params }) {
   try {
     const { id } = await params;
 
-    const { data: staff, error } = await supabase
-      .from("staffs")
-      .select("*, staff_roles(id, name)")
-      .eq("id", id)
-      .is("deleted_at", null)
-      .single();
+    const rows = await sql`
+      SELECT 
+        s.id, s.admin_id, s.full_name, s.email, s.phone, s.gender,
+        s.date_of_birth, s.address, s.designation, s.department,
+        s.employee_code, s.profile_picture, s.is_active, s.is_verified,
+        s.last_login_at, s.created_at, s.updated_at, s.deleted_at, s.role_id,
+        r.id as role_rel_id, r.name as role_rel_name
+      FROM staffs s
+      LEFT JOIN staff_roles r ON s.role_id = r.id
+      WHERE s.id = ${id} AND s.deleted_at IS NULL
+      LIMIT 1
+    `;
 
-    if (error || !staff) {
+    if (!rows || rows.length === 0) {
       return failure("Staff not found", null, 404);
     }
+
+    const { role_rel_id, role_rel_name, ...staffObj } = rows[0];
+    staffObj.staff_roles = role_rel_id ? { id: role_rel_id, name: role_rel_name } : null;
 
     // Get merged permissions
     const permissions = await getStaffPermissions(id);
 
-    const { password_hash, ...safeStaff } = staff;
-
-    return success("Staff details", { staff: safeStaff, permissions });
+    return success("Staff details", { staff: staffObj, permissions });
   } catch (err) {
     console.error("[admin/staff/[id]] GET error:", err);
     return failure("Failed to fetch staff", err.message, 500);
@@ -48,56 +57,71 @@ export async function PUT(req, { params }) {
       is_verified, password, profile_picture,
     } = body;
 
-    // Build update object (only include provided fields)
-    const updateData = { updated_at: new Date().toISOString() };
+    // Check staff exists
+    const existingStaff = await sql`
+      SELECT id FROM staffs WHERE id = ${id} AND deleted_at IS NULL LIMIT 1
+    `;
+    if (existingStaff.length === 0) {
+      return failure("Staff not found", null, 404);
+    }
 
-    if (full_name !== undefined) updateData.full_name = full_name.trim();
+    // Check duplicate email if email provided
+    let cleanEmail = undefined;
     if (email !== undefined) {
-      // Check duplicate
-      const { data: existing } = await supabase
-        .from("staffs")
-        .select("id")
-        .eq("email", email.toLowerCase().trim())
-        .neq("id", id)
-        .is("deleted_at", null)
-        .single();
-
-      if (existing) {
+      cleanEmail = email.toLowerCase().trim();
+      const dup = await sql`
+        SELECT id FROM staffs 
+        WHERE email = ${cleanEmail} AND id != ${id} AND deleted_at IS NULL 
+        LIMIT 1
+      `;
+      if (dup.length > 0) {
         return failure("Another staff member already uses this email", null, 409);
       }
-      updateData.email = email.toLowerCase().trim();
     }
-    if (phone !== undefined) updateData.phone = phone;
-    if (gender !== undefined) updateData.gender = gender;
-    if (date_of_birth !== undefined) updateData.date_of_birth = date_of_birth;
-    if (address !== undefined) updateData.address = address;
-    if (designation !== undefined) updateData.designation = designation;
-    if (department !== undefined) updateData.department = department;
-    if (role_id !== undefined) updateData.role_id = role_id || null;
-    if (is_active !== undefined) updateData.is_active = is_active;
-    if (is_verified !== undefined) updateData.is_verified = is_verified;
-    if (profile_picture !== undefined) updateData.profile_picture = profile_picture;
 
+    let password_hash = undefined;
     if (password && password.length >= 6) {
-      updateData.password_hash = await hashPassword(password);
+      password_hash = await hashPassword(password);
     }
 
-    const { data: updated, error } = await supabase
-      .from("staffs")
-      .update(updateData)
-      .eq("id", id)
-      .is("deleted_at", null)
-      .select("*, staff_roles(id, name)")
-      .single();
+    // Build dynamic update columns
+    const updates = { updated_at: new Date().toISOString() };
+    if (full_name !== undefined) updates.full_name = full_name.trim();
+    if (cleanEmail !== undefined) updates.email = cleanEmail;
+    if (phone !== undefined) updates.phone = phone;
+    if (gender !== undefined) updates.gender = gender;
+    if (date_of_birth !== undefined) updates.date_of_birth = date_of_birth;
+    if (address !== undefined) updates.address = address;
+    if (designation !== undefined) updates.designation = designation;
+    if (department !== undefined) updates.department = department;
+    if (role_id !== undefined) updates.role_id = role_id || null;
+    if (is_active !== undefined) updates.is_active = is_active;
+    if (is_verified !== undefined) updates.is_verified = is_verified;
+    if (profile_picture !== undefined) updates.profile_picture = profile_picture;
+    if (password_hash !== undefined) updates.password_hash = password_hash;
 
-    if (error || !updated) {
-      console.error("[admin/staff/[id]] PUT error:", error);
-      return failure("Failed to update staff", error?.message, 500);
+    const updatedRows = await sql`
+      UPDATE staffs
+      SET ${sql(updates)}
+      WHERE id = ${id} AND deleted_at IS NULL
+      RETURNING *
+    `;
+
+    if (!updatedRows || updatedRows.length === 0) {
+      return failure("Failed to update staff", null, 500);
     }
 
-    const { password_hash, ...safeStaff } = updated;
+    const updated = updatedRows[0];
+    delete updated.password_hash;
 
-    return success("Staff updated", safeStaff);
+    if (updated.role_id) {
+      const roleRow = await sql`SELECT id, name FROM staff_roles WHERE id = ${updated.role_id} LIMIT 1`;
+      updated.staff_roles = roleRow[0] || null;
+    } else {
+      updated.staff_roles = null;
+    }
+
+    return success("Staff updated", updated);
   } catch (err) {
     console.error("[admin/staff/[id]] PUT error:", err);
     return failure("Failed to update staff", err.message, 500);
@@ -109,19 +133,18 @@ export async function DELETE(req, { params }) {
   try {
     const { id } = await params;
 
-    const { error } = await supabase
-      .from("staffs")
-      .update({
-        deleted_at: new Date().toISOString(),
-        is_active: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .is("deleted_at", null);
+    const res = await sql`
+      UPDATE staffs
+      SET 
+        deleted_at = NOW(),
+        is_active = false,
+        updated_at = NOW()
+      WHERE id = ${id} AND deleted_at IS NULL
+      RETURNING id
+    `;
 
-    if (error) {
-      console.error("[admin/staff/[id]] DELETE error:", error);
-      return failure("Failed to delete staff", error.message, 500);
+    if (res.length === 0) {
+      return failure("Staff not found or already deleted", null, 404);
     }
 
     return success("Staff member deleted (soft delete)");

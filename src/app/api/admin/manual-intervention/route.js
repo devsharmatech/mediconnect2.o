@@ -11,11 +11,18 @@
  */
 
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function safeUuid(val) {
+  if (!val) return null;
+  return UUID_REGEX.test(val) ? val : null;
+}
 
 /**
  * GET — List items requiring manual intervention
- * Query: ?type=all|retry|risk|payment&page=1&limit=20
  */
 export async function GET(req) {
     try {
@@ -29,14 +36,18 @@ export async function GET(req) {
 
         // 1. Permanently failed retry queue items
         if (type === "all" || type === "retry") {
-            const { data } = await supabase
-                .from("retry_queue")
-                .select("*")
-                .eq("status", "failed")
-                .order("completed_at", { ascending: false })
-                .range(offset, offset + limit - 1);
-
-            result.failed_retries = data || [];
+            try {
+                const retries = await sql`
+                    SELECT *
+                    FROM retry_queue
+                    WHERE status = 'failed'
+                    ORDER BY completed_at DESC NULLS LAST, created_at DESC
+                    LIMIT ${limit} OFFSET ${offset}
+                `;
+                result.failed_retries = retries || [];
+            } catch (rErr) {
+                console.warn("retry_queue query failed:", rErr.message);
+            }
         }
 
         // 2. Unresolved HIGH clinical risks (open > 24 hrs)
@@ -45,32 +56,34 @@ export async function GET(req) {
             slaThreshold.setDate(slaThreshold.getDate() - 1);
 
             try {
-                const { data } = await supabase
-                    .from("clinical_risk_flags")
-                    .select("*")
-                    .eq("severity", "HIGH")
-                    .eq("resolved", false)
-                    .lte("created_at", slaThreshold.toISOString())
-                    .order("created_at", { ascending: true })
-                    .range(offset, offset + limit - 1);
+                const risks = await sql`
+                    SELECT *
+                    FROM clinical_risk_flags
+                    WHERE severity = 'HIGH'
+                      AND resolved = false
+                      AND created_at <= ${slaThreshold.toISOString()}
+                    ORDER BY created_at ASC
+                    LIMIT ${limit} OFFSET ${offset}
+                `;
 
-                const risks = data || [];
+                const riskList = risks || [];
 
                 // Fetch consultation details separately
-                if (risks.length > 0) {
-                    const cIds = [...new Set(risks.map(r => r.consultation_id).filter(Boolean))];
+                if (riskList.length > 0) {
+                    const cIds = [...new Set(riskList.map(r => r.consultation_id).filter(Boolean))];
                     if (cIds.length > 0) {
-                        const { data: consultations } = await supabase
-                            .from("consultations")
-                            .select("id, doctor_id, patient_id")
-                            .in("id", cIds);
+                        const consultations = await sql`
+                            SELECT id, doctor_id, patient_id
+                            FROM consultations
+                            WHERE id = ANY(${cIds})
+                        `;
                         const cMap = {};
                         (consultations || []).forEach(c => { cMap[c.id] = c; });
-                        risks.forEach(r => { r.consultation = cMap[r.consultation_id] || null; });
+                        riskList.forEach(r => { r.consultation = cMap[r.consultation_id] || null; });
                     }
                 }
 
-                result.unresolved_risks = risks;
+                result.unresolved_risks = riskList;
             } catch (e) {
                 console.warn("Risk query failed:", e.message);
             }
@@ -78,14 +91,18 @@ export async function GET(req) {
 
         // 3. Failed payment transactions
         if (type === "all" || type === "payment") {
-            const { data } = await supabase
-                .from("financial_transaction_log")
-                .select("*")
-                .eq("status", "failed")
-                .order("created_at", { ascending: false })
-                .range(offset, offset + limit - 1);
-
-            result.failed_payments = data || [];
+            try {
+                const payments = await sql`
+                    SELECT *
+                    FROM financial_transaction_log
+                    WHERE status = 'failed'
+                    ORDER BY created_at DESC
+                    LIMIT ${limit} OFFSET ${offset}
+                `;
+                result.failed_payments = payments || [];
+            } catch (pErr) {
+                console.warn("financial_transaction_log query failed:", pErr.message);
+            }
         }
 
         const totalItems =
@@ -112,9 +129,6 @@ export async function GET(req) {
 /**
  * POST — Trigger manual action
  * Body: { action_type, item_id, action, admin_id, notes? }
- * 
- * action_type: "retry" | "risk" | "payment" | "followup"
- * action: depends on type
  */
 export async function POST(req) {
     try {
@@ -129,77 +143,78 @@ export async function POST(req) {
 
         switch (action_type) {
             case "retry": {
-                // Reset failed retry item for re-processing
+                const intId = parseInt(item_id, 10);
                 if (action === "reset") {
-                    const { data, error } = await supabase
-                        .from("retry_queue")
-                        .update({
-                            status: "pending",
-                            retry_count: 0,
-                            next_retry_at: new Date().toISOString(),
-                            last_error: `Manual reset by admin ${admin_id}. ${notes || ""}`,
-                        })
-                        .eq("id", item_id)
-                        .select()
-                        .single();
-
-                    if (error) throw error;
-                    result = data;
+                    const updated = await sql`
+                        UPDATE retry_queue
+                        SET 
+                            status = 'pending',
+                            retry_count = 0,
+                            next_retry_at = NOW(),
+                            last_error = ${`Manual reset by admin ${admin_id}. ${notes || ""}`}
+                        WHERE id = ${intId}
+                        RETURNING *
+                    `;
+                    result = updated[0] || null;
                 } else if (action === "dismiss") {
-                    const { data, error } = await supabase
-                        .from("retry_queue")
-                        .update({
-                            status: "dismissed",
-                            last_error: `Dismissed by admin ${admin_id}. ${notes || ""}`,
-                        })
-                        .eq("id", item_id)
-                        .select()
-                        .single();
-
-                    if (error) throw error;
-                    result = data;
+                    const updated = await sql`
+                        UPDATE retry_queue
+                        SET 
+                            status = 'dismissed',
+                            last_error = ${`Dismissed by admin ${admin_id}. ${notes || ""}`}
+                        WHERE id = ${intId}
+                        RETURNING *
+                    `;
+                    result = updated[0] || null;
                 }
                 break;
             }
 
             case "risk": {
-                // Resolve clinical risk with admin action
-                const { data, error } = await supabase
-                    .from("clinical_risk_flags")
-                    .update({
-                        resolved: true,
-                        resolution_status: action,
-                        reviewed_by: admin_id,
-                        reviewed_at: new Date().toISOString(),
-                        notes: notes || null,
-                    })
-                    .eq("id", item_id)
-                    .select()
-                    .single();
-
-                if (error) throw error;
-                result = data;
+                const validAdminId = safeUuid(admin_id);
+                const updated = await sql`
+                    UPDATE clinical_risk_flags
+                    SET 
+                        resolved = true,
+                        resolution_status = ${action},
+                        reviewed_by = ${validAdminId},
+                        reviewed_at = NOW(),
+                        notes = ${notes || null}
+                    WHERE id = ${item_id}
+                    RETURNING *
+                `;
+                result = updated[0] || null;
                 break;
             }
 
             case "followup": {
-                // Trigger manual follow-up notification to patient
-                const { data: consultation } = await supabase
-                    .from("consultations")
-                    .select("patient_id, doctor_id")
-                    .eq("id", item_id)
-                    .single();
+                const consultations = await sql`
+                    SELECT patient_id, doctor_id
+                    FROM consultations
+                    WHERE id = ${item_id}
+                    LIMIT 1
+                `;
 
-                if (consultation) {
-                    await supabase
-                        .from("notifications")
-                        .insert({
-                            user_id: consultation.patient_id,
-                            title: "Important: Follow-up required",
-                            message: notes || "Your care team has requested a follow-up. Please respond at your earliest convenience.",
-                            type: "manual_followup",
-                            metadata: { consultation_id: item_id, triggered_by: admin_id },
-                        });
+                if (consultations && consultations.length > 0) {
+                    const consultation = consultations[0];
+                    if (consultation.patient_id) {
+                        try {
+                            await sql`
+                                INSERT INTO notifications (
+                                    user_id, title, message, type, metadata, created_at
+                                ) VALUES (
+                                    ${consultation.patient_id},
+                                    'Important: Follow-up required',
+                                    ${notes || "Your care team has requested a follow-up. Please respond at your earliest convenience."},
+                                    'manual_followup',
+                                    ${JSON.stringify({ consultation_id: item_id, triggered_by: admin_id })},
+                                    NOW()
+                                )
+                            `;
+                        } catch (notifErr) {
+                            console.warn("Failed to create notification:", notifErr.message);
+                        }
+                    }
 
                     result = { notification_sent: true, patient_id: consultation.patient_id };
                 }
@@ -207,19 +222,15 @@ export async function POST(req) {
             }
 
             case "payment": {
-                // Mark failed payment for re-processing
-                const { data, error } = await supabase
-                    .from("financial_transaction_log")
-                    .update({
-                        status: action === "retry" ? "pending" : "cancelled",
-                        notes: `Admin action: ${action}. ${notes || ""}`,
-                    })
-                    .eq("id", item_id)
-                    .select()
-                    .single();
-
-                if (error) throw error;
-                result = data;
+                const updated = await sql`
+                    UPDATE financial_transaction_log
+                    SET 
+                        status = ${action === "retry" ? "pending" : "cancelled"},
+                        description = ${`Admin action: ${action}. ${notes || ""}`}
+                    WHERE id = ${item_id}
+                    RETURNING *
+                `;
+                result = updated[0] || null;
                 break;
             }
 

@@ -1,20 +1,17 @@
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseClient";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(req) {
   try {
     // 1. Fetch all non-cancelled appointments
-    const { data: appointments, error: aptError } = await supabase
-      .from("appointments")
-      .select("id, patient_id, doctor_id, appointment_date, appointment_time, status, created_at")
-      .neq("status", "cancelled")
-      .neq("status", "rejected")
-      .order("appointment_date", { ascending: false });
-
-    if (aptError) {
-      console.error("[Admin Visits API] DB Error:", aptError);
-      return failure("Failed to fetch appointments", aptError.message, 500);
-    }
+    const appointments = await sql`
+      SELECT id, patient_id, doctor_id, appointment_date, appointment_time, status, created_at
+      FROM appointments
+      WHERE status NOT IN ('cancelled', 'rejected')
+      ORDER BY appointment_date DESC
+    `;
 
     if (!appointments || appointments.length === 0) {
       return success("No visits found", [], 200);
@@ -26,14 +23,14 @@ export async function POST(req) {
 
     // 3. Fetch Doctor & Patient Details
     const [doctorsRes, patientsRes, usersRes] = await Promise.all([
-      supabase.from("doctor_details").select("id, full_name, specialization").in("id", doctorIds),
-      supabase.from("patient_details").select("id, full_name, email, gender").in("id", patientIds),
-      supabase.from("users").select("id, phone_number").in("id", patientIds)
+      doctorIds.length > 0 ? sql`SELECT id, full_name, specialization FROM doctor_details WHERE id = ANY(${doctorIds})` : Promise.resolve([]),
+      patientIds.length > 0 ? sql`SELECT id, full_name, email, gender FROM patient_details WHERE id = ANY(${patientIds})` : Promise.resolve([]),
+      patientIds.length > 0 ? sql`SELECT id, phone_number FROM users WHERE id = ANY(${patientIds})` : Promise.resolve([])
     ]);
 
-    const doctors = doctorsRes.data || [];
-    const patients = patientsRes.data || [];
-    const users = usersRes.data || [];
+    const doctors = doctorsRes || [];
+    const patients = patientsRes || [];
+    const users = usersRes || [];
 
     // 4. Group data by Doctor
     const doctorMap = {};

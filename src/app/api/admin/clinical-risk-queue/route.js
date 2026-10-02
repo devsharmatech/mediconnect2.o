@@ -11,11 +11,18 @@
  */
 
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+export const dynamic = 'force-dynamic';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function safeUuid(val) {
+  if (!val) return null;
+  return UUID_REGEX.test(val) ? val : null;
+}
 
 /**
  * GET — List clinical risk flags with filters
- * Query: ?severity=HIGH&resolved=false&page=1&limit=20
  */
 export async function GET(req) {
     try {
@@ -26,29 +33,39 @@ export async function GET(req) {
         const limit = parseInt(searchParams.get("limit") || "20");
         const offset = (page - 1) * limit;
 
-        let query = supabase
-            .from("clinical_risk_flags")
-            .select("*", { count: "exact" })
-            .order("created_at", { ascending: false })
-            .range(offset, offset + limit - 1);
+        const conditions = [];
 
-        if (severity) query = query.eq("severity", severity);
-        if (resolved === "true") query = query.eq("resolved", true);
-        if (resolved === "false") query = query.eq("resolved", false);
+        if (severity) conditions.push(sql`severity = ${severity}`);
+        if (resolved === "true") conditions.push(sql`resolved = true`);
+        if (resolved === "false") conditions.push(sql`resolved = false`);
 
-        const { data: flags, count, error } = await query;
+        const whereClause = conditions.length > 0
+            ? sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`
+            : sql``;
 
-        if (error) throw error;
+        const [countRes, flags] = await Promise.all([
+            sql`SELECT count(*)::int as count FROM clinical_risk_flags ${whereClause}`,
+            sql`
+                SELECT * 
+                FROM clinical_risk_flags 
+                ${whereClause} 
+                ORDER BY created_at DESC 
+                LIMIT ${limit} OFFSET ${offset}
+            `
+        ]);
+
+        const count = countRes[0]?.count || 0;
+        const flagList = flags || [];
 
         // Fetch related consultations separately
-        const flagList = flags || [];
         if (flagList.length > 0) {
             const consultationIds = [...new Set(flagList.map(f => f.consultation_id).filter(Boolean))];
             if (consultationIds.length > 0) {
-                const { data: consultations } = await supabase
-                    .from("consultations")
-                    .select("id, patient_id, doctor_id, case_status, created_at")
-                    .in("id", consultationIds);
+                const consultations = await sql`
+                    SELECT id, patient_id, doctor_id, case_status, created_at
+                    FROM consultations
+                    WHERE id = ANY(${consultationIds})
+                `;
                 
                 const cMap = {};
                 (consultations || []).forEach(c => { cMap[c.id] = c; });
@@ -57,15 +74,15 @@ export async function GET(req) {
         }
 
         const summary = {
-            total: count || 0,
-            unresolved: flagList.filter(f => !f.resolved).length || 0,
-            high: flagList.filter(f => f.severity === "HIGH").length || 0,
+            total: count,
+            unresolved: flagList.filter(f => !f.resolved).length,
+            high: flagList.filter(f => f.severity === "HIGH").length,
         };
 
         return success("Clinical risk queue retrieved", {
             flags: flagList,
             summary,
-            pagination: { page, limit, total: count || 0 },
+            pagination: { page, limit, total: count },
         });
 
     } catch (err) {
@@ -77,7 +94,6 @@ export async function GET(req) {
 /**
  * PUT — Resolve or escalate a clinical risk flag
  * Body: { flag_id, resolution_status, reviewed_by, notes? }
- * resolution_status: RESOLVED_SAFE | REQUIRES_FOLLOWUP | ESCALATED
  */
 export async function PUT(req) {
     try {
@@ -93,39 +109,49 @@ export async function PUT(req) {
             return failure(`resolution_status must be one of: ${VALID_STATUSES.join(", ")}`);
         }
 
-        const { data, error } = await supabase
-            .from("clinical_risk_flags")
-            .update({
-                resolved: resolution_status === "RESOLVED_SAFE",
-                resolution_status,
-                reviewed_by,
-                reviewed_at: new Date().toISOString(),
-                notes: notes || null,
-            })
-            .eq("id", flag_id)
-            .select()
-            .single();
+        const validReviewerId = safeUuid(reviewed_by);
 
-        if (error) throw error;
+        const updatedRows = await sql`
+            UPDATE clinical_risk_flags
+            SET
+                resolved = ${resolution_status === "RESOLVED_SAFE"},
+                resolution_status = ${resolution_status},
+                reviewed_by = ${validReviewerId},
+                reviewed_at = NOW(),
+                notes = ${notes || null}
+            WHERE id = ${flag_id}
+            RETURNING *
+        `;
+
+        if (!updatedRows || updatedRows.length === 0) {
+            return failure("Risk flag not found", null, 404);
+        }
+
+        const data = updatedRows[0];
 
         // If ESCALATED, notify the doctor
         if (resolution_status === "ESCALATED" && data?.consultation_id) {
-            const { data: consultation } = await supabase
-                .from("consultations")
-                .select("doctor_id")
-                .eq("id", data.consultation_id)
-                .single();
+            const consultation = await sql`
+                SELECT doctor_id FROM consultations WHERE id = ${data.consultation_id} LIMIT 1
+            `;
 
-            if (consultation?.doctor_id) {
-                await supabase
-                    .from("notifications")
-                    .insert({
-                        user_id: consultation.doctor_id,
-                        title: "Clinical risk identified — please review",
-                        message: `A clinical risk flag (${data.risk_type}) on your consultation has been escalated for review.`,
-                        type: "clinical_risk_escalation",
-                        metadata: { consultation_id: data.consultation_id, flag_id },
-                    });
+            if (consultation && consultation.length > 0 && consultation[0].doctor_id) {
+                try {
+                    await sql`
+                        INSERT INTO notifications (
+                            user_id, title, message, type, metadata, created_at
+                        ) VALUES (
+                            ${consultation[0].doctor_id},
+                            'Clinical risk identified — please review',
+                            ${`A clinical risk flag (${data.risk_type}) on your consultation has been escalated for review.`},
+                            'clinical_risk_escalation',
+                            ${JSON.stringify({ consultation_id: data.consultation_id, flag_id })},
+                            NOW()
+                        )
+                    `;
+                } catch (notifErr) {
+                    console.warn("Failed to insert escalation notification:", notifErr.message);
+                }
             }
         }
 
