@@ -20,7 +20,14 @@ export default function LungConnectFullReport({
     `LCN-${new Date(createdAt).getFullYear()}-${String(assessmentData?.id || "FULL0920").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`
   );
 
-  const patientName = patientData?.name || patientData?.full_name || patientData?.user?.name || "Sneha Kapoor";
+  const patientName =
+    assessmentData?.patient_name ||
+    assessmentData?.patientName ||
+    patientData?.full_name ||
+    patientData?.name ||
+    patientData?.user?.name ||
+    (typeof window !== "undefined" && (localStorage.getItem("userName") || localStorage.getItem("patient_name") || JSON.parse(localStorage.getItem("user") || localStorage.getItem("userData") || "{}").name || JSON.parse(localStorage.getItem("user") || localStorage.getItem("userData") || "{}").full_name)) ||
+    "Patient";
   const age = Math.max(18, Number(inputs?.age || patientData?.age || 29));
   const gender = inputs?.gender || patientData?.gender || "Female";
 
@@ -70,7 +77,7 @@ export default function LungConnectFullReport({
             <img
               src={MEDICONNECT_LOGO_BASE64}
               alt="MediConnect Logo"
-              style={{ height: "46px", width: "46px", objectFit: "contain", borderRadius: "50%", flexShrink: 0, backgroundColor: "#ffffff" }}
+              style={{ height: "44px", width: "auto", maxWidth: "160px", objectFit: "contain", borderRadius: "0px", flexShrink: 0, backgroundColor: "transparent" }}
             />
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

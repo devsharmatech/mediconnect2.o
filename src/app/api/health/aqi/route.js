@@ -271,52 +271,7 @@ export async function GET(req) {
       if (!resolvedLocation) resolvedLocation = DEFAULT_LOCATION;
     }
 
-    // 3. Check RDS Cache (if not forced to refresh and not high-precision live GPS)
-    if (!forceRefresh && !hasCoords) {
-      try {
-        const queryPattern = `%${resolvedLocation.split(",")[0].trim()}%`;
-        const cachedRows = await sql`
-          SELECT * FROM aqi_cache
-          WHERE location ILIKE ${queryPattern}
-          ORDER BY fetched_at DESC
-          LIMIT 1;
-        `;
-
-        if (cachedRows && cachedRows.length > 0) {
-          const cached = cachedRows[0];
-          const ageMs = Date.now() - new Date(cached.fetched_at).getTime();
-          if (ageMs < CACHE_TTL_MS) {
-            const aqiVal = Number(cached.aqi_value) || 68;
-            const category = cached.category || getCpcbCategory(aqiVal);
-            const weather = cached.weather_json || {};
-            const pollutantData = weather.pollutant_data || {
-              pm2_5: weather.pm2_5 ?? 35,
-              pm10: weather.pm10 ?? 80,
-              latitude: lat,
-              longitude: lng,
-            };
-
-            return success("AQI data retrieved from RDS cache.", {
-              aqi_data: {
-                location: cached.location,
-                aqi: Math.round(aqiVal),
-                category,
-                standard: "CPCB NAQI (India)",
-                dominant_pollutant: cached.dominant_pollutant || "PM2.5",
-                pollutant_data: pollutantData,
-                health_advisory: weather.health_advisory || getHealthAdvisory(aqiVal),
-                health_recommendations: weather.health_recommendations || null,
-                last_updated: cached.fetched_at,
-                source: cached.source || "Google Air Quality API",
-                provider: "Google Air Quality API"
-              }
-            }, 200, { headers: corsHeaders });
-          }
-        }
-      } catch (cacheErr) {
-        console.warn("[AQI API] RDS cache lookup warning:", cacheErr.message);
-      }
-    }
+    // Direct live fetch from Google Air Quality API (No database cache read per specification)
 
     // 4. Primary: Fetch Live Air Quality from Google Air Quality API
     let aqiValue = null;

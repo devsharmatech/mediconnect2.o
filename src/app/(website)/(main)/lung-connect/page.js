@@ -102,11 +102,11 @@ function LungConnectHubContent() {
         const storedUser = localStorage.getItem("user") || localStorage.getItem("userData");
         if (storedUser) {
           const u = JSON.parse(storedUser);
-          return u.name || u.full_name || u.details?.full_name || u.user?.user_metadata?.full_name || "Sneha Kapoor";
+          return u.name || u.full_name || u.details?.full_name || u.user?.user_metadata?.full_name || localStorage.getItem("userName") || localStorage.getItem("patient_name") || "Patient";
         }
       } catch (_) {}
     }
-    return "Sneha Kapoor";
+    return "Patient";
   });
   const [userJoinedDate, setUserJoinedDate] = useState(() => {
     if (typeof window !== "undefined") {
@@ -648,7 +648,7 @@ function LungConnectHubContent() {
     }
   };
 
-  // Autocomplete search across Indian & global cities
+  // Autocomplete search across Indian & global cities via Google Places API
   const handleLocationSearch = (query) => {
     setLocationSearchQuery(query);
     if (!query || query.trim().length < 2) {
@@ -662,62 +662,81 @@ function LungConnectHubContent() {
     searchDebounceRef.current = setTimeout(async () => {
       setIsSearchingLocation(true);
       try {
-        const res = await fetch(
-          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query.trim())}&count=6&language=en&format=json`
-        );
+        const res = await fetch(`/api/location/search?query=${encodeURIComponent(query.trim())}`);
         const data = await res.json();
-        if (data && data.results && data.results.length > 0) {
-          setLocationSuggestions(data.results);
+        if (data && data.suggestions && data.suggestions.length > 0) {
+          setLocationSuggestions(data.suggestions);
           setShowSuggestions(true);
         } else {
           setLocationSuggestions([]);
         }
       } catch (err) {
-        console.warn("Location search error:", err);
+        console.warn("Google Places location search error:", err);
       } finally {
         setIsSearchingLocation(false);
       }
     }, 250);
   };
 
-  // Select a suggestion from search results
+  // Select a suggestion from Google Places search results
   const handleSelectLocation = async (item) => {
     setShowSuggestions(false);
-    const displayName = `${item.name}${item.admin1 ? `, ${item.admin1}` : ""}`;
+    const displayName = item.text || item.name;
+    const cityName = item.name || displayName.split(",")[0].trim();
     setLocationSearchQuery(displayName);
-    setSelectedCity(item.name);
-    setUserCoords({ lat: item.latitude, lng: item.longitude });
-    savePatientLocation({
-      city: item.name,
-      lat: item.latitude,
-      lng: item.longitude,
-      isGps: false,
-      forceReset: true,
-    });
-    toast.loading(`Loading telemetry for ${item.name}...`, { id: "loc-load" });
+    setSelectedCity(cityName);
+    toast.loading(`Loading telemetry for ${cityName}...`, { id: "loc-load" });
 
     try {
-      const res = await fetch(
-        `/api/v1/lung/environment?lat=${item.latitude}&lng=${item.longitude}&refresh=true`
-      );
-      const json = await res.json();
-      toast.dismiss("loc-load");
-      if (json.success && json.data) {
-        setEnvData(json.data);
-        const resolvedName = json.data.aqi_location || item.name;
-        setSelectedCity(resolvedName);
-        if (json.data.latitude && json.data.longitude) {
-          setUserCoords({ lat: json.data.latitude, lng: json.data.longitude });
+      let lat = item.latitude;
+      let lng = item.longitude;
+
+      // If coordinates are not directly in suggestion, resolve via Google Place Details
+      if ((!lat || !lng) && item.placeId) {
+        const detRes = await fetch(`/api/location/search?place_id=${encodeURIComponent(item.placeId)}`);
+        const detJson = await detRes.json();
+        if (detJson.success && detJson.data) {
+          lat = detJson.data.latitude;
+          lng = detJson.data.longitude;
         }
+      }
+
+      if (lat && lng) {
+        setUserCoords({ lat, lng });
         savePatientLocation({
-          city: resolvedName,
-          lat: json.data.latitude || item.latitude,
-          lng: json.data.longitude || item.longitude,
-          aqi: json.data.aqi,
+          city: cityName,
+          lat,
+          lng,
           isGps: false,
           forceReset: true,
         });
-        toast.success(`Location updated to ${resolvedName}`);
+
+        const res = await fetch(
+          `/api/v1/lung/environment?lat=${lat}&lng=${lng}&refresh=true`
+        );
+        const json = await res.json();
+        toast.dismiss("loc-load");
+        if (json.success && json.data) {
+          setEnvData(json.data);
+          const resolvedName = json.data.aqi_location || cityName;
+          setSelectedCity(resolvedName);
+          if (json.data.latitude && json.data.longitude) {
+            setUserCoords({ lat: json.data.latitude, lng: json.data.longitude });
+          }
+          savePatientLocation({
+            city: resolvedName,
+            lat: json.data.latitude || lat,
+            lng: json.data.longitude || lng,
+            aqi: json.data.aqi,
+            isGps: false,
+            forceReset: true,
+          });
+          toast.success(`Location updated to ${resolvedName}`);
+        }
+      } else {
+        // Fallback: search by city name
+        await handleQuickCityClick(cityName);
+        toast.dismiss("loc-load");
       }
     } catch (e) {
       toast.dismiss("loc-load");
@@ -725,16 +744,36 @@ function LungConnectHubContent() {
     }
   };
 
-  // Quick switch for popular cities (e.g. Delhi, Bulandshahr, Noida, etc.)
+  // Quick switch for popular cities or free-form search query
   const handleQuickCityClick = async (cityName) => {
     setSelectedCity(cityName);
     setLocationSearchQuery("");
     setShowSuggestions(false);
-    savePatientLocation({ city: cityName, forceReset: true });
     toast.loading(`Loading telemetry for ${cityName}...`, { id: "quick-city" });
 
     try {
-      const res = await fetch(`/api/v1/lung/environment?city=${encodeURIComponent(cityName)}&refresh=true`);
+      // Resolve coordinates using Google Geocoding endpoint
+      let lat = null;
+      let lng = null;
+      let resolvedAddress = cityName;
+
+      try {
+        const geoRes = await fetch(`/api/location/search?geocode=${encodeURIComponent(cityName)}`);
+        const geoJson = await geoRes.json();
+        if (geoJson.success && geoJson.data) {
+          lat = geoJson.data.latitude;
+          lng = geoJson.data.longitude;
+          resolvedAddress = geoJson.data.name || geoJson.data.formattedAddress;
+        }
+      } catch (e) {
+        console.warn("Geocode fallback warning:", e);
+      }
+
+      const envUrl = lat && lng 
+        ? `/api/v1/lung/environment?lat=${lat}&lng=${lng}&refresh=true`
+        : `/api/v1/lung/environment?city=${encodeURIComponent(cityName)}&refresh=true`;
+
+      const res = await fetch(envUrl);
       const json = await res.json();
       toast.dismiss("quick-city");
       if (json.success && json.data) {
@@ -742,12 +781,12 @@ function LungConnectHubContent() {
         if (json.data.latitude && json.data.longitude) {
           setUserCoords({ lat: json.data.latitude, lng: json.data.longitude });
         }
-        const resolvedName = json.data.aqi_location || cityName;
+        const resolvedName = json.data.aqi_location || resolvedAddress || cityName;
         setSelectedCity(resolvedName);
         savePatientLocation({
           city: resolvedName,
-          lat: json.data.latitude,
-          lng: json.data.longitude,
+          lat: json.data.latitude || lat,
+          lng: json.data.longitude || lng,
           aqi: json.data.aqi,
           isGps: false,
           forceReset: true,
@@ -2151,25 +2190,29 @@ function LungConnectHubContent() {
 
                   {/* Autocomplete Suggestions Dropdown */}
                   {showSuggestions && locationSuggestions.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-[5px] shadow-lg z-50 max-h-60 overflow-y-auto divide-y divide-slate-100">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-[5px] shadow-xl z-50 max-h-64 overflow-y-auto divide-y divide-slate-100">
                       {locationSuggestions.map((sug, idx) => (
                         <button
-                          key={idx}
+                          key={sug.placeId || idx}
                           type="button"
                           onClick={() => handleSelectLocation(sug)}
-                          className="w-full px-3 py-2 text-left hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer"
+                          className="w-full px-3 py-2.5 text-left hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group"
                         >
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-3.5 h-3.5 text-[#0067A1] shrink-0" />
-                            <div>
-                              <span className="text-xs font-bold text-slate-900 block">{sug.name}</span>
-                              <span className="text-[10px] text-slate-500 block">
-                                {[sug.admin1, sug.country].filter(Boolean).join(", ")}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <MapPin className="w-3.5 h-3.5 text-[#0067A1] shrink-0 group-hover:scale-110 transition-transform" />
+                            <div className="truncate">
+                              <span className="text-xs font-bold text-slate-900 block truncate">
+                                {sug.name || sug.text}
                               </span>
+                              {(sug.secondaryText || sug.text) && (
+                                <span className="text-[10px] text-slate-500 block truncate">
+                                  {sug.secondaryText || sug.text}
+                                </span>
+                              )}
                             </div>
                           </div>
-                          <span className="text-[10px] font-mono text-slate-400">
-                            {sug.latitude?.toFixed(2)}°, {sug.longitude?.toFixed(2)}°
+                          <span className="text-[10px] font-semibold text-[#0067A1] shrink-0 ml-2 px-1.5 py-0.5 rounded bg-blue-50 group-hover:bg-[#0067A1] group-hover:text-white transition-colors">
+                            Select
                           </span>
                         </button>
                       ))}
@@ -3300,10 +3343,10 @@ function LungConnectHubContent() {
                     </p>
                     <div className="pt-2">
                       <Link
-                        href="/appointments"
+                        href="/find-doctors"
                         className="w-full inline-flex items-center justify-center gap-2 bg-[#0067A1] hover:bg-[#005280] text-white py-2.5 px-4 rounded-[5px] text-xs font-bold cursor-pointer"
                       >
-                        <span>Continue to Appointment Booking</span>
+                        <span>Continue to Find Doctors</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
                     </div>

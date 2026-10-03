@@ -430,7 +430,7 @@ export default function LungHealthResult() {
               <Download className="w-3.5 h-3.5" /> {downloadingPDF ? 'Generating…' : 'PDF'}
             </button>
             <Link
-              href="/doctors"
+              href="/find-doctors"
               className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#0067A1] hover:bg-[#005584] text-white rounded-md text-xs font-medium transition-all shrink-0"
             >
               <Stethoscope className="w-3.5 h-3.5" /> Consult Doctor

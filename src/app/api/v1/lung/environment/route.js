@@ -221,30 +221,6 @@ export async function GET(req) {
       locationName = "Delhi";
     }
 
-    // 2. Check DB cache first (only for static cities when not forced to refresh)
-    let cachedAqi = null;
-    if (!isGpsCoordinates && !forceRefresh) {
-      try {
-        const queryPattern = `%${locationName.split(",")[0].trim()}%`;
-        const cachedRows = await sql`
-          SELECT * FROM aqi_cache
-          WHERE location ILIKE ${queryPattern}
-          ORDER BY fetched_at DESC
-          LIMIT 1;
-        `;
-
-        if (cachedRows && cachedRows.length > 0) {
-          const data = cachedRows[0];
-          const ageMs = Date.now() - new Date(data.fetched_at).getTime();
-          if (ageMs < 30 * 60 * 1000) { // Cache valid for 30 minutes
-            cachedAqi = data;
-          }
-        }
-      } catch (e) {
-        console.warn("[Lung Env] DB cache read warning:", e.message);
-      }
-    }
-
     let aqiVal = 68;
     let aqiCat = "Satisfactory";
     let dominantPollutant = "PM2.5";
@@ -260,16 +236,7 @@ export async function GET(req) {
     let lastUpdated = new Date().toISOString();
     let googleAqiLoaded = false;
 
-    if (cachedAqi) {
-      aqiVal = Number(cachedAqi.aqi_value) || aqiVal;
-      aqiCat = cachedAqi.category || aqiCategory(aqiVal);
-      dominantPollutant = cachedAqi.dominant_pollutant || dominantPollutant;
-      sourceName = cachedAqi.source || sourceName;
-      lastUpdated = cachedAqi.fetched_at;
-      if (cachedAqi.weather_json && typeof cachedAqi.weather_json === "object") {
-        weather = { ...weather, ...cachedAqi.weather_json, last_updated: lastUpdated };
-      }
-    } else {
+    // 3. Direct Live Fetch via Google Air Quality API (No database cache read)
       // 3. Try Google Air Quality API if key is available
       if (googleApiKey) {
         try {
@@ -426,7 +393,6 @@ export async function GET(req) {
       } catch (extApiErr) {
         console.warn("[Lung Env] External API fetch failed, using fallback:", extApiErr.message);
       }
-    }
 
     const freshness = {
       source: sourceName,

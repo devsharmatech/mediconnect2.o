@@ -18,8 +18,8 @@ const WellnessServices = ({ onLoginClick }) => {
             return;
         }
 
-        if (userType !== 'patient') {
-            toast.error("Wellness services are only available for patient accounts.");
+        if (userType && userType !== 'patient' && userType !== 'doctor' && userType !== 'admin') {
+            toast.error("Wellness services are available for patient and clinician accounts.");
             return;
         }
 

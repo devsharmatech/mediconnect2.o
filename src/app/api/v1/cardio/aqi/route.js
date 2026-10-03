@@ -97,6 +97,56 @@ export async function GET(req) {
 
     let resolvedLocation = rawCity.trim();
 
+    const googleApiKey =
+      process.env.GOOGLE_MAPS_API_KEY ||
+      process.env.GOOGLE_API_KEY ||
+      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+    // Helper to resolve coordinates via Google Geocoding first, then Open-Meteo fallback
+    const resolveCityCoords = async (query) => {
+      if (googleApiKey) {
+        try {
+          const gRes = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleApiKey}`
+          );
+          if (gRes.ok) {
+            const gJson = await gRes.json();
+            if (gJson.status === "OK" && gJson.results && gJson.results.length > 0) {
+              const top = gJson.results[0];
+              return {
+                lat: top.geometry.location.lat,
+                lng: top.geometry.location.lng,
+                name: top.formatted_address || query,
+              };
+            }
+          }
+        } catch (gErr) {
+          console.warn("[Cardio AQI] Google Geocoding search warning:", gErr.message);
+        }
+      }
+
+      // Fallback: Open-Meteo
+      try {
+        const geoRes = await fetch(
+          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`
+        );
+        if (geoRes.ok) {
+          const geoJson = await geoRes.json();
+          if (geoJson.results && geoJson.results.length > 0) {
+            const top = geoJson.results[0];
+            return {
+              lat: top.latitude,
+              lng: top.longitude,
+              name: `${top.name}${top.admin1 ? `, ${top.admin1}` : ""}`,
+            };
+          }
+        }
+      } catch (geoErr) {
+        console.warn("[Cardio AQI] Geocoding fallback warning:", geoErr.message);
+      }
+      return null;
+    };
+
     // 1. If NOT GPS mode and a city was chosen, ALWAYS prioritize that city's coordinates:
     if (!isGps && resolvedLocation) {
       const lower = resolvedLocation.toLowerCase().split(",")[0].trim();
@@ -105,21 +155,11 @@ export async function GET(req) {
         lng = INDIAN_CITIES[lower].lng;
         resolvedLocation = INDIAN_CITIES[lower].name;
       } else {
-        try {
-          const geoRes = await fetch(
-            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(lower)}&count=1&language=en&format=json`
-          );
-          if (geoRes.ok) {
-            const geoJson = await geoRes.json();
-            if (geoJson.results && geoJson.results.length > 0) {
-              const top = geoJson.results[0];
-              lat = top.latitude;
-              lng = top.longitude;
-              resolvedLocation = `${top.name}${top.admin1 ? `, ${top.admin1}` : ""}`;
-            }
-          }
-        } catch (geoErr) {
-          console.warn("[Cardio AQI] Geocoding fallback warning:", geoErr.message);
+        const resolved = await resolveCityCoords(resolvedLocation);
+        if (resolved) {
+          lat = resolved.lat;
+          lng = resolved.lng;
+          resolvedLocation = resolved.name;
         }
       }
     } else if ((lat === null || lng === null || isNaN(lat) || isNaN(lng)) && resolvedLocation) {
@@ -130,21 +170,11 @@ export async function GET(req) {
         lng = INDIAN_CITIES[lower].lng;
         resolvedLocation = INDIAN_CITIES[lower].name;
       } else {
-        try {
-          const geoRes = await fetch(
-            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(lower)}&count=1&language=en&format=json`
-          );
-          if (geoRes.ok) {
-            const geoJson = await geoRes.json();
-            if (geoJson.results && geoJson.results.length > 0) {
-              const top = geoJson.results[0];
-              lat = top.latitude;
-              lng = top.longitude;
-              resolvedLocation = `${top.name}${top.admin1 ? `, ${top.admin1}` : ""}`;
-            }
-          }
-        } catch (geoErr) {
-          console.warn("[Cardio AQI] Geocoding fallback warning:", geoErr.message);
+        const resolved = await resolveCityCoords(resolvedLocation);
+        if (resolved) {
+          lat = resolved.lat;
+          lng = resolved.lng;
+          resolvedLocation = resolved.name;
         }
       }
     }
@@ -160,49 +190,7 @@ export async function GET(req) {
       resolvedLocation = "Current Location";
     }
 
-    // 2. Check fresh cache in AWS RDS aqi_cache (< 30 minutes old)
-    let cachedRecord = null;
-    const cityNamePrefix = resolvedLocation.split(",")[0].trim();
-    if (!forceRefresh) {
-      try {
-        const rows = await sql`
-          SELECT * FROM aqi_cache 
-          WHERE fetched_at >= NOW() - INTERVAL '30 minutes'
-          AND location ILIKE ${`%${cityNamePrefix}%`}
-          ORDER BY fetched_at DESC 
-          LIMIT 1
-        `;
-        if (rows && rows.length > 0) {
-          cachedRecord = rows[0];
-        }
-      } catch (cacheErr) {
-        console.warn("[Cardio AQI] DB cache check skipped:", cacheErr.message);
-      }
-    }
-
-    // 3. Return cached data if fresh
-    if (cachedRecord) {
-      const aqiNum = Math.round(Number(cachedRecord.aqi_value) || 80);
-      const catInfo = getAqiCategory(aqiNum);
-      return success("AQI Context loaded from database cache.", {
-        screen_id: "CC-13",
-        aqi_value: aqiNum,
-        category: cachedRecord.category || catInfo.category,
-        description: catInfo.description,
-        source: cachedRecord.source || "CPCB Telemetry / Open-Meteo Air Quality",
-        location: resolvedLocation || cachedRecord.location,
-        latitude: lat,
-        longitude: lng,
-        dominant_pollutant: cachedRecord.dominant_pollutant || "PM2.5",
-        weather: cachedRecord.weather_json || { temp_c: 28, condition: "Partly Cloudy" },
-        timestamp: cachedRecord.fetched_at,
-        freshness: "fresh",
-        is_database_cached: true,
-        saved_to_db: true,
-        non_blocking: true,
-        clinical_interpretation: false,
-      }, 200, { headers: corsHeaders });
-    }
+    // Direct live fetch from Google Air Quality API (No database cache read per specification)
 
     // 4. Fetch Live external telemetry from Google Air Quality API (with Open-Meteo fallback) & Weather
     let aqiVal = 80;
@@ -219,8 +207,6 @@ export async function GET(req) {
       last_updated: new Date().toISOString(),
     };
     const lastUpdated = new Date().toISOString();
-
-    const googleApiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
     try {
       const fetches = [

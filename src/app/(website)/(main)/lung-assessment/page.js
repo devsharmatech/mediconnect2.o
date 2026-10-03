@@ -382,18 +382,41 @@ export default function GamifiedLungAssessment() {
   /* ── Sub-components ── */
   const RangeSlider = ({ label, name, min, max, step = 1, unit = "", subtitle = "" }) => (
     <div className="bg-slate-50/70 rounded-lg p-3 sm:p-3.5 border border-slate-200">
-      <div className="flex justify-between items-start mb-2">
+      <div className="flex justify-between items-start mb-2 gap-2">
         <div>
           <label className="text-xs sm:text-sm font-semibold text-slate-800 block">{label}</label>
           {subtitle && <p className="text-[11px] text-slate-400 mt-0.5 font-normal">{subtitle}</p>}
         </div>
-        <div className="text-xs sm:text-sm font-semibold text-[#0067A1] bg-white px-2.5 py-0.5 rounded border border-sky-200 font-mono min-w-[55px] text-center shadow-2xs">
-          {formData[name]} <span className="text-[11px] font-normal text-slate-500">{unit}</span>
+        <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-sky-300 focus-within:ring-2 focus-within:ring-[#0067A1]/30 shadow-2xs">
+          <input
+            type="number"
+            min={min}
+            max={max}
+            step={step}
+            value={formData[name] ?? ""}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value);
+              if (!isNaN(val)) {
+                handleSliderChange(name, val);
+              } else {
+                setFormData(prev => ({ ...prev, [name]: "" }));
+              }
+            }}
+            onBlur={(e) => {
+              let val = parseFloat(e.target.value);
+              if (isNaN(val)) val = min;
+              if (val < min) val = min;
+              if (val > max) val = max;
+              handleSliderChange(name, val);
+            }}
+            className="w-14 text-xs sm:text-sm font-semibold text-[#0067A1] font-mono text-right bg-transparent outline-none p-0"
+          />
+          <span className="text-[11px] font-normal text-slate-500">{unit}</span>
         </div>
       </div>
       <input
         type="range" min={min} max={max} step={step}
-        value={formData[name]}
+        value={formData[name] === "" ? min : formData[name]}
         onChange={(e) => handleSliderChange(name, e.target.value)}
         className="w-full h-2 bg-slate-200 rounded-full cursor-pointer appearance-none accent-[#0067A1]"
       />
@@ -863,11 +886,11 @@ export default function GamifiedLungAssessment() {
                   <div className="space-y-4">
                     <div>
                       <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block mb-2">Cough Frequency</label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                        <ChoiceCard active={formData.CoughFrequency === 'none'} onClick={() => handleSelect('CoughFrequency', 'none')} icon={<FaShieldAlt className="w-3.5 h-3.5" />} title="None" />
-                        <ChoiceCard active={formData.CoughFrequency === 'occasional'} onClick={() => handleSelect('CoughFrequency', 'occasional')} icon={<FaWind className="w-3.5 h-3.5" />} title="Occasional" />
-                        <ChoiceCard active={formData.CoughFrequency === 'daily'} onClick={() => handleSelect('CoughFrequency', 'daily')} icon={<FaWind className="w-3.5 h-3.5 text-amber-500" />} title="Daily" />
-                        <ChoiceCard active={formData.CoughFrequency === 'constant'} onClick={() => handleSelect('CoughFrequency', 'constant')} icon={<FaWind className="w-3.5 h-3.5 text-rose-500" />} title="Constant" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                        <ChoiceCard active={formData.CoughFrequency === 'none'} onClick={() => handleSelect('CoughFrequency', 'none')} icon={<FaShieldAlt className="w-3.5 h-3.5" />} title="None" subtitle="No regular cough" />
+                        <ChoiceCard active={formData.CoughFrequency === 'occasional'} onClick={() => handleSelect('CoughFrequency', 'occasional')} icon={<FaWind className="w-3.5 h-3.5" />} title="Occasional" subtitle="Rare episodes / throat clearing" />
+                        <ChoiceCard active={formData.CoughFrequency === 'daily'} onClick={() => handleSelect('CoughFrequency', 'daily')} icon={<FaWind className="w-3.5 h-3.5 text-amber-500" />} title="Daily" subtitle="Frequent / several times a day" />
+                        <ChoiceCard active={formData.CoughFrequency === 'constant'} onClick={() => handleSelect('CoughFrequency', 'constant')} icon={<FaWind className="w-3.5 h-3.5 text-rose-500" />} title="Constant" subtitle="Persistent throughout day & night" />
                       </div>
                     </div>
 

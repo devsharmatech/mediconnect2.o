@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   FaUser,
   FaCalendarAlt,
@@ -8,7 +9,9 @@ import {
   FaPhone,
   FaEnvelope,
   FaVenusMars,
-  FaHistory
+  FaHistory,
+  FaLungs,
+  FaHeartbeat
 } from "react-icons/fa";
 
 export default function DoctorMyPatientsPage() {
@@ -159,6 +162,24 @@ export default function DoctorMyPatientsPage() {
                     <span className="font-medium text-[#0067A1]">Latest Appointment</span>
                     <span className="font-semibold text-slate-700">{formatDate(patient.last_visit_date)}</span>
                   </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100 sm:col-span-2">
+                  <span className="text-xs font-bold text-slate-500 mr-1">Clinical Reports:</span>
+                  <Link
+                    href={`/lung-health-statistics?patientId=${patient.id}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] rounded-lg text-xs font-bold border border-sky-200/80 transition-colors shadow-2xs"
+                  >
+                    <FaLungs className="w-3.5 h-3.5" />
+                    <span>LungConnect Report</span>
+                  </Link>
+                  <Link
+                    href={`/cardio-connect?patientId=${patient.id}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-bold border border-rose-200/80 transition-colors shadow-2xs"
+                  >
+                    <FaHeartbeat className="w-3.5 h-3.5" />
+                    <span>CardioConnect Report</span>
+                  </Link>
                 </div>
               </div>
             </div>

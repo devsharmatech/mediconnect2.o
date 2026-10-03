@@ -495,42 +495,18 @@ export default function LungMoveModal({
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">
                     Movement Tracking Source:
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setTrackingMode('real')}
-                      className={`p-2.5 rounded-[5px] border text-left transition-all cursor-pointer ${
-                        trackingMode === 'real'
-                          ? 'border-[#0067A1] bg-sky-50/70 ring-1 ring-[#0067A1]'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
+                  <div className="grid grid-cols-1 gap-2">
+                    <div
+                      className="p-2.5 rounded-[5px] border border-[#0067A1] bg-sky-50/70 ring-1 ring-[#0067A1] text-left"
                     >
                       <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
-                        <Navigation className={`w-3.5 h-3.5 ${trackingMode === 'real' ? 'text-[#0067A1]' : 'text-slate-400'}`} />
-                        <span>Real Movement</span>
+                        <Navigation className="w-3.5 h-3.5 text-[#0067A1]" />
+                        <span>Real Movement Tracking</span>
                       </div>
-                      <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
-                        GPS & Sensors. 0 movement = 0 km, 0 kcal.
+                      <p className="text-[10.5px] text-slate-600 mt-0.5 leading-tight">
+                        Live GPS & Device Motion Sensors. Distance and energy expenditure calculated strictly from real movement.
                       </p>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setTrackingMode('treadmill')}
-                      className={`p-2.5 rounded-[5px] border text-left transition-all cursor-pointer ${
-                        trackingMode === 'treadmill'
-                          ? 'border-[#0067A1] bg-sky-50/70 ring-1 ring-[#0067A1]'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
-                        <Timer className={`w-3.5 h-3.5 ${trackingMode === 'treadmill' ? 'text-[#0067A1]' : 'text-slate-400'}`} />
-                        <span>Indoor Treadmill</span>
-                      </div>
-                      <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
-                        Timer simulation for stationary gym machines.
-                      </p>
-                    </button>
+                    </div>
                   </div>
                 </div>
 

@@ -92,7 +92,48 @@ export function savePatientLocation(data) {
 export async function reverseGeocodeCoords(lat, lng) {
   if (!lat || !lng) return "Current Location";
   
-  // 1. Try BigDataCloud client API (fast, CORS-friendly)
+  // 1. Primary: Google Maps Geocoding API
+  const googleApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+  if (googleApiKey) {
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 4000);
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${googleApiKey}&language=en`,
+        { signal: ctrl.signal }
+      );
+      clearTimeout(tid);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === "OK" && json.results && json.results.length > 0) {
+          const best = json.results[0];
+          let locality = "";
+          let state = "";
+          for (const comp of best.address_components || []) {
+            if (comp.types.includes("locality") || comp.types.includes("sublocality")) {
+              if (!locality) locality = comp.long_name;
+            }
+            if (comp.types.includes("administrative_area_level_2") && !locality) {
+              locality = comp.long_name;
+            }
+            if (comp.types.includes("administrative_area_level_1")) {
+              state = comp.long_name;
+            }
+          }
+          if (locality) {
+            return state && state !== locality ? `${locality}, ${state}` : locality;
+          }
+          if (best.formatted_address) {
+            return best.formatted_address.split(",").slice(0, 2).join(",").trim();
+          }
+        }
+      }
+    } catch (gErr) {
+      console.warn("[PatientLocation] Google reverse geocode warning:", gErr.message);
+    }
+  }
+
+  // 2. Secondary: BigDataCloud client API (CORS-friendly fallback)
   try {
     const ctrl = new AbortController();
     const tid = setTimeout(() => ctrl.abort(), 3500);

@@ -63,11 +63,12 @@ export async function GET(req) {
         totalCount = countRes[0]?.cnt || 0;
 
         assessments = await sql`
-          SELECT *
-          FROM health_assessments
-          WHERE (user_id = ${userId}::uuid OR user_id = ${String(userId)})
-            AND assessment_type = ${assessmentType}
-          ORDER BY created_at DESC
+          SELECT a.*, p.full_name as patient_name, p.gender as patient_gender, p.date_of_birth as patient_dob, p.blood_group as patient_blood_group
+          FROM health_assessments a
+          LEFT JOIN patient_details p ON p.id = a.user_id
+          WHERE (a.user_id = ${userId}::uuid OR a.user_id = ${String(userId)})
+            AND a.assessment_type = ${assessmentType}
+          ORDER BY a.created_at DESC
           LIMIT ${limit} OFFSET ${offset};
         `;
       } else {
@@ -79,10 +80,11 @@ export async function GET(req) {
         totalCount = countRes[0]?.cnt || 0;
 
         assessments = await sql`
-          SELECT *
-          FROM health_assessments
-          WHERE (user_id = ${userId}::uuid OR user_id = ${String(userId)})
-          ORDER BY created_at DESC
+          SELECT a.*, p.full_name as patient_name, p.gender as patient_gender, p.date_of_birth as patient_dob, p.blood_group as patient_blood_group
+          FROM health_assessments a
+          LEFT JOIN patient_details p ON p.id = a.user_id
+          WHERE (a.user_id = ${userId}::uuid OR a.user_id = ${String(userId)})
+          ORDER BY a.created_at DESC
           LIMIT ${limit} OFFSET ${offset};
         `;
       }

@@ -119,6 +119,9 @@ export default function CardioConnectHome() {
   const [isAqiLoading, setIsAqiLoading] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [citySearchInput, setCitySearchInput] = useState("");
+  const [citySuggestions, setCitySuggestions] = useState([]);
+  const [isSearchingCity, setIsSearchingCity] = useState(false);
+  const cityDebounceRef = useRef(null);
   const lastAqiFetchKeyRef = useRef("");
   const isFetchingAqiRef = useRef(false);
   const POPULAR_CITIES = [
@@ -242,12 +245,94 @@ export default function CardioConnectHome() {
     }
   };
 
-  const handleSelectCity = async (cityName) => {
-    setSavedUserCity(cityName);
+  const handleCityInputChange = (val) => {
+    setCitySearchInput(val);
+    if (!val || val.trim().length < 2) {
+      setCitySuggestions([]);
+      return;
+    }
+
+    if (cityDebounceRef.current) clearTimeout(cityDebounceRef.current);
+    cityDebounceRef.current = setTimeout(async () => {
+      setIsSearchingCity(true);
+      try {
+        const res = await fetch(`/api/location/search?query=${encodeURIComponent(val.trim())}`);
+        const data = await res.json();
+        if (data && data.suggestions && data.suggestions.length > 0) {
+          setCitySuggestions(data.suggestions);
+        } else {
+          setCitySuggestions([]);
+        }
+      } catch (err) {
+        console.warn("Cardio city search error:", err);
+      } finally {
+        setIsSearchingCity(false);
+      }
+    }, 250);
+  };
+
+  const handleSelectSuggestion = async (sug) => {
+    const cityName = sug.name || sug.text.split(",")[0].trim();
+    setCitySearchInput("");
+    setCitySuggestions([]);
     setShowLocationPicker(false);
     toast.loading(`Updating telemetry for ${cityName}...`, { id: "city-sel" });
-    savePatientLocation({ city: cityName, isGps: false, forceReset: true });
-    await fetchAqiData(cityName, null, null, true);
+
+    let lat = null;
+    let lng = null;
+    if (sug.placeId) {
+      try {
+        const detRes = await fetch(`/api/location/search?place_id=${encodeURIComponent(sug.placeId)}`);
+        const detJson = await detRes.json();
+        if (detJson.success && detJson.data) {
+          lat = detJson.data.latitude;
+          lng = detJson.data.longitude;
+        }
+      } catch (e) {
+        console.warn("Place details error:", e);
+      }
+    }
+
+    setSavedUserCity(cityName);
+    savePatientLocation({
+      city: cityName,
+      lat: lat || undefined,
+      lng: lng || undefined,
+      isGps: false,
+      forceReset: true,
+    });
+    await fetchAqiData(cityName, lat, lng, true);
+    toast.dismiss("city-sel");
+    toast.success(`Location updated to ${cityName}`);
+  };
+
+  const handleSelectCity = async (cityName) => {
+    setSavedUserCity(cityName);
+    setCitySuggestions([]);
+    setShowLocationPicker(false);
+    toast.loading(`Updating telemetry for ${cityName}...`, { id: "city-sel" });
+
+    let lat = null;
+    let lng = null;
+    try {
+      const geoRes = await fetch(`/api/location/search?geocode=${encodeURIComponent(cityName)}`);
+      const geoJson = await geoRes.json();
+      if (geoJson.success && geoJson.data) {
+        lat = geoJson.data.latitude;
+        lng = geoJson.data.longitude;
+      }
+    } catch (e) {
+      console.warn("Geocoding lookup warning:", e);
+    }
+
+    savePatientLocation({
+      city: cityName,
+      lat: lat || undefined,
+      lng: lng || undefined,
+      isGps: false,
+      forceReset: true,
+    });
+    await fetchAqiData(cityName, lat, lng, true);
     toast.dismiss("city-sel");
     toast.success(`Location updated to ${cityName}`);
   };
@@ -257,6 +342,7 @@ export default function CardioConnectHome() {
     if (!citySearchInput.trim()) return;
     const q = citySearchInput.trim();
     setCitySearchInput("");
+    setCitySuggestions([]);
     await handleSelectCity(q);
   };
 
@@ -2802,21 +2888,54 @@ export default function CardioConnectHome() {
                 {/* Collapsible City Chooser / Search */}
                 {showLocationPicker && (
                   <div className="pt-2.5 border-t border-slate-200 space-y-2 animate-in fade-in duration-150">
-                    <form onSubmit={handleCitySearchSubmit} className="flex gap-1.5">
-                      <input
-                        type="text"
-                        placeholder="Type any city or town..."
-                        value={citySearchInput}
-                        onChange={(e) => setCitySearchInput(e.target.value)}
-                        className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-[5px] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#0067A1]/40"
-                      />
-                      <button
-                        type="submit"
-                        className="px-3 py-1.5 bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium text-xs rounded-[5px] transition-colors cursor-pointer"
-                      >
-                        Search
-                      </button>
-                    </form>
+                    <div className="relative">
+                      <form onSubmit={handleCitySearchSubmit} className="flex gap-1.5">
+                        <input
+                          type="text"
+                          placeholder="Search any city, town, or area..."
+                          value={citySearchInput}
+                          onChange={(e) => handleCityInputChange(e.target.value)}
+                          className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-[5px] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#0067A1]/40"
+                        />
+                        <button
+                          type="submit"
+                          className="px-3 py-1.5 bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium text-xs rounded-[5px] transition-colors cursor-pointer"
+                        >
+                          Search
+                        </button>
+                      </form>
+
+                      {/* Google Places Autocomplete Suggestions */}
+                      {citySuggestions.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-[5px] shadow-xl z-50 max-h-56 overflow-y-auto divide-y divide-slate-100">
+                          {citySuggestions.map((sug, idx) => (
+                            <button
+                              key={sug.placeId || idx}
+                              type="button"
+                              onClick={() => handleSelectSuggestion(sug)}
+                              className="w-full px-3 py-2 text-left hover:bg-slate-50 flex items-center justify-between transition-colors cursor-pointer group"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <MapPin className="w-3.5 h-3.5 text-[#0067A1] shrink-0 group-hover:scale-110 transition-transform" />
+                                <div className="truncate">
+                                  <span className="text-xs font-bold text-slate-800 block truncate">
+                                    {sug.name || sug.text}
+                                  </span>
+                                  {(sug.secondaryText || sug.text) && (
+                                    <span className="text-[10px] text-slate-500 block truncate">
+                                      {sug.secondaryText || sug.text}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-semibold text-[#0067A1] shrink-0 ml-1.5 px-1.5 py-0.5 rounded bg-blue-50 group-hover:bg-[#0067A1] group-hover:text-white transition-colors">
+                                Select
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
                     <div>
                       <span className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">

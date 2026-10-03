@@ -162,17 +162,92 @@ Return ONLY valid JSON format:
 
 function generateFallbackAnalysis(assessmentType, healthScore, riskFactors, inputs = {}) {
   const isHeart = assessmentType === "heart";
+  const findings = [];
+  const improvements = [];
+  const positives = ["Completed structured health assessment", "Proactive health monitoring"];
+
+  if (isHeart) {
+    const sys = Number(inputs.systolic_bp) || 120;
+    const dia = Number(inputs.diastolic_bp) || 80;
+    const hr = Number(inputs.resting_heart_rate) || 72;
+    const isSmoker = inputs.smoking_status === "current" || inputs.smoking_status === "smoker";
+
+    findings.push(`Blood pressure recorded at ${sys}/${dia} mmHg`);
+    findings.push(`Resting heart rate: ${hr} bpm`);
+    if (sys >= 140 || dia >= 90) {
+      improvements.push("Blood pressure exceeds optimal resting band; schedule clinical evaluation");
+    }
+    if (isSmoker) {
+      findings.push("Active smoking history reported");
+      improvements.push("Enroll in evidence-based cardiovascular smoking cessation program");
+    } else {
+      positives.push("Non-smoker status supports vascular endothelial health");
+    }
+    if (inputs.chest_pain === "true" || inputs.chest_pain === true) {
+      findings.push("Self-reported chest discomfort episodes");
+      improvements.push("Prompt physician consultation for cardiac symptom evaluation");
+    }
+  } else {
+    const bht = Number(inputs.breath_holding_time) || 35;
+    const rr = Number(inputs.breaths_per_minute) || 16;
+    const packYears = Number(inputs.smoking_pack_years) || 0;
+    const isSmoker = inputs.smoking_status === "current" || inputs.smoking_status === "smoker" || packYears > 0;
+    const aqi = Number(inputs.aqi) || 60;
+    const dyspnea = inputs.breathlessness || inputs.symptoms_breathlessness;
+    const wheezing = inputs.wheezing === "true" || inputs.wheezing === true || inputs.symptoms_wheezing;
+    const cough = inputs.cough_frequency || inputs.CoughFrequency;
+
+    findings.push(`Breath-holding capacity: ${bht}s`);
+    findings.push(`Respiratory rate: ${rr} breaths/min`);
+
+    if (isSmoker) {
+      findings.push(`Smoking history reported (${packYears > 0 ? `${packYears} pack-years` : 'active smoker'})`);
+      improvements.push("Active smoking poses significant respiratory risk; prioritize cessation guidance");
+    } else {
+      positives.push("Never-smoked profile preserves long-term vital lung capacity");
+    }
+
+    if (wheezing) {
+      findings.push("Expiratory wheezing symptoms reported");
+      improvements.push("Discuss wheezing patterns with a pulmonologist to screen for airway reactivity");
+    }
+
+    if (dyspnea && dyspnea !== "none") {
+      findings.push(`Exertional dyspnea: ${dyspnea}`);
+      improvements.push("Monitor progression of breathlessness during standard daily activities");
+    }
+
+    if (cough && cough !== "none") {
+      findings.push(`Cough frequency: ${cough}`);
+    }
+
+    if (aqi > 150) {
+      findings.push(`High ambient air pollution exposure (AQI ${aqi})`);
+      improvements.push("Adopt outdoor N95 particulate mask protocol during high-pollution periods");
+    }
+  }
+
+  if (riskFactors.length > 0) {
+    riskFactors.forEach(rf => {
+      if (!findings.includes(rf)) findings.push(rf);
+    });
+  }
+
+  if (improvements.length === 0) {
+    improvements.push("Maintain routine physical activity and follow seasonal respiratory precautions.");
+  }
+
   return {
-    analysis: `Assessment summary: Based on the information entered for this screening, the recorded measures include ${
+    analysis: `Assessment summary: Based on patient responses recorded during this screening, vital capacity indicators include ${
       isHeart
         ? `blood pressure of ${inputs.systolic_bp || 120}/${inputs.diastolic_bp || 80} mmHg and resting heart rate of ${inputs.resting_heart_rate || 72} bpm.`
-        : `breath-holding time of ${inputs.breath_holding_time || 35}s and breathing rate of ${inputs.breaths_per_minute || 16} breaths/min.`
-    } These findings provide general wellness insight and do not diagnose cardiovascular or respiratory disease.`,
-    key_findings: riskFactors.length > 0 ? riskFactors : ["Self-reported values within standard wellness reference ranges."],
-    positive_aspects: ["Completed health screening", "Proactive health monitoring"],
-    improvement_areas: riskFactors.length > 0 ? riskFactors : ["Maintain consistent physical activity and balanced nutrition."],
+        : `breath-holding duration of ${inputs.breath_holding_time || 35} seconds and respiratory rate of ${inputs.breaths_per_minute || 16} breaths/min, evaluated in ambient AQI of ${inputs.aqi || 60}.`
+    } Clinical guidance is customized to these inputs and provides preventive wellness insight without replacing direct doctor evaluation.`,
+    key_findings: findings,
+    positive_aspects: positives,
+    improvement_areas: improvements,
     medical_attention:
-      "These findings may be relevant to health. Consider repeat measurement and discuss persistent concerns with a qualified healthcare professional.",
+      "Discuss persistent, recurring, or worsening symptoms with a qualified physician. Seek emergency clinical care immediately for severe acute shortness of breath or radiating chest tightness.",
   };
 }
 
@@ -180,16 +255,19 @@ function generateFallbackRecommendations(assessmentType, riskFactors, inputs = {
   const isHeart = assessmentType === "heart";
 
   if (isHeart) {
-    return [
+    const sys = Number(inputs.systolic_bp) || 120;
+    const isSmoker = inputs.smoking_status === "current" || inputs.smoking_status === "smoker";
+
+    const recs = [
       {
         category: "Physical Activity",
         title: "Aerobic Physical Activity Band",
         description:
-          "For adults for whom moderate-intensity aerobic activity is appropriate, 150–300 minutes per week is used as a public-health reference band. If you are inactive or have health limitations, increase activity gradually and seek professional advice when appropriate.",
+          "Engage in 150–300 minutes per week of moderate-intensity aerobic exercise (e.g. brisk walking, swimming, light cycling) tailored to your individual baseline fitness.",
         priority: "General health action",
         action_steps: [
-          "Engage in moderate-intensity walking or preferred aerobic exercise gradually building towards 150–300 mins/week.",
-          "Incorporate muscle-strengthening exercises on two or more days weekly.",
+          "Start with 20–30 minutes of brisk walking 5 days per week.",
+          "Incorporate light resistance and flexibility training twice weekly.",
         ],
         timeframe: "Next 1–4 weeks: build activity gradually",
         indian_context:
@@ -197,65 +275,115 @@ function generateFallbackRecommendations(assessmentType, riskFactors, inputs = {
       },
       {
         category: "Nutrition",
-        title: "Heart-Healthy Dietary Pattern",
+        title: sys >= 130 ? "Cardiovascular Sodium & Lipid Control" : "Heart-Healthy Dietary Pattern",
         description:
-          "Choose a dietary pattern rich in vegetables, fruits, whole grains, pulses/legumes, nuts and other minimally processed foods; prefer unsaturated plant oils in appropriate amounts and limit excess sodium, saturated fat, trans fat and highly processed foods.",
-        priority: "General health action",
+          sys >= 130
+            ? "Adopt a reduced-sodium, potassium-rich dietary pattern (DASH/Mediterranean principles adapted for Indian meals) with minimal deep-fried preparations and trans fats."
+            : "Choose whole grains, pulses, legumes, nuts and abundant vegetables; prefer unsaturated plant oils in moderation and limit ultra-processed snacks.",
+        priority: sys >= 140 ? "Recommended priority" : "General health action",
         action_steps: [
-          "Prefer unsaturated plant oils and reduce deep-fried food consumption.",
-          "Incorporate fresh vegetables and whole grains into daily family meals.",
+          "Reduce added table salt and avoid high-sodium pickles/processed papads.",
+          "Include high-fiber lentils, leafy greens, and seasonal vegetables in every meal.",
         ],
         timeframe: "Next 2–4 weeks",
         indian_context:
           "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
       },
-      {
-        category: "Stress Management",
-        title: "Restorative Wellbeing & Stress Management",
+    ];
+
+    if (isSmoker) {
+      recs.unshift({
+        category: "Lifestyle Cessation",
+        title: "Cardiovascular Smoking Cessation Protocol",
         description:
-          "Stress-management practices such as breathing exercises, mindfulness, yoga or other preferred relaxation activities may support overall wellbeing. Choose an approach that is safe and acceptable for you.",
-        priority: "General health action",
+          "Tobacco smoking accelerates arterial plaque deposition and arterial stiffening. Complete cessation significantly drops cardiovascular incident risk within months.",
+        priority: "High priority",
         action_steps: [
-          "Practice 10–15 minutes of relaxed mindfulness or gentle yoga daily.",
-          "Prioritize regular sleep schedule and hydration.",
+          "Consult a clinician regarding nicotine replacement therapies and behavioral support.",
+          "Set a definitive quit date within the next 14 days and identify personal trigger routines.",
         ],
-        timeframe: "Ongoing routine",
+        timeframe: "Immediate action: next 1–2 weeks",
         indian_context:
           "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
-      },
-    ];
+      });
+    }
+
+    return recs;
   }
 
   // Lung health fallbacks
-  return [
+  const packYears = Number(inputs.smoking_pack_years) || 0;
+  const isSmoker = inputs.smoking_status === "current" || inputs.smoking_status === "smoker" || packYears > 0;
+  const aqi = Number(inputs.aqi) || 60;
+  const wheezing = inputs.wheezing === "true" || inputs.wheezing === true || inputs.symptoms_wheezing;
+
+  const lungRecs = [
     {
-      category: "Respiratory Wellness",
-      title: "Diaphragmatic Breathing Exercises",
+      category: "Respiratory Conditioning",
+      title: "Diaphragmatic Breathing & Lung Volume Expansion",
       description:
-        "Daily structured breath-control exercises support respiratory muscle conditioning and promote relaxation.",
+        "Daily structured deep diaphragmatic breathing and pursed-lip breathing support respiratory muscle conditioning and improve gas exchange efficiency.",
       priority: "General health action",
       action_steps: [
-        "Practice 5–10 minutes of diaphragmatic box breathing morning and evening.",
-        "Maintain upright posture during deep inhalation exercises.",
+        "Practice 10 minutes of diaphragmatic breathing (4-second inhale, 6-second pursed-lip exhale) twice daily.",
+        "Maintain upright spinal alignment during breathing routines to optimize lung capacity.",
       ],
-      timeframe: "Next 1–2 weeks",
+      timeframe: "Next 1–2 weeks: daily practice",
       indian_context:
         "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
     },
     {
-      category: "Environmental Precaution",
-      title: "Ambient Air Quality Protection",
+      category: "Environmental Protection",
+      title: aqi > 150 ? "High Pollution Particulate Protocol" : "Ambient Air Quality Awareness",
       description:
-        "Limit strenuous outdoor exertion during high ambient AQI periods. Use indoor HEPA air filtration or particulate respirators when ambient PM2.5 levels are elevated.",
-      priority: "General health action",
+        aqi > 150
+          ? `Current ambient AQI (${aqi}) poses elevated particulate burden on sensitive airway mucosa. Avoid strenuous outdoor workouts during smog peaks.`
+          : "Monitor localized daily air quality indices before undertaking high-intensity outdoor cardio or morning jogs.",
+      priority: aqi > 150 ? "Recommended priority" : "General health action",
       action_steps: [
-        "Check local AQI forecasts before planning vigorous morning walks.",
-        "Wear an N95 mask in high-dust or congested traffic corridors.",
+        aqi > 150 ? "Wear a certified N95 respirator during high-traffic or foggy commutes." : "Plan outdoor exercises when air pollution levels are lowest (typically late afternoon).",
+        "Keep indoor living and sleeping areas well-ventilated with HEPA air filtration if available.",
       ],
       timeframe: "Continuous daily practice",
       indian_context:
         "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
     },
   ];
+
+  if (isSmoker) {
+    lungRecs.unshift({
+      category: "Pulmonary Health",
+      title: "Targeted Respiratory Smoking Cessation",
+      description:
+        `Reported smoking history (${packYears > 0 ? `${packYears} pack-years` : 'active smoker'}) causes chronic bronchial inflammation and progressive decline in FEV1 vital capacity.`,
+      priority: "High priority",
+      action_steps: [
+        "Schedule an evidence-based clinical consultation for smoking cessation support.",
+        "Track daily cigarette reduction and transition towards total tobacco elimination.",
+      ],
+      timeframe: "Immediate: next 7–14 days",
+      indian_context:
+        "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
+    });
+  }
+
+  if (wheezing) {
+    lungRecs.push({
+      category: "Clinical Evaluation",
+      title: "Physician Spirometry & Airway Review",
+      description:
+        "Reported expiratory wheezing indicates potential bronchial narrowing or airway hyperreactivity that warrants formal spirometry testing.",
+      priority: "Recommended priority",
+      action_steps: [
+        "Consult a pulmonologist or general physician for chest auscultation and peak flow review.",
+        "Note specific triggers (cold air, dust, pollen, exertion) that precede wheezing episodes.",
+      ],
+      timeframe: "Next 1–2 weeks",
+      indian_context:
+        "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
+    });
+  }
+
+  return lungRecs;
 }
 

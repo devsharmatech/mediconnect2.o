@@ -79,12 +79,14 @@ export default function LungHealthStatisticsPage() {
         let resolvedName = "Patient";
         let extraUser = {};
 
+        const directName = localStorage.getItem("userName") || localStorage.getItem("patient_name");
+        if (directName) resolvedName = directName;
         const raw = localStorage.getItem("user") || localStorage.getItem("userData");
         if (raw) {
           const parsed = JSON.parse(raw);
           extraUser = parsed;
           resolvedId = resolvedId || parsed.id || parsed.user_id || parsed.user?.id || null;
-          resolvedName = parsed.name || parsed.full_name || parsed.details?.full_name || resolvedName;
+          resolvedName = parsed.name || parsed.full_name || parsed.details?.full_name || parsed.user_metadata?.full_name || resolvedName;
         }
 
         if (resolvedId) {
@@ -129,12 +131,14 @@ export default function LungHealthStatisticsPage() {
           resolvedId = directId;
         }
 
+        const directName = localStorage.getItem("userName") || localStorage.getItem("patient_name");
+        if (directName) resolvedName = directName;
         const raw = localStorage.getItem("user") || localStorage.getItem("userData");
         if (raw) {
           const parsed = JSON.parse(raw);
           extraUser = parsed;
           resolvedId = resolvedId || parsed.id || parsed.user_id || parsed.user?.id;
-          resolvedName = parsed.name || parsed.full_name || parsed.details?.full_name || resolvedName;
+          resolvedName = parsed.name || parsed.full_name || parsed.details?.full_name || parsed.user_metadata?.full_name || resolvedName;
         }
       } catch (e) {
         console.warn("Could not read user data:", e);
@@ -286,11 +290,26 @@ export default function LungHealthStatisticsPage() {
 
   // Helper to build complete assessment object for modals and prints
   const buildAssessmentObject = (record) => {
+    const resolvedPatientName =
+      record.patientName ||
+      record.patient_name ||
+      record.rawAssessment?.patient_name ||
+      record.rawAssessment?.patientName ||
+      user?.name ||
+      user?.full_name ||
+      (typeof window !== "undefined" ? (localStorage.getItem("userName") || localStorage.getItem("patient_name")) : null) ||
+      "Patient";
+
     if (record.rawAssessment?.lung_health_inputs?.length > 0) {
-      return record.rawAssessment;
+      return {
+        ...record.rawAssessment,
+        patient_name: resolvedPatientName,
+        serial_no: record.serialNo || record.rawAssessment?.serial_no,
+      };
     }
     return {
       id: record.id,
+      patient_name: resolvedPatientName,
       health_score: record.healthScore || record.score,
       risk_level: record.riskLevel,
       created_at: record.date || record.created_at,
