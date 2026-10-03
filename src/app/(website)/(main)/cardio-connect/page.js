@@ -3032,7 +3032,7 @@ export default function CardioConnectHome() {
                 </div>
                 <div className="flex justify-between text-slate-700">
                   <span>Data Source:</span>
-                  <strong className="text-slate-900">{aqiDetailData?.source || "CPCB Telemetry / Open-Meteo Air Quality"}</strong>
+                  <strong className="text-slate-900">{aqiDetailData?.source || "Google Air Quality API"}</strong>
                 </div>
                 <div className="flex justify-between text-slate-700 items-center">
                   <span>Telemetry Feed:</span>

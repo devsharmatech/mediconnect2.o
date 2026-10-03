@@ -32,13 +32,32 @@ export default function CardioConnectF3Report({
     `WPT-${new Date(createdAt).getFullYear()}-${String(assessmentData?.id || assessmentData?.rawAssessment?.id || "0918").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`;
 
   const patientName = 
-    patientData?.name || 
-    patientData?.full_name || 
-    patientData?.user?.name || 
     assessmentData?.patient_name || 
+    assessmentData?.patientName || 
+    patientData?.details?.full_name || 
+    patientData?.full_name || 
+    patientData?.name || 
+    patientData?.details?.name || 
+    patientData?.user?.details?.full_name || 
+    patientData?.user?.full_name || 
+    patientData?.user?.name || 
     assessmentData?.user_name || 
     assessmentData?.user?.name || 
-    (typeof window !== "undefined" && (localStorage.getItem("userName") || localStorage.getItem("patient_name") || JSON.parse(localStorage.getItem("userData") || "{}")?.name)) || 
+    (typeof window !== "undefined" && (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem("userData") || localStorage.getItem("user") || "{}");
+        return (
+          localStorage.getItem("userName") ||
+          localStorage.getItem("patient_name") ||
+          u.details?.full_name ||
+          u.details?.name ||
+          u.full_name ||
+          u.name ||
+          u.user?.details?.full_name ||
+          u.user?.name
+        );
+      } catch (e) { return null; }
+    })()) || 
     "Patient (CardioConnect)";
 
   const age = Math.max(18, Number(rawInputs?.age || demographics?.age || patientData?.age || 29));

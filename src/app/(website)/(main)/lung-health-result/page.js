@@ -6,7 +6,8 @@ import Link from 'next/link';
 import {
   Activity, Wind, ChevronLeft, Download,
   AlertTriangle, Stethoscope, Calendar,
-  Zap, Info, CheckCircle2, FileText, History, Printer, Eye, X
+  Zap, Info, CheckCircle2, FileText, History, Printer, Eye, X,
+  Clock, ArrowUpRight
 } from 'lucide-react';
 import { FaLungs, FaWalking } from 'react-icons/fa';
 import { motion } from 'framer-motion';
@@ -89,7 +90,11 @@ export default function LungHealthResult() {
     let hasSessionResult = false;
     const resultData = sessionStorage.getItem('lungAssessmentResult');
     if (resultData) {
-      try { setAssessmentData(JSON.parse(resultData)); hasSessionResult = true; }
+      try {
+        const parsed = JSON.parse(resultData);
+        setAssessmentData(parsed);
+        hasSessionResult = true;
+      }
       catch (e) { console.warn("Could not parse lungAssessmentResult", e); }
     }
 
@@ -97,15 +102,58 @@ export default function LungHealthResult() {
       ? (localStorage.getItem('userData') || localStorage.getItem('user')) : null;
     let parsedUser = null;
     if (userDataRaw) {
-      try { parsedUser = JSON.parse(userDataRaw); setPatientData(parsedUser); }
+      try {
+        parsedUser = JSON.parse(userDataRaw);
+        const resolvedName =
+          parsedUser?.details?.full_name ||
+          parsedUser?.details?.name ||
+          parsedUser?.full_name ||
+          parsedUser?.name ||
+          parsedUser?.user?.details?.full_name ||
+          parsedUser?.user?.name ||
+          (typeof window !== "undefined" ? (localStorage.getItem("userName") || localStorage.getItem("patient_name")) : null);
+        if (resolvedName) {
+          parsedUser.full_name = resolvedName;
+          parsedUser.name = resolvedName;
+        }
+        setPatientData(parsedUser);
+      }
       catch (e) { console.warn("Could not parse userData", e); }
+    } else if (typeof window !== "undefined" && (localStorage.getItem("userName") || localStorage.getItem("patient_name"))) {
+      const fallbackName = localStorage.getItem("userName") || localStorage.getItem("patient_name");
+      setPatientData({ full_name: fallbackName, name: fallbackName });
     }
 
-    const userId = parsedUser?.user_id || parsedUser?.user?.id || parsedUser?.id;
-    if (!hasSessionResult && userId && userId !== 'usr_guest') {
+    const userId = parsedUser?.user_id || parsedUser?.user?.id || parsedUser?.id || (typeof window !== 'undefined' ? localStorage.getItem('userId') : null);
+    if (userId && userId !== 'usr_guest') {
       fetch(`/api/health/assessments?user_id=${userId}&type=lung&limit=1`)
         .then(r => r.json())
-        .then(res => { if (res.success && res.data?.assessments?.length > 0) setAssessmentData(res.data.assessments[0]); })
+        .then(res => {
+          if (res.success && res.data?.assessments?.length > 0) {
+            const latest = res.data.assessments[0];
+            if (!hasSessionResult) {
+              setAssessmentData(latest);
+            } else {
+              setAssessmentData(prev => ({
+                ...prev,
+                patient_name: prev?.patient_name || latest.patient_name,
+                patientName: prev?.patientName || latest.patient_name,
+                patient_gender: prev?.patient_gender || latest.patient_gender,
+                patient_dob: prev?.patient_dob || latest.patient_dob,
+                patient_blood_group: prev?.patient_blood_group || latest.patient_blood_group,
+              }));
+            }
+            if (latest.patient_name) {
+              setPatientData(prev => ({
+                ...(prev || {}),
+                full_name: latest.patient_name,
+                name: latest.patient_name,
+                gender: latest.patient_gender || prev?.gender,
+                blood_group: latest.patient_blood_group || prev?.blood_group
+              }));
+            }
+          }
+        })
         .catch(err => console.warn("Could not fetch latest assessment", err))
         .finally(() => setLoading(false));
     } else {
@@ -248,6 +296,166 @@ export default function LungHealthResult() {
   const formattedSerialNo = serial_no || (assessmentId
     ? `LCN-${new Date(created_at).getFullYear()}-${String(assessmentId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
     : 'LCN-LATEST');
+
+  const resolvedPatientName =
+    assessmentData?.patient_name ||
+    assessmentData?.patientName ||
+    patientData?.details?.full_name ||
+    patientData?.full_name ||
+    patientData?.name ||
+    patientData?.details?.name ||
+    patientData?.user?.details?.full_name ||
+    patientData?.user?.name ||
+    (typeof window !== "undefined" && (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem("userData") || localStorage.getItem("user") || "{}");
+        return localStorage.getItem("userName") || localStorage.getItem("patient_name") || u.details?.full_name || u.full_name || u.name;
+      } catch (e) { return null; }
+    })()) ||
+    null;
+
+  // ── Construct rich, clinically tailored Suggested Respiratory Wellness Practices ──
+  const resolvedPractices = (() => {
+    let list = [];
+    if (Array.isArray(recommendations)) {
+      list = [...recommendations];
+    } else if (typeof recommendations === 'string') {
+      try {
+        const parsed = JSON.parse(recommendations);
+        if (Array.isArray(parsed)) list = parsed;
+        else if (Array.isArray(parsed?.recommendations)) list = parsed.recommendations;
+      } catch (e) {}
+    }
+
+    const hasWheezing =
+      inputs.wheezing === true ||
+      inputs.wheezing === 'true' ||
+      inputs.Wheezing === true ||
+      inputs.Wheezing === 'true' ||
+      rawInputs.wheezing === true ||
+      rawInputs.wheezing === 'true' ||
+      risk_factors?.some(rf => String(rf).toLowerCase().includes('wheez'));
+
+    const aqiNum = aqiVal;
+    const isSmoker = rawSmoking === 'current' || rawSmoking === 'former' || packYears > 0;
+    const isShortOfBreath =
+      inputs.breathlessness === 'moderate' ||
+      inputs.breathlessness === 'severe' ||
+      risk_factors?.some(rf => String(rf).toLowerCase().includes('breathless'));
+    const hasCough =
+      inputs.cough_frequency === 'daily' ||
+      inputs.cough_frequency === 'constant' ||
+      risk_factors?.some(rf => String(rf).toLowerCase().includes('cough'));
+
+    const tailored = [];
+
+    // 1. Wheezing / Airway Tightness Targeted Practice
+    if (hasWheezing || isShortOfBreath) {
+      tailored.push({
+        id: 'pursed-lip',
+        category: 'Airway Relief',
+        badgeColor: 'bg-amber-50 text-amber-900 border-amber-200',
+        title: 'Pursed-Lip Breathing Technique',
+        priorityTag: 'Targeted for Wheezing',
+        timeframe: '5–8 mins · 2–3x Daily',
+        description: 'Creates positive expiratory airway pressure (PEEP effect) preventing premature bronchiolar collapse during exhalation, relieving air trapping, chest tightness, and wheezing sounds.',
+        action_steps: [
+          'Inhale gently through your nose for 2 counts with relaxed, drop-down shoulders.',
+          'Pucker your lips as if gently blowing across hot tea; exhale slowly for 4 counts without forcing breath.',
+          'Practice for 5–8 minutes whenever you experience chest tightness, wheezing, or after mild physical activity.'
+        ],
+        hubLink: '/lung-connect'
+      });
+    }
+
+    // 2. Diaphragmatic Deep Breathing (Foundational Core Practice)
+    tailored.push({
+      id: 'diaphragmatic',
+      category: 'Respiratory Conditioning',
+      badgeColor: 'bg-emerald-50 text-emerald-900 border-emerald-200',
+      title: 'Diaphragmatic Deep Breathing & Lung Expansion',
+      priorityTag: 'Daily Core Habit',
+      timeframe: '10 mins · Morning & Evening',
+      description: 'Strengthens the primary diaphragm muscle, shifts shallow upper-chest breathing to deep abdominal ventilation, and increases functional arterial oxygen saturation.',
+      action_steps: [
+        'Place one hand on your upper chest and the other on your abdomen just below the rib cage.',
+        'Inhale slowly through your nose for 4 seconds, allowing your abdomen to push outward while keeping chest steady.',
+        'Exhale gently through pursed lips for 6 seconds as your abdomen relaxes inward. Repeat for 10 minutes.'
+      ],
+      hubLink: '/lung-connect'
+    });
+
+    // 3. Environmental AQI Defense (Targeted to Local AQI)
+    if (aqiNum >= 100) {
+      const aqiSeverity = aqiNum > 200 ? 'Severe Pollution' : aqiNum > 150 ? 'Unhealthy Smog' : 'Moderate Pollution';
+      tailored.push({
+        id: 'aqi-defense',
+        category: 'Environmental Defense',
+        badgeColor: 'bg-rose-50 text-rose-900 border-rose-200',
+        title: `Particulate Defense Protocol (Local AQI ${aqiNum})`,
+        priorityTag: `${aqiSeverity} · AQI ${aqiNum}`,
+        timeframe: 'Commute & Peak Smog Windows',
+        description: `Current local ambient air quality (${aqiNum} AQI) exposes sensitive airways to fine particulate matter (PM2.5/PM10). Protective filtration shields bronchial mucosa from acute inflammation.`,
+        action_steps: [
+          'Wear a certified N95 or particulate respirator during high-traffic commutes, foggy mornings, or dusty outdoor environments.',
+          'Shift cardiovascular workouts indoors and avoid heavy outdoor exertion between 6:00 AM – 9:00 AM during thermal smog peaks.',
+          'Keep living and sleeping areas sealed during peak pollution and run HEPA air filtration if available.'
+        ]
+      });
+    }
+
+    // 4. Airway Hydration & Warm Steam Inhalation
+    if (hasWheezing || hasCough || aqiNum >= 120) {
+      tailored.push({
+        id: 'airway-hydration',
+        category: 'Bronchial Hygiene',
+        badgeColor: 'bg-sky-50 text-sky-900 border-sky-200',
+        title: 'Warm Airway Hydration & Gentle Steam Therapy',
+        priorityTag: 'Airway Soothing',
+        timeframe: '5–7 mins · Evening Routine',
+        description: 'Moisturizes sensitive bronchial epithelium, thins stagnant airway secretions, and eases nocturnal throat irritation, dry cough, and wheezing triggers.',
+        action_steps: [
+          'Inhale gentle warm water steam for 5–7 minutes in the evening (plain water without harsh essential oils or irritants).',
+          'Maintain daily hydration with 2 to 2.5 liters of warm or room-temperature water to prevent mucosal drying.',
+          'Avoid sudden exposure to ice-cold beverages or dry, high-blast air conditioning after being in humid heat.'
+        ]
+      });
+    }
+
+    // 5. Smoker cessation if smoker
+    if (isSmoker) {
+      tailored.unshift({
+        id: 'smoking-cessation',
+        category: 'Pulmonary Recovery',
+        badgeColor: 'bg-red-50 text-red-900 border-red-200',
+        title: 'Bronchial Recovery & Controlled Cough Protocol',
+        priorityTag: 'High Priority Recovery',
+        timeframe: 'Immediate · Next 7–14 days',
+        description: 'Halts accelerated decline in FEV1 vital capacity and clears trapped bronchial mucus using non-straining respiratory clearance techniques.',
+        action_steps: [
+          'Practice the "Huff Cough" technique (two forced exhalations with open mouth) to clear deep bronchial mucus without vocal cord strain.',
+          'Consult a physician for clinical nicotine replacement options and establish a 14-day quit milestones plan.'
+        ]
+      });
+    }
+
+    // 6. Low-Impact Aerobic Conditioning
+    tailored.push({
+      id: 'aerobic-conditioning',
+      category: 'Endurance Conditioning',
+      badgeColor: 'bg-teal-50 text-teal-900 border-teal-200',
+      title: 'Structured Aerobic Walking Conditioning',
+      priorityTag: '150–300 mins/week Band',
+      timeframe: '20–30 mins/day · 5 days/week',
+      description: 'Increases peripheral muscle oxygen extraction and functional cardiopulmonary reserve without provoking acute airway bronchospasm.',
+      action_steps: [
+        'Walk briskly at a steady rhythm where you can speak comfortably in full sentences without gasping (talk test).',
+        'Walk indoors on a treadmill or outside during clean-air afternoon windows when particulate pollution is lowest.'
+      ]
+    });
+
+    return tailored;
+  })();
 
   const riskKey = risk_level?.toLowerCase();
   const isGoodResult = health_score >= 70 || riskKey === 'low';
@@ -430,7 +638,7 @@ export default function LungHealthResult() {
               <Download className="w-3.5 h-3.5" /> {downloadingPDF ? 'Generating…' : 'PDF'}
             </button>
             <Link
-              href="/find-doctors"
+              href="/doctors"
               className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#0067A1] hover:bg-[#005584] text-white rounded-md text-xs font-medium transition-all shrink-0"
             >
               <Stethoscope className="w-3.5 h-3.5" /> Consult Doctor
@@ -483,7 +691,7 @@ export default function LungHealthResult() {
               </span>
             </div>
             <span className="px-2.5 py-0.5 rounded text-[11px] font-medium bg-white/20 text-white border border-white/25">
-              Assessment Summary
+              {resolvedPatientName ? `Patient: ${resolvedPatientName}` : "Assessment Summary"}
             </span>
           </div>
 
@@ -511,6 +719,10 @@ export default function LungHealthResult() {
 
               <div className="grid grid-cols-2 gap-1.5 text-xs">
                 <div className="bg-white/10 rounded p-2 border border-white/15">
+                  <p className="text-[10px] text-white/70 font-medium uppercase">Patient</p>
+                  <p className="font-semibold text-white text-sm truncate" title={resolvedPatientName || "Self-Reported"}>{resolvedPatientName || "Self-Reported"}</p>
+                </div>
+                <div className="bg-white/10 rounded p-2 border border-white/15">
                   <p className="text-[10px] text-white/70 font-medium uppercase">Chronological Age</p>
                   <p className="font-mono font-semibold text-white text-sm">{inputs.age || 35} yrs</p>
                 </div>
@@ -523,10 +735,6 @@ export default function LungHealthResult() {
                   <p className="font-mono font-semibold text-white text-sm">
                     {formattedBmi} <span className="text-[10px] font-normal text-white/70">kg/m²</span>
                   </p>
-                </div>
-                <div className="bg-white/10 rounded p-2 border border-white/15">
-                  <p className="text-[10px] text-white/70 font-medium uppercase">Source Modality</p>
-                  <p className="font-medium text-white text-sm">Self-Reported</p>
                 </div>
               </div>
 
@@ -701,42 +909,83 @@ export default function LungHealthResult() {
           )}
 
           {/* Suggested Respiratory Wellness Practices */}
-          <div className="pt-2">
-            <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Suggested Respiratory Wellness Practices
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {Array.isArray(recommendations) && recommendations.length > 0
-                ? recommendations.slice(0, 4).map((rec, i) => (
-                  <div key={i} className="p-3 bg-slate-50 rounded-md border border-slate-200 space-y-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-xs font-semibold text-slate-900">{rec.title || `Action Plan ${i + 1}`}</span>
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">
-                        {rec.category || 'Wellness'}
-                      </span>
+          <div className="pt-3 border-t border-slate-200/80">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <h4 className="text-xs sm:text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Suggested Respiratory Wellness Practices
+              </h4>
+              <span className="text-[11px] font-medium text-slate-500">
+                Tailored to your symptoms & ambient AQI ({aqiVal})
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {resolvedPractices.map((practice, i) => (
+                <div
+                  key={practice.id || i}
+                  className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-2xs hover:shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    {/* Header badge & timeframe */}
+                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${practice.badgeColor || 'bg-emerald-50 text-emerald-800 border-emerald-200'}`}>
+                          {practice.category}
+                        </span>
+                        {practice.priorityTag && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
+                            {practice.priorityTag}
+                          </span>
+                        )}
+                      </div>
+                      {practice.timeframe && (
+                        <span className="text-[10px] font-medium text-slate-500 flex items-center gap-1 shrink-0">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          {practice.timeframe}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-3 font-normal">
-                      {rec.description || (rec.action_steps?.[0]) || 'Practice daily diaphragmatic breathing and monitor local air quality.'}
+
+                    {/* Title */}
+                    <h5 className="text-xs sm:text-[13px] font-bold text-slate-900 leading-snug pt-0.5">
+                      {practice.title}
+                    </h5>
+
+                    {/* Benefit / Description */}
+                    <p className="text-[11px] text-slate-600 leading-relaxed font-normal">
+                      {practice.description}
                     </p>
+
+                    {/* Step-by-step guidance list */}
+                    {Array.isArray(practice.action_steps) && practice.action_steps.length > 0 && (
+                      <div className="pt-2 border-t border-slate-100 space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Recommended Steps:</span>
+                        <ul className="space-y-1">
+                          {practice.action_steps.map((step, sIdx) => (
+                            <li key={sIdx} className="text-[11px] text-slate-700 flex items-start gap-1.5 leading-normal">
+                              <span className="text-emerald-600 font-bold shrink-0 mt-0.5">✓</span>
+                              <span>{step}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
-                ))
-                : (
-                  <>
-                    <div className="p-3 bg-slate-50 rounded-md border border-slate-200 space-y-1">
-                      <span className="text-xs font-semibold text-slate-900">Diaphragmatic Breathing</span>
-                      <p className="text-[11px] text-slate-600 leading-relaxed font-normal">
-                        Perform 5–10 minutes of deep belly breathing or box breathing daily to strengthen respiratory muscles.
-                      </p>
+
+                  {/* Optional CTA to practice inside LungConnect */}
+                  {practice.hubLink && (
+                    <div className="pt-2.5 mt-2 border-t border-slate-100 flex items-center justify-between">
+                      <Link
+                        href={practice.hubLink}
+                        className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#0067A1] hover:text-[#005584] transition-colors"
+                      >
+                        <span>Open Interactive Breathing Timer</span>
+                        <ArrowUpRight className="w-3 h-3" />
+                      </Link>
                     </div>
-                    <div className="p-3 bg-slate-50 rounded-md border border-slate-200 space-y-1">
-                      <span className="text-xs font-semibold text-slate-900">Air Quality Protection</span>
-                      <p className="text-[11px] text-slate-600 leading-relaxed font-normal">
-                        Use HEPA filtration indoors during high pollution days and wear an N95 mask in congested traffic.
-                      </p>
-                    </div>
-                  </>
-                )
-              }
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         </motion.div>

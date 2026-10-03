@@ -76,6 +76,23 @@ export default function LungSnapshotModal({
     : 'LCN-LATEST'
   );
 
+  const patientName =
+    assessmentData?.patient_name ||
+    assessmentData?.patientName ||
+    patientData?.details?.full_name ||
+    patientData?.full_name ||
+    patientData?.name ||
+    patientData?.details?.name ||
+    patientData?.user?.details?.full_name ||
+    patientData?.user?.name ||
+    (typeof window !== "undefined" && (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem("userData") || localStorage.getItem("user") || "{}");
+        return localStorage.getItem("userName") || localStorage.getItem("patient_name") || u.details?.full_name || u.full_name || u.name;
+      } catch (e) { return null; }
+    })()) ||
+    null;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200 overflow-hidden"
@@ -88,10 +105,17 @@ export default function LungSnapshotModal({
         {/* Header */}
         <div className="flex items-start justify-between p-4 sm:p-6 pb-3 sm:pb-3 border-b border-slate-100 shrink-0 z-20">
           <div>
-            <h2 className="text-base sm:text-lg font-semibold text-slate-900 tracking-tight flex items-center gap-2">
-              <Wind className="w-4 h-4 text-[#0067A1]" />
-              Full Lung Report Snapshot
-            </h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base sm:text-lg font-semibold text-slate-900 tracking-tight flex items-center gap-2">
+                <Wind className="w-4 h-4 text-[#0067A1]" />
+                Full Lung Report Snapshot
+              </h2>
+              {patientName && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-sky-100 text-sky-800 border border-sky-200">
+                  Patient: {patientName}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Summary of your latest non-diagnostic respiratory assessment
             </p>

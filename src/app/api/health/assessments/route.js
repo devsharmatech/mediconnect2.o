@@ -120,6 +120,7 @@ export async function GET(req) {
 
       assessments = assessments.map((a) => ({
         ...a,
+        patientName: a.patient_name,
         heart_health_inputs: heartMap[a.id] ? [heartMap[a.id]] : [],
         lung_health_inputs: lungMap[a.id] ? [lungMap[a.id]] : [],
       }));
@@ -177,24 +178,29 @@ export async function POST(req) {
     }
 
     // 0. Canonical Age from patient_details (AWS RDS)
+    let patientDetailsRow = null;
     try {
       const profileRows = await sql`
-        SELECT date_of_birth FROM patient_details
-        WHERE id = ${user_id}::uuid
+        SELECT full_name, date_of_birth, gender, blood_group FROM patient_details
+        WHERE (id = ${user_id}::uuid OR id = ${String(user_id)})
         LIMIT 1;
       `;
-      if (profileRows && profileRows.length > 0 && profileRows[0].date_of_birth) {
-        const dob = new Date(profileRows[0].date_of_birth);
-        if (!isNaN(dob.getTime())) {
-          const today = new Date();
-          let canonicalAge = today.getFullYear() - dob.getFullYear();
-          const m = today.getMonth() - dob.getMonth();
-          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) canonicalAge--;
-          if (canonicalAge > 0) inputs.age = canonicalAge;
+      if (profileRows && profileRows.length > 0) {
+        patientDetailsRow = profileRows[0];
+        const dobVal = patientDetailsRow.date_of_birth;
+        if (dobVal) {
+          const dob = new Date(dobVal);
+          if (!isNaN(dob.getTime())) {
+            const today = new Date();
+            let canonicalAge = today.getFullYear() - dob.getFullYear();
+            const m = today.getMonth() - dob.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) canonicalAge--;
+            if (canonicalAge > 0) inputs.age = canonicalAge;
+          }
         }
       }
     } catch (dobErr) {
-      console.warn("[Assessments POST] Could not query DOB from RDS:", dobErr.message);
+      console.warn("[Assessments POST] Could not query profile from RDS:", dobErr.message);
     }
 
     // 1. Calculate health score
@@ -262,6 +268,13 @@ export async function POST(req) {
     const serialCode = String(assessmentId).replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
     const serial_no = `${serialPrefix}-${serialYear}-${serialCode}`;
 
+    const resolvedPatientName =
+      patientDetailsRow?.full_name ||
+      inputs?.patient_name ||
+      inputs?.name ||
+      inputs?.full_name ||
+      null;
+
     return success(
       "Health assessment created successfully.",
       {
@@ -274,6 +287,11 @@ export async function POST(req) {
         ai_analysis: aiAnalysis,
         recommendations,
         serial_no,
+        patient_name: resolvedPatientName,
+        patientName: resolvedPatientName,
+        patient_gender: patientDetailsRow?.gender || inputs?.gender || null,
+        patient_dob: patientDetailsRow?.date_of_birth || null,
+        patient_blood_group: patientDetailsRow?.blood_group || null,
         created_at: now,
       },
       201,

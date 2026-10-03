@@ -29,7 +29,7 @@ export async function GET(request) {
     }
 
     // 1. Resolve Place Details by place_id
-    if (placeId) {
+    if (placeId && placeId !== "undefined" && placeId !== "null") {
       const ctrl = new AbortController();
       const tid = setTimeout(() => ctrl.abort(), 6000);
       try {
@@ -53,8 +53,10 @@ export async function GET(request) {
           success: true,
           data: {
             placeId: data.id,
+            place_id: data.id,
             name: data.displayName?.text || data.formattedAddress?.split(",")[0] || "",
             formattedAddress: data.formattedAddress || "",
+            formatted_address: data.formattedAddress || "",
             latitude: data.location?.latitude || null,
             longitude: data.location?.longitude || null,
           },
@@ -149,9 +151,13 @@ export async function GET(request) {
             if (!pred) return null;
             return {
               placeId: pred.placeId,
+              place_id: pred.placeId,
               text: pred.text?.text || "",
+              description: pred.text?.text || "",
               name: pred.structuredFormat?.mainText?.text || pred.text?.text || "",
+              main_text: pred.structuredFormat?.mainText?.text || pred.text?.text || "",
               secondaryText: pred.structuredFormat?.secondaryText?.text || "",
+              secondary_text: pred.structuredFormat?.secondaryText?.text || "",
               types: pred.types || [],
             };
           })

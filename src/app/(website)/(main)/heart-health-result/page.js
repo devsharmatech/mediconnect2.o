@@ -47,16 +47,31 @@ export default function HeartHealthResult() {
       }
     }
 
-    const userDataRaw = typeof window !== 'undefined' ? localStorage.getItem('userData') : null;
+    const userDataRaw = typeof window !== 'undefined' ? (localStorage.getItem('userData') || localStorage.getItem('user')) : null;
     let userId = null;
     if (userDataRaw) {
       try {
         const parsed = JSON.parse(userDataRaw);
+        const resolvedName =
+          parsed?.details?.full_name ||
+          parsed?.details?.name ||
+          parsed?.full_name ||
+          parsed?.name ||
+          parsed?.user?.details?.full_name ||
+          parsed?.user?.name ||
+          (typeof window !== "undefined" ? (localStorage.getItem("userName") || localStorage.getItem("patient_name")) : null);
+        if (resolvedName) {
+          parsed.full_name = resolvedName;
+          parsed.name = resolvedName;
+        }
         setPatientData(parsed);
         userId = parsed.user_id || parsed.user?.id || parsed.id;
       } catch (e) {
         console.warn("Could not parse userData", e);
       }
+    } else if (typeof window !== "undefined" && (localStorage.getItem("userName") || localStorage.getItem("patient_name"))) {
+      const fallbackName = localStorage.getItem("userName") || localStorage.getItem("patient_name");
+      setPatientData({ full_name: fallbackName, name: fallbackName });
     }
 
     // Fetch live RDS activity & step statistics
@@ -73,6 +88,37 @@ export default function HeartHealthResult() {
       }
     };
     fetchLiveCardioData();
+
+    if (userId && userId !== 'usr_guest') {
+      fetch(`/api/health/assessments?user_id=${userId}&type=heart&limit=1`)
+        .then(r => r.json())
+        .then(res => {
+          if (res.success && res.data?.assessments?.length > 0) {
+            const latest = res.data.assessments[0];
+            setAssessmentData(prev => {
+              if (!prev) return latest;
+              return {
+                ...prev,
+                patient_name: prev.patient_name || latest.patient_name,
+                patientName: prev.patientName || latest.patient_name,
+                patient_gender: prev.patient_gender || latest.patient_gender,
+                patient_dob: prev.patient_dob || latest.patient_dob,
+                patient_blood_group: prev.patient_blood_group || latest.patient_blood_group,
+              };
+            });
+            if (latest.patient_name) {
+              setPatientData(prev => ({
+                ...(prev || {}),
+                full_name: latest.patient_name,
+                name: latest.patient_name,
+                gender: latest.patient_gender || prev?.gender,
+                blood_group: latest.patient_blood_group || prev?.blood_group
+              }));
+            }
+          }
+        })
+        .catch(e => console.warn("Could not fetch latest heart assessment", e));
+    }
 
     setLoading(false);
   }, [router]);
@@ -250,6 +296,34 @@ export default function HeartHealthResult() {
     : 'CCN-LATEST'
   );
 
+  const resolvedPatientName =
+    assessmentData?.patient_name ||
+    assessmentData?.patientName ||
+    patientData?.details?.full_name ||
+    patientData?.full_name ||
+    patientData?.name ||
+    patientData?.details?.name ||
+    patientData?.user?.details?.full_name ||
+    patientData?.user?.name ||
+    (typeof window !== "undefined" && (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem("userData") || localStorage.getItem("user") || "{}");
+        return localStorage.getItem("userName") || localStorage.getItem("patient_name") || u.details?.full_name || u.full_name || u.name;
+      } catch (e) { return null; }
+    })()) ||
+    null;
+
+  let parsedRecs = [];
+  if (Array.isArray(recommendations)) {
+    parsedRecs = recommendations;
+  } else if (typeof recommendations === 'string') {
+    try {
+      const p = JSON.parse(recommendations);
+      if (Array.isArray(p)) parsedRecs = p;
+      else if (Array.isArray(p?.recommendations)) parsedRecs = p.recommendations;
+    } catch (e) {}
+  }
+
   const riskBadgeStyles = {
     low: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     moderate: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -346,6 +420,11 @@ export default function HeartHealthResult() {
               <span className="bg-slate-100 text-slate-600 font-mono font-semibold px-2 py-0.5 rounded border border-slate-200">
                 #{formattedSerialNo}
               </span>
+              {resolvedPatientName && (
+                <span className="bg-sky-50 text-sky-800 font-semibold px-2 py-0.5 rounded border border-sky-200">
+                  Patient: {resolvedPatientName}
+                </span>
+              )}
               <span className="bg-emerald-50 text-emerald-700 font-medium px-2 py-0.5 rounded border border-emerald-200">
                 Self-reported
               </span>
@@ -439,6 +518,7 @@ export default function HeartHealthResult() {
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                 {[
+                  { label: "Patient", value: resolvedPatientName || "Self-Reported" },
                   { label: "Age", value: inputs.age ? `${inputs.age} yrs` : "—" },
                   { label: "Gender", value: inputs.gender ? (inputs.gender.charAt(0).toUpperCase() + inputs.gender.slice(1)) : "—" },
                   { label: "Height", value: inputs.height_cm ? `${inputs.height_cm} cm` : "—" },
@@ -756,8 +836,8 @@ export default function HeartHealthResult() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {Array.isArray(recommendations) && recommendations.length > 0 ? (
-                recommendations.slice(0, 4).map((rec, idx) => (
+              {Array.isArray(parsedRecs) && parsedRecs.length > 0 ? (
+                parsedRecs.slice(0, 4).map((rec, idx) => (
                   <div key={idx} className="p-3 bg-slate-50/70 rounded-[5px] border border-slate-200/90 text-xs space-y-1">
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-semibold text-slate-900 text-xs">{rec.title || `Action Plan ${idx + 1}`}</span>

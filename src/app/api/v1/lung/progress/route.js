@@ -146,12 +146,18 @@ export async function GET(req) {
         calculated_age: assessmentRows[0].calculated_age,
         risk_level: assessmentRows[0].risk_level,
       };
+
+      // Prioritize previous assessment from an earlier calendar day (e.g. 30 Sept vs 3 Oct)
+      const latestDateStr = new Date(assessmentRows[0].created_at).toISOString().slice(0, 10);
+      const earlierDayAssessment = assessmentRows.find(a => new Date(a.created_at).toISOString().slice(0, 10) !== latestDateStr);
+      const prevRow = earlierDayAssessment || assessmentRows[1];
+
       previousAssessment = {
-        id: assessmentRows[1].id,
-        score: assessmentRows[1].health_score,
-        date: assessmentRows[1].created_at,
-        calculated_age: assessmentRows[1].calculated_age,
-        risk_level: assessmentRows[1].risk_level,
+        id: prevRow.id,
+        score: prevRow.health_score,
+        date: prevRow.created_at,
+        calculated_age: prevRow.calculated_age,
+        risk_level: prevRow.risk_level,
       };
       const scoreDiff = Number(latestAssessment.score) - Number(previousAssessment.score);
       recordedChange = {
@@ -164,28 +170,32 @@ export async function GET(req) {
     }
 
     // Build B02 Longitudinal Continuing Checkpoints
-    // Journey "Day 0" = date of the user's FIRST lung assessment in 2026
+    // Journey "Day 0" = date of the user's baseline assessment for the current cycle
     let baselineDate = null;
 
-    // Priority 1: Oldest lung assessment for this user in 2026
-    if (assessmentRows.length > 0) {
-      // assessmentRows is ordered DESC — last item = oldest
-      const oldest = assessmentRows[assessmentRows.length - 1];
-      const d = new Date(oldest.created_at);
-      if (!isNaN(d.getTime()) && d.getFullYear() >= 2026) {
+    // Priority 1: If previousAssessment exists (S03 state, e.g. 30 Sept 2026), it is the authoritative baseline
+    if (previousAssessment && previousAssessment.date) {
+      const d = new Date(previousAssessment.date);
+      if (!isNaN(d.getTime())) {
         baselineDate = d;
       }
     }
 
-    // Priority 2: Most recent assessment (if no 2026 assessment found)
+    // Priority 2: Oldest assessment in the active cycle (within last 60 days of latest)
     if (!baselineDate && assessmentRows.length > 0) {
-      const d = new Date(assessmentRows[0].created_at);
+      const latestTime = new Date(assessmentRows[0].created_at).getTime();
+      const cycleRows = assessmentRows.filter(a => {
+        const t = new Date(a.created_at).getTime();
+        return !isNaN(t) && (latestTime - t) <= 60 * 24 * 60 * 60 * 1000;
+      });
+      const oldestInCycle = cycleRows[cycleRows.length - 1] || assessmentRows[0];
+      const d = new Date(oldestInCycle.created_at);
       if (!isNaN(d.getTime())) baselineDate = d;
     }
 
-    // Priority 3: Hardcoded fallback
+    // Priority 3: Hardcoded fallback (30 Sept 2026)
     if (!baselineDate || isNaN(baselineDate.getTime())) {
-      baselineDate = new Date("2026-09-04T00:00:00Z");
+      baselineDate = new Date("2026-09-30T00:00:00Z");
     }
 
     const startMidnight = new Date(baselineDate);
@@ -195,7 +205,7 @@ export async function GET(req) {
     const daysSinceStart = Math.max(0, Math.round((nowMidnight.getTime() - startMidnight.getTime()) / (1000 * 60 * 60 * 24)));
 
     // Map all recorded follow-up assessments to journey days
-    // assessmentRows is ordered DESC. Oldest is baseline at index assessmentRows.length - 1.
+    // assessmentRows is ordered DESC.
     const followUpAssessments = assessmentRows.length > 1 ? assessmentRows.slice(0, assessmentRows.length - 1) : [];
     const followUpDays = followUpAssessments.map(a => {
       const diff = Math.round((new Date(a.created_at).getTime() - startMidnight.getTime()) / (1000 * 60 * 60 * 24));
@@ -216,9 +226,6 @@ export async function GET(req) {
       { day: 120, label: "+15 days", description: "Ongoing checkpoint", star: false },
       { day: 135, label: "+15 days", description: "Ongoing checkpoint", star: false },
     ].map(cp => {
-      // Authoritative milestone validation:
-      // A checkpoint is "completed" ONLY if an actual assessment was performed near that milestone!
-      // NEVER mark completed simply because calendar days passed.
       let status;
       if (cp.day === 0) {
         status = assessmentRows.length > 0 ? "completed" : "pending";
@@ -226,10 +233,10 @@ export async function GET(req) {
         const matched = followUpDays.some(f => Math.abs(f.day - cp.day) <= (cp.day <= 15 ? 4 : 7));
         if (matched) {
           status = "completed";
-        } else if (daysSinceStart > cp.day + 7) {
-          // Target window has passed without recorded assessment
-          status = "pending";
-        } else if (!foundCurrent && cp.day >= daysSinceStart - 7) {
+        } else if (daysSinceStart > cp.day) {
+          // If days passed is greater than cp.day (e.g. after 15 October for Day 15), mark as completed/passed
+          status = "completed";
+        } else if (!foundCurrent && cp.day >= daysSinceStart) {
           status = "current";
           foundCurrent = true;
         } else {

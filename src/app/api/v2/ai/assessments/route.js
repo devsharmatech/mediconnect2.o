@@ -148,13 +148,15 @@ export async function POST(req) {
       return failure("Invalid assessment type. Must be 'heart' or 'lung'", "validation_error", 400, { headers: corsHeaders });
     }
 
-    // 0. Canonical Age Derivation (SP-07 P0-02)
+    // 0. Canonical Age Derivation (SP-07 P0-02) & Patient Profile
+    let patientDetailsRow = null;
     try {
       const profileRows = await sql`
-        SELECT date_of_birth FROM patient_details
-        WHERE id = ${user_id} LIMIT 1
+        SELECT full_name, date_of_birth, gender, blood_group FROM patient_details
+        WHERE (id = ${user_id}::uuid OR id = ${String(user_id)}) LIMIT 1
       `;
-      const dob = profileRows[0]?.date_of_birth;
+      patientDetailsRow = profileRows[0] || null;
+      const dob = patientDetailsRow?.date_of_birth;
       if (dob) {
         const dobDate = new Date(dob);
         if (!isNaN(dobDate.getTime())) {
@@ -168,7 +170,7 @@ export async function POST(req) {
         }
       }
     } catch (dobErr) {
-      console.warn("Could not query DOB (non-fatal):", dobErr.message);
+      console.warn("Could not query patient details (non-fatal):", dobErr.message);
     }
 
     // 1. Calculate health score
@@ -369,6 +371,14 @@ export async function POST(req) {
     const serialYear = new Date(completeAssessment.created_at || Date.now()).getFullYear();
     const serialCode = (String(completeAssessment.id || "")).replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
     completeAssessment.serial_no = generatedSerialNo || `${serialPrefix}-${serialYear}-${serialCode}`;
+
+    // Attach patient profile info for reports and UI
+    const resolvedName = patientDetailsRow?.full_name || cleanInputs.patient_name || cleanInputs.name || cleanInputs.patientName || null;
+    completeAssessment.patient_name = resolvedName;
+    completeAssessment.patientName = resolvedName;
+    completeAssessment.patient_gender = patientDetailsRow?.gender || cleanInputs.gender || null;
+    completeAssessment.patient_dob = patientDetailsRow?.date_of_birth || null;
+    completeAssessment.patient_blood_group = patientDetailsRow?.blood_group || null;
 
     return success(
       "Health assessment created successfully with assistive analysis.",

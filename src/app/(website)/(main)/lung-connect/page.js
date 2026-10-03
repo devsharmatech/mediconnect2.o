@@ -147,8 +147,8 @@ function LungConnectHubContent() {
       const d = new Date(userJoinedDate);
       if (!isNaN(d.getTime())) return d;
     }
-    // Default to user's real start date: 4 Sept 2026
-    return new Date("2026-09-04T00:00:00Z");
+    // 4. Fallback to baseline date: 30 Sept 2026
+    return new Date("2026-09-30T00:00:00Z");
   }, [userJoinedDate, progressData, hubData]);
 
   // Current day in journey (strictly calendar-aligned, stable and authoritative)
@@ -186,6 +186,19 @@ function LungConnectHubContent() {
     { day: 135, label: "+15d", title: "Longitudinal Maintenance", desc: "Perpetual recurring check (+15d cycle)" },
   ], []);
 
+  // Next target checkpoint day number:
+  // Dynamically tracks next upcoming checkpoint. If currentDayInJourney >= 15 (e.g. after 15 October), it advances to Day 30!
+  const nextTargetCheckpointDay = useMemo(() => {
+    const upcoming = CHECKPOINT_DEFINITIONS.find((cp) => {
+      if (cp.day <= currentDayInJourney) return false;
+      const serverCp = progressData?.checkpoints?.find((c) => c.day === cp.day);
+      return serverCp?.status !== "completed";
+    });
+    if (upcoming) return upcoming.day;
+    const nextCp = CHECKPOINT_DEFINITIONS.find((cp) => cp.day > currentDayInJourney);
+    return nextCp ? nextCp.day : currentDayInJourney + 15;
+  }, [CHECKPOINT_DEFINITIONS, currentDayInJourney, progressData?.checkpoints]);
+
   // Dynamic checkpoints calculated with real 2026 calendar dates
   const dynamicCheckpoints = useMemo(() => {
     return CHECKPOINT_DEFINITIONS.map((cp) => {
@@ -197,13 +210,19 @@ function LungConnectHubContent() {
       if (!status) {
         if (cp.day === 0) {
           status = "completed";
-        } else if (currentDayInJourney > cp.day + 7) {
-          status = "pending";
-        } else if (Math.abs(currentDayInJourney - cp.day) <= 7) {
+        } else if (currentDayInJourney > cp.day) {
+          status = "completed";
+        } else if (cp.day === nextTargetCheckpointDay) {
           status = "current";
         } else {
           status = "upcoming";
         }
+      }
+
+      // If current day has passed this checkpoint (e.g. after 15 October for Day 15),
+      // mark it as completed/passed so that "current" advances to next checkpoint!
+      if (currentDayInJourney > cp.day && status === "current") {
+        status = "completed";
       }
 
       return {
@@ -212,13 +231,7 @@ function LungConnectHubContent() {
         status,
       };
     });
-  }, [CHECKPOINT_DEFINITIONS, resolvedStartDate, currentDayInJourney, progressData?.checkpoints]);
-
-  // Next target checkpoint day number
-  const nextTargetCheckpointDay = useMemo(() => {
-    const upcoming = CHECKPOINT_DEFINITIONS.find((cp) => cp.day >= currentDayInJourney && cp.day > 0);
-    return upcoming ? upcoming.day : currentDayInJourney + 15;
-  }, [CHECKPOINT_DEFINITIONS, currentDayInJourney]);
+  }, [CHECKPOINT_DEFINITIONS, resolvedStartDate, currentDayInJourney, nextTargetCheckpointDay, progressData?.checkpoints]);
 
   // Active Modals
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
@@ -249,6 +262,17 @@ function LungConnectHubContent() {
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchDebounceRef = useRef(null);
+  const searchContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // B18 Location Permission State: 'permitted' | 'denied'
   const [locationPermission, setLocationPermission] = useState("permitted");
@@ -692,8 +716,9 @@ function LungConnectHubContent() {
       let lng = item.longitude;
 
       // If coordinates are not directly in suggestion, resolve via Google Place Details
-      if ((!lat || !lng) && item.placeId) {
-        const detRes = await fetch(`/api/location/search?place_id=${encodeURIComponent(item.placeId)}`);
+      const pid = item.placeId || item.place_id;
+      if ((!lat || !lng) && pid) {
+        const detRes = await fetch(`/api/location/search?place_id=${encodeURIComponent(pid)}`);
         const detJson = await detRes.json();
         if (detJson.success && detJson.data) {
           lat = detJson.data.latitude;
@@ -3343,7 +3368,7 @@ function LungConnectHubContent() {
                     </p>
                     <div className="pt-2">
                       <Link
-                        href="/find-doctors"
+                        href="/doctors"
                         className="w-full inline-flex items-center justify-center gap-2 bg-[#0067A1] hover:bg-[#005280] text-white py-2.5 px-4 rounded-[5px] text-xs font-bold cursor-pointer"
                       >
                         <span>Continue to Find Doctors</span>

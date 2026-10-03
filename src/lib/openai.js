@@ -117,10 +117,10 @@ ${
 - Risk Factors: ${riskFactors.join(", ")}
 `
     : `
-- Smoking: ${inputs?.smoking_status || "never"}
-- Breathing: ${inputs?.breath_holding_time || 35}s hold, ${
-        inputs?.breaths_per_minute || 16
-      } bpm
+- Smoking: ${inputs?.smoking_status || "never"} (${inputs?.smoking_pack_years || inputs?.pack_years || 0} pack-years)
+- Breathing Capacity: ${inputs?.breath_holding_time || 35}s hold, ${inputs?.breaths_per_minute || 16} breaths/min, Peak Flow: ${inputs?.peak_flow || 450} L/min
+- Reported Symptoms: Wheezing: ${Boolean(inputs?.wheezing || inputs?.Wheezing)}, Breathlessness: ${inputs?.breathlessness || 'none'}, Cough Frequency: ${inputs?.cough_frequency || 'none'}
+- Environmental: Local AQI: ${inputs?.aqi || 60}, Pollution Exposure: ${inputs?.pollution_exposure || 'moderate'}
 - Risk Factors: ${riskFactors.join(", ")}
 `
 }
@@ -312,77 +312,138 @@ function generateFallbackRecommendations(assessmentType, riskFactors, inputs = {
   }
 
   // Lung health fallbacks
-  const packYears = Number(inputs.smoking_pack_years) || 0;
+  const packYears = Number(inputs.smoking_pack_years || inputs.pack_years) || 0;
   const isSmoker = inputs.smoking_status === "current" || inputs.smoking_status === "smoker" || packYears > 0;
   const aqi = Number(inputs.aqi) || 60;
-  const wheezing = inputs.wheezing === "true" || inputs.wheezing === true || inputs.symptoms_wheezing;
+  const wheezing = inputs.wheezing === "true" || inputs.wheezing === true || inputs.Wheezing === true || inputs.Wheezing === "true" || inputs.symptoms_wheezing;
+  const breathlessness = inputs.breathlessness === "moderate" || inputs.breathlessness === "severe";
+  const cough = inputs.cough_frequency === "daily" || inputs.cough_frequency === "constant";
 
-  const lungRecs = [
-    {
-      category: "Respiratory Conditioning",
-      title: "Diaphragmatic Breathing & Lung Volume Expansion",
+  const lungRecs = [];
+
+  // 1. Pursed-Lip Breathing if wheezing or breathlessness
+  if (wheezing || breathlessness) {
+    lungRecs.push({
+      category: "Airway Calming",
+      title: "Pursed-Lip Breathing for Airway Relaxation",
       description:
-        "Daily structured deep diaphragmatic breathing and pursed-lip breathing support respiratory muscle conditioning and improve gas exchange efficiency.",
+        "Creates positive back-pressure inside bronchioles (PEEP effect) preventing premature airway collapse during exhalation, relieving air trapping and wheezing tension.",
+      priority: "Recommended priority",
+      action_steps: [
+        "Inhale gently through your nose for 2 counts with relaxed shoulders.",
+        "Pucker your lips as if gently blowing out a candle; exhale smoothly for 4 counts without forcing air.",
+        "Practice 5–8 minutes 2–3 times daily, especially when experiencing chest tightness or after physical exertion."
+      ],
+      timeframe: "Immediate daily practice",
+      indian_context:
+        "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice."
+    });
+  }
+
+  // 2. Diaphragmatic Deep Breathing
+  lungRecs.push({
+    category: "Respiratory Conditioning",
+    title: "Diaphragmatic Deep Breathing & Lung Expansion",
+    description:
+      "Strengthens the primary diaphragm muscle, shifts shallow upper-chest breathing to deep abdominal ventilation, and optimizes arterial oxygen exchange.",
+    priority: "General health action",
+    action_steps: [
+      "Place one hand on your upper chest and the other on your belly just below the ribs.",
+      "Inhale slowly through your nose for 4 seconds, allowing your abdomen to push outward.",
+      "Exhale slowly through your mouth for 6 seconds as your abdomen relaxes inward. Practice 10 minutes morning & evening."
+    ],
+    timeframe: "Next 1–2 weeks: daily practice",
+    indian_context:
+      "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice."
+  });
+
+  // 3. Environmental AQI Defense
+  lungRecs.push({
+    category: "Environmental Defense",
+    title: aqi > 150 ? `High Particulate Defense Protocol (AQI ${aqi})` : "Ambient Air Quality Protection",
+    description:
+      aqi > 150
+        ? `Current local ambient AQI (${aqi}) poses elevated particulate burden on sensitive bronchial mucosa. Airway filtration minimizes acute inflammatory triggers.`
+        : "Monitor localized daily air quality indices before undertaking high-intensity outdoor cardio or morning jogs.",
+    priority: aqi > 150 ? "Recommended priority" : "General health action",
+    action_steps: [
+      aqi > 150 ? "Wear a certified N95 particulate respirator during high-traffic or foggy commutes." : "Plan outdoor exercises when air pollution levels are lowest (typically late afternoon).",
+      "Shift cardiovascular workouts indoors and avoid strenuous outdoor exercise during morning smog peaks (6 AM – 9 AM).",
+      "Keep indoor sleeping areas sealed and run HEPA air filtration if available."
+    ],
+    timeframe: "Continuous daily practice",
+    indian_context:
+      "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice."
+  });
+
+  // 4. Airway Hydration & Steam
+  if (wheezing || cough || aqi > 100) {
+    lungRecs.push({
+      category: "Bronchial Hygiene",
+      title: "Warm Airway Hydration & Gentle Steam Therapy",
+      description:
+        "Gentle warm water vapor hydrates dry or inflamed airway mucosa, thins bronchial secretions, and facilitates non-straining airway clearance.",
       priority: "General health action",
       action_steps: [
-        "Practice 10 minutes of diaphragmatic breathing (4-second inhale, 6-second pursed-lip exhale) twice daily.",
-        "Maintain upright spinal alignment during breathing routines to optimize lung capacity.",
+        "Inhale gentle warm water steam for 5–7 minutes in the evening (plain water without harsh additives or essential oils).",
+        "Maintain adequate fluid intake of 2 to 2.5 liters of warm or room-temperature water daily.",
+        "Avoid abrupt transitions between heavy air-conditioned rooms and hot/smoggy outdoor environments."
       ],
-      timeframe: "Next 1–2 weeks: daily practice",
+      timeframe: "Evening routine: 5–7 minutes daily",
       indian_context:
-        "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
-    },
-    {
-      category: "Environmental Protection",
-      title: aqi > 150 ? "High Pollution Particulate Protocol" : "Ambient Air Quality Awareness",
-      description:
-        aqi > 150
-          ? `Current ambient AQI (${aqi}) poses elevated particulate burden on sensitive airway mucosa. Avoid strenuous outdoor workouts during smog peaks.`
-          : "Monitor localized daily air quality indices before undertaking high-intensity outdoor cardio or morning jogs.",
-      priority: aqi > 150 ? "Recommended priority" : "General health action",
-      action_steps: [
-        aqi > 150 ? "Wear a certified N95 respirator during high-traffic or foggy commutes." : "Plan outdoor exercises when air pollution levels are lowest (typically late afternoon).",
-        "Keep indoor living and sleeping areas well-ventilated with HEPA air filtration if available.",
-      ],
-      timeframe: "Continuous daily practice",
-      indian_context:
-        "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
-    },
-  ];
+        "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice."
+    });
+  }
 
+  // 5. Thoracic Mobility & Posture Opening
+  lungRecs.push({
+    category: "Thoracic Expansion",
+    title: "Thoracic Cage Mobility & Postural Expansion",
+    description:
+      "Releases tight chest wall and intercostal musculature, enabling unconstrained full expansion of both lower pulmonary lobes during breathing cycles.",
+    priority: "General health action",
+    action_steps: [
+      "Sit upright, gently interlace fingers behind head, and draw elbows backward while inhaling deeply to open the anterior chest wall.",
+      "Perform gentle seated shoulder retractions and spinal twists twice daily."
+    ],
+    timeframe: "5 minutes daily",
+    indian_context:
+      "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice."
+  });
+
+  // 6. Smoker cessation if smoker
   if (isSmoker) {
     lungRecs.unshift({
       category: "Pulmonary Health",
-      title: "Targeted Respiratory Smoking Cessation",
+      title: "Targeted Respiratory Smoking Cessation Protocol",
       description:
         `Reported smoking history (${packYears > 0 ? `${packYears} pack-years` : 'active smoker'}) causes chronic bronchial inflammation and progressive decline in FEV1 vital capacity.`,
       priority: "High priority",
       action_steps: [
-        "Schedule an evidence-based clinical consultation for smoking cessation support.",
-        "Track daily cigarette reduction and transition towards total tobacco elimination.",
+        "Practice the 'Huff Cough' technique (two forced exhalations with open mouth) to clear deep bronchial mucus without vocal strain.",
+        "Consult a physician regarding evidence-based nicotine replacement options and establish a 14-day quit milestones plan."
       ],
       timeframe: "Immediate: next 7–14 days",
       indian_context:
-        "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
+        "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice."
     });
   }
 
-  if (wheezing) {
-    lungRecs.push({
-      category: "Clinical Evaluation",
-      title: "Physician Spirometry & Airway Review",
-      description:
-        "Reported expiratory wheezing indicates potential bronchial narrowing or airway hyperreactivity that warrants formal spirometry testing.",
-      priority: "Recommended priority",
-      action_steps: [
-        "Consult a pulmonologist or general physician for chest auscultation and peak flow review.",
-        "Note specific triggers (cold air, dust, pollen, exertion) that precede wheezing episodes.",
-      ],
-      timeframe: "Next 1–2 weeks",
-      indian_context:
-        "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice.",
-    });
-  }
+  // 7. Physical Conditioning
+  lungRecs.push({
+    category: "Physical Activity",
+    title: "Moderate Aerobic Physical Activity Band",
+    description:
+      "Engage in 150–300 minutes per week of low-impact moderate aerobic exercise (e.g. brisk walking, light cycling) adapted to your individual baseline.",
+    priority: "General health action",
+    action_steps: [
+      "Start with 20–30 minutes of brisk walking 5 days per week at a comfortable conversational pace.",
+      "Exercise indoors on days with elevated air pollution or extreme seasonal temperature fluctuations."
+    ],
+    timeframe: "Next 1–4 weeks: build activity gradually",
+    indian_context:
+      "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice."
+  });
 
   return lungRecs;
 }

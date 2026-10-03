@@ -1,19 +1,198 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FaHeartbeat, FaMale, FaFemale, FaArrowRight, FaArrowLeft,
   FaCheck, FaRunning, FaSmoking, FaWineGlass, FaWineBottle, FaBan,
-  FaCouch, FaWalking, FaExclamationTriangle, FaHeart, FaDumbbell, FaSync
+  FaCouch, FaWalking, FaExclamationTriangle, FaHeart, FaDumbbell, FaSync,
+  FaPlus, FaMinus
 } from 'react-icons/fa';
 
 const LoginModal = dynamic(
   () => import("@/components/public-site/auth/LoginModal"),
   { ssr: false }
 );
+
+/* ── Top-Level Memoized Sub-components (Prevents DOM recreation on re-render for butter-smooth sliding) ── */
+const RangeSlider = memo(function RangeSlider({
+  label,
+  name,
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+  unit = "",
+  subtitle = "",
+  helper = ""
+}) {
+  const sub = subtitle || helper;
+  const numValue = value === "" || value === undefined || isNaN(value) ? min : Number(value);
+  const pct = Math.min(100, Math.max(0, ((numValue - min) / (max - min)) * 100));
+
+  return (
+    <div className="bg-white hover:bg-slate-50/40 rounded-xl p-4 sm:p-4.5 border border-slate-200/90 hover:border-[#0067A1]/40 shadow-xs hover:shadow-md transition-all duration-200">
+      <div className="flex justify-between items-start mb-2.5 gap-2">
+        <div>
+          <label className="text-xs sm:text-sm font-bold text-slate-800 block select-none">
+            {label}
+          </label>
+          {sub && (
+            <p className="text-[11px] text-slate-400 mt-0.5 font-normal select-none">
+              {sub}
+            </p>
+          )}
+        </div>
+
+        {/* Stepper + Manual Input Pill */}
+        <div className="flex items-center bg-slate-50/90 border border-slate-200/90 focus-within:border-[#0067A1] focus-within:ring-2 focus-within:ring-[#0067A1]/20 rounded-lg p-0.5 shadow-2xs transition-all">
+          <button
+            type="button"
+            onClick={() => {
+              const next = Math.max(min, Number((numValue - step).toFixed(2)));
+              onChange(name, next);
+            }}
+            className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-[#0067A1] hover:bg-white active:scale-90 transition-all cursor-pointer select-none"
+            title="Decrease"
+          >
+            <FaMinus className="w-2.5 h-2.5" />
+          </button>
+
+          <div className="flex items-center px-1">
+            <input
+              type="number"
+              min={min}
+              max={max}
+              step={step}
+              value={value ?? ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "") {
+                  onChange(name, "");
+                } else {
+                  const parsed = parseFloat(val);
+                  if (!isNaN(parsed)) onChange(name, parsed);
+                }
+              }}
+              onBlur={(e) => {
+                let val = parseFloat(e.target.value);
+                if (isNaN(val) || val < min) val = min;
+                if (val > max) val = max;
+                onChange(name, val);
+              }}
+              className="w-12 sm:w-14 text-xs sm:text-sm font-bold text-[#0067A1] font-mono text-center bg-transparent outline-none p-0"
+            />
+            <span className="text-[11px] font-semibold text-[#0067A1]/80 select-none pl-0.5">{unit}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const next = Math.min(max, Number((numValue + step).toFixed(2)));
+              onChange(name, next);
+            }}
+            className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-[#0067A1] hover:bg-white active:scale-90 transition-all cursor-pointer select-none"
+            title="Increase"
+          >
+            <FaPlus className="w-2.5 h-2.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* 100% Full Width Slider Track */}
+      <div className="relative w-full py-2.5 my-1 block">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={numValue}
+          onChange={(e) => {
+            const val = parseFloat(e.target.value);
+            if (!isNaN(val)) onChange(name, val);
+          }}
+          style={{
+            background: `linear-gradient(to right, #0067A1 0%, #0089cf ${pct}%, #E2E8F0 ${pct}%, #E2E8F0 100%)`,
+          }}
+          className="smooth-range-slider w-full block cursor-pointer"
+        />
+      </div>
+
+      <div className="flex justify-between items-center text-[11px] text-slate-400 mt-1 font-medium select-none">
+        <span className="bg-slate-100/90 px-2 py-0.5 rounded text-slate-500 font-mono text-[10px]">{min} {unit}</span>
+        <span className="text-[11px] font-bold text-[#0067A1] bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-100 shadow-2xs">
+          {numValue} {unit}
+        </span>
+        <span className="bg-slate-100/90 px-2 py-0.5 rounded text-slate-500 font-mono text-[10px]">{max} {unit}</span>
+      </div>
+    </div>
+  );
+});
+
+const ChoiceCard = memo(function ChoiceCard({ active, onClick, icon, title, subtitle }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full text-left p-3 sm:p-3.5 rounded-xl border-2 transition-all flex items-center justify-between gap-2.5 sm:gap-3 cursor-pointer select-none group ${
+        active
+          ? 'border-[#0067A1] bg-sky-50/70 text-[#0067A1] shadow-2xs ring-2 ring-[#0067A1]/20'
+          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/80 shadow-2xs'
+      }`}
+    >
+      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+        <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0 transition-all ${
+          active ? 'bg-[#0067A1] text-white shadow-2xs' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80'
+        }`}>
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className={`text-xs sm:text-sm font-bold leading-snug ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>
+            {title}
+          </p>
+          {subtitle && (
+            <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 leading-normal font-normal">
+              {subtitle}
+            </p>
+          )}
+        </div>
+      </div>
+      {active && (
+        <div className="w-5 h-5 rounded-full bg-[#0067A1] flex items-center justify-center shrink-0 shadow-2xs">
+          <FaCheck className="w-2.5 h-2.5 text-white" />
+        </div>
+      )}
+    </button>
+  );
+});
+
+const ToggleCard = memo(function ToggleCard({ active, onClick, title, subtitle }) {
+  return (
+    <div
+      onClick={onClick}
+      className={`p-3 sm:p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between gap-3 shadow-2xs select-none ${
+        active ? 'border-[#0067A1] bg-sky-50/70' : 'border-slate-200 bg-white hover:border-slate-300'
+      }`}
+    >
+      <div className="flex-1 min-w-0">
+        <p className={`text-xs sm:text-sm font-bold leading-snug ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>{title}</p>
+        {subtitle && <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 font-normal leading-normal">{subtitle}</p>}
+      </div>
+      <div className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 ${active ? 'bg-[#0067A1]' : 'bg-slate-200'}`}>
+        <motion.div
+          layout
+          className="w-5 h-5 bg-white rounded-full shadow-xs"
+          animate={{ x: active ? 20 : 0 }}
+          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+        />
+      </div>
+    </div>
+  );
+});
 
 export default function GamifiedHeartHealthAssessment() {
   const router = useRouter();
@@ -167,49 +346,62 @@ export default function GamifiedHeartHealthAssessment() {
     }
   }, []);
 
-  const handleSliderChange = (name, value) => {
-    setFormData(prev => ({ ...prev, [name]: parseFloat(value) }));
-  };
-
-  const handleSelect = (name, value) => {
+  const handleSliderChange = useCallback((name, value) => {
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
+  }, []);
 
-  const toggleBoolean = (name) => {
+  const handleSelect = useCallback((name, value) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  }, []);
+
+  const toggleBoolean = useCallback((name) => {
     setFormData(prev => ({ ...prev, [name]: !prev[name] }));
-  };
+  }, []);
 
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const userData = localStorage.getItem('userData');
+      const userData = typeof window !== 'undefined' ? localStorage.getItem('userData') : null;
       if (!userData) {
-        setShowLoginModal(true);
         setLoading(false);
+        setShowLoginModal(true);
+        toast.error('Please log in to save your assessment.');
         return;
       }
 
       const user = JSON.parse(userData);
       const userId = user.user_id || user.user?.id || user.id;
+      const resolvedPatientName =
+        user?.details?.full_name ||
+        user?.details?.name ||
+        user?.full_name ||
+        user?.name ||
+        user?.user?.details?.full_name ||
+        user?.user?.name ||
+        (typeof window !== 'undefined' ? (localStorage.getItem('userName') || localStorage.getItem('patient_name')) : '') ||
+        '';
 
       const apiData = {
         user_id: userId,
         assessment_type: 'heart',
+        patient_name: resolvedPatientName,
+        patientName: resolvedPatientName,
         inputs: {
-          age: parseInt(formData.age),
-          gender: formData.gender,
-          height_cm: parseFloat(formData.height),
-          weight_kg: parseFloat(formData.weight),
-          systolic_bp: parseInt(formData.systolicBP),
-          diastolic_bp: parseInt(formData.diastolicBP),
-          resting_heart_rate: parseInt(formData.restingHeartRate),
-          total_cholesterol: parseFloat(formData.totalCholesterol),
-          hdl_cholesterol: parseFloat(formData.hdlCholesterol),
-          ldl_cholesterol: parseFloat(formData.ldlCholesterol),
-          triglycerides: parseFloat(formData.triglycerides),
-          fasting_glucose: parseFloat(formData.fastingGlucose),
-          hba1c: parseFloat(formData.hba1c),
-          smoking_status: formData.smokingStatus,
+          patient_name: resolvedPatientName,
+          age: parseInt(formData.age) || 0,
+          gender: formData.gender || 'male',
+          height_cm: parseFloat(formData.height) || 0,
+          weight_kg: parseFloat(formData.weight) || 0,
+          systolic_bp: parseInt(formData.systolicBP) || 120,
+          diastolic_bp: parseInt(formData.diastolicBP) || 80,
+          resting_heart_rate: parseInt(formData.restingHeartRate) || 72,
+          total_cholesterol: parseFloat(formData.totalCholesterol) || 180,
+          hdl_cholesterol: parseFloat(formData.hdlCholesterol) || 50,
+          ldl_cholesterol: parseFloat(formData.ldlCholesterol) || 100,
+          triglycerides: parseFloat(formData.triglycerides) || 150,
+          fasting_glucose: parseFloat(formData.fastingGlucose) || 95,
+          hba1c: parseFloat(formData.hba1c) || 5.4,
+          smoking_status: formData.smokingStatus || 'never',
           physical_activity_minutes: formData.physicalActivity === 'sedentary' ? 0 :
             formData.physicalActivity === 'light' ? 30 :
               formData.physicalActivity === 'moderate' ? 60 :
@@ -234,106 +426,24 @@ export default function GamifiedHeartHealthAssessment() {
 
       const result = await response.json();
       if (result.success) {
-        sessionStorage.setItem('heartAssessmentResult', JSON.stringify(result.data));
+        const finalPatientName = result.data?.patient_name || result.data?.patientName || resolvedPatientName || '';
+        const assessmentPayload = {
+          ...result.data,
+          patient_name: finalPatientName,
+          patientName: finalPatientName
+        };
+        sessionStorage.setItem('heartAssessmentResult', JSON.stringify(assessmentPayload));
         router.push('/heart-health-result');
       } else {
-        alert('Failed to submit: ' + (result.message || 'Error'));
+        toast.error('Failed to submit: ' + (result.message || 'Error'));
       }
     } catch (error) {
       console.error(error);
-      alert('An error occurred. Please try again.');
+      toast.error('An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
   };
-
-  /* ── Sub-components (Identical styling to LungConnect) ── */
-  const RangeSlider = ({ label, name, min, max, step = 1, unit = "", subtitle = "", helper = "" }) => {
-    const sub = subtitle || helper;
-    return (
-      <div className="bg-slate-50/70 rounded-md p-2.5 sm:p-3 border border-slate-200">
-        <div className="flex justify-between items-start mb-2">
-          <div className="pr-2">
-            <label className="text-xs sm:text-sm font-semibold text-slate-800 block">{label}</label>
-            {sub && <p className="text-[11px] text-slate-400 mt-0.5 font-normal leading-tight">{sub}</p>}
-          </div>
-          <div className="text-xs sm:text-sm font-semibold text-[#0067A1] bg-white px-2 py-0.5 rounded border border-sky-200 font-mono min-w-[55px] text-center shadow-2xs shrink-0">
-            {formData[name]} <span className="text-[11px] font-normal text-slate-500">{unit}</span>
-          </div>
-        </div>
-        <input
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={formData[name]}
-          onChange={(e) => handleSliderChange(name, e.target.value)}
-          className="w-full h-1.5 bg-slate-200 rounded-full cursor-pointer appearance-none accent-[#0067A1]"
-        />
-        <div className="flex justify-between text-[11px] text-slate-400 mt-1 font-normal">
-          <span>{min} {unit}</span>
-          <span>{max} {unit}</span>
-        </div>
-      </div>
-    );
-  };
-
-  const ChoiceCard = ({ active, onClick, icon, title, subtitle }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full text-left p-2.5 sm:p-3.5 rounded-xl border-2 transition-all flex items-center justify-between gap-2.5 sm:gap-3 cursor-pointer select-none group ${
-        active
-          ? 'border-[#0067A1] bg-sky-50/70 text-[#0067A1] shadow-2xs'
-          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/80 shadow-2xs'
-      }`}
-    >
-      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-        <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0 transition-all ${
-          active ? 'bg-[#0067A1] text-white shadow-2xs' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200/80'
-        }`}>
-          {icon}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className={`text-xs sm:text-sm font-bold leading-snug ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>
-            {title}
-          </p>
-          {subtitle && (
-            <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 leading-normal font-normal">
-              {subtitle}
-            </p>
-          )}
-        </div>
-      </div>
-      {active && (
-        <div className="w-5 h-5 rounded-full bg-[#0067A1] flex items-center justify-center shrink-0 shadow-2xs">
-          <FaCheck className="w-2.5 h-2.5 text-white" />
-        </div>
-      )}
-    </button>
-  );
-
-  const ToggleCard = ({ active, onClick, title, subtitle }) => (
-    <div
-      onClick={onClick}
-      className={`p-3 sm:p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between gap-3 shadow-2xs ${
-        active ? 'border-[#0067A1] bg-sky-50/70' : 'border-slate-200 bg-white hover:border-slate-300'
-      }`}
-    >
-      <div className="flex-1 min-w-0">
-        <p className={`text-xs sm:text-sm font-bold leading-snug ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>{title}</p>
-        {subtitle && <p className="text-[10px] sm:text-xs text-slate-500 mt-0.5 font-normal leading-normal">{subtitle}</p>}
-      </div>
-      <div className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 ${active ? 'bg-[#0067A1]' : 'bg-slate-200'}`}>
-        <motion.div
-          layout
-          className="w-5 h-5 bg-white rounded-full shadow-xs"
-          animate={{ x: active ? 20 : 0 }}
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-        />
-      </div>
-    </div>
-  );
 
   const stepLabels = [
     { num: 1, name: "Profile", shortName: "Profile", title: "Demographic Profile", desc: "Physical measurements and biological factors." },
@@ -524,6 +634,8 @@ export default function GamifiedHeartHealthAssessment() {
                     <RangeSlider
                       label="Age"
                       name="age"
+                      value={formData.age}
+                      onChange={handleSliderChange}
                       min={18}
                       max={100}
                       unit="yrs"
@@ -531,8 +643,8 @@ export default function GamifiedHeartHealthAssessment() {
                     />
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <RangeSlider label="Height" name="height" min={120} max={220} unit="cm" />
-                      <RangeSlider label="Weight" name="weight" min={40} max={150} unit="kg" />
+                      <RangeSlider label="Height" name="height" value={formData.height} onChange={handleSliderChange} min={120} max={220} unit="cm" />
+                      <RangeSlider label="Weight" name="weight" value={formData.weight} onChange={handleSliderChange} min={40} max={150} unit="kg" />
                     </div>
                   </div>
                 )}
@@ -543,6 +655,8 @@ export default function GamifiedHeartHealthAssessment() {
                     <RangeSlider
                       label="Systolic BP (Top number)"
                       name="systolicBP"
+                      value={formData.systolicBP}
+                      onChange={handleSliderChange}
                       min={90}
                       max={200}
                       unit="mmHg"
@@ -551,6 +665,8 @@ export default function GamifiedHeartHealthAssessment() {
                     <RangeSlider
                       label="Diastolic BP (Bottom number)"
                       name="diastolicBP"
+                      value={formData.diastolicBP}
+                      onChange={handleSliderChange}
                       min={50}
                       max={130}
                       unit="mmHg"
@@ -559,6 +675,8 @@ export default function GamifiedHeartHealthAssessment() {
                     <RangeSlider
                       label="Resting Heart Rate"
                       name="restingHeartRate"
+                      value={formData.restingHeartRate}
+                      onChange={handleSliderChange}
                       min={40}
                       max={120}
                       unit="bpm"
@@ -571,10 +689,10 @@ export default function GamifiedHeartHealthAssessment() {
                 {currentStep === 3 && (
                   <div className="space-y-2.5">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <RangeSlider label="Total Cholesterol" name="totalCholesterol" min={100} max={300} unit="mg/dL" />
-                      <RangeSlider label="Triglycerides" name="triglycerides" min={50} max={400} unit="mg/dL" />
-                      <RangeSlider label="HDL (Good) Cholesterol" name="hdlCholesterol" min={20} max={100} unit="mg/dL" />
-                      <RangeSlider label="LDL (Bad) Cholesterol" name="ldlCholesterol" min={50} max={200} unit="mg/dL" />
+                      <RangeSlider label="Total Cholesterol" name="totalCholesterol" value={formData.totalCholesterol} onChange={handleSliderChange} min={100} max={300} unit="mg/dL" />
+                      <RangeSlider label="Triglycerides" name="triglycerides" value={formData.triglycerides} onChange={handleSliderChange} min={50} max={400} unit="mg/dL" />
+                      <RangeSlider label="HDL (Good) Cholesterol" name="hdlCholesterol" value={formData.hdlCholesterol} onChange={handleSliderChange} min={20} max={100} unit="mg/dL" />
+                      <RangeSlider label="LDL (Bad) Cholesterol" name="ldlCholesterol" value={formData.ldlCholesterol} onChange={handleSliderChange} min={50} max={200} unit="mg/dL" />
                     </div>
                   </div>
                 )}
@@ -583,8 +701,8 @@ export default function GamifiedHeartHealthAssessment() {
                 {currentStep === 4 && (
                   <div className="space-y-3.5">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      <RangeSlider label="HbA1c" name="hba1c" min={4.0} max={12.0} step={0.1} unit="%" />
-                      <RangeSlider label="Fasting Glucose" name="fastingGlucose" min={60} max={250} unit="mg/dL" />
+                      <RangeSlider label="HbA1c" name="hba1c" value={formData.hba1c} onChange={handleSliderChange} min={4.0} max={12.0} step={0.1} unit="%" />
+                      <RangeSlider label="Fasting Glucose" name="fastingGlucose" value={formData.fastingGlucose} onChange={handleSliderChange} min={60} max={250} unit="mg/dL" />
                     </div>
 
                     <div>

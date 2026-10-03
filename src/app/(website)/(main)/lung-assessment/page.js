@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,7 +8,8 @@ import {
   FaLungs, FaMale, FaFemale, FaArrowRight, FaArrowLeft,
   FaCheck, FaWind, FaSmoking, FaCity, FaCloud, FaIndustry,
   FaExclamationTriangle, FaMapMarkerAlt, FaSync,
-  FaBuilding, FaTools, FaTree, FaShieldAlt, FaChevronLeft, FaInfoCircle
+  FaBuilding, FaTools, FaTree, FaShieldAlt, FaChevronLeft, FaInfoCircle,
+  FaPlus, FaMinus
 } from 'react-icons/fa';
 import toast from 'react-hot-toast';
 import { getSavedPatientLocation, savePatientLocation } from "@/lib/patientLocation";
@@ -18,7 +19,177 @@ const LoginModal = dynamic(
   { ssr: false }
 );
 
+/* ── Top-Level Memoized Sub-components (Prevents DOM recreation on re-render for butter-smooth sliding) ── */
+const RangeSlider = memo(function RangeSlider({
+  label,
+  name,
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+  unit = "",
+  subtitle = ""
+}) {
+  const numValue = value === "" || value === undefined || isNaN(value) ? min : Number(value);
+  const pct = Math.min(100, Math.max(0, ((numValue - min) / (max - min)) * 100));
 
+  return (
+    <div className="bg-white hover:bg-slate-50/40 rounded-xl p-4 sm:p-4.5 border border-slate-200/90 hover:border-[#0067A1]/40 shadow-xs hover:shadow-md transition-all duration-200">
+      <div className="flex justify-between items-start mb-2.5 gap-2">
+        <div>
+          <label className="text-xs sm:text-sm font-bold text-slate-800 block select-none">
+            {label}
+          </label>
+          {subtitle && (
+            <p className="text-[11px] text-slate-400 mt-0.5 font-normal select-none">
+              {subtitle}
+            </p>
+          )}
+        </div>
+
+        {/* Stepper + Manual Input Pill */}
+        <div className="flex items-center bg-slate-50/90 border border-slate-200/90 focus-within:border-[#0067A1] focus-within:ring-2 focus-within:ring-[#0067A1]/20 rounded-lg p-0.5 shadow-2xs transition-all">
+          <button
+            type="button"
+            onClick={() => {
+              const next = Math.max(min, Number((numValue - step).toFixed(2)));
+              onChange(name, next);
+            }}
+            className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-[#0067A1] hover:bg-white active:scale-90 transition-all cursor-pointer select-none"
+            title="Decrease"
+          >
+            <FaMinus className="w-2.5 h-2.5" />
+          </button>
+
+          <div className="flex items-center px-1">
+            <input
+              type="number"
+              min={min}
+              max={max}
+              step={step}
+              value={value ?? ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "") {
+                  onChange(name, "");
+                } else {
+                  const parsed = parseFloat(val);
+                  if (!isNaN(parsed)) onChange(name, parsed);
+                }
+              }}
+              onBlur={(e) => {
+                let val = parseFloat(e.target.value);
+                if (isNaN(val) || val < min) val = min;
+                if (val > max) val = max;
+                onChange(name, val);
+              }}
+              className="w-12 sm:w-14 text-xs sm:text-sm font-bold text-[#0067A1] font-mono text-center bg-transparent outline-none p-0"
+            />
+            <span className="text-[11px] font-semibold text-[#0067A1]/80 select-none pl-0.5">{unit}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const next = Math.min(max, Number((numValue + step).toFixed(2)));
+              onChange(name, next);
+            }}
+            className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-[#0067A1] hover:bg-white active:scale-90 transition-all cursor-pointer select-none"
+            title="Increase"
+          >
+            <FaPlus className="w-2.5 h-2.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* 100% Full Width Slider Track */}
+      <div className="relative w-full py-2.5 my-1 block">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={numValue}
+          onChange={(e) => {
+            const val = parseFloat(e.target.value);
+            if (!isNaN(val)) onChange(name, val);
+          }}
+          style={{
+            background: `linear-gradient(to right, #0067A1 0%, #0089cf ${pct}%, #E2E8F0 ${pct}%, #E2E8F0 100%)`,
+          }}
+          className="smooth-range-slider w-full block cursor-pointer"
+        />
+      </div>
+
+      <div className="flex justify-between items-center text-[11px] text-slate-400 mt-1 font-medium select-none">
+        <span className="bg-slate-100/90 px-2 py-0.5 rounded text-slate-500 font-mono text-[10px]">{min} {unit}</span>
+        <span className="text-[11px] font-bold text-[#0067A1] bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-100 shadow-2xs">
+          {numValue} {unit}
+        </span>
+        <span className="bg-slate-100/90 px-2 py-0.5 rounded text-slate-500 font-mono text-[10px]">{max} {unit}</span>
+      </div>
+    </div>
+  );
+});
+
+const ChoiceCard = memo(function ChoiceCard({ active, onClick, icon, title, subtitle }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full text-left p-3 sm:p-3.5 rounded-xl border-2 transition-all flex items-center gap-3 sm:gap-3.5 cursor-pointer select-none ${
+        active
+          ? 'border-[#0067A1] bg-sky-50/70 text-[#0067A1] shadow-xs ring-2 ring-[#0067A1]/20'
+          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/80 shadow-2xs'
+      }`}
+    >
+      <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${
+        active ? 'bg-[#0067A1] text-white shadow-xs' : 'bg-slate-100 text-slate-500'
+      }`}>
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className={`text-xs sm:text-sm font-semibold leading-tight ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>
+          {title}
+        </p>
+        {subtitle && (
+          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 leading-snug font-normal">
+            {subtitle}
+          </p>
+        )}
+      </div>
+      {active && (
+        <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#0067A1] text-white flex items-center justify-center shrink-0 shadow-2xs">
+          <FaCheck className="w-2 h-2 sm:w-2.5 sm:h-2.5" />
+        </div>
+      )}
+    </button>
+  );
+});
+
+const ToggleCard = memo(function ToggleCard({ active, onClick, title, subtitle }) {
+  return (
+    <div
+      onClick={onClick}
+      className={`p-2.5 sm:p-3.5 rounded-lg border cursor-pointer transition-all flex items-center justify-between gap-3 select-none ${
+        active ? 'border-[#0067A1] bg-sky-50/70 shadow-xs' : 'border-slate-200 bg-white hover:border-slate-300'
+      }`}
+    >
+      <div className="flex-1 min-w-0">
+        <p className={`text-xs sm:text-sm font-semibold ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>{title}</p>
+        {subtitle && <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 font-normal">{subtitle}</p>}
+      </div>
+      <div className={`w-10 sm:w-11 h-5 sm:h-6 rounded-full p-0.5 sm:p-1 transition-colors shrink-0 ${active ? 'bg-[#0067A1]' : 'bg-slate-200'}`}>
+        <motion.div
+          layout className="w-4 h-4 bg-white rounded-full shadow-xs"
+          animate={{ x: active ? 18 : 0 }}
+          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+        />
+      </div>
+    </div>
+  );
+});
 
 /* ── Main Component ────────────────────────────────────────── */
 export default function GamifiedLungAssessment() {
@@ -29,6 +200,9 @@ export default function GamifiedLungAssessment() {
   const [aqiLoading, setAqiLoading] = useState(false);
   const [aqiInfo, setAqiInfo] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const searchDebounceRef = useRef(null);
 
   // Auto-scroll to top when advancing steps so the page header is always cleanly visible
   useEffect(() => {
@@ -227,6 +401,65 @@ export default function GamifiedLungAssessment() {
     });
   };
 
+  const handleLocationInputChange = (val) => {
+    setFormData(prev => ({ ...prev, location: val }));
+    if (!val || val.trim().length < 2) {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        setIsSearchingLocation(true);
+        const res = await fetch(`/api/location/search?query=${encodeURIComponent(val.trim())}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.suggestions)) {
+          setLocationSuggestions(data.suggestions);
+        } else {
+          setLocationSuggestions([]);
+        }
+      } catch (err) {
+        console.warn("Location suggestion fetch error:", err);
+        setLocationSuggestions([]);
+      } finally {
+        setIsSearchingLocation(false);
+      }
+    }, 280);
+  };
+
+  const handleSelectLocationSuggestion = async (sug) => {
+    setLocationSuggestions([]);
+    const locName = sug.name || sug.main_text || sug.text || "";
+    setFormData(prev => ({ ...prev, location: locName }));
+
+    const tId = toast.loading(`Loading Google Air Quality for ${locName}...`);
+    try {
+      let lat = null;
+      let lng = null;
+
+      const pId = sug.placeId || sug.place_id;
+      if (pId) {
+        const placeRes = await fetch(`/api/location/search?place_id=${encodeURIComponent(pId)}`);
+        const placeData = await placeRes.json();
+        if (placeData.success && placeData.data) {
+          lat = placeData.data.latitude;
+          lng = placeData.data.longitude;
+        }
+      }
+
+      const item = await fetchAqiForLocation(locName, lat, lng);
+      if (item) {
+        toast.success(`${item.location || locName} · Google AQI: ${item.aqi} (${item.category || 'Live'})`, { id: tId });
+      } else {
+        toast.dismiss(tId);
+      }
+    } catch (e) {
+      console.warn("Failed resolving place details:", e);
+      toast.error(`Could not fetch details for ${locName}`, { id: tId });
+    }
+  };
+
   useEffect(() => {
     // Automatically detect or sync user location on initial mount
     detectUserLocation(false);
@@ -325,21 +558,44 @@ export default function GamifiedLungAssessment() {
     return () => window.removeEventListener("patient-location-updated", handleLocationUpdate);
   }, []);
 
-  const handleSliderChange = (name, value) => setFormData(prev => ({ ...prev, [name]: parseFloat(value) }));
-  const handleSelect = (name, value) => setFormData(prev => ({ ...prev, [name]: value }));
+  const handleSliderChange = useCallback((name, value) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  }, []);
+
+  const handleSelect = useCallback((name, value) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  }, []);
 
   const handleSubmit = async () => {
     setLoading(true);
     try {
       const userData = typeof window !== 'undefined' ? localStorage.getItem('userData') : null;
-      if (!userData) { setLoading(false); setShowLoginModal(true); toast.error('Please log in to save your assessment.'); return; }
+      if (!userData) {
+        setLoading(false);
+        setShowLoginModal(true);
+        toast.error('Please log in to save your assessment.');
+        return;
+      }
       const user = JSON.parse(userData);
       const userId = user.user_id || user.user?.id || user.id;
+      const resolvedPatientName =
+        user?.details?.full_name ||
+        user?.details?.name ||
+        user?.full_name ||
+        user?.name ||
+        user?.user?.details?.full_name ||
+        user?.user?.name ||
+        (typeof window !== 'undefined' ? (localStorage.getItem('userName') || localStorage.getItem('patient_name')) : '') ||
+        '';
+
       const bmi = (formData.weight / ((formData.height / 100) ** 2)).toFixed(1);
       const apiData = {
         user_id: userId,
         assessment_type: 'lung',
+        patient_name: resolvedPatientName,
+        patientName: resolvedPatientName,
         inputs: {
+          patient_name: resolvedPatientName,
           age: parseInt(formData.age) || 0,
           gender: formData.sex || '',
           height_cm: parseFloat(formData.height) || 0,
@@ -354,7 +610,7 @@ export default function GamifiedLungAssessment() {
           peak_flow: parseInt(formData.peakFlow) || 450,
           aqi: parseInt(formData.aqi) || 60,
           breaths_per_minute: parseInt(formData.breathsPerMinute) || 16,
-          location: formData.location || 'Metropolis',
+          location: formData.location || 'Delhi',
           pack_years: parseFloat(formData.smokingPackYears) || 0,
           bmi: parseFloat(bmi) || 22.5
         }
@@ -366,119 +622,24 @@ export default function GamifiedLungAssessment() {
       });
       const result = await response.json();
       if (result.success) {
-        sessionStorage.setItem('lungAssessmentResult', JSON.stringify(result.data));
+        const finalPatientName = result.data?.patient_name || result.data?.patientName || resolvedPatientName || '';
+        const assessmentPayload = {
+          ...result.data,
+          patient_name: finalPatientName,
+          patientName: finalPatientName
+        };
+        sessionStorage.setItem('lungAssessmentResult', JSON.stringify(assessmentPayload));
         router.push('/lung-health-result');
       } else {
-        alert('Failed to submit: ' + (result.message || 'Error'));
+        toast.error('Failed to submit: ' + (result.message || 'Error'));
       }
     } catch (error) {
       console.error(error);
-      alert('An error occurred. Please try again.');
+      toast.error('An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
   };
-
-  /* ── Sub-components ── */
-  const RangeSlider = ({ label, name, min, max, step = 1, unit = "", subtitle = "" }) => (
-    <div className="bg-slate-50/70 rounded-lg p-3 sm:p-3.5 border border-slate-200">
-      <div className="flex justify-between items-start mb-2 gap-2">
-        <div>
-          <label className="text-xs sm:text-sm font-semibold text-slate-800 block">{label}</label>
-          {subtitle && <p className="text-[11px] text-slate-400 mt-0.5 font-normal">{subtitle}</p>}
-        </div>
-        <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded border border-sky-300 focus-within:ring-2 focus-within:ring-[#0067A1]/30 shadow-2xs">
-          <input
-            type="number"
-            min={min}
-            max={max}
-            step={step}
-            value={formData[name] ?? ""}
-            onChange={(e) => {
-              const val = parseFloat(e.target.value);
-              if (!isNaN(val)) {
-                handleSliderChange(name, val);
-              } else {
-                setFormData(prev => ({ ...prev, [name]: "" }));
-              }
-            }}
-            onBlur={(e) => {
-              let val = parseFloat(e.target.value);
-              if (isNaN(val)) val = min;
-              if (val < min) val = min;
-              if (val > max) val = max;
-              handleSliderChange(name, val);
-            }}
-            className="w-14 text-xs sm:text-sm font-semibold text-[#0067A1] font-mono text-right bg-transparent outline-none p-0"
-          />
-          <span className="text-[11px] font-normal text-slate-500">{unit}</span>
-        </div>
-      </div>
-      <input
-        type="range" min={min} max={max} step={step}
-        value={formData[name] === "" ? min : formData[name]}
-        onChange={(e) => handleSliderChange(name, e.target.value)}
-        className="w-full h-2 bg-slate-200 rounded-full cursor-pointer appearance-none accent-[#0067A1]"
-      />
-      <div className="flex justify-between text-[11px] text-slate-400 mt-1.5 font-normal">
-        <span>{min} {unit}</span><span>{max} {unit}</span>
-      </div>
-    </div>
-  );
-
-  const ChoiceCard = ({ active, onClick, icon, title, subtitle }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full text-left p-2.5 sm:p-3.5 rounded-lg border transition-all flex items-center gap-2.5 sm:gap-3 cursor-pointer select-none ${
-        active
-          ? 'border-[#0067A1] bg-sky-50/70 text-[#0067A1] shadow-xs ring-1 ring-[#0067A1]/30'
-          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/80 shadow-2xs'
-      }`}
-    >
-      <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${
-        active ? 'bg-[#0067A1] text-white shadow-xs' : 'bg-slate-100 text-slate-500'
-      }`}>
-        {icon}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className={`text-xs sm:text-sm font-semibold leading-tight ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>
-          {title}
-        </p>
-        {subtitle && (
-          <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 leading-snug font-normal">
-            {subtitle}
-          </p>
-        )}
-      </div>
-      {active && (
-        <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#0067A1] text-white flex items-center justify-center shrink-0 shadow-2xs">
-          <FaCheck className="w-2 h-2 sm:w-2.5 sm:h-2.5" />
-        </div>
-      )}
-    </button>
-  );
-
-  const ToggleCard = ({ active, onClick, title, subtitle }) => (
-    <div
-      onClick={onClick}
-      className={`p-2.5 sm:p-3.5 rounded-lg border cursor-pointer transition-all flex items-center justify-between gap-3 ${
-        active ? 'border-[#0067A1] bg-sky-50/70 shadow-xs' : 'border-slate-200 bg-white hover:border-slate-300'
-      }`}
-    >
-      <div className="flex-1 min-w-0">
-        <p className={`text-xs sm:text-sm font-semibold ${active ? 'text-[#0067A1]' : 'text-slate-800'}`}>{title}</p>
-        {subtitle && <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 font-normal">{subtitle}</p>}
-      </div>
-      <div className={`w-10 sm:w-11 h-5 sm:h-6 rounded-full p-0.5 sm:p-1 transition-colors shrink-0 ${active ? 'bg-[#0067A1]' : 'bg-slate-200'}`}>
-        <motion.div
-          layout className="w-4 h-4 bg-white rounded-full shadow-xs"
-          animate={{ x: active ? 18 : 0 }}
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-        />
-      </div>
-    </div>
-  );
 
   const stepLabels = [
     { num: 1, name: "Profile", shortName: "Profile", title: "Physical Profile", desc: "Physical measurements and biological factors." },
@@ -632,10 +793,10 @@ export default function GamifiedLungAssessment() {
                         <ChoiceCard active={formData.sex === 'female'} onClick={() => handleSelect('sex', 'female')} icon={<FaFemale className="w-4 h-4" />} title="Female" subtitle="Assigned at birth" />
                       </div>
                     </div>
-                    <RangeSlider label="Age" name="age" min={18} max={100} unit="yrs" subtitle="Auto-synced from your profile date of birth" />
+                    <RangeSlider label="Age" name="age" value={formData.age} onChange={handleSliderChange} min={18} max={100} unit="yrs" subtitle="Auto-synced from your profile date of birth" />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <RangeSlider label="Height" name="height" min={120} max={220} unit="cm" subtitle="Used to calculate expected lung volume" />
-                      <RangeSlider label="Weight" name="weight" min={40} max={150} unit="kg" subtitle="Used for BMI baseline" />
+                      <RangeSlider label="Height" name="height" value={formData.height} onChange={handleSliderChange} min={120} max={220} unit="cm" subtitle="Used to calculate expected lung volume" />
+                      <RangeSlider label="Weight" name="weight" value={formData.weight} onChange={handleSliderChange} min={40} max={150} unit="kg" subtitle="Used for BMI baseline" />
                     </div>
                   </div>
                 )}
@@ -651,9 +812,9 @@ export default function GamifiedLungAssessment() {
                         <ChoiceCard active={formData.smokingStatus === 'current'} onClick={() => handleSelect('smokingStatus', 'current')} icon={<FaSmoking className="w-4 h-4 text-rose-500" />} title="Current" subtitle="Active smoker" />
                       </div>
                     </div>
-                    <RangeSlider label="Breath Holding Time" name="breathHold" min={5} max={120} unit="sec" subtitle="Hold breath after normal inhale (Clinical normal > 25s)" />
+                    <RangeSlider label="Breath Holding Time" name="breathHold" value={formData.breathHold} onChange={handleSliderChange} min={5} max={120} unit="sec" subtitle="Hold breath after normal inhale (Clinical normal > 25s)" />
                     {(formData.smokingStatus === 'former' || formData.smokingStatus === 'current') && (
-                      <RangeSlider label="Smoking Pack-Years" name="smokingPackYears" min={0} max={100} step={0.5} unit="years" subtitle="Packs per day × years smoked" />
+                      <RangeSlider label="Smoking Pack-Years" name="smokingPackYears" value={formData.smokingPackYears} onChange={handleSliderChange} min={0} max={100} step={0.5} unit="years" subtitle="Packs per day × years smoked" />
                     )}
                   </div>
                 )}
@@ -661,8 +822,8 @@ export default function GamifiedLungAssessment() {
                 {/* STEP 3: Lung Function */}
                 {currentStep === 3 && (
                   <div className="space-y-4">
-                    <RangeSlider label="Peak Flow (PEFR - Optional)" name="peakFlow" min={100} max={800} unit="L/min" subtitle="Measure with peak flow meter if available (Normal: 400-600)" />
-                    <RangeSlider label="Breaths Per Minute" name="breathsPerMinute" min={8} max={40} unit="breaths" subtitle="Resting count of chest rises in 60 seconds (Normal: 12-20)" />
+                    <RangeSlider label="Peak Flow (PEFR - Optional)" name="peakFlow" value={formData.peakFlow} onChange={handleSliderChange} min={100} max={800} unit="L/min" subtitle="Measure with peak flow meter if available (Normal: 400-600)" />
+                    <RangeSlider label="Breaths Per Minute" name="breathsPerMinute" value={formData.breathsPerMinute} onChange={handleSliderChange} min={8} max={40} unit="breaths" subtitle="Resting count of chest rises in 60 seconds (Normal: 12-20)" />
                   </div>
                 )}
 
@@ -672,27 +833,80 @@ export default function GamifiedLungAssessment() {
                     {/* Location & AQI Station Card */}
                     <div className="bg-slate-50/70 rounded-xl p-4 border border-slate-200/90 shadow-2xs space-y-3.5">
                       
-                      {/* Search & Action Bar */}
-                      <div className="flex items-center gap-2">
+                      {/* Search & Action Bar with Google Places Suggestions */}
+                      <div className="flex items-center gap-2 relative">
                         <div className="relative flex-1">
-                          <FaMapMarkerAlt className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                          <FaMapMarkerAlt className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none z-10" />
                           <input
                             type="text"
-                            placeholder="Enter city or location (e.g. Khurja, Delhi, Mumbai)..."
+                            placeholder="Search any city or place (e.g. Khurja, Bulandshahr, Noida)..."
                             value={formData.location}
-                            onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                            onChange={(e) => handleLocationInputChange(e.target.value)}
+                            onFocus={() => {
+                              if (formData.location && formData.location.trim().length >= 2) {
+                                handleLocationInputChange(formData.location);
+                              }
+                            }}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
                                 e.preventDefault();
+                                setLocationSuggestions([]);
                                 handleManualLocationUpdate();
                               }
                             }}
-                            className="w-full text-xs sm:text-sm font-normal pl-9 pr-3 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] bg-white text-slate-800 shadow-2xs transition-all"
+                            className="w-full text-xs sm:text-sm font-normal pl-9 pr-9 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] bg-white text-slate-800 shadow-2xs transition-all"
                           />
+                          {isSearchingLocation && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                              <FaSync className="w-3.5 h-3.5 text-[#0067A1] animate-spin" />
+                            </div>
+                          )}
+
+                          {/* Google Places Autocomplete Suggestions Dropdown */}
+                          {locationSuggestions.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200/90 rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto divide-y divide-slate-100">
+                              <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-semibold">
+                                <span className="flex items-center gap-1.5 text-[#0067A1]">
+                                  <FaMapMarkerAlt className="w-3 h-3" /> Google Places
+                                </span>
+                                <span className="text-[10px] text-slate-400 uppercase tracking-wider font-normal">Select a location</span>
+                              </div>
+                              {locationSuggestions.map((sug, idx) => (
+                                <button
+                                  key={sug.place_id || sug.placeId || idx}
+                                  type="button"
+                                  onClick={() => handleSelectLocationSuggestion(sug)}
+                                  className="w-full px-3.5 py-2.5 text-left hover:bg-sky-50/80 flex items-center justify-between transition-colors cursor-pointer group"
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                                    <div className="w-7 h-7 rounded-lg bg-sky-50 text-[#0067A1] group-hover:bg-[#0067A1] group-hover:text-white flex items-center justify-center shrink-0 transition-colors shadow-2xs">
+                                      <FaMapMarkerAlt className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div className="truncate">
+                                      <span className="text-xs sm:text-sm font-bold text-slate-800 block truncate group-hover:text-[#0067A1] transition-colors">
+                                        {sug.main_text || sug.name || sug.text}
+                                      </span>
+                                      {(sug.secondaryText || sug.secondary_text || sug.text) && (
+                                        <span className="text-[11px] text-slate-400 block truncate">
+                                          {sug.secondaryText || sug.secondary_text || sug.text}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className="text-[11px] font-semibold text-[#0067A1] shrink-0 px-2 py-0.5 rounded bg-blue-50 group-hover:bg-[#0067A1] group-hover:text-white transition-colors">
+                                    Select
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <button
                           type="button"
-                          onClick={() => handleManualLocationUpdate()}
+                          onClick={() => {
+                            setLocationSuggestions([]);
+                            handleManualLocationUpdate();
+                          }}
                           disabled={aqiLoading || !formData.location?.trim()}
                           className="px-4 py-2.5 bg-[#0067A1] hover:bg-[#005584] text-white text-xs sm:text-sm font-medium rounded-lg transition-all shrink-0 cursor-pointer disabled:opacity-50 shadow-2xs"
                         >
@@ -700,7 +914,10 @@ export default function GamifiedLungAssessment() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => detectUserLocation(true)}
+                          onClick={() => {
+                            setLocationSuggestions([]);
+                            detectUserLocation(true);
+                          }}
                           disabled={aqiLoading}
                           title="Detect GPS Location"
                           className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-white hover:bg-sky-50 text-[#0067A1] border border-sky-200 text-xs sm:text-sm font-medium rounded-lg transition-all disabled:opacity-50 cursor-pointer shrink-0 shadow-2xs"

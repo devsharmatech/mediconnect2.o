@@ -23,10 +23,28 @@ export default function LungConnectFullReport({
   const patientName =
     assessmentData?.patient_name ||
     assessmentData?.patientName ||
+    patientData?.details?.full_name ||
     patientData?.full_name ||
     patientData?.name ||
+    patientData?.details?.name ||
+    patientData?.user?.details?.full_name ||
+    patientData?.user?.full_name ||
     patientData?.user?.name ||
-    (typeof window !== "undefined" && (localStorage.getItem("userName") || localStorage.getItem("patient_name") || JSON.parse(localStorage.getItem("user") || localStorage.getItem("userData") || "{}").name || JSON.parse(localStorage.getItem("user") || localStorage.getItem("userData") || "{}").full_name)) ||
+    (typeof window !== "undefined" && (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem("userData") || localStorage.getItem("user") || "{}");
+        return (
+          localStorage.getItem("userName") ||
+          localStorage.getItem("patient_name") ||
+          u.details?.full_name ||
+          u.details?.name ||
+          u.full_name ||
+          u.name ||
+          u.user?.details?.full_name ||
+          u.user?.name
+        );
+      } catch (e) { return null; }
+    })()) ||
     "Patient";
   const age = Math.max(18, Number(inputs?.age || patientData?.age || 29));
   const gender = inputs?.gender || patientData?.gender || "Female";

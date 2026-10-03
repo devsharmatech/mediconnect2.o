@@ -35,13 +35,32 @@ export default function CardioConnectF4Report({
     `CCN-${new Date(createdAt).getFullYear()}-${String(assessmentData?.id || assessmentData?.rawAssessment?.id || "0920").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`;
 
   const patientName = 
-    patientData?.name || 
-    patientData?.full_name || 
-    patientData?.user?.name || 
     assessmentData?.patient_name || 
+    assessmentData?.patientName || 
+    patientData?.details?.full_name || 
+    patientData?.full_name || 
+    patientData?.name || 
+    patientData?.details?.name || 
+    patientData?.user?.details?.full_name || 
+    patientData?.user?.full_name || 
+    patientData?.user?.name || 
     assessmentData?.user_name || 
     assessmentData?.user?.name || 
-    (typeof window !== "undefined" && (localStorage.getItem("userName") || localStorage.getItem("patient_name") || JSON.parse(localStorage.getItem("userData") || "{}")?.name)) || 
+    (typeof window !== "undefined" && (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem("userData") || localStorage.getItem("user") || "{}");
+        return (
+          localStorage.getItem("userName") ||
+          localStorage.getItem("patient_name") ||
+          u.details?.full_name ||
+          u.details?.name ||
+          u.full_name ||
+          u.name ||
+          u.user?.details?.full_name ||
+          u.user?.name
+        );
+      } catch (e) { return null; }
+    })()) || 
     "Patient (CardioConnect)";
 
   const age = Math.max(18, Number(rawInputs?.age || demographics?.age || patientData?.age || 29));
@@ -158,7 +177,7 @@ export default function CardioConnectF4Report({
 
         {/* Callout Banner */}
         <div style={{ backgroundColor: "#f0fdfa", border: "1px solid #99f6e4", borderLeft: "3px solid #007a8c", borderRadius: "2px", padding: "7px 11px", fontSize: "9.5px", color: "#0f2d4a", marginBottom: "7px", lineHeight: "1.38" }}>
-          This assessment brings the available CardioConnect record into one clear reference point, preserving source, availability, longitudinal comparison and the controlled 30-day assessment boundary.
+          This assessment brings the available CardioConnect record into one clear reference point, preserving source, status, longitudinal comparison and the controlled 30-day assessment boundary.
         </div>
 
         {/* 30-Day Assessment Cadence Notice (P0 Age Fix) */}
@@ -177,7 +196,7 @@ export default function CardioConnectF4Report({
                 <th style={{ padding: "4px 7px", textAlign: "left", fontWeight: "800", width: "26%" }}>FACTOR</th>
                 <th style={{ padding: "4px 7px", textAlign: "center", fontWeight: "800", width: "24%" }}>CURRENT</th>
                 <th style={{ padding: "4px 7px", textAlign: "left", fontWeight: "800", width: "26%" }}>SOURCE</th>
-                <th style={{ padding: "4px 7px", textAlign: "center", fontWeight: "800", width: "24%" }}>AVAILABILITY</th>
+                <th style={{ padding: "4px 7px", textAlign: "center", fontWeight: "800", width: "24%" }}>STATUS</th>
               </tr>
             </thead>
             <tbody>
