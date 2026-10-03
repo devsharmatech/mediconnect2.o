@@ -40,7 +40,7 @@ export default function LabOtpModal({ isOpen, onClose, labId, onVerified }) {
             });
             const data = await res.json();
             if (data.success) {
-                toast.success("OTP sent to your registered mobile number");
+                toast.success(data.message || "OTP sent to your registered mobile number and email");
                 setTimer(30); // 30 seconds cooldown
             } else {
                 toast.error(data.error || "Failed to send OTP");
@@ -64,6 +64,7 @@ export default function LabOtpModal({ isOpen, onClose, labId, onVerified }) {
             const res = await fetch("/api/lab/otp/verify", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                credentials: "include",
                 body: JSON.stringify({ lab_id: labId, otp: otpString }),
             });
             const data = await res.json();
@@ -155,7 +156,7 @@ export default function LabOtpModal({ isOpen, onClose, labId, onVerified }) {
             <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
                     <h2 className="font-semibold text-lg text-gray-900 dark:text-white flex items-center gap-2">
-                        <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                        <ShieldCheck className="w-5 h-5 text-[#0067A1]" />
                         Verification Required
                     </h2>
                     <button
@@ -186,7 +187,7 @@ export default function LabOtpModal({ isOpen, onClose, labId, onVerified }) {
                                 onKeyDown={(e) => handleKeyDown(e, idx)}
                                 onPaste={handlePaste}
                                 onFocus={(e) => e.target.select()}
-                                className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-semibold bg-gray-50 border border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-semibold bg-gray-50 border border-gray-200 rounded-xl focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 outline-none transition-all dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 aria-label={`OTP digit ${idx + 1}`}
                             />
                         ))}
@@ -196,7 +197,7 @@ export default function LabOtpModal({ isOpen, onClose, labId, onVerified }) {
                         <button
                             onClick={verifyOtp}
                             disabled={loading || otp.join("").length !== 6}
-                            className="w-full bg-[#0067A1] hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm"
+                            className="w-full bg-[#0067A1] hover:bg-[#005585] disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm"
                         >
                             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify & Continue"}
                         </button>
@@ -206,7 +207,7 @@ export default function LabOtpModal({ isOpen, onClose, labId, onVerified }) {
                             <button
                                 onClick={sendOtp}
                                 disabled={sending || timer > 0}
-                                className="text-sm font-medium text-emerald-600 hover:text-emerald-700 disabled:text-gray-400 transition-colors"
+                                className="text-sm font-medium text-[#0067A1] hover:text-[#005585] disabled:text-gray-400 transition-colors"
                             >
                                 {timer > 0 ? `Resend in ${timer}s` : "Resend OTP"}
                             </button>

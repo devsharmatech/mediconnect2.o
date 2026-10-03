@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import {
   FlaskConical,
   ArrowRight,
@@ -59,7 +59,6 @@ export default function LabDashboard() {
   const [dashboard, setDashboard] = useState(null);
   const [timeRange, setTimeRange] = useState("30d");
   const [chartType, setChartType] = useState("line");
-  const didFetch = useRef(false);
 
   useEffect(() => {
     if (!lab?.id) {
@@ -67,11 +66,8 @@ export default function LabDashboard() {
       router.push("/auth/login");
       return;
     }
-
-    if (!didFetch.current) {
-      didFetch.current = true;
-      fetchDashboard();
-    }
+    fetchDashboard();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lab?.id, timeRange]);
 
   const fetchDashboard = async () => {
@@ -215,19 +211,16 @@ export default function LabDashboard() {
     }
     return null;
   };
-
   if (loading) {
     return (
-      <div className="min-h-screen  dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+      <div className="min-h-[70vh] flex items-center justify-center">
         <div className="text-center">
-          <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 border-4 border-emerald-200 dark:border-emerald-800 border-t-[#0067A1] dark:border-t-emerald-500 rounded-full animate-spin"></div>
-          </div>
-          <p className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Loading your dashboard...
+          <div className="w-12 h-12 border-3 border-[#0067A1]/20 border-t-[#0067A1] rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-base font-semibold text-slate-800 dark:text-slate-200 mb-1">
+            Loading Diagnostic Dashboard...
           </p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Fetching latest lab insights
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Fetching latest laboratory operational metrics
           </p>
         </div>
       </div>
@@ -236,24 +229,22 @@ export default function LabDashboard() {
 
   if (!dashboard) {
     return (
-      <div className="min-h-screen dark:from-gray-900 dark:to-gray-800">
-        <div className="mx-auto">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 text-center">
-            <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">
-              Dashboard Unavailable
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              We couldn't load your dashboard data.
-            </p>
-            <button
-              onClick={fetchDashboard}
-              className="px-6 py-3 bg-gradient-to-r from-[#0067A1] to-emerald-700 dark:from-[#004F7C] dark:to-emerald-800 text-white rounded-xl font-medium hover:opacity-90 transition-opacity duration-200 flex items-center gap-2 mx-auto"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Try Again
-            </button>
-          </div>
+      <div className="py-12">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm p-8 text-center max-w-lg mx-auto">
+          <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">
+            Dashboard Unavailable
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+            We couldn't load your laboratory insights right now.
+          </p>
+          <button
+            onClick={fetchDashboard}
+            className="px-5 py-2.5 bg-[#0067A1] hover:bg-[#005585] text-white rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 mx-auto cursor-pointer shadow-xs"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -267,429 +258,374 @@ export default function LabDashboard() {
     test_distribution,
     status_distribution,
   } = dashboard;
+
   const COLORS = [
-    "#4f46e5",
-    "#06b6d4",
+    "#0067A1",
+    "#0ea5e9",
     "#10b981",
     "#f59e0b",
     "#8b5cf6",
     "#ec4899",
   ];
 
+  const nowFormatted = new Date().toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
   return (
-    <div className="min-h-screen dark:from-gray-900 dark:to-gray-800 transition-colors duration-200">
+    <div className="space-y-6">
       <Toaster
         position="top-right"
         toastOptions={{
           style: {
-            background: "#1e293b",
+            background: "#003358",
             color: "#fff",
             borderRadius: "12px",
-            padding: "16px",
-            border: "1px solid #334155",
+            padding: "14px 18px",
+            fontSize: "13px",
+            fontWeight: 500,
           },
         }}
       />
 
-      {/* HEADER */}
-      <div className="mx-auto">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="w-16 h-16 bg-gradient-to-br from-[#0067A1] via-[#0067A1] to-[#0067A1] dark:from-[#004F7C] dark:via-[#004F7C] dark:to-[#004F7C] text-white rounded-2xl flex items-center justify-center shadow-xl">
-                <FlaskConical className="w-8 h-8" />
-              </div>
-              <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-gradient-to-r from-emerald-500 to-green-500 rounded-full border-4 border-white dark:border-gray-800 flex items-center justify-center shadow-lg">
-                <Zap className="w-3 h-3 text-white" />
-              </div>
+      {/* Hero Banner (Same as Doctor Dashboard) */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#0067A1] via-[#0080C6] to-[#0067A1] rounded-3xl px-6 sm:px-8 py-7 sm:py-8 shadow-sm">
+        {/* Subtle decorative geometry */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-28 -mt-28 pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 w-48 h-48 bg-white/5 rounded-full -mb-24 pointer-events-none" />
+
+        <div className="relative flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/15 backdrop-blur-md rounded-full border border-white/20 text-white text-xs font-medium mb-3">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Diagnostic Portal Active</span>
             </div>
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
-                Lab Dashboard
-              </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Welcome back,{" "}
-                  <span className="font-semibold text-[#0067A1] dark:text-emerald-400">
-                    {labInfo?.lab_name}
-                  </span>
-                </p>
-                <span className="text-xs px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-[#0067A1] dark:text-emerald-300 rounded-full">
-                  {labInfo?.onboarding_status === "approved"
-                    ? "✓ Approved"
-                    : "Pending"}
-                </span>
-              </div>
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+              {labInfo?.lab_name || "Diagnostic Center"}
+            </h1>
+            <p className="text-white/80 text-sm mt-1.5 max-w-xl">
+              Operational dashboard and diagnostic test order management for {nowFormatted}
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="bg-white dark:bg-gray-800 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                <select
-                  value={timeRange}
-                  onChange={(e) => setTimeRange(e.target.value)}
-                  className="bg-transparent font-medium text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer"
-                >
-                  {timeRanges.map((range) => (
-                    <option key={range.id} value={range.id}>
-                      {range.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Time Filter */}
+            <div className="bg-white/15 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/20 text-white flex items-center gap-2 text-xs font-medium">
+              <Calendar className="w-3.5 h-3.5 text-white/80" />
+              <select
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value)}
+                className="bg-transparent text-white font-semibold focus:outline-none cursor-pointer [&>option]:text-slate-800"
+              >
+                {timeRanges.map((range) => (
+                  <option key={range.id} value={range.id}>
+                    {range.label}
+                  </option>
+                ))}
+              </select>
             </div>
+
             <button
               onClick={fetchDashboard}
-              className="px-4 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium shadow-sm transition-colors duration-200 flex items-center gap-2"
+              className="px-3.5 py-2 bg-white text-[#0067A1] rounded-xl text-xs font-bold hover:bg-slate-100 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
-            <button className="px-4 py-2.5 bg-gradient-to-r from-[#0067A1] to-emerald-700 dark:from-[#004F7C] dark:to-emerald-800 text-white rounded-xl font-medium hover:opacity-90 transition-opacity duration-200 flex items-center gap-2">
-              <Download className="w-4 h-4" />
-              Export
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Refresh</span>
             </button>
           </div>
         </div>
+      </div>
 
-        {/* STATS GRID */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Total Orders */}
-          <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-blue-100 to-emerald-50 dark:from-emerald-900/30 dark:to-emerald-800/30 rounded-xl">
-                <ClipboardList className="w-6 h-6 text-[#0067A1] dark:text-emerald-400" />
-              </div>
-              <div className="text-right">
-                <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Total Orders
-                </div>
-                <div className="text-xs text-gray-400 dark:text-gray-500">
-                  {timeRanges.find((r) => r.id === timeRange)?.label}
-                </div>
-              </div>
-            </div>
-            <h3 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-              {stats.total_orders}
-            </h3>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-[#0067A1] to-emerald-600 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      (stats.total_orders / 1000) * 100
-                    )}%`,
-                  }}
-                />
-              </div>
-              <Activity className="w-4 h-4 text-[#0067A1] dark:text-emerald-400" />
+      {/* KPI METRIC CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        {/* Total Orders */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-700 shadow-xs hover:shadow-md transition-all">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Total Orders
+            </span>
+            <div className="w-10 h-10 rounded-xl bg-[#0067A1]/10 text-[#0067A1] dark:bg-[#0067A1]/20 dark:text-sky-300 flex items-center justify-center">
+              <ClipboardList className="w-5 h-5" />
             </div>
           </div>
-
-          {/* Pending Orders */}
-          <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-amber-100 to-amber-50 dark:from-amber-900/30 dark:to-amber-800/30 rounded-xl">
-                <Clock className="w-6 h-6 text-amber-600 dark:text-amber-500" />
-              </div>
-              <div className="text-right">
-                <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Pending
-                </div>
-                <div className="text-xs text-gray-400 dark:text-gray-500">
-                  Requires action
-                </div>
-              </div>
-            </div>
-            <h3 className="text-4xl font-bold text-amber-600 dark:text-amber-500 mb-2">
-              {stats.pending_orders}
-            </h3>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      (stats.pending_orders / stats.total_orders) * 100 || 0
-                    )}%`,
-                  }}
-                />
-              </div>
-              <span className="text-xs font-medium text-amber-600 dark:text-amber-500">
-                {stats.pending_orders > 0 ? "Action required" : "All clear"}
-              </span>
-            </div>
+          <div className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
+            {stats.total_orders}
           </div>
-
-          {/* Completed Orders */}
-          <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-emerald-100 to-emerald-50 dark:from-emerald-900/30 dark:to-emerald-800/30 rounded-xl">
-                <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-500" />
-              </div>
-              <div className="text-right">
-                <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Completed
-                </div>
-                <div className="text-xs text-gray-400 dark:text-gray-500">
-                  Success rate
-                </div>
-              </div>
-            </div>
-            <h3 className="text-4xl font-bold text-emerald-600 dark:text-emerald-500 mb-2">
-              {stats.completed_orders}
-            </h3>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      (stats.completed_orders / stats.total_orders) * 100 || 0
-                    )}%`,
-                  }}
-                />
-              </div>
-              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-500">
-                {Math.round(
-                  (stats.completed_orders / stats.total_orders) * 100 || 0
-                )}
-                %
-              </span>
-            </div>
-          </div>
-
-          {/* Revenue */}
-          <div className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-violet-100 to-violet-50 dark:from-violet-900/30 dark:to-violet-800/30 rounded-xl">
-                <DollarSign className="w-6 h-6 text-violet-600 dark:text-violet-500" />
-              </div>
-              <div className="text-right">
-                <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Revenue
-                </div>
-                <div className="text-xs text-gray-400 dark:text-gray-500">
-                  Last {timeRanges.find((r) => r.id === timeRange)?.label}
-                </div>
-              </div>
-            </div>
-            <h3 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-              {formatCurrency(stats.revenue_30_days)}
-            </h3>
-            <div className="flex items-center gap-2">
-              {stats.revenue_change >= 0 ? (
-                <>
-                  <TrendingUp className="w-4 h-4 text-emerald-500" />
-                  <span className="text-sm font-medium text-emerald-600 dark:text-emerald-500">
-                    +{stats.revenue_change}%
-                  </span>
-                </>
-              ) : (
-                <>
-                  <TrendingDown className="w-4 h-4 text-red-500" />
-                  <span className="text-sm font-medium text-red-600 dark:text-red-500">
-                    {stats.revenue_change}%
-                  </span>
-                </>
-              )}
-              <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
-                vs previous period
-              </span>
-            </div>
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/60 text-xs text-slate-500 dark:text-slate-400">
+            <span className="font-semibold text-slate-700 dark:text-slate-300">
+              {timeRanges.find((r) => r.id === timeRange)?.label}
+            </span>
+            <span>activity recorded</span>
           </div>
         </div>
 
-        {/* MAIN CHART SECTION */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* REVENUE CHART */}
-          <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700">
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-[#0067A1] dark:text-emerald-400" />
-                  Revenue Trend
-                </h2>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">
-                  Daily revenue over time
-                </p>
-              </div>
+        {/* Pending Orders */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-700 shadow-xs hover:shadow-md transition-all">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+              Action Required
+            </span>
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400 flex items-center justify-center">
+              <Clock className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-3xl font-extrabold text-amber-600 dark:text-amber-400 tracking-tight">
+            {stats.pending_orders}
+          </div>
+          <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/60 text-xs">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span className="font-medium text-slate-600 dark:text-slate-400">
+              {stats.pending_orders > 0 ? "Awaiting processing / collection" : "All orders cleared"}
+            </span>
+          </div>
+        </div>
 
-              <div className="flex items-center gap-2 mt-4 md:mt-0">
-                <div className="bg-gray-100 dark:bg-gray-700 p-1 rounded-lg flex">
-                  {chartTypes.map((type) => (
-                    <button
-                      key={type.id}
-                      onClick={() => setChartType(type.id)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${chartType === type.id
-                        ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow"
-                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300"
-                        }`}
-                    >
-                      {type.icon}
-                      {type.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+        {/* Completed Orders */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-700 shadow-xs hover:shadow-md transition-all">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+              Completed
+            </span>
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 flex items-center justify-center">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 tracking-tight">
+            {stats.completed_orders}
+          </div>
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/60 text-xs text-slate-500 dark:text-slate-400">
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+              {stats.total_orders > 0
+                ? `${Math.round((stats.completed_orders / stats.total_orders) * 100)}%`
+                : "100%"}
+            </span>
+            <span>fulfillment rate</span>
+          </div>
+        </div>
+
+        {/* Total Revenue */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-700 shadow-xs hover:shadow-md transition-all">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Gross Revenue
+            </span>
+            <div className="w-10 h-10 rounded-xl bg-sky-50 text-[#0067A1] dark:bg-sky-950/40 dark:text-sky-300 flex items-center justify-center">
+              <DollarSign className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
+            {formatCurrency(stats.revenue_30_days || 0)}
+          </div>
+          <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/60 text-xs">
+            {stats.revenue_change >= 0 ? (
+              <>
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  +{stats.revenue_change}%
+                </span>
+              </>
+            ) : (
+              <>
+                <TrendingDown className="w-3.5 h-3.5 text-rose-500" />
+                <span className="font-semibold text-rose-600 dark:text-rose-400">
+                  {stats.revenue_change}%
+                </span>
+              </>
+            )}
+            <span className="text-slate-400">vs prev period</span>
+          </div>
+        </div>
+      </div>
+
+      {/* QUICK ACTIONS ROW */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <button
+          onClick={() => router.push("/lab/orders")}
+          className="group p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 hover:border-[#0067A1]/40 hover:shadow-md transition-all text-left cursor-pointer"
+        >
+          <div className="w-10 h-10 rounded-xl bg-[#0067A1]/10 text-[#0067A1] dark:bg-[#0067A1]/20 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+            <ClipboardList className="w-5 h-5" />
+          </div>
+          <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white">
+            Manage Test Orders
+          </h4>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            Process patient specimens
+          </p>
+        </button>
+
+        <button
+          onClick={() => router.push("/lab/tests")}
+          className="group p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 hover:border-[#0067A1]/40 hover:shadow-md transition-all text-left cursor-pointer"
+        >
+          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-300 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+            <FlaskConical className="w-5 h-5" />
+          </div>
+          <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white">
+            Test Catalog
+          </h4>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            Bulk upload CSV & prices
+          </p>
+        </button>
+
+        <button
+          onClick={() => router.push("/lab/profile")}
+          className="group p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 hover:border-[#0067A1]/40 hover:shadow-md transition-all text-left cursor-pointer"
+        >
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-300 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+            <Target className="w-5 h-5" />
+          </div>
+          <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white">
+            Lab Profile
+          </h4>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            Operating hours & details
+          </p>
+        </button>
+
+        <button
+          onClick={() => router.push("/lab/orders")}
+          className="group p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 hover:border-[#0067A1]/40 hover:shadow-md transition-all text-left cursor-pointer"
+        >
+          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300 flex items-center justify-center mb-2.5 group-hover:scale-105 transition-transform">
+            <Clock className="w-5 h-5" />
+          </div>
+          <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-white">
+            Pending Orders
+          </h4>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            {stats.pending_orders} awaiting report
+          </p>
+        </button>
+      </div>
+
+      {/* MAIN CHARTS SECTION */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* REVENUE CHART */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-700 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-[#0067A1]" />
+                Revenue Analytics
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Financial performance from processed laboratory tests
+              </p>
             </div>
 
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                {daily_revenue.length > 0 ? (
-                  chartType === "line" ? (
-                    <LineChart data={daily_revenue}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="#374151"
-                        strokeOpacity={0.1}
-                      />
-                      <XAxis
-                        dataKey="date"
-                        stroke="#9ca3af"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={{ stroke: "#4b5563" }}
-                      />
-                      <YAxis
-                        stroke="#9ca3af"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={{ stroke: "#4b5563" }}
-                        tickFormatter={(value) => `₹${value / 1000}k`}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="amount"
-                        name="Revenue"
-                        stroke="#4f46e5"
-                        strokeWidth={3}
-                        dot={{ r: 4 }}
-                        activeDot={{ r: 6, strokeWidth: 0 }}
-                      />
-                    </LineChart>
-                  ) : chartType === "area" ? (
-                    <AreaChart data={daily_revenue}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="#374151"
-                        strokeOpacity={0.1}
-                      />
-                      <XAxis
-                        dataKey="date"
-                        stroke="#9ca3af"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={{ stroke: "#4b5563" }}
-                      />
-                      <YAxis
-                        stroke="#9ca3af"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={{ stroke: "#4b5563" }}
-                        tickFormatter={(value) => `₹${value / 1000}k`}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Area
-                        type="monotone"
-                        dataKey="amount"
-                        name="Revenue"
-                        stroke="#4f46e5"
-                        fill="url(#colorRevenue)"
-                        strokeWidth={2}
-                      />
-                      <defs>
-                        <linearGradient
-                          id="colorRevenue"
-                          x1="0"
-                          y1="0"
-                          x2="0"
-                          y2="1"
-                        >
-                          <stop
-                            offset="5%"
-                            stopColor="#4f46e5"
-                            stopOpacity={0.8}
-                          />
-                          <stop
-                            offset="95%"
-                            stopColor="#4f46e5"
-                            stopOpacity={0.1}
-                          />
-                        </linearGradient>
-                      </defs>
-                    </AreaChart>
-                  ) : (
-                    <BarChart data={daily_revenue}>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="#374151"
-                        strokeOpacity={0.1}
-                      />
-                      <XAxis
-                        dataKey="date"
-                        stroke="#9ca3af"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={{ stroke: "#4b5563" }}
-                      />
-                      <YAxis
-                        stroke="#9ca3af"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={{ stroke: "#4b5563" }}
-                        tickFormatter={(value) => `₹${value / 1000}k`}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend />
-                      <Bar
-                        dataKey="amount"
-                        name="Revenue"
-                        fill="#4f46e5"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  )
+            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-700/60 p-1 rounded-xl">
+              {chartTypes.map((type) => (
+                <button
+                  key={type.id}
+                  onClick={() => setChartType(type.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    chartType === type.id
+                      ? "bg-white dark:bg-slate-800 text-[#0067A1] dark:text-white shadow-xs"
+                      : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+                  }`}
+                >
+                  {type.icon}
+                  {type.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              {daily_revenue.length > 0 ? (
+                chartType === "line" ? (
+                  <LineChart data={daily_revenue}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.6} />
+                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <YAxis
+                      stroke="#94a3b8"
+                      fontSize={11}
+                      tickLine={false}
+                      tickFormatter={(value) => `₹${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line
+                      type="monotone"
+                      dataKey="amount"
+                      name="Revenue"
+                      stroke="#0067A1"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: "#0067A1" }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
+                ) : chartType === "area" ? (
+                  <AreaChart data={daily_revenue}>
+                    <defs>
+                      <linearGradient id="labRevenueGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0067A1" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#0067A1" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.6} />
+                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <YAxis
+                      stroke="#94a3b8"
+                      fontSize={11}
+                      tickLine={false}
+                      tickFormatter={(value) => `₹${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="amount"
+                      name="Revenue"
+                      stroke="#0067A1"
+                      fill="url(#labRevenueGrad)"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-full">
-                    <BarChart3 className="w-12 h-12 text-gray-400 dark:text-gray-600 mb-3" />
-                    <p className="text-gray-500 dark:text-gray-400">
-                      No revenue data available
-                    </p>
-                    <p className="text-sm text-gray-400 dark:text-gray-500">
-                      Complete orders will appear here
-                    </p>
-                  </div>
-                )}
-              </ResponsiveContainer>
-            </div>
+                  <BarChart data={daily_revenue}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.6} />
+                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                    <YAxis
+                      stroke="#94a3b8"
+                      fontSize={11}
+                      tickLine={false}
+                      tickFormatter={(value) => `₹${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="amount" name="Revenue" fill="#0067A1" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                )
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <BarChart3 className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-2" />
+                  <p className="text-xs font-semibold text-slate-500">No revenue data available</p>
+                </div>
+              )}
+            </ResponsiveContainer>
           </div>
+        </div>
 
-          {/* TEST DISTRIBUTION PIE CHART */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-6">
+        {/* TEST DISTRIBUTION PIE */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-700 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                  <Target className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <Target className="w-5 h-5 text-[#0067A1]" />
                   Test Distribution
                 </h2>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">
-                  By category
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Ordered tests by diagnostic category
                 </p>
               </div>
-              <Users className="w-5 h-5 text-gray-400 dark:text-gray-600" />
             </div>
 
-            <div className="h-64">
+            <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
                 {test_distribution && test_distribution.length > 0 ? (
                   <PieChart>
@@ -697,13 +633,10 @@ export default function LabDashboard() {
                       data={test_distribution}
                       cx="50%"
                       cy="50%"
-                      labelLine={false}
-                      label={({ name, percentage }) =>
-                        `${name}: ${percentage}%`
-                      }
-                      outerRadius={80}
-                      fill="#8884d8"
+                      outerRadius={70}
+                      innerRadius={42}
                       dataKey="value"
+                      paddingAngle={3}
                     >
                       {test_distribution.map((entry, index) => (
                         <Cell
@@ -715,316 +648,170 @@ export default function LabDashboard() {
                     <Tooltip content={<PieTooltip />} />
                   </PieChart>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-full">
-                    <PieChartIcon className="w-12 h-12 text-gray-400 dark:text-gray-600 mb-3" />
-                    <p className="text-gray-500 dark:text-gray-400">
-                      No test data available
-                    </p>
+                  <div className="flex flex-col items-center justify-center h-full text-center">
+                    <PieChartIcon className="w-10 h-10 text-slate-300 dark:text-slate-600 mb-2" />
+                    <p className="text-xs font-semibold text-slate-500">No test data recorded</p>
                   </div>
                 )}
               </ResponsiveContainer>
             </div>
+          </div>
 
-            <div className="grid grid-cols-2 gap-3 mt-4">
-              {test_distribution?.map((item, index) => (
-                <div key={index} className="flex items-center gap-2">
+          <div className="space-y-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/60 max-h-40 overflow-y-auto">
+            {test_distribution?.map((item, index) => (
+              <div key={index} className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 min-w-0">
                   <div
-                    className="w-3 h-3 rounded-full"
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
                     style={{ backgroundColor: COLORS[index % COLORS.length] }}
                   />
-                  <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                  <span className="text-slate-600 dark:text-slate-300 font-medium truncate">
                     {item.name}
                   </span>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 ml-auto">
-                    {item.value}
-                  </span>
                 </div>
-              ))}
-            </div>
+                <span className="font-bold text-slate-800 dark:text-white ml-2">
+                  {item.value} tests
+                </span>
+              </div>
+            ))}
           </div>
         </div>
+      </div>
 
-        {/* RECENT ORDERS & STATUS DISTRIBUTION */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* RECENT ORDERS */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                <Package className="w-5 h-5 text-[#0067A1] dark:text-emerald-400" />
-                Recent Orders
-                <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
-                  Last 10 orders
-                </span>
+      {/* RECENT ORDERS & STATUS BREAKDOWN */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* RECENT ORDERS LIST */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-700 shadow-xs">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                <Package className="w-5 h-5 text-[#0067A1]" />
+                Recent Test Orders
               </h2>
-              <button
-                onClick={() => router.push("/lab/orders")}
-                className="text-[#0067A1] dark:text-emerald-400 hover:text-[#004F7C] dark:hover:text-emerald-300 font-medium text-sm flex items-center gap-1 group"
-              >
-                View All
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </button>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Latest orders received for processing
+              </p>
             </div>
+            <button
+              onClick={() => router.push("/lab/orders")}
+              className="text-xs font-bold text-[#0067A1] hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <span>View All</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
-            <div className="space-y-4">
-              {recent_orders?.length > 0 ? (
-                recent_orders.slice(0, 5).map((order) => (
-                  <div
-                    key={order.id}
-                    className="group p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/20 transition-all duration-200 cursor-pointer"
-                    onClick={() => router.push(`/lab/orders/${order.id}`)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div
-                          className={`p-2 rounded-lg ${order.status === "completed"
-                            ? "bg-emerald-100 dark:bg-emerald-900/30"
-                            : "bg-amber-100 dark:bg-amber-900/30"
-                            }`}
+          <div className="space-y-2.5">
+            {recent_orders?.length > 0 ? (
+              recent_orders.slice(0, 5).map((order) => (
+                <div
+                  key={order.id}
+                  onClick={() => router.push(`/lab/orders/${order.id}`)}
+                  className="p-3.5 sm:p-4 rounded-xl border border-slate-100 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50/70 dark:hover:bg-slate-700/40 transition-all flex items-center justify-between gap-3 cursor-pointer group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-xs flex items-center justify-center shrink-0">
+                      {order.patient_details?.full_name
+                        ? order.patient_details.full_name.slice(0, 2).toUpperCase()
+                        : "PT"}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold font-mono text-slate-800 dark:text-white">
+                          #{order.id?.substring(0, 8)}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold text-white ${getStatusColor(
+                            order.status
+                          )}`}
                         >
-                          {order.status === "completed" ? (
-                            <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                          ) : (
-                            <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-                          )}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-bold text-gray-900 dark:text-gray-100">
-                              #{order.id?.substring(0, 8)}
-                            </span>
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                                order.status
-                              )} text-white`}
-                            >
-                              {getStatusText(order.status)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                            <User className="w-3 h-3" />
-                            {order.patient_details?.full_name ||
-                              "Unknown Patient"}
-                            {order.tests_count > 0 && (
-                              <span className="ml-2 px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-xs rounded">
-                                {order.tests_count} test
-                                {order.tests_count !== 1 ? "s" : ""}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                          {getStatusText(order.status)}
+                        </span>
                       </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                          {formatCurrency(order.total_amount || 0)}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          {formatDate(order.created_at)}
-                        </div>
-                      </div>
+                      <p className="text-xs font-medium text-slate-600 dark:text-slate-300 truncate mt-0.5">
+                        {order.patient_details?.full_name || "Patient"}
+                        {order.tests_count > 0 && (
+                          <span className="text-slate-400 font-normal ml-1.5">
+                            • {order.tests_count} test{order.tests_count !== 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </p>
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <Package className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-500 dark:text-gray-400">
-                    No recent orders
-                  </p>
-                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                    Orders will appear here when received
-                  </p>
+
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">
+                      {formatCurrency(order.total_amount || 0)}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {formatDate(order.created_at)}
+                    </p>
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* ORDER STATUS DISTRIBUTION */}
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl shadow-xl p-6 text-white">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-emerald-300" />
-              Order Status Distribution
-            </h2>
-
-            <div className="space-y-6">
-              {Object.entries(status_distribution || {}).map(
-                ([status, count], index) => {
-                  if (count === 0) return null;
-
-                  const percentage =
-                    stats.total_orders > 0
-                      ? (count / stats.total_orders) * 100
-                      : 0;
-                  const colors = {
-                    completed: "from-emerald-400 to-emerald-500",
-                    processing: "from-blue-400 to-blue-500",
-                    sample_collected: "from-indigo-400 to-indigo-500",
-                    pending: "from-amber-400 to-amber-500",
-                    sent_to_lab: "from-cyan-400 to-cyan-500",
-                    approved: "from-green-400 to-green-500",
-                    rejected: "from-red-400 to-red-500",
-                    cancelled: "from-gray-400 to-gray-500",
-                  };
-
-                  return (
-                    <div key={status}>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-gray-300 capitalize">
-                          {status.replace(/_/g, " ")}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold">{count}</span>
-                          <span className="text-sm text-gray-400">
-                            ({percentage.toFixed(1)}%)
-                          </span>
-                        </div>
-                      </div>
-                      <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full bg-gradient-to-r ${colors[status] || "from-gray-400 to-gray-500"
-                            } rounded-full transition-all duration-500`}
-                          style={{ width: `${percentage}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  );
-                }
-              )}
-            </div>
-
-            <div className="mt-8 pt-6 border-t border-gray-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Completion Rate</p>
-                  <p className="text-2xl font-bold">
-                    {Math.round(
-                      (stats.completed_orders / stats.total_orders) * 100 || 0
-                    )}
-                    %
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-400">Avg. Processing Time</p>
-                  <p className="text-lg font-bold text-green-400">24h</p>
-                </div>
+              ))
+            ) : (
+              <div className="py-12 text-center">
+                <Package className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                <p className="text-xs font-semibold text-slate-500">No test orders received yet</p>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* QUICK ACTIONS */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700 mb-8 hidden">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6 flex items-center gap-2">
-            <Zap className="w-5 h-5 text-amber-600 dark:text-amber-500" />
-            Quick Actions
+        {/* ORDER STATUS DISTRIBUTION */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-700 shadow-xs">
+          <h2 className="text-base sm:text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-1">
+            <BarChart3 className="w-5 h-5 text-[#0067A1]" />
+            Pipeline Status
           </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
+            Diagnostic processing workflow breakdown
+          </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <button
-              onClick={() => router.push("/lab/orders/new")}
-              className="p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 border border-emerald-200 dark:border-emerald-800 rounded-xl hover:shadow-md transition-shadow duration-200 text-left group"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/40 rounded-lg">
-                  <Package className="w-5 h-5 text-[#0067A1] dark:text-emerald-400" />
-                </div>
-                <ChevronRight className="w-4 h-4 text-emerald-400 group-hover:translate-x-1 transition-transform" />
-              </div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                New Order
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Create manual order
-              </p>
-            </button>
+          <div className="space-y-4">
+            {Object.entries(status_distribution || {}).map(([status, count]) => {
+              if (count === 0) return null;
+              const percentage =
+                stats.total_orders > 0 ? (count / stats.total_orders) * 100 : 0;
 
-            <button
-              onClick={() => router.push("/lab/reports")}
-              className="p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 border border-emerald-200 dark:border-emerald-800 rounded-xl hover:shadow-md transition-shadow duration-200 text-left group"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/40 rounded-lg">
-                  <ClipboardList className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              return (
+                <div key={status}>
+                  <div className="flex justify-between items-center text-xs mb-1.5">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300 capitalize">
+                      {status.replace(/_/g, " ")}
+                    </span>
+                    <span className="font-bold text-slate-800 dark:text-white">
+                      {count}{" "}
+                      <span className="text-[11px] font-normal text-slate-400">
+                        ({percentage.toFixed(0)}%)
+                      </span>
+                    </span>
+                  </div>
+                  <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${getStatusColor(status)} rounded-full transition-all duration-500`}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
                 </div>
-                <ChevronRight className="w-4 h-4 text-emerald-400 group-hover:translate-x-1 transition-transform" />
-              </div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                View Reports
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Test reports & history
-              </p>
-            </button>
-
-            <button
-              onClick={() => router.push("/lab/inventory")}
-              className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border border-purple-200 dark:border-purple-800 rounded-xl hover:shadow-md transition-shadow duration-200 text-left group"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/40 rounded-lg">
-                  <FlaskConical className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                </div>
-                <ChevronRight className="w-4 h-4 text-purple-400 group-hover:translate-x-1 transition-transform" />
-              </div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                Inventory
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Manage test kits & supplies
-              </p>
-            </button>
-
-            <button
-              onClick={() => router.push("/lab/settings")}
-              className="p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900/20 dark:to-gray-800/20 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-shadow duration-200 text-left group"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="p-2 bg-gray-100 dark:bg-gray-900/40 rounded-lg">
-                  <Filter className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-400 group-hover:translate-x-1 transition-transform" />
-              </div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                Settings
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Configure lab preferences
-              </p>
-            </button>
+              );
+            })}
           </div>
-        </div>
 
-        {/* FOOTER */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Last updated:{" "}
-                {new Date().toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-              <p className="text-gray-800 dark:text-gray-300 font-medium">
+              <p className="text-slate-400">Completion Rate</p>
+              <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">
                 {stats.total_orders > 0
-                  ? "All systems operational"
-                  : "Ready for orders"}{" "}
-                • Next data refresh in 5 minutes
+                  ? `${Math.round((stats.completed_orders / stats.total_orders) * 100)}%`
+                  : "100%"}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={fetchDashboard}
-                className="px-4 py-2.5 bg-gradient-to-r from-[#0067A1] to-emerald-700 dark:from-[#004F7C] dark:to-emerald-800 text-white rounded-xl font-medium hover:opacity-90 transition-opacity duration-200 flex items-center gap-2"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Refresh Dashboard
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="px-4 py-2.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 font-medium shadow-sm transition-colors duration-200"
-              >
-                Export Report
-              </button>
+            <div className="text-right">
+              <p className="text-slate-400">Avg TAT</p>
+              <p className="text-lg font-extrabold text-[#0067A1] mt-0.5">
+                24 - 48h
+              </p>
             </div>
           </div>
         </div>

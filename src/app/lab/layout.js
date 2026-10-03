@@ -89,16 +89,24 @@ export default function LabLayout({ children }) {
     setMobileSidebarOpen(!mobileSidebarOpen);
   };
 
+  const handleNavMenuClick = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setMobileSidebarOpen((prev) => !prev);
+    } else {
+      setSidebarOpen((prev) => !prev);
+    }
+  };
+
   const closeMobileSidebar = () => {
     setMobileSidebarOpen(false);
   };
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 flex items-center justify-center">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gray-800 rounded-full animate-pulse"></div>
-          <div className="text-gray-800 font-bold text-xl">Loading...</div>
+          <div className="w-8 h-8 border-3 border-[#0067A1]/20 border-t-[#0067A1] rounded-full animate-spin"></div>
+          <div className="text-slate-800 dark:text-slate-200 font-semibold text-sm">Initializing Portal...</div>
         </div>
       </div>
     );
@@ -110,7 +118,7 @@ export default function LabLayout({ children }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 text-gray-900 dark:text-gray-100 cursor-default relative">
+    <div className="flex min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 cursor-default relative">
       {isLoggedIn && userId && (
         <DpdpConsentModal role="lab" userId={userId} />
       )}
@@ -127,17 +135,18 @@ export default function LabLayout({ children }) {
 
       {/* Main Content Area */}
       <div
-        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isLoggedIn ? (sidebarOpen ? "lg:ml-64" : "lg:ml-16") : ""
-          }`}
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
+          isLoggedIn ? (sidebarOpen ? "lg:ml-64" : "lg:ml-0") : ""
+        }`}
       >
         {isLoggedIn && (
           <Navbar
-            onMenuClick={handleMobileSidebarToggle}
+            onMenuClick={handleNavMenuClick}
             sidebarOpen={sidebarOpen}
           />
         )}
 
-        <main className="flex-1 p-4 md:p-6 overflow-x-auto">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full overflow-x-auto">
           {children}
         </main>
       </div>

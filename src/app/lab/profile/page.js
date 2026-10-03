@@ -291,10 +291,11 @@ export default function LabProfilePage() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-[70vh] flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-[#0067A1] dark:text-emerald-500 mx-auto" />
-          <p className="mt-4 text-lg text-gray-600 dark:text-gray-300">Loading lab profile...</p>
+          <div className="w-12 h-12 border-3 border-[#0067A1]/20 border-t-[#0067A1] rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-base font-semibold text-slate-800 dark:text-slate-200 mb-1">Loading Lab Profile...</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Fetching your laboratory details</p>
         </div>
       </div>
     );
@@ -429,86 +430,86 @@ export default function LabProfilePage() {
             </div>
 
             {services.length === 0 ? (
-              <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
-                <ImagePlus className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
-                <p className="text-gray-500 dark:text-gray-400 text-lg mb-2">No services added yet</p>
-                <p className="text-gray-400 dark:text-gray-500 text-sm mb-4">Add services that your lab provides</p>
+              <div className="text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-900/50">
+                <div className="w-14 h-14 bg-[#0067A1]/10 dark:bg-[#0067A1]/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <ImagePlus className="w-7 h-7 text-[#0067A1] dark:text-sky-400" />
+                </div>
+                <p className="text-slate-700 dark:text-slate-200 font-semibold text-base mb-1">No services added yet</p>
+                <p className="text-slate-400 dark:text-slate-500 text-sm mb-5">Add the diagnostic services your lab provides</p>
                 <button
                   onClick={addService}
-                  className="px-6 py-2 text-[#0067A1] dark:text-emerald-400 border border-blue-600 dark:border-blue-400 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+                  className="px-5 py-2 bg-[#0067A1] hover:bg-[#005585] text-white rounded-xl text-sm font-semibold transition-colors shadow-xs"
                 >
                   Add your first service
                 </button>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {services.map((srv, index) => (
-                  <div key={index} className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors space-y-4">
+                  <div key={index} className="bg-slate-50/50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-[#0067A1]/30 dark:hover:border-sky-700/40 transition-colors space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-700 dark:text-gray-300">Service #{index + 1}</span>
+                        <span className="font-semibold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Service #{index + 1}</span>
                         {(!srv.service_name || srv.service_name.trim() === "") && (
-                          <span className="text-xs bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 px-2 py-1 rounded">Name required</span>
+                          <span className="text-[10px] bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-full font-semibold">Name required</span>
                         )}
                       </div>
                       <button
                         onClick={() => removeService(index)}
-                        className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                        className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
                         title="Remove service"
                       >
-                        <Trash2 size={18} />
+                        <Trash2 size={16} />
                       </button>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div>
-                        <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">
-                          Service Name *
-                        </label>
+                        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 block mb-1.5">Service Name *</label>
                         <input
                           type="text"
                           placeholder="e.g., Complete Blood Count"
                           value={srv.service_name || ""}
                           onChange={(e) => updateService(index, "service_name", e.target.value)}
-                          className="w-full p-2.5 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-emerald-500 dark:focus:border-emerald-400"
+                          className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] outline-none transition-all"
                           required
                         />
                       </div>
                       
                       <div>
-                        <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Price (₹)</label>
+                        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 block mb-1.5">Price (₹)</label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400">₹</span>
+                          <span className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-slate-400 text-sm">₹</span>
                           <input
                             type="number"
-                            placeholder="e.g., 500"
+                            placeholder="500"
                             value={srv.price || ""}
                             onChange={(e) => updateService(index, "price", e.target.value)}
-                            className="w-full p-2.5 pl-8 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-emerald-500 dark:focus:border-emerald-400"
+                            className="w-full px-3.5 py-2.5 pl-8 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] outline-none transition-all"
                             min="0"
                           />
                         </div>
                       </div>
                       
                       <div>
-                        <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Category</label>
+                        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 block mb-1.5">Category</label>
                         <input
                           type="text"
                           placeholder="e.g., Blood Test, Urine Test"
                           value={srv.category || ""}
                           onChange={(e) => updateService(index, "category", e.target.value)}
-                          className="w-full p-2.5 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-emerald-500 dark:focus:border-emerald-400"
+                          className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] outline-none transition-all"
                         />
                       </div>
                     </div>
                     
                     <div>
-                      <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Description (Optional)</label>
+                      <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 block mb-1.5">Description (Optional)</label>
                       <textarea
-                        placeholder="Brief description of the service, sample requirements, etc."
+                        placeholder="Brief description of the service, sample requirements, turnaround time..."
                         value={srv.description || ""}
                         onChange={(e) => updateService(index, "description", e.target.value)}
-                        className="w-full p-2.5 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-emerald-500 dark:focus:border-emerald-400 min-h-[80px] resize-none"
+                        className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] outline-none transition-all min-h-[70px] resize-none"
                       />
                     </div>
                   </div>
@@ -516,9 +517,9 @@ export default function LabProfilePage() {
               </div>
             )}
             
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              <p>* Required fields. Services without names will not be saved.</p>
-            </div>
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              * Required fields. Services without a name will not be saved.
+            </p>
           </div>
         );
 
@@ -527,25 +528,33 @@ export default function LabProfilePage() {
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Opening Hours</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Set your lab's operating schedule</p>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Opening Hours</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Set your lab's weekly operating schedule</p>
               </div>
               <button
                 onClick={() => setEditingOpeningHours(!editingOpeningHours)}
-                className="px-4 py-2 text-[#0067A1] dark:text-emerald-400 border border-blue-600 dark:border-blue-400 rounded-lg flex items-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors whitespace-nowrap"
+                className={`px-4 py-2 rounded-xl flex items-center gap-2 text-xs font-semibold transition-all whitespace-nowrap border ${
+                  editingOpeningHours
+                    ? "bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800"
+                    : "bg-white dark:bg-slate-800 text-[#0067A1] dark:text-sky-400 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
+                }`}
               >
-                {editingOpeningHours ? <X size={18} /> : <Edit2 size={18} />}
-                {editingOpeningHours ? "Cancel Edit" : "Edit Hours"}
+                {editingOpeningHours ? <X size={15} /> : <Edit2 size={15} />}
+                {editingOpeningHours ? "Cancel" : "Edit Hours"}
               </button>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-700/60">
               {Object.entries(openingHours).map(([day, hours]) => {
                 const dayName = day.charAt(0).toUpperCase() + day.slice(1);
                 return (
-                  <div key={day} className={`flex items-center justify-between p-4 border-b dark:border-gray-700 last:border-b-0 ${hours.closed ? 'bg-gray-50 dark:bg-gray-800' : ''}`}>
-                    <div className="flex items-center gap-4">
-                      <span className="font-medium text-gray-800 dark:text-gray-200 w-24">{dayName}</span>
+                  <div key={day} className={`flex items-center justify-between px-5 py-3.5 ${
+                    hours.closed ? "bg-slate-50 dark:bg-slate-900/60" : "bg-white dark:bg-slate-800/30"
+                  }`}>
+                    <div className="flex items-center gap-4 flex-1">
+                      <span className={`text-xs font-bold w-24 ${
+                        hours.closed ? "text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-200"
+                      }`}>{dayName}</span>
                       {editingOpeningHours ? (
                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                           <div className="flex items-center gap-2">
@@ -554,9 +563,9 @@ export default function LabProfilePage() {
                               id={`${day}-open`}
                               checked={!hours.closed}
                               onChange={(e) => updateOpeningHour(day, "closed", !e.target.checked)}
-                              className="w-4 h-4 text-[#0067A1] dark:text-emerald-400 rounded focus:ring-emerald-500 dark:focus:ring-emerald-400"
+                              className="w-4 h-4 text-[#0067A1] rounded focus:ring-[#0067A1]/30 accent-[#0067A1]"
                             />
-                            <label htmlFor={`${day}-open`} className="text-sm text-gray-700 dark:text-gray-300">
+                            <label htmlFor={`${day}-open`} className="text-xs font-medium text-slate-600 dark:text-slate-400">
                               {hours.closed ? "Closed" : "Open"}
                             </label>
                           </div>
@@ -566,30 +575,30 @@ export default function LabProfilePage() {
                                 type="time"
                                 value={hours.open || "09:00"}
                                 onChange={(e) => updateOpeningHour(day, "open", e.target.value)}
-                                className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-emerald-500 dark:focus:border-emerald-400"
+                                className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] outline-none"
                               />
-                              <span className="text-gray-500 dark:text-gray-400">to</span>
+                              <span className="text-slate-400 dark:text-slate-500 text-xs">to</span>
                               <input
                                 type="time"
                                 value={hours.close || "18:00"}
                                 onChange={(e) => updateOpeningHour(day, "close", e.target.value)}
-                                className="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-emerald-500 dark:focus:border-emerald-400"
+                                className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] outline-none"
                               />
                             </div>
                           )}
                         </div>
                       ) : (
-                        <span className="text-gray-700 dark:text-gray-300">
+                        <span className="text-xs">
                           {hours.closed ? (
-                            <span className="text-red-600 dark:text-red-400 font-medium">Closed</span>
+                            <span className="text-rose-500 dark:text-rose-400 font-semibold">Closed</span>
                           ) : (
-                            <span className="font-medium">{hours.open || "09:00"} - {hours.close || "18:00"}</span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-200">{hours.open || "09:00"} – {hours.close || "18:00"}</span>
                           )}
                         </span>
                       )}
                     </div>
-                    {hours.closed && !editingOpeningHours && (
-                      <span className="px-3 py-1 text-sm bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 rounded-full font-medium">Closed</span>
+                    {!hours.closed && !editingOpeningHours && (
+                      <span className="px-2.5 py-1 text-[10px] bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 rounded-full font-semibold border border-emerald-100 dark:border-emerald-800">Open</span>
                     )}
                   </div>
                 );
@@ -597,9 +606,10 @@ export default function LabProfilePage() {
             </div>
             
             {!editingOpeningHours && (
-              <div className="text-sm text-gray-500 dark:text-gray-400 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg">
-                <p>Click "Edit Hours" to change your lab's operating schedule.</p>
-              </div>
+              <p className="text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                <Clock size={12} />
+                Click "Edit Hours" to update your lab's weekly schedule.
+              </p>
             )}
           </div>
         );
@@ -610,204 +620,194 @@ export default function LabProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6 transition-colors duration-200">
-      <div className="mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-emerald-500">Lab Profile Management</h1>
-          <p className="text-gray-600 dark:text-gray-300 mt-2">Manage your lab information, services, and operating hours</p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white tracking-tight">
+            Laboratory Profile & Operations
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+            Manage your diagnostic center credentials, address, and operational timings
+          </p>
         </div>
+      </div>
 
-        {/* Profile Card */}
-        <div className="bg-gradient-to-r from-[#0067A1] to-[#004F7C] dark:from-[#0067A1] dark:to-[#004F7C] rounded-2xl shadow-lg text-white p-6 mb-8 transition-colors duration-200">
-          <div className="flex flex-col md:flex-row items-center gap-8">
-            {/* Profile Image */}
-            <div className="relative">
-              <div className="w-36 h-36 rounded-xl overflow-hidden border-4 border-white dark:border-emerald-300 shadow-xl bg-white dark:bg-gray-800">
-                <img
-                  src={preview}
-                  alt="Lab Profile"
-                  className="w-full h-full object-cover"
-                  onError={handleImageError}
-                />
-              </div>
-              
-              <button
-                className="absolute -bottom-2 -right-2 bg-white dark:bg-gray-800 text-[#0067A1] dark:text-emerald-400 p-3 rounded-full shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 transition-all duration-200 border border-gray-200 dark:border-gray-700"
-                onClick={() => fileInputRef.current.click()}
-                disabled={uploading}
-                title={uploading ? "Uploading..." : "Change profile picture"}
-              >
-                {uploading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Camera size={20} />
-                )}
-              </button>
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files[0];
-                  if (file) uploadImage(file);
-                }}
+      {/* Profile Hero Card */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#0067A1] via-[#0080C6] to-[#0067A1] rounded-3xl p-6 sm:p-8 text-white shadow-sm">
+        {/* Subtle decorative geometry */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-28 -mt-28 pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 w-48 h-48 bg-white/5 rounded-full -mb-24 pointer-events-none" />
+
+        <div className="relative flex flex-col md:flex-row items-center md:items-start gap-6">
+          {/* Profile Image */}
+          <div className="relative shrink-0">
+            <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden border-2 border-white/40 shadow-lg bg-white/10 flex items-center justify-center">
+              <img
+                src={preview}
+                alt="Lab Profile"
+                className="w-full h-full object-cover"
+                onError={handleImageError}
               />
             </div>
-
-            {/* Info */}
-            <div className="flex-1 text-center md:text-left">
-              <h1 className="text-3xl md:text-4xl font-bold mb-3">
-                {profile.lab_name || "Your Lab Name"}
-              </h1>
-              <div className="space-y-2 opacity-95">
-                <p className="flex items-center gap-2 justify-center md:justify-start">
-                  <Mail size={18} /> 
-                  <span className="truncate">{profile.email || "No email provided"}</span>
-                </p>
-                <p className="flex items-center gap-2 justify-center md:justify-start">
-                  <Phone size={18} /> 
-                  <span>{profile.phone_number || "No phone number"}</span>
-                </p>
-                {profile.address && (
-                  <p className="flex items-start gap-2 justify-center md:justify-start">
-                    <LocationIcon size={18} className="mt-0.5 flex-shrink-0" />
-                    <span className="text-left line-clamp-2">{profile.address}</span>
-                  </p>
-                )}
-              </div>
-              
-              <div className="mt-6 flex flex-wrap items-center gap-3">
-                {profile.license_number && (
-                  <div className="bg-white/20 dark:bg-emerald-300/20 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-medium">
-                    License: {profile.license_number}
-                  </div>
-                )}
-                <div className={`px-4 py-2 rounded-full text-sm font-medium ${profile.accepts_home_collection ? 'bg-green-500/30 dark:bg-green-400/30' : 'bg-red-500/30 dark:bg-red-400/30'}`}>
-                  {profile.accepts_home_collection ? "✓ Home Collection" : "✗ No Home Collection"}
-                </div>
-                {profile.rating > 0 && (
-                  <div className="bg-yellow-500/30 dark:bg-yellow-400/30 px-4 py-2 rounded-full text-sm font-medium flex items-center gap-1.5">
-                    <span className="text-yellow-200 dark:text-yellow-300">★</span>
-                    <span>{Number(profile.rating || 0).toFixed(1)}</span>
-                    <span className="opacity-90">({profile.total_reviews || 0} reviews)</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow overflow-hidden transition-colors duration-200">
-          {/* Tabs */}
-          <div className="border-b border-gray-200 dark:border-gray-700">
-            <div className="flex overflow-x-auto scrollbar-hide">
-              {[
-                { id: "basic", label: "Basic Information", icon: <Building2 size={18} /> },
-                { id: "services", label: "Services & Pricing", icon: <ImagePlus size={18} /> },
-                { id: "hours", label: "Opening Hours", icon: <Clock size={18} /> }
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  className={`px-6 py-4 font-medium whitespace-nowrap flex items-center gap-2 transition-colors ${
-                    activeTab === tab.id
-                      ? "text-[#0067A1] dark:text-emerald-400 border-b-2 border-blue-600 dark:border-blue-400 bg-emerald-50 dark:bg-emerald-900/20"
-                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                  }`}
-                  onClick={() => setActiveTab(tab.id)}
-                >
-                  {tab.icon}
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Tab Content */}
-          <div className="p-6">
-            {renderTabContent()}
             
-            {/* Save Button */}
-            <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={activeTab === "services" ? saveServices : saveProfile}
-                disabled={saving}
-                className="px-8 py-3.5 bg-[#0067A1] dark:bg-[#004F7C] text-white rounded-xl font-semibold flex items-center gap-3 hover:bg-[#004F7C] dark:hover:bg-[#0067A1] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md hover:shadow-lg"
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Saving Changes...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save size={20} />
-                    <span>Save {activeTab === "services" ? "Services" : "Profile Changes"}</span>
-                  </>
-                )}
-              </button>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
-                {activeTab === "services" 
-                  ? "Click save to update your lab services and pricing."
-                  : "Click save to update your lab profile information."}
-              </p>
+            <button
+              className="absolute -bottom-2 -right-2 bg-white text-[#0067A1] p-2.5 rounded-xl shadow-md hover:bg-slate-100 transition-all cursor-pointer border border-slate-200"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              title={uploading ? "Uploading..." : "Change profile picture"}
+            >
+              {uploading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Camera size={16} />
+              )}
+            </button>
+            
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadImage(file);
+              }}
+            />
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 text-center md:text-left">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/15 backdrop-blur-md rounded-full border border-white/20 text-white text-xs font-semibold mb-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Verified Diagnostic Center</span>
+            </div>
+
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              {profile.lab_name || "Diagnostic Laboratory"}
+            </h2>
+
+            <div className="mt-3 flex flex-wrap items-center justify-center md:justify-start gap-y-2 gap-x-4 text-xs text-white/80">
+              {profile.email && (
+                <span className="flex items-center gap-1.5">
+                  <Mail size={14} className="text-white/60" />
+                  <span>{profile.email}</span>
+                </span>
+              )}
+              {profile.phone_number && (
+                <span className="flex items-center gap-1.5">
+                  <Phone size={14} className="text-white/60" />
+                  <span>{profile.phone_number}</span>
+                </span>
+              )}
+              {profile.address && (
+                <span className="flex items-center gap-1.5 max-w-md truncate">
+                  <LocationIcon size={14} className="text-white/60 shrink-0" />
+                  <span className="truncate">{profile.address}</span>
+                </span>
+              )}
+            </div>
+            
+            <div className="mt-4 flex flex-wrap items-center justify-center md:justify-start gap-2">
+              {profile.license_number && (
+                <div className="bg-white/15 backdrop-blur-md px-3 py-1 rounded-xl text-xs font-semibold border border-white/20">
+                  License: {profile.license_number}
+                </div>
+              )}
+              <div className="bg-white/15 backdrop-blur-md px-3 py-1 rounded-xl text-xs font-semibold border border-white/20">
+                {profile.accepts_home_collection ? "✓ Home Collection Available" : "✗ In-Lab Visits Only"}
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Status Info */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-xl p-5">
-            <div className="flex items-center gap-4">
-              <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full">
-                <CheckCircle className="text-green-600 dark:text-green-400" size={24} />
-              </div>
-              <div>
-                <h4 className="font-semibold text-green-800 dark:text-green-300 text-lg">Profile Status</h4>
-                <p className="text-green-700 dark:text-green-400 mt-1">
-                  {profile.onboarding_status === "approved" 
-                    ? "✅ Your lab profile is approved and visible to patients"
-                    : "⏳ Your profile is under review. Please complete all details."}
-                </p>
-                {profile.approved_at && (
-                  <p className="text-green-600 dark:text-green-500 text-sm mt-2">
-                    Approved on: {new Date(profile.approved_at).toLocaleDateString('en-IN', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric'
-                    })}
-                  </p>
-                )}
-              </div>
-            </div>
+      {/* Main Form Content */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-xs overflow-hidden">
+        {/* Tabs */}
+        <div className="border-b border-slate-200/80 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 px-3">
+          <div className="flex overflow-x-auto gap-2">
+            {[
+              { id: "basic", label: "Basic Information", icon: <Building2 size={16} /> },
+              { id: "services", label: "Services & Pricing", icon: <ImagePlus size={16} /> },
+              { id: "hours", label: "Opening Hours", icon: <Clock size={16} /> }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                className={`px-4 py-3.5 text-xs sm:text-sm font-bold whitespace-nowrap flex items-center gap-2 border-b-2 transition-all cursor-pointer ${
+                  activeTab === tab.id
+                    ? "text-[#0067A1] dark:text-sky-400 border-[#0067A1] bg-white dark:bg-slate-800 shadow-xs rounded-t-xl"
+                    : "text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-800 dark:hover:text-white"
+                }`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
           </div>
+        </div>
+
+        {/* Tab Content */}
+        <div className="p-5 sm:p-6">
+          {renderTabContent()}
           
-          <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-[#003358]/20 border border-emerald-200 dark:border-emerald-800 rounded-xl p-5">
-            <div className="flex items-center gap-4">
-              <div className="bg-emerald-100 dark:bg-emerald-900/30 p-3 rounded-full">
-                <FileText className="text-[#0067A1] dark:text-emerald-400" size={24} />
-              </div>
-              <div>
-                <h4 className="font-semibold text-[#0067A1] dark:text-emerald-300 text-lg">Document Status</h4>
-                <p className="text-[#0067A1] dark:text-emerald-400 mt-1">
-                  {profile.document_verified 
-                    ? "✅ All documents are verified"
-                    : "📋 Document verification pending"}
-                </p>
-                {profile.document_verified_at && (
-                  <p className="text-[#0067A1] dark:text-emerald-500 text-sm mt-2">
-                    Verified on: {new Date(profile.document_verified_at).toLocaleDateString('en-IN', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric'
-                    })}
-                  </p>
-                )}
-              </div>
-            </div>
+          {/* Save Button */}
+          <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {activeTab === "services" 
+                ? "Changes to diagnostic tests and pricing are saved immediately across the portal."
+                : "Your laboratory profile is synchronized in real-time with doctor and patient order flows."}
+            </p>
+
+            <button
+              onClick={activeTab === "services" ? saveServices : saveProfile}
+              disabled={saving}
+              className="px-6 py-2.5 bg-[#0067A1] hover:bg-[#005585] text-white rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save size={16} />
+                  <span>Save {activeTab === "services" ? "Services" : "Profile Changes"}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Verification Status Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-2xl p-5 shadow-xs flex items-center gap-4">
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <CheckCircle size={22} />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-800 dark:text-white text-sm">Onboarding Status</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {profile.onboarding_status === "approved" 
+                ? "Approved • Active on patient and doctor referral directory"
+                : "Under verification review by MediConnect compliance"}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 rounded-2xl p-5 shadow-xs flex items-center gap-4">
+          <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-[#0067A1] dark:text-sky-300 flex items-center justify-center shrink-0">
+            <FileText size={22} />
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-800 dark:text-white text-sm">Compliance & Certification</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {profile.document_verified 
+                ? "All diagnostic credentials & statutory licenses verified"
+                : "Standard DPDP & clinical establishment compliance active"}
+            </p>
           </div>
         </div>
       </div>
@@ -819,15 +819,15 @@ export default function LabProfilePage() {
 function Input({ label, value, onChange, icon, type = "text", placeholder = "", required = false, ...props }) {
   return (
     <div>
-      <label className="font-medium text-gray-700 dark:text-gray-300 block mb-2">
+      <label className="font-semibold text-xs text-slate-700 dark:text-slate-300 block mb-1.5">
         {label}
-        {required && <span className="text-red-500 dark:text-red-400 ml-1">*</span>}
+        {required && <span className="text-rose-500 ml-1">*</span>}
       </label>
-      <div className="flex items-center gap-3 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 focus-within:ring-2 focus-within:ring-emerald-500 dark:focus-within:ring-emerald-400 focus-within:border-emerald-500 dark:focus-within:border-emerald-400 transition-all">
-        <span className="text-gray-500 dark:text-gray-400">{icon}</span>
+      <div className="flex items-center gap-2.5 px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-900/50 focus-within:ring-2 focus-within:ring-[#0067A1]/20 focus-within:border-[#0067A1] transition-all">
+        <span className="text-slate-400">{icon}</span>
         <input
           type={type}
-          className="bg-transparent flex-1 outline-none text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+          className="bg-transparent flex-1 outline-none text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 font-medium"
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}

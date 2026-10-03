@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
 import { sendGenericOTPViaSMS } from "@/lib/sms";
+import { sendEmailOTP } from "@/lib/emailOtp";
 import { corsHeaders } from "@/lib/cors";
 
-const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+const OTP_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function OPTIONS() {
@@ -22,41 +23,71 @@ export async function POST(request) {
     }
 
     const [user] = await sql`
-      SELECT id, phone_number
-      FROM users
-      WHERE id = ${lab_id}
+      SELECT u.id, u.phone_number, ld.email as lab_email, ld.lab_name
+      FROM users u
+      LEFT JOIN lab_details ld ON ld.id = u.id
+      WHERE u.id = ${lab_id}
       LIMIT 1
     `;
 
-    if (!user || !user.phone_number) {
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: "Lab user or phone number not found" },
+        { success: false, error: "Lab user not found" },
         { status: 404, headers: corsHeaders }
       );
     }
 
-    // 2. Generate 6-digit OTP
+    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiry = new Date(Date.now() + OTP_EXPIRY_MS);
 
-    // 3. Store OTP in users table
+    // Store OTP in users table
     await sql`
       UPDATE users
       SET otp_code = ${otp}, otp_expires_at = ${expiry}, updated_at = NOW()
       WHERE id = ${user.id}
     `;
 
-    // 4. Send SMS
-    const smsRes = await sendGenericOTPViaSMS(user.phone_number, otp);
-    
-    if (!smsRes.success) {
-      console.warn(`[SMS GATEWAY] Lab Consent SMS send failed: ${smsRes.error || "Unknown error"}.`);
+    // 1. Send SMS if phone exists
+    let smsSent = false;
+    if (user.phone_number) {
+      try {
+        const smsRes = await sendGenericOTPViaSMS(user.phone_number, otp);
+        if (smsRes.success) smsSent = true;
+        else console.warn(`[SMS GATEWAY] Lab Consent SMS failed: ${smsRes.error || "Unknown"}`);
+      } catch (smsErr) {
+        console.warn(`[SMS GATEWAY] Error sending SMS:`, smsErr.message);
+      }
     }
 
-    console.log(`[DEV] Lab Consent OTP sent to ${user.phone_number}: ${otp}`);
+    // 2. Send Email OTP if email exists
+    let emailSent = false;
+    if (user.lab_email) {
+      try {
+        await sendEmailOTP({
+          toEmail: user.lab_email,
+          otpCode: otp,
+          recipientName: user.lab_name || "Diagnostic Lab",
+          purpose: "Lab Test Catalog Verification"
+        });
+        emailSent = true;
+      } catch (emailErr) {
+        console.warn(`[EMAIL GATEWAY] Error sending email OTP:`, emailErr.message);
+      }
+    }
+
+    console.log(`[DEV] Lab Consent OTP for ${user.id} (${user.lab_name || 'Lab'}): ${otp}`);
+
+    const destinationParts = [];
+    if (smsSent && user.phone_number) destinationParts.push(`mobile (***${user.phone_number.slice(-4)})`);
+    if (emailSent && user.lab_email) destinationParts.push(`email (${user.lab_email})`);
+
+    const msg = destinationParts.length > 0 
+      ? `OTP sent successfully to your registered ${destinationParts.join(" and ")}`
+      : "OTP generated successfully. Check your registered communication channels.";
 
     return NextResponse.json(
-      { success: true, message: "OTP sent successfully" },
+      { success: true, message: msg },
       { status: 200, headers: corsHeaders }
     );
   } catch (error) {

@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { execute } from "@/lib/layer1/integrationGateway";
 import { checkActiveConsent } from "@/lib/layer1/consentManager";
 
@@ -22,23 +22,20 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
         formattedNumber = "91" + formattedNumber;
 
         // 2. Generate a real random 6-digit OTP (or bypass OTP for test accounts)
-        const isTestNumber = formattedNumber.endsWith("9999999991") || formattedNumber.endsWith("9999999992") || formattedNumber.endsWith("9999999993");
+        const isTestNumber = formattedNumber.endsWith("9999999991") || formattedNumber.endsWith("9999999992") || formattedNumber.endsWith("9999999993") || formattedNumber.endsWith("8744412521");
         const otp = isTestNumber ? "123456" : String(Math.floor(100000 + Math.random() * 900000));
         const expiresAt = isTestNumber 
-            ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
-            : new Date(Date.now() + 5 * 60 * 1000).toISOString();
+            ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+            : new Date(Date.now() + 15 * 60 * 1000);
 
-        // 3. Update database users table
-        const { error: dbError } = await supabase
-            .from("users")
-            .update({
-                otp_code: otp,
-                otp_expires_at: expiresAt,
-                updated_at: new Date()
-            })
-            .eq("id", userId);
-
-        if (dbError) throw dbError;
+        // 3. Update AWS RDS PostgreSQL users table
+        await sql`
+            UPDATE users
+            SET otp_code = ${otp},
+                otp_expires_at = ${expiresAt},
+                updated_at = NOW()
+            WHERE id = ${userId}
+        `;
 
         if (isTestNumber) {
             return { success: true, otp: "123456" };

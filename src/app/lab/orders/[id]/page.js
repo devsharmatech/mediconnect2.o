@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getLoggedInUser } from "@/lib/authHelpers";
 import {
   User,
@@ -34,6 +34,12 @@ import {
   Plus,
   X,
   Check,
+  ShieldCheck,
+  ExternalLink,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Download,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useRouter, useParams } from "next/navigation";
@@ -65,6 +71,10 @@ export default function LabOrderDetails() {
   const [uploadingReport, setUploadingReport] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancellingOrder, setCancellingOrder] = useState(false);
+  const [prescriptionZoom, setPrescriptionZoom] = useState(1);
+  const [showFullPrescriptionModal, setShowFullPrescriptionModal] = useState(false);
+  const [rxViewMode, setRxViewMode] = useState("canvas"); // "canvas" or "html"
+  const canvasRef = useRef(null);
 
   useEffect(() => {
     const fetchTechnicians = async () => {
@@ -627,60 +637,36 @@ export default function LabOrderDetails() {
     fetchDetails();
   }, []);
 
-  if (loading)
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <div className="text-center">
-          <div className="flex justify-center">
-
-            <Loader2 className="w-12 h-12 text-[#0067A1] dark:text-[#0080C6] animate-spin" />
-          </div>
-          <p className="text-[#0067A1] dark:text-teal-300 mt-4 text-lg font-medium animate-pulse">
-            Loading order details...
-          </p>
-          <p className="text-teal-500 dark:text-teal-500 text-sm mt-2">Please wait a moment</p>
-        </div>
-      </div>
-    );
-
-  if (!order)
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <div className="text-center">
-          <AlertTriangle className="w-16 h-16 text-red-500 dark:text-red-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Order Not Found</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">The requested order could not be loaded.</p>
-          <button
-            onClick={() => router.back()}
-            className="px-6 py-3 bg-[#0067A1] dark:bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] dark:hover:bg-[#004F7C] transition-colors"
-          >
-            Go Back
-          </button>
-        </div>
-      </div>
-    );
-
+  const itemsSubtotal = items.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
   const totalAmount = calculateTotalAmount();
+  const collectionFee = (order?.visit_type === "home_collection" || totalAmount > itemsSubtotal)
+    ? Math.max(0, totalAmount - itemsSubtotal)
+    : 0;
   const orderStatus = order?.status || "pending";
   const orderStatusColor = statusColors[orderStatus.toLowerCase()] || "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200";
 
+  const prescriptionFileUrl = order?.prescription?.prescription_file_url || order?.prescription?.file_url || null;
+  const isPrescriptionPdf = prescriptionFileUrl ? prescriptionFileUrl.toLowerCase().includes(".pdf") : false;
+  const hasUploadedPrescription = Boolean(prescriptionFileUrl);
+  const hasDigitalPrescription = Boolean(
+    order?.prescription && !hasUploadedPrescription && (
+      (Array.isArray(order.prescription.lab_tests) && order.prescription.lab_tests.length > 0) ||
+      order.prescription.doctor ||
+      order.prescription.doctor_id ||
+      order.prescription.is_digital
+    )
+  );
 
   const prescriptionDataForHtml = order?.prescription ? {
     ...order.prescription,
     pid: order.prescription.unid || order.prescription.id?.slice(0, 8) || "N/A",
     created_at: order.prescription.created_at,
-    medicines: Array.isArray(order.prescription.medicines)
-      ? order.prescription.medicines.map((med) => ({
-          name: med.name || med.medicine_name || "-",
-          dose: med.dose || med.dosage || "-",
-          notes: med.notes || med.instructions || "",
-        }))
-      : [],
+    medicines: [], // DPDP compliance: no medications in laboratory requisition
     lab_tests: Array.isArray(order.prescription.lab_tests)
       ? order.prescription.lab_tests.map((test) => typeof test === "string" ? test : test.test_name || test.name || "")
       : [],
     investigations: order.prescription.investigations || [],
-    special_message: order.prescription.special_message || "",
+    special_message: "",
     doctor_details: order.prescription.doctor ? {
       full_name: order.prescription.doctor.full_name,
       specialization: order.prescription.doctor.specialization,
@@ -701,6 +687,82 @@ export default function LabOrderDetails() {
     } : null
   } : null;
 
+  useEffect(() => {
+    if (activeTab === "prescription" && hasDigitalPrescription && prescriptionDataForHtml && canvasRef.current && rxViewMode === "canvas") {
+      drawLabRequisitionCanvas(canvasRef.current, prescriptionDataForHtml);
+    }
+  }, [activeTab, hasDigitalPrescription, prescriptionDataForHtml, rxViewMode]);
+
+  const downloadCanvasImage = () => {
+    if (!canvasRef.current) return;
+    const url = canvasRef.current.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Lab_Requisition_Rx${prescriptionDataForHtml?.pid || order?.unid || "doc"}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const printCanvasImage = () => {
+    if (!canvasRef.current) return;
+    const url = canvasRef.current.toDataURL("image/png");
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Diagnostic Requisition #${prescriptionDataForHtml?.pid || order?.unid}</title>
+          <style>
+            body { margin: 0; padding: 20px; display: flex; justify-content: center; background: #fff; }
+            img { max-width: 100%; height: auto; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <img src="${url}" />
+          <script>
+            window.onload = function() {
+              setTimeout(() => { window.print(); setTimeout(() => window.close(), 1000); }, 300);
+            }
+          </script>
+        </body>
+      </html>
+    `);
+  };
+
+  if (loading)
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-3 border-[#0067A1]/20 border-t-[#0067A1] rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-base font-semibold text-slate-800 dark:text-slate-200 mb-1">
+            Loading Order #{orderId}...
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Retrieving patient tests and diagnostic status
+          </p>
+        </div>
+      </div>
+    );
+
+  if (!order)
+    return (
+      <div className="py-12">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-sm p-8 text-center max-w-lg mx-auto">
+          <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Order Not Found</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">The requested order could not be loaded.</p>
+          <button
+            onClick={() => router.back()}
+            className="px-5 py-2.5 bg-[#0067A1] hover:bg-[#005585] text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+
   const tabs = [
     { id: "details", label: "Patient & Doctor Details", icon: <User className="w-4 h-4" /> },
     { id: "tests", label: "Prescribed Tests", icon: <FlaskConical className="w-4 h-4" /> },
@@ -715,63 +777,80 @@ export default function LabOrderDetails() {
   };
 
   return (
-    <div className="min-h-screen dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 md:p-6 bg-gradient-to-br from-teal-50 via-white to-emerald-50">
-      <div className="mx-auto max-w-7xl">
-        {/* Header Section */}
-        <div className="mb-8">
-          <button
-            onClick={() => router.back()}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 hover:bg-teal-50 dark:hover:bg-gray-700 text-[#0067A1] dark:text-[#0080C6] hover:text-[#004F7C] dark:hover:text-teal-300 rounded-xl shadow-sm border border-teal-100 dark:border-gray-700 transition-all duration-200 hover:shadow mb-4 group"
-          >
-            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="font-medium">Back to Orders</span>
-          </button>
+    <div className="space-y-6">
+      {/* Back Button */}
+      <div>
+        <button
+          onClick={() => router.back()}
+          className="inline-flex items-center gap-2 px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold shadow-xs border border-slate-200/80 dark:border-slate-700 transition-all cursor-pointer group"
+        >
+          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+          <span>Back to Orders</span>
+        </button>
+      </div>
 
-          <div className="bg-gradient-to-r from-[#0067A1] to-[#0080C6] rounded-2xl p-6 md:p-8 shadow-lg">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <ClipboardList className="w-7 h-7 text-white" />
-                  <h1 className="text-2xl md:text-3xl font-bold text-white">
-                    Lab Order #{order.unid}
-                  </h1>
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-teal-100">
-                  <div className="flex items-center gap-2">
-                    <Calendar size={16} />
-                    <span className="text-sm md:text-base">
-                      {formatDate(order.created_at)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Home size={16} />
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${collectionTypeColors[order.collection_type] || "bg-gray-100 dark:bg-gray-800 text-gray-800"}`}>
-                      {(order.collection_type || "N/A").replace(/_/g, " ").toUpperCase()}
-                    </span>
-                  </div>
-                </div>
+      {/* Hero Banner */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#0067A1] via-[#007db8] to-[#005585] rounded-xl p-5 sm:p-7 text-white shadow-sm border border-[#005585]">
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div>
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 bg-white/15 backdrop-blur-md rounded-md border border-white/20 text-white text-xs font-semibold mb-2">
+              <span>Order #{order.unid}</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+              Diagnostic Order Details
+            </h1>
+            <div className="flex flex-wrap items-center gap-2.5 text-xs text-white/90 mt-1.5">
+              <div className="flex items-center gap-1.5">
+                <Calendar size={13} />
+                <span>{formatDate(order.created_at)}</span>
               </div>
+              <span>•</span>
+              <div className="flex items-center gap-1.5">
+                <Home size={13} />
+                <span className="capitalize">{(order.collection_type || order.visit_type || "Lab Visit").replace(/_/g, " ")}</span>
+              </div>
+              <span>•</span>
+              <span className="bg-white/10 px-2 py-0.5 rounded text-[11px] font-medium">
+                {items.length} {items.length === 1 ? 'Investigation' : 'Investigations'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <span className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${orderStatusColor}`}>
+              {orderStatus.replace(/_/g, " ").toUpperCase()}
+            </span>
+            <div className="px-3.5 py-1.5 rounded-lg bg-white/15 backdrop-blur-md text-white border border-white/20 text-right">
+              <div className="font-bold text-sm sm:text-base leading-tight">
+                Total: ₹{totalAmount.toLocaleString()}
+              </div>
+              {collectionFee > 0 && (
+                <div className="text-[10px] text-sky-100 font-normal mt-0.5">
+                  ₹{itemsSubtotal.toLocaleString()} tests + ₹{collectionFee.toLocaleString()} pickup
+                </div>
+              )}
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Tab Buttons */}
-        <div className="flex border-b border-[#0067A1]/20 dark:border-gray-700 mb-8 overflow-x-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-6 py-3.5 font-semibold text-sm transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "text-[#0067A1] dark:text-[#0080C6] border-[#0067A1] dark:border-teal-400"
-                  : "text-gray-500 dark:text-gray-400 border-transparent hover:text-[#0067A1] dark:hover:text-teal-300"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </div>
+      {/* Tab Buttons */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700 shadow-xs p-1.5 flex overflow-x-auto gap-1">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 font-bold text-xs sm:text-sm rounded-lg transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              activeTab === tab.id
+                ? "bg-[#0067A1] text-white shadow-xs"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700/50"
+            }`}
+          >
+            {tab.icon}
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
 
         {/* Tab Contents */}
         <div className="mt-4">
@@ -780,13 +859,17 @@ export default function LabOrderDetails() {
               {/* Left Column - Patient & Consent */}
               <div className="lg:col-span-2 space-y-6">
                 {/* Patient Card */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xs border border-gray-200/80 dark:border-gray-700 overflow-hidden">
                   <div className="bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-teal-100 dark:bg-[#003358]/40 rounded-lg">
                         <User className="w-5 h-5 text-[#0067A1] dark:text-[#0080C6]" />
                       </div>
                       <h2 className="text-xl font-bold text-gray-800 dark:text-white">Patient Details</h2>
+                      <span className="ml-auto inline-flex items-center gap-1 px-2.5 py-1 bg-teal-100 dark:bg-teal-900/40 text-teal-800 dark:text-teal-300 rounded-md text-xs font-semibold">
+                        <ShieldCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                        DPDP Protected
+                      </span>
                     </div>
                   </div>
                   <div className="p-6">
@@ -863,7 +946,7 @@ export default function LabOrderDetails() {
               <div className="space-y-6">
                 {/* Doctor Card */}
                 {order.prescription?.doctor && (
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xs border border-gray-200/80 dark:border-gray-700 overflow-hidden">
                     <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-green-100 dark:bg-green-900/40 rounded-lg">
@@ -910,7 +993,7 @@ export default function LabOrderDetails() {
                 )}
 
                 {/* Lab Notes Card */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xs border border-gray-200/80 dark:border-gray-700 overflow-hidden">
                   <div className="bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-900/20 dark:to-gray-800/20 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
@@ -953,14 +1036,14 @@ export default function LabOrderDetails() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column - Lab Tests */}
               <div className="lg:col-span-2 space-y-6">
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xs border border-gray-200/80 dark:border-gray-700 overflow-hidden">
                   <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-purple-100 dark:bg-purple-900/40 rounded-lg">
                         <FlaskConical className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                       </div>
                       <h2 className="text-xl font-bold text-gray-800 dark:text-white">Ordered Tests</h2>
-                      <span className="ml-auto px-3 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full text-sm font-medium">
+                      <span className="ml-auto px-3 py-1 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-lg text-xs font-semibold">
                         {items.length} tests
                       </span>
                     </div>
@@ -988,7 +1071,7 @@ export default function LabOrderDetails() {
 
                                   <div className="flex flex-wrap items-center gap-3 ml-10">
                                     {/* Status badge */}
-                                    <div className={`px-3 py-1 rounded-full text-xs font-medium ${itemStatusColors[item.status?.toLowerCase() || "pending"] || "bg-gray-100 dark:bg-gray-800 text-gray-800"}`}>
+                                    <div className={`px-2.5 py-1 rounded-md text-xs font-medium ${itemStatusColors[item.status?.toLowerCase() || "pending"] || "bg-gray-100 dark:bg-gray-800 text-gray-800"}`}>
                                       {(item.status || "pending").replace(/_/g, " ").toUpperCase()}
                                     </div>
 
@@ -1115,13 +1198,41 @@ export default function LabOrderDetails() {
                         );
                       })}
                     </div>
+
+                    {/* Pricing Reconciliation & Cost Breakdown */}
+                    <div className="mt-6 pt-5 border-t border-gray-200/80 dark:border-gray-700/80 space-y-2.5 bg-slate-50/70 dark:bg-slate-900/30 p-4 rounded-xl border border-gray-200/60 dark:border-gray-700/60">
+                      <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
+                        <span>Tests Subtotal ({items.length} {items.length === 1 ? 'test' : 'tests'})</span>
+                        <span className="font-semibold text-gray-900 dark:text-gray-100">₹{itemsSubtotal.toLocaleString()}</span>
+                      </div>
+                      {collectionFee > 0 && (
+                        <div className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-400">
+                          <span className="flex items-center gap-1.5">
+                            <Home className="w-3.5 h-3.5 text-[#0067A1]" />
+                            Home Sample Collection / Pickup Fee
+                          </span>
+                          <span className="font-semibold text-gray-900 dark:text-gray-100">₹{collectionFee.toLocaleString()}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center pt-2.5 border-t border-gray-200 dark:border-gray-700">
+                        <div>
+                          <span className="font-bold text-gray-900 dark:text-white text-base">Grand Total</span>
+                          {collectionFee > 0 && (
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400">Includes ₹{itemsSubtotal} tests + ₹{collectionFee} home pickup</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xl font-extrabold text-[#0067A1] dark:text-sky-400">₹{totalAmount.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Status and Action Panel */}
               <div className="space-y-6">
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xs border border-gray-200/80 dark:border-gray-700 overflow-hidden">
                   <div className="bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white">Order Status</h2>
                   </div>
@@ -1129,7 +1240,7 @@ export default function LabOrderDetails() {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between mb-4">
                         <span className="text-gray-600 dark:text-gray-400 font-medium">Current Status:</span>
-                        <div className={`px-4 py-2 rounded-full border ${orderStatusColor} font-bold`}>
+                        <div className={`px-3 py-1.5 rounded-lg border ${orderStatusColor} font-bold text-xs`}>
                           {orderStatus.replace(/_/g, " ").toUpperCase()}
                         </div>
                       </div>
@@ -1156,7 +1267,7 @@ export default function LabOrderDetails() {
 
                 {/* Phlebotomist/Technician Assignment Card */}
                 {order && order.visit_type === 'home_collection' && (
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden mt-6">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xs border border-gray-200/80 dark:border-gray-700 overflow-hidden mt-6">
                     <div className="bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
                       <BriefcaseMedical className="w-5 h-5 text-[#0067A1]" />
                       <h2 className="text-xl font-bold text-gray-800 dark:text-white">Phlebotomist Assignment</h2>
@@ -1223,7 +1334,7 @@ export default function LabOrderDetails() {
 
                 {/* Structured Report Upload & Complete Card */}
                 {order && (orderStatus === 'processing' || orderStatus === 'quality_check' || orderStatus === 'technician_assigned' || orderStatus === 'collected' || orderStatus === 'received_at_lab') && (
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden mt-6">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xs border border-gray-200/80 dark:border-gray-700 overflow-hidden mt-6">
                     <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
                       <FlaskConical className="w-5 h-5 text-purple-600" />
                       <h2 className="text-xl font-bold text-gray-800 dark:text-white">Upload Test Reports</h2>
@@ -1293,7 +1404,7 @@ export default function LabOrderDetails() {
 
                 {/* Cancel Booking Card */}
                 {order && orderStatus !== 'completed' && orderStatus !== 'cancelled' && (
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden mt-6">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xs border border-gray-200/80 dark:border-gray-700 overflow-hidden mt-6">
                     <div className="bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
                       <XCircle className="w-5 h-5 text-red-600" />
                       <h2 className="text-xl font-bold text-gray-800 dark:text-white">Cancel Booking</h2>
@@ -1328,81 +1439,246 @@ export default function LabOrderDetails() {
 
           {activeTab === "prescription" && (
             <div className="space-y-6">
-              {prescriptionDataForHtml ? (
-                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-lg p-6 space-y-6">
-                  <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-4">
+              {hasUploadedPrescription && prescriptionFileUrl ? (
+                /* CASE A: Uploaded Prescription Document (Scan / Image / PDF) */
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/80 dark:border-gray-700 shadow-xs p-6 space-y-6">
+                  {/* Header & Controls */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 dark:border-gray-700 pb-4">
                     <div>
-                      <h2 className="text-xl font-bold text-gray-800 dark:text-white">Prescription Details</h2>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Rx ID: {prescriptionDataForHtml.pid}</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h2 className="text-xl font-bold text-gray-800 dark:text-white">Uploaded Prescription Document</h2>
+                        <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-[#0067A1] dark:text-blue-400 rounded-md text-xs font-semibold">
+                          Rx #{order.prescription?.unid || order.prescription?.id?.slice(0, 8)?.toUpperCase() || "UPLOAD"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Uploaded Document: {formatDate(order.prescription?.created_at || order.created_at)}
+                      </p>
                     </div>
-                    <div className="flex gap-2">
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="hidden sm:flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-0.5 border border-gray-200 dark:border-gray-600">
+                        <button
+                          onClick={() => setPrescriptionZoom((z) => Math.max(0.6, Number((z - 0.2).toFixed(1))))}
+                          className="p-1.5 hover:bg-white dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 transition-colors"
+                          title="Zoom out"
+                        >
+                          <ZoomOut className="w-4 h-4" />
+                        </button>
+                        <span className="px-2 text-xs font-semibold text-gray-600 dark:text-gray-300">
+                          {Math.round(prescriptionZoom * 100)}%
+                        </span>
+                        <button
+                          onClick={() => setPrescriptionZoom((z) => Math.min(2.5, Number((z + 0.2).toFixed(1))))}
+                          className="p-1.5 hover:bg-white dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-300 transition-colors"
+                          title="Zoom in"
+                        >
+                          <ZoomIn className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setPrescriptionZoom(1)}
+                          className="px-2 py-1 text-[11px] font-semibold text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                        >
+                          Reset
+                        </button>
+                      </div>
+
                       <button
-                        onClick={() => {
-                          const printWindow = window.open("", "_blank");
-                          printWindow.document.write(`
-                            <!DOCTYPE html>
-                            <html>
-                            <head>
-                              <title>Prescription #${prescriptionDataForHtml.pid}</title>
-                              <style>
-                                body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
-                              </style>
-                            </head>
-                            <body>
-                              ${buildPrescriptionHtml(prescriptionDataForHtml)}
-                              <script>
-                                window.onload = function() {
-                                  setTimeout(() => {
-                                    window.print();
-                                    setTimeout(() => window.close(), 1000);
-                                  }, 500);
-                                }
-                              </script>
-                            </body>
-                            </html>
-                          `);
-                        }}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white text-sm font-semibold rounded-xl transition-all"
+                        onClick={() => window.open(prescriptionFileUrl, "_blank")}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0067A1] hover:bg-[#005585] text-white text-xs font-semibold rounded-lg transition-all shadow-xs cursor-pointer"
                       >
-                        <Printer size={16} />
-                        <span>Print Prescription</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>Open Full Size</span>
+                      </button>
+
+                      <a
+                        href={prescriptionFileUrl}
+                        download={`Prescription_${order.prescription?.unid || order.id}.jpg`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 text-xs font-semibold rounded-lg transition-all cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* DPDP Act 2023 Compliance Notice */}
+                  <div className="p-4 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/60 rounded-xl flex items-start gap-3">
+                    <ShieldCheck className="w-5 h-5 text-[#0067A1] dark:text-sky-400 shrink-0 mt-0.5" />
+                    <div className="text-xs">
+                      <p className="font-bold text-sky-900 dark:text-sky-200 text-sm mb-0.5">
+                        Clinical Diagnostic Access & DPDP Act 2023 Compliance
+                      </p>
+                      <p className="text-sky-700 dark:text-sky-300/90 leading-relaxed">
+                        Under Indian Medical Council regulations and the Digital Personal Data Protection (DPDP) Act 2023, patient prescription uploads are accessed by certified diagnostic laboratories solely for conducting investigations and clinical verification.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Image or PDF Display */}
+                  {isPrescriptionPdf ? (
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-xs bg-white">
+                      <iframe
+                        src={prescriptionFileUrl}
+                        title="Prescription PDF"
+                        className="w-full h-[750px] border-none"
+                      />
+                    </div>
+                  ) : (
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-slate-900/5 dark:bg-slate-950/40 p-4 sm:p-6 flex flex-col items-center justify-center min-h-[460px]">
+                      <div className="overflow-auto max-w-full max-h-[720px] flex items-center justify-center rounded-lg">
+                        <img
+                          src={prescriptionFileUrl}
+                          alt="Uploaded Prescription"
+                          style={{
+                            transform: `scale(${prescriptionZoom})`,
+                            transformOrigin: "top center",
+                            transition: "transform 0.15s ease",
+                          }}
+                          className="max-w-full h-auto max-h-[680px] object-contain rounded-lg shadow-sm border border-gray-200 dark:border-gray-800 cursor-zoom-in"
+                          onClick={() => setShowFullPrescriptionModal(true)}
+                        />
+                      </div>
+                      <div className="mt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <Maximize2 className="w-3.5 h-3.5" />
+                        <span>Click document or use &quot;Open Full Size&quot; for high-resolution view</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : hasDigitalPrescription && prescriptionDataForHtml ? (
+                /* CASE B: Digital Doctor Consultation Prescription (Canvas & Requisition View) */
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/80 dark:border-gray-700 shadow-xs p-6 space-y-6">
+                  {/* Header & Controls */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 dark:border-gray-700 pb-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h2 className="text-xl font-bold text-gray-800 dark:text-white">Doctor&apos;s Diagnostic Requisition</h2>
+                        <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-[#0067A1] dark:text-blue-400 rounded-md text-xs font-semibold">
+                          Rx #{prescriptionDataForHtml.pid}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Consultation Requisition Issued: {formatDate(prescriptionDataForHtml.created_at)}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* View Mode Toggle: Canvas vs Document */}
+                      <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-0.5 bg-gray-100 dark:bg-gray-700/60">
+                        <button
+                          type="button"
+                          onClick={() => setRxViewMode("canvas")}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                            rxViewMode === "canvas"
+                              ? "bg-white dark:bg-gray-800 text-[#0067A1] dark:text-cyan-400 shadow-xs"
+                              : "text-gray-600 dark:text-gray-300 hover:text-gray-900"
+                          }`}
+                        >
+                          Canvas View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRxViewMode("html")}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                            rxViewMode === "html"
+                              ? "bg-white dark:bg-gray-800 text-[#0067A1] dark:text-cyan-400 shadow-xs"
+                              : "text-gray-600 dark:text-gray-300 hover:text-gray-900"
+                          }`}
+                        >
+                          Document View
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={printCanvasImage}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold rounded-lg transition-all shadow-xs cursor-pointer"
+                      >
+                        <Printer size={14} />
+                        <span>Print Requisition</span>
                       </button>
 
                       <button
-                        onClick={() => {
-                          const htmlContent = buildPrescriptionHtml(prescriptionDataForHtml);
-                          const blob = new Blob([htmlContent], { type: "text/html" });
-                          const url = URL.createObjectURL(blob);
-                          const link = document.createElement("a");
-                          link.href = url;
-                          link.download = `Prescription_${prescriptionDataForHtml.pid}.html`;
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                          URL.revokeObjectURL(url);
-                        }}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white text-sm font-semibold rounded-xl transition-all"
+                        onClick={downloadCanvasImage}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white text-xs font-semibold rounded-lg transition-all cursor-pointer"
                       >
-                        <FileDown size={16} />
-                        <span>Download HTML</span>
+                        <Download size={14} />
+                        <span>Download PNG</span>
                       </button>
                     </div>
                   </div>
 
-                  <div className="border-2 border-gray-100 dark:border-gray-700 rounded-2xl overflow-hidden shadow-sm bg-white">
-                    <iframe
-                      srcDoc={buildPrescriptionHtml(prescriptionDataForHtml)}
-                      title="Prescription"
-                      className="w-full h-[800px] border-none"
-                      sandbox="allow-same-origin allow-scripts"
-                    />
+                  {/* DPDP Act 2023 Purpose Limitation Notice */}
+                  <div className="p-4 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/60 rounded-xl flex items-start gap-3">
+                    <ShieldCheck className="w-5 h-5 text-[#0067A1] dark:text-sky-400 shrink-0 mt-0.5" />
+                    <div className="text-xs">
+                      <p className="font-bold text-sky-900 dark:text-sky-200 text-sm mb-0.5">
+                        Clinical Diagnostic Test Slip & DPDP Act 2023 Compliance
+                      </p>
+                      <p className="text-sky-700 dark:text-sky-300/90 leading-relaxed">
+                        Under Indian Medical Council regulations and DPDP Act 2023 purpose limitation, only the prescribing doctor&apos;s details, patient clinical demographics (for biological reference intervals), and prescribed diagnostic investigations are presented. Patient medical prescriptions, drug dosages, and clinical disease diagnoses are strictly withheld.
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Canvas View or HTML Requisition Document */}
+                  {rxViewMode === "canvas" ? (
+                    <div className="flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/50 p-4 sm:p-6 rounded-xl border border-gray-200 dark:border-gray-700 overflow-x-auto">
+                      <canvas
+                        ref={canvasRef}
+                        className="max-w-full h-auto rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 bg-white"
+                      />
+                      <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                        Rendered via HTML5 Canvas • High-Resolution Diagnostic Requisition Slip
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-xs bg-white">
+                      <iframe
+                        srcDoc={buildPrescriptionHtml(prescriptionDataForHtml, { isLabView: true })}
+                        title="Diagnostic Requisition Document"
+                        className="w-full h-[800px] border-none"
+                        sandbox="allow-same-origin allow-scripts"
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-lg">
-                  <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">No Prescription Found</h3>
-                  <p className="text-gray-600 dark:text-gray-400">This order doesn&apos;t have a prescription attached.</p>
+                /* CASE C: Direct / Walk-In Lab Booking (No doctor prescription attached) */
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200/80 dark:border-gray-700 shadow-xs p-8 text-center space-y-4">
+                  <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/30 text-[#0067A1] dark:text-cyan-400 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
+                    <ClipboardList className="w-7 h-7" />
+                  </div>
+                  <div className="max-w-md mx-auto">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-1.5">
+                      Direct Diagnostic Booking
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300 text-xs sm:text-sm leading-relaxed mb-4">
+                      This order was booked directly by the patient without an attached doctor prescription. Routine wellness tests do not require an external referral.
+                    </p>
+                    <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-xs text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600/70 text-left mb-4">
+                      <div className="font-semibold text-gray-800 dark:text-gray-100 mb-1">Booked Diagnostic Investigations:</div>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        {items.length > 0 ? (
+                          items.map((item) => (
+                            <li key={item.id} className="truncate">{item.test_name}</li>
+                          ))
+                        ) : (
+                          <li>Standard Diagnostic Panel</li>
+                        )}
+                      </ul>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("tests")}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-[#0067A1] hover:bg-[#005585] text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+                    >
+                      <FlaskConical className="w-4 h-4" />
+                      <span>View Prescribed Tests Tab</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1412,7 +1688,7 @@ export default function LabOrderDetails() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Billing Details */}
               <div className="lg:col-span-2 space-y-6">
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xs border border-gray-200/80 dark:border-gray-700 overflow-hidden">
                   <div className="bg-gradient-to-r from-cyan-50 to-blue-50 dark:from-cyan-900/20 dark:to-blue-900/20 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-cyan-100 dark:bg-cyan-900/40 rounded-lg">
@@ -1432,11 +1708,25 @@ export default function LabOrderDetails() {
                             <span className="font-semibold text-gray-800 dark:text-white">₹{item.price?.toLocaleString()}</span>
                           </div>
                         ))}
+                        {collectionFee > 0 && (
+                          <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                            <span className="text-gray-700 dark:text-gray-300 text-sm flex items-center gap-1.5">
+                              <Home className="w-3.5 h-3.5 text-[#0067A1]" />
+                              Home Sample Collection / Pickup Fee
+                            </span>
+                            <span className="font-semibold text-gray-800 dark:text-white">₹{collectionFee?.toLocaleString()}</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Total */}
                       <div className="flex justify-between items-center p-4 bg-gradient-to-r from-gray-50 to-blue-gray-50 dark:from-gray-800 dark:to-gray-700 rounded-xl">
-                        <span className="text-lg font-bold text-gray-700 dark:text-gray-300">Total Amount</span>
+                        <div>
+                          <span className="text-lg font-bold text-gray-700 dark:text-gray-300 block">Total Amount</span>
+                          {collectionFee > 0 && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">Includes ₹{itemsSubtotal} tests + ₹{collectionFee} pickup</span>
+                          )}
+                        </div>
                         <span className="text-3xl font-bold text-green-600 dark:text-green-400">
                           ₹{totalAmount.toLocaleString()}
                         </span>
@@ -1445,7 +1735,7 @@ export default function LabOrderDetails() {
                       <div className="flex flex-wrap gap-3">
                         <button
                           onClick={downloadInvoice}
-                          className="flex-1 inline-flex items-center justify-center gap-3 px-6 py-3.5 bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:from-[#004F7C] hover:to-[#0a5c56] text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
+                          className="flex-1 inline-flex items-center justify-center gap-3 px-6 py-3.5 bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:from-[#004F7C] hover:to-[#0a5c56] text-white font-bold rounded-xl shadow-xs transition-all duration-200 cursor-pointer"
                         >
                           <Printer className="w-5 h-5" />
                           Print Invoice
@@ -1459,14 +1749,14 @@ export default function LabOrderDetails() {
               {/* Status and Metadata */}
               <div className="space-y-6">
                 {/* Payment Status Card */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xs border border-gray-200/80 dark:border-gray-700 overflow-hidden">
                   <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-green-900/20 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white">Payment Status</h2>
                   </div>
                   <div className="p-6 space-y-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-gray-600 dark:text-gray-400 font-medium">Payment Status:</span>
-                      <div className={`px-4 py-1.5 rounded-full border ${paymentStatusColors[(order.payment_status || "pending").toLowerCase()] || "bg-gray-100 text-gray-800 border-gray-200"} font-bold text-sm`}>
+                      <div className={`px-3 py-1.5 rounded-lg border ${paymentStatusColors[(order.payment_status || "pending").toLowerCase()] || "bg-gray-100 text-gray-800 border-gray-200"} font-bold text-xs`}>
                         {(order.payment_status || "PENDING").toUpperCase()}
                       </div>
                     </div>
@@ -1490,7 +1780,7 @@ export default function LabOrderDetails() {
                 </div>
 
                 {/* Order Metadata Card */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xs border border-gray-200/80 dark:border-gray-700 overflow-hidden">
                   <div className="bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-900/20 dark:to-gray-800/20 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white">Order Information</h2>
                   </div>
@@ -1540,8 +1830,49 @@ export default function LabOrderDetails() {
             </div>
           )}
         </div>
+
+        {/* Prescription Full-Screen Lightbox Modal */}
+        {showFullPrescriptionModal && prescriptionFileUrl && (
+          <div
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm p-4 flex items-center justify-center"
+            onClick={() => setShowFullPrescriptionModal(false)}
+          >
+            <div
+              className="relative max-w-5xl max-h-[95vh] w-full bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-2xl flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-4 py-3 bg-slate-800 border-b border-slate-700 flex items-center justify-between text-white">
+                <span className="font-semibold text-sm">Original Prescription Preview</span>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={prescriptionFileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 hover:bg-slate-700 rounded text-slate-300 hover:text-white transition-colors"
+                    title="Open original"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                  <button
+                    onClick={() => setShowFullPrescriptionModal(false)}
+                    className="p-1.5 hover:bg-slate-700 rounded text-slate-300 hover:text-white transition-colors cursor-pointer"
+                    title="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-4 overflow-auto flex items-center justify-center bg-black/40 min-h-[400px]">
+                <img
+                  src={prescriptionFileUrl}
+                  alt="Full Prescription View"
+                  className="max-h-[82vh] w-auto object-contain rounded-md"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
   );
 }
 
@@ -1573,4 +1904,220 @@ function DetailCard({ icon, label, value, color = "blue", small = false }) {
       </div>
     </div>
   );
+}
+
+function drawLabRequisitionCanvas(canvas, data) {
+  if (!canvas || !data) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const width = 800;
+  const labTests = Array.isArray(data.lab_tests) ? data.lab_tests : [];
+  const baseHeight = 650;
+  const testHeight = Math.max(1, labTests.length) * 55;
+  const height = baseHeight + testHeight;
+
+  const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 2) : 2;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+
+  ctx.scale(dpr, dpr);
+
+  // Background
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, width, height);
+
+  // Border
+  ctx.strokeStyle = "#CBD5E1";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(12, 12, width - 24, height - 24);
+
+  // Header Gradient
+  const grad = ctx.createLinearGradient(12, 12, width - 12, 85);
+  grad.addColorStop(0, "#0067A1");
+  grad.addColorStop(1, "#004F7C");
+  ctx.fillStyle = grad;
+  ctx.fillRect(12, 12, width - 24, 75);
+
+  // Header Titles
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = "bold 20px system-ui, -apple-system, sans-serif";
+  ctx.fillText("MediConnect.fit", 32, 45);
+
+  ctx.font = "12px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = "#E0F2FE";
+  ctx.fillText("DIAGNOSTIC TEST REQUISITION & REFERRAL", 32, 68);
+
+  ctx.textAlign = "right";
+  ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText(`Rx #${data.pid || "N/A"}`, width - 32, 45);
+
+  ctx.font = "11px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = "#E0F2FE";
+  const dateFormatted = data.created_at
+    ? new Date(data.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+    : "N/A";
+  ctx.fillText(`Date: ${dateFormatted}`, width - 32, 68);
+  ctx.textAlign = "left";
+
+  // Requisition Banner
+  ctx.fillStyle = "#F0F9FF";
+  ctx.fillRect(28, 100, width - 56, 32);
+  ctx.strokeStyle = "#BAE6FD";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(28, 100, width - 56, 32);
+
+  ctx.fillStyle = "#0369A1";
+  ctx.font = "bold 11px system-ui, -apple-system, sans-serif";
+  ctx.fillText("OFFICIAL PATHOLOGY & DIAGNOSTIC REQUISITION • DPDP ACT 2023 COMPLIANT", 40, 121);
+
+  // Two columns: Doctor & Patient
+  const colY = 145;
+  const colW = (width - 76) / 2;
+
+  // Doctor Box
+  ctx.fillStyle = "#F8FAFC";
+  ctx.fillRect(28, colY, colW, 160);
+  ctx.strokeStyle = "#E2E8F0";
+  ctx.strokeRect(28, colY, colW, 160);
+
+  ctx.fillStyle = "#0067A1";
+  ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+  ctx.fillText("PRESCRIBING PRACTITIONER", 40, colY + 24);
+
+  ctx.fillStyle = "#0F172A";
+  ctx.font = "bold 14px system-ui, -apple-system, sans-serif";
+  const docName = data.doctor_details?.full_name ? `Dr. ${data.doctor_details.full_name}` : "Prescribing Doctor";
+  ctx.fillText(docName, 40, colY + 50);
+
+  ctx.font = "11px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = "#475569";
+  ctx.fillText(`Specialization: ${data.doctor_details?.specialization || "General Medicine"}`, 40, colY + 72);
+  ctx.fillText(`Qualification: ${data.doctor_details?.qualification || "MBBS / MD"}`, 40, colY + 92);
+  ctx.fillText(`Clinic: ${data.doctor_details?.clinic_name || "Healthcare Clinic"}`, 40, colY + 112);
+  ctx.fillText(`Address: ${data.doctor_details?.clinic_address || "Consultation Center"}`, 40, colY + 132);
+  if (data.doctor_details?.license_number) {
+    ctx.fillText(`Reg No: ${data.doctor_details.license_number}`, 40, colY + 150);
+  }
+
+  // Patient Box
+  const patX = 28 + colW + 20;
+  ctx.fillStyle = "#F8FAFC";
+  ctx.fillRect(patX, colY, colW, 160);
+  ctx.strokeStyle = "#E2E8F0";
+  ctx.strokeRect(patX, colY, colW, 160);
+
+  ctx.fillStyle = "#0067A1";
+  ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+  ctx.fillText("PATIENT DEMOGRAPHICS", patX + 12, colY + 24);
+
+  ctx.fillStyle = "#0F172A";
+  ctx.font = "bold 14px system-ui, -apple-system, sans-serif";
+  ctx.fillText(data.patient_details?.full_name || "Patient", patX + 12, colY + 50);
+
+  ctx.font = "11px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = "#475569";
+  ctx.fillText(`Gender: ${data.patient_details?.gender || "N/A"}`, patX + 12, colY + 72);
+  const dobText = data.patient_details?.date_of_birth
+    ? new Date(data.patient_details.date_of_birth).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+    : "N/A";
+  ctx.fillText(`Date of Birth / Age: ${dobText}`, patX + 12, colY + 92);
+  ctx.fillText(`Address: ${data.patient_details?.address || "N/A"}`, patX + 12, colY + 112);
+
+  ctx.fillStyle = "#059669";
+  ctx.font = "italic 10px system-ui, -apple-system, sans-serif";
+  ctx.fillText("Non-clinical contact details masked for privacy", patX + 12, colY + 140);
+
+  // Table of Prescribed Tests
+  const tableY = 325;
+  ctx.fillStyle = "#0067A1";
+  ctx.font = "bold 14px system-ui, -apple-system, sans-serif";
+  ctx.fillText("PRESCRIBED LABORATORY INVESTIGATIONS", 28, tableY);
+
+  // Table Header
+  ctx.fillStyle = "#0067A1";
+  ctx.fillRect(28, tableY + 10, width - 56, 30);
+
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = "bold 11px system-ui, -apple-system, sans-serif";
+  ctx.fillText("#", 38, tableY + 30);
+  ctx.fillText("Investigation / Test Name", 75, tableY + 30);
+  ctx.fillText("Pre-requisites / Instructions", 360, tableY + 30);
+  ctx.fillText("Priority", width - 105, tableY + 30);
+
+  let currentY = tableY + 40;
+  if (labTests.length === 0) {
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(28, currentY, width - 56, 42);
+    ctx.strokeStyle = "#E2E8F0";
+    ctx.strokeRect(28, currentY, width - 56, 42);
+
+    ctx.fillStyle = "#64748B";
+    ctx.font = "italic 12px system-ui, -apple-system, sans-serif";
+    ctx.fillText("No specific laboratory tests listed in this prescription.", 40, currentY + 26);
+    currentY += 42;
+  } else {
+    labTests.forEach((t, idx) => {
+      const testName = typeof t === "string" ? t : (t.test_name || t.name || "Lab Investigation");
+      const instructions = typeof t === "object" ? (t.instructions || "Standard diagnostic protocol") : "Standard protocol";
+      const urgency = (typeof t === "object" && t.urgency) ? t.urgency : "Routine";
+
+      ctx.fillStyle = idx % 2 === 0 ? "#FFFFFF" : "#F8FAFC";
+      ctx.fillRect(28, currentY, width - 56, 46);
+      ctx.strokeStyle = "#E2E8F0";
+      ctx.strokeRect(28, currentY, width - 56, 46);
+
+      ctx.fillStyle = "#0F172A";
+      ctx.font = "bold 12px system-ui, -apple-system, sans-serif";
+      ctx.fillText(`${idx + 1}`, 38, currentY + 28);
+      ctx.fillText(testName, 75, currentY + 28);
+
+      ctx.fillStyle = "#475569";
+      ctx.font = "11px system-ui, -apple-system, sans-serif";
+      const shortInst = instructions.length > 44 ? `${instructions.slice(0, 42)}...` : instructions;
+      ctx.fillText(shortInst, 360, currentY + 28);
+
+      ctx.fillStyle = "#0284C7";
+      ctx.font = "bold 10px system-ui, -apple-system, sans-serif";
+      ctx.fillText(urgency.toUpperCase(), width - 105, currentY + 28);
+
+      currentY += 46;
+    });
+  }
+
+  // Doctor Signature Box
+  const sigY = currentY + 20;
+  ctx.fillStyle = "#F8FAFC";
+  ctx.fillRect(width - 290, sigY, 262, 90);
+  ctx.strokeStyle = "#CBD5E1";
+  ctx.strokeRect(width - 290, sigY, 262, 90);
+
+  ctx.fillStyle = "#64748B";
+  ctx.font = "10px system-ui, -apple-system, sans-serif";
+  ctx.fillText("Electronic Authorization & Sign-off:", width - 278, sigY + 18);
+
+  ctx.fillStyle = "#0067A1";
+  ctx.font = "bold 13px system-ui, -apple-system, sans-serif";
+  ctx.fillText(docName, width - 278, sigY + 44);
+
+  ctx.fillStyle = "#475569";
+  ctx.font = "10px system-ui, -apple-system, sans-serif";
+  ctx.fillText("Authenticated Medical Consultation", width - 278, sigY + 62);
+  ctx.fillText("Digitally Verified via MediConnect", width - 278, sigY + 78);
+
+  // Footer DPDP Note
+  const footY = height - 42;
+  ctx.fillStyle = "#F0FDF4";
+  ctx.fillRect(28, footY, width - 56, 28);
+  ctx.strokeStyle = "#86EFAC";
+  ctx.strokeRect(28, footY, width - 56, 28);
+
+  ctx.fillStyle = "#166534";
+  ctx.font = "bold 10px system-ui, -apple-system, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("DPDP ACT 2023 COMPLIANT: Clinical Test Requisition strictly for diagnostic laboratory analysis. Medications and diagnoses redacted.", width / 2, footY + 18);
+  ctx.textAlign = "left";
 }

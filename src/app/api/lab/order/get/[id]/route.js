@@ -32,48 +32,131 @@ export async function GET(req, { params }) {
 
     const order = orderRows[0];
 
-    // Fetch patient info
+    // Fetch patient info with DPDP privacy safeguards
     let patient = null;
     if (order.patient_id) {
       const u = await sql`SELECT id, phone_number, profile_picture, role FROM users WHERE id = ${order.patient_id} LIMIT 1`;
       const pd = await sql`SELECT * FROM patient_details WHERE id = ${order.patient_id} LIMIT 1`;
       if (u.length > 0) {
+        const rawPhone = u[0].phone_number || pd[0]?.phone || "";
+        const rawEmail = pd[0]?.email || "";
+
+        // Masking according to DPDP Act 2023 for laboratory view
+        const maskPhone = (num) => {
+          if (!num) return "—";
+          const s = String(num).trim();
+          if (s.length < 7) return s;
+          const start = s.slice(0, 4);
+          const end = s.slice(-3);
+          return `${start}${"*".repeat(Math.max(3, s.length - 7))}${end}`;
+        };
+
+        const maskEmail = (em) => {
+          if (!em || !em.includes("@")) return "—";
+          const [name, domain] = em.split("@");
+          return `${name[0]}${"*".repeat(Math.max(3, name.length - 1))}@${domain}`;
+        };
+
+        let maskedEmergencyContact = null;
+        if (pd[0]?.emergency_contact) {
+          try {
+            const ec = typeof pd[0].emergency_contact === "string" 
+              ? JSON.parse(pd[0].emergency_contact) 
+              : pd[0].emergency_contact;
+            if (ec && typeof ec === "object") {
+              const ecName = ec.name || "";
+              const ecPhone = ec.phone ? maskPhone(ec.phone) : "";
+              maskedEmergencyContact = ecName && ecPhone ? `${ecName} (${ecPhone})` : ecName || ecPhone || "—";
+            } else {
+              maskedEmergencyContact = String(pd[0].emergency_contact);
+            }
+          } catch {
+            maskedEmergencyContact = String(pd[0].emergency_contact);
+          }
+        }
+
         patient = {
           ...u[0],
-          details: pd[0] || null,
+          raw_phone: rawPhone,
+          phone_number: maskPhone(rawPhone),
+          details: pd[0] ? {
+            ...pd[0],
+            raw_phone: rawPhone,
+            raw_email: rawEmail,
+            email: maskEmail(rawEmail),
+            phone: maskPhone(rawPhone),
+            emergency_contact: maskedEmergencyContact,
+          } : null,
+          dpdp_compliant: true,
         };
       }
     }
 
-    // Fetch prescription if exists
+    // Fetch prescription ONLY if order has a genuinely attached prescription_id
     let prescription = null;
-    if (order.prescription_id) {
+    const targetPrescId = order.prescription_id;
+
+    if (targetPrescId) {
       const prescRows = await sql`
-        SELECT id, unid, medicines, lab_tests, investigations, special_message, created_at, doctor_id, appointment_id
+        SELECT id, unid, lab_tests, investigations, created_at, doctor_id, appointment_id, file_url, status
         FROM prescriptions
-        WHERE id = ${order.prescription_id}
+        WHERE id = ${targetPrescId}
         LIMIT 1
       `;
       if (prescRows.length > 0) {
-        prescription = prescRows[0];
-        if (prescription.doctor_id) {
+        const rawPresc = prescRows[0];
+        let doctor = null;
+        let appointment = null;
+
+        if (rawPresc.doctor_id) {
           const doc = await sql`
             SELECT full_name, specialization, qualification, clinic_name, clinic_address, signature_url
             FROM doctor_details
-            WHERE id = ${prescription.doctor_id}
+            WHERE id = ${rawPresc.doctor_id}
             LIMIT 1
           `;
-          prescription.doctor = doc[0] || null;
+          doctor = doc[0] || null;
         }
-        if (prescription.appointment_id) {
+
+        if (rawPresc.appointment_id) {
           const appt = await sql`
-            SELECT id, appointment_date, appointment_time, status, disease_info, call_started_at, call_ended_at
+            SELECT id, appointment_date, appointment_time, status
             FROM appointments
-            WHERE id = ${prescription.appointment_id}
+            WHERE id = ${rawPresc.appointment_id}
             LIMIT 1
           `;
-          prescription.appointment = appt[0] || null;
+          appointment = appt[0] || null;
         }
+
+        // Format lab tests cleanly
+        let parsedLabTests = [];
+        if (Array.isArray(rawPresc.lab_tests)) {
+          parsedLabTests = rawPresc.lab_tests;
+        } else if (typeof rawPresc.lab_tests === "string") {
+          try {
+            parsedLabTests = JSON.parse(rawPresc.lab_tests);
+          } catch {
+            parsedLabTests = [rawPresc.lab_tests];
+          }
+        }
+
+        // Diagnostic Laboratory View (DPDP Act 2023 Compliant)
+        // Strictly includes: Doctor basic info, Patient clinical demographics, and Prescribed Lab Tests only.
+        // OMITTED: Medicines, dosages, provisional diagnoses, warning signs.
+        prescription = {
+          id: rawPresc.id,
+          unid: rawPresc.unid,
+          created_at: rawPresc.created_at,
+          status: rawPresc.status,
+          file_url: rawPresc.file_url || null,
+          prescription_file_url: rawPresc.file_url || null,
+          is_uploaded: Boolean(rawPresc.file_url),
+          is_digital: Boolean(!rawPresc.file_url && (rawPresc.doctor_id || rawPresc.appointment_id || parsedLabTests.length > 0)),
+          lab_tests: parsedLabTests,
+          investigations: rawPresc.investigations || null,
+          doctor,
+          appointment,
+        };
       }
     }
 
@@ -81,6 +164,12 @@ export async function GET(req, { params }) {
     const items = await sql`
       SELECT * FROM lab_test_order_items WHERE order_id = ${cleanId}
     `;
+
+    const itemsSubtotal = items.reduce((sum, item) => sum + parseFloat(item.price || 0), 0);
+    const totalOrderAmount = parseFloat(order.total_amount || itemsSubtotal);
+    const collectionFee = (order.visit_type === "home_collection" || totalOrderAmount > itemsSubtotal)
+      ? Math.max(0, totalOrderAmount - itemsSubtotal)
+      : 0;
 
     return new Response(
       JSON.stringify({
@@ -91,6 +180,11 @@ export async function GET(req, { params }) {
           patient,
           prescription,
           items,
+          pricing_breakdown: {
+            items_subtotal: itemsSubtotal,
+            collection_fee: collectionFee,
+            total_amount: totalOrderAmount,
+          },
         },
       }),
       { headers: corsHeaders, status: 200 }

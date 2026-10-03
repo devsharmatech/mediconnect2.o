@@ -4,11 +4,9 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { getLoggedInUser, logoutUser } from "@/lib/authHelpers";
 import {
   Bell,
-  Search,
   Sun,
   Moon,
-  User,
-  Settings,
+  Building2,
   LogOut,
   Menu,
   Beaker,
@@ -19,17 +17,14 @@ import {
   Activity,
   Check,
   Trash2,
-  CheckCircle,
-  Heart,
+  CheckCircle2,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import toast from "react-hot-toast";
 
 const formatMessageText = (message) => {
   if (!message) return "";
   try {
-    // 1. Match YYYY-MM-DD
     const dateRegex = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
     let formattedMessage = message.replace(dateRegex, (match, y, m, d) => {
       const date = new Date(Number(y), Number(m) - 1, Number(d));
@@ -37,7 +32,6 @@ const formatMessageText = (message) => {
       return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
     });
 
-    // 2. Match HH:MM or HH:MM:SS (24-hour format) avoiding already formatted times
     const timeRegex = /\b(\d{2}):(\d{2})(?::(\d{2}))?(?!\s*(?:AM|PM|am|pm))\b/g;
     formattedMessage = formattedMessage.replace(timeRegex, (match, hh, mm, ss) => {
       let hours = Number(hh);
@@ -49,14 +43,12 @@ const formatMessageText = (message) => {
       return `${formattedHours}:${minutes} ${ampm}`;
     });
 
-    // 3. Clean up any trailing seconds/colons after AM/PM indicators (e.g. PM:00 or PM:30)
     formattedMessage = formattedMessage
       .replace(/(AM|PM|am|pm):(\d{2})/g, '$1')
       .replace(/(AM|PM|am|pm):00/g, '$1');
 
     return formattedMessage;
   } catch (err) {
-    console.error("Error formatting message text:", err);
     return message;
   }
 };
@@ -67,7 +59,6 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
   const [theme, setTheme] = useState("light");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [notifications, setNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const notificationsRef = useRef(null);
@@ -80,6 +71,15 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
   const handleLogout = () => {
     logoutUser("lab");
     router.push("/lab/login");
+  };
+
+  const getInitials = (name) => {
+    if (!name) return "LB";
+    const parts = String(name).trim().split(" ");
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return parts[0].substring(0, 2).toUpperCase();
   };
 
   // Fetch notifications from API
@@ -103,7 +103,6 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
     }
   }, []);
 
-  // Mark all notifications as read
   const markAllAsRead = async () => {
     if (!labId || unreadCount === 0) return;
     try {
@@ -118,7 +117,6 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
     }
   };
 
-  // Mark single notification as read
   const markAsRead = async (notificationId) => {
     if (!labId) return;
     try {
@@ -135,7 +133,6 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
     }
   };
 
-  // Delete notification
   const deleteNotification = async (notificationId) => {
     if (!labId) return;
     try {
@@ -150,14 +147,12 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
     }
   };
 
-  // Handle notification click — mark read + route to relevant page
   const handleNotificationClick = (notification) => {
     if (!notification.read) {
       markAsRead(notification.id);
     }
     setNotificationsOpen(false);
 
-    // Try metadata action_url first
     let actionUrl = null;
     try {
       const meta = typeof notification.metadata === "string"
@@ -180,8 +175,6 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
       type === "payment_success"
     ) {
       router.push("/lab/orders");
-    } else if (type === "report") {
-      router.push("/lab/reports");
     } else if (type === "service") {
       router.push("/lab/tests");
     } else {
@@ -189,7 +182,6 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
     }
   };
 
-  // Format time as relative
   const formatTime = (createdAt) => {
     if (!createdAt) return "Just now";
     const date = new Date(createdAt);
@@ -200,17 +192,16 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
     const diffDays = Math.floor(diffMs / 86400000);
 
     if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
-    return date.toLocaleDateString();
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   };
 
   useEffect(() => {
     const user = getLoggedInUser("lab");
     if (user) {
       setLabId(user.id);
-      // Fetch real lab name from lab_details
       (async () => {
         try {
           const nameRes = await fetch("/api/lab/my-name", {
@@ -222,14 +213,13 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
           if (nameData.success && nameData.lab_name) {
             setLabName(nameData.lab_name);
           } else {
-            setLabName(user.details?.full_name || "Lab Admin");
+            setLabName(user.details?.lab_name || user.details?.full_name || "Diagnostic Lab");
           }
         } catch {
-          setLabName(user.details?.full_name || "Lab Admin");
+          setLabName(user.details?.lab_name || user.details?.full_name || "Diagnostic Lab");
         }
       })();
 
-      // Fetch real notifications
       fetchNotifications(user.id);
     }
 
@@ -253,14 +243,12 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [fetchNotifications]);
 
-  // Poll notifications every 20 seconds
   useEffect(() => {
     if (!labId) return;
     const interval = setInterval(() => {
       fetchNotifications(labId);
-    }, 60000); // Changed from 20s to 60s to reduce API load
+    }, 60000);
 
-    // Listen for FCM foreground event to refresh immediately
     const handleRefresh = () => fetchNotifications(labId);
     window.addEventListener("refresh-lab-notifications", handleRefresh);
 
@@ -277,314 +265,223 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
     localStorage.setItem("theme", newTheme);
   };
 
-  // Get page title based on pathname
   const getPageTitle = () => {
     const path = pathname;
-    if (path.includes("/dashboard")) return "Dashboard";
-    if (path.includes("/orders")) return "Test Orders";
-    if (path.includes("/tests") || path.includes("/services")) return "Test Services";
-    if (path.includes("/reports")) return "Lab Reports";
-    if (path.includes("/patients")) return "Patients Management";
-    if (path.includes("/profile")) return "Profile Settings";
-    if (path.includes("/settings")) return "System Settings";
+    if (path.includes("/dashboard")) return "Dashboard Overview";
+    if (path.includes("/orders")) return "Lab Test Orders";
+    if (path.includes("/tests")) return "My Test Catalog";
+    if (path.includes("/profile")) return "Laboratory Profile";
     return "Laboratory Portal";
   };
 
-  const handleSwitchToPatient = () => {
-    const labUser = getLoggedInUser("lab");
-    if (labUser?.id) {
-      localStorage.setItem("userId", labUser.id);
-      localStorage.setItem("userRole", "patient");
-      localStorage.setItem("userData", JSON.stringify({
-        ...labUser,
-        role: "patient",
-        is_verified: true,
-      }));
-      toast.success("Switched to Patient Mode. Opening patient dashboard...");
-      window.location.href = "/dashboard";
-    } else {
-      window.location.href = "/";
-    }
-  };
-
-  // Get notification icon based on type
   const getNotificationIcon = (type) => {
     switch (type) {
       case 'order': return <Beaker className="w-4 h-4 text-[#0067A1]" />;
       case 'collection': return <Activity className="w-4 h-4 text-amber-600" />;
       case 'report': return <FileText className="w-4 h-4 text-green-600" />;
-      case 'performance': return <FlaskConical className="w-4 h-4 text-purple-600" />;
-      case 'equipment': return <AlertCircle className="w-4 h-4 text-red-600" />;
+      case 'equipment': return <AlertCircle className="w-4 h-4 text-rose-600" />;
       case 'service': return <TestTube className="w-4 h-4 text-indigo-600" />;
-      default: return <Bell className="w-4 h-4 text-gray-600" />;
+      default: return <Bell className="w-4 h-4 text-slate-500" />;
     }
   };
 
   return (
-    <header className="sticky top-0 z-20 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-b border-emerald-200 dark:border-gray-700 px-3 lg:px-5 py-2.5 lg:py-3 shadow-sm shadow-emerald-100/50 dark:shadow-gray-900 flex-shrink-0">
-      <div className="flex items-center justify-between">
-        {/* Left Section - Menu Button & Title */}
-        <div className="flex items-center space-x-4">
-          {/* Mobile Menu Button - Only show on mobile */}
-          <button
-            onClick={onMenuClick}
-            className="lg:hidden p-2 rounded-xl bg-emerald-50 dark:bg-gray-800 text-[#0067A1] dark:text-emerald-500 hover:bg-emerald-100 dark:hover:bg-gray-700 transition-all duration-200 cursor-pointer"
-          >
-            <Menu size={20} />
-          </button>
+    <header className="sticky top-0 z-30 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between px-4 sm:px-6 lg:px-8 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] shrink-0">
+      {/* Left Section: Mobile Menu + Title */}
+      <div className="flex items-center gap-3 sm:gap-4">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-xs hover:border-slate-300 dark:hover:border-slate-600 hover:text-[#0067A1] transition-all flex items-center justify-center cursor-pointer shrink-0"
+          title={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+          aria-label="Toggle navigation menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
 
-
-        </div>
-
-        {/* Right Section */}
-        <div className="flex items-center space-x-2 lg:space-x-4">
-
-
-
-
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="p-2.5 rounded-xl bg-emerald-50 dark:bg-gray-800 text-[#0067A1] dark:text-emerald-500 hover:bg-emerald-100 dark:hover:bg-gray-700 transition-all duration-200 cursor-pointer"
-            title={
-              theme === "light" ? "Switch to dark mode" : "Switch to light mode"
-            }
-          >
-            {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
-          </button>
-
-          {/* Notifications Dropdown */}
-          <div className="relative" ref={notificationsRef}>
-            <button
-              onClick={() => {
-                const next = !notificationsOpen;
-                setNotificationsOpen(next);
-                if (next && unreadCount > 0) {
-                  markAllAsRead();
-                }
-              }}
-              className="relative p-2.5 rounded-xl bg-emerald-50 dark:bg-gray-800 text-[#0067A1] dark:text-emerald-500 hover:bg-emerald-100 dark:hover:bg-gray-700 transition-all duration-200 cursor-pointer"
-            >
-              <Bell size={20} />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-semibold animate-pulse">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-
-            {notificationsOpen && (
-              <div className="absolute right-0 top-12 w-80 sm:w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-emerald-200 dark:border-gray-700 z-50 overflow-hidden">
-                <div className="p-4 border-b border-emerald-200 dark:border-gray-700 bg-gradient-to-r from-emerald-50 to-white dark:from-gray-800 dark:to-gray-900">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-[#0067A1] dark:text-emerald-300">
-                        Notifications
-                      </h3>
-                      <p className="text-xs text-[#0067A1] dark:text-emerald-500">
-                        {notifications.length > 0
-                          ? `${notifications.length} notifications`
-                          : "No notifications"}
-                      </p>
-                    </div>
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={markAllAsRead}
-                        className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-[#0067A1] bg-emerald-100 dark:bg-emerald-900/30 rounded-full hover:bg-emerald-200 transition-colors"
-                      >
-                        <CheckCircle className="w-3 h-3" />
-                        Mark all read
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="max-h-80 overflow-y-auto">
-                  {notificationsLoading ? (
-                    <div className="p-6 text-center text-xs text-gray-500">
-                      Loading notifications...
-                    </div>
-                  ) : notifications.length > 0 ? (
-                    notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={`p-3 border-b border-emerald-100 dark:border-gray-700 hover:bg-emerald-100/70 dark:hover:bg-gray-700 transition-colors cursor-pointer group ${!notification.read
-                          ? "bg-emerald-50/70 dark:bg-emerald-900/20"
-                          : ""
-                          }`}
-                        onClick={() => handleNotificationClick(notification)}
-                      >
-                        <div className="flex items-start space-x-3">
-                          <div className="mt-0.5">
-                            {getNotificationIcon(notification.type)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            {notification.title && (
-                              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
-                                {notification.title}
-                              </p>
-                            )}
-                            <p className="text-sm text-gray-800 dark:text-gray-200 font-medium">
-                              {formatMessageText(notification.message)}
-                            </p>
-                            <p className="text-xs text-[#0067A1] dark:text-emerald-500 mt-1">
-                              {formatTime(notification.created_at)}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {!notification.read && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  markAsRead(notification.id);
-                                }}
-                                className="p-1 rounded-full hover:bg-emerald-100 text-emerald-600"
-                                title="Mark as read"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteNotification(notification.id);
-                              }}
-                              className="p-1 rounded-full hover:bg-red-100 text-red-500"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-8 text-center">
-                      <Bell className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-                      <p className="text-sm text-gray-500">No notifications yet</p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        New orders and updates will appear here
-                      </p>
-                    </div>
-                  )}
-                </div>
-                <div className="p-3 border-t border-emerald-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-center">
-                  <p className="text-xs text-gray-500">
-                    Showing {notifications.length} notification{notifications.length !== 1 ? "s" : ""}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Switch to Patient Mode / Consult Doctor */}
-          <button
-            onClick={handleSwitchToPatient}
-            className="flex items-center space-x-1.5 md:space-x-2 px-3 py-1.5 lg:py-2 rounded-xl bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 hover:bg-pink-100 dark:hover:bg-pink-900/50 text-xs md:text-sm font-medium transition-all duration-200 border border-pink-200 dark:border-pink-800 shadow-sm cursor-pointer hover:scale-[1.02]"
-            title="Open Patient Portal to consult doctors or book appointments"
-          >
-            <Heart className="w-4 h-4 text-pink-500" />
-            <span className="hidden sm:inline">Patient Mode</span>
-          </button>
-
-          {/* Profile Dropdown */}
-          <div className="relative" ref={profileRef}>
-            <button
-              onClick={() => setProfileOpen(!profileOpen)}
-              className="flex items-center space-x-2 lg:space-x-3 p-2 rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-50/50 dark:from-gray-800 dark:to-gray-900 hover:bg-emerald-100 dark:hover:bg-gray-700 transition-all duration-200 cursor-pointer border border-emerald-200 dark:border-gray-700"
-            >
-              <div className="w-7 h-7 lg:w-8 lg:h-8 bg-gradient-to-br from-[#0067A1] to-emerald-600 rounded-full flex items-center justify-center shadow-md">
-                <User className="w-3.5 h-3.5 lg:w-4 lg:h-4 text-white" />
-              </div>
-              {/* Hide user info on mobile, show on desktop */}
-              <div className="hidden md:block text-left">
-                <p className="text-xs lg:text-sm font-semibold text-[#0067A1] dark:text-emerald-300 truncate max-w-[120px] lg:max-w-[160px]">
-                  {labName}
-                </p>
-                <p className="text-[10px] lg:text-xs text-[#0067A1] dark:text-emerald-500 flex items-center">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></span>
-                  Verified Lab
-                </p>
-              </div>
-            </button>
-
-            {profileOpen && (
-              <div className="absolute right-0 top-12 w-56 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-emerald-200 dark:border-gray-700 z-50 overflow-hidden">
-                <div className="p-3 border-b border-emerald-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-white dark:from-gray-800 dark:to-gray-900">
-                  <p className="text-sm font-medium text-[#0067A1] dark:text-emerald-300">
-                    {labName}
-                  </p>
-                  <p className="text-xs text-[#0067A1] dark:text-emerald-500">
-                    Laboratory Account
-                  </p>
-                </div>
-                <div className="p-2">
-                  <button
-                    onClick={handleSwitchToPatient}
-                    className="flex items-center space-x-3 w-full p-2.5 rounded-xl hover:bg-pink-50 dark:hover:bg-gray-700 transition-colors cursor-pointer text-left group"
-                  >
-                    <Heart
-                      size={18}
-                      className="text-pink-500 group-hover:scale-110 transition-transform"
-                    />
-                    <div>
-                      <span className="text-sm font-medium text-gray-800 dark:text-gray-200 block">
-                        Consult Doctor
-                      </span>
-                      <span className="text-[10px] text-pink-600 dark:text-pink-400 font-medium">
-                        Switch to Patient Mode
-                      </span>
-                    </div>
-                  </button>
-
-                  <Link
-                    href="/lab/profile"
-                    className="flex items-center space-x-3 w-full p-3 rounded-xl hover:bg-emerald-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-                  >
-                    <User size={18} className="text-[#0067A1] dark:text-emerald-500" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">
-                      Lab Profile
-                    </span>
-                  </Link>
-                  <Link
-                    href="/lab/settings"
-                    className="flex items-center space-x-3 w-full p-3 rounded-xl hover:bg-emerald-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-                  >
-                    <Settings size={18} className="text-[#0067A1] dark:text-emerald-500" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">
-                      Lab Settings
-                    </span>
-                  </Link>
-                  <div className="border-t border-emerald-200 dark:border-gray-700 my-1"></div>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center justify-between w-full p-3 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <LogOut size={18} />
-                      <span className="text-sm font-medium">Sign Out</span>
-                    </div>
-                    <div className="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs rounded-full group-hover:bg-red-200 dark:group-hover:bg-red-900/50">
-                      Exit
-                    </div>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+        <div className="flex items-center gap-2">
+          <h1 className="text-base sm:text-lg font-bold text-slate-800 dark:text-white tracking-tight">
+            {getPageTitle()}
+          </h1>
         </div>
       </div>
 
-      {/* Mobile Search Bar - Shows when needed */}
-      <div className="lg:hidden mt-4">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-emerald-500 w-5 h-5" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search tests, orders, patients..."
-            className="w-full pl-12 pr-4 py-3 bg-emerald-50 dark:bg-gray-800 border border-emerald-200 dark:border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 cursor-text text-gray-800 dark:text-gray-200 placeholder-emerald-400 dark:placeholder-emerald-500"
-          />
+      {/* Right Section: Controls */}
+      <div className="flex items-center gap-2.5 sm:gap-4">
+        {/* Theme Toggle */}
+        <button
+          onClick={toggleTheme}
+          className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center cursor-pointer"
+          title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+        >
+          {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+        </button>
+
+        {/* Notifications Dropdown */}
+        <div className="relative" ref={notificationsRef}>
+          <button
+            onClick={() => {
+              const next = !notificationsOpen;
+              setNotificationsOpen(next);
+              if (next && unreadCount > 0) {
+                markAllAsRead();
+              }
+            }}
+            className="relative w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center cursor-pointer"
+            title="Notifications"
+          >
+            <Bell className="w-4 h-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold border-2 border-white dark:border-slate-900 animate-pulse">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {notificationsOpen && (
+            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-white">
+                    Notifications
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Recent lab order alerts and test updates
+                  </p>
+                </div>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllAsRead}
+                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#0067A1] dark:text-sky-300 bg-blue-50 dark:bg-sky-950/40 rounded-full hover:bg-blue-100 transition-colors"
+                  >
+                    <CheckCircle2 className="w-3 h-3" />
+                    Mark all read
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700/60">
+                {notificationsLoading ? (
+                  <div className="p-6 text-center text-xs text-slate-500">
+                    Loading notifications...
+                  </div>
+                ) : notifications.length > 0 ? (
+                  notifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      className={`p-3.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group flex items-start gap-3 ${
+                        !notification.read ? "bg-blue-50/50 dark:bg-blue-950/20" : ""
+                      }`}
+                      onClick={() => handleNotificationClick(notification)}
+                    >
+                      <div className="mt-0.5 p-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 shrink-0">
+                        {getNotificationIcon(notification.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {notification.title && (
+                          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
+                            {notification.title}
+                          </p>
+                        )}
+                        <p className="text-xs text-slate-800 dark:text-slate-200 font-medium line-clamp-2">
+                          {formatMessageText(notification.message)}
+                        </p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                          {formatTime(notification.created_at)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {!notification.read && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              markAsRead(notification.id);
+                            }}
+                            className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300"
+                            title="Mark as read"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteNotification(notification.id);
+                          }}
+                          className="p-1 rounded-md hover:bg-rose-100 text-rose-500"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center">
+                    <Bell className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      No notifications yet
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Profile Dropdown (Clean, No "Patient Mode") */}
+        <div className="relative" ref={profileRef}>
+          <button
+            onClick={() => setProfileOpen(!profileOpen)}
+            className="flex items-center gap-2.5 p-1.5 sm:px-3 sm:py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 transition-all cursor-pointer shadow-xs"
+          >
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#0067A1] to-[#0095E8] text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0">
+              {getInitials(labName)}
+            </div>
+            <div className="hidden md:block text-left max-w-[130px] lg:max-w-[170px]">
+              <p className="text-xs font-bold text-slate-800 dark:text-white truncate leading-tight">
+                {labName || "Diagnostic Lab"}
+              </p>
+              <p className="text-[10px] text-[#0067A1] dark:text-sky-400 font-medium flex items-center gap-1 mt-0.5">
+                <span className="w-1.5 h-1.5 bg-[#0067A1] dark:bg-sky-400 rounded-full"></span>
+                Verified Lab
+              </p>
+            </div>
+          </button>
+
+          {profileOpen && (
+            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="p-3.5 border-b border-slate-100 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/50">
+                <p className="text-xs font-bold text-slate-800 dark:text-white truncate">
+                  {labName || "Diagnostic Lab"}
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Laboratory Diagnostic Portal
+                </p>
+              </div>
+
+              <div className="p-1.5 space-y-0.5">
+                <Link
+                  href="/lab/profile"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
+                >
+                  <Building2 size={16} className="text-[#0067A1]" />
+                  <span>Lab Profile & Settings</span>
+                </Link>
+
+                <div className="border-t border-slate-100 dark:border-slate-700 my-1"></div>
+
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors w-full text-left cursor-pointer"
+                >
+                  <LogOut size={16} className="text-rose-500" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </header>

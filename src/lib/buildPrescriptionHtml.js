@@ -101,6 +101,7 @@ export const buildPrescriptionHtml = (rec, options = {}) => {
   })();
 
   const isChemistView = Boolean(options.isChemistView || options.mode === 'chemist' || options.type === 'chemist' || options.forChemist || options.forDispensing);
+  const isLabView = Boolean(options.isLabView || options.mode === 'lab' || options.type === 'lab' || options.forLab || options.forDiagnostic);
 
   const calculateQty = (m) => {
     if (m.quantity || m.qty) return String(m.quantity || m.qty);
@@ -368,7 +369,7 @@ h4 {
 <div class="field">License No: <span class="value">${escapeHtml(rec.doctor_details?.license_number || "-")}</span></div>
 <div class="field">Clinic: ${options.hideClinicDetails ? `<span class="value blur-text">Teleconsultation Clinic, Virtual Online Consultation, Medical Block 404</span>` : `<span class="value">${escapeHtml(rec.doctor_details?.clinic_name || "-")}, ${escapeHtml(rec.doctor_details?.clinic_address || "")}</span>`}</div>
 
-${isChemistView ? '' : `
+${(isChemistView || isLabView) ? '' : `
 <h3>Diagnosis</h3>
 <div class="field"><span class="value">${escapeHtml(diagnosisText)}</span></div>
 
@@ -386,15 +387,19 @@ ${vitalsHtml}
 <div class="field">DOB: <span class="value">${escapeHtml(pDetails.date_of_birth ? dayjs(pDetails.date_of_birth).format("DD MMM YYYY") : "-")}</span></div>
 <div class="field">Address: <span class="value">${escapeHtml(pDetails.address || "-")}</span></div>
 
-<div class="badge">${isChemistView ? 'PHARMACY DISPENSING COPY' : 'PRESCRIPTION'}</div>
+<div class="badge">${isLabView ? 'DIAGNOSTIC TEST REQUISITION' : (isChemistView ? 'PHARMACY DISPENSING COPY' : 'PRESCRIPTION')}</div>
 
+${isLabView ? '' : `
 <h3>Medicines</h3>
 ${medicinesHtml}
+`}
 
 ${isChemistView ? '' : `
 <h3>Investigations / Lab Tests</h3>
 ${labTestsHtml}
+`}
 
+${(isChemistView || isLabView) ? '' : `
 <h3>Follow Up</h3>
 <div class="field">Return After: <span class="value">${escapeHtml(rec.follow_up?.return_after || rec.follow_up?.date || "-")}</span></div>
 <div class="field"><span class="warning">Warning Signs:</span> ${escapeHtml(warningSignsHtml)}</div>
@@ -410,7 +415,11 @@ ${labTestsHtml}
 </tr>
 </table>
 
-${isChemistView ? `
+${isLabView ? `
+<div style="margin-top: 25px; padding: 12px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; font-size: 11px; color: #166534; text-align: center;">
+  <strong>DPDP Act 2023 &amp; Diagnostic Practice Compliance:</strong> This is an official Laboratory Test Requisition containing only authorized prescriber, patient demographics, and prescribed investigations. Patient medication history, diagnosis, and non-diagnostic clinical records have been redacted per data minimization regulations.
+</div>
+` : isChemistView ? `
 <div style="margin-top: 25px; padding: 12px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11px; color: #475569; text-align: center;">
   <strong>DPDP Act 2023 &amp; Pharmacy Practice Compliance:</strong> This is an official Pharmacy Dispensing Copy containing only authorized medication and prescriber data. Patient clinical history, diagnostic notes, and non-dispensing medical records have been redacted per data minimization regulations.
 </div>
