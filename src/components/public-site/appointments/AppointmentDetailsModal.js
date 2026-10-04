@@ -267,8 +267,9 @@ const AppointmentDetailsModal = ({ isOpen, onClose, appointment }) => {
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Address</p>
                     {isVideo ? (
-                          {clinicAddress || "Online Consultation Space"}
-
+                      <p className="font-medium text-gray-800 text-sm">
+                        {clinicAddress || "Online Consultation Space"}
+                      </p>
                     ) : (
                       <p className="font-medium text-gray-800 text-sm">{clinicAddress}</p>
                     )}
