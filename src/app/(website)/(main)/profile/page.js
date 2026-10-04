@@ -30,6 +30,17 @@ export default function ProfilePage() {
   // State for user data
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [avatarError, setAvatarError] = useState(false);
+
+  const cleanAvatarUrl = (url) => {
+    if (!url) return null;
+    const s = String(url).replace(/^'+|'+$/g, "").replace(/::text$/i, "").trim();
+    return (s && !s.includes("::text") && s.startsWith("http")) ? s : null;
+  };
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [userData?.user?.profile_picture]);
 
   // Fetch user data on mount
   useEffect(() => {
@@ -356,15 +367,16 @@ export default function ProfilePage() {
                 <div className="relative group shrink-0 mb-3">
                   <div className="w-24 h-24 rounded-full bg-white p-1 shadow-md ring-4 ring-[#0067A1]/5">
                     <div className="w-full h-full rounded-full bg-gray-100 overflow-hidden relative">
-                      {userData.user.profile_picture ? (
+                      {cleanAvatarUrl(userData.user?.profile_picture) && !avatarError ? (
                         <img
-                          src={userData.user.profile_picture}
-                          alt={userData.user.details.full_name}
+                          src={cleanAvatarUrl(userData.user.profile_picture)}
+                          alt={userData.user?.details?.full_name || "Profile"}
                           className="w-full h-full object-cover"
+                          onError={() => setAvatarError(true)}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-[#0067A1] text-white text-3xl font-bold">
-                          {userData.user.details.full_name?.charAt(0)}
+                          {userData.user?.details?.full_name?.charAt(0) || "U"}
                         </div>
                       )}
                     </div>

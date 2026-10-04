@@ -98,7 +98,7 @@ export default function CardioConnectF1Report({
             <img
               src={MEDICONNECT_LOGO_BASE64}
               alt="MediConnect Logo"
-              style={{ height: "46px", width: "46px", objectFit: "contain", borderRadius: "50%", flexShrink: 0, backgroundColor: "#ffffff" }}
+              style={{ height: "46px", width: "auto", maxWidth: "160px", objectFit: "contain", borderRadius: "4px", flexShrink: 0, backgroundColor: "transparent" }}
             />
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

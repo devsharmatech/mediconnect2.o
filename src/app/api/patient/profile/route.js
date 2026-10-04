@@ -41,21 +41,36 @@ export async function GET(req) {
       return failure("Profile not found", null, 404, { headers: corsHeaders });
     }
 
+    const rawPic = user?.profile_picture || profile?.profile_picture || null;
+    let cleanPic = null;
+    if (rawPic) {
+      const sanitized = String(rawPic).replace(/^'+|'+$/g, "").replace(/::text$/i, "").trim();
+      if (sanitized && !sanitized.includes("::text") && sanitized.startsWith("http")) {
+        cleanPic = sanitized;
+      }
+    }
+    if (!cleanPic) {
+      const pName = profile?.full_name || "Patient";
+      cleanPic = `https://ui-avatars.com/api/?name=${encodeURIComponent(pName.trim())}&background=0067A1&color=fff&bold=true`;
+    }
+
     const mergedProfile = {
       ...(profile || {}),
       id: id,
       phone_number: user?.phone_number || profile?.phone_number || "",
-      profile_picture: user?.profile_picture || profile?.profile_picture || null,
+      profile_picture: cleanPic,
       un_id: user?.un_id || null,
       is_verified: user?.is_verified ?? null,
       created_at: profile?.created_at || user?.created_at || null,
     };
 
+    const sanitizedUser = user ? { ...user, profile_picture: cleanPic } : null;
+
     return success(
       "Profile fetched successfully",
       {
         profile: mergedProfile,
-        user: user || null,
+        user: sanitizedUser,
         details: profile || null,
       },
       200,

@@ -23,6 +23,104 @@ export async function POST(req) {
       return failure("OTP is required.", null, 400, { headers: corsHeaders });
     }
 
+    const cleanPhone = phone_number ? String(phone_number).replace(/\D/g, "").slice(-10) : null;
+
+    // ── Check Pending Registration (Register ONLY after OTP is verified) ──
+    if (cleanPhone) {
+      const pendingRows = await sql`
+        SELECT * FROM pending_registrations 
+        WHERE phone_number = ${cleanPhone} 
+        LIMIT 1
+      `;
+      if (pendingRows.length > 0) {
+        const pending = pendingRows[0];
+        const isPermanentTestUser = Boolean(
+          pending.phone_number?.endsWith("9999999991") ||
+          pending.phone_number?.endsWith("9999999992") ||
+          pending.phone_number?.endsWith("9999999993") ||
+          pending.phone_number?.endsWith("8744412521")
+        );
+        const isTestOTP = String(otp).trim() === "123456" && isPermanentTestUser;
+
+        if (String(pending.otp_code).trim() !== String(otp).trim() && !isTestOTP) {
+          return failure("Invalid OTP code. Please check and enter the correct 6-digit code.", null, 400, { headers: corsHeaders });
+        }
+
+        if (!isTestOTP && pending.otp_expires_at && new Date(pending.otp_expires_at) < new Date()) {
+          return failure("OTP has expired. Please request a new one.", null, 400, { headers: corsHeaders });
+        }
+
+        // Clean any stale unverified rows
+        try {
+          await sql`DELETE FROM consent_logs WHERE patient_id IN (SELECT id FROM users WHERE phone_number LIKE ${'%' + cleanPhone + '%'} AND is_verified = false)`.catch(() => {});
+          await sql`DELETE FROM patient_details WHERE id IN (SELECT id FROM users WHERE phone_number LIKE ${'%' + cleanPhone + '%'} AND is_verified = false)`.catch(() => {});
+          await sql`DELETE FROM users WHERE phone_number LIKE ${'%' + cleanPhone + '%'} AND is_verified = false`.catch(() => {});
+        } catch (cleanupErr) {
+          console.warn("Cleanup prior unverified note:", cleanupErr?.message);
+        }
+
+        // 1. Create verified user with clean default profile picture
+        const defaultAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent((pending.full_name || "Patient").trim())}&background=0067A1&color=fff&bold=true`;
+        const createdUsers = await sql`
+          INSERT INTO users (phone_number, role, is_verified, profile_picture, created_at, updated_at)
+          VALUES (${cleanPhone}, 'patient', true, ${defaultAvatar}, NOW(), NOW())
+          RETURNING *
+        `;
+        const newUser = createdUsers[0];
+
+        // 2. Create patient_details
+        const createdDetails = await sql`
+          INSERT INTO patient_details (id, full_name, email, gender, date_of_birth, address, created_at, updated_at)
+          VALUES (
+            ${newUser.id},
+            ${pending.full_name},
+            ${pending.email || null},
+            ${pending.gender || null},
+            ${pending.date_of_birth || null},
+            ${pending.address || null},
+            NOW(),
+            NOW()
+          )
+          RETURNING *
+        `;
+
+        // 3. Log DPDP registration consent
+        try {
+          const { logConsent } = await import("@/lib/layer1/consentManager");
+          await logConsent({
+            patient_id: newUser.id,
+            consent_type: "TERMS_AND_DATA_PROCESSING",
+            status: true,
+            purpose: "Patient Registration & Teleconsultation Services (DPDP Act 2023)",
+            metadata: {
+              ip: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown",
+              userAgent: req.headers.get("user-agent") || "unknown",
+              registered_at: new Date().toISOString()
+            }
+          });
+        } catch (consentErr) {
+          console.warn("Registration consent log note:", consentErr?.message);
+        }
+
+        // 4. Delete the pending registration row
+        await sql`DELETE FROM pending_registrations WHERE phone_number = ${cleanPhone}`;
+
+        clearRateLimit(`otp-validate:${rateLimitKey}`);
+
+        return success(
+          "OTP verified and registration completed successfully.",
+          {
+            user_id: newUser.id,
+            role: newUser.role,
+            token: newUser.id,
+            user: { ...newUser, is_verified: true, details: createdDetails[0] },
+          },
+          200,
+          { headers: corsHeaders }
+        );
+      }
+    }
+
     const cleanUserId = safeUuid(user_id);
     let user = null;
 

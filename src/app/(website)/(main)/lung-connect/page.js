@@ -125,6 +125,7 @@ function LungConnectHubContent() {
   const [hubData, setHubData] = useState(null);
   const [progressData, setProgressData] = useState(null);
   const [envData, setEnvData] = useState(null);
+  const [isEnvLoading, setIsEnvLoading] = useState(true);
   const [recentActivities, setRecentActivities] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -147,8 +148,8 @@ function LungConnectHubContent() {
       const d = new Date(userJoinedDate);
       if (!isNaN(d.getTime())) return d;
     }
-    // 4. Fallback to baseline date: 30 Sept 2026
-    return new Date("2026-09-30T00:00:00Z");
+    // 4. Fallback to real current date (today) — NEVER a hardcoded past date
+    return new Date();
   }, [userJoinedDate, progressData, hubData]);
 
   // Current day in journey (strictly calendar-aligned, stable and authoritative)
@@ -208,8 +209,9 @@ function LungConnectHubContent() {
       
       let status = serverCp?.status;
       if (!status) {
+        const hasAssessments = (progressData?.stats?.total_assessments || 0) > 0;
         if (cp.day === 0) {
-          status = "completed";
+          status = hasAssessments ? "completed" : "current";
         } else if (currentDayInJourney > cp.day) {
           status = "completed";
         } else if (cp.day === nextTargetCheckpointDay) {
@@ -318,7 +320,13 @@ function LungConnectHubContent() {
     }
     return { lat: 28.6139, lng: 77.2090 };
   });
-  const [gpsStatus, setGpsStatus] = useState("prompt"); // "prompt" | "detecting" | "granted" | "denied" | "unsupported"
+  const [gpsStatus, setGpsStatus] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = getSavedPatientLocation();
+      if (saved?.isGps) return "granted";
+    }
+    return "prompt";
+  }); // "prompt" | "detecting" | "granted" | "denied" | "unsupported"
 
   // B10-S01 Milestones filter ('all' | 'in_progress' | 'achieved')
   const [milestoneFilter, setMilestoneFilter] = useState("all");
@@ -415,6 +423,17 @@ function LungConnectHubContent() {
   }, [userMilestones]);
 
   // ── Dynamic Streaks Engine (Computed from distinct calendar dates in recentActivities) ──
+  // getLocalDateKey: Extracts YYYY-MM-DD from a Date using LOCAL time (not UTC).
+  // This avoids the timezone drift bug where .toISOString() shifts IST dates back by 1 day.
+  const getLocalDateKey = (dateInput) => {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return null;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   const streakData = useMemo(() => {
     if (!recentActivities || recentActivities.length === 0) {
       return {
@@ -426,80 +445,84 @@ function LungConnectHubContent() {
       };
     }
 
+    // Build a Set of local calendar dates (YYYY-MM-DD) from all real DB sessions
     const activeDates = new Set();
     recentActivities.forEach((a) => {
       if (a.created_at) {
-        const d = new Date(a.created_at);
-        if (!isNaN(d.getTime())) {
-          activeDates.add(d.toISOString().slice(0, 10));
-        }
+        const key = getLocalDateKey(new Date(a.created_at));
+        if (key) activeDates.add(key);
       }
     });
 
     const now = new Date();
     const currentDayOfWeek = (now.getDay() + 6) % 7; // 0: Mon ... 6: Sun
+
+    // Find this week's Monday using local date arithmetic
     const monday = new Date(now);
     monday.setDate(now.getDate() - currentDayOfWeek);
-    monday.setHours(0, 0, 0, 0);
 
+    // Map M T W T F S S to true/false based on whether that local day has any activity
     const weekCheckmarks = [0, 1, 2, 3, 4, 5, 6].map((offset) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + offset);
-      const iso = d.toISOString().slice(0, 10);
-      return activeDates.has(iso);
+      return activeDates.has(getLocalDateKey(d));
     });
 
+    // Current streak: count consecutive days backward from today (or yesterday if today is empty)
     let currentStreak = 0;
-    const checkDate = new Date(now);
-    checkDate.setHours(0, 0, 0, 0);
-    const todayIso = checkDate.toISOString().slice(0, 10);
-    const yesterday = new Date(checkDate);
-    yesterday.setDate(checkDate.getDate() - 1);
-    const yesterdayIso = yesterday.toISOString().slice(0, 10);
+    const todayKey = getLocalDateKey(now);
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const yesterdayKey = getLocalDateKey(yesterday);
 
-    let startCheck = checkDate;
-    if (!activeDates.has(todayIso) && activeDates.has(yesterdayIso)) {
-      startCheck = yesterday;
+    let startDay = now;
+    if (!activeDates.has(todayKey) && activeDates.has(yesterdayKey)) {
+      startDay = yesterday;
     }
 
-    if (activeDates.has(startCheck.toISOString().slice(0, 10))) {
-      let iter = new Date(startCheck);
-      while (activeDates.has(iter.toISOString().slice(0, 10))) {
+    if (activeDates.has(getLocalDateKey(startDay))) {
+      let iter = new Date(startDay);
+      while (activeDates.has(getLocalDateKey(iter))) {
         currentStreak++;
         iter.setDate(iter.getDate() - 1);
       }
     }
 
+    // Longest streak: compare epoch days (not ms) to be DST-safe
+    const toEpochDay = (dateStr) => {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      return Math.round(Date.UTC(y, m - 1, d) / 86400000);
+    };
     const sortedIsoDates = Array.from(activeDates).sort();
     let longestStreak = 0;
     let tempStreak = 0;
-    let prevTime = null;
+    let prevEpochDay = null;
     sortedIsoDates.forEach((iso) => {
-      const t = new Date(iso).getTime();
-      if (prevTime !== null && t - prevTime === 86400000) {
+      const epochDay = toEpochDay(iso);
+      if (prevEpochDay !== null && epochDay - prevEpochDay === 1) {
         tempStreak++;
       } else {
         tempStreak = 1;
       }
-      prevTime = t;
+      prevEpochDay = epochDay;
       if (tempStreak > longestStreak) longestStreak = tempStreak;
     });
 
-    if (currentStreak > longestStreak) longestStreak = currentStreak;
+    longestStreak = Math.max(longestStreak, currentStreak);
 
     const history = [];
     if (activeDates.size > 0) {
       history.push({
-        range: `Active across ${activeDates.size} calendar days`,
-        days: `${recentActivities.length} Sessions Total`,
+        range: `Active across ${activeDates.size} calendar ${activeDates.size === 1 ? "day" : "days"}`,
+        days: `${recentActivities.length} ${recentActivities.length === 1 ? "Session" : "Sessions"} Total`,
       });
     }
 
     return {
       currentStreak,
-      longestStreak: Math.max(longestStreak, currentStreak),
+      longestStreak,
       longestDate: sortedIsoDates[sortedIsoDates.length - 1]
-        ? new Date(sortedIsoDates[sortedIsoDates.length - 1]).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+        ? new Date(sortedIsoDates[sortedIsoDates.length - 1] + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
         : "Recorded Session",
       weekCheckmarks,
       history,
@@ -568,7 +591,7 @@ function LungConnectHubContent() {
         const resolvedCreated = u.created_at || u.user?.created_at || u.joined_date;
         if (resolvedCreated) {
           const cd = new Date(resolvedCreated);
-          if (!isNaN(cd.getTime()) && cd.getFullYear() >= 2026) {
+          if (!isNaN(cd.getTime())) {
             setUserJoinedDate(resolvedCreated);
           }
         }
@@ -652,10 +675,20 @@ function LungConnectHubContent() {
   };
 
   // 4. Fetch Environment Data (B06 / B07 / B08)
-  const fetchEnvironment = async (city = selectedCity, force = false) => {
+  const fetchEnvironment = async (city = selectedCity, force = false, lat = null, lng = null) => {
     try {
-      let url = `/api/v1/lung/environment?city=${encodeURIComponent(city)}`;
-      if (force) url += "&refresh=true";
+      setIsEnvLoading(true);
+      const targetLat = lat ?? userCoords?.lat;
+      const targetLng = lng ?? userCoords?.lng;
+      let url = "";
+      if (targetLat && targetLng && (city === "Current Location" || !city || city === "Delhi")) {
+        url = `/api/v1/lung/environment?lat=${targetLat}&lng=${targetLng}`;
+      } else if (targetLat && targetLng && !force) {
+        url = `/api/v1/lung/environment?lat=${targetLat}&lng=${targetLng}`;
+      } else {
+        url = `/api/v1/lung/environment?city=${encodeURIComponent(city)}`;
+      }
+      if (force) url += (url.includes("?") ? "&" : "?") + "refresh=true";
       const res = await fetch(url);
       const json = await res.json();
       if (json.success && json.data) {
@@ -669,6 +702,8 @@ function LungConnectHubContent() {
       }
     } catch (err) {
       console.warn("Could not fetch lung environment:", err);
+    } finally {
+      setIsEnvLoading(false);
     }
   };
 
@@ -728,6 +763,7 @@ function LungConnectHubContent() {
 
       if (lat && lng) {
         setUserCoords({ lat, lng });
+        setGpsStatus("prompt");
         savePatientLocation({
           city: cityName,
           lat,
@@ -774,6 +810,7 @@ function LungConnectHubContent() {
     setSelectedCity(cityName);
     setLocationSearchQuery("");
     setShowSuggestions(false);
+    setGpsStatus("prompt");
     toast.loading(`Loading telemetry for ${cityName}...`, { id: "quick-city" });
 
     try {
@@ -837,6 +874,7 @@ function LungConnectHubContent() {
     }
 
     setGpsStatus("detecting");
+    setIsEnvLoading(true);
     if (!silent) toast.loading("Acquiring GPS location for live AQI & weather...", { id: "gps-detect" });
 
     navigator.geolocation.getCurrentPosition(
@@ -867,13 +905,21 @@ function LungConnectHubContent() {
           }
         } catch (e) {
           console.warn("GPS environment fetch error:", e);
+        } finally {
+          setIsEnvLoading(false);
         }
       },
       (err) => {
         if (!silent) toast.dismiss("gps-detect");
-        setGpsStatus("denied");
-        setLocationPermission("denied");
-        fetchEnvironment(fallbackCity);
+        if (err.code === 1) {
+          setGpsStatus("denied");
+          setLocationPermission("denied");
+        } else {
+          if (savedLoc?.isGps) {
+            setGpsStatus("granted");
+          }
+        }
+        fetchEnvironment(fallbackCity, false, savedLoc?.lat, savedLoc?.lng);
         if (!silent) {
           if (err.code === 1) {
             toast.error(`Location permission denied. Keeping ${fallbackCity}.`);
@@ -886,24 +932,78 @@ function LungConnectHubContent() {
     );
   };
 
-  // Load saved location on mount, or auto-detect GPS if none has been saved
+  // Load saved location on mount, and auto-detect GPS by default if enabled in browser
   useEffect(() => {
     const saved = getSavedPatientLocation();
     if (saved?.city && saved.city !== "Delhi") {
       setSelectedCity(saved.city);
-      if (saved.lat && saved.lng) {
-        setUserCoords({ lat: saved.lat, lng: saved.lng });
-      }
-      fetchEnvironment(saved.city);
-      return;
+    }
+    if (saved?.lat && saved?.lng) {
+      setUserCoords({ lat: saved.lat, lng: saved.lng });
+    }
+    if (saved?.isGps) {
+      setGpsStatus("granted");
+      setLocationPermission("permitted");
     }
 
+    // Auto-detect location if GPS is enabled/permitted in browser
     if (typeof window !== "undefined" && navigator.geolocation) {
-      requestGpsLocation(true);
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: "geolocation" }).then((perm) => {
+          if (perm.state === "granted") {
+            setGpsStatus("granted");
+            setLocationPermission("permitted");
+            requestGpsLocation(true);
+          } else if (perm.state === "prompt") {
+            // If user previously used GPS or if no specific city is saved, auto-detect
+            if (saved?.isGps || !saved?.city || saved.city === "Delhi") {
+              requestGpsLocation(true);
+            } else {
+              fetchEnvironment(saved.city, false, saved.lat, saved.lng);
+            }
+          } else if (perm.state === "denied") {
+            setGpsStatus("denied");
+            setLocationPermission("denied");
+            fetchEnvironment(saved?.city || "Delhi", false, saved?.lat, saved?.lng);
+          }
+
+          perm.onchange = () => {
+            if (perm.state === "granted") {
+              setGpsStatus("granted");
+              setLocationPermission("permitted");
+              requestGpsLocation(true);
+            } else if (perm.state === "denied") {
+              setGpsStatus("denied");
+              setLocationPermission("denied");
+            }
+          };
+        }).catch(() => {
+          requestGpsLocation(true);
+        });
+      } else {
+        requestGpsLocation(true);
+      }
     } else {
-      fetchEnvironment("Delhi");
+      fetchEnvironment(saved?.city || "Delhi", false, saved?.lat, saved?.lng);
     }
   }, []);
+
+  // Auto-detect GPS when user opens My Environment tab if GPS is granted
+  useEffect(() => {
+    if (activeTab === "my-environment" && typeof window !== "undefined" && navigator.geolocation) {
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: "geolocation" }).then((perm) => {
+          if (perm.state === "granted") {
+            setGpsStatus("granted");
+            setLocationPermission("permitted");
+            requestGpsLocation(true);
+          }
+        }).catch(() => {});
+      } else if (gpsStatus === "granted") {
+        requestGpsLocation(true);
+      }
+    }
+  }, [activeTab]);
 
   // Real-time synchronization across all tabs and components
   useEffect(() => {
@@ -924,7 +1024,7 @@ function LungConnectHubContent() {
   const fetchActivities = async () => {
     try {
       const targetUser = userId || "usr_guest";
-      const res = await fetch(`/api/v1/lung/activity-sessions?user_id=${targetUser}&limit=20`);
+      const res = await fetch(`/api/v1/lung/activity-sessions?user_id=${targetUser}&limit=50`);
       const json = await res.json();
       if (json.success && json.data?.sessions) {
         setRecentActivities(json.data.sessions);
@@ -1900,7 +2000,11 @@ function LungConnectHubContent() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-bold text-slate-900">
-                          {item.duration_seconds ? `${Math.round(item.duration_seconds / 60)} min` : "20 min"}
+                          {item.duration_seconds
+                            ? item.duration_seconds < 60
+                              ? `${item.duration_seconds}s`
+                              : `${Math.round(item.duration_seconds / 60)} min`
+                            : "—"}
                         </span>
                         <ChevronRight className="w-4 h-4 text-slate-800" />
                       </div>
@@ -2025,14 +2129,19 @@ function LungConnectHubContent() {
                   <div className="flex gap-1.5">
                     {["M", "T", "W", "T", "F", "S", "S"].map((day, idx) => {
                       const isDayChecked = streakData.weekCheckmarks[idx];
+                      const isToday = ((new Date().getDay() + 6) % 7) === idx;
                       return (
                         <div key={idx} className="flex flex-col items-center">
-                          <div className={`w-7 h-7 rounded-[4px] flex items-center justify-center text-[10px] font-bold ${
-                            isDayChecked ? "bg-amber-600 text-white shadow-2xs" : "bg-white border border-slate-200 text-slate-700"
+                          <div className={`w-7 h-7 rounded-[4px] flex items-center justify-center text-[10px] font-bold transition-all ${
+                            isDayChecked
+                              ? "bg-amber-600 text-white shadow-sm"
+                              : isToday
+                              ? "bg-white border-2 border-blue-400 text-blue-600 shadow-sm"
+                              : "bg-white border border-slate-200 text-slate-400"
                           }`}>
                             {isDayChecked ? "✓" : day}
                           </div>
-                          <span className="text-[9px] font-bold text-slate-700 mt-0.5">{day}</span>
+                          <span className={`text-[9px] font-bold mt-0.5 ${isToday ? "text-blue-500" : "text-slate-500"}`}>{day}</span>
                         </div>
                       );
                     })}
@@ -2330,35 +2439,109 @@ function LungConnectHubContent() {
 
             {/* B06 AQI Surface & B07 Weather Surface */}
             {aqiFallbackState === "normal" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* B06-S01 Animated CPCB 6-Band Meter */}
-                <AnimatedAqiMeter
-                  aqi={envData?.aqi || 68}
-                  category={envData?.aqi_category || "Satisfactory"}
-                  location={envData?.aqi_location || selectedCity}
-                  lastUpdated={formatReadableDateTime(envData?.aqi_last_updated || new Date())}
-                  onInfoClick={() => setShowAqiSourceModal(true)}
-                />
+              isEnvLoading && !envData ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* AQI Meter Live Confirmation Skeleton */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-[5px] p-5 shadow-xs relative overflow-hidden flex flex-col justify-between min-h-[220px]">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-[#0067A1] animate-ping"></div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-sky-400">
+                          Google Air Quality API
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                        <RefreshCw className="w-3 h-3 animate-spin text-[#0067A1]" />
+                        Confirming...
+                      </span>
+                    </div>
 
-                {/* B07-S01 Animated Weather Scene */}
-                <AnimatedWeatherScene
-                  temperature={envData?.weather?.temp_c ?? 26}
-                  condition={envData?.weather?.condition || "Partly Cloudy"}
-                  humidity={envData?.weather?.humidity_pct ?? 65}
-                  windSpeed={envData?.weather?.wind_kmh ?? 22}
-                  visibility={envData?.weather?.visibility_km ?? 10}
-                  location={envData?.aqi_location || selectedCity}
-                  lastUpdated={formatReadableDateTime(envData?.weather?.last_updated || envData?.aqi_last_updated || new Date())}
-                  onRetry={() => {
-                    if (userCoords) {
-                      requestGpsLocation(false);
-                    } else {
-                      fetchEnvironment(selectedCity, true);
-                      toast.success("Weather refreshed!");
-                    }
-                  }}
-                />
-              </div>
+                    <div className="py-6 flex flex-col items-center justify-center text-center space-y-2.5">
+                      <div className="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[#38bdf8] shadow-inner">
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs font-bold text-slate-100">
+                          Confirming Live CPCB Air Quality
+                        </div>
+                        <p className="text-[11px] text-slate-400 max-w-xs">
+                          Fetching verified station telemetry for <strong className="text-sky-300 font-semibold">{selectedCity}</strong>...
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-500">
+                      <span>Standard: Indian CPCB NAQI</span>
+                      <span className="text-sky-400 animate-pulse font-medium">Connecting Google AQI</span>
+                    </div>
+                  </div>
+
+                  {/* Weather Scene Live Confirmation Skeleton */}
+                  <div className="bg-slate-900 border border-slate-800 rounded-[5px] p-5 shadow-xs relative overflow-hidden flex flex-col justify-between min-h-[220px]">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                          Meteorological Telemetry
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                        <RefreshCw className="w-3 h-3 animate-spin text-emerald-400" />
+                        Connecting...
+                      </span>
+                    </div>
+
+                    <div className="py-6 flex flex-col items-center justify-center text-center space-y-2.5">
+                      <div className="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-emerald-400 shadow-inner">
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs font-bold text-slate-100">
+                          Confirming Live Weather Telemetry
+                        </div>
+                        <p className="text-[11px] text-slate-400 max-w-xs">
+                          Retrieving current temperature, humidity & wind conditions...
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-500">
+                      <span>Atmospheric Telemetry</span>
+                      <span className="text-emerald-400 animate-pulse font-medium">Live Satellite Feed</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* B06-S01 Animated CPCB 6-Band Meter */}
+                  <AnimatedAqiMeter
+                    aqi={envData?.aqi}
+                    category={envData?.aqi_category || "Moderate"}
+                    location={envData?.aqi_location || selectedCity}
+                    lastUpdated={formatReadableDateTime(envData?.aqi_last_updated || new Date())}
+                    onInfoClick={() => setShowAqiSourceModal(true)}
+                  />
+
+                  {/* B07-S01 Animated Weather Scene */}
+                  <AnimatedWeatherScene
+                    temperature={envData?.weather?.temp_c}
+                    condition={envData?.weather?.condition || "Clear Sky"}
+                    humidity={envData?.weather?.humidity_pct}
+                    windSpeed={envData?.weather?.wind_kmh}
+                    visibility={envData?.weather?.visibility_km}
+                    location={envData?.aqi_location || selectedCity}
+                    lastUpdated={formatReadableDateTime(envData?.weather?.last_updated || envData?.aqi_last_updated || new Date())}
+                    onRetry={() => {
+                      if (userCoords) {
+                        requestGpsLocation(false);
+                      } else {
+                        fetchEnvironment(selectedCity, true);
+                        toast.success("Weather refreshed!");
+                      }
+                    }}
+                  />
+                </div>
+              )
             ) : aqiFallbackState === "stale" ? (
               /* B06-S04 Stale State Card */
               <div className="bg-amber-50 border-2 border-amber-300 rounded-[5px] p-6 text-center space-y-3">
@@ -2447,13 +2630,21 @@ function LungConnectHubContent() {
                   <div className="flex justify-between py-1 border-b border-slate-200">
                     <span className="text-slate-800 font-semibold">Air Quality:</span>
                     <span className="font-bold text-emerald-800">
-                      {envData?.aqi_category || "Satisfactory"} (AQI {envData?.aqi || 68})
+                      {isEnvLoading && !envData ? (
+                        <span className="text-slate-500 animate-pulse font-normal">Confirming live Google AQI...</span>
+                      ) : (
+                        `${envData?.aqi_category || "Moderate"} (AQI ${envData?.aqi ?? "--"})`
+                      )}
                     </span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-200">
                     <span className="text-slate-800 font-semibold">Weather:</span>
                     <span className="font-bold text-slate-950">
-                      {envData?.weather?.temp_c || 26}°C • {envData?.weather?.humidity_pct || 65}% Humidity
+                      {isEnvLoading && !envData ? (
+                        <span className="text-slate-500 animate-pulse font-normal">Confirming live weather...</span>
+                      ) : (
+                        `${envData?.weather?.temp_c ?? "--"}°C • ${envData?.weather?.humidity_pct ?? "--"}% Humidity`
+                      )}
                     </span>
                   </div>
                   <div className="flex justify-between py-1">

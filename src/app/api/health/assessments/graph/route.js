@@ -50,50 +50,67 @@ export async function GET(req) {
 
     // Query health_assessments from AWS RDS PostgreSQL with real patient identity
     let assessments = [];
-    if (assessmentType && assessmentType !== "all") {
-      if (dateFilter) {
-        assessments = await sql`
-          SELECT a.*, p.full_name as patient_name, p.gender as patient_gender, p.date_of_birth as patient_dob, p.blood_group as patient_blood_group
-          FROM health_assessments a
-          LEFT JOIN patient_details p ON p.id = a.user_id
-          WHERE (a.user_id = ${userId}::uuid OR a.user_id = ${String(userId)})
-            AND a.assessment_type = ${assessmentType}
-            AND a.created_at >= ${dateFilter}::timestamptz
-          ORDER BY a.created_at DESC
-          LIMIT ${limit};
-        `;
+    try {
+      if (assessmentType && assessmentType !== "all") {
+        if (dateFilter) {
+          assessments = await sql`
+            SELECT a.*, p.full_name as patient_name, p.gender as patient_gender, p.date_of_birth as patient_dob, p.blood_group as patient_blood_group
+            FROM health_assessments a
+            LEFT JOIN patient_details p ON p.id = a.user_id
+            WHERE (a.user_id = ${userId}::uuid OR a.user_id = ${String(userId)})
+              AND a.assessment_type = ${assessmentType}
+              AND a.created_at >= ${dateFilter}::timestamptz
+            ORDER BY a.created_at DESC
+            LIMIT ${limit};
+          `;
+        } else {
+          assessments = await sql`
+            SELECT a.*, p.full_name as patient_name, p.gender as patient_gender, p.date_of_birth as patient_dob, p.blood_group as patient_blood_group
+            FROM health_assessments a
+            LEFT JOIN patient_details p ON p.id = a.user_id
+            WHERE (a.user_id = ${userId}::uuid OR a.user_id = ${String(userId)})
+              AND a.assessment_type = ${assessmentType}
+            ORDER BY a.created_at DESC
+            LIMIT ${limit};
+          `;
+        }
       } else {
-        assessments = await sql`
-          SELECT a.*, p.full_name as patient_name, p.gender as patient_gender, p.date_of_birth as patient_dob, p.blood_group as patient_blood_group
-          FROM health_assessments a
-          LEFT JOIN patient_details p ON p.id = a.user_id
-          WHERE (a.user_id = ${userId}::uuid OR a.user_id = ${String(userId)})
-            AND a.assessment_type = ${assessmentType}
-          ORDER BY a.created_at DESC
-          LIMIT ${limit};
-        `;
+        if (dateFilter) {
+          assessments = await sql`
+            SELECT a.*, p.full_name as patient_name, p.gender as patient_gender, p.date_of_birth as patient_dob, p.blood_group as patient_blood_group
+            FROM health_assessments a
+            LEFT JOIN patient_details p ON p.id = a.user_id
+            WHERE (a.user_id = ${userId}::uuid OR a.user_id = ${String(userId)})
+              AND a.created_at >= ${dateFilter}::timestamptz
+            ORDER BY a.created_at DESC
+            LIMIT ${limit};
+          `;
+        } else {
+          assessments = await sql`
+            SELECT a.*, p.full_name as patient_name, p.gender as patient_gender, p.date_of_birth as patient_dob, p.blood_group as patient_blood_group
+            FROM health_assessments a
+            LEFT JOIN patient_details p ON p.id = a.user_id
+            WHERE (a.user_id = ${userId}::uuid OR a.user_id = ${String(userId)})
+            ORDER BY a.created_at DESC
+            LIMIT ${limit};
+          `;
+        }
       }
-    } else {
-      if (dateFilter) {
-        assessments = await sql`
-          SELECT a.*, p.full_name as patient_name, p.gender as patient_gender, p.date_of_birth as patient_dob, p.blood_group as patient_blood_group
-          FROM health_assessments a
-          LEFT JOIN patient_details p ON p.id = a.user_id
-          WHERE (a.user_id = ${userId}::uuid OR a.user_id = ${String(userId)})
-            AND a.created_at >= ${dateFilter}::timestamptz
-          ORDER BY a.created_at DESC
-          LIMIT ${limit};
-        `;
-      } else {
-        assessments = await sql`
-          SELECT a.*, p.full_name as patient_name, p.gender as patient_gender, p.date_of_birth as patient_dob, p.blood_group as patient_blood_group
-          FROM health_assessments a
-          LEFT JOIN patient_details p ON p.id = a.user_id
-          WHERE (a.user_id = ${userId}::uuid OR a.user_id = ${String(userId)})
-          ORDER BY a.created_at DESC
-          LIMIT ${limit};
-        `;
-      }
+    } catch (dbErr) {
+      console.warn("[Assessments Graph] DB query failed (timeout or connection error):", dbErr.message);
+      // Return empty data gracefully — do not surface raw DB errors to the client
+      return success("No assessment history available right now.", {
+        graphData: {
+          labels: [],
+          healthScoreTrend: [],
+          riskLevelDistribution: [],
+          organAgeComparison: [],
+          detailedMetrics: [],
+          improvementTimeline: []
+        },
+        summary: getSummary([]),
+        history: []
+      }, 200, { headers: corsHeaders });
     }
 
     if (!assessments || assessments.length === 0) {
@@ -247,7 +264,15 @@ function formatHistoryData(assessments) {
       healthScore: assessment.health_score,
       riskLevel: assessment.risk_level,
       calculatedAge: assessment.calculated_age,
-      aiAnalysis: assessment.ai_analysis,
+      aiAnalysis: typeof assessment.ai_analysis === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(assessment.ai_analysis);
+            } catch (_) {
+              return assessment.ai_analysis;
+            }
+          })()
+        : assessment.ai_analysis,
       recommendations: assessment.recommendations,
       rawAssessment: assessment,
       inputs: assessment.assessment_type === 'heart' 

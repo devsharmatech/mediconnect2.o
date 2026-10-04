@@ -66,7 +66,7 @@ function calculateLungHealth(inputs) {
   const bmi = inputs.weight_kg / (inputs.height_cm / 100) ** 2;
   inputs.bmi = bmi;
 
-  if (bmi > 30) { score -= 10; riskFactors.push("Obesity"); }
+  if (bmi > 30) { score -= 10; riskFactors.push("Elevated BMI (Mechanical load)"); }
 
   if (inputs.smoking_status === "current") { score -= 30; riskFactors.push("Smoking"); }
   else if (inputs.smoking_status === "former") { score -= 12; }
@@ -264,21 +264,21 @@ export async function POST(req) {
           created_at
         ) VALUES (
           ${assessment.id},
-          ${cleanInputs.age || null},
+          ${cleanInputs.age ?? null},
           ${cleanInputs.gender || null},
-          ${cleanInputs.height_cm || null},
-          ${cleanInputs.weight_kg || null},
-          ${cleanInputs.systolic_bp || null},
-          ${cleanInputs.diastolic_bp || null},
-          ${cleanInputs.resting_heart_rate || null},
-          ${cleanInputs.total_cholesterol || null},
-          ${cleanInputs.hdl_cholesterol || null},
-          ${cleanInputs.ldl_cholesterol || null},
-          ${cleanInputs.triglycerides || null},
-          ${cleanInputs.fasting_glucose || null},
-          ${cleanInputs.hba1c || null},
+          ${cleanInputs.height_cm ?? null},
+          ${cleanInputs.weight_kg ?? null},
+          ${cleanInputs.systolic_bp ?? null},
+          ${cleanInputs.diastolic_bp ?? null},
+          ${cleanInputs.resting_heart_rate ?? null},
+          ${cleanInputs.total_cholesterol ?? null},
+          ${cleanInputs.hdl_cholesterol ?? null},
+          ${cleanInputs.ldl_cholesterol ?? null},
+          ${cleanInputs.triglycerides ?? null},
+          ${cleanInputs.fasting_glucose ?? null},
+          ${cleanInputs.hba1c ?? null},
           ${cleanInputs.smoking_status || null},
-          ${cleanInputs.physical_activity_minutes || null},
+          ${cleanInputs.physical_activity_minutes ?? null},
           ${cleanInputs.alcohol_consumption || null},
           ${cleanInputs.family_cardiac_history ?? false},
           ${cleanInputs.hypertension_history ?? false},
@@ -303,7 +303,9 @@ export async function POST(req) {
           age, gender, height_cm, weight_kg,
           smoking_status, breathlessness, cough_frequency,
           wheezing, peak_flow, breath_holding_time,
-          lung_age, created_at
+          lung_age, breaths_per_minute, aqi, location,
+          pollution_exposure, occupational_exposure,
+          pack_years, smoking_pack_years, bmi, created_at
         ) VALUES (
           ${assessment.id},
           ${cleanInputs.age || null},
@@ -317,6 +319,14 @@ export async function POST(req) {
           ${cleanInputs.peak_flow || null},
           ${cleanInputs.breath_holding_time || null},
           ${cleanInputs.lung_age || null},
+          ${cleanInputs.breaths_per_minute || null},
+          ${cleanInputs.aqi || null},
+          ${cleanInputs.location || null},
+          ${cleanInputs.pollution_exposure || null},
+          ${cleanInputs.occupational_exposure || null},
+          ${cleanInputs.pack_years || null},
+          ${cleanInputs.smoking_pack_years || null},
+          ${cleanInputs.bmi || null},
           NOW()
         )
       `.catch((e) => console.warn("lung_health_inputs insert (non-fatal):", e.message));

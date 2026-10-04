@@ -221,47 +221,46 @@ export async function GET(req) {
       locationName = "Delhi";
     }
 
-    let aqiVal = 68;
-    let aqiCat = "Satisfactory";
+    let aqiVal = null;
+    let aqiCat = null;
     let dominantPollutant = "PM2.5";
     let weather = {
-      temp_c: 26,
-      condition: "Partly Cloudy",
-      humidity_pct: 65,
-      wind_kmh: 22,
-      visibility_km: 10,
+      temp_c: null,
+      condition: "Clear Sky",
+      humidity_pct: null,
+      wind_kmh: null,
+      visibility_km: null,
       last_updated: new Date().toISOString()
     };
     let sourceName = googleApiKey ? "Google Air Quality API" : "Open-Meteo Air Quality & CPCB Telemetry";
     let lastUpdated = new Date().toISOString();
     let googleAqiLoaded = false;
 
-    // 3. Direct Live Fetch via Google Air Quality API (No database cache read)
-      // 3. Try Google Air Quality API if key is available
-      if (googleApiKey) {
-        try {
-          const gAqiRes = await fetch(
-            `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleApiKey}`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                location: {
-                  latitude: lat,
-                  longitude: lng,
-                },
-                extraComputations: [
-                  "LOCAL_AQI",
-                  "HEALTH_RECOMMENDATIONS",
-                  "POLLUTANT_ADDITIONAL_INFO",
-                  "DOMINANT_POLLUTANT_CONCENTRATION",
-                  "POLLUTANT_CONCENTRATION"
-                ],
-                languageCode: "en"
-              }),
-              next: { revalidate: 1800 }
-            }
-          );
+    // 3. Direct Live Fetch via Google Air Quality API (No stale database cache read)
+    if (googleApiKey) {
+      try {
+        const gAqiRes = await fetch(
+          `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleApiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              location: {
+                latitude: lat,
+                longitude: lng,
+              },
+              extraComputations: [
+                "LOCAL_AQI",
+                "HEALTH_RECOMMENDATIONS",
+                "POLLUTANT_ADDITIONAL_INFO",
+                "DOMINANT_POLLUTANT_CONCENTRATION",
+                "POLLUTANT_CONCENTRATION"
+              ],
+              languageCode: "en"
+            }),
+            cache: "no-store",
+          }
+        );
 
           if (gAqiRes.ok) {
             const gAqiJson = await gAqiRes.json();
@@ -315,7 +314,7 @@ export async function GET(req) {
         const fetchPromises = [
           fetch(
             `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,visibility`,
-            { next: { revalidate: 1800 } }
+            { cache: "no-store" }
           )
         ];
 
@@ -323,7 +322,7 @@ export async function GET(req) {
           fetchPromises.push(
             fetch(
               `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=pm10,pm2_5,us_aqi,european_aqi,nitrogen_dioxide,sulphur_dioxide,ozone`,
-              { next: { revalidate: 3600 } }
+              { cache: "no-store" }
             )
           );
         }

@@ -246,8 +246,14 @@ const PatientDashboardLayout = ({ children }) => {
       />
 
       {/* Main Content Area */}
-      <div className={`${isCollapsed ? "lg:pl-20" : "lg:pl-64"} transition-all duration-300`}>
+      <div 
+        className={`${isCollapsed ? "lg:pl-20" : "lg:pl-64"} transition-all duration-300`}
+        style={{
+          "--patient-sidebar-width": isCollapsed ? "5rem" : "16rem",
+        }}
+      >
         {/* Header */}
+
         <PatientHeader user={user} onMenuClick={toggleSidebar} />
 
         {/* Mandatory Patient UI Disclaimer */}

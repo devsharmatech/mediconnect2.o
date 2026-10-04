@@ -12,85 +12,170 @@ export default function CardioConnectF4Report({
   patientData = {},
   reportRef
 }) {
-  const rawInputs = 
-    assessmentData?.heart_health_inputs?.[0] || 
-    assessmentData?.rawAssessment?.heart_health_inputs?.[0] || 
-    assessmentData?.rawAssessment?.inputs ||
-    assessmentData?.inputs || 
-    {};
+  // ── Primary data source: heart_health_inputs from DB (flat snake_case fields) ──
+  // The v2 API returns: assessmentData.heart_health_inputs = [{ systolic_bp, diastolic_bp, ... }]
+  const h = (
+    assessmentData?.heart_health_inputs?.[0] ||
+    assessmentData?.rawAssessment?.heart_health_inputs?.[0] ||
+    null
+  );
+  // Flat inputs object as fallback (v2 also stores cleanInputs at top level)
+  const flatInputs = assessmentData?.inputs || assessmentData?.rawAssessment?.inputs || {};
 
-  const demographics = assessmentData?.inputs?.demographics || assessmentData?.rawAssessment?.inputs?.demographics || {};
-  const vitals = assessmentData?.inputs?.vitals || assessmentData?.rawAssessment?.inputs?.vitals || {};
-  const lipids = assessmentData?.inputs?.lipids || assessmentData?.rawAssessment?.inputs?.lipids || {};
-  const bloodSugar = assessmentData?.inputs?.bloodSugar || assessmentData?.rawAssessment?.inputs?.bloodSugar || {};
-  const lifestyle = assessmentData?.inputs?.lifestyle || assessmentData?.rawAssessment?.inputs?.lifestyle || {};
-  const medicalHistory = assessmentData?.inputs?.medicalHistory || assessmentData?.rawAssessment?.inputs?.medicalHistory || {};
+  const createdAt = assessmentData?.created_at || assessmentData?.date || new Date().toISOString();
 
-  const createdAt = assessmentData?.created_at || assessmentData?.date || assessmentData?.rawAssessment?.created_at || new Date().toISOString();
+  const serialNo =
+    assessmentData?.serial_no ||
+    assessmentData?.serialNo ||
+    `CCN-${new Date(createdAt).getFullYear()}-${String(assessmentData?.id || "DRAFT").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`;
 
-  const serialNo = 
-    assessmentData?.serialNo || 
-    assessmentData?.serial_no || 
-    assessmentData?.rawAssessment?.serial_no || 
-    `CCN-${new Date(createdAt).getFullYear()}-${String(assessmentData?.id || assessmentData?.rawAssessment?.id || "0920").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`;
-
-  const patientName = 
-    assessmentData?.patient_name || 
-    assessmentData?.patientName || 
-    patientData?.details?.full_name || 
-    patientData?.full_name || 
-    patientData?.name || 
-    patientData?.details?.name || 
-    patientData?.user?.details?.full_name || 
-    patientData?.user?.full_name || 
-    patientData?.user?.name || 
-    assessmentData?.user_name || 
-    assessmentData?.user?.name || 
+  const patientName =
+    assessmentData?.patient_name ||
+    assessmentData?.patientName ||
+    patientData?.details?.full_name ||
+    patientData?.full_name ||
+    patientData?.name ||
     (typeof window !== "undefined" && (() => {
       try {
         const u = JSON.parse(localStorage.getItem("userData") || localStorage.getItem("user") || "{}");
-        return (
-          localStorage.getItem("userName") ||
-          localStorage.getItem("patient_name") ||
-          u.details?.full_name ||
-          u.details?.name ||
-          u.full_name ||
-          u.name ||
-          u.user?.details?.full_name ||
-          u.user?.name
-        );
+        return localStorage.getItem("userName") || localStorage.getItem("patient_name") ||
+          u.details?.full_name || u.full_name || u.name || null;
       } catch (e) { return null; }
-    })()) || 
+    })()) ||
     "Patient (CardioConnect)";
 
-  const age = Math.max(18, Number(rawInputs?.age || demographics?.age || patientData?.age || 29));
-  const gender = rawInputs?.gender || demographics?.gender || patientData?.gender || "Female";
+  // ── Extract each field: prefer h (DB row), then flatInputs, then null ──
+  // Always coerce to Number where numeric to handle DB strings
+  const ageRaw       = h?.age        ?? flatInputs?.age        ?? null;
+  const gender       = h?.gender     || flatInputs?.gender     || patientData?.gender || "male";
+  const sysRaw       = h?.systolic_bp          ?? flatInputs?.systolic_bp          ?? null;
+  const diaRaw       = h?.diastolic_bp         ?? flatInputs?.diastolic_bp         ?? null;
+  const hrRaw        = h?.resting_heart_rate   ?? flatInputs?.resting_heart_rate   ?? null;
+  const weightRaw    = h?.weight_kg            ?? flatInputs?.weight_kg            ?? null;
+  const heightRaw    = h?.height_cm            ?? flatInputs?.height_cm            ?? null;
+  const bmiRaw       = h?.bmi                  ?? flatInputs?.bmi                  ?? null;
+  const ldlRaw       = h?.ldl_cholesterol      ?? flatInputs?.ldl_cholesterol      ?? null;
+  const hba1cRaw     = h?.hba1c                ?? flatInputs?.hba1c                ?? null;
+  const actRaw       = h?.physical_activity_minutes ?? flatInputs?.physical_activity_minutes ?? null;
+  const smokingRaw   = h?.smoking_status       || flatInputs?.smoking_status       || null;
+  const aqiRaw       = h?.aqi                  ?? flatInputs?.aqi                  ?? null;
+  const cityRaw      = h?.city || h?.location  || flatInputs?.city || flatInputs?.location || null;
+  const diabetesRaw  = h?.diabetes_history     ?? flatInputs?.diabetes_history     ?? null;
+  const familyHxRaw  = h?.family_cardiac_history ?? flatInputs?.family_cardiac_history ?? null;
+  const walkRaw      = h?.walking_distance_m   ?? flatInputs?.walking_distance_m   ?? null;
+
+  // ── Typed display values ──
+  const age         = Math.max(18, Number(ageRaw) || 28);
+  const sys         = sysRaw  !== null ? Number(sysRaw)  : null;
+  const dia         = diaRaw  !== null ? Number(diaRaw)  : null;
+  const hr          = hrRaw   !== null ? Number(hrRaw)   : null;
+  const weight      = weightRaw !== null ? Number(weightRaw) : null;
+  const height      = heightRaw !== null ? Number(heightRaw) : null;
+  const bmiCalc     = (weight && height) ? weight / ((height / 100) ** 2) : null;
+  const bmi         = bmiRaw !== null ? Number(Number(bmiRaw).toFixed(1)) : (bmiCalc ? Number(bmiCalc.toFixed(1)) : null);
+  const ldl         = ldlRaw  !== null ? Number(ldlRaw)  : null;
+  const hba1c       = hba1cRaw !== null ? Number(hba1cRaw) : null;
+  const activityMin = actRaw  !== null ? Number(actRaw)  : null;
+  const smoking     = smokingRaw || "Not specified";
+  const aqi         = aqiRaw  !== null ? Number(aqiRaw)  : null;
+  const city        = cityRaw || "Current Location";
+  const diabetes    = diabetesRaw !== null ? (diabetesRaw ? "Present" : "No known history") : "Not recorded";
+  const familyHistory = familyHxRaw !== null ? (familyHxRaw ? "Present" : "None reported") : "Not recorded";
+  const walkingDistM = walkRaw !== null ? Number(walkRaw) : 0;
+  const prevH = (
+    assessmentData?.previousAssessment?.heart_health_inputs?.[0] ||
+    assessmentData?.previousAssessment?.inputs ||
+    assessmentData?.prevAssessment?.inputs ||
+    null
+  );
+  const prevDistM = prevH?.walking_distance_m !== undefined && prevH?.walking_distance_m !== null ? Number(prevH.walking_distance_m) : 0;
+  const estimatedKcal = weight ? Math.round(3.8 * weight * (6 / 60)) : 0;
 
   const assessmentDate = new Date(createdAt).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric"
+    day: "2-digit", month: "short", year: "numeric"
   }) + " · Assessment";
 
-  const sys = rawInputs?.systolic_bp || vitals?.systolicBP || 120;
-  const dia = rawInputs?.diastolic_bp || vitals?.diastolicBP || 80;
-  const hr = rawInputs?.resting_heart_rate || vitals?.restingHeartRate || 72;
-  const weight = rawInputs?.weight_kg || demographics?.weight || 62;
-  const height = rawInputs?.height_cm || demographics?.height || 165;
-  const rawBmi = rawInputs?.bmi ?? demographics?.bmi ?? (height ? (weight / ((height/100)*(height/100))) : 22.8);
-  const bmi = !isNaN(Number(rawBmi)) ? Number(rawBmi).toFixed(1) : "22.8";
-  const activityMin = Number(rawInputs?.physical_activity_minutes ?? rawInputs?.weekly_activity_minutes ?? lifestyle?.physicalActivity ?? 0);
-  const steps = Number(rawInputs?.daily_steps ?? rawInputs?.steps ?? 0).toLocaleString("en-IN");
-  const smoking = rawInputs?.smoking_status || lifestyle?.smokingStatus || "Never";
-  const diabetes = rawInputs?.diabetes_history !== undefined ? (rawInputs.diabetes_history ? "Present" : "No known history") : (medicalHistory?.diabetesHistory ? "Present" : "No known history");
-  const familyHistory = rawInputs?.family_cardiac_history !== undefined ? (rawInputs.family_cardiac_history ? "Present" : "None reported") : (medicalHistory?.familyCardiacHistory ? "Present" : "None reported");
-  const ldl = rawInputs?.ldl_cholesterol || lipids?.ldlCholesterol || 102;
-  const hba1c = rawInputs?.hba1c || bloodSugar?.hba1c || "5.2%";
-  const aqi = rawInputs?.aqi || 85;
-  const city = rawInputs?.city || rawInputs?.location || "Current Location";
-  const walkingDistM = Number(rawInputs?.walking_distance_m ?? rawInputs?.distance_m ?? 0);
-  const prevDistM = walkingDistM > 0 ? Math.max(400, walkingDistM - 27) : 0;
-  const estimatedKcal = Math.round(3.8 * weight * (6 / 60));
+  // ── Clinical Evaluations (Normal vs Abnormal - Concise) ──
+  const getBpEvaluation = (s, d) => {
+    if (s === null || d === null) return { label: "Not Entered", color: "#64748b", bg: "#f1f5f9", border: "#cbd5e1" };
+    const sysNum = Number(s);
+    const diaNum = Number(d);
+    if (sysNum <= 120 && diaNum <= 80) {
+      return { label: "Normal", color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" };
+    }
+    if (sysNum <= 129 && diaNum < 80) {
+      return { label: "Elevated", color: "#b45309", bg: "#fffbeb", border: "#fde68a" };
+    }
+    return { label: "Abnormal", color: "#b91c1c", bg: "#fef2f2", border: "#fecaca" };
+  };
+
+  const getHrEvaluation = (h) => {
+    if (h === null) return { label: "Not Entered", color: "#64748b", bg: "#f1f5f9", border: "#cbd5e1" };
+    const val = Number(h);
+    if (val >= 60 && val <= 100) {
+      return { label: "Normal", color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" };
+    }
+    if (val >= 50 && val < 60) {
+      return { label: "Normal", color: "#0d9488", bg: "#f0fdfa", border: "#99f6e4" };
+    }
+    return { label: "Abnormal", color: "#b91c1c", bg: "#fef2f2", border: "#fecaca" };
+  };
+
+  const getBmiEvaluation = (b) => {
+    if (b === null) return { label: "Not Entered", color: "#64748b", bg: "#f1f5f9", border: "#cbd5e1" };
+    const val = Number(b);
+    if (val >= 18.5 && val <= 24.9) {
+      return { label: "Normal", color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" };
+    }
+    if (val > 24.9 && val <= 29.9) {
+      return { label: "Overweight", color: "#b45309", bg: "#fffbeb", border: "#fde68a" };
+    }
+    return { label: "Abnormal", color: "#b91c1c", bg: "#fef2f2", border: "#fecaca" };
+  };
+
+  const getActEvaluation = (act) => {
+    if (act === null) return { label: "Not Entered", color: "#64748b", bg: "#f1f5f9", border: "#cbd5e1" };
+    const val = Number(act);
+    if (val >= 150) {
+      return { label: "Normal", color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" };
+    }
+    if (val > 0) {
+      return { label: "Low", color: "#b45309", bg: "#fffbeb", border: "#fde68a" };
+    }
+    return { label: "Abnormal", color: "#b91c1c", bg: "#fef2f2", border: "#fecaca" };
+  };
+
+  const getSmokingEvaluation = (smk) => {
+    if (!smk) return { label: "Not Entered", color: "#64748b", bg: "#f1f5f9", border: "#cbd5e1" };
+    const lower = String(smk).toLowerCase();
+    if (lower === "never") {
+      return { label: "Normal", color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" };
+    }
+    if (lower === "former") {
+      return { label: "Former", color: "#b45309", bg: "#fffbeb", border: "#fde68a" };
+    }
+    return { label: "Abnormal", color: "#b91c1c", bg: "#fef2f2", border: "#fecaca" };
+  };
+
+  const getLdlEvaluation = (l) => {
+    if (l === null) return { label: "Not Entered", color: "#64748b", bg: "#f1f5f9", border: "#cbd5e1" };
+    const val = Number(l);
+    if (val < 130) {
+      return { label: "Normal", color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" };
+    }
+    if (val <= 159) {
+      return { label: "Borderline", color: "#b45309", bg: "#fffbeb", border: "#fde68a" };
+    }
+    return { label: "Abnormal", color: "#b91c1c", bg: "#fef2f2", border: "#fecaca" };
+  };
+
+  const bpStatus = getBpEvaluation(sys, dia);
+  const hrStatus = getHrEvaluation(hr);
+  const bmiStatus = getBmiEvaluation(bmi);
+  const actStatus = getActEvaluation(activityMin);
+  const smokingStatus = getSmokingEvaluation(smokingRaw);
+  const ldlStatus = getLdlEvaluation(ldl);
+  const stepsStatus = { label: "Not Tracked", color: "#94a3b8" };
 
   return (
     <div
@@ -115,7 +200,7 @@ export default function CardioConnectF4Report({
             <img
               src={MEDICONNECT_LOGO_BASE64}
               alt="MediConnect Logo"
-              style={{ height: "40px", width: "40px", objectFit: "contain", borderRadius: "50%", flexShrink: 0, backgroundColor: "#ffffff" }}
+              style={{ height: "42px", width: "auto", maxWidth: "160px", objectFit: "contain", borderRadius: "4px", flexShrink: 0, backgroundColor: "transparent" }}
             />
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -193,48 +278,103 @@ export default function CardioConnectF4Report({
           <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #cbd5e1", fontSize: "9.5px" }}>
             <thead>
               <tr style={{ backgroundColor: "#0b3b60", color: "#ffffff" }}>
-                <th style={{ padding: "4px 7px", textAlign: "left", fontWeight: "800", width: "26%" }}>FACTOR</th>
-                <th style={{ padding: "4px 7px", textAlign: "center", fontWeight: "800", width: "24%" }}>CURRENT</th>
-                <th style={{ padding: "4px 7px", textAlign: "left", fontWeight: "800", width: "26%" }}>SOURCE</th>
-                <th style={{ padding: "4px 7px", textAlign: "center", fontWeight: "800", width: "24%" }}>STATUS</th>
+                <th style={{ padding: "4px 7px", textAlign: "left", fontWeight: "800", width: "18%" }}>FACTOR</th>
+                <th style={{ padding: "4px 7px", textAlign: "center", fontWeight: "800", width: "19%" }}>CURRENT VALUE</th>
+                <th style={{ padding: "4px 7px", textAlign: "center", fontWeight: "800", width: "21%" }}>NORMAL RANGE</th>
+                <th style={{ padding: "4px 7px", textAlign: "center", fontWeight: "800", width: "26%" }}>CLINICAL EVALUATION</th>
+                <th style={{ padding: "4px 7px", textAlign: "left", fontWeight: "800", width: "16%" }}>SOURCE</th>
               </tr>
             </thead>
             <tbody>
               <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                <td style={{ padding: "3.5px 7px", color: "#0f2d4a", fontWeight: "600" }}>BP</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{sys}/{dia}</td>
+                <td style={{ padding: "3.5px 7px", color: "#0f2d4a", fontWeight: "600" }}>Blood Pressure</td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
+                  {sys !== null && dia !== null ? `${sys}/${dia} mmHg` : "—"}
+                </td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center", color: "#475569", fontVariantNumeric: "tabular-nums" }}>
+                  &lt; 120 / 80 mmHg
+                </td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>
+                  <span style={{ display: "inline-block", padding: "1px 6px", borderRadius: "6px", fontSize: "8px", fontWeight: "600", color: bpStatus.color, backgroundColor: bpStatus.bg, border: `1px solid ${bpStatus.border}` }}>
+                    {bpStatus.label}
+                  </span>
+                </td>
                 <td style={{ padding: "3.5px 7px", color: "#64748b" }}>User-entered</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
               </tr>
               <tr style={{ borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
                 <td style={{ padding: "3.5px 7px", color: "#0f2d4a", fontWeight: "600" }}>Resting HR</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{hr} bpm</td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
+                  {hr !== null ? `${hr} bpm` : "—"}
+                </td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center", color: "#475569", fontVariantNumeric: "tabular-nums" }}>
+                  60–100 bpm
+                </td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>
+                  <span style={{ display: "inline-block", padding: "1px 6px", borderRadius: "6px", fontSize: "8px", fontWeight: "600", color: hrStatus.color, backgroundColor: hrStatus.bg, border: `1px solid ${hrStatus.border}` }}>
+                    {hrStatus.label}
+                  </span>
+                </td>
                 <td style={{ padding: "3.5px 7px", color: "#64748b" }}>Device / user</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
               </tr>
               <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
                 <td style={{ padding: "3.5px 7px", color: "#0f2d4a", fontWeight: "600" }}>Weight / BMI</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{weight} kg / {bmi} kg/m²</td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
+                  {weight !== null ? `${weight} kg` : "—"}{bmi !== null ? ` · ${bmi} kg/m²` : ""}
+                </td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center", color: "#475569", fontVariantNumeric: "tabular-nums" }}>
+                  18.5–24.9 kg/m²
+                </td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>
+                  <span style={{ display: "inline-block", padding: "1px 6px", borderRadius: "6px", fontSize: "8px", fontWeight: "600", color: bmiStatus.color, backgroundColor: bmiStatus.bg, border: `1px solid ${bmiStatus.border}` }}>
+                    {bmiStatus.label}
+                  </span>
+                </td>
                 <td style={{ padding: "3.5px 7px", color: "#64748b" }}>User + derived</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
               </tr>
               <tr style={{ borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-                <td style={{ padding: "3.5px 7px", color: "#0f2d4a", fontWeight: "600" }}>Activity</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{activityMin} min/wk</td>
-                <td style={{ padding: "3.5px 7px", color: "#64748b" }}>Activity events</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
+                <td style={{ padding: "3.5px 7px", color: "#0f2d4a", fontWeight: "600" }}>Physical Activity</td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
+                  {activityMin !== null ? (activityMin > 0 ? `${activityMin} min/wk` : "0 min / week") : "—"}
+                </td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center", color: "#475569", fontVariantNumeric: "tabular-nums" }}>
+                  ≥ 150 min/wk
+                </td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>
+                  <span style={{ display: "inline-block", padding: "1px 6px", borderRadius: "6px", fontSize: "8px", fontWeight: "600", color: actStatus.color, backgroundColor: actStatus.bg, border: `1px solid ${actStatus.border}` }}>
+                    {actStatus.label}
+                  </span>
+                </td>
+                <td style={{ padding: "3.5px 7px", color: "#64748b" }}>Assessment form</td>
               </tr>
               <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                <td style={{ padding: "3.5px 7px", color: "#0f2d4a", fontWeight: "600" }}>Steps</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{steps} today</td>
-                <td style={{ padding: "3.5px 7px", color: "#64748b" }}>Device</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Available</td>
+                <td style={{ padding: "3.5px 7px", color: "#0f2d4a", fontWeight: "600" }}>Smoking</td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>
+                  {smokingRaw ? smokingRaw.charAt(0).toUpperCase() + smokingRaw.slice(1) : "—"}
+                </td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center", color: "#475569" }}>
+                  Non-Smoker
+                </td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>
+                  <span style={{ display: "inline-block", padding: "1px 6px", borderRadius: "6px", fontSize: "8px", fontWeight: "600", color: smokingStatus.color, backgroundColor: smokingStatus.bg, border: `1px solid ${smokingStatus.border}` }}>
+                    {smokingStatus.label}
+                  </span>
+                </td>
+                <td style={{ padding: "3.5px 7px", color: "#64748b" }}>Self-reported</td>
               </tr>
               <tr style={{ borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
-                <td style={{ padding: "3.5px 7px", color: "#0f2d4a", fontWeight: "600" }}>AQI Freshness</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>{aqi} · {city}</td>
-                <td style={{ padding: "3.5px 7px", color: "#64748b" }}>CPCB Station · Live</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center", color: "#0d9488", fontWeight: "600" }}>Fresh (&lt;15m)</td>
+                <td style={{ padding: "3.5px 7px", color: "#0f2d4a", fontWeight: "600" }}>LDL Cholesterol</td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
+                  {ldl !== null ? `${ldl} mg/dL` : "—"}
+                </td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center", color: "#475569", fontVariantNumeric: "tabular-nums" }}>
+                  &lt; 100 mg/dL
+                </td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>
+                  <span style={{ display: "inline-block", padding: "1px 6px", borderRadius: "6px", fontSize: "8px", fontWeight: "600", color: ldlStatus.color, backgroundColor: ldlStatus.bg, border: `1px solid ${ldlStatus.border}` }}>
+                    {ldlStatus.label}
+                  </span>
+                </td>
+                <td style={{ padding: "3.5px 7px", color: "#64748b" }}>Lab report</td>
               </tr>
             </tbody>
           </table>
@@ -260,7 +400,7 @@ export default function CardioConnectF4Report({
                 <td style={{ padding: "4px 7px", color: "#0f2d4a", fontWeight: "600" }}>6-min Self-paced</td>
                 <td style={{ padding: "4px 7px", textAlign: "center", fontVariantNumeric: "tabular-nums", fontWeight: "700" }}>{walkingDistM} m</td>
                 <td style={{ padding: "4px 7px", textAlign: "center", color: "#0d9488", fontWeight: "700" }}>Completed</td>
-                <td style={{ padding: "4px 7px", textAlign: "center", color: "#0d9488", fontWeight: "700" }}>+{walkingDistM - prevDistM} m vs prev</td>
+                <td style={{ padding: "4px 7px", textAlign: "center", color: "#0d9488", fontWeight: "700" }}>{prevDistM > 0 ? `${walkingDistM >= prevDistM ? "+" : ""}${walkingDistM - prevDistM} m vs prev` : "Baseline"}</td>
                 <td style={{ padding: "4px 7px", color: "#64748b" }}>Est. {estimatedKcal} kcal (MET v1.0)</td>
               </tr>
             </tbody>
@@ -284,9 +424,9 @@ export default function CardioConnectF4Report({
             <tbody>
               <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
                 <td style={{ padding: "3.5px 7px", fontWeight: "600" }}>7D / 15D / 30D / 45D</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>{activityMin} → {Math.round(activityMin * 6.2)} min</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>51,940 → 333,900</td>
-                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>3 → 19 sessions</td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>{activityMin !== null ? `${activityMin} → ${Math.round(activityMin * 6.2)} min` : "Baseline"}</td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>Active Tracking</td>
+                <td style={{ padding: "3.5px 7px", textAlign: "center" }}>{activityMin !== null ? `${Math.max(1, Math.round(activityMin / 30))} → ${Math.max(3, Math.round(activityMin * 6.2 / 30))} sessions` : "Active Tracking"}</td>
               </tr>
               <tr>
                 <td style={{ padding: "3.5px 7px", fontWeight: "700", color: "#007a8c" }}>Continuing Checkpoints</td>

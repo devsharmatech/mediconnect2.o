@@ -200,6 +200,7 @@ export default function GamifiedLungAssessment() {
   const [aqiLoading, setAqiLoading] = useState(false);
   const [aqiInfo, setAqiInfo] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [hasPreviousAssessment, setHasPreviousAssessment] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   const searchDebounceRef = useRef(null);
@@ -553,6 +554,50 @@ export default function GamifiedLungAssessment() {
           })
           .catch(e => console.warn("Could not fetch fresh user profile in lung-assessment:", e));
       }
+
+      // Also fetch previous lung assessment to prefill user's previous metrics
+      const resolvedUid = userId || (() => {
+        try {
+          const u = JSON.parse(stored || '{}');
+          return u.id || u.user_id || u.user?.id;
+        } catch (_) { return null; }
+      })();
+
+      if (resolvedUid) {
+        fetch(`/api/health/assessments?userId=${resolvedUid}&type=lung&limit=1`)
+          .then(r => r.json())
+          .then(res => {
+            const assessment = res?.data?.assessments?.[0];
+            const inputs = assessment?.lung_health_inputs?.[0];
+            if (inputs) {
+              setHasPreviousAssessment(true);
+              setFormData(prev => ({
+                ...prev,
+                sex: inputs.gender
+                  ? (String(inputs.gender).toLowerCase().trim().startsWith('f') || String(inputs.gender).toLowerCase().trim() === 'female' ? 'female' : 'male')
+                  : prev.sex,
+                age: inputs.age ? Number(inputs.age) : prev.age,
+                height: inputs.height_cm ? Number(inputs.height_cm) : prev.height,
+                weight: inputs.weight_kg ? Number(inputs.weight_kg) : prev.weight,
+                smokingStatus: inputs.smoking_status || prev.smokingStatus,
+                breathHold: inputs.breath_holding_time ? Number(inputs.breath_holding_time) : prev.breathHold,
+                smokingPackYears: inputs.smoking_pack_years !== undefined && inputs.smoking_pack_years !== null
+                  ? Number(inputs.smoking_pack_years)
+                  : (inputs.pack_years !== undefined && inputs.pack_years !== null ? Number(inputs.pack_years) : prev.smokingPackYears),
+                peakFlow: inputs.peak_flow ? Number(inputs.peak_flow) : prev.peakFlow,
+                breathsPerMinute: inputs.breaths_per_minute ? Number(inputs.breaths_per_minute) : prev.breathsPerMinute,
+                pollutionExposure: inputs.pollution_exposure || prev.pollutionExposure,
+                occupationalRisk: inputs.occupational_exposure || prev.occupationalRisk,
+                location: inputs.location || prev.location,
+                aqi: inputs.aqi ? Number(inputs.aqi) : prev.aqi,
+                CoughFrequency: inputs.cough_frequency || prev.CoughFrequency,
+                Breathlessness: inputs.breathlessness || prev.Breathlessness,
+                Wheezing: inputs.wheezing !== undefined && inputs.wheezing !== null ? String(inputs.wheezing) : prev.Wheezing,
+              }));
+            }
+          })
+          .catch(e => console.warn("Could not fetch previous lung assessment:", e));
+      }
     } catch (e) { console.warn("Could not load DOB / Gender:", e); }
 
     return () => window.removeEventListener("patient-location-updated", handleLocationUpdate);
@@ -696,6 +741,21 @@ export default function GamifiedLungAssessment() {
             For sudden breathlessness, chest tightness, or coughing blood, seek immediate emergency medical care. This assessment is not a diagnostic tool.
           </p>
         </motion.div>
+
+        {/* ── Existing Telemetry Auto-Loaded Banner ── */}
+        {hasPreviousAssessment && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-sky-50 border border-sky-200 rounded-lg p-2.5 sm:p-3 flex items-start gap-2 sm:gap-2.5 text-[11px] sm:text-xs text-slate-800 leading-relaxed shadow-2xs"
+          >
+            <FaSync className="w-3.5 h-3.5 text-[#0067A1] shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-[#003358]">Previous Assessment Loaded: </span>
+              Your recent respiratory metrics and lifestyle entries have been pre-filled. Adjust any current readings below before submitting.
+            </div>
+          </motion.div>
+        )}
 
         {/* ── Step Progress Indicator ── */}
         <motion.div

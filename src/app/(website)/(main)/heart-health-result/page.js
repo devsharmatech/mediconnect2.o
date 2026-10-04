@@ -90,22 +90,25 @@ export default function HeartHealthResult() {
     fetchLiveCardioData();
 
     if (userId && userId !== 'usr_guest') {
-      fetch(`/api/health/assessments?user_id=${userId}&type=heart&limit=1`)
+      fetch(`/api/health/assessments?user_id=${userId}&type=heart&limit=5`)
         .then(r => r.json())
         .then(res => {
           if (res.success && res.data?.assessments?.length > 0) {
             const latest = res.data.assessments[0];
+            const previous = res.data.assessments.length > 1 ? res.data.assessments[1] : null;
             setAssessmentData(prev => {
-              if (!prev) return latest;
+              const base = prev || latest;
               return {
-                ...prev,
-                patient_name: prev.patient_name || latest.patient_name,
-                patientName: prev.patientName || latest.patient_name,
-                patient_gender: prev.patient_gender || latest.patient_gender,
-                patient_dob: prev.patient_dob || latest.patient_dob,
-                patient_blood_group: prev.patient_blood_group || latest.patient_blood_group,
+                ...base,
+                previousAssessment: base.previousAssessment || previous,
+                patient_name: base.patient_name || latest.patient_name,
+                patientName: base.patientName || latest.patient_name,
+                patient_gender: base.patient_gender || latest.patient_gender,
+                patient_dob: base.patient_dob || latest.patient_dob,
+                patient_blood_group: base.patient_blood_group || latest.patient_blood_group,
               };
             });
+
             if (latest.patient_name) {
               setPatientData(prev => ({
                 ...(prev || {}),
@@ -144,16 +147,20 @@ export default function HeartHealthResult() {
         const res = await fetch(`/api/health/assessments/graph?user_id=${userId}&type=heart&timeframe=year&limit=50`);
         const data = await res.json();
 
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || 'Failed to load heart history');
+        // If API returned a non-200 (true server error), log quietly but don't crash
+        if (!res.ok) {
+          console.warn('Heart graph API error:', data.message);
+          // Page still loads — just no chart data
+          return;
         }
 
-        setGraphData(data.data.graphData || null);
-        setGraphSummary(data.data.summary || null);
-        setHistory(data.data.history || []);
+        // Gracefully handle empty / DB-timeout responses (success: true, empty arrays)
+        setGraphData(data.data?.graphData || null);
+        setGraphSummary(data.data?.summary || null);
+        setHistory(data.data?.history || []);
       } catch (error) {
-        console.error('Error loading heart graph data:', error);
-        setGraphError('Unable to load your heart health history right now.');
+        // Network-level failure (fetch itself failed) — log quietly, don't block page
+        console.warn('Could not load heart graph data:', error.message);
       } finally {
         setGraphLoading(false);
       }
@@ -180,6 +187,8 @@ export default function HeartHealthResult() {
 
     return {
       ...assessmentData,
+      cardioHomeData,
+      recentSessions: cardioHomeData?.recent_activities || cardioHomeData?.activities || [],
       heart_health_inputs: [
         {
           ...baseInputs,
@@ -194,6 +203,7 @@ export default function HeartHealthResult() {
       ]
     };
   }, [assessmentData, cardioHomeData]);
+
 
   if (loading) {
     return (
@@ -258,6 +268,8 @@ export default function HeartHealthResult() {
   }
 
   const {
+
+
     health_score = 75,
     risk_level = 'moderate',
     risk_factors = [],

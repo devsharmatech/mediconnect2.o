@@ -57,9 +57,19 @@ export async function POST(req) {
     if (!details)
       return failure("Profile details not found.", null, 404, { headers: corsHeaders });
 
+    let cleanPic = user.profile_picture;
+    if (cleanPic) {
+      cleanPic = String(cleanPic).replace(/^'+|'+$/g, "").replace(/::text$/i, "").trim();
+      if (!cleanPic.startsWith("http") || cleanPic.includes("::text")) cleanPic = null;
+    }
+    if (!cleanPic) {
+      const name = details?.full_name || details?.owner_name || details?.lab_name || user.role || "User";
+      cleanPic = `https://ui-avatars.com/api/?name=${encodeURIComponent(name.trim())}&background=0067A1&color=fff&bold=true`;
+    }
+
     return success(
       "Profile fetched successfully.",
-      { ...user, details },
+      { ...user, profile_picture: cleanPic, details },
       200,
       { headers: corsHeaders }
     );

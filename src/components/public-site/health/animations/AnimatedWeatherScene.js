@@ -91,12 +91,12 @@ export default function AnimatedWeatherScene({
         <div className="relative z-10 flex items-center justify-between gap-2 mb-1.5">
           <div className="min-w-0 flex items-center gap-1.5">
             <MapPin className="w-3.5 h-3.5 text-sky-200 shrink-0" />
-            <span className="text-xs sm:text-sm font-bold text-white truncate">
+            <span className="text-xs sm:text-sm font-semibold text-white truncate">
               {location}
             </span>
           </div>
 
-          <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-mono font-medium text-white/90 bg-black/20 px-2 py-0.5 rounded-[4px] border border-white/10 shrink-0">
+          <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-normal text-white/85 bg-black/15 px-2 py-0.5 rounded-[4px] border border-white/10 shrink-0">
             <Clock className="w-2.5 h-2.5 text-sky-200" />
             <span>{lastUpdated}</span>
           </div>
@@ -106,14 +106,14 @@ export default function AnimatedWeatherScene({
         <div className="relative z-10 flex items-center justify-between gap-3 my-1.5">
           <div>
             <div className="flex items-baseline gap-1">
-              <span className="text-3xl sm:text-4xl font-extrabold font-mono tracking-tight text-white">
+              <span className="text-3xl sm:text-4xl font-semibold tracking-tight text-white">
                 {temperature}
               </span>
-              <span className="text-xl sm:text-2xl font-bold font-mono text-sky-200">°C</span>
+              <span className="text-xl sm:text-2xl font-normal text-sky-100">°C</span>
             </div>
 
             <div className="flex items-center gap-2 mt-1">
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-[4px] border ${badgeBg}`}>
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-[4px] border ${badgeBg}`}>
                 {condition}
               </span>
             </div>
@@ -133,30 +133,30 @@ export default function AnimatedWeatherScene({
       {/* 3 Metric Cards with Compact, Attractive Proportions */}
       <div className="grid grid-cols-3 divide-x divide-slate-200 border-b border-slate-200 bg-slate-50">
         <div className="p-2 sm:p-2.5 text-center">
-          <div className="flex items-center justify-center gap-1 text-[10px] sm:text-[11px] uppercase font-bold text-slate-700 tracking-wider">
+          <div className="flex items-center justify-center gap-1 text-[10px] uppercase font-semibold text-slate-500 tracking-wider">
             <Droplets className="w-3 h-3 text-sky-600" />
             <span>Humidity</span>
           </div>
-          <p className="text-sm sm:text-base font-extrabold font-mono text-slate-950 mt-0.5">{humidity}%</p>
-          <span className="text-[10px] text-slate-600 font-medium block leading-none">Relative</span>
+          <p className="text-sm sm:text-base font-semibold text-slate-800 mt-0.5">{humidity}%</p>
+          <span className="text-[10px] text-slate-400 font-normal block leading-none mt-0.5">Relative</span>
         </div>
 
         <div className="p-2 sm:p-2.5 text-center">
-          <div className="flex items-center justify-center gap-1 text-[10px] sm:text-[11px] uppercase font-bold text-slate-700 tracking-wider">
+          <div className="flex items-center justify-center gap-1 text-[10px] uppercase font-semibold text-slate-500 tracking-wider">
             <Wind className="w-3 h-3 text-teal-600" />
             <span>Wind</span>
           </div>
-          <p className="text-sm sm:text-base font-extrabold font-mono text-slate-950 mt-0.5">{windSpeed} km/h</p>
-          <span className="text-[10px] text-slate-600 font-medium block leading-none">Breeze</span>
+          <p className="text-sm sm:text-base font-semibold text-slate-800 mt-0.5">{windSpeed} km/h</p>
+          <span className="text-[10px] text-slate-400 font-normal block leading-none mt-0.5">Breeze</span>
         </div>
 
         <div className="p-2 sm:p-2.5 text-center">
-          <div className="flex items-center justify-center gap-1 text-[10px] sm:text-[11px] uppercase font-bold text-slate-700 tracking-wider">
+          <div className="flex items-center justify-center gap-1 text-[10px] uppercase font-semibold text-slate-500 tracking-wider">
             <Eye className="w-3 h-3 text-indigo-600" />
             <span>Visibility</span>
           </div>
-          <p className="text-sm sm:text-base font-extrabold font-mono text-slate-950 mt-0.5">{visibility} km</p>
-          <span className="text-[10px] text-slate-600 font-medium block leading-none">Clear</span>
+          <p className="text-sm sm:text-base font-semibold text-slate-800 mt-0.5">{visibility} km</p>
+          <span className="text-[10px] text-slate-400 font-normal block leading-none mt-0.5">Clear</span>
         </div>
       </div>
 
@@ -167,7 +167,7 @@ export default function AnimatedWeatherScene({
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
           </span>
-          <span>Live feed: <strong className="text-slate-800">{lastUpdated}</strong></span>
+          <span>Live feed: <span className="font-medium text-slate-700">{lastUpdated}</span></span>
         </div>
 
         <span className="text-[10px] text-slate-500 italic">

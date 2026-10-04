@@ -361,14 +361,14 @@ export default function LungHealthStatisticsPage() {
       setSelectedAssessmentForPrint(raw);
       setSelectedLungFormat(format);
       setIsDownloading(true);
-      toast.loading(`Preparing ${format === "lung-full" ? "Full Clinical" : "V9.9 Wellness"} PDF...`, { id: "stats-pdf" });
+      toast.loading(`Preparing ${format === "lung-full" ? "Full Clinical" : "Health Summary"} PDF...`, { id: "stats-pdf" });
 
       await new Promise((resolve) => setTimeout(resolve, 350));
 
       if (!reportRef.current) throw new Error("Report element not found");
 
       const serial = record.serialNo || record.id || "LCN_REPORT";
-      const filename = `MediConnect_Lung_${format === "lung-full" ? "Full" : "V9.9"}_${serial.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+      const filename = `MediConnect_Lung_${format === "lung-full" ? "Full" : "Summary"}_${serial.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
       await generateClientPdf(reportRef.current, filename, { scale: 2, action: "download" });
       toast.success("PDF Report downloaded successfully!", { id: "stats-pdf" });
     } catch (err) {
@@ -950,12 +950,35 @@ export default function LungHealthStatisticsPage() {
                         minute: "2-digit"
                       });
 
-                      // Clean non-diagnostic summary
+                      // Clean non-diagnostic summary (safely extract text from object or JSON string)
                       let summaryText = "";
-                      if (typeof record.aiAnalysis === "string") {
-                        summaryText = record.aiAnalysis;
-                      } else if (record.aiAnalysis && typeof record.aiAnalysis === "object") {
-                        summaryText = record.aiAnalysis.analysis || "";
+                      const rawAi = record.aiAnalysis || record.ai_analysis || record.analysis;
+                      if (typeof rawAi === "string") {
+                        const trimmed = rawAi.trim();
+                        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+                          try {
+                            const parsed = JSON.parse(trimmed);
+                            summaryText = parsed.analysis || parsed.summary || parsed.description || parsed.executive_summary || "";
+                          } catch (_) {
+                            const match = trimmed.match(/"analysis"\s*:\s*"([^"]+)"/);
+                            summaryText = match ? match[1] : trimmed;
+                          }
+                        } else {
+                          summaryText = trimmed;
+                        }
+                      } else if (rawAi && typeof rawAi === "object") {
+                        summaryText = rawAi.analysis || rawAi.summary || rawAi.description || rawAi.executive_summary || "";
+                      }
+
+                      // Fallback if still containing JSON artifacts
+                      if (typeof summaryText === "string" && (summaryText.startsWith("{") || summaryText.includes('"analysis":'))) {
+                        try {
+                          const parsed = JSON.parse(summaryText);
+                          summaryText = parsed.analysis || parsed.summary || "";
+                        } catch (_) {
+                          const match = summaryText.match(/"analysis"\s*:\s*"([^"]+)"/);
+                          if (match) summaryText = match[1];
+                        }
                       }
 
                       return (
@@ -998,7 +1021,7 @@ export default function LungHealthStatisticsPage() {
 
                           {/* Recorded Summary */}
                           <td className="py-3 px-3 max-w-xs">
-                            <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed">
+                            <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed" title={summaryText}>
                               {summaryText || "Assessment summary based on recorded breath holding duration and lifestyle entries."}
                             </p>
                           </td>
@@ -1031,7 +1054,7 @@ export default function LungHealthStatisticsPage() {
                                 onClick={() => handleDownloadReport(record, "lung-v9.9")}
                                 disabled={isDownloading}
                                 className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-[5px] text-[11px] font-semibold transition-colors cursor-pointer"
-                                title="Download V9.9 Wellness Summary PDF"
+                                title="Download Health Summary PDF"
                               >
                                 <Download className="w-3.5 h-3.5" />
                               </button>
@@ -1085,11 +1108,11 @@ export default function LungHealthStatisticsPage() {
 
             {/* Format Selection Tab Bar */}
             <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex items-center gap-2 overflow-x-auto shrink-0">
-              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider shrink-0 mr-1">
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider shrink-0 mr-1">
                 Official Format:
               </span>
               {[
-                { id: "lung-v9.9", label: "V9.9 • Health Summary", badge: "Frozen 1-Page A4 Fixed" },
+                { id: "lung-v9.9", label: "Health Summary", badge: "Frozen 1-Page A4 Fixed" },
                 { id: "lung-full", label: "Full • Clinical Assessment", badge: "Comprehensive Matrix" }
               ].map((fmt) => (
                 <button
@@ -1099,7 +1122,7 @@ export default function LungHealthStatisticsPage() {
                     setSelectedLungFormat(fmt.id);
                     setSelectedAssessmentForPrint(selectedReportForViewer);
                   }}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-[4px] transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-[4px] transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
                     selectedLungFormat === fmt.id
                       ? "bg-[#007a8c] text-white shadow-sm ring-1 ring-slate-900"
                       : "bg-white text-slate-700 hover:bg-slate-200 border border-slate-300"
@@ -1148,7 +1171,7 @@ export default function LungHealthStatisticsPage() {
                   className="px-4 py-2 bg-[#007a8c] hover:bg-[#005e6c] text-white rounded-[5px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download {selectedLungFormat === "lung-full" ? "Full Clinical" : "V9.9"} PDF</span>
+                  <span>Download {selectedLungFormat === "lung-full" ? "Full Clinical" : "Health Summary"} PDF</span>
                 </button>
               </div>
             </div>

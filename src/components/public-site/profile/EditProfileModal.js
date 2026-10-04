@@ -28,10 +28,18 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
   const [errors, setErrors] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const [imageError, setImageError] = useState(false);
   const fileInputRef = useRef(null);
+
+  const cleanAvatarUrl = (url) => {
+    if (!url) return null;
+    const s = String(url).replace(/^'+|'+$/g, "").replace(/::text$/i, "").trim();
+    return (s && !s.includes("::text") && s.startsWith("http")) ? s : null;
+  };
 
   // Initialize form data when modal opens — normalize all fields
   useEffect(() => {
+    setImageError(false);
     if (isOpen && userData) {
       const details = userData.user?.details || {};
       const rawDob =
@@ -248,10 +256,15 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
                   <div className="w-20 h-20 rounded-full bg-white border-2 border-slate-200 shadow-xs overflow-hidden flex items-center justify-center relative">
                     {previewImage ? (
                       <img src={previewImage} alt="Preview" className="w-full h-full object-cover" />
-                    ) : userData?.user?.profile_picture ? (
-                      <img src={userData.user.profile_picture} alt="Profile" className="w-full h-full object-cover" />
+                    ) : cleanAvatarUrl(userData?.user?.profile_picture) && !imageError ? (
+                      <img
+                        src={cleanAvatarUrl(userData.user.profile_picture)}
+                        alt="Profile"
+                        className="w-full h-full object-cover"
+                        onError={() => setImageError(true)}
+                      />
                     ) : (
-                      <span className="text-2xl font-bold text-[#0067A1]">{formData.full_name?.charAt(0)}</span>
+                      <span className="text-2xl font-bold text-[#0067A1]">{formData.full_name?.charAt(0) || "U"}</span>
                     )}
                   </div>
                   <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">

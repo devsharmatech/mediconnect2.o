@@ -374,7 +374,8 @@ export default function LabTestsPage({ params }) {
                 {cart.length > 0 && (
                     <motion.div
                         initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
-                        className="fixed bottom-0 left-0 right-0 lg:left-72 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 shadow-2xl px-4 sm:px-6 py-4">
+                        className="fixed bottom-0 left-0 right-0 lg:left-[var(--patient-sidebar-width,16rem)] z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 shadow-2xl px-4 sm:px-6 py-4 transition-all duration-300">
+
                         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
                             <button onClick={() => setShowCart(!showCart)}
                                 className="flex items-center gap-3 bg-[#0067A1]/5 px-4 py-2.5 rounded-xl border border-[#0067A1]/10 hover:bg-[#0067A1]/10 transition-colors cursor-pointer">

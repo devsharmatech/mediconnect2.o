@@ -1,29 +1,34 @@
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseClient";
+import sql from "@/lib/db";
 
 export async function GET(req) {
   try {
-    const { data: docs } = await supabase.from('doctor_details').select('specialization');
-    const uniqueSpecs = [...new Set(docs?.map(d => d.specialization).filter(Boolean))].slice(0, 8);
-    
-    // We mock lab tests if lab_tests table doesn't exist yet, else query it.
-    let popular_tests = [];
-    const { data: labTests, error } = await supabase.from('lab_tests').select('*').limit(3);
-    if (!error && labTests?.length > 0) {
-      popular_tests = labTests;
-    } else {
-      popular_tests = [{ name: "Full Body Health Checkup", price: 1499, original_price: 2999 }];
-    }
+    const docs = await sql`
+      SELECT DISTINCT specialization 
+      FROM doctor_details 
+      WHERE specialization IS NOT NULL AND TRIM(specialization) != ''
+      LIMIT 8
+    `;
+    const uniqueSpecs = docs.map(d => d.specialization);
 
-    const { count: doctorsCount } = await supabase
-      .from('doctor_details')
-      .select('id', { count: 'exact', head: true })
-      .eq('onboarding_status', 'approved');
+    const popular_tests = await sql`
+      SELECT id, test_name AS name, price, specimen_type, turnaround_time
+      FROM lab_tests
+      WHERE is_active = true AND price > 0
+      ORDER BY id
+      LIMIT 6
+    `;
+
+    const [doctorStats] = await sql`
+      SELECT COUNT(*)::int AS count
+      FROM doctor_details
+      WHERE onboarding_status = 'approved'
+    `;
 
     return success("Search metadata fetched", { 
       specialties: uniqueSpecs, 
-      popular_tests,
-      online_doctors_count: doctorsCount || 0
+      popular_tests: popular_tests || [],
+      online_doctors_count: doctorStats?.count || 0
     }, 200);
   } catch (error) {
     console.error("Search Metadata API Error:", error);

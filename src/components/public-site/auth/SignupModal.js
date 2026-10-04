@@ -125,7 +125,7 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
       });
 
       if (response.success) {
-        setUserId(response.data.user_id);
+        setUserId(response.data?.user_id || null);
         setStep(3); // Transition to OTP Verification inside modal
         setOtp(['', '', '', '', '', '']);
         startResendTimer();
@@ -221,9 +221,11 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
 
     setLoading(true);
     try {
+      const digitsOnly = String(formData.phone_number || '').replace(/\D/g, '');
+      const cleanPhone = digitsOnly.length > 10 ? digitsOnly.slice(-10) : digitsOnly;
       const response = await api.post('/website/auth/validate-otp', {
         user_id: userId || undefined,
-        phone_number: formData.phone_number,
+        phone_number: cleanPhone,
         otp: otpValue,
       });
 
@@ -261,8 +263,10 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
     try {
       setLoading(true);
       setError('');
+      const digitsOnly = String(formData.phone_number || '').replace(/\D/g, '');
+      const cleanPhone = digitsOnly.length > 10 ? digitsOnly.slice(-10) : digitsOnly;
       const response = await api.post('/website/auth/patient/register', {
-        phone_number: formData.phone_number,
+        phone_number: cleanPhone,
         full_name: formData.full_name,
         email: formData.email,
         gender: formData.gender,

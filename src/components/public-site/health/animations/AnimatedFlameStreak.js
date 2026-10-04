@@ -13,6 +13,7 @@ export default function AnimatedFlameStreak({
   showCount = true,
   className = "",
 }) {
+  const isActive = days > 0;
   const dimensions = {
     sm: "w-10 h-12",
     md: "w-16 h-20",
@@ -24,19 +25,32 @@ export default function AnimatedFlameStreak({
       <div className={`relative ${dimensions} flex items-center justify-center`}>
         {/* Soft Radial Backlight Glow */}
         <motion.div
-          animate={{
-            scale: [1, 1.2, 0.95, 1.15, 1],
-            opacity: [0.35, 0.6, 0.4, 0.55, 0.35],
-          }}
+          animate={
+            isActive
+              ? {
+                  scale: [1, 1.2, 0.95, 1.15, 1],
+                  opacity: [0.35, 0.6, 0.4, 0.55, 0.35],
+                }
+              : {
+                  scale: 1,
+                  opacity: 0.15,
+                }
+          }
           transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute inset-0 rounded-full blur-lg bg-gradient-to-t from-amber-500 via-orange-500 to-red-500"
+          className={`absolute inset-0 rounded-full blur-lg ${
+            isActive
+              ? "bg-gradient-to-t from-amber-500 via-orange-500 to-red-500"
+              : "bg-slate-300"
+          }`}
         />
 
         <svg
           viewBox="0 0 100 120"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className="w-full h-full relative z-10 drop-shadow-md"
+          className={`w-full h-full relative z-10 drop-shadow-md transition-all ${
+            isActive ? "" : "opacity-45 grayscale-[40%]"
+          }`}
         >
           <defs>
             <linearGradient id="flameOuter" x1="50%" y1="100%" x2="50%" y2="0%">
@@ -147,7 +161,7 @@ export default function AnimatedFlameStreak({
             {days}
           </span>
           <span className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
-            Days
+            {days === 1 ? "Day" : "Days"}
           </span>
         </div>
       )}

@@ -35,8 +35,8 @@ export async function POST(req) {
 
     if (error) return failure("Pharmacy orchestration locked or failed", error, 500);
     if (isDuplicate) return success(responseBody?.message || "Order already exists", responseBody?.data, responseStatus);
-
-    const amount = 300; // Mock fixed amount
+    const calculatedAmount = medicines.reduce((sum, m) => sum + (Number(m.price || m.unit_price || 0) * Number(m.quantity || 1)), 0);
+    const amount = Number(body.amount || body.total_amount) || calculatedAmount || 0;
 
     // Create Pharmacy Order
     const patientUuid = safeUuid(patient_id);

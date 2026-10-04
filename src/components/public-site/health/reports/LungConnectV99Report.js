@@ -58,26 +58,37 @@ export default function LungConnectV99Report({
     hour12: true
   });
 
-  // Vitals
-  const breathHold = inputs?.breath_holding_time || 35;
-  const pefr = inputs?.peak_flow || 450;
-  const rr = inputs?.respiratory_rate || 16;
+  // Vitals (Genuine inputs, no mock 35 / 450 fallbacks)
+  const rawBreathHold = inputs?.breath_holding_time !== undefined && inputs?.breath_holding_time !== null && inputs?.breath_holding_time !== "" ? Number(inputs.breath_holding_time) : null;
+  const rawPefr = inputs?.peak_flow !== undefined && inputs?.peak_flow !== null && inputs?.peak_flow !== "" ? Number(inputs.peak_flow) : null;
+  const rawRr = (inputs?.breaths_per_minute ?? inputs?.respiratory_rate) !== undefined && (inputs?.breaths_per_minute ?? inputs?.respiratory_rate) !== null ? Number(inputs?.breaths_per_minute ?? inputs?.respiratory_rate) : null;
+
+  const breathHold = rawBreathHold !== null ? rawBreathHold : "—";
+  const pefr = rawPefr !== null ? rawPefr : "—";
+  const rr = rawRr !== null ? rawRr : "—";
 
   // Symptoms
-  const hasCough = inputs?.symptoms_cough === true || inputs?.symptoms_cough === "yes";
-  const hasBreathless = inputs?.symptoms_breathlessness === true || inputs?.symptoms_breathlessness === "yes";
-  const hasWheezing = inputs?.symptoms_wheezing === true || inputs?.symptoms_wheezing === "yes" || (!hasCough && !hasBreathless);
+  const hasCough = inputs?.symptoms_cough === true || inputs?.symptoms_cough === "yes" || (inputs?.cough_frequency && inputs?.cough_frequency !== "none");
+  const hasBreathless = inputs?.symptoms_breathlessness === true || inputs?.symptoms_breathlessness === "yes" || (inputs?.breathlessness && inputs?.breathlessness !== "none");
+  const hasWheezing = inputs?.wheezing === true || inputs?.wheezing === "true" || inputs?.symptoms_wheezing === true || inputs?.symptoms_wheezing === "yes";
 
-  const coughText = hasCough ? "present" : "none";
-  const breathlessnessText = hasBreathless ? "present" : "none";
+  const coughText = inputs?.cough_frequency && inputs?.cough_frequency !== "none" ? inputs.cough_frequency : (hasCough ? "present" : "none");
+  const breathlessnessText = inputs?.breathlessness && inputs?.breathlessness !== "none" ? inputs.breathlessness : (hasBreathless ? "present" : "none");
   const wheezingText = hasWheezing ? "present" : "none";
 
   // Context & AQI
-  const bmi = Number(inputs?.bmi || 24.5).toFixed(1);
-  const smokingHistory = inputs?.smoking_history || (inputs?.smoking_status === "former" ? "Former smoking history" : inputs?.smoking_status === "never" ? "Never smoked" : "Former smoking history");
-  const aqi = inputs?.aqi || 60;
-  const aqiCity = inputs?.city || inputs?.location || "Khurja";
-  const aqiCategory = aqi <= 50 ? "Good" : aqi <= 100 ? "Satisfactory" : aqi <= 200 ? "Moderate" : aqi <= 300 ? "Poor" : "Very Poor";
+  const bmi = inputs?.bmi ? Number(inputs.bmi).toFixed(1) : "—";
+  const smokingHistory = inputs?.smoking_history || (
+    inputs?.smoking_status === "never" ? "Never smoked" :
+    inputs?.smoking_status === "current" ? "Current smoker" :
+    inputs?.smoking_status === "former" ? "Former smoking history" :
+    "Never smoked"
+  );
+  const aqiRaw = inputs?.aqi ?? assessmentData?.aqi ?? null;
+  const aqi = aqiRaw !== null ? Number(aqiRaw) : "—";
+  const aqiCity = inputs?.city || inputs?.location || assessmentData?.city || "Current Location";
+  const aqiCategory = aqi !== "—" ? (aqi <= 50 ? "Good" : aqi <= 100 ? "Satisfactory" : aqi <= 200 ? "Moderate" : aqi <= 300 ? "Poor" : "Very Poor") : "Unspecified";
+
 
   return (
     <div
@@ -93,7 +104,10 @@ export default function LungConnectV99Report({
         fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif",
         padding: "36px 44px 28px 44px",
         boxSizing: "border-box",
-        lineHeight: "1.4"
+        lineHeight: "1.4",
+        WebkitFontSmoothing: "antialiased",
+        MozOsxFontSmoothing: "grayscale",
+        textRendering: "optimizeLegibility"
       }}
     >
       {/* Top Header & Content Body */}
@@ -108,11 +122,11 @@ export default function LungConnectV99Report({
             />
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span style={{ fontSize: "18px", fontWeight: "900", color: "#007a8c", letterSpacing: "0.5px" }}>MediConnect.fit</span>
+                <span style={{ fontSize: "17px", fontWeight: "700", color: "#007a8c", letterSpacing: "0.2px" }}>MediConnect.fit</span>
                 <span style={{ color: "#94a3b8", fontWeight: "300" }}>|</span>
-                <span style={{ fontSize: "13px", fontWeight: "800", color: "#0d3b66", letterSpacing: "1px", textTransform: "uppercase" }}>LUNGCONNECT</span>
+                <span style={{ fontSize: "12px", fontWeight: "600", color: "#0d3b66", letterSpacing: "0.8px", textTransform: "uppercase" }}>LUNGCONNECT</span>
               </div>
-              <div style={{ fontSize: "18px", fontWeight: "900", color: "#0d3b66", letterSpacing: "0.5px", textTransform: "uppercase", marginTop: "1px", lineHeight: "1.1" }}>
+              <div style={{ fontSize: "16px", fontWeight: "700", color: "#0d3b66", letterSpacing: "0.3px", textTransform: "uppercase", marginTop: "1px", lineHeight: "1.2" }}>
                 YOUR LUNGCONNECT HEALTH SUMMARY
               </div>
               <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
@@ -121,43 +135,43 @@ export default function LungConnectV99Report({
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ display: "inline-block", backgroundColor: "#f0fdfa", border: "1px solid #99f6e4", color: "#0f766e", fontSize: "10px", fontWeight: "800", padding: "4px 10px", borderRadius: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            <div style={{ display: "inline-block", backgroundColor: "#f0fdfa", border: "1px solid #99f6e4", color: "#0f766e", fontSize: "10px", fontWeight: "600", padding: "3px 8px", borderRadius: "4px", textTransform: "uppercase", letterSpacing: "0.3px" }}>
               Authoritative Record
             </div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px", fontWeight: "600" }}>
+            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px", fontWeight: "500" }}>
               Freeze Candidate v9.9 • ISO A4
             </div>
           </div>
         </div>
 
         {/* 2x2 Clean Structured Metadata Table */}
-        <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #cbd5e1", marginBottom: "18px", fontSize: "11.5px" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #cbd5e1", marginBottom: "18px", fontSize: "11px" }}>
           <tbody>
             <tr style={{ borderBottom: "1px solid #cbd5e1" }}>
-              <td style={{ width: "15%", backgroundColor: "#eaf4f6", padding: "7px 12px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px", borderRight: "1px solid #cbd5e1" }}>
+              <td style={{ width: "15%", backgroundColor: "#eaf4f6", padding: "6px 12px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.4px", borderRight: "1px solid #cbd5e1" }}>
                 RECORD
               </td>
-              <td style={{ width: "35%", backgroundColor: "#ffffff", padding: "7px 14px", fontWeight: "700", color: "#0f2d4a", fontFamily: "monospace", fontSize: "12px", borderRight: "1px solid #cbd5e1" }}>
+              <td style={{ width: "35%", backgroundColor: "#ffffff", padding: "6px 14px", fontWeight: "600", color: "#0f2d4a", fontFamily: "monospace", fontSize: "11.5px", borderRight: "1px solid #cbd5e1" }}>
                 {serialNo}
               </td>
-              <td style={{ width: "16%", backgroundColor: "#eaf4f6", padding: "7px 12px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px", borderRight: "1px solid #cbd5e1" }}>
+              <td style={{ width: "16%", backgroundColor: "#eaf4f6", padding: "6px 12px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.4px", borderRight: "1px solid #cbd5e1" }}>
                 ASSESSMENT
               </td>
-              <td style={{ width: "34%", backgroundColor: "#ffffff", padding: "7px 14px", color: "#0f2d4a", fontWeight: "600" }}>
+              <td style={{ width: "34%", backgroundColor: "#ffffff", padding: "6px 14px", color: "#0f2d4a", fontWeight: "500" }}>
                 {assessmentDate}
               </td>
             </tr>
             <tr>
-              <td style={{ backgroundColor: "#eaf4f6", padding: "7px 12px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px", borderRight: "1px solid #cbd5e1" }}>
+              <td style={{ backgroundColor: "#eaf4f6", padding: "6px 12px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.4px", borderRight: "1px solid #cbd5e1" }}>
                 PATIENT
               </td>
-              <td style={{ backgroundColor: "#ffffff", padding: "7px 14px", fontWeight: "700", color: "#0f2d4a", borderRight: "1px solid #cbd5e1" }}>
+              <td style={{ backgroundColor: "#ffffff", padding: "6px 14px", fontWeight: "600", color: "#0f2d4a", borderRight: "1px solid #cbd5e1" }}>
                 {patientName}
               </td>
-              <td style={{ backgroundColor: "#eaf4f6", padding: "7px 12px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px", borderRight: "1px solid #cbd5e1" }}>
+              <td style={{ backgroundColor: "#eaf4f6", padding: "6px 12px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.4px", borderRight: "1px solid #cbd5e1" }}>
                 SOURCE
               </td>
-              <td style={{ backgroundColor: "#ffffff", padding: "7px 14px", color: "#334155", fontSize: "11px" }}>
+              <td style={{ backgroundColor: "#ffffff", padding: "6px 14px", color: "#334155", fontSize: "11px" }}>
                 Self-reported questionnaire & vitals
               </td>
             </tr>
@@ -166,10 +180,10 @@ export default function LungConnectV99Report({
 
         {/* Narrative Heading & Description */}
         <div style={{ marginBottom: "16px" }}>
-          <div style={{ fontSize: "14.5px", fontWeight: "800", color: "#0d3b66", marginBottom: "4px" }}>
+          <div style={{ fontSize: "14px", fontWeight: "600", color: "#0d3b66", marginBottom: "4px" }}>
             A clear picture of your breathing and wellness today
           </div>
-          <div style={{ fontSize: "11.5px", color: "#334155", lineHeight: "1.5" }}>
+          <div style={{ fontSize: "11px", color: "#334155", lineHeight: "1.5" }}>
             LungConnect brings together what you shared about your breathing, everyday wellness and the air around you. This summary distils today&apos;s check-in into one clear reference point for you and your ongoing LungConnect record.
           </div>
         </div>
@@ -179,7 +193,7 @@ export default function LungConnectV99Report({
           {/* Row 1: Objective Respiratory Snapshot */}
           <div style={{ display: "flex", padding: "14px 20px", borderBottom: "1px solid #cbd5e1", backgroundColor: "#f0fdfa", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <div style={{ fontSize: "12.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "3px" }}>
+              <div style={{ fontSize: "12px", fontWeight: "600", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "3px" }}>
                 YOUR RESPIRATORY HEALTH SNAPSHOT
               </div>
               <div style={{ fontSize: "11px", color: "#334155", lineHeight: "1.4" }}>
@@ -188,26 +202,27 @@ export default function LungConnectV99Report({
             </div>
             <div style={{ display: "flex", gap: "10px" }}>
               <div style={{ backgroundColor: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "3px", padding: "5px 12px", textAlign: "center", minWidth: "75px" }}>
-                <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>PEFR</div>
-                <div style={{ fontSize: "15px", fontWeight: "900", color: "#0d3b66" }}>{pefr} <span style={{ fontSize: "9.5px", fontWeight: "600", color: "#64748b" }}>L/min</span></div>
+                <div style={{ fontSize: "9px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase" }}>PEFR</div>
+                <div style={{ fontSize: "15px", fontWeight: "700", color: "#0d3b66" }}>{pefr} {pefr !== "—" && <span style={{ fontSize: "9.5px", fontWeight: "500", color: "#64748b" }}>L/min</span>}</div>
               </div>
               <div style={{ backgroundColor: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "3px", padding: "5px 12px", textAlign: "center", minWidth: "75px" }}>
-                <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>BREATH HOLD</div>
-                <div style={{ fontSize: "15px", fontWeight: "900", color: "#0d3b66" }}>{breathHold} <span style={{ fontSize: "9.5px", fontWeight: "600", color: "#64748b" }}>sec</span></div>
+                <div style={{ fontSize: "9px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase" }}>BREATH HOLD</div>
+                <div style={{ fontSize: "15px", fontWeight: "700", color: "#0d3b66" }}>{breathHold} {breathHold !== "—" && <span style={{ fontSize: "9.5px", fontWeight: "500", color: "#64748b" }}>sec</span>}</div>
               </div>
               <div style={{ backgroundColor: "#ffffff", border: "1px solid #cbd5e1", borderRadius: "3px", padding: "5px 12px", textAlign: "center", minWidth: "75px" }}>
-                <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>RESP. RATE</div>
-                <div style={{ fontSize: "15px", fontWeight: "900", color: "#0d3b66" }}>{rr} <span style={{ fontSize: "9.5px", fontWeight: "600", color: "#64748b" }}>bpm</span></div>
+                <div style={{ fontSize: "9px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase" }}>RESP. RATE</div>
+                <div style={{ fontSize: "15px", fontWeight: "700", color: "#0d3b66" }}>{rr} {rr !== "—" && <span style={{ fontSize: "9.5px", fontWeight: "500", color: "#64748b" }}>bpm</span>}</div>
+
               </div>
             </div>
           </div>
 
           {/* Row 2: Key Takeaway */}
           <div style={{ padding: "14px 20px", backgroundColor: "#ffffff", borderBottom: "1px solid #cbd5e1" }}>
-            <div style={{ fontSize: "11.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "5px" }}>
+            <div style={{ fontSize: "11px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "5px" }}>
               YOUR KEY TAKEAWAY
             </div>
-            <div style={{ fontSize: "11.5px", color: "#334155", lineHeight: "1.55" }}>
+            <div style={{ fontSize: "11px", color: "#334155", lineHeight: "1.55" }}>
               Today&apos;s check-in brings your recorded responses into one clear view. {hasWheezing ? "Wheezing is the symptom to keep in view" : "No persistent wheezing reported"}, while {hasCough ? "cough was reported" : "no persistent cough reported"} and {hasBreathless ? "breathlessness was reported" : "no severe breathlessness reported"}.
               <br />
               Keep this record as a reference for your next check-in, when you can see what has changed, stayed the same or newly appeared. If symptoms are new, persistent, worsening or concerning, consider a healthcare consultation.
@@ -218,44 +233,45 @@ export default function LungConnectV99Report({
           <div style={{ padding: "14px 20px", backgroundColor: "#ffffff", borderBottom: "1px solid #cbd5e1" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 28px" }}>
               <div>
-                <div style={{ fontSize: "11.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase" }}>
+                <div style={{ fontSize: "11px", fontWeight: "600", color: "#0d3b66", textTransform: "uppercase" }}>
                   TODAY&apos;S RECORDED CHECK-IN
                 </div>
-                <div style={{ fontSize: "11.5px", color: "#334155", marginTop: "3px" }}>
-                  Breath-hold {breathHold} sec • PEFR {pefr} L/min • Respiratory rate {rr} bpm
+                <div style={{ fontSize: "11px", color: "#334155", marginTop: "3px" }}>
+                  Breath-hold {breathHold} {breathHold !== "—" ? "sec" : ""} • PEFR {pefr} {pefr !== "—" ? "L/min" : ""} • Respiratory rate {rr} {rr !== "—" ? "bpm" : ""}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: "11.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase" }}>
+                <div style={{ fontSize: "11px", fontWeight: "600", color: "#0d3b66", textTransform: "uppercase" }}>
                   SYMPTOMS
                 </div>
-                <div style={{ fontSize: "11.5px", color: "#334155", marginTop: "3px" }}>
+                <div style={{ fontSize: "11px", color: "#334155", marginTop: "3px" }}>
                   Cough: {coughText} • Breathlessness: {breathlessnessText} • Wheezing: {wheezingText}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: "11.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase" }}>
+                <div style={{ fontSize: "11px", fontWeight: "600", color: "#0d3b66", textTransform: "uppercase" }}>
                   PERSONAL CONTEXT
                 </div>
-                <div style={{ fontSize: "11.5px", color: "#334155", marginTop: "3px" }}>
-                  Age {age} yrs • BMI {bmi} kg/m² • {smokingHistory}
+                <div style={{ fontSize: "11px", color: "#334155", marginTop: "3px" }}>
+                  Age {age} yrs • BMI {bmi} {bmi !== "—" ? "kg/m²" : ""} • {smokingHistory}
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: "11.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase" }}>
+                <div style={{ fontSize: "11px", fontWeight: "600", color: "#0d3b66", textTransform: "uppercase" }}>
                   AIR QUALITY
                 </div>
-                <div style={{ fontSize: "11.5px", color: "#334155", marginTop: "3px" }}>
-                  AQI {aqi} • {aqiCity} • CPCB category: {aqiCategory}
+                <div style={{ fontSize: "11px", color: "#334155", marginTop: "3px" }}>
+                  {aqi !== "—" ? `AQI ${aqi} • ${aqiCity} • CPCB category: ${aqiCategory}` : "Environmental AQI not recorded"}
                 </div>
               </div>
             </div>
+
           </div>
 
           {/* Row 4: Air Quality Context & Everyday Habit */}
           <div style={{ padding: "14px 20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "28px" }}>
             <div>
-              <div style={{ fontSize: "11.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>
+              <div style={{ fontSize: "11px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "4px" }}>
                 AIR-QUALITY CONTEXT
               </div>
               <div style={{ fontSize: "11px", color: "#334155", lineHeight: "1.45" }}>
@@ -263,7 +279,7 @@ export default function LungConnectV99Report({
               </div>
             </div>
             <div>
-              <div style={{ fontSize: "11.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>
+              <div style={{ fontSize: "11px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "4px" }}>
                 A USEFUL EVERYDAY HABIT
               </div>
               <div style={{ fontSize: "11px", color: "#334155", lineHeight: "1.45" }}>
@@ -275,55 +291,55 @@ export default function LungConnectV99Report({
 
         {/* Section: YOUR NEXT OPTIONS */}
         <div style={{ marginBottom: "18px" }}>
-          <div style={{ fontSize: "13.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
+          <div style={{ fontSize: "13px", fontWeight: "600", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "8px" }}>
             YOUR NEXT OPTIONS
           </div>
           <div style={{ border: "1px solid #cbd5e1", borderRadius: "2px", backgroundColor: "#ffffff", overflow: "hidden" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.3fr", borderBottom: "1px solid #cbd5e1" }}>
               <div style={{ padding: "14px 16px", borderRight: "1px solid #cbd5e1" }}>
-                <div style={{ fontSize: "11px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                <div style={{ fontSize: "10.5px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.4px" }}>
                   EXPLORE
                 </div>
-                <div style={{ fontSize: "14px", fontWeight: "800", color: "#0d3b66", marginTop: "2px", marginBottom: "4px" }}>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "#0d3b66", marginTop: "2px", marginBottom: "4px" }}>
                   Breathing Wellness
                 </div>
                 <div style={{ fontSize: "10.5px", color: "#475569", lineHeight: "1.4", marginBottom: "10px" }}>
                   Guided breathing for calm, comfortable everyday wellness.
                 </div>
-                <div style={{ fontSize: "10.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>
+                <div style={{ fontSize: "10.5px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase" }}>
                   → EXPLORE BREATHING WELLNESS
                 </div>
               </div>
 
               <div style={{ padding: "14px 16px", borderRight: "1px solid #cbd5e1" }}>
-                <div style={{ fontSize: "11px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                <div style={{ fontSize: "10.5px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.4px" }}>
                   TRACK
                 </div>
-                <div style={{ fontSize: "14px", fontWeight: "800", color: "#0d3b66", marginTop: "2px", marginBottom: "4px" }}>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "#0d3b66", marginTop: "2px", marginBottom: "4px" }}>
                   My Progress
                 </div>
                 <div style={{ fontSize: "10.5px", color: "#475569", lineHeight: "1.4", marginBottom: "10px" }}>
                   Review your recorded check-ins and available progress over time.
                 </div>
-                <div style={{ fontSize: "10.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>
+                <div style={{ fontSize: "10.5px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase" }}>
                   → VIEW MY PROGRESS
                 </div>
               </div>
 
               <div style={{ padding: "14px 16px" }}>
-                <div style={{ fontSize: "11px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                <div style={{ fontSize: "10.5px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.4px" }}>
                   CONNECT
                 </div>
-                <div style={{ fontSize: "14px", fontWeight: "800", color: "#0d3b66", marginTop: "2px", marginBottom: "4px" }}>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "#0d3b66", marginTop: "2px", marginBottom: "4px" }}>
                   Care & Consultation
                 </div>
                 <div style={{ fontSize: "10.5px", color: "#475569", lineHeight: "1.4", marginBottom: "10px" }}>
                   Explore supported care options or connect with a healthcare professional when you want support.
                 </div>
-                <div style={{ fontSize: "10.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>
+                <div style={{ fontSize: "10.5px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase" }}>
                   → EXPLORE CARE OPTIONS
                 </div>
-                <div style={{ fontSize: "10.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", marginTop: "3px" }}>
+                <div style={{ fontSize: "10.5px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase", marginTop: "3px" }}>
                   • BOOK A CONSULTATION
                 </div>
               </div>
@@ -331,14 +347,14 @@ export default function LungConnectV99Report({
 
             {/* Bottom Row of Options Panel: READY FOR NEXT CHECK-IN & CARE DISCLAIMER */}
             <div style={{ backgroundColor: "#f0f7f9", padding: "14px 18px" }}>
-              <div style={{ fontSize: "11.5px", fontWeight: "800", color: "#0d3b66", marginBottom: "3px" }}>
+              <div style={{ fontSize: "11px", fontWeight: "600", color: "#0d3b66", marginBottom: "3px" }}>
                 READY FOR YOUR NEXT CHECK-IN
               </div>
               <div style={{ fontSize: "10.5px", color: "#334155", marginBottom: "8px" }}>
                 Keep this summary with your LungConnect record so your next check-in can be viewed alongside today&apos;s record.
               </div>
               <div style={{ fontSize: "10.5px", color: "#334155", lineHeight: "1.4" }}>
-                <span style={{ fontWeight: "800", color: "#0d3b66" }}>CARE & SAFETY</span> This summary does not diagnose a respiratory condition and should not delay urgent medical care. If symptoms are severe, sudden or worsening, seek appropriate medical attention.
+                <span style={{ fontWeight: "600", color: "#0d3b66" }}>CARE & SAFETY</span> This summary does not diagnose a respiratory condition and should not delay urgent medical care. If symptoms are severe, sudden or worsening, seek appropriate medical attention.
               </div>
             </div>
           </div>

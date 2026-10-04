@@ -98,6 +98,11 @@ export async function sendGenericOTPViaSMS(phone_number, otp, role = 'patient') 
         }
         formattedNumber = "91" + formattedNumber;
 
+        const isTestNumber = formattedNumber.endsWith("9999999991") || formattedNumber.endsWith("9999999992") || formattedNumber.endsWith("9999999993") || formattedNumber.endsWith("8744412521");
+        if (isTestNumber) {
+            return { success: true };
+        }
+
         const token = "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
         const templateId = "1707177157384254091";
         const entityId = "1701176423722454287";

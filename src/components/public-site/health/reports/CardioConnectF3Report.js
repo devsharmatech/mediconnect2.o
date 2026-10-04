@@ -70,11 +70,32 @@ export default function CardioConnectF3Report({
   }) + " · Completed";
 
   const weight = Number(rawInputs?.weight_kg || demographics?.weight || 62);
-  const restingHr = Number(rawInputs?.resting_heart_rate || vitals?.restingHeartRate || 72);
-  const walkingHr = Math.min(160, restingHr + 45);
+  const restingHr = rawInputs?.resting_heart_rate !== undefined && rawInputs?.resting_heart_rate !== null ? Number(rawInputs.resting_heart_rate) : (vitals?.restingHeartRate ? Number(vitals.restingHeartRate) : null);
+  const rawWalkingHr = rawInputs?.walking_heart_rate ?? rawInputs?.post_walk_heart_rate ?? rawInputs?.peak_heart_rate;
+  const walkingHr = rawWalkingHr ? Number(rawWalkingHr) : (restingHr ? restingHr : "—");
   const distanceM = Number(rawInputs?.walking_distance_m ?? rawInputs?.distance_m ?? 0);
   const stepsCount = Number(rawInputs?.daily_steps ?? rawInputs?.steps ?? 0).toLocaleString("en-IN");
-  const estimatedKcal = Math.round(3.8 * weight * (6 / 60)); // MET formula: MET * weight_kg * hours
+  const estimatedKcal = distanceM > 0 ? Math.round(3.8 * weight * (6 / 60)) : 0; // MET formula: MET * weight_kg * hours
+
+  // Real pace & speed derived from actual distance (6 min walk test = 0.1 hr)
+  const avgSpeedKmh = distanceM > 0 ? ((distanceM / 1000) / (6 / 60)).toFixed(2) : "—";
+  const paceSecondsTotal = distanceM > 0 ? Math.round((360 / distanceM) * 1000) : 0;
+  const paceMin = Math.floor(paceSecondsTotal / 60);
+  const paceSec = String(paceSecondsTotal % 60).padStart(2, "0");
+  const avgPaceStr = distanceM > 0 ? `${paceMin}:${paceSec} min/km` : "—";
+
+  // Previous assessment extraction (Zero mock 585m or fake 18 AUG dates)
+  const prevH = (
+    assessmentData?.previousAssessment?.heart_health_inputs?.[0] ||
+    assessmentData?.previousAssessment?.inputs ||
+    assessmentData?.prevAssessment?.inputs ||
+    null
+  );
+  const prevDate = assessmentData?.previousAssessment?.created_at || assessmentData?.prevAssessment?.created_at;
+  const prevDateLabel = prevDate ? new Date(prevDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase() : null;
+  const prevDistanceM = prevH?.walking_distance_m !== undefined && prevH?.walking_distance_m !== null ? Number(prevH.walking_distance_m) : null;
+  const prevSteps = prevH?.daily_steps !== undefined && prevH?.daily_steps !== null ? Number(prevH.daily_steps) : null;
+  const prevSpeedKmh = prevDistanceM && prevDistanceM > 0 ? ((prevDistanceM / 1000) / (6 / 60)).toFixed(2) : null;
 
   return (
     <div
@@ -99,7 +120,7 @@ export default function CardioConnectF3Report({
             <img
               src={MEDICONNECT_LOGO_BASE64}
               alt="MediConnect Logo"
-              style={{ height: "46px", width: "46px", objectFit: "contain", borderRadius: "50%", flexShrink: 0, backgroundColor: "#ffffff" }}
+              style={{ height: "46px", width: "auto", maxWidth: "160px", objectFit: "contain", borderRadius: "4px", flexShrink: 0, backgroundColor: "transparent" }}
             />
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -188,12 +209,12 @@ export default function CardioConnectF3Report({
             </div>
             <div style={{ padding: "12px 14px", borderRight: "1px solid #cbd5e1", borderBottom: "1px solid #cbd5e1" }}>
               <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>AVG PACE</div>
-              <div style={{ fontSize: "16px", fontWeight: "900", color: "#0d3b66", marginTop: "3px" }}>10:12 min/km</div>
+              <div style={{ fontSize: "16px", fontWeight: "900", color: "#0d3b66", marginTop: "3px" }}>{avgPaceStr}</div>
               <div style={{ fontSize: "9px", color: "#64748b", marginTop: "3px" }}>Derived: Distance/Time v1.0</div>
             </div>
             <div style={{ padding: "12px 14px", borderBottom: "1px solid #cbd5e1" }}>
               <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>AVG SPEED</div>
-              <div style={{ fontSize: "16px", fontWeight: "900", color: "#0d3b66", marginTop: "3px" }}>5.88 km/h</div>
+              <div style={{ fontSize: "16px", fontWeight: "900", color: "#0d3b66", marginTop: "3px" }}>{avgSpeedKmh} {avgSpeedKmh !== "—" ? "km/h" : ""}</div>
               <div style={{ fontSize: "9px", color: "#64748b", marginTop: "3px" }}>Derived: Distance/Time v1.0</div>
             </div>
             <div style={{ padding: "12px 14px", borderRight: "1px solid #cbd5e1" }}>
@@ -203,7 +224,7 @@ export default function CardioConnectF3Report({
             </div>
             <div style={{ padding: "12px 14px", borderRight: "1px solid #cbd5e1" }}>
               <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>HEART RATE</div>
-              <div style={{ fontSize: "16px", fontWeight: "900", color: "#0d3b66", marginTop: "3px" }}>{walkingHr} bpm avg</div>
+              <div style={{ fontSize: "16px", fontWeight: "900", color: "#0d3b66", marginTop: "3px" }}>{walkingHr} {walkingHr !== "—" ? "bpm avg" : ""}</div>
               <div style={{ fontSize: "9px", color: "#64748b", marginTop: "3px" }}>Source: Wearable Sensor Stream</div>
             </div>
             <div style={{ padding: "12px 14px", borderRight: "1px solid #cbd5e1" }}>
@@ -228,35 +249,51 @@ export default function CardioConnectF3Report({
             <thead>
               <tr style={{ backgroundColor: "#0b3b60", color: "#ffffff" }}>
                 <th style={{ padding: "8px 14px", textAlign: "left", fontWeight: "800", width: "28%", letterSpacing: "0.5px" }}>MEASURE</th>
-                <th style={{ padding: "8px 14px", textAlign: "center", fontWeight: "800", width: "24%", letterSpacing: "0.5px" }}>PREVIOUS · 18 AUG</th>
-                <th style={{ padding: "8px 14px", textAlign: "center", fontWeight: "800", width: "24%", letterSpacing: "0.5px" }}>CURRENT · 18 SEP</th>
+                <th style={{ padding: "8px 14px", textAlign: "center", fontWeight: "800", width: "24%", letterSpacing: "0.5px" }}>
+                  PREVIOUS {prevDateLabel ? `· ${prevDateLabel}` : ""}
+                </th>
+                <th style={{ padding: "8px 14px", textAlign: "center", fontWeight: "800", width: "24%", letterSpacing: "0.5px" }}>
+                  CURRENT · {new Date(createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase()}
+                </th>
                 <th style={{ padding: "8px 14px", textAlign: "center", fontWeight: "800", width: "24%", letterSpacing: "0.5px" }}>RECORDED CHANGE</th>
               </tr>
             </thead>
             <tbody>
               <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
                 <td style={{ padding: "8px 14px", color: "#0f2d4a", fontWeight: "700", textAlign: "left" }}>Duration</td>
-                <td style={{ padding: "8px 14px", textAlign: "center", color: "#334155", fontVariantNumeric: "tabular-nums" }}>6:00</td>
+                <td style={{ padding: "8px 14px", textAlign: "center", color: "#334155", fontVariantNumeric: "tabular-nums" }}>{prevH ? "6:00" : "—"}</td>
                 <td style={{ padding: "8px 14px", textAlign: "center", color: "#0f2d4a", fontWeight: "700", fontVariantNumeric: "tabular-nums" }}>6:00</td>
-                <td style={{ padding: "8px 14px", textAlign: "center", color: "#64748b", fontWeight: "600" }}>Same</td>
+                <td style={{ padding: "8px 14px", textAlign: "center", color: "#64748b", fontWeight: "600" }}>{prevH ? "Same" : "Baseline"}</td>
               </tr>
               <tr style={{ borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc" }}>
                 <td style={{ padding: "8px 14px", color: "#0f2d4a", fontWeight: "700", textAlign: "left" }}>Distance</td>
-                <td style={{ padding: "8px 14px", textAlign: "center", color: "#334155", fontVariantNumeric: "tabular-nums" }}>585 m</td>
+                <td style={{ padding: "8px 14px", textAlign: "center", color: "#334155", fontVariantNumeric: "tabular-nums" }}>
+                  {prevDistanceM !== null ? `${prevDistanceM} m` : "—"}
+                </td>
                 <td style={{ padding: "8px 14px", textAlign: "center", color: "#0f2d4a", fontWeight: "700", fontVariantNumeric: "tabular-nums" }}>{distanceM} m</td>
-                <td style={{ padding: "8px 14px", textAlign: "center", color: "#0d9488", fontWeight: "700" }}>+{distanceM - 585} m</td>
+                <td style={{ padding: "8px 14px", textAlign: "center", color: prevDistanceM !== null ? (distanceM >= prevDistanceM ? "#0d9488" : "#b91c1c") : "#64748b", fontWeight: "700" }}>
+                  {prevDistanceM !== null ? `${distanceM >= prevDistanceM ? "+" : ""}${distanceM - prevDistanceM} m` : "Baseline"}
+                </td>
               </tr>
               <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
                 <td style={{ padding: "8px 14px", color: "#0f2d4a", fontWeight: "700", textAlign: "left" }}>Average speed</td>
-                <td style={{ padding: "8px 14px", textAlign: "center", color: "#334155", fontVariantNumeric: "tabular-nums" }}>5.85 km/h</td>
-                <td style={{ padding: "8px 14px", textAlign: "center", color: "#0f2d4a", fontWeight: "700", fontVariantNumeric: "tabular-nums" }}>5.88 km/h</td>
-                <td style={{ padding: "8px 14px", textAlign: "center", color: "#0d9488", fontWeight: "700" }}>Increased</td>
+                <td style={{ padding: "8px 14px", textAlign: "center", color: "#334155", fontVariantNumeric: "tabular-nums" }}>
+                  {prevSpeedKmh !== null ? `${prevSpeedKmh} km/h` : "—"}
+                </td>
+                <td style={{ padding: "8px 14px", textAlign: "center", color: "#0f2d4a", fontWeight: "700", fontVariantNumeric: "tabular-nums" }}>{avgSpeedKmh} {avgSpeedKmh !== "—" ? "km/h" : ""}</td>
+                <td style={{ padding: "8px 14px", textAlign: "center", color: prevSpeedKmh !== null ? (Number(avgSpeedKmh) >= Number(prevSpeedKmh) ? "#0d9488" : "#b91c1c") : "#64748b", fontWeight: "700" }}>
+                  {prevSpeedKmh !== null ? (Number(avgSpeedKmh) >= Number(prevSpeedKmh) ? "Increased" : "Lower") : "Baseline"}
+                </td>
               </tr>
               <tr style={{ backgroundColor: "#f8fafc" }}>
                 <td style={{ padding: "8px 14px", color: "#0f2d4a", fontWeight: "700", textAlign: "left" }}>Steps</td>
-                <td style={{ padding: "8px 14px", textAlign: "center", color: "#334155", fontVariantNumeric: "tabular-nums" }}>6,980</td>
+                <td style={{ padding: "8px 14px", textAlign: "center", color: "#334155", fontVariantNumeric: "tabular-nums" }}>
+                  {prevSteps !== null ? prevSteps.toLocaleString("en-IN") : "—"}
+                </td>
                 <td style={{ padding: "8px 14px", textAlign: "center", color: "#0f2d4a", fontWeight: "700", fontVariantNumeric: "tabular-nums" }}>{stepsCount}</td>
-                <td style={{ padding: "8px 14px", textAlign: "center", color: "#0d9488", fontWeight: "700" }}>Increased</td>
+                <td style={{ padding: "8px 14px", textAlign: "center", color: prevSteps !== null ? (Number(rawInputs?.daily_steps || 0) >= prevSteps ? "#0d9488" : "#b91c1c") : "#64748b", fontWeight: "700" }}>
+                  {prevSteps !== null ? (Number(rawInputs?.daily_steps || 0) >= prevSteps ? "Increased" : "Lower") : "Baseline"}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -269,7 +306,11 @@ export default function CardioConnectF3Report({
               WHAT THIS RECORD SHOWS
             </div>
             <div style={{ fontSize: "10.5px", color: "#334155", lineHeight: "1.5" }}>
-              The latest completed session records <strong>{distanceM} m</strong> compared with 585 m previously, a <strong>+{distanceM - 585} m</strong> recorded difference under the like-for-like comparison shown above. This is an objective exercise capacity observation.
+              {prevDistanceM !== null ? (
+                <>The latest completed session records <strong>{distanceM} m</strong> compared with {prevDistanceM} m previously, a <strong>{distanceM >= prevDistanceM ? `+${distanceM - prevDistanceM}` : `${distanceM - prevDistanceM}`} m</strong> recorded difference under the like-for-like comparison shown above. This is an objective exercise capacity observation.</>
+              ) : (
+                <>The latest completed session records <strong>{distanceM} m</strong> as the authoritative baseline for your 6-minute walking protocol. Future like-for-like tests will compare directly against this record.</>
+              )}
             </div>
           </div>
 
@@ -282,6 +323,7 @@ export default function CardioConnectF3Report({
             </div>
           </div>
         </div>
+
 
         {/* YOUR NEXT OPTIONS */}
         <div style={{ marginBottom: "14px" }}>

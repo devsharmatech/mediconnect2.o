@@ -169,19 +169,6 @@ const AssessmentsPage = () => {
     }
   };
 
-  const getRiskBadge = (riskLevel) => {
-    switch (riskLevel?.toLowerCase()) {
-      case 'low':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'moderate':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'high':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
-      default:
-        return 'bg-slate-50 text-slate-700 border-slate-200';
-    }
-  };
-
   const filteredAssessments = assessments.filter(assessment => {
     if (filter === 'all') return true;
     return assessment.assessment_type === filter;
@@ -354,24 +341,12 @@ const AssessmentsPage = () => {
                     </div>
                   </div>
 
-                  {/* Right: Risk Badge, Score & Action Buttons */}
+                  {/* Right: Status & Action Buttons */}
                   <div className="flex items-center justify-between sm:justify-end gap-3 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                     <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${getRiskBadge(
-                          assessment.risk_level
-                        )}`}
-                      >
-                        {assessment.risk_level
-                          ? assessment.risk_level.charAt(0).toUpperCase() + assessment.risk_level.slice(1)
-                          : 'N/A'}{' '}
-                        Risk
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        Assessment Complete
                       </span>
-                      {(assessment.health_score || assessment.overall_score) && (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                          Score: {assessment.health_score || assessment.overall_score}/100
-                        </span>
-                      )}
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0">

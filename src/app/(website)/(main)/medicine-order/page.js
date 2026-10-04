@@ -83,10 +83,10 @@ export default function MedicineOrderPage() {
   // --- Step 1: New Order Creation state ---
   const [medQuery, setMedQuery] = useState("");
   const [medSuggestions, setMedSuggestions] = useState([]);
-  const [cartItems, setCartItems] = useState([
-    { id: 1, name: "Paracetamol 650mg", quantity: 10, dosage: "650mg", instructions: "1 tab after meals" }
-  ]);
+  const [cartItems, setCartItems] = useState([]);
   const [customMedName, setCustomMedName] = useState("");
+
+
   const [customMedQty, setCustomMedQty] = useState(1);
   const [customMedDosage, setCustomMedDosage] = useState("");
 
@@ -132,13 +132,28 @@ export default function MedicineOrderPage() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
-  // Load user from localStorage
+  // Load user from localStorage & profile
   useEffect(() => {
     if (typeof window === "undefined") return;
     const id = localStorage.getItem("userId");
-    if (id) setPatientId(id);
+    if (id) {
+      setPatientId(id);
+      fetch(`/api/profile/get?id=${id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.user) {
+            const u = data.user;
+            if (u.address) setDeliveryAddress((prev) => prev || u.address);
+            if (u.pincode) setDeliveryPincode((prev) => prev || u.pincode);
+            if (u.phone) setContactPhone((prev) => prev || u.phone);
+          }
+        })
+        .catch(() => {});
+    }
     const phone = localStorage.getItem("userPhone") || localStorage.getItem("phoneNumber");
-    if (phone) setContactPhone(phone);
+    if (phone) setContactPhone((prev) => prev || phone);
+    const savedAddress = localStorage.getItem("userAddress") || localStorage.getItem("deliveryAddress");
+    if (savedAddress) setDeliveryAddress((prev) => prev || savedAddress);
   }, []);
 
   // Fetch all orders for this patient
@@ -173,18 +188,44 @@ export default function MedicineOrderPage() {
     return () => clearInterval(interval);
   }, [patientId]);
 
-  // Autocomplete medicine filter
+  // Autocomplete medicine filter querying live AWS RDS clinical repository
   useEffect(() => {
     if (!medQuery.trim()) {
       setMedSuggestions([]);
       return;
     }
-    const q = medQuery.toLowerCase();
-    const matches = POPULAR_MEDICINES.filter((m) =>
-      m.name.toLowerCase().includes(q)
-    );
-    setMedSuggestions(matches);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/clinical/search?type=medicine&query=${encodeURIComponent(medQuery.trim())}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data) && data.data.length > 0) {
+          const formatted = data.data.map((m) => ({
+            id: m.medicine_id,
+            name: `${m.generic_name}${m.strength ? ` ${m.strength}` : ""}${m.dosage_form ? ` (${m.dosage_form})` : ""}`,
+            dosage: m.strength || "Standard",
+            type: m.dosage_form || "Tablet",
+            defaultQty: 10,
+          }));
+          setMedSuggestions(formatted);
+        } else {
+          // If no direct clinical master record, fallback to filtering OTC common list
+          const q = medQuery.toLowerCase();
+          const matches = POPULAR_MEDICINES.filter((m) =>
+            m.name.toLowerCase().includes(q)
+          );
+          setMedSuggestions(matches);
+        }
+      } catch (err) {
+        const q = medQuery.toLowerCase();
+        const matches = POPULAR_MEDICINES.filter((m) =>
+          m.name.toLowerCase().includes(q)
+        );
+        setMedSuggestions(matches);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
   }, [medQuery]);
+
 
   // Countdown timer for active broadcast pool
   useEffect(() => {
@@ -589,7 +630,7 @@ export default function MedicineOrderPage() {
 
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Banner */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="bg-white rounded-xl p-6 sm:p-8 border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-xs font-bold mb-3">
               <Pill className="w-3.5 h-3.5" />
@@ -604,7 +645,7 @@ export default function MedicineOrderPage() {
           </div>
 
           {/* Tab Navigation Controls */}
-          <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl shrink-0 self-start md:self-auto border border-slate-200">
+          <div className="flex items-center bg-slate-100 p-1.5 rounded-lg shrink-0 self-start md:self-auto border border-slate-200">
             <button
               onClick={() => setActiveTab("orders")}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
@@ -641,7 +682,7 @@ export default function MedicineOrderPage() {
         {activeTab === "orders" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Left: Orders List Sidebar */}
-            <div className="lg:col-span-4 bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm space-y-4">
+            <div className="lg:col-span-4 bg-white rounded-xl p-5 border border-slate-200/80 shadow-sm space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   <History className="w-4 h-4 text-slate-400" />
@@ -663,7 +704,7 @@ export default function MedicineOrderPage() {
                 </div>
               ) : orders.length === 0 ? (
                 <div className="py-12 px-4 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                  <div className="w-12 h-12 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
                     <Pill className="w-6 h-6" />
                   </div>
                   <h4 className="text-sm font-bold text-slate-800">No active medicine orders</h4>
@@ -688,7 +729,7 @@ export default function MedicineOrderPage() {
                       <div
                         key={order.id}
                         onClick={() => setSelectedOrder(order)}
-                        className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                        className={`p-3.5 rounded-lg border transition-all cursor-pointer ${
                           isSelected
                             ? "border-[#0067A1] bg-[#0067A1]/5 shadow-sm"
                             : "border-slate-200/80 bg-white hover:border-slate-300"
@@ -726,14 +767,14 @@ export default function MedicineOrderPage() {
             {/* Right: Selected Order Detail & Interactive Workflows */}
             <div className="lg:col-span-8 space-y-6">
               {!selectedOrder ? (
-                <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-sm text-slate-400 space-y-3">
+                <div className="bg-white rounded-xl p-12 text-center border border-slate-200/80 shadow-sm text-slate-400 space-y-3">
                   <ShoppingBag className="w-10 h-10 mx-auto text-slate-300" />
                   <p className="text-sm font-semibold text-slate-600">Select an order from the list to view tracking, payment details, and verification status.</p>
                 </div>
               ) : (
                 <>
                   {/* Order Overview Card */}
-                  <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-sm space-y-6">
+                  <div className="bg-white rounded-xl p-6 sm:p-7 border border-slate-200/80 shadow-sm space-y-6">
                     {/* Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
                       <div>
@@ -766,7 +807,7 @@ export default function MedicineOrderPage() {
                     </div>
 
                     {/* Progress Timeline */}
-                    <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200/60">
+                    <div className="bg-slate-50 rounded-lg p-5 border border-slate-200/60">
                       <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-4">
                         Order & Fulfillment Lifecycle
                       </p>
@@ -840,7 +881,7 @@ export default function MedicineOrderPage() {
                     </div>
 
                     {/* Assigned Pharmacy Profile Card */}
-                    <div className="p-4 rounded-2xl bg-[#0067A1]/5 border border-[#0067A1]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="p-4 rounded-lg bg-[#0067A1]/5 border border-[#0067A1]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div className="flex items-start gap-3.5">
                         <div className="w-12 h-12 rounded-xl bg-white border border-[#0067A1]/20 flex items-center justify-center text-[#0067A1] shrink-0 shadow-sm">
                           <ShieldCheck className="w-6 h-6" />
@@ -881,7 +922,7 @@ export default function MedicineOrderPage() {
                       <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
                         Prescribed Medicines & Quantities
                       </h4>
-                      <div className="divide-y divide-slate-100 border border-slate-200/80 rounded-2xl overflow-hidden bg-white">
+                      <div className="divide-y divide-slate-100 border border-slate-200/80 rounded-lg overflow-hidden bg-white">
                         {(selectedOrder.medicine_order_items && selectedOrder.medicine_order_items.length > 0) ? (
                           selectedOrder.medicine_order_items.map((item, idx) => (
                             <div key={idx} className="p-3.5 flex items-center justify-between text-xs">
@@ -911,7 +952,7 @@ export default function MedicineOrderPage() {
                     </div>
 
                     {/* Financial Summary */}
-                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 space-y-2 text-xs">
+                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-200/80 space-y-2 text-xs">
                       <div className="flex justify-between text-slate-600">
                         <span>Medicine Subtotal:</span>
                         <span className="font-semibold text-slate-800">
@@ -939,7 +980,7 @@ export default function MedicineOrderPage() {
 
                   {/* Payment Rejection Alert if applicable */}
                   {selectedOrder.status === "payment_declined" && (
-                    <div className="bg-red-50 border-2 border-red-200 rounded-3xl p-5 text-red-900 space-y-2">
+                    <div className="bg-red-50 border-2 border-red-200 rounded-xl p-5 text-red-900 space-y-2">
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
                         <h4 className="font-bold text-sm">Payment Verification Issue Raised by Chemist</h4>
@@ -955,7 +996,7 @@ export default function MedicineOrderPage() {
                   {/* SELECTED CHEMIST UPI & DYNAMIC QR PAYMENT SECTION                */}
                   {/* ================================================================= */}
                   {["payment_pending", "waiting_for_payment", "awaiting_payment", "payment_declined", "payment_submitted"].includes(selectedOrder.status) && (
-                    <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-sm space-y-6">
+                    <div className="bg-white rounded-xl p-6 sm:p-7 border border-slate-200/80 shadow-sm space-y-6">
                       <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                         <div>
                           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-xs font-bold mb-1">
@@ -974,7 +1015,7 @@ export default function MedicineOrderPage() {
 
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
                         {/* QR Code Card */}
-                        <div className="md:col-span-5 flex flex-col items-center justify-center p-6 bg-slate-50 rounded-2xl border border-slate-200/80 text-center">
+                        <div className="md:col-span-5 flex flex-col items-center justify-center p-6 bg-slate-50 rounded-lg border border-slate-200/80 text-center">
                           {(() => {
                             const chemistUpi = selectedOrder.chemist_details?.upi_id || "pay@mediconnect.fit";
                             const pharmacyName = selectedOrder.chemist_details?.pharmacy_name || "Partner Pharmacy";
@@ -984,7 +1025,7 @@ export default function MedicineOrderPage() {
 
                             return (
                               <>
-                                <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-200 mb-3">
+                                <div className="p-3 bg-white rounded-lg shadow-sm border border-slate-200 mb-3">
                                   <img
                                     src={qrUrl}
                                     alt="Chemist UPI QR Code"
@@ -1063,7 +1104,7 @@ export default function MedicineOrderPage() {
                           </div>
 
                           {/* Mandatory Service Disclosure */}
-                          <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200/80 text-amber-900 space-y-1">
+                          <div className="p-3.5 rounded-lg bg-amber-50/70 border border-amber-200/80 text-amber-900 space-y-1">
                             <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
                               <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                               <span>Important Payment Notice:</span>
@@ -1151,7 +1192,7 @@ export default function MedicineOrderPage() {
 
                         {/* Screenshot Preview */}
                         {proofPreview && (
-                          <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+                          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                               <img
                                 src={proofPreview}
@@ -1214,7 +1255,7 @@ export default function MedicineOrderPage() {
 
                   {/* Payment Verified Banner */}
                   {selectedOrder.payment_verified_at && (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-5 text-emerald-900 flex items-center gap-3.5">
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-emerald-900 flex items-center gap-3.5">
                       <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
                         <Check className="w-5 h-5 stroke-[3]" />
                       </div>
@@ -1241,7 +1282,7 @@ export default function MedicineOrderPage() {
               /* Step 1: Create Request Form */
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 {/* Left: Medicine Search & Cart (7 cols) */}
-                <div className="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-sm space-y-6">
+                <div className="lg:col-span-7 bg-white rounded-xl p-6 sm:p-7 border border-slate-200/80 shadow-sm space-y-6">
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">1. Add Prescribed Medicines</h2>
                     <p className="text-xs text-slate-500">
@@ -1262,7 +1303,7 @@ export default function MedicineOrderPage() {
 
                     {/* Suggestions dropdown */}
                     {medSuggestions.length > 0 && (
-                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-2xl shadow-xl z-30 max-h-60 overflow-y-auto divide-y divide-slate-100">
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-30 max-h-60 overflow-y-auto divide-y divide-slate-100">
                         {medSuggestions.map((item, idx) => (
                           <div
                             key={idx}
@@ -1287,7 +1328,7 @@ export default function MedicineOrderPage() {
                   </div>
 
                   {/* Custom item quick add row */}
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                  <div className="p-4 rounded-lg bg-slate-50 border border-slate-200/80 space-y-3">
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                       Or Add Custom Medicine
                     </p>
@@ -1342,7 +1383,7 @@ export default function MedicineOrderPage() {
                     </div>
 
                     {cartItems.length === 0 ? (
-                      <div className="py-8 text-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 space-y-1">
+                      <div className="py-8 text-center border-2 border-dashed border-slate-200 rounded-lg text-slate-400 space-y-1">
                         <Pill className="w-5 h-5 mx-auto text-slate-300" />
                         <p className="text-xs">No medicines added yet. Search above or attach a prescription.</p>
                       </div>
@@ -1351,7 +1392,7 @@ export default function MedicineOrderPage() {
                         {cartItems.map((item) => (
                           <div
                             key={item.id}
-                            className="p-3 bg-white border border-slate-200 rounded-2xl flex items-center justify-between text-xs"
+                            className="p-3 bg-white border border-slate-200 rounded-lg flex items-center justify-between text-xs"
                           >
                             <div className="flex items-center gap-2.5">
                               <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#0067A1] flex items-center justify-center">
@@ -1396,6 +1437,46 @@ export default function MedicineOrderPage() {
                         ))}
                       </div>
                     )}
+
+                    {/* Instant Order to Chemist Banner when items added */}
+                    {cartItems.length > 0 && (
+                      <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                            <Send className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="font-bold text-xs text-emerald-900 block">
+                              {cartItems.length} {cartItems.length === 1 ? "Medicine" : "Medicines"} Ready to Order
+                            </span>
+                            <span className="text-[11px] text-emerald-700">
+                              Send to nearby licensed chemists for quotes & fast delivery.
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!deliveryAddress.trim()) {
+                              toast.error("Please enter delivery address to send order to chemist");
+                              const el = document.getElementById("delivery-address-input");
+                              if (el) {
+                                el.focus();
+                                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                              }
+                              return;
+                            }
+                            handleBroadcastOrder();
+                          }}
+                          className="px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold text-xs rounded-md flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Order & Send to Chemist</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Prescription Upload Section */}
@@ -1414,8 +1495,8 @@ export default function MedicineOrderPage() {
                     </div>
 
                     {!prescriptionPreview ? (
-                      <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 hover:border-[#0067A1] rounded-2xl bg-slate-50/50 hover:bg-blue-50/20 cursor-pointer transition-colors">
-                        <Upload className="w-6 h-6 text-slate-400 mb-2" />
+                      <label className="flex flex-col items-center justify-center p-5 border-2 border-dashed border-slate-200 hover:border-[#0067A1] rounded-lg bg-slate-50/50 hover:bg-blue-50/20 cursor-pointer transition-colors">
+                        <Upload className="w-5 h-5 text-slate-400 mb-1.5" />
                         <span className="text-xs font-bold text-slate-700">Click to upload doctor prescription</span>
                         <span className="text-[10px] text-slate-400 mt-0.5">Supports PNG, JPG, WEBP, PDF (Max 8MB)</span>
                         <input
@@ -1426,12 +1507,12 @@ export default function MedicineOrderPage() {
                         />
                       </label>
                     ) : (
-                      <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+                      <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <img
                             src={prescriptionPreview}
                             alt="Prescription Preview"
-                            className="w-12 h-12 object-cover rounded-xl border border-slate-200"
+                            className="w-12 h-12 object-cover rounded-md border border-slate-200"
                           />
                           <div>
                             <span className="text-xs font-bold text-slate-800 block truncate max-w-xs">{prescriptionFile?.name}</span>
@@ -1449,7 +1530,7 @@ export default function MedicineOrderPage() {
                             setPrescriptionPreview(null);
                             setUploadedRxUrl("");
                           }}
-                          className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg cursor-pointer"
+                          className="p-1.5 text-slate-400 hover:text-red-500 rounded-md cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -1459,10 +1540,15 @@ export default function MedicineOrderPage() {
                 </div>
 
                 {/* Right: Delivery Address & Submit Request (5 cols) */}
-                <div className="lg:col-span-5 bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-sm space-y-5">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">3. Delivery Details</h2>
-                    <p className="text-xs text-slate-500">Pharmacies in your vicinity will use this area to calculate delivery SLA.</p>
+                <div className="lg:col-span-5 bg-white rounded-xl p-5 sm:p-6 border border-slate-200/80 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+                    <div>
+                      <h2 className="text-base font-bold text-slate-900">3. Delivery Details</h2>
+                      <p className="text-xs text-slate-500">Pharmacies use this to calculate delivery time.</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#0067A1]/10 text-[#0067A1]">
+                      Step 3 of 3
+                    </span>
                   </div>
 
                   {/* Delivery Address */}
@@ -1471,15 +1557,16 @@ export default function MedicineOrderPage() {
                       Full Delivery Address <span className="text-rose-500">*</span>
                     </label>
                     <textarea
-                      rows={3}
+                      id="delivery-address-input"
+                      rows={2}
                       value={deliveryAddress}
                       onChange={(e) => setDeliveryAddress(e.target.value)}
                       placeholder="Flat / House No., Building Name, Street, Landmark, City..."
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent bg-slate-50/50"
+                      className="w-full px-3 py-2 rounded-md border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent bg-slate-50/50"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2.5">
                     {/* PIN Code */}
                     <div>
                       <label className="text-xs font-bold text-slate-700 block mb-1">
@@ -1491,7 +1578,7 @@ export default function MedicineOrderPage() {
                         value={deliveryPincode}
                         onChange={(e) => setDeliveryPincode(e.target.value.replace(/\D/g, ""))}
                         placeholder="e.g. 110001"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent bg-slate-50/50"
+                        className="w-full px-3 py-2 rounded-md border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent bg-slate-50/50"
                       />
                     </div>
 
@@ -1506,7 +1593,7 @@ export default function MedicineOrderPage() {
                         value={contactPhone}
                         onChange={(e) => setContactPhone(e.target.value)}
                         placeholder="e.g. 9876543210"
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent bg-slate-50/50"
+                        className="w-full px-3 py-2 rounded-md border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent bg-slate-50/50"
                       />
                     </div>
                   </div>
@@ -1514,60 +1601,79 @@ export default function MedicineOrderPage() {
                   {/* Patient Notes */}
                   <div>
                     <label className="text-xs font-bold text-slate-700 block mb-1">
-                      Delivery Instructions / Notes
+                      Delivery Instructions / Notes (Optional)
                     </label>
                     <input
                       type="text"
                       value={patientNotes}
                       onChange={(e) => setPatientNotes(e.target.value)}
                       placeholder="e.g. Call before delivery, ring doorbell..."
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent bg-slate-50/50"
+                      className="w-full px-3 py-2 rounded-md border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent bg-slate-50/50"
                     />
                   </div>
 
-                  {/* How Bidding Works Card */}
-                  <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100 text-xs space-y-2 text-slate-700">
-                    <div className="flex items-center gap-1.5 font-bold text-[#0067A1]">
-                      <Radio className="w-4 h-4" />
-                      <span>How Dynamic Pharmacy Bidding Works:</span>
-                    </div>
-                    <ul className="space-y-1 text-[11px] text-slate-600 list-disc list-inside">
-                      <li>Your request is broadcasted to all licensed pharmacies in your zone.</li>
-                      <li>Pharmacies review stock and submit real-time price & delivery quotes.</li>
-                      <li>There is no fixed limit: you can receive unlimited offers.</li>
-                      <li>You select the best pharmacy, review charges, and pay via UPI.</li>
-                    </ul>
+                  {/* PRIMARY ORDER & SEND TO CHEMIST BUTTON */}
+                  <div className="pt-1 space-y-2">
+                    <button
+                      type="button"
+                      disabled={broadcasting}
+                      onClick={() => {
+                        if (cartItems.length === 0 && !uploadedRxUrl) {
+                          toast.error("Please add at least one medicine or attach a prescription");
+                          return;
+                        }
+                        if (!deliveryAddress.trim()) {
+                          toast.error("Please enter your delivery address to send order to chemist");
+                          const el = document.getElementById("delivery-address-input");
+                          if (el) {
+                            el.focus();
+                            el.scrollIntoView({ behavior: "smooth", block: "center" });
+                          }
+                          return;
+                        }
+                        handleBroadcastOrder();
+                      }}
+                      className="w-full py-3.5 px-4 bg-gradient-to-r from-[#0067A1] to-[#005282] hover:from-[#005282] hover:to-[#003d61] text-white font-extrabold rounded-lg text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {broadcasting ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Sending Order to Chemist Pool...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" />
+                          <span>Order & Send to Chemist Now</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                    <p className="text-[11px] text-center text-slate-500">
+                      Sent to nearby licensed pharmacies &bull; Free home delivery & quotes
+                    </p>
                   </div>
 
-                  {/* Broadcast Button */}
-                  <button
-                    type="button"
-                    disabled={broadcasting || (cartItems.length === 0 && !uploadedRxUrl) || !deliveryAddress.trim()}
-                    onClick={handleBroadcastOrder}
-                    className="w-full py-3.5 bg-[#0067A1] hover:bg-[#004F7C] disabled:bg-slate-300 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
-                  >
-                    {broadcasting ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Broadcasting to Pharmacies...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Radio className="w-4 h-4" />
-                        <span>Broadcast Order & Get Chemist Quotes</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </>
-                    )}
-                  </button>
+                  {/* How Bidding Works Card */}
+                  <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-100 text-xs space-y-1.5 text-slate-700">
+                    <div className="flex items-center gap-1.5 font-bold text-[#0067A1]">
+                      <Radio className="w-3.5 h-3.5" />
+                      <span>How Chemist Ordering & Quotes Work:</span>
+                    </div>
+                    <ul className="space-y-1 text-[11px] text-slate-600 list-disc list-inside">
+                      <li>Your order is sent to licensed pharmacies in your vicinity.</li>
+                      <li>Pharmacies review stock and submit real-time price & delivery quotes.</li>
+                      <li>Select the best quote, pay via UPI, and receive delivery at home.</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             ) : (
               /* Step 2: Live Bids Stream & Dynamic Comparison Interface */
               <div className="space-y-6">
                 {/* Live Pool Status Banner */}
-                <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="bg-white rounded-xl p-6 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center shrink-0 border border-red-100">
+                    <div className="w-12 h-12 rounded-lg bg-red-50 text-red-500 flex items-center justify-center shrink-0 border border-red-100">
                       <Radio className="w-6 h-6 animate-pulse" />
                     </div>
                     <div>
@@ -1588,7 +1694,7 @@ export default function MedicineOrderPage() {
 
                   {/* Window Countdown Timer */}
                   <div className="flex items-center gap-3">
-                    <div className="px-4 py-2 rounded-2xl bg-slate-100 border border-slate-200 text-center">
+                    <div className="px-4 py-2 rounded-lg bg-slate-100 border border-slate-200 text-center">
                       <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Window Remaining</span>
                       <span className="text-lg font-mono font-bold text-[#0067A1]">
                         {Math.floor(secondsRemaining / 60)}:{String(secondsRemaining % 60).padStart(2, "0")}
@@ -1606,7 +1712,7 @@ export default function MedicineOrderPage() {
                 </div>
 
                 {/* Filter & Sorting Controls */}
-                <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
+                <div className="bg-white rounded-lg p-4 border border-slate-200/80 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
                   {/* Search bids */}
                   <div className="relative w-full md:w-80">
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -1652,7 +1758,7 @@ export default function MedicineOrderPage() {
 
                 {/* Unlimited Chemist Bids List */}
                 {bidsLoading && bids.length === 0 ? (
-                  <div className="bg-white rounded-3xl p-16 text-center border border-slate-200/80 shadow-sm space-y-3">
+                  <div className="bg-white rounded-xl p-16 text-center border border-slate-200/80 shadow-sm space-y-3">
                     <RefreshCw className="w-8 h-8 animate-spin mx-auto text-[#0067A1]" />
                     <h3 className="text-sm font-bold text-slate-800">Waiting for pharmacies to quote...</h3>
                     <p className="text-xs text-slate-500 max-w-md mx-auto">
@@ -1660,7 +1766,7 @@ export default function MedicineOrderPage() {
                     </p>
                   </div>
                 ) : bids.length === 0 ? (
-                  <div className="bg-white rounded-3xl p-16 text-center border border-slate-200/80 shadow-sm space-y-3">
+                  <div className="bg-white rounded-xl p-16 text-center border border-slate-200/80 shadow-sm space-y-3">
                     <Clock className="w-8 h-8 mx-auto text-amber-500" />
                     <h3 className="text-sm font-bold text-slate-800">No Chemist Bids Received Yet</h3>
                     <p className="text-xs text-slate-500 max-w-md mx-auto">
@@ -1673,7 +1779,7 @@ export default function MedicineOrderPage() {
                       {bids.map((bid) => (
                         <div
                           key={bid.id}
-                          className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm hover:shadow-md hover:border-[#0067A1]/40 transition-all flex flex-col justify-between"
+                          className="bg-white rounded-xl p-5 border border-slate-200/80 shadow-sm hover:shadow-md hover:border-[#0067A1]/40 transition-all flex flex-col justify-between"
                         >
                           <div>
                             {/* Pharmacy Name & Rating */}
@@ -1699,7 +1805,7 @@ export default function MedicineOrderPage() {
                             </div>
 
                             {/* Financial Breakdown */}
-                            <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/60 mb-4 space-y-1.5 text-xs">
+                            <div className="bg-slate-50 rounded-lg p-3.5 border border-slate-200/60 mb-4 space-y-1.5 text-xs">
                               <div className="flex justify-between text-slate-600">
                                 <span>Medicine Cost:</span>
                                 <span className="font-semibold text-slate-800">₹{bid.medicine_subtotal}</span>
@@ -1753,7 +1859,7 @@ export default function MedicineOrderPage() {
 
                     {/* Pagination (Unlimited Bids Support) */}
                     {bidPagination.totalPages > 1 && (
-                      <div className="flex items-center justify-between bg-white rounded-2xl p-4 border border-slate-200 text-xs">
+                      <div className="flex items-center justify-between bg-white rounded-lg p-4 border border-slate-200 text-xs">
                         <span className="text-slate-500 font-medium">
                           Showing page {bidPage} of {bidPagination.totalPages} ({bidPagination.total} Total Bids)
                         </span>
@@ -1789,7 +1895,7 @@ export default function MedicineOrderPage() {
         {/* ========================================================================= */}
         {bidToSelect && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full border border-slate-200 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-xl p-6 sm:p-7 max-w-lg w-full border border-slate-200 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-5 h-5 text-[#0067A1]" />
@@ -1805,7 +1911,7 @@ export default function MedicineOrderPage() {
               </div>
 
               {/* Selected Chemist Details */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
+              <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
                 <div className="flex justify-between font-bold text-slate-800 text-sm">
                   <span>{bidToSelect.pharmacy_name}</span>
                   <span className="text-[#0067A1]">₹{bidToSelect.final_amount}</span>
@@ -1818,7 +1924,7 @@ export default function MedicineOrderPage() {
               </div>
 
               {/* DPDP Consent Checkbox */}
-              <label className="flex items-start gap-3 p-3.5 rounded-2xl bg-blue-50/50 border border-blue-200/80 cursor-pointer">
+              <label className="flex items-start gap-3 p-3.5 rounded-lg bg-blue-50/50 border border-blue-200/80 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={consentAgreed}
@@ -1867,7 +1973,7 @@ export default function MedicineOrderPage() {
         {/* ========================================================================= */}
         {showCameraModal && (
           <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl p-5 max-w-md w-full border border-slate-200 shadow-2xl space-y-4">
+            <div className="bg-white rounded-xl p-5 max-w-md w-full border border-slate-200 shadow-2xl space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <span className="font-bold text-slate-900 text-sm flex items-center gap-2">
                   <Camera className="w-4 h-4 text-[#0067A1]" />
@@ -1878,7 +1984,7 @@ export default function MedicineOrderPage() {
                 </button>
               </div>
 
-              <div className="relative rounded-2xl overflow-hidden bg-black aspect-video flex items-center justify-center">
+              <div className="relative rounded-lg overflow-hidden bg-black aspect-video flex items-center justify-center">
                 <video
                   ref={videoRef}
                   autoPlay
@@ -1955,7 +2061,7 @@ export default function MedicineOrderPage() {
               </div>
 
               {/* Image */}
-              <div className="max-h-[80vh] overflow-auto rounded-2xl bg-black/40 p-2">
+              <div className="max-h-[80vh] overflow-auto rounded-lg bg-black/40 p-2">
                 <img
                   src={previewProofModal}
                   alt="Enlarged Payment Proof"
@@ -1963,6 +2069,70 @@ export default function MedicineOrderPage() {
                   className="max-h-[75vh] object-contain transition-transform duration-150 rounded-xl"
                 />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sticky Floating Bottom Bar: Always visible when cart has items */}
+        {activeTab === "new_request" && !activeBroadcastId && (cartItems.length > 0 || uploadedRxUrl) && (
+          <div className="fixed bottom-0 left-0 lg:left-[var(--patient-sidebar-width,16rem)] right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 sm:px-6 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] transition-all duration-300">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-md bg-[#0067A1]/10 text-[#0067A1] flex items-center justify-center shrink-0">
+                  <Pill className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                      {cartItems.length} {cartItems.length === 1 ? "Medicine" : "Medicines"} in Order
+                    </span>
+                    {uploadedRxUrl && (
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                        Rx Attached
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 truncate max-w-xs sm:max-w-md">
+                    {deliveryAddress ? `Deliver to: ${deliveryAddress}` : "Enter delivery address above to send to chemist"}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={broadcasting}
+                onClick={() => {
+                  if (cartItems.length === 0 && !uploadedRxUrl) {
+                    toast.error("Please add at least one medicine or attach a prescription");
+                    return;
+                  }
+                  if (!deliveryAddress.trim()) {
+                    toast.error("Please enter your delivery address to send order to chemist");
+                    const el = document.getElementById("delivery-address-input");
+                    if (el) {
+                      el.focus();
+                      el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }
+                    return;
+                  }
+                  handleBroadcastOrder();
+                }}
+                className="px-5 py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold rounded-md text-xs sm:text-sm transition-all shadow-md flex items-center gap-2 cursor-pointer shrink-0"
+              >
+                {broadcasting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Sending to Chemist...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Order & Send to Chemist</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </>
+                )}
+              </button>
             </div>
           </div>
         )}

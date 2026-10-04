@@ -96,12 +96,12 @@ export default function AnimatedAqiMeter({
       <div className="flex items-center justify-between gap-2 relative z-10 mb-1.5">
         <div className="min-w-0 flex items-center gap-1.5">
           <MapPin className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
-          <span className="text-xs sm:text-sm font-bold text-white truncate">
+          <span className="text-xs sm:text-sm font-semibold text-white truncate">
             {location}
           </span>
         </div>
 
-        <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-mono text-emerald-100/90 bg-black/20 px-2 py-0.5 rounded-[4px] border border-white/10 shrink-0">
+        <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-normal text-white/85 bg-black/20 px-2 py-0.5 rounded-[4px] border border-white/10 shrink-0">
           <Clock className="w-2.5 h-2.5 text-emerald-200" />
           <span>{lastUpdated}</span>
         </div>
@@ -111,7 +111,7 @@ export default function AnimatedAqiMeter({
       <div className="flex items-center justify-between gap-3 my-2 relative z-10">
         {/* Left: Value & Description */}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-200/90">
+          <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-emerald-100/90">
             <Gauge className="w-3 h-3 text-emerald-200" />
             <span>AQI (India CPCB)</span>
             {onInfoClick && (
@@ -126,16 +126,16 @@ export default function AnimatedAqiMeter({
             )}
           </div>
 
-          <div className="flex items-baseline gap-2 my-0.5">
-            <span className="text-3xl sm:text-4xl font-extrabold font-mono tracking-tight text-white">
+          <div className="flex items-baseline gap-2 my-1">
+            <span className="text-3xl sm:text-4xl font-semibold tracking-tight text-white">
               {clampedAqi}
             </span>
-            <span className={`text-xs sm:text-sm font-bold px-2 py-0.5 rounded-[4px] border ${categoryConfig.badgeBg}`}>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-[4px] border ${categoryConfig.badgeBg}`}>
               {category}
             </span>
           </div>
 
-          <p className="text-xs text-white font-medium leading-snug line-clamp-2 mt-0.5 max-w-xs">
+          <p className="text-xs text-white/85 font-normal leading-relaxed line-clamp-2 mt-1 max-w-xs">
             {categoryConfig.description}
           </p>
         </div>
@@ -221,12 +221,11 @@ export default function AnimatedAqiMeter({
       <div className="pt-2.5 border-t border-white/20 relative z-10 mt-1">
         {/* Header */}
         <div className="flex items-center justify-between mb-2 gap-1 flex-wrap">
-          <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-emerald-200">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-emerald-100/90">
             AQI Scale (CPCB)
           </span>
-          <span className="text-[11px] sm:text-xs font-semibold text-white/90">
-            Band:{" "}
-            <strong className="text-white underline underline-offset-2">{category}</strong>
+          <span className="text-[11px] font-normal text-white/85">
+            Band: <span className="font-semibold text-white ml-1">{category}</span>
           </span>
         </div>
 
@@ -252,8 +251,8 @@ export default function AnimatedAqiMeter({
                   />
                   {/* Category label */}
                   <span
-                    className={`text-[9.5px] sm:text-[11px] block leading-tight font-bold mt-0.5 ${
-                      isCurrent ? "text-white" : "text-white/90"
+                    className={`text-[10px] sm:text-[11px] block leading-tight mt-0.5 ${
+                      isCurrent ? "font-semibold text-white" : "font-normal text-white/85"
                     }`}
                     style={{ wordBreak: "break-word" }}
                   >
@@ -261,8 +260,8 @@ export default function AnimatedAqiMeter({
                   </span>
                   {/* Range */}
                   <span
-                    className={`text-[8.5px] sm:text-[10px] font-mono leading-none ${
-                      isCurrent ? "text-emerald-100" : "text-white/65"
+                    className={`text-[9px] sm:text-[10px] leading-none ${
+                      isCurrent ? "font-medium text-emerald-100" : "font-normal text-white/60"
                     }`}
                   >
                     {b.range}

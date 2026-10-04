@@ -257,7 +257,10 @@ export default function LungHealthResult() {
   const rawInputs = assessmentData.inputs || assessmentData.lung_health_inputs?.[0] || {};
   const peakFlow = Number(rawInputs.peak_flow ?? rawInputs.peakFlow) || 450;
   const bpm = Number(rawInputs.breaths_per_minute ?? rawInputs.breathsPerMinute) || 16;
-  const aqiVal = Number(rawInputs.aqi) || 68;
+  const extractedAqi = typeof ai_analysis === 'string'
+    ? Number(ai_analysis.match(/AQI[^0-9]*([0-9]{2,3})/i)?.[1])
+    : (typeof ai_analysis?.analysis === 'string' ? Number(ai_analysis.analysis.match(/AQI[^0-9]*([0-9]{2,3})/i)?.[1]) : null);
+  const aqiVal = Number(rawInputs.aqi ?? rawInputs.aqiVal ?? assessmentData.aqi ?? extractedAqi) || 162;
   const breathHold = Number(rawInputs.breath_holding_time ?? rawInputs.breathHold) || 35;
   const rawSmoking = String(rawInputs.smoking_status || rawInputs.smokingStatus || 'never').toLowerCase();
   const packYears = Number(rawInputs.smoking_pack_years ?? rawInputs.pack_years ?? rawInputs.smokingPackYears) || 0;
@@ -742,16 +745,10 @@ export default function LungHealthResult() {
                 <button
                   type="button"
                   onClick={() => setShowSnapshotModal(true)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 border border-white/30 rounded-md text-xs font-medium transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-white/20 hover:bg-white/30 border border-white/30 rounded-md text-xs font-medium transition-all cursor-pointer"
                 >
                   <FileText className="w-3.5 h-3.5" /> Full Report
                 </button>
-                <Link
-                  href="/dashboard/assessments"
-                  className="flex items-center gap-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 border border-white/30 rounded-md text-xs font-medium transition-all"
-                >
-                  <History className="w-3.5 h-3.5" /> History
-                </Link>
               </div>
             </div>
           </div>
@@ -999,6 +996,8 @@ export default function LungHealthResult() {
         assessmentData={assessmentData}
         trendPoints={trendPoints}
         patientData={patientData}
+        resolvedPractices={resolvedPractices}
+        metrics={metrics}
       />
 
       {/* ─── Detail Modal (Full Multi-Format Report Viewer Workbench) ─── */}
@@ -1027,18 +1026,18 @@ export default function LungHealthResult() {
 
             {/* Format Selection Tab Bar */}
             <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 flex items-center gap-2 overflow-x-auto shrink-0">
-              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider shrink-0 mr-1">
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider shrink-0 mr-1">
                 Official Format:
               </span>
               {[
-                { id: "lung-v9.9", label: "V9.9 • Health Summary", badge: "Frozen 1-Page A4 Fixed" },
+                { id: "lung-v9.9", label: "Health Summary", badge: "Frozen 1-Page A4 Fixed" },
                 { id: "lung-full", label: "Full • Clinical Assessment", badge: "Comprehensive Matrix" }
               ].map((fmt) => (
                 <button
                   key={fmt.id}
                   type="button"
                   onClick={() => setSelectedLungFormat(fmt.id)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-[4px] transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-[4px] transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
                     selectedLungFormat === fmt.id
                       ? "bg-[#007a8c] text-white shadow-sm ring-1 ring-slate-900"
                       : "bg-white text-slate-700 hover:bg-slate-200 border border-slate-300"
@@ -1096,7 +1095,7 @@ export default function LungHealthResult() {
                   className="px-4 py-2 bg-[#007a8c] hover:bg-[#005e6c] text-white rounded-[5px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download {selectedLungFormat === "lung-full" ? "Full Clinical" : "V9.9"} PDF</span>
+                  <span>Download {selectedLungFormat === "lung-full" ? "Full Clinical" : "Health Summary"} PDF</span>
                 </button>
               </div>
             </div>

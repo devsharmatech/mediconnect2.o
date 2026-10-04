@@ -291,6 +291,28 @@ export default function GamifiedHeartHealthAssessment() {
             const inputs = assessment?.heart_health_inputs?.[0];
             if (inputs) {
               setHasPreviousAssessment(true);
+
+              // Map physical activity minutes or string to choice card value
+              let actVal = 'moderate';
+              const actMin = inputs.physical_activity_minutes !== undefined && inputs.physical_activity_minutes !== null
+                ? Number(inputs.physical_activity_minutes)
+                : (inputs.weekly_activity_minutes !== undefined && inputs.weekly_activity_minutes !== null ? Number(inputs.weekly_activity_minutes) : null);
+              if (actMin !== null) {
+                if (actMin === 0) actVal = 'sedentary';
+                else if (actMin <= 30) actVal = 'light';
+                else if (actMin <= 60) actVal = 'moderate';
+                else actVal = 'very';
+              } else if (inputs.physical_activity) {
+                actVal = inputs.physical_activity;
+              }
+
+              // Map alcohol consumption to choice card value
+              let alcVal = 'occasional';
+              const rawAlc = inputs.alcohol_consumption;
+              if (rawAlc === 'none') alcVal = 'none';
+              else if (rawAlc === 'light' || rawAlc === 'occasional') alcVal = 'occasional';
+              else if (rawAlc === 'moderate' || rawAlc === 'regular') alcVal = 'regular';
+
               setFormData(prev => ({
                 ...prev,
                 age: inputs.age ? Number(inputs.age) : prev.age,
@@ -307,14 +329,14 @@ export default function GamifiedHeartHealthAssessment() {
                 fastingGlucose: inputs.fasting_glucose ? Number(inputs.fasting_glucose) : prev.fastingGlucose,
                 hba1c: inputs.hba1c ? Number(inputs.hba1c) : prev.hba1c,
                 smokingStatus: inputs.smoking_status || prev.smokingStatus,
-                physicalActivity: inputs.physical_activity || prev.physicalActivity,
-                alcoholConsumption: inputs.alcohol_consumption || prev.alcoholConsumption,
-                familyHistory: inputs.family_history === true,
-                hypertensionHistory: inputs.hypertension_history === true,
-                diabetesHistory: inputs.diabetes_history === true,
-                chestPain: inputs.chest_pain === true,
-                breathlessness: inputs.breathlessness === true,
-                palpitations: inputs.palpitations === true,
+                physicalActivity: actVal,
+                alcoholConsumption: alcVal,
+                familyHistory: Boolean(inputs.family_cardiac_history ?? inputs.family_history),
+                hypertensionHistory: Boolean(inputs.hypertension_history),
+                diabetesHistory: Boolean(inputs.diabetes_history),
+                chestPain: Boolean(inputs.chest_pain),
+                breathlessness: Boolean(inputs.breathlessness),
+                palpitations: Boolean(inputs.palpitations),
               }));
             }
           })

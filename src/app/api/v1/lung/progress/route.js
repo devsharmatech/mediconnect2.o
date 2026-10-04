@@ -173,7 +173,7 @@ export async function GET(req) {
     // Journey "Day 0" = date of the user's baseline assessment for the current cycle
     let baselineDate = null;
 
-    // Priority 1: If previousAssessment exists (S03 state, e.g. 30 Sept 2026), it is the authoritative baseline
+    // Priority 1: If previousAssessment exists (S03 state), it is the authoritative baseline
     if (previousAssessment && previousAssessment.date) {
       const d = new Date(previousAssessment.date);
       if (!isNaN(d.getTime())) {
@@ -193,9 +193,41 @@ export async function GET(req) {
       if (!isNaN(d.getTime())) baselineDate = d;
     }
 
-    // Priority 3: Hardcoded fallback (30 Sept 2026)
+    // Priority 3: Check care_episodes table for active care episode
+    if (!baselineDate && isRegisteredUuid) {
+      try {
+        const episodeRows = await sql`
+          SELECT created_at FROM care_episodes 
+          WHERE patient_id = ${userId}::uuid
+          ORDER BY created_at ASC LIMIT 1;
+        `;
+        if (episodeRows && episodeRows.length > 0 && episodeRows[0].created_at) {
+          const d = new Date(episodeRows[0].created_at);
+          if (!isNaN(d.getTime())) baselineDate = d;
+        }
+      } catch (e) {
+        console.warn("[Lung Progress] Could not query care_episodes from RDS:", e.message);
+      }
+    }
+
+    // Priority 4: User account registration date from users table in AWS RDS
+    if (!baselineDate && isRegisteredUuid) {
+      try {
+        const userRows = await sql`
+          SELECT created_at FROM users WHERE id = ${userId}::uuid LIMIT 1;
+        `;
+        if (userRows && userRows.length > 0 && userRows[0].created_at) {
+          const d = new Date(userRows[0].created_at);
+          if (!isNaN(d.getTime())) baselineDate = d;
+        }
+      } catch (e) {
+        console.warn("[Lung Progress] Could not query user created_at from RDS:", e.message);
+      }
+    }
+
+    // Priority 5: Real-time fallback to current date (today) — NEVER a hardcoded past date!
     if (!baselineDate || isNaN(baselineDate.getTime())) {
-      baselineDate = new Date("2026-09-30T00:00:00Z");
+      baselineDate = new Date();
     }
 
     const startMidnight = new Date(baselineDate);
@@ -228,7 +260,12 @@ export async function GET(req) {
     ].map(cp => {
       let status;
       if (cp.day === 0) {
-        status = assessmentRows.length > 0 ? "completed" : "pending";
+        if (assessmentRows.length > 0) {
+          status = "completed";
+        } else {
+          status = "current";
+          foundCurrent = true;
+        }
       } else {
         const matched = followUpDays.some(f => Math.abs(f.day - cp.day) <= (cp.day <= 15 ? 4 : 7));
         if (matched) {
