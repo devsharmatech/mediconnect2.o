@@ -118,7 +118,7 @@ export default function LungConnectFullReport({
   const breathHoldStatus = getBreathHoldStatus(rawBreathHold);
   const rrStatus = getRrStatus(rawRr);
   const bmiStatus = getBmiStatus(rawBmi);
-  const aqiStatus = getAqiStatus(rawAqi !== null ? Number(rawAqi) : null);
+  const aqiStatus = getAqiStatus(aqiRaw !== null ? Number(aqiRaw) : null);
 
   const hasCough = inputs?.symptoms_cough === true || inputs?.symptoms_cough === "yes" || (inputs?.cough_frequency && inputs?.cough_frequency !== "none");
   const hasBreathless = inputs?.symptoms_breathlessness === true || inputs?.symptoms_breathlessness === "yes" || (inputs?.breathlessness && inputs?.breathlessness !== "none");
