@@ -128,8 +128,10 @@ Rules:
 - url must be null.
 - Make titles different inside this batch (attempt ${attempts}).`;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const model = process.env.AI_LUNA_MODEL || "gpt-6-luna";
+    const isModern = model.startsWith("gpt-5") || model.startsWith("gpt-6") || model.startsWith("o1") || model.startsWith("o3");
+    const payload = {
+      model,
       messages: [
         {
           role: "system",
@@ -138,11 +140,28 @@ Rules:
         },
         { role: "user", content: prompt },
       ],
-      // Enforce valid JSON output to prevent parse errors
       response_format: { type: "json_object" },
-      temperature: 0.7,
-      max_tokens: 4000,
-    });
+    };
+    if (isModern) {
+      payload.max_completion_tokens = 3500;
+    } else {
+      payload.max_tokens = 3500;
+      payload.temperature = 0.7;
+    }
+
+    let completion;
+    try {
+      completion = await openai.chat.completions.create(payload);
+    } catch (err) {
+      console.warn(`[Medical News] ${model} failed, falling back to mini:`, err.message);
+      completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: payload.messages,
+        response_format: { type: "json_object" },
+        max_tokens: 3500,
+        temperature: 0.7,
+      });
+    }
 
     const content = completion.choices?.[0]?.message?.content;
     let parsed;

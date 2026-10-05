@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
 import { openai, supabase } from "@/lib/supabaseAdmin";
+import { LUNA_CONFIG } from "@/lib/ai/v2/config";
+import { finalAnalysis } from "@/lib/ai/v2/lunaScreening";
 
 export async function POST(req, { params }) {
   try {
@@ -46,13 +47,44 @@ Now analyze this information and return a JSON object with:
   "urgency": "routine|urgent|emergency"
 }`;
 
-    const aiRes = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "system", content: analysisPrompt }],
-      response_format: { type: "json_object" },
-    });
+    let aiData;
+    if (LUNA_CONFIG.ENABLED) {
+      const lunaResult = await finalAnalysis({
+        initialSymptoms: screening.initial_symptoms,
+        answers: answers.map((a) => ({ answer: `${a.question_id}: ${a.answer}` })),
+      });
+      if (lunaResult.ok) {
+        aiData = lunaResult.data;
+      }
+    }
 
-    const aiData = JSON.parse(aiRes.choices[0].message.content);
+    if (!aiData) {
+      const isModern = (process.env.AI_LUNA_MODEL || "gpt-6-luna").startsWith("gpt-5") || (process.env.AI_LUNA_MODEL || "gpt-6-luna").startsWith("gpt-6");
+      const payload = {
+        model: process.env.AI_LUNA_MODEL || "gpt-6-luna",
+        messages: [{ role: "system", content: analysisPrompt }],
+        response_format: { type: "json_object" },
+      };
+      if (isModern) {
+        payload.max_completion_tokens = 600;
+      } else {
+        payload.max_tokens = 600;
+      }
+
+      try {
+        const aiRes = await openai.chat.completions.create(payload);
+        aiData = JSON.parse(aiRes.choices[0].message.content);
+      } catch (err) {
+        console.warn("[Screening Analysis] Luna error, fallback to mini:", err.message);
+        const fallbackRes = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "system", content: analysisPrompt }],
+          response_format: { type: "json_object" },
+          max_tokens: 600,
+        });
+        aiData = JSON.parse(fallbackRes.choices[0].message.content);
+      }
+    }
 
     await supabase
       .from("screening_sessions")

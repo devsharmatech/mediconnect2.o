@@ -6,6 +6,8 @@ import { v4 as uuidv4 } from "uuid";
 import { detectEmergency } from "@/lib/ai/v2/emergencyEngine";
 import { moderateAIOutput } from "@/lib/ai/v2/moderationEngine";
 import { logAIToolInteraction } from "@/lib/ai/v2/logging";
+import { LUNA_CONFIG } from "@/lib/ai/v2/config";
+import { classifyMedical, firstQuestion } from "@/lib/ai/v2/lunaScreening";
 
 export async function POST(req) {
     try {
@@ -38,6 +40,62 @@ export async function POST(req) {
                 status: false,
                 message: emergencyCheck.response,
                 isEmergency: true
+            });
+        }
+
+        // V2.6 LUNA PATH (feature-flagged; backend is the single AI gateway)
+        if (LUNA_CONFIG.ENABLED) {
+            if (String(initial_symptoms).length > LUNA_CONFIG.MAX_USER_MESSAGE_CHARS) {
+                return NextResponse.json({ status: false, message: "Message is too long. Please shorten it and try again." }, { status: 400 });
+            }
+
+            const cls = await classifyMedical(initial_symptoms);
+            if (!cls.ok) {
+                return NextResponse.json(
+                    { status: false, message: "The screening assistant is temporarily unavailable. Please try again later, or describe your concern directly to a doctor." },
+                    { status: 503 }
+                );
+            }
+            if (!cls.data.is_medical) {
+                return NextResponse.json({ status: false, message: "Sorry, I can only answer medical or disease-related questions." });
+            }
+
+            const q = await firstQuestion(initial_symptoms);
+            const lunaQuestion = {
+                id: "q1",
+                text: q.ok ? q.data.text : "Can you tell me more about your symptoms?",
+                type: "text",
+            };
+
+            const lunaScreeningId = uuidv4();
+            await supabase.from("screening_sessions").insert([
+                {
+                    id: lunaScreeningId,
+                    patient_id,
+                    stage: 0,
+                    initial_symptoms,
+                    questions: [lunaQuestion],
+                    answers: [{ question_id: "q0", answer: initial_symptoms }],
+                    status: "in_progress",
+                    created_at: new Date(),
+                    updated_at: new Date(),
+                },
+            ]);
+
+            await logAIToolInteraction({
+                userId: patient_id,
+                toolName: "screening_flow_start",
+                inputJson: { initial_symptoms, screening_id: lunaScreeningId, model: LUNA_CONFIG.MODEL_NAME, firewall: q.ok ? "pass" : q.error },
+                riskLevel: "low",
+                urgencyClassification: "ROUTINE",
+                recommendation: lunaQuestion.text,
+            });
+
+            return NextResponse.json({
+                status: true,
+                screening_id: lunaScreeningId,
+                stage: 0,
+                next_question: lunaQuestion,
             });
         }
 

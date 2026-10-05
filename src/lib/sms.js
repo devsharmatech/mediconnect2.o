@@ -426,12 +426,13 @@ export async function sendAppointmentReminder({
         console.log(`[WHATSAPP DISPATCH] Reminder response:`, result);
 
         if (result.error) {
-            throw new Error(result.error.message || "Multichannel API error");
+            console.warn(`[WHATSAPP DISPATCH] Warning: WhatsApp reminder rejected for ${formattedNumber}: ${result.error.message || "Provider error"} (code: ${result.error.code || 400})`);
+            return { success: false, error: result.error.message || "Multichannel API error", metaError: result.error };
         }
 
         return { success: true, data: result };
     } catch (err) {
-        console.error("[WHATSAPP DISPATCH] Appointment reminder failed:", err);
+        console.warn("[WHATSAPP DISPATCH] Warning: WhatsApp reminder error:", err.message);
         return { success: false, error: err.message };
     }
 }
@@ -547,12 +548,13 @@ export async function sendAppointmentUpdateAlert({
         })();
 
         if (result.error) {
-            throw new Error(result.error.message || "Multichannel API error");
+            console.warn(`[WHATSAPP DISPATCH] Warning: WhatsApp update alert rejected for ${formattedNumber}: ${result.error.message || "Provider error"} (code: ${result.error.code || 400})`);
+            return { success: false, error: result.error.message || "Multichannel API error", metaError: result.error };
         }
 
         return { success: true, data: result };
     } catch (err) {
-        console.error("[WHATSAPP DISPATCH] Appointment update alert failed:", err);
+        console.warn("[WHATSAPP DISPATCH] Warning: Appointment update alert error:", err.message);
         return { success: false, error: err.message };
     }
 }
@@ -634,12 +636,13 @@ export async function sendPaymentUpdate({
         console.log(`[WHATSAPP DISPATCH] Payment update response:`, result);
 
         if (result.error) {
-            throw new Error(result.error.message || "Multichannel API error");
+            console.warn(`[WHATSAPP DISPATCH] Warning: WhatsApp payment update rejected for ${formattedNumber}: ${result.error.message || "Provider error"} (code: ${result.error.code || 400})`);
+            return { success: false, error: result.error.message || "Multichannel API error", metaError: result.error };
         }
 
         return { success: true, data: result };
     } catch (err) {
-        console.error("[WHATSAPP DISPATCH] Payment update failed:", err);
+        console.warn("[WHATSAPP DISPATCH] Warning: Payment update error:", err.message);
         return { success: false, error: err.message };
     }
 }
@@ -704,12 +707,13 @@ export async function sendNursingRequestReceived({
         console.log(`[WHATSAPP DISPATCH] Nursing received response:`, result);
 
         if (result.error) {
-            throw new Error(result.error.message || "Multichannel API error");
+            console.warn(`[WHATSAPP DISPATCH] Warning: WhatsApp nursing received alert rejected for ${formattedNumber}: ${result.error.message || "Provider error"} (code: ${result.error.code || 400})`);
+            return { success: false, error: result.error.message || "Multichannel API error", metaError: result.error };
         }
 
         return { success: true, data: result };
     } catch (err) {
-        console.error("[WHATSAPP DISPATCH] Nursing received notification failed:", err);
+        console.warn("[WHATSAPP DISPATCH] Warning: Nursing received notification error:", err.message);
         return { success: false, error: err.message };
     }
 }
@@ -786,12 +790,13 @@ export async function sendNursingStatusUpdate({
         console.log(`[WHATSAPP DISPATCH] Nursing status update response:`, result);
 
         if (result.error) {
-            throw new Error(result.error.message || "Multichannel API error");
+            console.warn(`[WHATSAPP DISPATCH] Warning: WhatsApp nursing status update rejected for ${formattedNumber}: ${result.error.message || "Provider error"} (code: ${result.error.code || 400})`);
+            return { success: false, error: result.error.message || "Multichannel API error", metaError: result.error };
         }
 
         return { success: true, data: result };
     } catch (err) {
-        console.error("[WHATSAPP DISPATCH] Nursing status update alert failed:", err);
+        console.warn("[WHATSAPP DISPATCH] Warning: Nursing status update alert error:", err.message);
         return { success: false, error: err.message };
     }
 }
@@ -859,12 +864,13 @@ export async function sendNursingPartnerNotification({
         console.log(`[WHATSAPP DISPATCH] Partner notification response:`, result);
 
         if (result.error) {
-            throw new Error(result.error.message || "Multichannel API error");
+            console.warn(`[WHATSAPP DISPATCH] Warning: WhatsApp nursing partner notification rejected for ${formattedNumber}: ${result.error.message || "Provider error"} (code: ${result.error.code || 400})`);
+            return { success: false, error: result.error.message || "Multichannel API error", metaError: result.error };
         }
 
         return { success: true, data: result };
     } catch (err) {
-        console.error("[WHATSAPP DISPATCH] Partner notification alert failed:", err);
+        console.warn("[WHATSAPP DISPATCH] Warning: Partner notification alert error:", err.message);
         return { success: false, error: err.message };
     }
 }

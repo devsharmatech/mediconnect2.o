@@ -12,6 +12,9 @@ import { validateChatSession } from "@/lib/ai/v2/sessionControl";
 import { detectEmergency } from "@/lib/ai/v2/emergencyEngine";
 import { moderateAIOutput } from "@/lib/ai/v2/moderationEngine";
 import { logAIChatInteraction } from "@/lib/ai/v2/logging";
+import { LUNA_CONFIG } from "@/lib/ai/v2/config";
+import { runLunaPipeline } from "@/lib/ai/v2/lunaPipeline";
+import { randomUUID } from "crypto";
 
 export async function OPTIONS() {
     return NextResponse.json({}, { headers: corsHeaders });
@@ -66,6 +69,49 @@ export async function POST(req) {
 
             return NextResponse.json(
                 { success: true, response: emergencyCheck.response, isEmergency: true },
+                { status: 200, headers: corsHeaders }
+            );
+        }
+
+        // V2.6 LUNA PATH (feature-flagged; backend is the single AI gateway)
+        if (LUNA_CONFIG.ENABLED) {
+            if (String(rawUserText || "").length > LUNA_CONFIG.MAX_USER_MESSAGE_CHARS) {
+                return NextResponse.json(
+                    { success: false, message: "Message is too long. Please shorten it and try again." },
+                    { status: 400, headers: corsHeaders }
+                );
+            }
+
+            const requestId = randomUUID();
+            const history = messages.slice(-7, -1).map((m) => ({ role: m.role, content: String(m.content || "").slice(0, 1000) }));
+            const { response: lunaResponse, blocked, lineage } = await runLunaPipeline({ userMessage: rawUserText, history, requestId });
+            console.log(`[AI Chat][Luna] lineage=${JSON.stringify(lineage)}`);
+
+            await logAIChatInteraction({
+                userId,
+                sessionId,
+                userMessage: rawUserText,
+                aiResponse: lunaResponse.message,
+                blockedResponse: blocked ? JSON.stringify(blocked) : null,
+                eventType: lineage.outcome === "firewall_reject" ? "AI_OUTPUT_MODERATION_TRIGGER" : "NORMAL",
+                requestId,
+                routeId: lunaResponse.route_id,
+                routeDecision: lineage.route_decision,
+                reasonCode: lunaResponse.reason_code,
+                auditMetadata: lineage,
+            });
+
+            return NextResponse.json(
+                {
+                    success: true,
+                    response: lunaResponse.message, // backward-compatible field
+                    status: lunaResponse.status,
+                    route_id: lunaResponse.route_id,
+                    next_step: lunaResponse.next_step,
+                    cta_id: lunaResponse.cta_id,
+                    safety_note: lunaResponse.safety_note,
+                    request_id: requestId,
+                },
                 { status: 200, headers: corsHeaders }
             );
         }

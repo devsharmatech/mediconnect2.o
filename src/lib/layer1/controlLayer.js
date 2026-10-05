@@ -190,7 +190,7 @@ export async function executeOrchestration({
       const actionResultJson = typeof actionResult === "string" ? actionResult : JSON.stringify(actionResult);
       await sql`
         UPDATE orchestration_executions
-        SET status = 'COMPLETED', output_payload = ${actionResultJson}::jsonb, duration_ms = ${durationMs}, updated_at = NOW()
+        SET status = 'COMPLETED', output_payload = ${actionResultJson}::jsonb, duration_ms = ${durationMs}, completed_at = NOW(), updated_at = NOW()
         WHERE id = ${executionId}
       `;
     } catch (updateErr) {
@@ -230,7 +230,7 @@ export async function executeOrchestration({
       try {
         await sql`
           UPDATE orchestration_executions
-          SET status = 'FAILED', error_message = ${err.message}, duration_ms = ${durationMs}, updated_at = NOW()
+          SET status = 'FAILED', error_message = ${err.message}, duration_ms = ${durationMs}, completed_at = NOW(), updated_at = NOW()
           WHERE id = ${executionId}
         `;
       } catch (failedUpdateErr) {

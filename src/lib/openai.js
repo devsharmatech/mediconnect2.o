@@ -1,5 +1,43 @@
 import { openai } from "@/lib/supabaseAdmin";
 
+const LUNA_MODEL = process.env.AI_LUNA_MODEL || "gpt-6-luna";
+
+/**
+ * Execute structured JSON completion via OpenAI with modern parameter support (gpt-6-luna).
+ * Complies with V2.6 §14/§25: max 1 retry for transient errors; no active fallback to obsolete models.
+ */
+async function executeOpenAIJsonCompletion({ messages, maxTokens = 1500 }) {
+  const model = LUNA_MODEL;
+  const isModern = model.startsWith("gpt-5") || model.startsWith("gpt-6") || model.startsWith("o1") || model.startsWith("o3");
+
+  const payload = {
+    model,
+    messages,
+    response_format: { type: "json_object" },
+  };
+
+  if (isModern) {
+    payload.max_completion_tokens = maxTokens;
+  } else {
+    payload.max_tokens = maxTokens;
+  }
+
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    try {
+      const completion = await openai.chat.completions.create(payload);
+      return JSON.parse(completion.choices[0].message.content);
+    } catch (err) {
+      if (attempt === 0) {
+        console.warn(`[OpenAI] ${model} attempt 1 failed (${err.message}), retrying once...`);
+        await new Promise((r) => setTimeout(r, 1000));
+        continue;
+      }
+      console.error(`[OpenAI] ${model} execution failed after retry:`, err.message);
+      throw err;
+    }
+  }
+}
+
 export async function analyzeHealthData(
   assessmentType,
   inputs,
@@ -75,12 +113,10 @@ Return ONLY valid JSON format:
 }
 `;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const response = await executeOpenAIJsonCompletion({
       messages: [{ role: "system", content: prompt }],
+      maxTokens: 750,
     });
-
-    const response = JSON.parse(completion.choices[0].message.content);
     return response;
   } catch (error) {
     console.error("OpenAI Analysis Error:", error);
@@ -141,8 +177,7 @@ Return ONLY valid JSON format:
 }
 `;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const response = await executeOpenAIJsonCompletion({
       messages: [
         {
           role: "system",
@@ -150,9 +185,8 @@ Return ONLY valid JSON format:
         },
         { role: "user", content: prompt },
       ],
+      maxTokens: 1500,
     });
-
-    const response = JSON.parse(completion.choices[0].message.content);
     return response.recommendations;
   } catch (error) {
     console.error("OpenAI Recommendations Error:", error);

@@ -339,61 +339,60 @@ export default function PatientSidebar({
         />
       )}
 
+      {/* Floating Reopen Button (Desktop only when collapsed/minimized) */}
+      {isCollapsed && (
+        <button
+          type="button"
+          onClick={() => setIsCollapsed(false)}
+          className="hidden lg:flex fixed left-0 top-1/2 -translate-y-1/2 z-40 bg-[#003358] text-white hover:bg-[#002642] border border-l-0 border-white/20 shadow-xl rounded-r-md px-2.5 py-3.5 hover:px-3.5 transition-all duration-200 cursor-pointer items-center justify-center group"
+          title="Open Sidebar"
+          aria-label="Open Sidebar"
+        >
+          <FaChevronRight className="w-4 h-4 text-white/80 group-hover:text-white group-hover:translate-x-0.5 transition-transform" />
+        </button>
+      )}
+
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full bg-[#003358] border-r border-[#003358] shadow-[4px_0_24px_rgba(0,0,0,0.1)] z-50 transition-all duration-300 flex flex-col
-          ${isCollapsed ? "w-20" : "w-64"}
-          ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+        className={`fixed top-0 left-0 h-full w-64 bg-[#003358] border-r border-[#003358] shadow-[4px_0_24px_rgba(0,0,0,0.1)] z-50 transition-all duration-300 flex flex-col
+          ${isOpen ? "translate-x-0" : "-translate-x-full"}
+          ${isCollapsed ? "lg:-translate-x-full" : "lg:translate-x-0"}
         `}
       >
         {/* Header / Logo */}
-        <div className={`px-4 flex items-center h-16 shrink-0 border-b border-white/10 ${isCollapsed ? "justify-center" : "justify-between"}`}>
+        <div className="px-4 flex items-center h-16 shrink-0 border-b border-white/10 justify-between">
           <Link
             href="/website"
-            className={`flex items-center ${isCollapsed ? "justify-center" : ""}`}
+            className="flex items-center"
           >
-            {isCollapsed ? (
-              <Image
-                src="/real-logo.png"
-                alt="MediConnect"
-                width={36}
-                height={36}
-                className="object-contain rounded-[5px]"
-              />
-            ) : (
-              <Image
-                src="/real-logo.png"
-                alt="MediConnect"
-                width={140}
-                height={40}
-                className="object-contain"
-                style={{ width: "auto", height: "40px" }}
-              />
-            )}
+            <Image
+              src="/real-logo.png"
+              alt="MediConnect"
+              width={140}
+              height={40}
+              className="object-contain"
+              style={{ width: "auto", height: "40px" }}
+            />
           </Link>
 
           {/* Controls */}
           <div className="flex items-center gap-1">
             <button
               onClick={onClose}
-              className="lg:hidden p-1.5 rounded-[5px] text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+              className="lg:hidden p-1.5 rounded-[5px] text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              title="Close Sidebar"
+              aria-label="Close Sidebar"
             >
               <FaTimes className="w-5 h-5" />
             </button>
 
             <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className={`hidden lg:flex p-1.5 rounded-[5px] text-white/50 hover:text-white hover:bg-white/10 transition-colors ${
-                isCollapsed 
-                  ? "absolute -right-3.5 top-1/2 -translate-y-1/2 bg-[#003358] border border-white/20 shadow-lg rounded-[5px] z-10 w-7 h-7 items-center justify-center hover:scale-110" 
-                  : ""
-              }`}
+              onClick={() => setIsCollapsed(true)}
+              className="hidden lg:flex p-1.5 rounded-[5px] text-white/60 hover:text-white hover:bg-white/10 transition-colors items-center justify-center cursor-pointer"
+              title="Close Sidebar"
+              aria-label="Close Sidebar"
             >
-              {isCollapsed ? (
-                <FaChevronRight className="w-3 h-3" />
-              ) : (
-                <FaChevronLeft className="w-4 h-4" />
-              )}
+              <FaChevronLeft className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -412,7 +411,7 @@ export default function PatientSidebar({
                 ? item.children.some((child) => isActive(child.href))
                 : isActive(item.href);
               const isAssistant = item.name === "Health Assistant";
-              const showSection = !isCollapsed && item.section && item.section !== lastSection;
+              const showSection = item.section && item.section !== lastSection;
               if (showSection) lastSection = item.section;
 
               const commonClasses = `relative w-full flex items-center gap-3.5 px-3 py-3 rounded-[5px] transition-all duration-200 group text-sm font-medium text-left
@@ -420,7 +419,6 @@ export default function PatientSidebar({
                   ? "bg-white text-[#0067A1] shadow-md"
                   : "text-white/70 hover:bg-white/10 hover:text-white"
                 }
-                ${isCollapsed ? "justify-center" : ""}
               `;
 
               const iconNode = (
@@ -429,15 +427,15 @@ export default function PatientSidebar({
                     active
                       ? "text-[#0067A1]"
                       : "text-white/60 group-hover:text-white"
-                  } ${isCollapsed ? "w-6 h-6" : "w-5 h-5"}`}
+                  } w-5 h-5`}
                 />
               );
 
               const content = (
                 <>
                   {iconNode}
-                  {!isCollapsed && <span className="whitespace-nowrap">{item.name}</span>}
-                  {!isCollapsed && isGroup && (
+                  <span className="whitespace-nowrap">{item.name}</span>
+                  {isGroup && (
                     <FaChevronRight
                       className={`ml-auto w-3 h-3 text-white/50 transition-transform duration-200 ${
                         openGroups[item.groupId] ? "rotate-90" : ""
@@ -450,7 +448,7 @@ export default function PatientSidebar({
               let itemNode = null;
 
               if (isGroup) {
-                const isOpen = !!openGroups[item.groupId];
+                const isOpenGroup = !!openGroups[item.groupId];
                 itemNode = (
                   <div key={item.name} className="space-y-1">
                     <button
@@ -461,12 +459,11 @@ export default function PatientSidebar({
                           [item.groupId]: !prev[item.groupId],
                         }))
                       }
-                      title={isCollapsed ? item.name : undefined}
                       className={commonClasses}
                     >
                       {content}
                     </button>
-                    {!isCollapsed && isOpen && (
+                    {isOpenGroup && (
                       <div className="mt-1 ml-5 pl-3.5 space-y-1 border-l border-white/10">
                         {item.children.map((child) => {
                           const childActive = isActive(child.href);
@@ -505,7 +502,6 @@ export default function PatientSidebar({
                       onOpenAssistant();
                       onClose();
                     }}
-                    title={isCollapsed ? item.name : undefined}
                     className={commonClasses}
                   >
                     {content}
@@ -515,7 +511,6 @@ export default function PatientSidebar({
                     key={item.name}
                     href={item.href}
                     onClick={onClose}
-                    title={isCollapsed ? item.name : undefined}
                     className={commonClasses}
                   >
                     {content}
@@ -539,42 +534,37 @@ export default function PatientSidebar({
 
         {/* Footer actions */}
         <div className="p-4 shrink-0 border-t border-white/10 bg-black/10">
-          {!isCollapsed && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-[5px] border border-white/10 mb-3 overflow-hidden">
-              <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-400 flex items-center justify-center text-[#003358] font-bold text-sm shadow-md overflow-hidden">
-                {avatarUrl && !imageError ? (
-                  <img
-                    src={avatarUrl}
-                    alt={getDisplayName()}
-                    className="w-full h-full rounded-full object-cover"
-                    onError={() => setImageError(true)}
-                  />
-                ) : (
-                  <span>
-                    {getInitials(getDisplayName())}
-                  </span>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">
-                  {getDisplayName()}
-                </p>
-                <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Patient
-                </p>
-              </div>
+          <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-[5px] border border-white/10 mb-3 overflow-hidden">
+            <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-400 flex items-center justify-center text-[#003358] font-bold text-sm shadow-md overflow-hidden">
+              {avatarUrl && !imageError ? (
+                <img
+                  src={avatarUrl}
+                  alt={getDisplayName()}
+                  className="w-full h-full rounded-full object-cover"
+                  onError={() => setImageError(true)}
+                />
+              ) : (
+                <span>
+                  {getInitials(getDisplayName())}
+                </span>
+              )}
             </div>
-          )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">
+                {getDisplayName()}
+              </p>
+              <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                Patient
+              </p>
+            </div>
+          </div>
           <button
             onClick={handleLogout}
-            title={isCollapsed ? "Logout" : undefined}
-            className={`flex items-center gap-2 px-3 py-3 rounded-[5px] text-sm transition-all duration-200 w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 font-medium border border-transparent hover:border-rose-500/30
-              ${isCollapsed ? "justify-center" : "justify-center"}
-            `}
+            className="flex items-center justify-center gap-2 px-3 py-3 rounded-[5px] text-sm transition-all duration-200 w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 font-medium border border-transparent hover:border-rose-500/30 cursor-pointer"
           >
-            <FaSignOutAlt className={`flex-shrink-0 ${isCollapsed ? "w-6 h-6" : "w-4 h-4"}`} />
-            {!isCollapsed && <span>Sign Out</span>}
+            <FaSignOutAlt className="w-4 h-4 flex-shrink-0" />
+            <span>Sign Out</span>
           </button>
         </div>
       </aside>

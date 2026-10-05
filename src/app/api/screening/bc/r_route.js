@@ -33,10 +33,30 @@ Return valid JSON only in this format:
   ]
 }`;
 
-    const aiRes = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const model = process.env.AI_LUNA_MODEL || "gpt-6-luna";
+    const isModern = model.startsWith("gpt-5") || model.startsWith("gpt-6") || model.startsWith("o1") || model.startsWith("o3");
+    const payload = {
+      model,
       messages: [{ role: "system", content: systemPrompt }],
-    });
+      response_format: { type: "json_object" },
+    };
+    if (isModern) {
+      payload.max_completion_tokens = 600;
+    } else {
+      payload.max_tokens = 600;
+    }
+
+    let aiRes;
+    try {
+      aiRes = await openai.chat.completions.create(payload);
+    } catch (err) {
+      aiRes = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "system", content: systemPrompt }],
+        response_format: { type: "json_object" },
+        max_tokens: 600,
+      });
+    }
     const content = aiRes?.choices?.[0]?.message?.content;
     if (!content) {
       throw new Error("OpenAI returned empty content");

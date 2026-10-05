@@ -69,7 +69,7 @@ export default function SettingsPage() {
     },
     openai: {
       apiKey: "",
-      model: "gpt-4",
+      model: "gpt-6-luna",
       maxTokens: 1000,
       temperature: 0.7
     },
@@ -704,13 +704,15 @@ export default function SettingsPage() {
                                   Model
                                 </label>
                                 <select
-                                  value={settings.openai?.model || "gpt-4"}
+                                  value={settings.openai?.model || "gpt-6-luna"}
                                   onChange={(e) => handleInputChange("openai", "model", e.target.value)}
                                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#0067A1] focus:border-transparent cursor-pointer transition-all duration-300"
                                 >
+                                  <option value="gpt-6-luna">GPT-6 Luna (Recommended)</option>
+                                  <option value="gpt-5.6-luna">GPT-5.6 Luna</option>
+                                  <option value="gpt-4o-mini">GPT-4o Mini</option>
                                   <option value="gpt-4">GPT-4</option>
                                   <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                                  <option value="gpt-4o-mini">GPT-4o Mini</option>
                                   <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
                                 </select>
                               </div>

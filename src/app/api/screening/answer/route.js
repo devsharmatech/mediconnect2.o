@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { openai, supabase } from "@/lib/supabaseAdmin";
+import { LUNA_CONFIG } from "@/lib/ai/v2/config";
+import * as luna from "@/lib/ai/v2/lunaScreening";
+import { detectEmergency } from "@/lib/ai/v2/emergencyEngine";
 
 /* -------------------- HELPERS -------------------- */
 
@@ -19,6 +22,10 @@ function cleanInput(text) {
 /* -------------------- AI VALIDATE ANSWER -------------------- */
 
 async function validateAnswerAI({ question, answer }) {
+  if (LUNA_CONFIG.ENABLED) {
+    const r = await luna.validateAnswer({ question, answer });
+    return r.ok ? r.data : { is_valid: true };
+  }
   const prompt = `
 You are Mediconnect AI.
 
@@ -60,6 +67,20 @@ Return STRICT JSON:
 /* -------------------- AI NEXT QUESTION -------------------- */
 
 async function generateNextQuestion({ screening, answers, stage }) {
+  if (LUNA_CONFIG.ENABLED) {
+    const r = await luna.nextQuestion({
+      initialSymptoms: screening.initial_symptoms,
+      questions: screening.questions || [],
+      answers,
+    });
+    return {
+      question: {
+        id: `q${stage + 1}`,
+        text: r.ok ? r.data.text : "Can you describe your symptoms in more detail?",
+        type: "text",
+      },
+    };
+  }
   const prompt = `
 You are Mediconnect AI — a professional medical screening assistant.
 
@@ -121,6 +142,24 @@ Return STRICT JSON:
 /* -------------------- AI FINAL ANALYSIS -------------------- */
 
 async function generateFinalAnalysis({ screening, answers }) {
+  if (LUNA_CONFIG.ENABLED) {
+    const r = await luna.finalAnalysis({
+      initialSymptoms: screening.initial_symptoms,
+      answers,
+    });
+    if (r.ok) return r.data;
+    return {
+      summary: "Preliminary assessment completed.",
+      probable_diagnoses: [],
+      recommended_specialties: ["General Physician"],
+      specializations: ["General Physician"],
+      recommended_lab_tests: [],
+      recommended_medicines: [],
+      urgency: "routine",
+      home_care_advice: ["Please consult a doctor if symptoms persist"],
+      warning_signs: [],
+    };
+  }
   const prompt = `
 You are Mediconnect AI — a clinical decision support system.
 
@@ -214,6 +253,16 @@ export async function POST(req) {
     const lastQuestion =
       screening.questions?.[screening.questions.length - 1]?.text ||
       "Describe your symptoms";
+
+    // Pre-LLM Emergency check on user's answer
+    const emergencyCheck = detectEmergency(cleanAnswer);
+    if (emergencyCheck.isEmergency) {
+      return NextResponse.json({
+        status: false,
+        message: emergencyCheck.response,
+        isEmergency: true,
+      });
+    }
 
     /* -------- AI ANSWER VALIDATION -------- */
 

@@ -1,8 +1,12 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { AI_CONFIG } from "./config";
 
+function isValidUuid(val) {
+    return typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+}
+
 /**
- * Log an AI Chat interaction securely.
+ * Log an AI Chat interaction securely into AWS RDS PostgreSQL.
  * Automatically injects the precise configuration versions used for compliance.
  */
 export async function logAIChatInteraction({
@@ -11,42 +15,74 @@ export async function logAIChatInteraction({
     userMessage,
     aiResponse = null,
     blockedResponse = null,
-    eventType = "NORMAL"
+    eventType = "NORMAL",
+    requestId = null,
+    routeId = null,
+    routeDecision = null,
+    knowledgeVersion = "V2.6",
+    reasonCode = null,
+    auditMetadata = null,
 }) {
     try {
-        console.log(`[AI Logging] Attempting to insert ai_chat_log | userId=${userId} | sessionId=${sessionId} | eventType=${eventType}`);
+        console.log(`[AI Logging] Inserting ai_chat_log to AWS RDS | userId=${userId} | sessionId=${sessionId} | routeId=${routeId} | eventType=${eventType}`);
 
-        const { data, error } = await supabase.from("ai_chat_logs").insert([
-            {
-                user_id: userId,
-                session_id: sessionId,
-                user_message: userMessage,
-                ai_response: aiResponse,
-                blocked_response: blockedResponse,
-                model_name: AI_CONFIG.MODEL_NAME,
-                model_version: AI_CONFIG.MODEL_VERSION,
-                system_prompt_version: AI_CONFIG.SYSTEM_PROMPT_VERSION,
-                moderation_rules_version: AI_CONFIG.MODERATION_RULES_VERSION,
-                emergency_rules_version: AI_CONFIG.EMERGENCY_RULES_VERSION,
-                event_type: eventType,
-            },
-        ]);
+        const validUserId = isValidUuid(userId) ? userId : null;
+        const serializedAiResponse = typeof aiResponse === "object" && aiResponse !== null ? JSON.stringify(aiResponse) : (aiResponse ? String(aiResponse) : null);
+        const serializedBlocked = typeof blockedResponse === "object" && blockedResponse !== null ? JSON.stringify(blockedResponse) : (blockedResponse ? String(blockedResponse) : null);
+        const serializedMetadata = auditMetadata ? JSON.stringify(auditMetadata) : null;
 
-        if (error) {
-            console.error("[AI Logging] ❌ INSERT FAILED:", JSON.stringify(error, null, 2));
-        } else {
-            console.log("[AI Logging] ✅ INSERT SUCCESS:", data);
-        }
+        const rows = await sql`
+            INSERT INTO ai_chat_logs (
+                user_id,
+                session_id,
+                user_message,
+                ai_response,
+                blocked_response,
+                model_name,
+                model_version,
+                system_prompt_version,
+                moderation_rules_version,
+                emergency_rules_version,
+                event_type,
+                request_id,
+                route_id,
+                route_decision,
+                knowledge_version,
+                reason_code,
+                audit_metadata
+            ) VALUES (
+                ${validUserId},
+                ${sessionId || null},
+                ${userMessage || null},
+                ${serializedAiResponse},
+                ${serializedBlocked},
+                ${AI_CONFIG.MODEL_NAME},
+                ${AI_CONFIG.MODEL_VERSION},
+                ${AI_CONFIG.SYSTEM_PROMPT_VERSION},
+                ${AI_CONFIG.MODERATION_RULES_VERSION},
+                ${AI_CONFIG.EMERGENCY_RULES_VERSION},
+                ${eventType},
+                ${requestId || null},
+                ${routeId || null},
+                ${routeDecision || null},
+                ${knowledgeVersion || "V2.6"},
+                ${reasonCode || null},
+                ${serializedMetadata}::jsonb
+            )
+            RETURNING id, timestamp;
+        `;
 
-        return { data, error };
+        const record = rows[0] || null;
+        console.log("[AI Logging] ✅ RDS INSERT SUCCESS:", record?.id);
+        return { data: record, error: null };
     } catch (err) {
-        console.error("[AI Logging] ❌ EXCEPTION during insert:", err);
+        console.error("[AI Logging] ❌ RDS INSERT EXCEPTION:", err);
         return { data: null, error: err };
     }
 }
 
 /**
- * Log a Lung/Cardio tool interaction.
+ * Log a Lung/Cardio tool interaction into AWS RDS PostgreSQL.
  */
 export async function logAIToolInteraction({
     userId,
@@ -57,31 +93,39 @@ export async function logAIToolInteraction({
     recommendation,
 }) {
     try {
-        const { data, error } = await supabase.from("ai_tool_interactions").insert([
-            {
-                user_id: userId,
-                tool_name: toolName,
-                input_json: inputJson,
-                risk_level: riskLevel,
-                urgency_classification: urgencyClassification,
-                recommendation: recommendation,
-                model_version: `${AI_CONFIG.MODEL_NAME}-${AI_CONFIG.MODEL_VERSION}`,
-            },
-        ]).select().single();
+        const validUserId = isValidUuid(userId) ? userId : null;
+        const serializedInput = typeof inputJson === "object" && inputJson !== null ? JSON.stringify(inputJson) : (inputJson || "{}");
 
-        if (error) {
-            console.error("[CRITICAL] Failed to log AI tool interaction:", error);
-        }
+        const rows = await sql`
+            INSERT INTO ai_tool_interactions (
+                user_id,
+                tool_name,
+                input_json,
+                risk_level,
+                urgency_classification,
+                recommendation,
+                model_version
+            ) VALUES (
+                ${validUserId},
+                ${toolName},
+                ${serializedInput}::jsonb,
+                ${riskLevel || null},
+                ${urgencyClassification || null},
+                ${recommendation || null},
+                ${`${AI_CONFIG.MODEL_NAME}-${AI_CONFIG.MODEL_VERSION}`}
+            )
+            RETURNING *;
+        `;
 
-        return data;
+        return rows[0] || null;
     } catch (err) {
-        console.error("[CRITICAL] System exception during AI tool logging:", err);
+        console.error("[CRITICAL] Failed to log AI tool interaction to AWS RDS:", err);
         return null;
     }
 }
 
 /**
- * Audit log a doctor's manual override of an AI tool's output.
+ * Audit log a doctor's manual override of an AI tool's output in AWS RDS PostgreSQL.
  */
 export async function logDoctorOverride({
     interactionId,
@@ -90,20 +134,18 @@ export async function logDoctorOverride({
     notes,
 }) {
     try {
-        const { error } = await supabase
-            .from("ai_tool_interactions")
-            .update({
-                doctor_id: doctorId,
-                ai_output_status: status, // ACKNOWLEDGED, OVERRIDDEN, IGNORED
-                doctor_override_notes: notes,
-                confirmation_timestamp: new Date().toISOString(),
-            })
-            .eq("id", interactionId);
-
-        if (error) {
-            console.error("[CRITICAL] Failed to log doctor override:", error);
-        }
+        const validDoctorId = isValidUuid(doctorId) ? doctorId : null;
+        await sql`
+            UPDATE ai_tool_interactions
+            SET 
+                doctor_id = ${validDoctorId},
+                ai_output_status = ${status},
+                doctor_override_notes = ${notes || null},
+                confirmation_timestamp = NOW()
+            WHERE id = ${interactionId}::uuid;
+        `;
     } catch (err) {
-        console.error("[CRITICAL] System exception during doctor override logging:", err);
+        console.error("[CRITICAL] System exception during doctor override logging to AWS RDS:", err);
     }
 }
+

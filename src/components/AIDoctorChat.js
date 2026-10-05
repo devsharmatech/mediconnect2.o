@@ -344,9 +344,9 @@ const RecommendedDoctorsModal = ({
   const todayStr = new Date().toISOString().split("T")[0];
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-2 sm:px-4">
-      <div className="w-full max-w-5xl lg:max-w-7xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-gray-200 max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="px-4 sm:px-6 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-xs px-2 sm:px-4">
+      <div className="w-full max-w-5xl lg:max-w-7xl bg-white rounded-[6px] shadow-2xl border border-gray-200 max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="px-4 sm:px-6 py-3.5 border-b border-gray-100 flex items-center justify-between gap-3 bg-slate-50/60">
           <div>
             <p className="text-sm font-semibold text-gray-800">
               Recommended doctors for you
@@ -354,7 +354,7 @@ const RecommendedDoctorsModal = ({
             {analysis?.recommended_specialties?.length ? (
               <p className="text-[11px] text-gray-500">
                 Based on your screening, we suggest specialists in{" "}
-                <span className="font-medium">
+                <span className="font-medium text-[#0067A1]">
                   {analysis.recommended_specialties.join(", ")}
                 </span>
               </p>
@@ -367,16 +367,40 @@ const RecommendedDoctorsModal = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 text-sm font-bold"
+            className="w-7 h-7 rounded-[5px] bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 text-sm font-bold transition-colors cursor-pointer"
+            title="Close"
+            aria-label="Close"
           >
             ✕
           </button>
         </div>
 
         <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+          {/* Left Column: Doctors list */}
           <div className="p-4 sm:p-5 overflow-y-auto">
             {loading ? (
-              <p className="text-sm text-gray-500">Loading doctors...</p>
+              <div className="space-y-3">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div
+                    key={i}
+                    className="w-full rounded-[6px] border border-gray-200/70 p-3.5 flex items-start gap-3 bg-white animate-pulse"
+                  >
+                    <div className="h-10 w-10 rounded-full bg-slate-200 shrink-0" />
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="h-4 bg-slate-200 rounded-[3px] w-36" />
+                        <div className="h-3.5 bg-slate-200 rounded-[3px] w-14" />
+                      </div>
+                      <div className="h-3 bg-slate-100 rounded-[3px] w-24" />
+                      <div className="h-3 bg-slate-100 rounded-[3px] w-44" />
+                      <div className="flex items-center justify-between pt-1">
+                        <div className="h-3 bg-slate-100 rounded-[3px] w-28" />
+                        <div className="h-3 bg-slate-100 rounded-[3px] w-12" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : doctors.length === 0 ? (
               <p className="text-sm text-gray-500">
                 No matching doctors available right now. Please try again later.
@@ -388,9 +412,9 @@ const RecommendedDoctorsModal = ({
                     key={doc.id}
                     type="button"
                     onClick={() => setSelectedDoctor(doc)}
-                    className={`w-full text-left rounded-xl border px-3 py-3 flex items-start gap-3 transition-colors ${
+                    className={`w-full text-left rounded-[6px] border px-3.5 py-3 flex items-start gap-3 transition-colors cursor-pointer ${
                       selectedDoctor?.id === doc.id
-                        ? "border-[#0067A1] bg-[#0067A1]/5"
+                        ? "border-[#0067A1] bg-[#0067A1]/5 shadow-xs"
                         : "border-gray-200 hover:border-[#0067A1]/40 hover:bg-gray-50"
                     }`}
                   >
@@ -430,10 +454,30 @@ const RecommendedDoctorsModal = ({
             )}
           </div>
 
+          {/* Right Column: Selected doctor + appointment options */}
           <div className="p-4 sm:p-5 flex flex-col gap-3 overflow-y-auto">
-            {selectedDoctor ? (
+            {loading && !selectedDoctor ? (
+              <div className="space-y-4 animate-pulse">
+                <div className="rounded-[6px] border border-gray-200/70 bg-gray-50 p-4 flex items-start gap-3">
+                  <div className="h-12 w-12 rounded-full bg-slate-200 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-slate-200 rounded-[3px] w-40" />
+                    <div className="h-3 bg-slate-100 rounded-[3px] w-28" />
+                    <div className="h-3 bg-slate-100 rounded-[3px] w-48" />
+                  </div>
+                </div>
+                <div className="space-y-2 pt-2">
+                  <div className="h-4 bg-slate-200 rounded-[3px] w-32" />
+                  <div className="flex gap-2">
+                    <div className="flex-1 h-12 bg-slate-100 rounded-[5px]" />
+                    <div className="flex-1 h-12 bg-slate-100 rounded-[5px]" />
+                    <div className="flex-1 h-12 bg-slate-100 rounded-[5px]" />
+                  </div>
+                </div>
+              </div>
+            ) : selectedDoctor ? (
               <>
-                <div className="rounded-xl border border-gray-100 bg-[#0067A1]/5 p-3 sm:p-4 flex items-start gap-3">
+                <div className="rounded-[6px] border border-[#0067A1]/20 bg-[#0067A1]/5 p-3 sm:p-4 flex items-start gap-3">
                   <div className="flex-shrink-0">
                     <div className="h-12 w-12 rounded-full overflow-hidden border border-white shadow bg-gray-100 flex items-center justify-center">
                       <img
@@ -510,17 +554,17 @@ const RecommendedDoctorsModal = ({
                             setAppointmentType(opt.id);
                             setSelectedSlot(null);
                           }}
-                          className={`flex-1 min-w-[110px] rounded-xl border px-3 py-2 text-left text-xs transition-colors ${
+                          className={`flex-1 min-w-[110px] rounded-[5px] border px-3 py-2 text-left text-xs transition-colors cursor-pointer ${
                             active
-                              ? "border-[#0067A1] bg-[#0067A1] text-white shadow-sm"
-                              : "border-emerald-100 bg-white text-gray-800 hover:border-[#0067A1]/70"
+                              ? "border-[#0067A1] bg-[#0067A1] text-white shadow-xs"
+                              : "border-gray-200 bg-white text-gray-800 hover:border-[#0067A1]/70"
                           }`}
                         >
                           <div className="font-semibold text-[11px] leading-snug">
                             {opt.label}
                           </div>
                           <div
-                            className={`mt-0.5 text-[10px] ${active ? "text-emerald-50" : "text-gray-500"}`}
+                            className={`mt-0.5 text-[10px] ${active ? "text-sky-100" : "text-gray-500"}`}
                           >
                             {opt.description}
                           </div>
@@ -540,7 +584,7 @@ const RecommendedDoctorsModal = ({
                     value={selectedDate}
                     min={todayStr}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent"
+                    className="w-full rounded-[5px] border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent"
                   />
                 </div>
 
@@ -550,7 +594,16 @@ const RecommendedDoctorsModal = ({
                     Available time slots
                   </label>
                   {slotsLoading ? (
-                    <p className="text-xs text-gray-500">Loading slots...</p>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                        <div
+                          key={i}
+                          className="h-8 rounded-[5px] bg-slate-100 border border-slate-200/60 animate-pulse flex items-center justify-center"
+                        >
+                          <div className="h-2.5 w-12 bg-slate-200 rounded-[2px]" />
+                        </div>
+                      ))}
+                    </div>
                   ) : slots.length === 0 ? (
                     <p className="text-xs text-gray-500">
                       No slots available for this date. Please try another date.
@@ -576,12 +629,12 @@ const RecommendedDoctorsModal = ({
                             type="button"
                             disabled={disabled}
                             onClick={() => setSelectedSlot(value)}
-                            className={`text-[11px] px-2 py-1.5 rounded-full border transition-colors shadow-sm ${
+                            className={`text-[11px] px-2.5 py-1.5 rounded-[5px] border transition-colors shadow-xs font-medium cursor-pointer ${
                               disabled
                                 ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
                                 : isSelected
-                                  ? "border-[#0067A1] bg-[#0067A1] text-white shadow"
-                                  : "border-emerald-100 bg-emerald-50 text-gray-800 hover:border-[#0067A1] hover:bg-[#0067A1]/10"
+                                  ? "border-[#0067A1] bg-[#0067A1] text-white shadow-xs"
+                                  : "border-gray-200 bg-white text-gray-800 hover:border-[#0067A1] hover:bg-[#0067A1]/5"
                             }`}
                           >
                             {timeLabel}
@@ -606,7 +659,7 @@ const RecommendedDoctorsModal = ({
                         onChange={(e) =>
                           setDataSharingConsent(e.target.checked)
                         }
-                        className="mt-0.5 rounded border-gray-300 text-[#0067A1] focus:ring-[#0067A1]"
+                        className="mt-0.5 rounded-[3px] border-gray-300 text-[#0067A1] focus:ring-[#0067A1]"
                       />
                       <span className="text-[10px] text-gray-600 leading-tight group-hover:text-gray-800 transition-colors">
                         I consent to the sharing of my medical data and
@@ -621,7 +674,7 @@ const RecommendedDoctorsModal = ({
                         onChange={(e) =>
                           setTeleconsultConsent(e.target.checked)
                         }
-                        className="mt-0.5 rounded border-gray-300 text-[#0067A1] focus:ring-[#0067A1]"
+                        className="mt-0.5 rounded-[3px] border-gray-300 text-[#0067A1] focus:ring-[#0067A1]"
                       />
                       <span className="text-[10px] text-gray-600 leading-tight group-hover:text-gray-800 transition-colors">
                         I agree to the terms of teleconsultation and understand
@@ -642,7 +695,7 @@ const RecommendedDoctorsModal = ({
                       !teleconsultConsent
                     }
                     onClick={handleBook}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-[#0067A1] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#004F7C] disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-[5px] bg-[#0067A1] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#004F7C] disabled:opacity-60 disabled:cursor-not-allowed transition-all cursor-pointer"
                   >
                     {booking ? (
                       "Processing..."
@@ -650,7 +703,7 @@ const RecommendedDoctorsModal = ({
                       Number(selectedDoctor.fee) > 0 ? (
                       <span className="flex items-center gap-1.5">
                         <FaLock className="w-3 h-3" />
-                        Pay ₹{selectedDoctor.fee} &amp; Confirm
+                        Pay ₹{Number(selectedDoctor.fee).toFixed(2)} &amp; Confirm
                       </span>
                     ) : (
                       "Confirm Booking (Free)"

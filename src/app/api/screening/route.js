@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { openai, supabase } from "@/lib/supabaseAdmin";
 import { v4 as uuidv4 } from "uuid";
+import { LUNA_CONFIG } from "@/lib/ai/v2/config";
+import { classifyMedical, firstQuestion } from "@/lib/ai/v2/lunaScreening";
+import { detectEmergency } from "@/lib/ai/v2/emergencyEngine";
 
 export async function POST(req) {
   try {
@@ -15,6 +18,56 @@ export async function POST(req) {
         },
         { status: 400 }
       );
+    }
+
+    // Pre-LLM Emergency Detection
+    const emergencyCheck = detectEmergency(initial_symptoms);
+    if (emergencyCheck.isEmergency) {
+      return NextResponse.json({
+        status: false,
+        message: emergencyCheck.response,
+        isEmergency: true
+      });
+    }
+
+    // Luna path
+    if (LUNA_CONFIG.ENABLED) {
+      const cls = await classifyMedical(initial_symptoms);
+      if (cls.ok && !cls.data.is_medical) {
+        return NextResponse.json({
+          status: false,
+          message: "Sorry, I can only answer medical or disease-related questions.",
+        });
+      }
+
+      const q = await firstQuestion(initial_symptoms);
+      const lunaQuestion = {
+        id: "q1",
+        text: q.ok ? q.data.text : "Can you tell me more about your symptoms?",
+        type: "text",
+      };
+
+      const screening_id = uuidv4();
+      await supabase.from("screening_sessions").insert([
+        {
+          id: screening_id,
+          patient_id,
+          stage: 0,
+          initial_symptoms,
+          questions: [lunaQuestion],
+          answers: [{ question_id: "q0", answer: initial_symptoms }],
+          status: "in_progress",
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+      ]);
+
+      return NextResponse.json({
+        status: true,
+        screening_id,
+        stage: 0,
+        next_question: lunaQuestion,
+      });
     }
 
     // Step 1: Strict intent filter

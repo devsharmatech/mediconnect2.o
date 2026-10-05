@@ -18,6 +18,26 @@ const PatientDashboardLayout = ({ children }) => {
   const router = useRouter();
   const pathname = usePathname();
 
+  // Hydration-safe initial check for collapsed sidebar preference
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("patient_sidebar_collapsed");
+      if (saved !== null) {
+        setIsCollapsed(saved === "true");
+      }
+    } catch (e) {}
+  }, []);
+
+  const handleSetCollapsed = (val) => {
+    setIsCollapsed((prev) => {
+      const nextVal = typeof val === "function" ? val(prev) : val;
+      try {
+        localStorage.setItem("patient_sidebar_collapsed", nextVal ? "true" : "false");
+      } catch (e) {}
+      return nextVal;
+    });
+  };
+
   useEffect(() => {
     // Check if disclaimer was previously dismissed
     const isDismissed = localStorage.getItem("mediconnect_doctor_disclaimer_dismissed");
@@ -215,7 +235,11 @@ const PatientDashboardLayout = ({ children }) => {
   }, []);
 
   const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
+    if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+      handleSetCollapsed((prev) => !prev);
+    } else {
+      setIsSidebarOpen((prev) => !prev);
+    }
   };
 
   const closeSidebar = () => {
@@ -240,21 +264,24 @@ const PatientDashboardLayout = ({ children }) => {
         isOpen={isSidebarOpen}
         onClose={closeSidebar}
         isCollapsed={isCollapsed}
-        setIsCollapsed={setIsCollapsed}
+        setIsCollapsed={handleSetCollapsed}
         user={user}
         onOpenAssistant={() => setShowChat(true)}
       />
 
       {/* Main Content Area */}
       <div 
-        className={`${isCollapsed ? "lg:pl-20" : "lg:pl-64"} transition-all duration-300`}
+        className={`${isCollapsed ? "lg:pl-0" : "lg:pl-64"} transition-all duration-300 min-h-screen flex flex-col`}
         style={{
-          "--patient-sidebar-width": isCollapsed ? "5rem" : "16rem",
+          "--patient-sidebar-width": isCollapsed ? "0rem" : "16rem",
         }}
       >
         {/* Header */}
-
-        <PatientHeader user={user} onMenuClick={toggleSidebar} />
+        <PatientHeader 
+          user={user} 
+          onMenuClick={toggleSidebar} 
+          isSidebarCollapsed={isCollapsed}
+        />
 
         {/* Mandatory Patient UI Disclaimer */}
         {showDisclaimer && (

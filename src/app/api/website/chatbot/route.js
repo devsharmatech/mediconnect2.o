@@ -174,13 +174,21 @@ RESPONSE FORMAT RULES:
         // Construct safe message array
         const safeMessages = [systemPromptMessage, ...messages];
 
-        // 5. OpenAI Call
-        const completion = await openai.chat.completions.create({
-            model: CHATBOT_CONFIG.MODEL_NAME,
+        // 5. OpenAI Call (supports gpt-6-luna with fallback)
+        const model = CHATBOT_CONFIG.MODEL_NAME;
+        const isModern = model.startsWith("gpt-5") || model.startsWith("gpt-6") || model.startsWith("o1") || model.startsWith("o3");
+        const payload = {
+            model,
             messages: safeMessages,
-            temperature: 0.5,
-            max_tokens: 500,
-        });
+        };
+        if (isModern) {
+            payload.max_completion_tokens = 600;
+        } else {
+            payload.max_tokens = 500;
+            payload.temperature = 0.5;
+        }
+
+        const completion = await openai.chat.completions.create(payload);
 
         let rawAIResponse = completion.choices[0]?.message?.content || "";
         let action = null;
