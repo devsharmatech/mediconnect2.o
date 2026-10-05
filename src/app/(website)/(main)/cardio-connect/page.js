@@ -1652,7 +1652,11 @@ export default function CardioConnectHome() {
                 <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-[5px]">
                   <span className="text-[10px] text-slate-500 block">Pace / Speed</span>
                   <strong className="text-slate-900 font-mono text-sm">
-                    {currentSpeedKmH > 0 ? `${currentSpeedKmH.toFixed(1)} km/h` : "4.8 km/h"}
+                    {currentSpeedKmH > 0
+                      ? `${currentSpeedKmH.toFixed(1)} km/h`
+                      : (realGpsDistanceKm > 0 && trainingElapsedSeconds > 0
+                          ? `${(realGpsDistanceKm / (trainingElapsedSeconds / 3600)).toFixed(1)} km/h`
+                          : "0.0 km/h")}
                   </strong>
                 </div>
                 <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-[5px]">

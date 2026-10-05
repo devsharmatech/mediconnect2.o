@@ -3340,82 +3340,118 @@ function LungConnectHubContent() {
               exit={{ opacity: 0, scale: 0.98 }}
               className="bg-white w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-md rounded-none sm:rounded-[6px] shadow-2xl border-0 sm:border border-slate-300 flex flex-col overflow-hidden font-sans text-slate-900"
             >
-              <div className="px-4 py-3 sm:px-5 sm:py-4 border-b border-slate-200 flex items-center justify-between bg-slate-100 shrink-0 z-20">
-                <div className="flex items-center gap-2">
-                  <Footprints className="w-4 h-4 text-[#0067A1]" />
-                  <span className="text-xs font-bold text-slate-950">Activity Detail</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedActivityDetail(null)}
-                  className="p-1.5 hover:bg-slate-200 rounded-[5px] transition-colors cursor-pointer text-slate-800"
-                  aria-label="Close modal"
-                >
-                  <X className="w-4 h-4 text-slate-800" />
-                </button>
-              </div>
+              {(() => {
+                const isBreathing =
+                  selectedActivityDetail.activity_type === "breathing" ||
+                  selectedActivityDetail.activity_type === "lung_breathing" ||
+                  String(selectedActivityDetail.title || "").toLowerCase().includes("breath");
 
-              <div className="p-4 sm:p-5 space-y-4 text-xs flex-1 overflow-y-auto overscroll-contain">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-[5px] bg-emerald-50 text-emerald-800 flex items-center justify-center font-bold">
-                      <Footprints className="w-4 h-4" />
+                const durationSec = Number(selectedActivityDetail.duration_seconds || 0);
+                const durationLabel = durationSec > 0
+                  ? (durationSec < 60 ? `${durationSec}s` : `${Math.round(durationSec / 60)} min`)
+                  : "Completed";
+
+                const rawDistance = selectedActivityDetail.distance_km ?? (selectedActivityDetail.distance_m ? (selectedActivityDetail.distance_m / 1000).toFixed(2) : null);
+                const distanceLabel = rawDistance !== null ? `${Number(rawDistance).toFixed(2)} km` : (isBreathing ? "0 km" : "—");
+
+                const paceLabel = selectedActivityDetail.avg_pace || (selectedActivityDetail.pace_kmh ? `${selectedActivityDetail.pace_kmh} km/h` : "—");
+                const stepsCount = selectedActivityDetail.steps !== undefined && selectedActivityDetail.steps !== null
+                  ? Number(selectedActivityDetail.steps).toLocaleString()
+                  : (rawDistance && !isBreathing ? Math.round(Number(rawDistance) * 1300).toLocaleString() : (isBreathing ? "0" : "—"));
+
+                const displayNotes = selectedActivityDetail.notes || (isBreathing
+                  ? "Structured respiratory conditioning session recorded in your health locker."
+                  : "Activity session recorded in your health locker.");
+
+                const resolvedLocation = selectedActivityDetail.location_name || selectedCity || "Current Location";
+
+                return (
+                  <>
+                    <div className="px-4 py-3 sm:px-5 sm:py-4 border-b border-slate-200 flex items-center justify-between bg-slate-100 shrink-0 z-20">
+                      <div className="flex items-center gap-2">
+                        {isBreathing ? (
+                          <Wind className="w-4 h-4 text-[#0067A1]" />
+                        ) : (
+                          <Footprints className="w-4 h-4 text-[#0067A1]" />
+                        )}
+                        <span className="text-xs font-bold text-slate-950">Activity Detail</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedActivityDetail(null)}
+                        className="p-1.5 hover:bg-slate-200 rounded-[5px] transition-colors cursor-pointer text-slate-800"
+                        aria-label="Close modal"
+                      >
+                        <X className="w-4 h-4 text-slate-800" />
+                      </button>
                     </div>
-                    <div>
-                      <div className="font-extrabold text-sm text-slate-950 capitalize">{selectedActivityDetail.title || selectedActivityDetail.activity_type}</div>
-                      <div className="text-[11px] text-slate-500 font-medium">{formatReadableDateTime(selectedActivityDetail.created_at)}</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-bold uppercase bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-[5px] border border-emerald-200">
-                    Completed
-                  </span>
-                </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-[5px] p-3 space-y-2">
-                  <div className="font-bold text-slate-950 uppercase text-[10px]">Recorded Metrics</div>
-                  <div className="flex justify-between py-1 border-b border-slate-200">
-                    <span className="text-slate-800 font-semibold">Duration:</span>
-                    <span className="font-bold text-slate-950">{Math.round((selectedActivityDetail.duration_seconds || 1200) / 60)} min</span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-slate-200">
-                    <span className="text-slate-800 font-semibold">Distance:</span>
-                    <span className="font-bold text-[#0067A1]">{selectedActivityDetail.distance_km || 4.1} km</span>
-                  </div>
-                  <div className="flex justify-between py-1 border-b border-slate-200">
-                    <span className="text-slate-800 font-semibold">Avg Pace:</span>
-                    <span className="font-bold text-slate-950">{selectedActivityDetail.avg_pace || "9:45 /km"}</span>
-                  </div>
-                  <div className="flex justify-between py-1">
-                    <span className="text-slate-800 font-semibold">Steps:</span>
-                    <span className="font-bold text-slate-950">{selectedActivityDetail.steps || 5420}</span>
-                  </div>
-                </div>
+                    <div className="p-4 sm:p-5 space-y-4 text-xs flex-1 overflow-y-auto overscroll-contain">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-8 h-8 rounded-[5px] flex items-center justify-center font-bold ${
+                            isBreathing ? "bg-blue-50 text-[#0067A1] border border-blue-200" : "bg-emerald-50 text-emerald-800"
+                          }`}>
+                            {isBreathing ? <Wind className="w-4 h-4" /> : <Footprints className="w-4 h-4" />}
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-sm text-slate-950 capitalize">{selectedActivityDetail.title || selectedActivityDetail.activity_type}</div>
+                            <div className="text-[11px] text-slate-500 font-medium">{formatReadableDateTime(selectedActivityDetail.created_at)}</div>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold uppercase bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-[5px] border border-emerald-200">
+                          Completed
+                        </span>
+                      </div>
 
-                {/* Real GPS Geographic Route (OpenStreetMap / Leaflet) */}
-                <RealGpsMap
-                  isLiveTracking={false}
-                  distanceKm={`${selectedActivityDetail.distance_km || 4.1} km`}
-                  activity={(selectedActivityDetail.activity_type || 'Walk').toUpperCase()}
-                  coords={userCoords}
-                  locationName={selectedActivityDetail.location_name || selectedCity}
-                  height="h-44"
-                  className="w-full"
-                />
+                      <div className="bg-slate-50 border border-slate-200 rounded-[5px] p-3 space-y-2">
+                        <div className="font-bold text-slate-950 uppercase text-[10px]">Recorded Metrics</div>
+                        <div className="flex justify-between py-1 border-b border-slate-200">
+                          <span className="text-slate-800 font-semibold">Duration:</span>
+                          <span className="font-bold text-slate-950">{durationLabel}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-200">
+                          <span className="text-slate-800 font-semibold">Distance:</span>
+                          <span className="font-bold text-[#0067A1]">{distanceLabel}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-slate-200">
+                          <span className="text-slate-800 font-semibold">Avg Pace:</span>
+                          <span className="font-bold text-slate-950">{paceLabel}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-slate-800 font-semibold">Steps:</span>
+                          <span className="font-bold text-slate-950">{stepsCount}</span>
+                        </div>
+                      </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-[5px] p-3 space-y-1">
-                  <div className="font-bold text-slate-950 uppercase text-[10px]">Notes (Optional)</div>
-                  <p className="text-[11px] text-slate-800 italic">
-                    {selectedActivityDetail.notes || "Felt good today. Nice morning session with comfortable breathing."}
-                  </p>
-                </div>
+                      {/* Real GPS Geographic Route (OpenStreetMap / Leaflet) */}
+                      <RealGpsMap
+                        isLiveTracking={false}
+                        distanceKm={distanceLabel !== "—" ? distanceLabel : "0 km"}
+                        activity={(selectedActivityDetail.activity_type || (isBreathing ? 'LUNG_BREATHING' : 'Walk')).toUpperCase()}
+                        coords={userCoords}
+                        locationName={resolvedLocation}
+                        height="h-44"
+                        className="w-full"
+                      />
 
-                <div className="bg-slate-50 border border-slate-200 rounded-[5px] p-3 space-y-1">
-                  <div className="font-bold text-slate-950 uppercase text-[10px]">Location</div>
-                  <div className="text-[11px] text-slate-800 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-slate-800" />
-                    <span>{selectedCity}</span>
-                  </div>
-                </div>
+                      <div className="bg-slate-50 border border-slate-200 rounded-[5px] p-3 space-y-1">
+                        <div className="font-bold text-slate-950 uppercase text-[10px]">Notes</div>
+                        <p className="text-[11px] text-slate-800 italic">
+                          {displayNotes}
+                        </p>
+                      </div>
+
+                      <div className="bg-slate-50 border border-slate-200 rounded-[5px] p-3 space-y-1">
+                        <div className="font-bold text-slate-950 uppercase text-[10px]">Location</div>
+                        <div className="text-[11px] text-slate-800 flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-slate-800" />
+                          <span>{resolvedLocation}</span>
+                        </div>
+                      </div>
+                  </>
+                );
+              })()}
 
                 <div className="flex gap-2">
                   <button

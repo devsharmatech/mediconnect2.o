@@ -300,13 +300,36 @@ export default function LungHealthStatisticsPage() {
       (typeof window !== "undefined" ? (localStorage.getItem("userName") || localStorage.getItem("patient_name")) : null) ||
       "Patient";
 
+    const savedPatientLoc = typeof window !== "undefined" ? (() => {
+      try {
+        const loc = JSON.parse(localStorage.getItem("mediconnect_patient_location") || "{}");
+        return loc?.city && loc.city !== "Current Location" ? loc.city : null;
+      } catch (_) { return null; }
+    })() : null;
+
     if (record.rawAssessment?.lung_health_inputs?.length > 0) {
+      const firstInp = record.rawAssessment.lung_health_inputs[0] || {};
+      const rawL = firstInp.location || firstInp.city || record.rawAssessment.city || record.rawAssessment.location;
+      const finalL = (rawL && rawL !== "Current Location") ? rawL : (savedPatientLoc || rawL || "Current Location");
+
       return {
         ...record.rawAssessment,
         patient_name: resolvedPatientName,
         serial_no: record.serialNo || record.rawAssessment?.serial_no,
+        city: finalL,
+        location: finalL,
+        lung_health_inputs: [
+          {
+            ...firstInp,
+            location: finalL,
+            city: finalL,
+          }
+        ]
       };
     }
+    const envLoc = record.inputs?.environment?.location;
+    const finalEnvLoc = (envLoc && envLoc !== "Current Location") ? envLoc : (savedPatientLoc || "Delhi, India");
+
     return {
       id: record.id,
       patient_name: resolvedPatientName,
@@ -316,6 +339,8 @@ export default function LungHealthStatisticsPage() {
       serial_no: record.serialNo,
       ai_analysis: record.aiAnalysis,
       recommendations: record.recommendations,
+      city: finalEnvLoc,
+      location: finalEnvLoc,
       lung_health_inputs: [
         {
           age: record.inputs?.demographics?.age || 35,
@@ -330,7 +355,8 @@ export default function LungHealthStatisticsPage() {
           peak_flow: record.inputs?.respiratoryTests?.peakFlow || record.peakFlow || 450,
           breaths_per_minute: record.inputs?.respiratoryTests?.breathsPerMinute || record.breathsPerMinute || 16,
           aqi: record.inputs?.environment?.aqi || record.aqi || 60,
-          location: record.inputs?.environment?.location || "Delhi, India",
+          location: finalEnvLoc,
+          city: finalEnvLoc,
           cough_frequency: record.inputs?.symptoms?.coughFrequency || "None",
           breathlessness: record.inputs?.symptoms?.breathlessness || "None",
           wheezing: record.inputs?.symptoms?.wheezing || false

@@ -86,7 +86,25 @@ export default function LungConnectV99Report({
   );
   const aqiRaw = inputs?.aqi ?? assessmentData?.aqi ?? null;
   const aqi = aqiRaw !== null ? Number(aqiRaw) : "—";
-  const aqiCity = inputs?.city || inputs?.location || assessmentData?.city || "Current Location";
+  const savedPatientLoc = typeof window !== "undefined" ? (() => {
+    try {
+      const loc = JSON.parse(localStorage.getItem("mediconnect_patient_location") || "{}");
+      return loc?.city && loc.city !== "Current Location" ? loc.city : null;
+    } catch (_) { return null; }
+  })() : null;
+
+  const rawCity =
+    inputs?.city ||
+    inputs?.location ||
+    assessmentData?.city ||
+    assessmentData?.location ||
+    assessmentData?.location_name ||
+    null;
+
+  const aqiCity = (rawCity && rawCity !== "Current Location")
+    ? rawCity
+    : (savedPatientLoc || patientData?.city || patientData?.location || patientData?.details?.city || patientData?.details?.address || rawCity || "Current Location");
+
   const aqiCategory = aqi !== "—" ? (aqi <= 50 ? "Good" : aqi <= 100 ? "Satisfactory" : aqi <= 200 ? "Moderate" : aqi <= 300 ? "Poor" : "Very Poor") : "Unspecified";
 
 
