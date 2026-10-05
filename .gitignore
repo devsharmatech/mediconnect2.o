@@ -35,6 +35,7 @@ coverage/
 # Environment & Secrets
 # ==========================================
 .env*
+!.env.example
 .env
 .env.local
 .env.development.local

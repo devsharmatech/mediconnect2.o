@@ -21,6 +21,13 @@ export function getSavedPatientLocation() {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && (parsed.city || parsed.lat)) {
+        // Automatically sanitize legacy "Kartavya Path" glitch
+        if (parsed.city && (parsed.city.toLowerCase().includes("kartavya") || parsed.city.toLowerCase().includes("rajpath"))) {
+          parsed.city = "Delhi";
+          try {
+            localStorage.setItem(PATIENT_LOCATION_KEY, JSON.stringify(parsed));
+          } catch (_) {}
+        }
         return parsed;
       }
     }
@@ -41,7 +48,11 @@ export function savePatientLocation(data) {
     const existing = getSavedPatientLocation() || {};
     
     // Normalize city / location name
-    const resolvedCity = data.city || data.locationName || data.name || data.aqi_location || existing.city;
+    let resolvedCity = data.city || data.locationName || data.name || data.aqi_location || existing.city;
+    if (resolvedCity && (resolvedCity.toLowerCase().includes("kartavya") || resolvedCity.toLowerCase().includes("rajpath"))) {
+      resolvedCity = "Delhi";
+    }
+
     const resolvedLat = data.lat !== undefined ? Number(data.lat) : (data.latitude !== undefined ? Number(data.latitude) : existing.lat);
     const resolvedLng = data.lng !== undefined ? Number(data.lng) : (data.longitude !== undefined ? Number(data.longitude) : existing.lng);
     const resolvedAqi = data.aqi !== undefined ? data.aqi : existing.aqi;
@@ -49,7 +60,10 @@ export function savePatientLocation(data) {
 
     // If incoming city is default "Delhi" or "Current Location" but existing is a specific real city, keep existing
     let finalCity = resolvedCity;
-    if ((!finalCity || finalCity === "Delhi" || finalCity === "Current Location") && existing.city && existing.city !== "Delhi" && existing.city !== "Current Location" && !data.forceReset) {
+    const isGenericDefault = !finalCity || finalCity === "Delhi" || finalCity === "Current Location" || finalCity.toLowerCase().includes("kartavya");
+    const hasSpecificExisting = existing.city && existing.city !== "Delhi" && existing.city !== "Current Location" && !existing.city.toLowerCase().includes("kartavya");
+
+    if (isGenericDefault && hasSpecificExisting && !data.forceReset) {
       finalCity = existing.city;
     }
 
@@ -108,20 +122,39 @@ export async function reverseGeocodeCoords(lat, lng) {
         if (json.status === "OK" && json.results && json.results.length > 0) {
           const best = json.results[0];
           let locality = "";
+          let district = "";
+          let sublocality = "";
           let state = "";
           for (const comp of best.address_components || []) {
-            if (comp.types.includes("locality") || comp.types.includes("sublocality")) {
-              if (!locality) locality = comp.long_name;
-            }
-            if (comp.types.includes("administrative_area_level_2") && !locality) {
+            const types = comp.types || [];
+            if (types.includes("locality")) {
               locality = comp.long_name;
+            } else if (types.includes("administrative_area_level_2")) {
+              district = comp.long_name;
+            } else if (types.includes("sublocality_level_1") || types.includes("sublocality")) {
+              if (!sublocality) sublocality = comp.long_name;
             }
-            if (comp.types.includes("administrative_area_level_1")) {
+            if (types.includes("administrative_area_level_1")) {
               state = comp.long_name;
             }
           }
-          if (locality) {
-            return state && state !== locality ? `${locality}, ${state}` : locality;
+
+          let cityName = locality || district || sublocality || "";
+          if (
+            cityName.toLowerCase().includes("kartavya") ||
+            cityName.toLowerCase().includes("rajpath") ||
+            district === "New Delhi" ||
+            locality === "New Delhi" ||
+            state === "Delhi"
+          ) {
+            if (state === "Delhi" || district.includes("Delhi") || locality.includes("Delhi")) {
+              cityName = "Delhi";
+              state = "Delhi";
+            }
+          }
+
+          if (cityName) {
+            return state && state !== cityName ? `${cityName}, ${state}` : cityName;
           }
           if (best.formatted_address) {
             return best.formatted_address.split(",").slice(0, 2).join(",").trim();

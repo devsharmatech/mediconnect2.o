@@ -162,20 +162,40 @@ export async function GET(req) {
               if (gRevJson.status === "OK" && gRevJson.results?.length > 0) {
                 const best = gRevJson.results[0];
                 let locality = "";
+                let district = "";
+                let sublocality = "";
                 let state = "";
                 for (const comp of best.address_components || []) {
-                  if (comp.types.includes("locality") || comp.types.includes("sublocality")) {
-                    if (!locality) locality = comp.long_name;
-                  }
-                  if (comp.types.includes("administrative_area_level_2") && !locality) {
+                  const types = comp.types || [];
+                  if (types.includes("locality")) {
                     locality = comp.long_name;
+                  } else if (types.includes("administrative_area_level_2")) {
+                    district = comp.long_name;
+                  } else if (types.includes("sublocality_level_1") || types.includes("sublocality")) {
+                    if (!sublocality) sublocality = comp.long_name;
                   }
-                  if (comp.types.includes("administrative_area_level_1")) {
+                  if (types.includes("administrative_area_level_1")) {
                     state = comp.long_name;
                   }
                 }
-                if (locality) {
-                  resolvedLocation = state && state !== locality ? `${locality}, ${state}` : locality;
+
+                // Primary: actual city (locality), then district (admin_area_2). Avoid sublocality road names.
+                let cityName = locality || district || sublocality || "";
+                if (
+                  cityName.toLowerCase().includes("kartavya") ||
+                  cityName.toLowerCase().includes("rajpath") ||
+                  district === "New Delhi" ||
+                  locality === "New Delhi" ||
+                  state === "Delhi"
+                ) {
+                  if (state === "Delhi" || district.includes("Delhi") || locality.includes("Delhi")) {
+                    cityName = "Delhi";
+                    state = "Delhi";
+                  }
+                }
+
+                if (cityName) {
+                  resolvedLocation = (state && state !== cityName) ? `${cityName}, ${state}` : cityName;
                 } else if (best.formatted_address) {
                   resolvedLocation = best.formatted_address;
                 }
@@ -443,6 +463,10 @@ export async function GET(req) {
       `.catch(e => console.warn("[AQI API] RDS aqi_data insert warning:", e.message));
     } catch (saveErr) {
       console.warn("[AQI API] RDS cache save error:", saveErr.message);
+    }
+
+    if (resolvedLocation && (resolvedLocation.toLowerCase().includes("kartavya") || resolvedLocation.toLowerCase().includes("rajpath"))) {
+      resolvedLocation = "Delhi";
     }
 
     return success("AQI data fetched live via " + sourceName + ".", {
