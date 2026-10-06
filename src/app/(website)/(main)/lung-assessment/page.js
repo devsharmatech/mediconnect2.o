@@ -598,12 +598,12 @@ export default function GamifiedLungAssessment() {
                 height: inputs.height_cm ? Number(inputs.height_cm) : prev.height,
                 weight: inputs.weight_kg ? Number(inputs.weight_kg) : prev.weight,
                 smokingStatus: inputs.smoking_status || prev.smokingStatus,
-                breathHold: inputs.breath_holding_time ? Number(inputs.breath_holding_time) : prev.breathHold,
+                // NOTE: breathHold / peakFlow / breathsPerMinute are per-session measurements.
+                // They are intentionally NOT prefilled from the previous assessment, otherwise
+                // an old value (e.g. 50s) silently gets re-submitted on every new assessment.
                 smokingPackYears: inputs.smoking_pack_years !== undefined && inputs.smoking_pack_years !== null
                   ? Number(inputs.smoking_pack_years)
                   : (inputs.pack_years !== undefined && inputs.pack_years !== null ? Number(inputs.pack_years) : prev.smokingPackYears),
-                peakFlow: inputs.peak_flow ? Number(inputs.peak_flow) : prev.peakFlow,
-                breathsPerMinute: inputs.breaths_per_minute ? Number(inputs.breaths_per_minute) : prev.breathsPerMinute,
                 pollutionExposure: inputs.pollution_exposure || prev.pollutionExposure,
                 occupationalRisk: inputs.occupational_exposure || prev.occupationalRisk,
                 location: inputs.location || prev.location,

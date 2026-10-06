@@ -32,8 +32,10 @@ export async function POST(req) {
 }
 
 async function executeAppointmentReminders(req) {
+  const { searchParams } = new URL(req.url);
   const cronSecret = req.headers.get("x-cron-secret") || req.headers.get("authorization");
   const expectedSecret = process.env.CRON_SECRET;
+  const isForce = searchParams.get("force") === "true";
 
   if (expectedSecret && cronSecret !== expectedSecret && cronSecret !== `Bearer ${expectedSecret}`) {
     return failure("Unauthorized", "Invalid cron secret", 401);
@@ -41,21 +43,36 @@ async function executeAppointmentReminders(req) {
 
   console.log("[AppointmentReminders Cron] Starting reminder dispatch process...");
   const startedAt = Date.now();
-  const stats = { fetched: 0, sent: 0, skipped_duplicate: 0, skipped_no_phone: 0, errors: [] };
+  const stats = { fetched: 0, sent: 0, skipped_duplicate: 0, skipped_timing_window: 0, skipped_no_phone: 0, errors: [] };
 
   try {
     // 1. Calculate today and tomorrow's date strings in IST (YYYY-MM-DD)
     const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const currentHourIST = nowIST.getHours();
+    const currentMinutesIST = nowIST.getMinutes();
+    const currentTimeMinutes = currentHourIST * 60 + currentMinutesIST;
+
     const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(nowIST);
     
     const tomorrowDate = new Date(nowIST);
     tomorrowDate.setDate(tomorrowDate.getDate() + 1);
     const tomorrowStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(tomorrowDate);
 
-    const targetDates = [todayStr, tomorrowStr];
+    // Business Timing Guards (IST):
+    // - Tomorrow's reminders: Only send during reasonable daytime hours (09:00 AM - 07:00 PM IST)
+    // - Today's reminders: Send either in morning digest (08:00 AM - 11:00 AM) OR 1 to 2 hours prior to slot
+    const isTomorrowWindowActive = isForce || (currentHourIST >= 9 && currentHourIST < 19);
+
+    const targetDates = [todayStr];
+    if (isTomorrowWindowActive) {
+      targetDates.push(tomorrowStr);
+    } else {
+      console.log(`[AppointmentReminders Cron] Current IST hour is ${currentHourIST}:00. Skipping tomorrow's reminders (allowed window 09:00 - 19:00 IST).`);
+    }
+
     console.log(`[AppointmentReminders Cron] Target dates for reminders (IST): ${targetDates.join(", ")}`);
 
-    // 2. Fetch all booked/approved/confirmed appointments for today & tomorrow
+    // 2. Fetch all booked/approved/confirmed appointments for active target dates
     const { data: appointments, error: fetchErr } = await supabase
       .from("appointments")
       .select("id, patient_id, doctor_id, appointment_date, appointment_time, appointment_type, status")
@@ -65,8 +82,8 @@ async function executeAppointmentReminders(req) {
     if (fetchErr) throw fetchErr;
 
     if (!appointments || appointments.length === 0) {
-      console.log("[AppointmentReminders Cron] No appointments scheduled for today or tomorrow.");
-      return success("No appointments scheduled for today or tomorrow. Reminder run complete.", { duration_ms: Date.now() - startedAt, ...stats });
+      console.log("[AppointmentReminders Cron] No appointments scheduled for active target dates.");
+      return success("No appointments scheduled for active target dates. Reminder run complete.", { duration_ms: Date.now() - startedAt, ...stats });
     }
 
     stats.fetched = appointments.length;
@@ -75,33 +92,46 @@ async function executeAppointmentReminders(req) {
       try {
         const patientId = apt.patient_id;
         const doctorId = apt.doctor_id;
-        const isToday = apt.appointment_date === todayStr;
+        const aptDateClean = apt.appointment_date ? new Date(apt.appointment_date).toISOString().slice(0, 10) : "";
+        const isToday = aptDateClean === todayStr;
         const timingWord = isToday ? "today" : "tomorrow";
 
+        // Timing Slot check for Today's appointments:
+        // Only dispatch today's reminder if:
+        // A) It is morning briefing window (08:00 to 11:00 AM), OR
+        // B) Within 2 hours before the scheduled appointment time
+        if (isToday && !isForce) {
+          let shouldSendToday = false;
+          if (currentHourIST >= 8 && currentHourIST < 11) {
+            shouldSendToday = true; // Morning alert
+          } else if (apt.appointment_time) {
+            const [aptH, aptM] = apt.appointment_time.slice(0, 5).split(":").map(Number);
+            const aptTimeMinutes = aptH * 60 + (aptM || 0);
+            const diffMinutes = aptTimeMinutes - currentTimeMinutes;
+            // Send if appointment is in 30 to 120 minutes
+            if (diffMinutes >= 0 && diffMinutes <= 120) {
+              shouldSendToday = true;
+            }
+          }
+
+          if (!shouldSendToday) {
+            stats.skipped_timing_window++;
+            continue;
+          }
+        }
+
         // Fetch patient and doctor details
-        const { data: patientUser } = await supabase
-          .from("users")
-          .select("phone_number, email")
-          .eq("id", patientId)
-          .maybeSingle();
-
-        const { data: patientDetails } = await supabase
-          .from("patient_details")
-          .select("full_name, email")
-          .eq("id", patientId)
-          .maybeSingle();
-
-        const { data: doctorUser } = await supabase
-          .from("users")
-          .select("phone_number, email")
-          .eq("id", doctorId)
-          .maybeSingle();
-
-        const { data: doctorDetails } = await supabase
-          .from("doctor_details")
-          .select("full_name, email")
-          .eq("id", doctorId)
-          .maybeSingle();
+        const [
+          { data: patientUser },
+          { data: patientDetails },
+          { data: doctorUser },
+          { data: doctorDetails }
+        ] = await Promise.all([
+          patientId ? supabase.from("users").select("phone_number, email").eq("id", patientId).maybeSingle() : Promise.resolve({ data: null }),
+          patientId ? supabase.from("patient_details").select("full_name, email").eq("id", patientId).maybeSingle() : Promise.resolve({ data: null }),
+          doctorId ? supabase.from("users").select("phone_number, email").eq("id", doctorId).maybeSingle() : Promise.resolve({ data: null }),
+          doctorId ? supabase.from("doctor_details").select("full_name, email").eq("id", doctorId).maybeSingle() : Promise.resolve({ data: null })
+        ]);
 
         const patientPhone = patientUser?.phone_number;
         const doctorPhone = doctorUser?.phone_number;
@@ -116,19 +146,46 @@ async function executeAppointmentReminders(req) {
           ? "Video Call"
           : (apt.appointment_type === "home_visit" ? "Home Visit" : "Clinic Visit");
 
+        // Helper function for bulletproof deduplication
+        const checkAlreadySent = (notifList, userId) => {
+          if (!Array.isArray(notifList) || notifList.length === 0) return false;
+          return notifList.some(n => {
+            let meta = n.metadata;
+            if (typeof meta === "string") {
+              try { meta = JSON.parse(meta); } catch { meta = null; }
+            }
+            if (!meta) return false;
+
+            const matchesAptId = String(meta.appointment_id) === String(apt.id);
+            if (!matchesAptId) return false;
+
+            // Check if reminder timing matches (e.g. already sent "tomorrow" or "today")
+            const metaTiming = meta.reminder_timing || (meta.reminder_date === todayStr ? "today" : "tomorrow");
+            if (metaTiming === timingWord) return true;
+
+            const existingDate = meta.reminder_date ? String(meta.reminder_date).slice(0, 10) : "";
+            if (existingDate && existingDate === aptDateClean) return true;
+
+            if (n.title && n.title.includes(isToday ? "Today" : "Tomorrow")) return true;
+
+            return false;
+          });
+        };
+
         // --- A. PATIENT REMINDER ---
         if (patientId) {
           const { data: existingPatientNotifs } = await supabase
             .from("notifications")
-            .select("id, metadata")
+            .select("id, metadata, title, created_at")
             .eq("user_id", patientId)
             .eq("type", "appointment_reminder");
 
-          const alreadySentPatient = existingPatientNotifs?.some(
-            n => n.metadata?.appointment_id === apt.id && n.metadata?.reminder_date === apt.appointment_date
-          );
+          const alreadySentPatient = checkAlreadySent(existingPatientNotifs, patientId);
 
-          if (!alreadySentPatient) {
+          if (alreadySentPatient) {
+            stats.skipped_duplicate++;
+            console.log(`[AppointmentReminders Cron] Skipped: Patient ${timingWord} reminder already exists for ${appointmentCode}`);
+          } else {
             try {
               if (patientPhone) {
                 await sendAppointmentReminder({
@@ -177,7 +234,13 @@ async function executeAppointmentReminders(req) {
                 title: isToday ? "Appointment Reminder (Today)" : "Appointment Reminder (Tomorrow)",
                 message: `Reminder: You have an appointment with Dr. ${doctorName} ${timingWord} at ${apt.appointment_time}.`,
                 type: "appointment_reminder",
-                metadata: { appointment_id: apt.id, reminder_date: apt.appointment_date }
+                metadata: {
+                  appointment_id: String(apt.id),
+                  reminder_timing: timingWord,
+                  reminder_date: isToday ? todayStr : tomorrowStr,
+                  appointment_code: appointmentCode,
+                  sent_at: new Date().toISOString()
+                }
               });
               stats.sent++;
             } catch (err) {
@@ -190,15 +253,15 @@ async function executeAppointmentReminders(req) {
         if (doctorId) {
           const { data: existingDoctorNotifs } = await supabase
             .from("notifications")
-            .select("id, metadata")
+            .select("id, metadata, title, created_at")
             .eq("user_id", doctorId)
             .eq("type", "appointment_reminder");
 
-          const alreadySentDoctor = existingDoctorNotifs?.some(
-            n => n.metadata?.appointment_id === apt.id && n.metadata?.reminder_date === apt.appointment_date
-          );
+          const alreadySentDoctor = checkAlreadySent(existingDoctorNotifs, doctorId);
 
-          if (!alreadySentDoctor) {
+          if (alreadySentDoctor) {
+            console.log(`[AppointmentReminders Cron] Skipped: Doctor ${timingWord} reminder already exists for ${appointmentCode}`);
+          } else {
             try {
               if (doctorPhone) {
                 await sendAppointmentReminder({
@@ -251,9 +314,14 @@ async function executeAppointmentReminders(req) {
                 title: isToday ? "Appointment Reminder (Today)" : "Appointment Reminder (Tomorrow)",
                 message: `Reminder: You have a scheduled appointment with ${patientName} ${timingWord} at ${apt.appointment_time}.`,
                 type: "appointment_reminder",
-                metadata: { appointment_id: apt.id, reminder_date: apt.appointment_date }
+                metadata: {
+                  appointment_id: String(apt.id),
+                  reminder_timing: timingWord,
+                  reminder_date: isToday ? todayStr : tomorrowStr,
+                  appointment_code: appointmentCode,
+                  sent_at: new Date().toISOString()
+                }
               });
-              stats.sent++;
             } catch (err) {
               console.warn(`[AppointmentReminders Cron] Failed sending doctor reminder:`, err.message);
             }

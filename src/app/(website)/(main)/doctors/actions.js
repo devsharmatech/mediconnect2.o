@@ -92,6 +92,15 @@ export async function getDoctorsAction({
             .or("specialization.ilike.%psychiat%,specialization.ilike.%mental%")
             .not("specialization", "ilike", "%urology%")
             .not("specialization", "ilike", "%neurology%");
+        } else if (
+          specLower.includes("pulmon") ||
+          specLower.includes("chest") ||
+          specLower.includes("respirat") ||
+          specLower.includes("lung")
+        ) {
+          detailsQuery = detailsQuery.or(
+            "specialization.ilike.%pulmon%,specialization.ilike.%chest%,specialization.ilike.%respirat%,specialization.ilike.%lung%"
+          );
         } else {
           detailsQuery = detailsQuery.ilike("specialization", `%${specialization}%`);
         }
@@ -116,6 +125,15 @@ export async function getDoctorsAction({
           detailsQuery = detailsQuery
             .or("specialization.ilike.%urology%,specialization.ilike.%neurology%,specialization.ilike.%urologist%,specialization.ilike.%neurologist%")
             .not("specialization", "ilike", "%psychiat%");
+        } else if (
+          searchLower.includes("pulmon") ||
+          searchLower.includes("chest") ||
+          searchLower.includes("respirat") ||
+          searchLower.includes("lung")
+        ) {
+          detailsQuery = detailsQuery.or(
+            "specialization.ilike.%pulmon%,specialization.ilike.%chest%,specialization.ilike.%respirat%,specialization.ilike.%lung%"
+          );
         } else {
           detailsQuery = detailsQuery.or(
             `full_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%,specialization.ilike.%${cleanSearch}%,license_number.ilike.%${cleanSearch}%,clinic_name.ilike.%${cleanSearch}%`

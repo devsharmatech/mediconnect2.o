@@ -22,7 +22,7 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
         formattedNumber = "91" + formattedNumber;
 
         // 2. Generate a real random 6-digit OTP (or bypass OTP for test accounts)
-        const isTestNumber = formattedNumber.endsWith("9999999991") || formattedNumber.endsWith("9999999992") || formattedNumber.endsWith("9999999993") || formattedNumber.endsWith("8744412521");
+        const isTestNumber = formattedNumber.endsWith("9999999991") || formattedNumber.endsWith("9999999992") || formattedNumber.endsWith("9999999993") || formattedNumber.endsWith("8744412521") || formattedNumber.endsWith("9027924662");
         const otp = isTestNumber ? "123456" : String(Math.floor(100000 + Math.random() * 900000));
         const expiresAt = isTestNumber 
             ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
@@ -38,11 +38,12 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
         `;
 
         if (isTestNumber) {
+            console.log(`[SMS GATEWAY] Test number detected (${formattedNumber}). Bypassing carrier SMS, OTP set to: 123456`);
             return { success: true, otp: "123456" };
         }
 
         // 4. Send via InsignSMS Integration Gateway
-        const token = "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
+        const token = process.env.INSIGN_SMS_TOKEN || process.env.INSIGN_WHATSAPP_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
         const templateId = "1707177157384254091";
         const entityId = "1701176423722454287";
         const senderId = "MDCNCT";
@@ -98,12 +99,13 @@ export async function sendGenericOTPViaSMS(phone_number, otp, role = 'patient') 
         }
         formattedNumber = "91" + formattedNumber;
 
-        const isTestNumber = formattedNumber.endsWith("9999999991") || formattedNumber.endsWith("9999999992") || formattedNumber.endsWith("9999999993") || formattedNumber.endsWith("8744412521");
+        const isTestNumber = formattedNumber.endsWith("9999999991") || formattedNumber.endsWith("9999999992") || formattedNumber.endsWith("9999999993") || formattedNumber.endsWith("8744412521") || formattedNumber.endsWith("9027924662");
         if (isTestNumber) {
+            console.log(`[SMS GATEWAY] Generic test number detected (${formattedNumber}). Bypassing carrier SMS.`);
             return { success: true };
         }
 
-        const token = "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
+        const token = process.env.INSIGN_SMS_TOKEN || process.env.INSIGN_WHATSAPP_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
         const templateId = "1707177157384254091";
         const entityId = "1701176423722454287";
         const senderId = "MDCNCT";
@@ -171,8 +173,8 @@ export async function sendDoctorWhatsAppInvite(phone_number, doctor_name, invite
             formattedNumber = "+" + formattedNumber;
         }
 
-        const phone_number_id = "935517672969433";
-        const token = "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
+        const phone_number_id = process.env.INSIGN_WHATSAPP_PHONE_NUMBER_ID || "935517672969433";
+        const token = process.env.INSIGN_WHATSAPP_TOKEN || process.env.INSIGN_SMS_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
 
         const url = `https://multichannel.insignsms.com/api/v1/whatsapp/${phone_number_id}/messages`;
 

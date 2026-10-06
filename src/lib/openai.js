@@ -141,6 +141,7 @@ COMPLIANCE REQUIREMENTS:
 4. Priority: Use "General health action" rather than "High" unless an approved clinical rule warrants urgent action.
 5. Timeframe: Use action-specific timeframes such as "Next 1–4 weeks: build activity gradually".
 6. Context: Explicitly label Indian context as: "Content is adapted for common Indian food and activity contexts. It is general health information and not individualized medical advice." NEVER output "?? Specifically tailored for Indian context".
+7. Plain Layperson Language: NEVER use intimidating clinical/medical jargon such as "Bronchial Recovery", "FEV1 vital capacity", "PEEP effect", "bronchiolar collapse", "arterial oxygen saturation", or "bronchial mucosa". Always use simple, clear, everyday wellness terms (e.g. "airway comfort", "gentle breathing", "throat ease", "clean air habits", "belly breathing").
 
 CONTEXT:
 ${
@@ -358,14 +359,14 @@ function generateFallbackRecommendations(assessmentType, riskFactors, inputs = {
   // 1. Pursed-Lip Breathing if wheezing or breathlessness
   if (wheezing || breathlessness) {
     lungRecs.push({
-      category: "Airway Calming",
-      title: "Pursed-Lip Breathing for Airway Relaxation",
+      category: "Airway Relief",
+      title: "Pursed-Lip Breathing for Easy Airflow",
       description:
-        "Creates positive back-pressure inside bronchioles (PEEP effect) preventing premature airway collapse during exhalation, relieving air trapping and wheezing tension.",
+        "Keeps your airways gently open longer when breathing out, easing chest tightness and wheezing tension in a calm, natural way.",
       priority: "Recommended priority",
       action_steps: [
         "Inhale gently through your nose for 2 counts with relaxed shoulders.",
-        "Pucker your lips as if gently blowing out a candle; exhale smoothly for 4 counts without forcing air.",
+        "Pucker your lips as if gently blowing across hot tea; exhale smoothly for 4 counts without forcing air.",
         "Practice 5–8 minutes 2–3 times daily, especially when experiencing chest tightness or after physical exertion."
       ],
       timeframe: "Immediate daily practice",
@@ -376,15 +377,15 @@ function generateFallbackRecommendations(assessmentType, riskFactors, inputs = {
 
   // 2. Diaphragmatic Deep Breathing
   lungRecs.push({
-    category: "Respiratory Conditioning",
-    title: "Diaphragmatic Deep Breathing & Lung Expansion",
+    category: "Breathing Ease",
+    title: "Deep Belly Breathing for Relaxation",
     description:
-      "Strengthens the primary diaphragm muscle, shifts shallow upper-chest breathing to deep abdominal ventilation, and optimizes arterial oxygen exchange.",
+      "Encourages deep, natural belly breaths instead of shallow chest breathing, helping you take in fresh air and feel calm and refreshed.",
     priority: "General health action",
     action_steps: [
       "Place one hand on your upper chest and the other on your belly just below the ribs.",
-      "Inhale slowly through your nose for 4 seconds, allowing your abdomen to push outward.",
-      "Exhale slowly through your mouth for 6 seconds as your abdomen relaxes inward. Practice 10 minutes morning & evening."
+      "Inhale slowly through your nose for 4 seconds, allowing your belly to push outward gently.",
+      "Exhale slowly through your mouth for 6 seconds as your belly relaxes inward. Practice 5 to 10 minutes morning & evening."
     ],
     timeframe: "Next 1–2 weeks: daily practice",
     indian_context:
@@ -393,17 +394,17 @@ function generateFallbackRecommendations(assessmentType, riskFactors, inputs = {
 
   // 3. Environmental AQI Defense
   lungRecs.push({
-    category: "Environmental Defense",
-    title: aqi > 150 ? `High Particulate Defense Protocol (AQI ${aqi})` : "Ambient Air Quality Protection",
+    category: "Air Quality Care",
+    title: aqi > 150 ? `Clean Air Protection (Local AQI ${aqi})` : "Ambient Air Quality Protection",
     description:
       aqi > 150
-        ? `Current local ambient AQI (${aqi}) poses elevated particulate burden on sensitive bronchial mucosa. Airway filtration minimizes acute inflammatory triggers.`
-        : "Monitor localized daily air quality indices before undertaking high-intensity outdoor cardio or morning jogs.",
+        ? `Current local air quality (${aqi} AQI) has elevated dust and smog. Wearing a protective mask outdoors prevents throat irritation and keeps breathing comfortable.`
+        : "Check daily air quality before outdoor workouts or morning walks to keep breathing comfortable.",
     priority: aqi > 150 ? "Recommended priority" : "General health action",
     action_steps: [
-      aqi > 150 ? "Wear a certified N95 particulate respirator during high-traffic or foggy commutes." : "Plan outdoor exercises when air pollution levels are lowest (typically late afternoon).",
-      "Shift cardiovascular workouts indoors and avoid strenuous outdoor exercise during morning smog peaks (6 AM – 9 AM).",
-      "Keep indoor sleeping areas sealed and run HEPA air filtration if available."
+      aqi > 150 ? "Wear a certified N95 or particulate face mask during high-traffic or dusty commutes." : "Plan outdoor activities when air pollution levels are lowest (typically late afternoon).",
+      "Shift workouts indoors and avoid heavy outdoor exertion during morning smog peaks (6 AM – 9 AM).",
+      "Keep living and sleeping areas sealed during peak pollution and use air filtration if available."
     ],
     timeframe: "Continuous daily practice",
     indian_context:
@@ -413,15 +414,15 @@ function generateFallbackRecommendations(assessmentType, riskFactors, inputs = {
   // 4. Airway Hydration & Steam
   if (wheezing || cough || aqi > 100) {
     lungRecs.push({
-      category: "Bronchial Hygiene",
-      title: "Warm Airway Hydration & Gentle Steam Therapy",
+      category: "Airway Soothing",
+      title: "Warm Airway Hydration & Gentle Steam Routine",
       description:
-        "Gentle warm water vapor hydrates dry or inflamed airway mucosa, thins bronchial secretions, and facilitates non-straining airway clearance.",
+        "Warm steam gently moisturizes dry or irritated throat passages, soothes scratchiness, and helps you breathe easily without strain.",
       priority: "General health action",
       action_steps: [
         "Inhale gentle warm water steam for 5–7 minutes in the evening (plain water without harsh additives or essential oils).",
         "Maintain adequate fluid intake of 2 to 2.5 liters of warm or room-temperature water daily.",
-        "Avoid abrupt transitions between heavy air-conditioned rooms and hot/smoggy outdoor environments."
+        "Avoid abrupt transitions between heavy air-conditioned rooms and hot or dusty outdoor environments."
       ],
       timeframe: "Evening routine: 5–7 minutes daily",
       indian_context:
@@ -431,14 +432,14 @@ function generateFallbackRecommendations(assessmentType, riskFactors, inputs = {
 
   // 5. Thoracic Mobility & Posture Opening
   lungRecs.push({
-    category: "Thoracic Expansion",
-    title: "Thoracic Cage Mobility & Postural Expansion",
+    category: "Posture & Comfort",
+    title: "Gentle Chest Opening & Posture Habits",
     description:
-      "Releases tight chest wall and intercostal musculature, enabling unconstrained full expansion of both lower pulmonary lobes during breathing cycles.",
+      "Gently eases tightness in your shoulders and upper chest, making it easier to take full, comfortable breaths throughout the day.",
     priority: "General health action",
     action_steps: [
-      "Sit upright, gently interlace fingers behind head, and draw elbows backward while inhaling deeply to open the anterior chest wall.",
-      "Perform gentle seated shoulder retractions and spinal twists twice daily."
+      "Sit upright, gently place hands behind your head, and draw elbows backward while inhaling deeply to open your chest comfortably.",
+      "Perform gentle seated shoulder rolls and light spinal stretches twice daily."
     ],
     timeframe: "5 minutes daily",
     indian_context:
@@ -448,14 +449,14 @@ function generateFallbackRecommendations(assessmentType, riskFactors, inputs = {
   // 6. Smoker cessation if smoker
   if (isSmoker) {
     lungRecs.unshift({
-      category: "Pulmonary Health",
-      title: "Targeted Respiratory Smoking Cessation Protocol",
+      category: "Healthy Habits",
+      title: "Gentle Airway Ease & Healthy Lifestyle Support",
       description:
-        `Reported smoking history (${packYears > 0 ? `${packYears} pack-years` : 'active smoker'}) causes chronic bronchial inflammation and progressive decline in FEV1 vital capacity.`,
+        "Helps clear throat secretions naturally and supports steady, relaxed breathing without straining your chest.",
       priority: "High priority",
       action_steps: [
-        "Practice the 'Huff Cough' technique (two forced exhalations with open mouth) to clear deep bronchial mucus without vocal strain.",
-        "Consult a physician regarding evidence-based nicotine replacement options and establish a 14-day quit milestones plan."
+        "Practice gentle breathing coughs: exhale twice with an open mouth (like fogging a mirror) to clear your throat comfortably.",
+        "Consult a healthcare professional for personalized guidance and a step-by-step quit plan."
       ],
       timeframe: "Immediate: next 7–14 days",
       indian_context:
@@ -465,14 +466,14 @@ function generateFallbackRecommendations(assessmentType, riskFactors, inputs = {
 
   // 7. Physical Conditioning
   lungRecs.push({
-    category: "Physical Activity",
-    title: "Moderate Aerobic Physical Activity Band",
+    category: "Active Living",
+    title: "Daily Gentle Walking for Stamina",
     description:
-      "Engage in 150–300 minutes per week of low-impact moderate aerobic exercise (e.g. brisk walking, light cycling) adapted to your individual baseline.",
+      "Builds healthy stamina, keeps your body energized, and supports good breathing at a comfortable, natural pace.",
     priority: "General health action",
     action_steps: [
       "Start with 20–30 minutes of brisk walking 5 days per week at a comfortable conversational pace.",
-      "Exercise indoors on days with elevated air pollution or extreme seasonal temperature fluctuations."
+      "Exercise indoors on days with elevated air pollution or extreme seasonal weather."
     ],
     timeframe: "Next 1–4 weeks: build activity gradually",
     indian_context:

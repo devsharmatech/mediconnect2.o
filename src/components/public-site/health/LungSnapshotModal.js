@@ -11,8 +11,11 @@ import {
   Shield,
   Clock,
   Flame,
-  Info
+  Info,
+  Stethoscope,
+  ArrowUpRight
 } from 'lucide-react';
+import Link from 'next/link';
 
 /**
  * LC-10: Full Lung Report Snapshot Modal
@@ -113,6 +116,26 @@ export default function LungSnapshotModal({
     })()) ||
     null;
 
+  const hasWheezing = inputs.wheezing === true || inputs.wheezing === 'true';
+  const isShortOfBreath = inputs.breathlessness === 'moderate' || inputs.breathlessness === 'severe';
+  const hasCough = inputs.cough_frequency === 'daily' || inputs.cough_frequency === 'constant';
+  const isSmoker = rawSmoking === 'current' || rawSmoking === 'former' || packYears > 0;
+
+  // Condition-tailored Doctor Specialty Consultation Suggestions
+  const suggestedSpecialties = (() => {
+    const list = [];
+    if (hasWheezing || isShortOfBreath || (inputs.peak_flow && Number(inputs.peak_flow) < 350) || isSmoker) {
+      list.push({ shortName: "Pulmonologist", specialtyParam: "Pulmonology", btnLabel: "Consult Pulmonologist" });
+    }
+    if (hasCough) {
+      list.push({ shortName: "ENT Specialist", specialtyParam: "ENT", btnLabel: "Consult ENT Specialist" });
+    }
+    if (list.length === 0) {
+      list.push({ shortName: "General Physician", specialtyParam: "General+Physician", btnLabel: "Consult General Physician" });
+    }
+    return list;
+  })();
+
   // Derive or use rich practices
   const practicesToDisplay = (resolvedPractices && resolvedPractices.length > 0)
     ? resolvedPractices
@@ -129,11 +152,6 @@ export default function LungSnapshotModal({
         }
         if (list.length > 0 && list[0]?.action_steps) return list;
 
-        const hasWheezing = inputs.wheezing === true || inputs.wheezing === 'true';
-        const isShortOfBreath = inputs.breathlessness === 'moderate' || inputs.breathlessness === 'severe';
-        const hasCough = inputs.cough_frequency === 'daily' || inputs.cough_frequency === 'constant';
-        const isSmoker = rawSmoking === 'current' || rawSmoking === 'former' || packYears > 0;
-
         const tailored = [];
 
         // 1. Airway Relief (Wheezing / Breathlessness)
@@ -144,7 +162,7 @@ export default function LungSnapshotModal({
             title: 'Pursed-Lip Breathing Technique',
             priorityTag: 'Targeted for Wheezing',
             timeframe: '5–8 mins · 2–3x Daily',
-            description: 'Creates positive expiratory airway pressure (PEEP effect) preventing premature bronchiolar collapse during exhalation, relieving air trapping and chest tightness.',
+            description: 'Keeps breathing passages gently open longer when exhaling, relieving chest tightness and easing wheezing naturally.',
             action_steps: [
               'Inhale gently through your nose for 2 counts with relaxed shoulders.',
               'Pucker your lips as if gently cooling hot tea; exhale slowly for 4 counts without forcing breath.',
@@ -153,14 +171,14 @@ export default function LungSnapshotModal({
           });
         }
 
-        // 2. Diaphragmatic Deep Breathing (Core Habit)
+        // 2. Deep Belly Breathing (Core Habit)
         tailored.push({
           id: 'diaphragmatic',
-          category: 'Respiratory Conditioning',
-          title: 'Diaphragmatic Deep Breathing & Lung Expansion',
+          category: 'Breathing Ease',
+          title: 'Deep Belly Breathing for Relaxation',
           priorityTag: 'Daily Core Habit',
           timeframe: '10 mins · Morning & Evening',
-          description: 'Strengthens the primary diaphragm muscle, shifts shallow upper-chest breathing to deep abdominal ventilation, and increases functional arterial oxygen saturation.',
+          description: 'Encourages deep, natural belly breathing instead of shallow chest breaths, helping you feel refreshed and relaxed throughout the day.',
           action_steps: [
             'Place one hand on your upper chest and the other on your abdomen just below the rib cage.',
             'Inhale slowly through your nose for 4 seconds, allowing your abdomen to push outward while keeping chest steady.',
@@ -168,16 +186,16 @@ export default function LungSnapshotModal({
           ]
         });
 
-        // 3. Environmental AQI Defense (Particulate Defense Protocol)
+        // 3. Environmental AQI Defense (Clean Air Protection)
         if (aqiVal >= 100) {
           const aqiSeverity = aqiVal > 200 ? 'Severe Pollution' : aqiVal > 150 ? 'Unhealthy Smog' : 'Moderate Pollution';
           tailored.push({
             id: 'aqi-defense',
-            category: 'Environmental Defense',
-            title: `Particulate Defense Protocol (Local AQI ${aqiVal})`,
+            category: 'Air Quality Care',
+            title: `Clean Air & Dust Protection (Local AQI ${aqiVal})`,
             priorityTag: `${aqiSeverity} · AQI ${aqiVal}`,
             timeframe: 'Commute & Peak Smog Windows',
-            description: `Current local ambient air quality (${aqiVal} AQI) exposes sensitive airways to fine particulate matter (PM2.5/PM10). Protective filtration shields bronchial mucosa from acute inflammation.`,
+            description: `Current local air quality (${aqiVal} AQI) has elevated smog and dust. Protecting your breath outdoors prevents throat irritation and keeps breathing comfortable.`,
             action_steps: [
               'Wear a certified N95 or particulate respirator during high-traffic commutes, foggy mornings, or dusty outdoor environments.',
               'Shift cardiovascular workouts indoors and avoid heavy outdoor exertion between 6:00 AM – 9:00 AM during thermal smog peaks.',
@@ -190,11 +208,11 @@ export default function LungSnapshotModal({
         if (hasWheezing || hasCough || aqiVal >= 120) {
           tailored.push({
             id: 'airway-hydration',
-            category: 'Bronchial Hygiene',
-            title: 'Warm Airway Hydration & Gentle Steam Therapy',
+            category: 'Airway Soothing',
+            title: 'Warm Airway Hydration & Gentle Steam Routine',
             priorityTag: 'Airway Soothing',
             timeframe: '5–7 mins · Evening Routine',
-            description: 'Moisturizes sensitive bronchial epithelium, thins stagnant airway secretions, and eases nocturnal throat irritation, dry cough, and wheezing triggers.',
+            description: 'Gently moisturizes your throat and breathing passages, easing dry cough, scratchiness, and night-time irritation.',
             action_steps: [
               'Inhale gentle warm water steam for 5–7 minutes in the evening (plain water without harsh essential oils or irritants).',
               'Maintain daily hydration with 2 to 2.5 liters of warm or room-temperature water to prevent mucosal drying.',
@@ -207,14 +225,14 @@ export default function LungSnapshotModal({
         if (isSmoker) {
           tailored.unshift({
             id: 'smoking-cessation',
-            category: 'Pulmonary Recovery',
-            title: 'Bronchial Recovery & Controlled Cough Protocol',
-            priorityTag: 'High Priority Recovery',
+            category: 'Airway Comfort',
+            title: 'Gentle Airway Ease & Cough Comfort Routine',
+            priorityTag: 'Daily Comfort',
             timeframe: 'Immediate · Next 7–14 days',
-            description: 'Halts accelerated decline in FEV1 vital capacity and clears trapped bronchial mucus using non-straining respiratory clearance techniques.',
+            description: 'Helps naturally clear throat secretions and supports steady, relaxed breathing without straining your chest or throat.',
             action_steps: [
-              'Practice the "Huff Cough" technique (two forced exhalations with open mouth) to clear deep bronchial mucus without vocal cord strain.',
-              'Consult a physician for clinical nicotine replacement options and establish a 14-day quit milestones plan.'
+              'Practice gentle breathing coughs: exhale twice with an open mouth (like fogging a mirror) to clear your throat comfortably.',
+              'Speak with a healthcare professional about healthy lifestyle habits and a personalized quit plan.'
             ]
           });
         }
@@ -222,11 +240,11 @@ export default function LungSnapshotModal({
         // 6. Structured Aerobic Walking Conditioning
         tailored.push({
           id: 'aerobic-conditioning',
-          category: 'Endurance Conditioning',
-          title: 'Structured Aerobic Walking Conditioning',
-          priorityTag: '150–300 mins/week Band',
+          category: 'Active Living',
+          title: 'Daily Gentle Walking for Stamina',
+          priorityTag: 'Comfortable Pace',
           timeframe: '20–30 mins/day · 5 days/week',
-          description: 'Increases peripheral muscle oxygen extraction and functional cardiopulmonary reserve without provoking acute airway bronchospasm.',
+          description: 'Builds steady stamina and daily energy while keeping your lungs active at an easy, comfortable walking pace.',
           action_steps: [
             'Walk briskly at a steady rhythm where you can speak comfortably in full sentences without gasping (talk test).',
             'Walk indoors on a treadmill or outside during clean-air afternoon windows when particulate pollution is lowest.'
@@ -506,6 +524,54 @@ export default function LungSnapshotModal({
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="font-normal text-[11px] sm:text-xs">
               <span className="font-semibold text-amber-950">Medical Attention Advised:</span> Seek clinical attention if any new respiratory symptoms develop, such as persistent cough, acute breathlessness, or wheezing.
+            </div>
+          </div>
+
+          {/* Suggested Specialty Consultation (Condition-tailored text & link buttons) */}
+          <div className="p-3 bg-gradient-to-r from-sky-50/80 via-white to-blue-50/40 border border-sky-200/80 rounded-lg space-y-2 text-xs">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[#0067A1] shrink-0">
+                  <Stethoscope className="w-3.5 h-3.5" />
+                </div>
+                <span className="font-bold text-slate-900 text-xs">
+                  Suggested Specialist Consultation
+                </span>
+              </div>
+              <Link
+                href="/doctors"
+                onClick={onClose}
+                className="text-[10px] font-semibold text-[#0067A1] hover:underline inline-flex items-center gap-0.5"
+              >
+                <span>Browse All Doctors</span>
+                <ArrowUpRight className="w-2.5 h-2.5" />
+              </Link>
+            </div>
+
+            <p className="text-[11px] sm:text-xs text-slate-600 leading-relaxed">
+              Based on your screening inputs, you may consider consulting a{" "}
+              <span className="font-semibold text-slate-900">
+                {suggestedSpecialties.map(s => s.shortName).join(" or ")}
+              </span>{" "}
+              for a professional medical checkup.
+            </p>
+
+            <div className="flex items-center gap-2 flex-wrap pt-0.5">
+              {suggestedSpecialties.map((s, idx) => (
+                <Link
+                  key={idx}
+                  href={`/doctors?specialty=${s.specialtyParam}`}
+                  onClick={onClose}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-semibold transition-all shadow-2xs ${
+                    idx === 0
+                      ? "bg-[#0067A1] text-white hover:bg-[#005584]"
+                      : "bg-white border border-slate-300 text-slate-800 hover:border-[#0067A1] hover:text-[#0067A1]"
+                  }`}
+                >
+                  <span>Consult {s.shortName}</span>
+                  <ArrowUpRight className="w-3 h-3" />
+                </Link>
+              ))}
             </div>
           </div>
 

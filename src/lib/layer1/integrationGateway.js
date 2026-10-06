@@ -14,7 +14,7 @@
  * - Future: insurance, ambulance
  */
 
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 /**
  * Execute an external API call through the gateway
@@ -116,27 +116,27 @@ async function logGatewayCall({
     error = null,
 }) {
     try {
-        await supabase
-            .from("activity_log")
-            .insert({
-                module_type: "integration",
-                action_type: success ? "api_success" : "api_error",
-                description: `${method} ${service_name}: ${url} [${response_status || "ERR"}] ${duration_ms}ms (attempt ${attempt})`,
-                metadata: {
-                    service_name,
-                    url,
-                    method,
-                    request_summary: request_body ? Object.keys(request_body) : null,
-                    response_status,
-                    response_preview: response_body
-                        ? JSON.stringify(response_body).substring(0, 500)
-                        : null,
-                    duration_ms,
-                    attempt,
-                    error,
-                },
-            });
+        const metadata = {
+            service_name,
+            url,
+            method,
+            request_summary: request_body ? Object.keys(request_body) : null,
+            response_status,
+            response_preview: response_body
+                ? JSON.stringify(response_body).substring(0, 500)
+                : null,
+            duration_ms,
+            attempt,
+            error,
+        };
+        const desc = `${method} ${service_name}: ${url} [${response_status || "ERR"}] ${duration_ms}ms (attempt ${attempt})`;
+        const actionType = success ? "api_success" : "api_error";
+
+        await sql`
+            INSERT INTO activity_log (module_type, action_type, description, metadata, created_at)
+            VALUES ('integration', ${actionType}, ${desc}, ${JSON.stringify(metadata)}, NOW())
+        `.catch((dbErr) => console.warn("[GATEWAY LOG] Warning writing activity_log:", dbErr.message));
     } catch (logErr) {
-        console.error("Gateway log error:", logErr);
+        console.warn("Gateway log error:", logErr.message);
     }
 }

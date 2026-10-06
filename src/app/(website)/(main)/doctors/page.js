@@ -507,10 +507,16 @@ function DoctorsContent() {
         const json = await res.json();
         if (json.success && json.data?.length > 0) {
           const active = json.data.filter(s => s.is_active !== false).sort((a, b) => a.display_order - b.display_order);
-          setSpecialties(["All Specialties", ...active.map(s => s.name)]);
+          const names = active.map(s => s.name);
+          if (!names.some(n => n.toLowerCase().includes("pulmon"))) {
+            names.splice(1, 0, "Pulmonology");
+          }
+          setSpecialties(["All Specialties", ...names]);
         } else {
           setSpecialties([
             "All Specialties",
+            "Pulmonology",
+            "General Physician",
             "Cardiology",
             "Dermatology",
             "Pediatrics",
@@ -519,7 +525,6 @@ function DoctorsContent() {
             "Gynecology",
             "Dentistry",
             "Psychiatry",
-            "General Physician",
             "ENT",
             "Ophthalmology",
           ]);
@@ -650,16 +655,15 @@ function DoctorsContent() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    const preselected = url.searchParams.get("selected");
+    const preselected = searchParams?.get("selected");
     if (preselected) {
       setSelectedDoctorId(preselected);
     }
-    const specialtyParam = url.searchParams.get("specialty");
+    const specialtyParam = searchParams?.get("specialty");
     if (specialtyParam) {
       setSelectedSpecialty(specialtyParam);
     }
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!loading && typeof window !== "undefined") {
