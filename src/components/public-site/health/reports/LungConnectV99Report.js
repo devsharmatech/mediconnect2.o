@@ -78,10 +78,26 @@ export default function LungConnectV99Report({
 
   // Context & AQI
   const bmi = inputs?.bmi ? Number(inputs.bmi).toFixed(1) : "—";
+  const cigsPerDay = Number(inputs?.cigarettes_per_day ?? inputs?.cigarettesPerDay) || (
+    inputs?.smoking_pack_years && Number(inputs.smoking_pack_years) > 0
+      ? Math.round(Number(inputs.smoking_pack_years) * 20 / (Number(inputs?.smoking_years ?? inputs?.smokingYears) || 5))
+      : 0
+  );
+  const smkYears = Number(inputs?.smoking_years ?? inputs?.smokingYears) || 0;
+  const pkYears = Number(inputs?.smoking_pack_years ?? inputs?.pack_years) || 0;
+
   const smokingHistory = inputs?.smoking_history || (
     inputs?.smoking_status === "never" ? "Never smoked" :
-    inputs?.smoking_status === "current" ? "Current smoker" :
-    inputs?.smoking_status === "former" ? "Former smoking history" :
+    inputs?.smoking_status === "current" ? (
+      cigsPerDay > 0
+        ? `Current smoker (${cigsPerDay} cigs/day${smkYears ? ` • ${smkYears} yrs` : ""} • ${pkYears} pk-yrs)`
+        : `Current smoker (${pkYears > 0 ? `${pkYears} pack-years` : "active"})`
+    ) :
+    inputs?.smoking_status === "former" ? (
+      cigsPerDay > 0
+        ? `Former smoker (${cigsPerDay} cigs/day${smkYears ? ` • ${smkYears} yrs` : ""} • ${pkYears} pk-yrs)`
+        : `Former smoker (${pkYears > 0 ? `${pkYears} pack-years` : "quit"})`
+    ) :
     "Never smoked"
   );
   const aqiRaw = inputs?.aqi ?? assessmentData?.aqi ?? null;
@@ -154,10 +170,7 @@ export default function LungConnectV99Report({
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ display: "inline-block", backgroundColor: "#f0fdfa", border: "1px solid #99f6e4", color: "#0f766e", fontSize: "10px", fontWeight: "600", padding: "3px 8px", borderRadius: "4px", textTransform: "uppercase", letterSpacing: "0.3px" }}>
-              Authoritative Record
-            </div>
-            <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px", fontWeight: "500" }}>
-              Freeze Candidate v9.9 • ISO A4
+              LungConnect Record
             </div>
           </div>
         </div>

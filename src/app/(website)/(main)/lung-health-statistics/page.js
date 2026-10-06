@@ -348,8 +348,10 @@ export default function LungHealthStatisticsPage() {
           height_cm: record.inputs?.demographics?.height || 170,
           weight_kg: record.inputs?.demographics?.weight || 68,
           bmi: record.inputs?.demographics?.bmi,
-          smoking_status: record.inputs?.lifestyle?.smokingStatus || "Never",
-          smoking_pack_years: record.inputs?.lifestyle?.smokingPackYears || 0,
+          smoking_status: record.inputs?.lifestyle?.smokingStatus || record.rawAssessment?.lung_health_inputs?.[0]?.smoking_status || "Never",
+          cigarettes_per_day: record.inputs?.lifestyle?.cigarettesPerDay || record.rawAssessment?.lung_health_inputs?.[0]?.cigarettes_per_day || 0,
+          smoking_years: record.inputs?.lifestyle?.smokingYears || record.rawAssessment?.lung_health_inputs?.[0]?.smoking_years || 0,
+          smoking_pack_years: record.inputs?.lifestyle?.smokingPackYears || record.rawAssessment?.lung_health_inputs?.[0]?.smoking_pack_years || 0,
           occupational_exposure: record.inputs?.lifestyle?.occupationalRisk || "none",
           breath_holding_time: record.inputs?.respiratoryTests?.breathHoldingTime || record.breathHold || 35,
           peak_flow: record.inputs?.respiratoryTests?.peakFlow || record.peakFlow || 450,
@@ -394,7 +396,9 @@ export default function LungHealthStatisticsPage() {
       if (!reportRef.current) throw new Error("Report element not found");
 
       const serial = record.serialNo || record.id || "LCN_REPORT";
-      const filename = `MediConnect_Lung_${format === "lung-full" ? "Full" : "Summary"}_${serial.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+      const reportType = format === "lung-full" ? "Full_Clinical_Assessment" : "Health_Summary";
+      const cleanSerial = String(serial).replace(/[^a-zA-Z0-9]/g, "_");
+      const filename = `MediConnect_LungConnect_${reportType}_${cleanSerial}.pdf`;
       await generateClientPdf(reportRef.current, filename, { scale: 2, action: "download" });
       toast.success("PDF Report downloaded successfully!", { id: "stats-pdf" });
     } catch (err) {
@@ -1138,8 +1142,8 @@ export default function LungHealthStatisticsPage() {
                 Official Format:
               </span>
               {[
-                { id: "lung-v9.9", label: "Health Summary", badge: "Frozen 1-Page A4 Fixed" },
-                { id: "lung-full", label: "Full • Clinical Assessment", badge: "Comprehensive Matrix" }
+                { id: "lung-v9.9", label: "Health Summary", badge: "1-Page Summary" },
+                { id: "lung-full", label: "Full Clinical Assessment", badge: "Comprehensive Matrix" }
               ].map((fmt) => (
                 <button
                   key={fmt.id}

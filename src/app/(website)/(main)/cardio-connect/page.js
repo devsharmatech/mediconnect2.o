@@ -79,7 +79,15 @@ export default function CardioConnectHome() {
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [trainingViewMode, setTrainingViewMode] = useState("gauge"); // 'gauge' | 'map' | 'split'
   const [walkingGpsEnabled, setWalkingGpsEnabled] = useState(false);
-  const [savedUserCity, setSavedUserCity] = useState("Your Location");
+  const [savedUserCity, setSavedUserCity] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = getSavedPatientLocation();
+      if (saved?.city && saved.city !== "Current Location" && saved.city !== "Your Location") {
+        return saved.city;
+      }
+    }
+    return "Delhi";
+  });
   const watchIdRef = useRef(null);
 
   // Walking Performance Test State (CC-10 -> CC-12)
@@ -201,9 +209,10 @@ export default function CardioConnectHome() {
 
   // Fetch CC-13 Real AQI Data & Persist to Database
   const fetchAqiData = async (cityOverride, latOverride, lngOverride, forceRefresh = false) => {
-    const targetCity = cityOverride || savedUserCity || "Bulandshahr, Uttar Pradesh";
-    const targetLat = latOverride !== undefined ? latOverride : (gpsPoints?.[0]?.lat || null);
-    const targetLng = lngOverride !== undefined ? lngOverride : (gpsPoints?.[0]?.lng || null);
+    const saved = typeof window !== "undefined" ? getSavedPatientLocation() : null;
+    const targetCity = cityOverride || (savedUserCity && savedUserCity !== "Your Location" ? savedUserCity : null) || saved?.city || "Delhi";
+    const targetLat = latOverride !== undefined && latOverride !== null ? latOverride : (saved?.lat || gpsPoints?.[0]?.lat || 28.7041);
+    const targetLng = lngOverride !== undefined && lngOverride !== null ? lngOverride : (saved?.lng || gpsPoints?.[0]?.lng || 77.1025);
 
     const latKey = targetLat ? Number(targetLat).toFixed(3) : "null";
     const lngKey = targetLng ? Number(targetLng).toFixed(3) : "null";
@@ -415,13 +424,13 @@ export default function CardioConnectHome() {
     fetchProgressData("7D", resolvedId);
     fetchTimelineData(timelineDate, resolvedId);
 
-    let initialCity = "Bulandshahr, Uttar Pradesh";
-    let initialLat = 28.4069;
-    let initialLng = 77.8498;
+    let initialCity = "Delhi";
+    let initialLat = 28.7041;
+    let initialLng = 77.1025;
 
     if (typeof window !== "undefined") {
       const savedLoc = getSavedPatientLocation();
-      if (savedLoc?.city && savedLoc.city !== "Current Location") {
+      if (savedLoc?.city && savedLoc.city !== "Current Location" && savedLoc.city !== "Your Location") {
         initialCity = savedLoc.city;
         setSavedUserCity(savedLoc.city);
       }
@@ -1192,18 +1201,18 @@ export default function CardioConnectHome() {
                 className="flex items-center sm:flex-col sm:items-end justify-between gap-1 cursor-pointer shrink-0"
               >
                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-[5px] border whitespace-nowrap ${
-                  (aqiDetailData?.aqi_value || 80) <= 50
+                  (aqiDetailData?.aqi_value ?? 146) <= 50
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : (aqiDetailData?.aqi_value || 80) <= 100
+                    : (aqiDetailData?.aqi_value ?? 146) <= 100
                     ? "bg-teal-50 text-teal-800 border-teal-200"
-                    : (aqiDetailData?.aqi_value || 80) <= 200
+                    : (aqiDetailData?.aqi_value ?? 146) <= 200
                     ? "bg-amber-50 text-amber-800 border-amber-200"
                     : "bg-rose-50 text-rose-800 border-rose-200"
                 }`}>
-                  AQI {aqiDetailData?.aqi_value || 80} • {aqiDetailData?.category || "Satisfactory"}
+                  AQI {aqiDetailData?.aqi_value ?? "--"} • {aqiDetailData?.category || "Moderate"}
                 </span>
                 <span className="text-[10px] text-slate-500 block font-medium">
-                  {aqiDetailData?.weather?.temp_c ? `${aqiDetailData.weather.temp_c}°C • ${aqiDetailData.weather.condition}` : "Real-time Telemetry"}
+                  CPCB Standard (India) • {aqiDetailData?.weather?.temp_c ? `${aqiDetailData.weather.temp_c}°C • ${aqiDetailData.weather.condition}` : "Real-time Telemetry"}
                 </span>
               </div>
             </div>
@@ -2968,20 +2977,23 @@ export default function CardioConnectHome() {
 
               {/* Real AQI Value & Category Card */}
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-[5px] text-center">
-                <span className="text-[11px] text-slate-600 block">Current Air Quality Index</span>
+                <span className="text-[11px] text-slate-600 block">Current Air Quality Index (CPCB NAQI)</span>
                 <div className="text-5xl font-semibold text-slate-900 font-mono my-2 tracking-tight">
-                  {aqiDetailData?.aqi_value || 80}
+                  {aqiDetailData?.aqi_value ?? "--"}
+                </div>
+                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                  Unit: AQI · National Air Quality Index
                 </div>
                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${
-                  (aqiDetailData?.aqi_value || 80) <= 50
+                  (aqiDetailData?.aqi_value ?? 146) <= 50
                     ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                    : (aqiDetailData?.aqi_value || 80) <= 100
+                    : (aqiDetailData?.aqi_value ?? 146) <= 100
                     ? "bg-teal-100 text-teal-800 border-teal-300"
-                    : (aqiDetailData?.aqi_value || 80) <= 200
+                    : (aqiDetailData?.aqi_value ?? 146) <= 200
                     ? "bg-amber-100 text-amber-800 border-amber-300"
                     : "bg-rose-100 text-rose-800 border-rose-300"
                 }`}>
-                  {aqiDetailData?.category || "Satisfactory"}
+                  {aqiDetailData?.category || "Moderate"}
                 </span>
                 <p className="text-xs text-slate-600 mt-2 px-2">
                   {aqiDetailData?.description || "Minor breathing discomfort to sensitive people"}

@@ -17,6 +17,7 @@ import CardioConnectF3Report from '@/components/public-site/health/reports/Cardi
 import CardioConnectF4Report from '@/components/public-site/health/reports/CardioConnectF4Report';
 import { generateClientPdf, printClientReport } from '@/lib/clientPdfGenerator';
 import { AnimatedCardioLoader } from '@/components/public-site/health/animations';
+import { getSavedPatientLocation } from '@/lib/patientLocation';
 
 export default function HeartHealthResult() {
   const [assessmentData, setAssessmentData] = useState(null);
@@ -182,8 +183,9 @@ export default function HeartHealthResult() {
       ? Number(cardioHomeData.weekly_activity.recorded_minutes) 
       : (baseInputs.physical_activity_minutes !== undefined ? Number(baseInputs.physical_activity_minutes) : 0);
 
-    const liveAqi = cardioHomeData?.aqi_context?.value || baseInputs.aqi || 85;
-    const liveLocation = cardioHomeData?.aqi_context?.location || baseInputs.location || baseInputs.city || "Current Location";
+    const savedLoc = typeof window !== 'undefined' ? getSavedPatientLocation() : null;
+    const liveAqi = cardioHomeData?.aqi_context?.value || baseInputs.aqi || savedLoc?.aqi || 146;
+    const liveLocation = cardioHomeData?.aqi_context?.location || baseInputs.location || baseInputs.city || savedLoc?.city || "Delhi";
 
     return {
       ...assessmentData,
@@ -353,7 +355,15 @@ export default function HeartHealthResult() {
       setDownloadingPDF(true);
       setSelectedFormat(format);
       await new Promise((resolve) => setTimeout(resolve, 350));
-      const filename = `mediconnect-cardio-${format}-${formattedSerialNo.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      const cardioFormatNames = {
+        F1: 'Home_Activity',
+        F2: 'Progress_Trends',
+        F3: 'Walking_Performance',
+        F4: 'Clinical_Assessment'
+      };
+      const typeLabel = cardioFormatNames[format] || 'Health_Report';
+      const cleanSerial = (formattedSerialNo || "CCN_REPORT").replace(/[^a-zA-Z0-9]/g, '_');
+      const filename = `MediConnect_CardioConnect_${typeLabel}_${cleanSerial}.pdf`;
       await generateClientPdf(reportRef.current, filename);
     } catch (error) {
       console.error('Client PDF generation error, falling back to window.print():', error);
@@ -1001,7 +1011,7 @@ export default function HeartHealthResult() {
                   className="px-4 py-2 bg-[#0067A1] hover:bg-[#005282] text-white rounded-[5px] text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download Format {selectedFormat} PDF</span>
+                  <span>Download {selectedFormat === 'F4' ? 'Clinical Assessment' : selectedFormat === 'F1' ? 'Home & Activity' : selectedFormat === 'F2' ? 'Progress & Trends' : 'Walking Test'} PDF</span>
                 </button>
               </div>
             </div>

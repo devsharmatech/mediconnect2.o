@@ -113,6 +113,49 @@ export async function GET(req) {
       }
     }
 
+    // Dynamic AQI Context from AWS RDS aqi_cache
+    let liveAqiContext = {
+      title: "Air Quality (AQI)",
+      subtitle: "Environmental context for your activity",
+      value: 146,
+      category: "Moderate",
+      freshness: "fresh",
+      location: "Delhi",
+      standard: "CPCB NAQI (India)",
+      unit: "AQI",
+      non_blocking: true,
+      clinical_interpretation: false
+    };
+
+    try {
+      const cityFilter = searchParams.get("city") || searchParams.get("location");
+      let aqiRows = [];
+      if (cityFilter && cityFilter !== "Current Location" && cityFilter !== "Your Location") {
+        aqiRows = await sql`
+          SELECT aqi_value, category, location, source, dominant_pollutant, fetched_at
+          FROM aqi_cache
+          WHERE LOWER(location) LIKE ${'%' + cityFilter.toLowerCase().trim() + '%'}
+          ORDER BY fetched_at DESC
+          LIMIT 1;
+        `;
+      }
+      if (!aqiRows || aqiRows.length === 0) {
+        aqiRows = await sql`
+          SELECT aqi_value, category, location, source, dominant_pollutant, fetched_at
+          FROM aqi_cache
+          ORDER BY fetched_at DESC
+          LIMIT 1;
+        `;
+      }
+      if (aqiRows && aqiRows.length > 0) {
+        liveAqiContext.value = Number(aqiRows[0].aqi_value) || 146;
+        liveAqiContext.category = aqiRows[0].category || "Moderate";
+        liveAqiContext.location = aqiRows[0].location || "Delhi";
+      }
+    } catch (aqiErr) {
+      console.warn("[Cardio Home] aqi_cache fetch warning:", aqiErr.message);
+    }
+
     // Default reference values per CC-01 specification
     const responsePayload = {
       user_id: userId || null,
@@ -182,16 +225,7 @@ export async function GET(req) {
       },
 
       // Card 7: Air Quality (AQI) Context
-      aqi_context: {
-        title: "Air Quality (AQI)",
-        subtitle: "Environmental context for your activity",
-        value: 85,
-        category: "Moderate",
-        freshness: "fresh",
-        location: "Current Location",
-        non_blocking: true,
-        clinical_interpretation: false
-      }
+      aqi_context: liveAqiContext
     };
 
     return success("CardioConnect CC-01 Home state loaded successfully from AWS RDS.", responsePayload, 200, {

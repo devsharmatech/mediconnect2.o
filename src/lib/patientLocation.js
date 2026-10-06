@@ -77,8 +77,8 @@ export function savePatientLocation(data) {
 
     const updated = {
       city: finalCity || "Current Location",
-      lat: resolvedLat || 28.6139,
-      lng: resolvedLng || 77.2090,
+      lat: resolvedLat || 28.7041,
+      lng: resolvedLng || 77.1025,
       aqi: resolvedAqi,
       isGps: resolvedIsGps,
       isManual: resolvedIsManual,

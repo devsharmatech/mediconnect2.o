@@ -19,7 +19,7 @@ import { getSavedPatientLocation, savePatientLocation, reverseGeocodeCoords } fr
 const CITY_COORDS = {
   "Bulandshahr, Uttar Pradesh": { lat: 28.4069, lng: 77.8498 },
   "Bulandshahr": { lat: 28.4069, lng: 77.8498 },
-  "Delhi": { lat: 28.6139, lng: 77.2090 },
+  "Delhi": { lat: 28.7041, lng: 77.1025 },
   "New Delhi, Delhi": { lat: 28.6139, lng: 77.2090 },
   "Bengaluru, Karnataka": { lat: 12.9716, lng: 77.5946 },
   "Bengaluru": { lat: 12.9716, lng: 77.5946 },
@@ -74,13 +74,13 @@ export default function RealGpsMap({
         : (savedPatientLoc?.city && savedPatientLoc.city !== "Delhi"
             ? savedPatientLoc.city
             : (resolvedCityName || locationName || savedPatientLoc?.city || "Current Location")));
-  const defaultCoord = CITY_COORDS[activeCityName] || (savedPatientLoc?.lat ? { lat: savedPatientLoc.lat, lng: savedPatientLoc.lng } : { lat: 28.6139, lng: 77.2090 });
+  const defaultCoord = CITY_COORDS[activeCityName] || (savedPatientLoc?.lat ? { lat: savedPatientLoc.lat, lng: savedPatientLoc.lng } : { lat: 28.7041, lng: 77.1025 });
   const effectiveLat = coords?.lat ?? (points.length > 0 ? points[points.length - 1].lat : defaultCoord.lat);
   const effectiveLng = coords?.lng ?? (points.length > 0 ? points[points.length - 1].lng : defaultCoord.lng);
 
   // Dynamic reverse-geocoding if coordinates are provided but location name is missing, generic, or Delhi
   useEffect(() => {
-    const hasCustomCoords = effectiveLat && effectiveLng && (Math.abs(effectiveLat - 28.6139) > 0.05 || Math.abs(effectiveLng - 77.2090) > 0.05);
+    const hasCustomCoords = effectiveLat && effectiveLng && (Math.abs(effectiveLat - 28.7041) > 0.05 || Math.abs(effectiveLng - 77.1025) > 0.05);
 
     if (locationName && locationName !== "Delhi" && !hasCustomCoords) {
       setResolvedCityName(locationName);

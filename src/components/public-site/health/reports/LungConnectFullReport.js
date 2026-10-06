@@ -86,10 +86,26 @@ export default function LungConnectFullReport({
   const normalPefrMin = Math.round(predictedPefr * 0.80);
   const normalPefrMax = Math.round(predictedPefr * 1.25);
 
+  const cigsPerDay = Number(inputs?.cigarettes_per_day ?? inputs?.cigarettesPerDay) || (
+    inputs?.smoking_pack_years && Number(inputs.smoking_pack_years) > 0
+      ? Math.round(Number(inputs.smoking_pack_years) * 20 / (Number(inputs?.smoking_years ?? inputs?.smokingYears) || 5))
+      : 0
+  );
+  const smkYears = Number(inputs?.smoking_years ?? inputs?.smokingYears) || 0;
+  const pkYears = Number(inputs?.smoking_pack_years ?? inputs?.pack_years) || 0;
+
   const smoking = inputs?.smoking_history || (
-    inputs?.smoking_status === "never" ? "Never smoked" :
-    inputs?.smoking_status === "current" ? "Current smoker" :
-    inputs?.smoking_status === "former" ? "Former smoker" :
+    inputs?.smoking_status === "never" ? "Never smoked (0 pk-yrs)" :
+    inputs?.smoking_status === "current" ? (
+      cigsPerDay > 0
+        ? `Current smoker (${cigsPerDay} cigs/day${smkYears ? ` • ${smkYears} yrs` : ""} • ${pkYears} pk-yrs)`
+        : `Current smoker (${pkYears > 0 ? `${pkYears} pack-years` : "active"})`
+    ) :
+    inputs?.smoking_status === "former" ? (
+      cigsPerDay > 0
+        ? `Former smoker (${cigsPerDay} cigs/day${smkYears ? ` • ${smkYears} yrs` : ""} • ${pkYears} pk-yrs)`
+        : `Former smoker (${pkYears > 0 ? `${pkYears} pack-years` : "quit"})`
+    ) :
     "Never smoked"
   );
   const aqiRaw = inputs?.aqi ?? assessmentData?.aqi ?? null;

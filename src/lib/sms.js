@@ -21,12 +21,10 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
         }
         formattedNumber = "91" + formattedNumber;
 
-        // 2. Generate a real random 6-digit OTP (or bypass OTP for test accounts)
-        const isTestNumber = formattedNumber.endsWith("9999999991") || formattedNumber.endsWith("9999999992") || formattedNumber.endsWith("9999999993") || formattedNumber.endsWith("8744412521") || formattedNumber.endsWith("9027924662") || formattedNumber.endsWith("7289043777");
-        const otp = isTestNumber ? "123456" : String(Math.floor(100000 + Math.random() * 900000));
-        const expiresAt = isTestNumber 
-            ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-            : new Date(Date.now() + 15 * 60 * 1000);
+        // 2. Generate a real random 6-digit OTP
+        const isDummyNumber = formattedNumber.endsWith("9999999991") || formattedNumber.endsWith("9999999992") || formattedNumber.endsWith("9999999993");
+        const otp = String(Math.floor(100000 + Math.random() * 900000));
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
         // 3. Update AWS RDS PostgreSQL users table
         await sql`
@@ -37,8 +35,8 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
             WHERE id = ${userId}
         `;
 
-        if (isTestNumber) {
-            console.log(`[SMS GATEWAY] Test number detected (${formattedNumber}). Bypassing carrier SMS, OTP set to: 123456`);
+        if (isDummyNumber) {
+            console.log(`[SMS GATEWAY] Dummy test number detected (${formattedNumber}). Bypassing carrier SMS, OTP set to: 123456`);
             return { success: true, otp: "123456" };
         }
 
@@ -99,9 +97,9 @@ export async function sendGenericOTPViaSMS(phone_number, otp, role = 'patient') 
         }
         formattedNumber = "91" + formattedNumber;
 
-        const isTestNumber = formattedNumber.endsWith("9999999991") || formattedNumber.endsWith("9999999992") || formattedNumber.endsWith("9999999993") || formattedNumber.endsWith("8744412521") || formattedNumber.endsWith("9027924662") || formattedNumber.endsWith("7289043777");
-        if (isTestNumber) {
-            console.log(`[SMS GATEWAY] Generic test number detected (${formattedNumber}). Bypassing carrier SMS.`);
+        const isDummyNumber = formattedNumber.endsWith("9999999991") || formattedNumber.endsWith("9999999992") || formattedNumber.endsWith("9999999993");
+        if (isDummyNumber) {
+            console.log(`[SMS GATEWAY] Generic dummy test number detected (${formattedNumber}). Bypassing carrier SMS.`);
             return { success: true };
         }
 

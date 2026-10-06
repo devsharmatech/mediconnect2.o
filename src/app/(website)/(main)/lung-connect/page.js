@@ -314,11 +314,11 @@ function LungConnectHubContent() {
   const [userCoords, setUserCoords] = useState(() => {
     if (typeof window !== "undefined") {
       const saved = getSavedPatientLocation();
-      if (saved?.lat && saved?.lng && (saved.lat !== 28.6139 || saved.lng !== 77.2090)) {
+      if (saved?.lat && saved?.lng && (saved.lat !== 28.7041 || saved.lng !== 77.1025)) {
         return { lat: saved.lat, lng: saved.lng };
       }
     }
-    return { lat: 28.6139, lng: 77.2090 };
+    return { lat: 28.7041, lng: 77.1025 };
   });
   const [gpsStatus, setGpsStatus] = useState(() => {
     if (typeof window !== "undefined") {
@@ -1014,6 +1014,20 @@ function LungConnectHubContent() {
     } else {
       fetchEnvironment(saved?.city || "Delhi", false, saved?.lat, saved?.lng);
     }
+
+    const handlePatientLocationEvent = (e) => {
+      if (e.detail?.city) {
+        setSelectedCity(e.detail.city);
+        if (e.detail.lat && e.detail.lng) {
+          setUserCoords({ lat: e.detail.lat, lng: e.detail.lng });
+        }
+        fetchEnvironment(e.detail.city, false, e.detail.lat, e.detail.lng);
+      }
+    };
+    window.addEventListener("patient-location-updated", handlePatientLocationEvent);
+    return () => {
+      window.removeEventListener("patient-location-updated", handlePatientLocationEvent);
+    };
   }, []);
 
   // Auto-detect GPS when user opens My Environment tab if GPS is granted

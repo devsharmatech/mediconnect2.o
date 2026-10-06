@@ -23,7 +23,7 @@ async function getHtml2Canvas() {
  * @param {string} filename - The output PDF file name
  * @param {Object} options - Custom rendering options (e.g. action: 'download' | 'print')
  */
-export async function generateClientPdf(element, filename = "mediconnect-report.pdf", options = {}) {
+export async function generateClientPdf(element, filename = "MediConnect_Health_Report.pdf", options = {}) {
   if (!element) {
     throw new Error("Target element for PDF generation was not found");
   }
@@ -160,5 +160,5 @@ export async function generateClientPdf(element, filename = "mediconnect-report.
  * Convenience helper to render and directly print the report using browser print
  */
 export async function printClientReport(element, options = {}) {
-  return generateClientPdf(element, "mediconnect-report.pdf", { ...options, action: "print" });
+  return generateClientPdf(element, "MediConnect_Health_Report.pdf", { ...options, action: "print" });
 }

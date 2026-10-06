@@ -812,9 +812,9 @@ export default function GamifiedHeartHealthAssessment() {
                 className="flex items-center gap-2 px-5 py-2.5 bg-[#0067A1] hover:bg-[#005584] text-white text-xs sm:text-sm font-semibold rounded-lg shadow-xs transition-all disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
-                  <><FaSync className="w-3.5 h-3.5 animate-spin" /> Calculating...</>
+                  <><FaSync className="w-3.5 h-3.5 animate-spin" /> Preparing Assessment...</>
                 ) : (
-                  <><FaHeart className="w-3.5 h-3.5" /> Calculate Screening</>
+                  <><span className="text-sm">❤️</span> View Heart Assessment</>
                 )}
               </button>
             )}

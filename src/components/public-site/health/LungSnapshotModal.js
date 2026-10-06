@@ -16,6 +16,7 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import Link from 'next/link';
+import { getSavedPatientLocation } from '@/lib/patientLocation';
 
 /**
  * LC-10: Full Lung Report Snapshot Modal
@@ -50,11 +51,8 @@ export default function LungSnapshotModal({
   const bpm = Number(rawInputs.breaths_per_minute ?? rawInputs.breathsPerMinute) || 16;
   const breathHold = Number(rawInputs.breath_holding_time ?? rawInputs.breathHold) || 35;
 
-  // Extract AQI robustly
-  const extractedAqi = typeof ai_analysis === 'string'
-    ? Number(ai_analysis.match(/AQI[^0-9]*([0-9]{2,3})/i)?.[1])
-    : (typeof ai_analysis?.analysis === 'string' ? Number(ai_analysis.analysis.match(/AQI[^0-9]*([0-9]{2,3})/i)?.[1]) : null);
-  const aqiVal = Number(rawInputs.aqi ?? rawInputs.aqiVal ?? assessmentData.aqi ?? extractedAqi) || 162;
+  const savedPatientLoc = typeof window !== 'undefined' ? getSavedPatientLocation() : null;
+  const aqiVal = Number(rawInputs.aqi ?? rawInputs.aqiVal ?? assessmentData.aqi ?? savedPatientLoc?.aqi ?? extractedAqi) || 146;
 
   const rawSmoking = String(rawInputs.smoking_status || rawInputs.smokingStatus || 'never').toLowerCase();
   const packYears = Number(rawInputs.smoking_pack_years ?? rawInputs.pack_years ?? rawInputs.smokingPackYears) || 0;

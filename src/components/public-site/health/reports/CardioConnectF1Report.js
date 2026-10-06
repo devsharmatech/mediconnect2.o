@@ -1,5 +1,6 @@
 import React from "react";
 import MEDICONNECT_LOGO_BASE64 from "@/lib/logoBase64";
+import { getSavedPatientLocation } from "@/lib/patientLocation";
 
 /**
  * CardioConnectF1Report: Format F1 • Home + Activity (Patient Job: DO)
@@ -71,9 +72,9 @@ export default function CardioConnectF1Report({
 
   const heartTrainingMin = Number(rawInputs?.physical_activity_minutes ?? rawInputs?.weekly_activity_minutes ?? lifestyle?.physicalActivity ?? 0);
   const stepsToday = Number(rawInputs?.daily_steps ?? rawInputs?.steps ?? 0).toLocaleString("en-IN");
-  const sessionsCount = Number(rawInputs?.weekly_sessions ?? (heartTrainingMin > 0 ? Math.max(1, Math.round(heartTrainingMin / 45)) : 0));
-  const aqiValue = rawInputs?.aqi || 85;
-  const aqiCity = rawInputs?.city || rawInputs?.location || "Current Location";
+  const savedPatientLoc = typeof window !== "undefined" ? getSavedPatientLocation() : null;
+  const aqiValue = Number(rawInputs?.aqi || savedPatientLoc?.aqi || 146);
+  const aqiCity = rawInputs?.city || rawInputs?.location || savedPatientLoc?.city || "Delhi";
 
   return (
     <div
@@ -193,8 +194,8 @@ export default function CardioConnectF1Report({
             </div>
             <div style={{ padding: "10px 12px" }}>
               <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>AQI</div>
-              <div style={{ fontSize: "15px", fontWeight: "900", color: "#0d3b66", marginTop: "3px" }}>{aqiValue} · {aqiCity}</div>
-              <div style={{ fontSize: "9px", color: "#64748b", marginTop: "3px", lineHeight: "1.3" }}>Environmental context</div>
+              <div style={{ fontSize: "15px", fontWeight: "900", color: "#0d3b66", marginTop: "3px" }}>{aqiValue} AQI · {aqiCity}</div>
+              <div style={{ fontSize: "9px", color: "#64748b", marginTop: "3px", lineHeight: "1.3" }}>CPCB Standard (India)</div>
             </div>
           </div>
         </div>

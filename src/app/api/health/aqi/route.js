@@ -8,14 +8,14 @@ export async function OPTIONS() {
 
 // Default location coordinates (Delhi) per policy
 const DEFAULT_LOCATION = "Delhi";
-const DEFAULT_LAT = 28.6139;
-const DEFAULT_LNG = 77.2090;
+const DEFAULT_LAT = 28.7041;
+const DEFAULT_LNG = 77.1025;
 const CACHE_TTL_MS = 20 * 60 * 1000; // 20 minutes freshness
 
 const CITY_COORDINATES = {
   khurja: { lat: 28.2490, lng: 77.8549, name: "Khurja, Uttar Pradesh" },
   bulandshahr: { lat: 28.4069, lng: 77.8498, name: "Bulandshahr, Uttar Pradesh" },
-  delhi: { lat: 28.6139, lng: 77.2090, name: "Delhi" },
+  delhi: { lat: 28.7041, lng: 77.1025, name: "Delhi" },
   "new delhi": { lat: 28.6139, lng: 77.2090, name: "New Delhi" },
   noida: { lat: 28.5355, lng: 77.3910, name: "Noida, Uttar Pradesh" },
   "greater noida": { lat: 28.4744, lng: 77.5040, name: "Greater Noida, Uttar Pradesh" },
@@ -183,8 +183,11 @@ export async function GET(req) {
                 let specificArea = sublocality || locality;
                 let cityName = locality || district || sublocality || "";
 
-                // Only sanitize awkward landmarks like Kartavya Path or Rajpath
-                if (
+                // If coordinates match default Delhi centroid or awkward landmarks like Kartavya Path
+                if (Math.abs(lat - 28.7041) < 0.02 && Math.abs(lng - 77.1025) < 0.02) {
+                  cityName = "Delhi";
+                  specificArea = "Delhi";
+                } else if (
                   cityName.toLowerCase().includes("kartavya") ||
                   cityName.toLowerCase().includes("rajpath")
                 ) {
@@ -194,7 +197,7 @@ export async function GET(req) {
                 }
 
                 if (cityName) {
-                  resolvedLocation = (state && state !== cityName) ? `${cityName}, ${state}` : cityName;
+                  resolvedLocation = (cityName === "Delhi" || (state && state === cityName)) ? cityName : ((state && state !== cityName) ? `${cityName}, ${state}` : cityName);
                 } else if (best.formatted_address) {
                   resolvedLocation = best.formatted_address;
                 }
@@ -324,7 +327,7 @@ export async function GET(req) {
               ],
               languageCode: "en"
             }),
-            next: { revalidate: 1200 }
+            cache: "no-store"
           }
         );
 

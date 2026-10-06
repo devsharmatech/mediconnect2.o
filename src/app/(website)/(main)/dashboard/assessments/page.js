@@ -130,7 +130,11 @@ const AssessmentsPage = () => {
           : `LCN-${new Date(targetAssessment.created_at).getFullYear()}-${(targetAssessment.id || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`
       );
 
-      const fileName = `mediconnect-${targetAssessment.assessment_type || 'health'}-report-${serialNo}.pdf`;
+      const isHeart = targetAssessment.assessment_type === 'heart';
+      const cleanSerial = String(serialNo).replace(/[^a-zA-Z0-9]/g, '_');
+      const fileName = isHeart
+        ? `MediConnect_CardioConnect_Health_Report_${cleanSerial}.pdf`
+        : `MediConnect_LungConnect_Health_Report_${cleanSerial}.pdf`;
       await generateClientPdf(reportRef.current, fileName);
       toast.success("PDF report downloaded successfully!", { id: "pdf-toast" });
     } catch (error) {

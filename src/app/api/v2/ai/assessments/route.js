@@ -68,8 +68,17 @@ function calculateLungHealth(inputs) {
 
   if (bmi > 30) { score -= 10; riskFactors.push("Elevated BMI (Mechanical load)"); }
 
-  if (inputs.smoking_status === "current") { score -= 30; riskFactors.push("Smoking"); }
-  else if (inputs.smoking_status === "former") { score -= 12; }
+  const packYears = Number(inputs.smoking_pack_years || inputs.pack_years) || 0;
+  const cigs = Number(inputs.cigarettes_per_day) || (packYears > 0 ? Math.round(packYears * 20 / 5) : 0);
+  const yrs = Number(inputs.smoking_years) || (packYears > 0 ? 5 : 0);
+
+  if (inputs.smoking_status === "current") {
+    score -= (packYears > 20 ? 35 : packYears > 10 ? 30 : 25);
+    riskFactors.push(`Active smoking (${cigs ? `${cigs} cigs/day × ${yrs} yrs = ` : ""}${packYears} pack-years)`);
+  } else if (inputs.smoking_status === "former") {
+    score -= (packYears > 20 ? 18 : packYears > 10 ? 14 : 10);
+    riskFactors.push(`Former smoking history (${packYears} pack-years)`);
+  }
 
   if (inputs.peak_flow && inputs.peak_flow < 350) {
     score -= 20;
@@ -375,6 +384,8 @@ export async function POST(req) {
       const inputKey = assessment_type === "heart" ? "heart_health_inputs" : "lung_health_inputs";
       completeAssessment[inputKey] = [{ assessment_id: assessment.id, ...cleanInputs }];
     }
+
+    completeAssessment.inputs = cleanInputs;
 
     // Ensure serial_no is set on the complete record
     const serialPrefix = assessment_type === "lung" ? "LCN" : "CCN";

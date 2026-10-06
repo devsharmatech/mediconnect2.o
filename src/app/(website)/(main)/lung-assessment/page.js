@@ -267,6 +267,8 @@ export default function GamifiedLungAssessment() {
       weight: 70,
       smokingStatus: 'never',
       breathHold: 35,
+      cigarettesPerDay: 10,
+      smokingYears: 5,
       smokingPackYears: 0,
       peakFlow: 450,
       aqi: initialAqi,
@@ -628,6 +630,12 @@ export default function GamifiedLungAssessment() {
                 height: inputs.height_cm ? Number(inputs.height_cm) : prev.height,
                 weight: inputs.weight_kg ? Number(inputs.weight_kg) : prev.weight,
                 smokingStatus: inputs.smoking_status || prev.smokingStatus,
+                cigarettesPerDay: inputs.cigarettes_per_day !== undefined && inputs.cigarettes_per_day !== null
+                  ? Number(inputs.cigarettes_per_day)
+                  : (inputs.smoking_pack_years && Number(inputs.smoking_pack_years) > 0 ? Math.max(1, Math.round(Number(inputs.smoking_pack_years) * 20 / 5)) : 10),
+                smokingYears: inputs.smoking_years !== undefined && inputs.smoking_years !== null
+                  ? Number(inputs.smoking_years)
+                  : 5,
                 // NOTE: breathHold / peakFlow / breathsPerMinute are per-session measurements.
                 // They are intentionally NOT prefilled from the previous assessment, otherwise
                 // an old value (e.g. 50s) silently gets re-submitted on every new assessment.
@@ -656,7 +664,41 @@ export default function GamifiedLungAssessment() {
   }, []);
 
   const handleSelect = useCallback((name, value) => {
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      if (name === 'smokingStatus') {
+        if (value === 'never') {
+          return {
+            ...prev,
+            smokingStatus: 'never',
+            smokingPackYears: 0
+          };
+        } else {
+          const cigs = prev.cigarettesPerDay || 10;
+          const yrs = prev.smokingYears || 5;
+          const pkYrs = Number(((cigs / 20) * yrs).toFixed(1));
+          return {
+            ...prev,
+            smokingStatus: value,
+            cigarettesPerDay: cigs,
+            smokingYears: yrs,
+            smokingPackYears: pkYrs
+          };
+        }
+      }
+      return { ...prev, [name]: value };
+    });
+  }, []);
+
+  const handleSmokingChange = useCallback((name, value) => {
+    setFormData(prev => {
+      const numVal = Number(value) || 0;
+      const updated = { ...prev, [name]: numVal };
+      const cigs = name === 'cigarettesPerDay' ? numVal : (Number(prev.cigarettesPerDay) || 0);
+      const yrs = name === 'smokingYears' ? numVal : (Number(prev.smokingYears) || 0);
+      const computedPackYears = Number(((cigs / 20) * yrs).toFixed(1));
+      updated.smokingPackYears = computedPackYears;
+      return updated;
+    });
   }, []);
 
   const handleSubmit = async () => {
@@ -693,7 +735,9 @@ export default function GamifiedLungAssessment() {
           gender: formData.sex || '',
           height_cm: parseFloat(formData.height) || 0,
           weight_kg: parseFloat(formData.weight) || 0,
-          smoking_status: formData.smokingStatus || '',
+          smoking_status: formData.smokingStatus || 'never',
+          cigarettes_per_day: formData.smokingStatus === 'never' ? 0 : (parseInt(formData.cigarettesPerDay) || 0),
+          smoking_years: formData.smokingStatus === 'never' ? 0 : (parseFloat(formData.smokingYears) || 0),
           breath_holding_time: parseInt(formData.breathHold) || 0,
           cough_frequency: formData.CoughFrequency || '',
           breathlessness: formData.Breathlessness || '',
@@ -704,7 +748,8 @@ export default function GamifiedLungAssessment() {
           aqi: parseInt(formData.aqi) || 60,
           breaths_per_minute: parseInt(formData.breathsPerMinute) || 16,
           location: formData.location || 'Delhi',
-          pack_years: parseFloat(formData.smokingPackYears) || 0,
+          pack_years: formData.smokingStatus === 'never' ? 0 : (parseFloat(formData.smokingPackYears) || 0),
+          smoking_pack_years: formData.smokingStatus === 'never' ? 0 : (parseFloat(formData.smokingPackYears) || 0),
           bmi: parseFloat(bmi) || 22.5
         }
       };
@@ -718,6 +763,10 @@ export default function GamifiedLungAssessment() {
         const finalPatientName = result.data?.patient_name || result.data?.patientName || resolvedPatientName || '';
         const assessmentPayload = {
           ...result.data,
+          inputs: {
+            ...(result.data?.inputs || {}),
+            ...apiData.inputs
+          },
           patient_name: finalPatientName,
           patientName: finalPatientName
         };
@@ -922,7 +971,89 @@ export default function GamifiedLungAssessment() {
                     </div>
                     <RangeSlider label="Breath Holding Time" name="breathHold" value={formData.breathHold} onChange={handleSliderChange} min={5} max={120} unit="sec" subtitle="Hold breath after normal inhale (Clinical normal > 25s)" />
                     {(formData.smokingStatus === 'former' || formData.smokingStatus === 'current') && (
-                      <RangeSlider label="Smoking Pack-Years" name="smokingPackYears" value={formData.smokingPackYears} onChange={handleSliderChange} min={0} max={100} step={0.5} unit="years" subtitle="Packs per day × years smoked" />
+                      <div className="bg-slate-50/80 rounded-xl p-3.5 sm:p-4 border border-slate-200/90 shadow-2xs space-y-3.5">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-xs shrink-0">
+                              <FaSmoking className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                Cigarette Consumption & Duration
+                              </h4>
+                              <p className="text-[11px] text-slate-500 font-normal">
+                                Clinical formula: (Cigarettes smoked/day ÷ 20) × Number of years
+                              </p>
+                            </div>
+                          </div>
+                          <span className="hidden sm:inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-sky-100 text-[#0067A1]">
+                            1 Pack = 20 Sticks
+                          </span>
+                        </div>
+
+                        <RangeSlider
+                          label="Cigarettes Smoked Per Day"
+                          name="cigarettesPerDay"
+                          value={formData.cigarettesPerDay || 10}
+                          onChange={handleSmokingChange}
+                          min={1}
+                          max={60}
+                          step={1}
+                          unit="sticks/day"
+                          subtitle={`Daily consumption (~${((formData.cigarettesPerDay || 10) / 20).toFixed(1)} packs/day)`}
+                        />
+
+                        <RangeSlider
+                          label="Number of Years Smoked"
+                          name="smokingYears"
+                          value={formData.smokingYears || 5}
+                          onChange={handleSmokingChange}
+                          min={1}
+                          max={60}
+                          step={1}
+                          unit="years"
+                          subtitle="Total duration you have consumed cigarettes"
+                        />
+
+                        {/* Clinical Exposure Calculation & Definitive Conclusion */}
+                        <div className="bg-white rounded-lg p-3 border border-sky-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-sky-50 text-[#0067A1] border border-sky-200">
+                              Calculated Exposure
+                            </span>
+                            <span className="text-slate-600 font-mono text-[11px]">
+                              ({formData.cigarettesPerDay || 10} sticks/day ÷ 20) × {formData.smokingYears || 5} yrs =
+                            </span>
+                            <span className="px-2 py-0.5 bg-[#0067A1] text-white font-mono font-bold rounded text-xs shadow-2xs">
+                              {formData.smokingPackYears || 2.5} Pack-Years
+                            </span>
+                          </div>
+                          <div>
+                            {(() => {
+                              const py = Number(formData.smokingPackYears) || 0;
+                              if (py < 10) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                    Light Cumulative Exposure (&lt;10 pk-yrs)
+                                  </span>
+                                );
+                              } else if (py < 20) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                    Moderate Cumulative Exposure (10–20 pk-yrs)
+                                  </span>
+                                );
+                              } else {
+                                return (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                                    Significant Cumulative Exposure (&gt;20 pk-yrs)
+                                  </span>
+                                );
+                              }
+                            })()}
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
@@ -1072,7 +1203,7 @@ export default function GamifiedLungAssessment() {
                               'bg-red-50 text-red-900 border-red-300'
                             }`}>
                               <span className="text-xl font-bold leading-none">{formData.aqi}</span>
-                              <span className="text-[10px] tracking-wider block uppercase font-semibold mt-0.5 opacity-80">CPCB</span>
+                              <span className="text-[10px] tracking-wider block uppercase font-semibold mt-0.5 opacity-80">AQI</span>
                             </div>
                             <div>
                               <div className="flex items-center gap-2 flex-wrap">
@@ -1279,9 +1410,9 @@ export default function GamifiedLungAssessment() {
                 className="flex items-center gap-2 px-5 py-2.5 bg-[#0067A1] hover:bg-[#005584] text-white text-xs sm:text-sm font-semibold rounded-lg shadow-xs transition-all disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
-                  <><FaSync className="w-3.5 h-3.5 animate-spin" /> Calculating...</>
+                  <><FaSync className="w-3.5 h-3.5 animate-spin" /> Preparing Assessment...</>
                 ) : (
-                  <><FaLungs className="w-3.5 h-3.5" /> Calculate Score</>
+                  <><span className="text-sm">🫁</span> View Assessment</>
                 )}
               </button>
             )}

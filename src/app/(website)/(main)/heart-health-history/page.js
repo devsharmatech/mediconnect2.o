@@ -148,7 +148,15 @@ export default function HeartHealthHistoryPage() {
       }
 
       const serial = item.serialNo || item.serial_no || "CARDIO_REPORT";
-      const filename = `MediConnect_Cardio_${format}_${serial}.pdf`;
+      const formatNames = {
+        F1: 'Home_Activity',
+        F2: 'Progress_Trends',
+        F3: 'Walking_Performance',
+        F4: 'Clinical_Assessment'
+      };
+      const typeLabel = formatNames[format] || 'Health_Report';
+      const cleanSerial = String(serial).replace(/[^a-zA-Z0-9]/g, '_');
+      const filename = `MediConnect_CardioConnect_${typeLabel}_${cleanSerial}.pdf`;
 
       await generateClientPdf(reportRef.current, filename, {
         scale: 2,
@@ -465,7 +473,7 @@ export default function HeartHealthHistoryPage() {
                         onClick={() => handlePrint(item, "F4")}
                         disabled={isPrinting}
                         className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-[5px] text-xs font-semibold border border-slate-200 transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                        title="Print default F4 Assessment Report"
+                        title="Print Clinical Assessment Report"
                       >
                         <Printer className="w-3.5 h-3.5 text-slate-600" />
                         <span className="hidden sm:inline">Print</span>
@@ -476,7 +484,7 @@ export default function HeartHealthHistoryPage() {
                         onClick={() => handleDownloadPdf(item, "F4")}
                         disabled={isDownloading}
                         className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] rounded-[5px] text-xs font-bold border border-sky-200 transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                        title="Download F4 Master Report"
+                        title="Download Clinical Assessment PDF"
                       >
                         <Download className="w-3.5 h-3.5" />
                         <span>Download PDF</span>

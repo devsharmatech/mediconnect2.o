@@ -18,6 +18,7 @@ import LungConnectFullReport from '@/components/public-site/health/reports/LungC
 import LungSnapshotModal from '@/components/public-site/health/LungSnapshotModal';
 import { generateClientPdf, printClientReport } from '@/lib/clientPdfGenerator';
 import { AnimatedRespiratoryLoader } from '@/components/public-site/health/animations';
+import { getSavedPatientLocation } from '@/lib/patientLocation';
 
 /* ─── Modern Score Ring ──────────────────────────────────────── */
 function ScoreRing({ score, color = "#ffffff", size = 110 }) {
@@ -260,10 +261,15 @@ export default function LungHealthResult() {
   const extractedAqi = typeof ai_analysis === 'string'
     ? Number(ai_analysis.match(/AQI[^0-9]*([0-9]{2,3})/i)?.[1])
     : (typeof ai_analysis?.analysis === 'string' ? Number(ai_analysis.analysis.match(/AQI[^0-9]*([0-9]{2,3})/i)?.[1]) : null);
-  const aqiVal = Number(rawInputs.aqi ?? rawInputs.aqiVal ?? assessmentData.aqi ?? extractedAqi) || 162;
+  const savedPatientLoc = typeof window !== 'undefined' ? getSavedPatientLocation() : null;
+  const aqiVal = Number(rawInputs.aqi ?? rawInputs.aqiVal ?? assessmentData.aqi ?? savedPatientLoc?.aqi ?? extractedAqi) || 146;
   const breathHold = Number(rawInputs.breath_holding_time ?? rawInputs.breathHold) || 35;
   const rawSmoking = String(rawInputs.smoking_status || rawInputs.smokingStatus || 'never').toLowerCase();
   const packYears = Number(rawInputs.smoking_pack_years ?? rawInputs.pack_years ?? rawInputs.smokingPackYears) || 0;
+  const cigsPerDay = Number(rawInputs.cigarettes_per_day ?? rawInputs.cigarettesPerDay) || (
+    packYears > 0 ? Math.round(packYears * 20 / (Number(rawInputs.smoking_years ?? rawInputs.smokingYears) || 5)) : 0
+  );
+  const smkYears = Number(rawInputs.smoking_years ?? rawInputs.smokingYears) || 0;
   const isBpmNormal = bpm >= 12 && bpm <= 20;
 
   const inputs = {
@@ -273,7 +279,9 @@ export default function LungHealthResult() {
     aqi: aqiVal,
     breath_holding_time: breathHold,
     smoking_status: rawSmoking,
-    smoking_pack_years: packYears
+    smoking_pack_years: packYears,
+    cigarettes_per_day: cigsPerDay,
+    smoking_years: smkYears
   };
 
   // Safely parse AI analysis (handles stringified JSON, double-stringified JSON, or plain text)
@@ -543,7 +551,9 @@ export default function LungHealthResult() {
       setSelectedLungFormat(format);
       await new Promise((resolve) => setTimeout(resolve, 350));
       if (!reportRef.current) throw new Error("Report element not found");
-      const filename = `mediconnect-lung-${format === "lung-full" ? "full-clinical" : "v99-summary"}-${formattedSerialNo.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      const reportType = format === "lung-full" ? "Full_Clinical_Assessment" : "Health_Summary";
+      const cleanSerial = (formattedSerialNo || "LCN_REPORT").replace(/[^a-zA-Z0-9]/g, '_');
+      const filename = `MediConnect_LungConnect_${reportType}_${cleanSerial}.pdf`;
       await generateClientPdf(reportRef.current, filename, { scale: 2, action: "download" });
     } catch (err) {
       console.error(err);
@@ -589,16 +599,24 @@ export default function LungHealthResult() {
     {
       label: 'Local AQI',
       value: aqiVal,
-      unit: 'CPCB AQI',
+      unit: 'AQI',
       status: aqiVal <= 50 ? 'Good' : aqiVal <= 100 ? 'Satisfactory' : aqiVal <= 200 ? 'Moderate' : 'Poor',
       tone: aqiVal <= 100 ? 'emerald' : aqiVal <= 200 ? 'amber' : 'rose',
     },
     {
       label: 'Smoking Profile',
-      value: rawSmoking ? (rawSmoking.charAt(0).toUpperCase() + rawSmoking.slice(1)) : 'Never',
-      unit: packYears > 0 ? `${packYears} pk-yrs` : '',
-      status: rawSmoking === 'current' ? 'Active' : rawSmoking === 'former' ? 'Former Smoker' : 'Non-Smoker',
-      tone: rawSmoking === 'current' ? 'amber' : 'emerald',
+      value: rawSmoking === 'never'
+        ? 'Never'
+        : cigsPerDay > 0
+          ? `${cigsPerDay} cigs/day`
+          : (rawSmoking.charAt(0).toUpperCase() + rawSmoking.slice(1)),
+      unit: packYears > 0 ? `${packYears} pk-yrs${smkYears ? ` (${smkYears}y)` : ''}` : '0 pk-yrs',
+      status: rawSmoking === 'current'
+        ? (packYears >= 20 ? 'Heavy Smoker' : packYears >= 10 ? 'Moderate Smoker' : 'Active Smoker')
+        : rawSmoking === 'former'
+          ? 'Former Smoker'
+          : 'Non-Smoker',
+      tone: rawSmoking === 'current' ? (packYears >= 20 ? 'rose' : 'amber') : 'emerald',
     },
   ];
 
@@ -1110,8 +1128,8 @@ export default function LungHealthResult() {
                 Official Format:
               </span>
               {[
-                { id: "lung-v9.9", label: "Health Summary", badge: "Frozen 1-Page A4 Fixed" },
-                { id: "lung-full", label: "Full • Clinical Assessment", badge: "Comprehensive Matrix" }
+                { id: "lung-v9.9", label: "Health Summary", badge: "1-Page Summary" },
+                { id: "lung-full", label: "Full Clinical Assessment", badge: "Comprehensive Matrix" }
               ].map((fmt) => (
                 <button
                   key={fmt.id}

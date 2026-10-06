@@ -76,18 +76,13 @@ export async function POST(req) {
     }
 
     // 4. Generate 6-digit OTP
-    const isPermanentTestUser = Boolean(
+    const isDummyNumber = Boolean(
       cleanPhone.endsWith("9999999991") ||
       cleanPhone.endsWith("9999999992") ||
-      cleanPhone.endsWith("9999999993") ||
-      cleanPhone.endsWith("8744412521") ||
-      cleanPhone.endsWith("9027924662") ||
-      cleanPhone.endsWith("7289043777")
+      cleanPhone.endsWith("9999999993")
     );
-    const otpCode = isPermanentTestUser ? "123456" : generateNumericOTP(6);
-    const otpExpiresAt = isPermanentTestUser
-      ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-      : new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const otpCode = generateNumericOTP(6);
+    const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     // 5. Save pending registration data with OTP in pending_registrations table
     // IMPORTANT: User and patient_details tables are NOT mutated before OTP verification!
@@ -117,8 +112,8 @@ export async function POST(req) {
         updated_at = NOW();
     `;
 
-    // 6. Send OTP to phone via SMS gateway
-    if (!isPermanentTestUser) {
+    // 6. Send OTP to phone via SMS gateway (always send for real user numbers)
+    if (!isDummyNumber) {
       const smsRes = await sendGenericOTPViaSMS(cleanPhone, otpCode, "patient");
       if (!smsRes.success) {
         console.warn("[Registration SMS Gateway] SMS delivery notice:", smsRes.error);
@@ -126,7 +121,7 @@ export async function POST(req) {
     }
 
     // 7. If email provided, also send email OTP
-    if (cleanEmail && !isPermanentTestUser) {
+    if (cleanEmail && !isDummyNumber) {
       try {
         await sendEmailOTP({
           toEmail: cleanEmail,

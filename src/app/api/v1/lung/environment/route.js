@@ -8,7 +8,7 @@ export async function OPTIONS() {
 
 // Pre-mapped city coordinates for zero-latency lookups
 const CITY_COORDINATES = {
-  "Delhi": { lat: 28.6139, lng: 77.2090, name: "Delhi" },
+  "Delhi": { lat: 28.7041, lng: 77.1025, name: "Delhi" },
   "New Delhi, Delhi": { lat: 28.6139, lng: 77.2090, name: "New Delhi, Delhi" },
   "New Delhi": { lat: 28.6139, lng: 77.2090, name: "New Delhi, Delhi" },
   "Bulandshahr, Uttar Pradesh": { lat: 28.4069, lng: 77.8498, name: "Bulandshahr, Uttar Pradesh" },
@@ -235,8 +235,8 @@ export async function GET(req) {
 
     // Default coordinates fallback (Delhi)
     if (lat === null || lng === null || isNaN(lat) || isNaN(lng)) {
-      lat = 28.6139;
-      lng = 77.2090;
+      lat = 28.7041;
+      lng = 77.1025;
       locationName = "Delhi";
     }
 
@@ -429,6 +429,8 @@ export async function GET(req) {
       latitude: lat,
       longitude: lng,
       aqi: aqiVal,
+      standard: "CPCB NAQI (India)",
+      unit: "AQI",
       aqi_category: aqiCat,
       aqi_location: locationName,
       aqi_source: sourceName,

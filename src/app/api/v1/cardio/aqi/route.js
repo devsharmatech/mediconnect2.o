@@ -8,7 +8,7 @@ export async function OPTIONS() {
 
 // Curated coordinate index for major Indian cities
 const INDIAN_CITIES = {
-  "delhi": { lat: 28.6139, lng: 77.2090, name: "Delhi, India" },
+  "delhi": { lat: 28.7041, lng: 77.1025, name: "Delhi, India" },
   "new delhi": { lat: 28.6139, lng: 77.2090, name: "New Delhi, India" },
   "bulandshahr": { lat: 28.4069, lng: 77.8498, name: "Bulandshahr, Uttar Pradesh" },
   "noida": { lat: 28.5355, lng: 77.3910, name: "Noida, Uttar Pradesh" },
@@ -179,22 +179,24 @@ export async function GET(req) {
       }
     }
 
-    // Default to Bulandshahr / Delhi if still unresolved
+    // Default coordinates fallback (Delhi per application standard)
     if (lat === null || lng === null || isNaN(lat) || isNaN(lng)) {
-      lat = 28.4069;
-      lng = 77.8498;
-      if (!resolvedLocation) resolvedLocation = "Bulandshahr, Uttar Pradesh";
+      lat = 28.7041;
+      lng = 77.1025;
+      if (!resolvedLocation || resolvedLocation === "Current Location" || resolvedLocation === "Your Location") {
+        resolvedLocation = "Delhi";
+      }
     }
 
     if (!resolvedLocation) {
-      resolvedLocation = "Current Location";
+      resolvedLocation = "Delhi";
     }
 
     // Direct live fetch from Google Air Quality API (No database cache read per specification)
 
     // 4. Fetch Live external telemetry from Google Air Quality API (with Open-Meteo fallback) & Weather
-    let aqiVal = 80;
-    let dominantPollutant = "PM10";
+    let aqiVal = 146;
+    let dominantPollutant = "PM2.5";
     let apiSource = "Google Air Quality API (NAQI/CPCB)";
     let pollutants = [];
     let healthRecommendations = null;
@@ -211,7 +213,8 @@ export async function GET(req) {
     try {
       const fetches = [
         fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,visibility`
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,visibility`,
+          { cache: "no-store" }
         ),
       ];
 
@@ -220,6 +223,7 @@ export async function GET(req) {
           fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleApiKey}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            cache: "no-store",
             body: JSON.stringify({
               location: { latitude: lat, longitude: lng },
               extraComputations: [
@@ -253,9 +257,12 @@ export async function GET(req) {
       let googleAqiLoaded = false;
       if (googleRes && googleRes.ok) {
         const gJson = await googleRes.json();
-        const naqiIndex = gJson.indexes?.find((i) => i.code === "ind_cpcb") || gJson.indexes?.[0];
+        const indexes = gJson.indexes || [];
+        const naqiIndex = indexes.find(i => i.code?.toLowerCase().includes("cpcb") || i.code?.toLowerCase().includes("ind"))
+          || indexes.find(i => i.code?.toLowerCase() === "uaqi")
+          || indexes[0];
         if (naqiIndex && naqiIndex.aqi !== undefined) {
-          aqiVal = naqiIndex.aqi;
+          aqiVal = Math.round(naqiIndex.aqi);
           dominantPollutant = (naqiIndex.dominantPollutant || "PM2.5").toUpperCase();
           apiSource = `Google Air Quality API (${naqiIndex.displayName || "NAQI"})`;
           pollutants = gJson.pollutants || [];
@@ -309,6 +316,8 @@ export async function GET(req) {
     const payload = {
       screen_id: "CC-13",
       aqi_value: aqiVal,
+      standard: "CPCB NAQI (India)",
+      unit: "AQI",
       category: catInfo.category,
       description: catInfo.description,
       source: apiSource,
@@ -371,9 +380,12 @@ export async function POST(req) {
           });
           if (gRes.ok) {
             const gJson = await gRes.json();
-            const naqi = gJson.indexes?.find((i) => i.code === "ind_cpcb") || gJson.indexes?.[0];
+            const indexes = gJson.indexes || [];
+            const naqi = indexes.find(i => i.code?.toLowerCase().includes("cpcb") || i.code?.toLowerCase().includes("ind"))
+              || indexes.find(i => i.code?.toLowerCase() === "uaqi")
+              || indexes[0];
             if (naqi && naqi.aqi !== undefined) {
-              finalAqi = naqi.aqi;
+              finalAqi = Math.round(naqi.aqi);
               dominantPollutant = (naqi.dominantPollutant || "PM2.5").toUpperCase();
               apiSource = `Google Air Quality API (${naqi.displayName || "NAQI"})`;
               googleFetched = true;

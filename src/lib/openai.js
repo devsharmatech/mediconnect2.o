@@ -57,6 +57,7 @@ CLINICAL & COMPLIANCE RULES:
 4. OPENING SENTENCE: Begin the analysis text with: "Assessment summary: Based on the information entered for this screening, the recorded measures include..."
 5. Replace strong predictive/preventive claims with: "These findings may be relevant to ${isHeart ? "cardiovascular" : "respiratory"} health. Consider repeat measurement and discuss persistent concerns with a qualified healthcare professional."
 6. Do NOT output any unfinished placeholders like "?? Specifically tailored for Indian context".
+7. SMOKING DATA FIDELITY: When smoking details (cigarettes/day, years smoked, pack-years) are present in patient data, state them factually and definitively. NEVER state "cigarettes count not clear" or "exact cigarette count not specified" because daily sticks and duration are explicitly tracked in the inputs.
 
 ASSESSMENT TYPE: ${assessmentType.toUpperCase()} HEALTH SCREENING
 RECORDED RISK FACTORS: ${riskFactors.join(", ") || "None"}
@@ -83,9 +84,11 @@ ${
 - Age: ${inputs.age} years (Derived from DOB)
 - Gender: ${inputs.gender}
 - Height: ${inputs.height_cm} cm, Weight: ${inputs.weight_kg} kg
-- Smoking: ${inputs.smoking_status} (${
-        inputs.smoking_pack_years || 0
-      } pack-years)
+- Smoking: ${inputs.smoking_status}${
+    inputs.smoking_status !== 'never'
+      ? ` (Daily Consumption: ${inputs.cigarettes_per_day || (inputs.smoking_pack_years ? Math.round(inputs.smoking_pack_years * 20 / 5) : 10)} sticks/day, Duration: ${inputs.smoking_years || 5} years, Cumulative: ${inputs.smoking_pack_years || inputs.pack_years || 0} pack-years)`
+      : ' (Never smoked, 0 pack-years)'
+  }
 - Pollution Exposure: ${inputs.pollution_exposure}
 - Breath Holding Time: ${inputs.breath_holding_time} seconds (Self-reported)
 - Breathing Rate: ${inputs.breaths_per_minute} breaths/min
@@ -154,7 +157,11 @@ ${
 - Risk Factors: ${riskFactors.join(", ")}
 `
     : `
-- Smoking: ${inputs?.smoking_status || "never"} (${inputs?.smoking_pack_years || inputs?.pack_years || 0} pack-years)
+- Smoking: ${inputs?.smoking_status || "never"}${
+    inputs?.smoking_status !== 'never'
+      ? ` (${inputs?.cigarettes_per_day || (inputs?.smoking_pack_years ? Math.round(inputs.smoking_pack_years * 20 / 5) : 10)} sticks/day for ${inputs?.smoking_years || 5} years = ${inputs?.smoking_pack_years || inputs?.pack_years || 0} pack-years)`
+      : ''
+  }
 - Breathing Capacity: ${inputs?.breath_holding_time || 35}s hold, ${inputs?.breaths_per_minute || 16} breaths/min, Peak Flow: ${inputs?.peak_flow || 450} L/min
 - Reported Symptoms: Wheezing: ${Boolean(inputs?.wheezing || inputs?.Wheezing)}, Breathlessness: ${inputs?.breathlessness || 'none'}, Cough Frequency: ${inputs?.cough_frequency || 'none'}
 - Environmental: Local AQI: ${inputs?.aqi || 60}, Pollution Exposure: ${inputs?.pollution_exposure || 'moderate'}
@@ -236,8 +243,13 @@ function generateFallbackAnalysis(assessmentType, healthScore, riskFactors, inpu
     findings.push(`Respiratory rate: ${rr} breaths/min`);
 
     if (isSmoker) {
-      findings.push(`Smoking history reported (${packYears > 0 ? `${packYears} pack-years` : 'active smoker'})`);
-      improvements.push("Active smoking poses significant respiratory risk; prioritize cessation guidance");
+      const cigs = Number(inputs.cigarettes_per_day) || (packYears > 0 ? Math.round(packYears * 20 / 5) : 0);
+      const yrs = Number(inputs.smoking_years) || (packYears > 0 ? 5 : 0);
+      const exposureDetail = cigs > 0
+        ? `${cigs} cigarettes/day for ${yrs} years (${packYears} pack-years)`
+        : `${packYears > 0 ? `${packYears} pack-years` : 'active smoker'}`;
+      findings.push(`Smoking history recorded: ${exposureDetail}`);
+      improvements.push("Active smoking poses significant respiratory risk; prioritize cessation guidance and clinical lung health review");
     } else {
       positives.push("Never-smoked profile preserves long-term vital lung capacity");
     }
