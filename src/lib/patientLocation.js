@@ -58,12 +58,18 @@ export function savePatientLocation(data) {
     const resolvedAqi = data.aqi !== undefined ? data.aqi : existing.aqi;
     const resolvedIsGps = data.isGps ?? existing.isGps ?? false;
 
-    // If incoming city is default "Delhi" or "Current Location" but existing is a specific real city, keep existing
+    const resolvedIsManual = data.isManual !== undefined ? Boolean(data.isManual) : (existing.isManual && !data.isGps);
+
+    // If incoming city is default "Delhi" or "Current Location" but existing is a specific real city, keep existing.
+    // Also: If the user previously MANUALLY picked a location (isManual: true), background GPS or auto-IP
+    // MUST NOT overwrite it unless the user explicitly forces it (forceReset: true or isManual: true).
     let finalCity = resolvedCity;
     const isGenericDefault = !finalCity || finalCity === "Delhi" || finalCity === "Current Location" || finalCity.toLowerCase().includes("kartavya");
     const hasSpecificExisting = existing.city && existing.city !== "Delhi" && existing.city !== "Current Location" && !existing.city.toLowerCase().includes("kartavya");
 
-    if (isGenericDefault && hasSpecificExisting && !data.forceReset) {
+    if (existing.isManual && !data.isManual && !data.forceReset && existing.city) {
+      finalCity = existing.city;
+    } else if (isGenericDefault && hasSpecificExisting && !data.forceReset) {
       finalCity = existing.city;
     }
 
@@ -75,6 +81,7 @@ export function savePatientLocation(data) {
       lng: resolvedLng || 77.2090,
       aqi: resolvedAqi,
       isGps: resolvedIsGps,
+      isManual: resolvedIsManual,
       updatedAt: new Date().toISOString(),
     };
 
@@ -139,18 +146,15 @@ export async function reverseGeocodeCoords(lat, lng) {
             }
           }
 
+          let specificArea = sublocality || locality;
           let cityName = locality || district || sublocality || "";
           if (
             cityName.toLowerCase().includes("kartavya") ||
-            cityName.toLowerCase().includes("rajpath") ||
-            district === "New Delhi" ||
-            locality === "New Delhi" ||
-            state === "Delhi"
+            cityName.toLowerCase().includes("rajpath")
           ) {
-            if (state === "Delhi" || district.includes("Delhi") || locality.includes("Delhi")) {
-              cityName = "Delhi";
-              state = "Delhi";
-            }
+            cityName = "Delhi";
+          } else if (specificArea && !specificArea.toLowerCase().includes("kartavya") && !specificArea.toLowerCase().includes("rajpath")) {
+            cityName = specificArea;
           }
 
           if (cityName) {

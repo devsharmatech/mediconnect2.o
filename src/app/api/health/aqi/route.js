@@ -179,19 +179,18 @@ export async function GET(req) {
                   }
                 }
 
-                // Primary: actual city (locality), then district (admin_area_2). Avoid sublocality road names.
+                // Primary: specific locality/sublocality (e.g. Palam Colony), then city/district
+                let specificArea = sublocality || locality;
                 let cityName = locality || district || sublocality || "";
+
+                // Only sanitize awkward landmarks like Kartavya Path or Rajpath
                 if (
                   cityName.toLowerCase().includes("kartavya") ||
-                  cityName.toLowerCase().includes("rajpath") ||
-                  district === "New Delhi" ||
-                  locality === "New Delhi" ||
-                  state === "Delhi"
+                  cityName.toLowerCase().includes("rajpath")
                 ) {
-                  if (state === "Delhi" || district.includes("Delhi") || locality.includes("Delhi")) {
-                    cityName = "Delhi";
-                    state = "Delhi";
-                  }
+                  cityName = "Delhi";
+                } else if (specificArea && !specificArea.toLowerCase().includes("kartavya") && !specificArea.toLowerCase().includes("rajpath")) {
+                  cityName = specificArea;
                 }
 
                 if (cityName) {

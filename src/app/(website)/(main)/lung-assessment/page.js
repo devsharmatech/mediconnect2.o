@@ -204,6 +204,7 @@ export default function GamifiedLungAssessment() {
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const [isSearchingLocation, setIsSearchingLocation] = useState(false);
   const searchDebounceRef = useRef(null);
+  const userHasManuallyChangedLocationRef = useRef(false);
 
   // Auto-scroll to top when advancing steps so the page header is always cleanly visible
   useEffect(() => {
@@ -219,7 +220,7 @@ export default function GamifiedLungAssessment() {
     let initialAge = 35;
     if (typeof window !== 'undefined') {
       const saved = getSavedPatientLocation();
-      if (saved?.city && !saved.city.toLowerCase().includes("kartavya") && !saved.city.toLowerCase().includes("rajpath") && saved.city !== 'Delhi') {
+      if (saved?.city && !saved.city.toLowerCase().includes("kartavya") && !saved.city.toLowerCase().includes("rajpath")) {
         initialLocation = saved.city;
       }
       if (saved?.aqi) initialAqi = saved.aqi;
@@ -279,12 +280,15 @@ export default function GamifiedLungAssessment() {
     };
   });
 
-  const fetchAqiForLocation = async (locName, lat = null, lng = null) => {
+  const fetchAqiForLocation = async (locName, lat = null, lng = null, isManual = false) => {
     try {
       setAqiLoading(true);
       let url = '/api/health/aqi';
       if (lat !== null && lng !== null) {
         url += `?lat=${lat}&lng=${lng}`;
+        if (locName) {
+          url += `&location=${encodeURIComponent(locName)}`;
+        }
       } else if (locName) {
         url += `?location=${encodeURIComponent(locName)}`;
       }
@@ -292,7 +296,8 @@ export default function GamifiedLungAssessment() {
       const data = await res.json();
       if (data.success && data.data?.aqi_data) {
         const item = data.data.aqi_data;
-        let resolvedCityName = item.location || locName || "Current Location";
+        // Prioritize the user's specific selected place name over the regional monitoring station name!
+        let resolvedCityName = locName || item.location || "Current Location";
         if (resolvedCityName.toLowerCase().includes("kartavya") || resolvedCityName.toLowerCase().includes("rajpath")) {
           resolvedCityName = "Delhi";
         }
@@ -310,7 +315,9 @@ export default function GamifiedLungAssessment() {
           lat: lat,
           lng: lng,
           aqi: item.aqi,
-          isGps: lat !== null && lng !== null,
+          isGps: lat !== null && lng !== null && !locName,
+          isManual: isManual || Boolean(locName),
+          forceReset: true,
         });
         return item;
       }
@@ -324,6 +331,11 @@ export default function GamifiedLungAssessment() {
   };
 
   const detectUserLocation = async (showToast = false) => {
+    // If user has already entered or chosen a location, do not run background auto-detection unless explicitly asked via GPS button
+    if (!showToast && userHasManuallyChangedLocationRef.current) {
+      return null;
+    }
+
     setAqiLoading(true);
     let toastId = null;
     if (showToast) {
@@ -332,10 +344,9 @@ export default function GamifiedLungAssessment() {
 
     // 0. Prioritize existing saved patient location if set (and clean)
     const saved = getSavedPatientLocation();
-    if (saved?.city && !saved.city.toLowerCase().includes("kartavya") && !saved.city.toLowerCase().includes("rajpath") && saved.city !== 'Delhi') {
-      const item = await fetchAqiForLocation(saved.city, saved.lat, saved.lng);
+    if (!showToast && saved?.city && !saved.city.toLowerCase().includes("kartavya") && !saved.city.toLowerCase().includes("rajpath")) {
+      const item = await fetchAqiForLocation(saved.city, saved.lat, saved.lng, saved.isManual);
       if (item) {
-        if (showToast && toastId) toast.success(`Location: ${item.location} (Google AQI: ${item.aqi})`, { id: toastId });
         return item;
       }
     }
@@ -351,7 +362,10 @@ export default function GamifiedLungAssessment() {
           });
         });
         if (pos?.coords) {
-          const item = await fetchAqiForLocation(null, pos.coords.latitude, pos.coords.longitude);
+          if (!showToast && userHasManuallyChangedLocationRef.current) {
+            return null;
+          }
+          const item = await fetchAqiForLocation(null, pos.coords.latitude, pos.coords.longitude, false);
           if (item) {
             if (showToast && toastId) toast.success(`Detected: ${item.location} (Google AQI: ${item.aqi})`, { id: toastId });
             return item;
@@ -362,6 +376,10 @@ export default function GamifiedLungAssessment() {
       }
     }
 
+    if (!showToast && userHasManuallyChangedLocationRef.current) {
+      return null;
+    }
+
     // 2. Fast IP Geolocation fallback (BigDataCloud HTTPS client, no Cloudflare captcha blocks)
     try {
       const bdcRes = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client').catch(() => null);
@@ -369,7 +387,10 @@ export default function GamifiedLungAssessment() {
         const bdcData = await bdcRes.json();
         const city = bdcData.city || bdcData.locality || bdcData.principalSubdivision;
         if (city && !city.toLowerCase().includes("kartavya") && !city.toLowerCase().includes("rajpath")) {
-          const item = await fetchAqiForLocation(city, bdcData.latitude, bdcData.longitude);
+          if (!showToast && userHasManuallyChangedLocationRef.current) {
+            return null;
+          }
+          const item = await fetchAqiForLocation(city, bdcData.latitude, bdcData.longitude, false);
           if (item) {
             if (showToast && toastId) toast.success(`Detected Region: ${item.location} (Google AQI: ${item.aqi})`, { id: toastId });
             return item;
@@ -380,9 +401,13 @@ export default function GamifiedLungAssessment() {
       console.warn("IP geolocation fallback failed:", ipErr);
     }
 
+    if (!showToast && userHasManuallyChangedLocationRef.current) {
+      return null;
+    }
+
     // 3. Final fallback: Use saved patient location or default to Delhi
     const fallbackCity = (saved?.city && !saved.city.toLowerCase().includes("kartavya")) ? saved.city : 'Delhi';
-    const fallbackItem = await fetchAqiForLocation(fallbackCity);
+    const fallbackItem = await fetchAqiForLocation(fallbackCity, null, null, false);
     if (showToast && toastId) {
       toast.error(`Could not auto-detect location. Using ${fallbackCity}.`, { id: toastId });
     }
@@ -395,15 +420,17 @@ export default function GamifiedLungAssessment() {
       toast.error("Please enter a city name.");
       return;
     }
+    userHasManuallyChangedLocationRef.current = true;
     const tId = toast.loading(`Fetching live Google AQI for ${query}...`);
-    fetchAqiForLocation(query).then(item => {
+    fetchAqiForLocation(query, null, null, true).then(item => {
       if (item) {
         savePatientLocation({
-          city: item.location || query,
+          city: query,
           aqi: item.aqi,
+          isManual: true,
           forceReset: true,
         });
-        toast.success(`${item.location} · Google AQI: ${item.aqi} (${item.category || 'Satisfactory'})`, { id: tId });
+        toast.success(`${query} · Google AQI: ${item.aqi} (${item.category || 'Satisfactory'})`, { id: tId });
       } else {
         toast.error(`Could not update air quality for "${query}"`, { id: tId });
       }
@@ -411,6 +438,7 @@ export default function GamifiedLungAssessment() {
   };
 
   const handleLocationInputChange = (val) => {
+    userHasManuallyChangedLocationRef.current = true;
     setFormData(prev => ({ ...prev, location: val }));
     if (!val || val.trim().length < 2) {
       setLocationSuggestions([]);
@@ -440,6 +468,7 @@ export default function GamifiedLungAssessment() {
   const handleSelectLocationSuggestion = async (sug) => {
     setLocationSuggestions([]);
     const locName = sug.name || sug.main_text || sug.text || "";
+    userHasManuallyChangedLocationRef.current = true;
     setFormData(prev => ({ ...prev, location: locName }));
 
     const tId = toast.loading(`Loading Google Air Quality for ${locName}...`);
@@ -457,9 +486,9 @@ export default function GamifiedLungAssessment() {
         }
       }
 
-      const item = await fetchAqiForLocation(locName, lat, lng);
+      const item = await fetchAqiForLocation(locName, lat, lng, true);
       if (item) {
-        toast.success(`${item.location || locName} · Google AQI: ${item.aqi} (${item.category || 'Live'})`, { id: tId });
+        toast.success(`${locName} · Google AQI: ${item.aqi} (${item.category || 'Live'})`, { id: tId });
       } else {
         toast.dismiss(tId);
       }
@@ -480,11 +509,12 @@ export default function GamifiedLungAssessment() {
       } catch (_) {}
     }
 
-    // Automatically detect or sync user location on initial mount
+    // Automatically detect or sync user location on initial mount (won't overwrite if manual)
     detectUserLocation(false);
 
-    // Sync if location updated elsewhere
+    // Sync if location updated elsewhere (only if user hasn't explicitly set a location in this assessment form)
     const handleLocationUpdate = (e) => {
+      if (userHasManuallyChangedLocationRef.current) return;
       const loc = e.detail;
       if (loc?.city) {
         setFormData(prev => ({
@@ -994,6 +1024,7 @@ export default function GamifiedLungAssessment() {
                           type="button"
                           onClick={() => {
                             setLocationSuggestions([]);
+                            userHasManuallyChangedLocationRef.current = false;
                             detectUserLocation(true);
                           }}
                           disabled={aqiLoading}
@@ -1013,6 +1044,7 @@ export default function GamifiedLungAssessment() {
                             key={city}
                             type="button"
                             onClick={() => {
+                              userHasManuallyChangedLocationRef.current = true;
                               setFormData(prev => ({ ...prev, location: city }));
                               handleManualLocationUpdate(city);
                             }}

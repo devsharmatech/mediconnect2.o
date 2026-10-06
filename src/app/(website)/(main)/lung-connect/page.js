@@ -784,17 +784,18 @@ function LungConnectHubContent() {
           lat,
           lng,
           isGps: false,
+          isManual: true,
           forceReset: true,
         });
 
         const res = await fetch(
-          `/api/v1/lung/environment?lat=${lat}&lng=${lng}&refresh=true`
+          `/api/v1/lung/environment?lat=${lat}&lng=${lng}&city=${encodeURIComponent(cityName)}&refresh=true`
         );
         const json = await res.json();
         toast.dismiss("loc-load");
         if (json.success && json.data) {
           setEnvData(json.data);
-          const resolvedName = json.data.aqi_location || cityName;
+          const resolvedName = cityName || json.data.aqi_location;
           setSelectedCity(resolvedName);
           if (json.data.latitude && json.data.longitude) {
             setUserCoords({ lat: json.data.latitude, lng: json.data.longitude });
@@ -805,6 +806,7 @@ function LungConnectHubContent() {
             lng: json.data.longitude || lng,
             aqi: json.data.aqi,
             isGps: false,
+            isManual: true,
             forceReset: true,
           });
           toast.success(`Location updated to ${resolvedName}`);
@@ -847,7 +849,7 @@ function LungConnectHubContent() {
       }
 
       const envUrl = lat && lng 
-        ? `/api/v1/lung/environment?lat=${lat}&lng=${lng}&refresh=true`
+        ? `/api/v1/lung/environment?lat=${lat}&lng=${lng}&city=${encodeURIComponent(cityName)}&refresh=true`
         : `/api/v1/lung/environment?city=${encodeURIComponent(cityName)}&refresh=true`;
 
       const res = await fetch(envUrl);
@@ -858,7 +860,7 @@ function LungConnectHubContent() {
         if (json.data.latitude && json.data.longitude) {
           setUserCoords({ lat: json.data.latitude, lng: json.data.longitude });
         }
-        const resolvedName = json.data.aqi_location || resolvedAddress || cityName;
+        const resolvedName = cityName || resolvedAddress || json.data.aqi_location;
         setSelectedCity(resolvedName);
         savePatientLocation({
           city: resolvedName,
@@ -866,6 +868,7 @@ function LungConnectHubContent() {
           lng: json.data.longitude || lng,
           aqi: json.data.aqi,
           isGps: false,
+          isManual: true,
           forceReset: true,
         });
         toast.success(`Updated to ${resolvedName}`);
@@ -879,7 +882,13 @@ function LungConnectHubContent() {
   // Request Real User GPS Location
   const requestGpsLocation = (silent = false) => {
     const savedLoc = getSavedPatientLocation();
-    const fallbackCity = (savedLoc?.city && savedLoc.city !== "Delhi") ? savedLoc.city : (selectedCity || "Delhi");
+    // If this is a silent background check and user has already manually chosen a city, do not overwrite it!
+    if (silent && savedLoc?.isManual && savedLoc?.city) {
+      fetchEnvironment(savedLoc.city, false, savedLoc.lat, savedLoc.lng);
+      return;
+    }
+
+    const fallbackCity = savedLoc?.city || selectedCity || "Delhi";
 
     if (typeof window === "undefined" || !navigator.geolocation) {
       setGpsStatus("unsupported");
@@ -906,15 +915,15 @@ function LungConnectHubContent() {
           if (json.success && json.data) {
             setEnvData(json.data);
             const detectedName = json.data.aqi_location || "Current Location";
-            if (detectedName && detectedName !== "Delhi") {
-              setSelectedCity(detectedName);
-            }
+            setSelectedCity(detectedName);
             savePatientLocation({
               city: detectedName,
               lat: latitude,
               lng: longitude,
               aqi: json.data.aqi,
               isGps: true,
+              isManual: false,
+              forceReset: !silent,
             });
             if (!silent) toast.success(`Location detected: ${detectedName}`);
           }
@@ -950,13 +959,13 @@ function LungConnectHubContent() {
   // Load saved location on mount, and auto-detect GPS by default if enabled in browser
   useEffect(() => {
     const saved = getSavedPatientLocation();
-    if (saved?.city && saved.city !== "Delhi") {
+    if (saved?.city) {
       setSelectedCity(saved.city);
     }
     if (saved?.lat && saved?.lng) {
       setUserCoords({ lat: saved.lat, lng: saved.lng });
     }
-    if (saved?.isGps) {
+    if (saved?.isGps && !saved?.isManual) {
       setGpsStatus("granted");
       setLocationPermission("permitted");
     }
@@ -968,10 +977,14 @@ function LungConnectHubContent() {
           if (perm.state === "granted") {
             setGpsStatus("granted");
             setLocationPermission("permitted");
-            requestGpsLocation(true);
+            if (saved?.isManual && saved?.city) {
+              fetchEnvironment(saved.city, false, saved.lat, saved.lng);
+            } else {
+              requestGpsLocation(true);
+            }
           } else if (perm.state === "prompt") {
             // If user previously used GPS or if no specific city is saved, auto-detect
-            if (saved?.isGps || !saved?.city || saved.city === "Delhi") {
+            if (!saved?.city || (saved?.isGps && !saved?.isManual)) {
               requestGpsLocation(true);
             } else {
               fetchEnvironment(saved.city, false, saved.lat, saved.lng);

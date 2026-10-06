@@ -5,7 +5,7 @@
 
 import { formatWhatsAppNumber } from "@/lib/sms";
 
-const WHATSAPP_TOKEN = process.env.INSIGN_WHATSAPP_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
+const WHATSAPP_TOKEN = process.env.INSIGN_WHATSAPP_TOKEN || "361|qvSlohCNI5loBq7eumrBLvPI68wuTFsSddLe3Mugd7463735";
 const PHONE_NUMBER_ID = process.env.INSIGN_WHATSAPP_PHONE_NUMBER_ID || "935517672969433";
 const API_URL = `https://multichannel.insignsms.com/api/v1/whatsapp/${PHONE_NUMBER_ID}/messages`;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://mediconnect.fit";

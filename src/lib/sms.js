@@ -43,7 +43,7 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
         }
 
         // 4. Send via InsignSMS Integration Gateway
-        const token = process.env.INSIGN_SMS_TOKEN || process.env.INSIGN_WHATSAPP_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
+        const token = process.env.INSIGN_SMS_TOKEN || process.env.INSIGN_WHATSAPP_TOKEN || "361|qvSlohCNI5loBq7eumrBLvPI68wuTFsSddLe3Mugd7463735";
         const templateId = "1707177157384254091";
         const entityId = "1701176423722454287";
         const senderId = "MDCNCT";
@@ -105,7 +105,7 @@ export async function sendGenericOTPViaSMS(phone_number, otp, role = 'patient') 
             return { success: true };
         }
 
-        const token = process.env.INSIGN_SMS_TOKEN || process.env.INSIGN_WHATSAPP_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
+        const token = process.env.INSIGN_SMS_TOKEN || process.env.INSIGN_WHATSAPP_TOKEN || "361|qvSlohCNI5loBq7eumrBLvPI68wuTFsSddLe3Mugd7463735";
         const templateId = "1707177157384254091";
         const entityId = "1701176423722454287";
         const senderId = "MDCNCT";
@@ -174,7 +174,7 @@ export async function sendDoctorWhatsAppInvite(phone_number, doctor_name, invite
         }
 
         const phone_number_id = process.env.INSIGN_WHATSAPP_PHONE_NUMBER_ID || "935517672969433";
-        const token = process.env.INSIGN_WHATSAPP_TOKEN || process.env.INSIGN_SMS_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
+        const token = process.env.INSIGN_WHATSAPP_TOKEN || process.env.INSIGN_SMS_TOKEN || "361|qvSlohCNI5loBq7eumrBLvPI68wuTFsSddLe3Mugd7463735";
 
         const url = `https://multichannel.insignsms.com/api/v1/whatsapp/${phone_number_id}/messages`;
 
@@ -383,7 +383,7 @@ export async function sendAppointmentReminder({
         const displayDate = formatWhatsAppDate(date);
         const displayTime = formatWhatsAppTime(time);
         const formattedNumber = formatWhatsAppNumber(phone_number);
-        const token = process.env.INSIGN_WHATSAPP_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
+        const token = process.env.INSIGN_WHATSAPP_TOKEN || "361|qvSlohCNI5loBq7eumrBLvPI68wuTFsSddLe3Mugd7463735";
         const phone_number_id = process.env.INSIGN_WHATSAPP_PHONE_NUMBER_ID || "935517672969433";
         const url = `https://multichannel.insignsms.com/api/v1/whatsapp/${phone_number_id}/messages`;
 
@@ -473,7 +473,7 @@ export async function sendAppointmentUpdateAlert({
         const displayTime = formatWhatsAppTime(time);
         const statusMessage = APPOINTMENT_STATUS_MESSAGES[status_type] || `Your appointment has been ${status_type}.`;
         const formattedNumber = formatWhatsAppNumber(phone_number);
-        const token = process.env.INSIGN_WHATSAPP_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
+        const token = process.env.INSIGN_WHATSAPP_TOKEN || "361|qvSlohCNI5loBq7eumrBLvPI68wuTFsSddLe3Mugd7463735";
         const phone_number_id = process.env.INSIGN_WHATSAPP_PHONE_NUMBER_ID || "935517672969433";
         const url = `https://multichannel.insignsms.com/api/v1/whatsapp/${phone_number_id}/messages`;
 
@@ -595,7 +595,7 @@ export async function sendPaymentUpdate({
 
         const paymentMessage = PAYMENT_STATUS_MESSAGES[payment_status] || `Your payment state has been updated to ${payment_status}.`;
         const formattedNumber = formatWhatsAppNumber(phone_number);
-        const token = process.env.INSIGN_WHATSAPP_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
+        const token = process.env.INSIGN_WHATSAPP_TOKEN || "361|qvSlohCNI5loBq7eumrBLvPI68wuTFsSddLe3Mugd7463735";
         const phone_number_id = process.env.INSIGN_WHATSAPP_PHONE_NUMBER_ID || "935517672969433";
         const url = `https://multichannel.insignsms.com/api/v1/whatsapp/${phone_number_id}/messages`;
 
@@ -668,7 +668,7 @@ export async function sendNursingRequestReceived({
         const formattedNumber = formatWhatsAppNumber(phone_number);
         const displayCareTypes = Array.isArray(care_types) ? care_types.join(", ") : care_types;
 
-        const token = process.env.INSIGN_WHATSAPP_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
+        const token = process.env.INSIGN_WHATSAPP_TOKEN || "361|qvSlohCNI5loBq7eumrBLvPI68wuTFsSddLe3Mugd7463735";
         const phone_number_id = process.env.INSIGN_WHATSAPP_PHONE_NUMBER_ID || "935517672969433";
         const url = `https://multichannel.insignsms.com/api/v1/whatsapp/${phone_number_id}/messages`;
 
@@ -750,7 +750,7 @@ export async function sendNursingStatusUpdate({
         const statusLabel = NURSING_STATUS_LABELS[new_status] || new_status;
         const displayNote = note || "Status updated by operations team.";
 
-        const token = process.env.INSIGN_WHATSAPP_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
+        const token = process.env.INSIGN_WHATSAPP_TOKEN || "361|qvSlohCNI5loBq7eumrBLvPI68wuTFsSddLe3Mugd7463735";
         const phone_number_id = process.env.INSIGN_WHATSAPP_PHONE_NUMBER_ID || "935517672969433";
         const url = `https://multichannel.insignsms.com/api/v1/whatsapp/${phone_number_id}/messages`;
 
@@ -822,7 +822,7 @@ export async function sendNursingPartnerNotification({
 
         const formattedNumber = formatWhatsAppNumber(partner_phone);
         const displayCareTypes = Array.isArray(care_types) ? care_types.join(", ") : care_types;
-        const token = process.env.INSIGN_WHATSAPP_TOKEN || "170|qFWszJXgSGvkql0ldNk4vWiYNrWhG1wzNVQPT8dp7516f7c8";
+        const token = process.env.INSIGN_WHATSAPP_TOKEN || "361|qvSlohCNI5loBq7eumrBLvPI68wuTFsSddLe3Mugd7463735";
         const phone_number_id = process.env.INSIGN_WHATSAPP_PHONE_NUMBER_ID || "935517672969433";
         const url = `https://multichannel.insignsms.com/api/v1/whatsapp/${phone_number_id}/messages`;
 

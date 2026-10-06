@@ -105,18 +105,15 @@ export async function GET(req) {
                 }
               }
 
+              let specificArea = sublocality || locality;
               let cityName = locality || district || sublocality || "";
               if (
                 cityName.toLowerCase().includes("kartavya") ||
-                cityName.toLowerCase().includes("rajpath") ||
-                district === "New Delhi" ||
-                locality === "New Delhi" ||
-                state === "Delhi"
+                cityName.toLowerCase().includes("rajpath")
               ) {
-                if (state === "Delhi" || district.includes("Delhi") || locality.includes("Delhi")) {
-                  cityName = "Delhi";
-                  state = "Delhi";
-                }
+                cityName = "Delhi";
+              } else if (specificArea && !specificArea.toLowerCase().includes("kartavya") && !specificArea.toLowerCase().includes("rajpath")) {
+                cityName = specificArea;
               }
 
               if (cityName) {
@@ -172,10 +169,13 @@ export async function GET(req) {
         }
       }
 
-      if (resolvedGpsName) {
+      const explicitCity = searchParams.get("city");
+      if (explicitCity && explicitCity !== "Current Location" && explicitCity !== "Delhi") {
+        locationName = explicitCity;
+      } else if (resolvedGpsName) {
         locationName = resolvedGpsName;
-      } else if (searchParams.get("city")) {
-        locationName = searchParams.get("city");
+      } else if (explicitCity) {
+        locationName = explicitCity;
       } else {
         locationName = `Current Location (${lat.toFixed(2)}°N, ${lng.toFixed(2)}°E)`;
       }
