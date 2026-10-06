@@ -15,41 +15,92 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const userId = searchParams.get("user_id") || "usr_guest";
     const activityType = searchParams.get("activity_type");
-    const limit = parseInt(searchParams.get("limit"), 10) || 20;
+    const limit = parseInt(searchParams.get("limit"), 10) || 50;
 
     let sessions = [];
     try {
       if (userId && userId !== "all") {
-        if (activityType) {
-          sessions = await sql`
-            SELECT * FROM lung_activity_sessions
-            WHERE user_id = ${String(userId)} AND activity_type = ${activityType}
-            ORDER BY created_at DESC
-            LIMIT ${limit};
-          `;
-        } else {
-          sessions = await sql`
-            SELECT * FROM lung_activity_sessions
-            WHERE user_id = ${String(userId)}
-            ORDER BY created_at DESC
-            LIMIT ${limit};
-          `;
-        }
+        const [activityRows, walkRows, assessmentRows] = await Promise.all([
+          (!activityType || activityType === "lung_move" || activityType === "lung_breathing" || activityType === "breathing" || activityType === "walk" || activityType === "jog" || activityType === "run")
+            ? (activityType
+                ? sql`SELECT * FROM lung_activity_sessions WHERE user_id = ${String(userId)} AND activity_type = ${activityType} ORDER BY created_at DESC LIMIT ${limit};`
+                : sql`SELECT * FROM lung_activity_sessions WHERE user_id = ${String(userId)} ORDER BY created_at DESC LIMIT ${limit};`
+              ).catch(e => { console.warn("[Lung Activity GET] sessions err:", e.message); return []; })
+            : Promise.resolve([]),
+
+          (!activityType || activityType === "lung_walk" || activityType === "walk" || activityType === "6mwt" || activityType === "walking_test")
+            ? sql`
+                SELECT id, user_id, 'lung_walk' as activity_type,
+                       '6-Minute Walk Test (6MWT)' as title,
+                       'completed' as status,
+                       COALESCE(duration_seconds, 360) as duration_seconds,
+                       CASE WHEN distance_m IS NOT NULL THEN (distance_m::float / 1000)::text ELSE '0' END as distance_km,
+                       0 as steps,
+                       pace_kmh as avg_pace,
+                       created_at
+                FROM lung_walking_tests
+                WHERE user_id = ${String(userId)}
+                ORDER BY created_at DESC
+                LIMIT ${limit};
+              `.catch(e => { console.warn("[Lung Activity GET] walk err:", e.message); return []; })
+            : Promise.resolve([]),
+
+          (!activityType || activityType === "lung_assessment" || activityType === "assessment")
+            ? sql`
+                SELECT id, user_id, 'lung_assessment' as activity_type,
+                       'Respiratory Wellness Assessment' as title,
+                       'completed' as status,
+                       60 as duration_seconds,
+                       null as distance_km,
+                       0 as steps,
+                       null as avg_pace,
+                       created_at
+                FROM health_assessments
+                WHERE user_id = ${String(userId)} AND assessment_type = 'lung'
+                ORDER BY created_at DESC
+                LIMIT ${limit};
+              `.catch(e => { console.warn("[Lung Activity GET] assessment err:", e.message); return []; })
+            : Promise.resolve([])
+        ]);
+
+        sessions = [...activityRows, ...walkRows, ...assessmentRows]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+          .slice(0, limit);
       } else {
-        if (activityType) {
-          sessions = await sql`
-            SELECT * FROM lung_activity_sessions
-            WHERE activity_type = ${activityType}
+        const [activityRows, walkRows, assessmentRows] = await Promise.all([
+          sql`SELECT * FROM lung_activity_sessions ORDER BY created_at DESC LIMIT ${limit};`.catch(() => []),
+          sql`
+            SELECT id, user_id, 'lung_walk' as activity_type,
+                   '6-Minute Walk Test (6MWT)' as title,
+                   'completed' as status,
+                   COALESCE(duration_seconds, 360) as duration_seconds,
+                   CASE WHEN distance_m IS NOT NULL THEN (distance_m::float / 1000)::text ELSE '0' END as distance_km,
+                   0 as steps,
+                   pace_kmh as avg_pace,
+                   created_at
+            FROM lung_walking_tests
             ORDER BY created_at DESC
             LIMIT ${limit};
-          `;
-        } else {
-          sessions = await sql`
-            SELECT * FROM lung_activity_sessions
+          `.catch(() => []),
+          sql`
+            SELECT id, user_id, 'lung_assessment' as activity_type,
+                   'Respiratory Wellness Assessment' as title,
+                   'completed' as status,
+                   60 as duration_seconds,
+                   null as distance_km,
+                   0 as steps,
+                   null as avg_pace,
+                   created_at
+            FROM health_assessments
+            WHERE assessment_type = 'lung'
             ORDER BY created_at DESC
             LIMIT ${limit};
-          `;
-        }
+          `.catch(() => [])
+        ]);
+
+        sessions = [...activityRows, ...walkRows, ...assessmentRows]
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+          .slice(0, limit);
       }
     } catch (e) {
       console.warn("[Lung Activity GET] warning:", e.message);

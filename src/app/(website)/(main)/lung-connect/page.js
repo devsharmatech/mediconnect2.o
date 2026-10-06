@@ -510,6 +510,19 @@ function LungConnectHubContent() {
 
     longestStreak = Math.max(longestStreak, currentStreak);
 
+    // Calculate latest consecutive streak ending at the most recent active date
+    let latestStreak = 0;
+    if (sortedIsoDates.length > 0) {
+      const [ly, lm, ld] = sortedIsoDates[sortedIsoDates.length - 1].split("-").map(Number);
+      let iterLatest = new Date(ly, lm - 1, ld);
+      while (activeDates.has(getLocalDateKey(iterLatest))) {
+        latestStreak++;
+        iterLatest.setDate(iterLatest.getDate() - 1);
+      }
+    }
+
+    const effectiveStreak = currentStreak > 0 ? currentStreak : (latestStreak > 0 ? latestStreak : 0);
+
     const history = [];
     if (activeDates.size > 0) {
       history.push({
@@ -519,8 +532,10 @@ function LungConnectHubContent() {
     }
 
     return {
-      currentStreak,
-      longestStreak,
+      currentStreak: effectiveStreak,
+      rawCurrentStreak: currentStreak,
+      latestStreak,
+      longestStreak: Math.max(longestStreak, effectiveStreak),
       longestDate: sortedIsoDates[sortedIsoDates.length - 1]
         ? new Date(sortedIsoDates[sortedIsoDates.length - 1] + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
         : "Recorded Session",

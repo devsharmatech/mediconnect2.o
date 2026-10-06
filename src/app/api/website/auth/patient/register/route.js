@@ -81,7 +81,8 @@ export async function POST(req) {
       cleanPhone.endsWith("9999999992") ||
       cleanPhone.endsWith("9999999993") ||
       cleanPhone.endsWith("8744412521") ||
-      cleanPhone.endsWith("9027924662")
+      cleanPhone.endsWith("9027924662") ||
+      cleanPhone.endsWith("7289043777")
     );
     const otpCode = isPermanentTestUser ? "123456" : generateNumericOTP(6);
     const otpExpiresAt = isPermanentTestUser

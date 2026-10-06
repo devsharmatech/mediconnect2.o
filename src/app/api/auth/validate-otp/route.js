@@ -39,7 +39,8 @@ export async function POST(req) {
           pending.phone_number?.endsWith("9999999992") ||
           pending.phone_number?.endsWith("9999999993") ||
           pending.phone_number?.endsWith("8744412521") ||
-          pending.phone_number?.endsWith("9027924662")
+          pending.phone_number?.endsWith("9027924662") ||
+          pending.phone_number?.endsWith("7289043777")
         );
         const isTestOTP = String(otp).trim() === "123456" && isPermanentTestUser;
 
@@ -167,7 +168,8 @@ export async function POST(req) {
       user.phone_number?.includes("9999999992") ||
       user.phone_number?.includes("9999999993") ||
       user.phone_number?.includes("8744412521") ||
-      user.phone_number?.includes("9027924662")
+      user.phone_number?.includes("9027924662") ||
+      user.phone_number?.includes("7289043777")
     );
     const isTestOTP = String(otp).trim() === "123456" && isPermanentTestUser;
 
