@@ -55,6 +55,7 @@ import {
   Home,
 } from "lucide-react";
 import Papa from "papaparse";
+import Link from "next/link";
 
 // Terms and Conditions Modal Component
 function TermsModal({ isOpen, onClose, onAccept }) {
@@ -3040,6 +3041,13 @@ export default function LabsPage() {
                               </td>
                               <td className="px-4 py-3 text-right">
                                 <div className="flex items-center justify-end space-x-2">
+                                  <Link
+                                    href={`/admin/cms/lab-tests?lab_id=${lab.id}`}
+                                    className="p-2 text-[#0067A1] dark:text-sky-400 hover:text-[#004F7C] dark:hover:text-sky-300 hover:bg-[#0067A1]/10 rounded-lg transition-all duration-300 cursor-pointer"
+                                    title="View Lab Tests"
+                                  >
+                                    <Microscope size={18} />
+                                  </Link>
                                   <motion.button
                                     whileHover={{ scale: 1.1 }}
                                     whileTap={{ scale: 0.9 }}

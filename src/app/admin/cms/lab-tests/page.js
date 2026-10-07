@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react";
 import {
   Microscope, Plus, Search, Filter, Download, Upload,
   Edit2, Trash2, CheckCircle, XCircle, FileText, 
-  Activity, AlertTriangle, Database, RefreshCw
+  Activity, AlertTriangle, Database, RefreshCw,
+  Percent, Coins, ShieldAlert, Sparkles, Save
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Papa from "papaparse";
@@ -17,16 +18,23 @@ export default function LabTestsMasterPage() {
   const [processing, setProcessing] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
+  const [selectedLab, setSelectedLab] = useState("");
+  const [labsList, setLabsList] = useState([]);
+  const [selectedLabDetails, setSelectedLabDetails] = useState(null);
+  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0, activeTotal: 0 });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false);
+  const [commissionSettings, setCommissionSettings] = useState([]);
+  const [savingCommission, setSavingCommission] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
   const [currentTest, setCurrentTest] = useState(null);
   const [formData, setFormData] = useState({
     test_code: "",
     test_name: "",
-    category: "",
+    category: "Category 1",
+    mrp: "",
     sample_type: "",
     container: "",
     temp: "",
@@ -40,9 +48,58 @@ export default function LabTestsMasterPage() {
   const adminId = getLoggedInUser("admin")?.id;
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const labParam = params.get("lab_id");
+      if (labParam) {
+        setSelectedLab(labParam);
+      }
+      if (params.get("tab") === "commissions") {
+        setIsCommissionModalOpen(true);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     fetchLabTests();
     fetchCategories();
-  }, [pagination.page, categoryFilter]);
+    fetchCommissionSettings();
+  }, [pagination.page, categoryFilter, selectedLab]);
+
+  const fetchCommissionSettings = async () => {
+    try {
+      const res = await fetch("/api/admin/labs/commission-settings");
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setCommissionSettings(data.data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch commission settings");
+    }
+  };
+
+  const handleSaveCommission = async () => {
+    setSavingCommission(true);
+    try {
+      const res = await fetch("/api/admin/labs/commission-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: commissionSettings })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Commission settings updated successfully");
+        setIsCommissionModalOpen(false);
+        fetchLabTests();
+      } else {
+        toast.error(data.error || "Failed to update commission settings");
+      }
+    } catch (err) {
+      toast.error("Failed to save commission settings");
+    } finally {
+      setSavingCommission(false);
+    }
+  };
 
   const fetchCategories = async () => {
     try {
@@ -57,21 +114,29 @@ export default function LabTestsMasterPage() {
   const fetchLabTests = async () => {
     setLoading(true);
     try {
-      const query = new URLSearchParams({
+      const queryParams = {
         page: pagination.page,
         q: search,
         category: categoryFilter,
         limit: 10
-      }).toString();
+      };
+      if (selectedLab) queryParams.lab_id = selectedLab;
+
+      const query = new URLSearchParams(queryParams).toString();
 
       const res = await fetch(`/api/admin/lab-tests?${query}`);
       const data = await res.json();
       if (data.success) {
-        setLabTests(data.data);
+        setLabTests(data.data || []);
+        if (data.labs && Array.isArray(data.labs)) {
+          setLabsList(data.labs);
+        }
+        setSelectedLabDetails(data.selectedLab || null);
         setPagination(prev => ({ 
           ...prev, 
-          totalPages: data.pagination.totalPages,
-          total: data.pagination.total
+          totalPages: data.pagination?.totalPages || 1,
+          total: data.pagination?.total || 0,
+          activeTotal: data.pagination?.activeTotal !== undefined ? data.pagination.activeTotal : (data.pagination?.total || 0)
         }));
       }
     } catch (err) {
@@ -157,6 +222,8 @@ export default function LabTestsMasterPage() {
         test_code: t.test_code || "",
         test_name: t.test_name || "",
         category: t.category || "",
+        mrp: t.mrp !== undefined ? t.mrp : 0,
+        commission_percentage: t.commission_percentage !== undefined ? t.commission_percentage : 0,
         sample_type: t.sample_type || "",
         container: t.container || "",
         temp: t.temp || "",
@@ -181,6 +248,8 @@ export default function LabTestsMasterPage() {
       "test_code",
       "test_name",
       "category",
+      "mrp",
+      "commission_percentage",
       "sample_type",
       "container",
       "temp",
@@ -194,6 +263,8 @@ export default function LabTestsMasterPage() {
         "MGR0712",
         "Complete Blood Count (CBC)",
         "Category 1",
+        "350",
+        "50",
         "Whole blood EDTA",
         "Lavender top",
         "R",
@@ -206,6 +277,8 @@ export default function LabTestsMasterPage() {
         "MGR0381",
         "HbA1c",
         "Category 1",
+        "500",
+        "50",
         "Whole blood EDTA",
         "Lavender top",
         "R",
@@ -242,17 +315,19 @@ export default function LabTestsMasterPage() {
         const results = Papa.parse(event.target.result, { header: true, skipEmptyLines: true });
         const importedData = results.data.map((item, idx) => ({
           _id: idx, // temporary id for editing
-          test_code: (item.test_code || item.Test_Code || item.code || "").trim(),
-          test_name: (item.test_name || item.Test_Name || item.name || "").trim(),
-          category: (item.category || item.Category || "").trim(),
-          sample_type: (item.sample_type || item.Sample_Type || "").trim(),
+          test_code: (item.test_code || item.Test_Code || item['Test Code'] || item.code || "").trim(),
+          test_name: (item.test_name || item.Test_Name || item['Test Name'] || item.name || "").trim(),
+          category: (item.category || item.Category || "Category 1").trim(),
+          mrp: parseFloat(item.mrp || item.MRP || item.price || item.Price || 0) || 0,
+          commission_percentage: parseFloat(item.commission_percentage || item['Commission %'] || item.commission || 0) || 0,
+          sample_type: (item.sample_type || item.Sample_Type || item['Sample Type'] || "").trim(),
           container: (item.container || item.Container || "").trim(),
-          temp: (item.temp || item.Temp || "").trim(),
+          temp: (item.temp || item.Temp || item.temperature || item.Temperature || "").trim(),
           remarks: (item.remarks || item.Remarks || "").trim(),
           schedule: (item.schedule || item.Schedule || "").trim(),
-          reporting_schedule: (item.reporting_schedule || item.Reporting_Schedule || "").trim(),
+          reporting_schedule: (item.reporting_schedule || item.Reporting_Schedule || item['Reporting Schedule'] || "").trim(),
           instructions: (item.remarks || item.Remarks || item.instructions || item.Instructions || "").trim(),
-          is_active: String(item.is_active || item.Is_Active || "true").toLowerCase() === "true"
+          is_active: String(item.is_active || item.Is_Active || item.Active || item.active || "true").toLowerCase() === "true"
         })).filter(row => row.test_name);
 
         if (importedData.length === 0) {
@@ -325,6 +400,16 @@ export default function LabTestsMasterPage() {
 
         <div className="flex flex-wrap items-center gap-3">
           <button
+            onClick={() => {
+              fetchCommissionSettings();
+              setIsCommissionModalOpen(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-lg font-bold hover:brightness-110 transition-all shadow-md shadow-emerald-700/20"
+            title="Configure admin/system commission percentages per test category"
+          >
+            <Percent size={18} /> Commission Tiers
+          </button>
+          <button
             onClick={handleExport}
             className="flex items-center gap-2 px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-200 font-semibold hover:bg-gray-50 dark:hover:bg-gray-750 transition-all shadow-sm"
           >
@@ -342,7 +427,8 @@ export default function LabTestsMasterPage() {
               setFormData({
                 test_code: "",
                 test_name: "",
-                category: "",
+                category: "Category 1",
+                mrp: "",
                 sample_type: "",
                 container: "",
                 temp: "",
@@ -364,9 +450,24 @@ export default function LabTestsMasterPage() {
       {/* Stats Quick View */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: "Total Lab Tests", value: pagination.total, icon: Database, color: "blue" },
-          { label: "Lab Categories", value: categories.length, icon: Filter, color: "indigo" },
-          { label: "Active Tests", value: labTests.filter(t => t.is_active).length, icon: CheckCircle, color: "emerald" },
+          { 
+            label: selectedLabDetails ? `Total Tests (${selectedLabDetails.lab_name})` : "Total Lab Tests", 
+            value: pagination.total, 
+            icon: Database, 
+            color: "blue" 
+          },
+          { 
+            label: "Lab Categories", 
+            value: categories.length, 
+            icon: Filter, 
+            color: "indigo" 
+          },
+          { 
+            label: selectedLabDetails ? `Active Tests (${selectedLabDetails.lab_name})` : "Active Tests", 
+            value: pagination.activeTotal || pagination.total, 
+            icon: CheckCircle, 
+            color: "emerald" 
+          },
         ].map((stat, i) => (
           <div key={i} className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
             <div className="flex items-center justify-between">
@@ -396,24 +497,84 @@ export default function LabTestsMasterPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          {/* Lab Filter Dropdown */}
+          <select
+            value={selectedLab}
+            onChange={(e) => {
+              setSelectedLab(e.target.value);
+              setPagination(prev => ({ ...prev, page: 1 }));
+            }}
+            className="w-full md:w-64 py-2.5 px-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-[#0067A1]"
+          >
+            <option value="">All Labs (Master Catalog)</option>
+            {labsList.map(lab => (
+              <option key={lab.id} value={lab.id}>
+                🏥 {lab.lab_name}
+              </option>
+            ))}
+          </select>
+
+          {/* Category Filter Dropdown */}
           <select
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="w-full md:w-48 py-2.5 px-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-base font-semibold outline-none focus:ring-2 focus:ring-[#0067A1]"
+            onChange={(e) => {
+              setCategoryFilter(e.target.value);
+              setPagination(prev => ({ ...prev, page: 1 }));
+            }}
+            className="w-full md:w-56 py-2.5 px-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-[#0067A1]"
           >
-            <option value="">All Categories</option>
+            <option value="">All Tiers & Categories</option>
+            <option value="Category 1">Category 1 (50% Comm.)</option>
+            <option value="Category 2">Category 2 (40% Comm.)</option>
+            <option value="Category 3">Category 3 (30% Comm.)</option>
+            <option value="Category 4">Category 4 (5% Comm.)</option>
+            <option value="Package">Package (50% Comm.)</option>
             {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
 
           <button
             onClick={fetchLabTests}
             className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+            title="Refresh Tests"
           >
-            <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={20} className={loading ? "animate-spin text-[#0067A1]" : ""} />
           </button>
         </div>
       </div>
+
+      {/* Active Lab Partner Filter Banner */}
+      {selectedLabDetails && (
+        <div className="p-4 rounded-2xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-sky-500/10 text-[#0067A1] dark:text-sky-400 shrink-0">
+              <Microscope className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#0067A1] dark:text-sky-300">
+                  Viewing Tests For Lab Partner
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-[#0067A1] text-white">
+                  {pagination.total} Tests Configured
+                </span>
+              </div>
+              <p className="text-base font-bold text-gray-900 dark:text-white mt-0.5">
+                {selectedLabDetails.lab_name}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setSelectedLab("");
+              setPagination(prev => ({ ...prev, page: 1 }));
+            }}
+            className="px-4 py-2 rounded-xl text-xs font-bold text-[#0067A1] bg-white dark:bg-gray-800 hover:bg-sky-50 border border-[#0067A1]/20 transition-all shadow-sm shrink-0"
+          >
+            Reset to Master Catalog
+          </button>
+        </div>
+      )}
 
       {/* Main Table */}
       <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-xl overflow-hidden">
@@ -421,10 +582,11 @@ export default function LabTestsMasterPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700">
-                <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider w-16">S.No</th>
-                <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider w-32">Test Code</th>
+                <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider w-14">S.No</th>
+                <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider w-28">Test Code</th>
                 <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider">Test Name</th>
-                <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider">Category</th>
+                <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider w-24">MRP (₹)</th>
+                <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider w-36">Commission Tier</th>
                 <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider">Container</th>
                 <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider">Status</th>
                 <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider text-right">Actions</th>
@@ -434,12 +596,12 @@ export default function LabTestsMasterPage() {
               {loading ? (
                 [...Array(5)].map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td colSpan="7" className="px-6 py-8"><div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-full"></div></td>
+                    <td colSpan="8" className="px-6 py-8"><div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-full"></div></td>
                   </tr>
                 ))
               ) : labTests.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500 italic">No lab tests found</td>
+                  <td colSpan="8" className="px-6 py-12 text-center text-gray-500 italic">No lab tests found</td>
                 </tr>
               ) : (
                 labTests.map((test, index) => (
@@ -468,8 +630,23 @@ export default function LabTestsMasterPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold tracking-tight bg-blue-100 text-[#004F7C] dark:bg-blue-900/20 dark:text-blue-400">
-                        {test.category || "Uncategorized"}
+                      <span className="text-base font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                        ₹{test.mrp ? Number(test.mrp).toLocaleString('en-IN') : "0"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold tracking-tight ${
+                        test.category === "Category 1"
+                          ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                          : test.category === "Category 2"
+                          ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                          : test.category === "Category 3"
+                          ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
+                          : test.category === "Category 4"
+                          ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                          : "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300"
+                      }`} title="Internal commission tier — not visible to patients">
+                        {test.category || "Cat 1"} ({test.category === "Category 1" ? "50%" : test.category === "Category 2" ? "40%" : test.category === "Category 3" ? "30%" : test.category === "Category 4" ? "5%" : "50%"})
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -496,7 +673,8 @@ export default function LabTestsMasterPage() {
                             setFormData({ 
                               test_code: test.test_code || "",
                               test_name: test.test_name, 
-                              category: test.category || "", 
+                              category: test.category || "Category 1", 
+                              mrp: test.mrp || "",
                               sample_type: test.sample_type || "",
                               container: test.container || "",
                               temp: test.temp || "",
@@ -613,17 +791,35 @@ export default function LabTestsMasterPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-400 capitalize tracking-widest">Category</label>
+                  <label className="text-xs font-bold text-gray-400 capitalize tracking-widest">MRP / Price (₹) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={formData.mrp || ""}
+                    onChange={(e) => setFormData({ ...formData, mrp: e.target.value })}
+                    placeholder="e.g. 500"
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl outline-none focus:ring-2 focus:ring-[#0067A1] transition-all font-bold text-base text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 capitalize tracking-widest">Commission Tier (Admin Only) *</label>
                   <select
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl outline-none focus:ring-2 focus:ring-[#0067A1] transition-all font-bold text-base text-gray-900 dark:text-white"
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl outline-none focus:ring-2 focus:ring-[#0067A1] transition-all font-bold text-base text-gray-900 dark:text-white"
                   >
-                    <option value="">Select Category</option>
-                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    <option value="Category 1">Category 1 (50% Commission)</option>
+                    <option value="Category 2">Category 2 (40% Commission)</option>
+                    <option value="Category 3">Category 3 (30% Commission)</option>
+                    <option value="Category 4">Category 4 (5% Commission)</option>
+                    <option value="Package">Package (50% Commission)</option>
                   </select>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-400 capitalize tracking-widest">Sample Type</label>
                   <input
@@ -634,9 +830,7 @@ export default function LabTestsMasterPage() {
                     className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl outline-none focus:ring-2 focus:ring-[#0067A1] transition-all font-medium text-base text-gray-900 dark:text-white"
                   />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-400 capitalize tracking-widest">Container</label>
                   <input
@@ -914,6 +1108,91 @@ export default function LabTestsMasterPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Commission Configuration Modal */}
+      {isCommissionModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-700">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-emerald-500/10 to-teal-500/10">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-600 rounded-xl text-white shadow-md">
+                  <Percent size={22} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Admin Commission Tiers</h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Configure platform commission percentages</p>
+                </div>
+              </div>
+              <button onClick={() => setIsCommissionModalOpen(false)} className="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                <XCircle size={24} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl flex items-start gap-3">
+                <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed font-medium">
+                  <strong>Backend Calculation Only:</strong> These commission percentages are strictly used to compute system commission revenue and lab payout settlements. They are <strong>never</strong> displayed to patients or anywhere on the public-facing marketplace.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {commissionSettings.map((item, idx) => (
+                  <div key={item.id || item.category_key} className="flex items-center justify-between p-3.5 bg-gray-50 dark:bg-gray-900/50 rounded-2xl border border-gray-200 dark:border-gray-700 gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-900 dark:text-white">
+                          {item.category_label || item.category_key}
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 rounded-full font-mono">
+                          {item.category_key}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{item.description}</p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={item.commission_percentage}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setCommissionSettings(prev => {
+                            const copy = [...prev];
+                            copy[idx] = { ...copy[idx], commission_percentage: val };
+                            return copy;
+                          });
+                        }}
+                        className="w-20 px-3 py-2 text-center text-base font-bold bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-gray-900 dark:text-white font-mono"
+                      />
+                      <span className="text-sm font-bold text-gray-600 dark:text-gray-300">%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setIsCommissionModalOpen(false)}
+                className="px-5 py-2.5 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveCommission}
+                disabled={savingCommission}
+                className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-600/20 disabled:opacity-50 text-sm"
+              >
+                <Save size={16} /> {savingCommission ? "Saving..." : "Save Commission Rates"}
+              </button>
+            </div>
           </div>
         </div>
       )}

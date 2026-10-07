@@ -170,7 +170,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
       submenu: true,
       subItems: [
         { name: "All Labs", path: `/admin/labs` },
-        { name: "Lab Categories", path: `/admin/labs/categories` },
+        { name: "Commission Categories", path: `/admin/labs/categories` },
         { name: "Lab Tests Master", path: `/admin/cms/lab-tests` }
       ]
     },

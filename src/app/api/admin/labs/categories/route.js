@@ -1,5 +1,4 @@
 import sql from "@/lib/db";
-import { uploadToS3, deleteFromS3 } from "@/lib/s3";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -10,90 +9,102 @@ export async function OPTIONS() {
     return new Response("OK", { headers: corsHeaders });
 }
 
-// GET all categories
+// GET all internal commission categories with test counts and pricing stats
 export async function GET(req) {
     try {
         const data = await sql`
-            SELECT *
-            FROM lab_test_categories
-            ORDER BY created_at DESC
+            SELECT 
+                c.id,
+                c.name,
+                c.slug,
+                COALESCE(c.commission_percentage, 0)::numeric(5,2) as commission_percentage,
+                c.description,
+                c.status,
+                c.created_at,
+                c.updated_at,
+                COUNT(lt.id)::int as tests_count,
+                COALESCE(ROUND(AVG(lt.price::numeric), 2), 0) as avg_price,
+                COALESCE(ROUND(MIN(lt.price::numeric), 2), 0) as min_price,
+                COALESCE(ROUND(MAX(lt.price::numeric), 2), 0) as max_price
+            FROM lab_test_categories c
+            LEFT JOIN lab_tests lt ON lt.category_id = c.id
+            GROUP BY c.id, c.name, c.slug, c.commission_percentage, c.description, c.status, c.created_at, c.updated_at
+            ORDER BY 
+                CASE 
+                    WHEN c.name = 'Category 1' THEN 1
+                    WHEN c.name = 'Category 2' THEN 2
+                    WHEN c.name = 'Category 3' THEN 3
+                    WHEN c.name = 'Category 4' THEN 4
+                    ELSE 5
+                END ASC
         `;
 
-        return success("Categories fetched successfully", data, 200, { headers: corsHeaders });
+        return success("Commission categories fetched successfully", data, 200, { headers: corsHeaders });
     } catch (error) {
         console.error("Error fetching lab categories:", error);
         return failure("Failed to fetch categories", error.message, 500, { headers: corsHeaders });
     }
 }
 
-// POST create new category
-export async function POST(req) {
-    let uploadedPath = null;
+// PUT / POST update category commission percentage or details
+export async function PUT(req) {
     try {
-        const form = await req.formData();
-        const name = form.get("name");
-        const description = form.get("description");
-        const status = form.get("status") === "true";
-        const file = form.get("icon_file");
+        const body = await req.json().catch(() => ({}));
+        const { id, commission_percentage, description, status } = body;
 
-        let icon = form.get("icon") || "Microscope";
-
-        if (!name || !name.trim()) {
-            return failure("Category name is required", null, 400, { headers: corsHeaders });
+        if (!id) {
+            return failure("Category ID is required", null, 400, { headers: corsHeaders });
         }
 
-        // 1. Handle File Upload if present
-        if (file && file.size > 0 && file.name) {
-            const filename = `categories/cat_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-            const buffer = Buffer.from(await file.arrayBuffer());
-
-            let publicUrl;
-            try {
-                const { url } = await uploadToS3(buffer, `profile-pictures/${filename}`, "application/octet-stream");
-                publicUrl = url;
-            } catch (err) {
-                throw new Error("Failed to upload category image: " + err.message);
-            }
-
-            uploadedPath = filename;
-            icon = publicUrl;
+        const pct = parseFloat(commission_percentage);
+        if (isNaN(pct) || pct < 0 || pct > 100) {
+            return failure("Commission percentage must be between 0 and 100", null, 400, { headers: corsHeaders });
         }
 
-        // 2. Insert into DB
-        const cleanName = name.trim();
-        const slug = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+        // Update in lab_test_categories
+        const updated = await sql`
+            UPDATE lab_test_categories
+            SET 
+                commission_percentage = ${pct},
+                description = COALESCE(${description}, description),
+                status = COALESCE(${status}, status),
+                updated_at = NOW()
+            WHERE id = ${id}
+            RETURNING *
+        `;
 
-        try {
-            const rows = await sql`
-                INSERT INTO lab_test_categories (
-                    name, slug, description, icon, status, created_at, updated_at
-                ) VALUES (
-                    ${cleanName},
-                    ${slug},
-                    ${description || null},
-                    ${icon},
-                    ${status !== undefined ? status : true},
-                    NOW(),
-                    NOW()
-                )
-                RETURNING *
-            `;
-
-            return success("Category created successfully", rows[0], 201, { headers: corsHeaders });
-        } catch (dbErr) {
-            if (uploadedPath) {
-                await deleteFromS3(`profile-pictures/${uploadedPath}`);
-            }
-            if (dbErr.code === '23505') { // Unique violation
-                return failure("Category with this name already exists", dbErr.message, 409, { headers: corsHeaders });
-            }
-            throw dbErr;
+        if (!updated || updated.length === 0) {
+            return failure("Category not found", null, 404, { headers: corsHeaders });
         }
+
+        const cat = updated[0];
+
+        // Also sync with lab_commission_settings
+        let catKey = "category_1";
+        if (cat.name.includes("1")) catKey = "category_1";
+        else if (cat.name.includes("2")) catKey = "category_2";
+        else if (cat.name.includes("3")) catKey = "category_3";
+        else if (cat.name.includes("4")) catKey = "category_4";
+        else if (cat.name.toLowerCase().includes("package")) catKey = "package";
+
+        await sql`
+            UPDATE lab_commission_settings
+            SET 
+                commission_percentage = ${pct},
+                updated_at = NOW()
+            WHERE category_key = ${catKey}
+        `;
+
+        // Update lab_master commission_percentage for tests belonging to this category
+        await sql`
+            UPDATE lab_master
+            SET commission_percentage = ${pct}
+            WHERE category = ${cat.name}
+        `;
+
+        return success("Commission percentage updated successfully", cat, 200, { headers: corsHeaders });
     } catch (error) {
-        console.error("Error creating lab category:", error);
-        if (uploadedPath) {
-            await deleteFromS3(`profile-pictures/${uploadedPath}`);
-        }
-        return failure("Failed to create category", error.message, 500, { headers: corsHeaders });
+        console.error("Error updating category commission:", error);
+        return failure("Failed to update commission", error.message, 500, { headers: corsHeaders });
     }
 }

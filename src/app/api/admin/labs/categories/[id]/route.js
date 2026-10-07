@@ -1,5 +1,4 @@
 import sql from "@/lib/db";
-import { uploadToS3, deleteFromS3 } from "@/lib/s3";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -10,118 +9,75 @@ export async function OPTIONS() {
     return new Response("OK", { headers: corsHeaders });
 }
 
-// PUT update category
+// PUT update category commission percentage
 export async function PUT(req, { params }) {
-    let uploadedPath = null;
     try {
         const { id } = await params;
-
         if (!id) {
             return failure("Category ID is required", null, 400, { headers: corsHeaders });
         }
 
-        const form = await req.formData();
-        const name = form.get("name");
-        const description = form.get("description");
-        const status = form.has("status") ? form.get("status") === "true" : null;
-        const file = form.get("icon_file");
-
-        const updateData = { updated_at: new Date().toISOString() };
-
-        if (name) {
-            updateData.name = name.trim();
-            updateData.slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-        }
-        if (description !== null) updateData.description = description;
-        if (status !== null) updateData.status = status;
-
-        // Handle Image Upload if a new file is provided
-        if (file && file.size > 0 && file.name) {
-            const existingRows = await sql`
-                SELECT icon FROM lab_test_categories WHERE id = ${id} LIMIT 1
-            `;
-            const existingCat = existingRows[0];
-
-            if (existingCat?.icon && existingCat.icon.includes("/profile-pictures/categories/")) {
-                const oldPath = existingCat.icon.split("/profile-pictures/")[1];
-                await deleteFromS3(`profile-pictures/${oldPath}`);
-            }
-
-            const filename = `categories/cat_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-            const buffer = Buffer.from(await file.arrayBuffer());
-
-            let publicUrl;
-            try {
-                const { url } = await uploadToS3(buffer, `profile-pictures/${filename}`, "application/octet-stream");
-                publicUrl = url;
-            } catch (err) {
-                throw new Error("Failed to upload new category image: " + err.message);
-            }
-
-            uploadedPath = filename;
-            updateData.icon = publicUrl;
-        } else if (form.has("icon")) {
-            updateData.icon = form.get("icon");
+        let commission_percentage, description, status;
+        const contentType = req.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+            const body = await req.json();
+            commission_percentage = body.commission_percentage;
+            description = body.description;
+            status = body.status;
+        } else {
+            const form = await req.formData();
+            commission_percentage = form.get("commission_percentage");
+            description = form.get("description");
+            if (form.has("status")) status = form.get("status") === "true";
         }
 
-        try {
-            const updatedRows = await sql`
-                UPDATE lab_test_categories
-                SET ${sql(updateData)}
-                WHERE id = ${id}
-                RETURNING *
-            `;
-
-            if (!updatedRows || updatedRows.length === 0) {
-                return failure("Category not found", null, 404, { headers: corsHeaders });
-            }
-
-            return success("Category updated successfully", updatedRows[0], 200, { headers: corsHeaders });
-        } catch (dbErr) {
-            if (uploadedPath) {
-                await deleteFromS3(`profile-pictures/${uploadedPath}`);
-            }
-            if (dbErr.code === '23505') {
-                return failure("Category with this name already exists", dbErr.message, 409, { headers: corsHeaders });
-            }
-            throw dbErr;
-        }
-    } catch (error) {
-        console.error("Error updating lab category:", error);
-        if (uploadedPath) {
-            await deleteFromS3(`profile-pictures/${uploadedPath}`);
-        }
-        return failure("Failed to update category", error.message, 500, { headers: corsHeaders });
-    }
-}
-
-// DELETE category
-export async function DELETE(req, { params }) {
-    try {
-        const { id } = await params;
-
-        if (!id) {
-            return failure("Category ID is required", null, 400, { headers: corsHeaders });
+        const pct = parseFloat(commission_percentage);
+        if (isNaN(pct) || pct < 0 || pct > 100) {
+            return failure("Commission percentage must be between 0 and 100", null, 400, { headers: corsHeaders });
         }
 
-        // Attempt to delete image if exists
-        const existingRows = await sql`
-            SELECT icon FROM lab_test_categories WHERE id = ${id} LIMIT 1
+        const updatedRows = await sql`
+            UPDATE lab_test_categories
+            SET 
+                commission_percentage = ${pct},
+                description = COALESCE(${description}, description),
+                status = COALESCE(${status}, status),
+                updated_at = NOW()
+            WHERE id = ${id}
+            RETURNING *
         `;
-        const existingCat = existingRows[0];
 
-        if (existingCat?.icon && existingCat.icon.includes("/profile-pictures/categories/")) {
-            const oldPath = existingCat.icon.split("/profile-pictures/")[1];
-            await deleteFromS3(`profile-pictures/${oldPath}`);
+        if (!updatedRows || updatedRows.length === 0) {
+            return failure("Category not found", null, 404, { headers: corsHeaders });
         }
+
+        const cat = updatedRows[0];
+
+        // Sync with lab_commission_settings
+        let catKey = "category_1";
+        if (cat.name.includes("1")) catKey = "category_1";
+        else if (cat.name.includes("2")) catKey = "category_2";
+        else if (cat.name.includes("3")) catKey = "category_3";
+        else if (cat.name.includes("4")) catKey = "category_4";
+        else if (cat.name.toLowerCase().includes("package")) catKey = "package";
 
         await sql`
-            DELETE FROM lab_test_categories WHERE id = ${id}
+            UPDATE lab_commission_settings
+            SET 
+                commission_percentage = ${pct},
+                updated_at = NOW()
+            WHERE category_key = ${catKey}
         `;
 
-        return success("Category deleted successfully", null, 200, { headers: corsHeaders });
+        await sql`
+            UPDATE lab_master
+            SET commission_percentage = ${pct}
+            WHERE category = ${cat.name}
+        `;
+
+        return success("Category updated successfully", cat, 200, { headers: corsHeaders });
     } catch (error) {
-        console.error("Error deleting lab category:", error);
-        return failure("Failed to delete category", error.message, 500, { headers: corsHeaders });
+        console.error("Error updating lab category:", error);
+        return failure("Failed to update category", error.message, 500, { headers: corsHeaders });
     }
 }
