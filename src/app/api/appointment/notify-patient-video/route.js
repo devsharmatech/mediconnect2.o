@@ -1,5 +1,5 @@
 import sql from "@/lib/db";
-import { sendPushAndInAppNotification } from "@/lib/notifications";
+import { sendPushAndInAppNotification } from "@/lib/notificationHelper";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
