@@ -141,7 +141,11 @@ export default function PatientSidebar({
           href: "/lung-connect",
           icon: TbLungsFilled,
         },
-
+        {
+          name: "All Activities",
+          href: "/lung-activities",
+          icon: FaWalking,
+        },
         {
           name: "Respiratory Check",
           href: "/lung-assessment",

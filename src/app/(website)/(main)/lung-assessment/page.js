@@ -1014,45 +1014,6 @@ export default function GamifiedLungAssessment() {
                           unit="years"
                           subtitle="Total duration you have consumed cigarettes"
                         />
-
-                        {/* Clinical Exposure Calculation & Definitive Conclusion */}
-                        <div className="bg-white rounded-lg p-3 border border-sky-200/80 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-sky-50 text-[#0067A1] border border-sky-200">
-                              Calculated Exposure
-                            </span>
-                            <span className="text-slate-600 font-mono text-[11px]">
-                              ({formData.cigarettesPerDay || 10} sticks/day ÷ 20) × {formData.smokingYears || 5} yrs =
-                            </span>
-                            <span className="px-2 py-0.5 bg-[#0067A1] text-white font-mono font-bold rounded text-xs shadow-2xs">
-                              {formData.smokingPackYears || 2.5} Pack-Years
-                            </span>
-                          </div>
-                          <div>
-                            {(() => {
-                              const py = Number(formData.smokingPackYears) || 0;
-                              if (py < 10) {
-                                return (
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                    Light Cumulative Exposure (&lt;10 pk-yrs)
-                                  </span>
-                                );
-                              } else if (py < 20) {
-                                return (
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                    Moderate Cumulative Exposure (10–20 pk-yrs)
-                                  </span>
-                                );
-                              } else {
-                                return (
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                                    Significant Cumulative Exposure (&gt;20 pk-yrs)
-                                  </span>
-                                );
-                              }
-                            })()}
-                          </div>
-                        </div>
                       </div>
                     )}
                   </div>

@@ -5,7 +5,7 @@ import RealGpsMap from "../RealGpsMap";
 
 /**
  * AnimatedRouteTracker
- * Wraps RealGpsMap to provide authentic, real geographic map telemetry (OpenStreetMap / Leaflet)
+ * Wraps RealGpsMap to provide authentic, real geographic map telemetry (Google Maps)
  * across LungConnect Hub, LungMoveModal, WalkingTestModal, and Activity Detail screens.
  */
 export default function AnimatedRouteTracker({

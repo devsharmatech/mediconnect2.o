@@ -173,8 +173,16 @@ async function handleDispensingCopy({ order_id, chemist_id, format = "json" }) {
     // 8. Log activity
     try {
       await sql`
-        INSERT INTO activity_log (user_id, action, details, created_at)
-        VALUES (${chemist_id}, 'DISPENSING_COPY_ACCESSED', ${JSON.stringify({ order_id: order.id, is_payment_verified: isPaymentVerified })}, NOW())
+        INSERT INTO activity_log (patient_id, actor_id, module_type, action_type, description, metadata, created_at)
+        VALUES (
+          ${prescription.patient_id ? sql`${prescription.patient_id}::uuid` : null},
+          ${chemist_id ? sql`${chemist_id}::uuid` : null},
+          'pharmacy',
+          'DISPENSING_COPY_ACCESSED',
+          ${`Dispensing copy accessed for order ${order.id}`},
+          ${JSON.stringify({ order_id: order.id, is_payment_verified: isPaymentVerified })},
+          NOW()
+        );
       `;
     } catch {}
 

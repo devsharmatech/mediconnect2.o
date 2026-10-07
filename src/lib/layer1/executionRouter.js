@@ -5,7 +5,7 @@
  * Serves as the isolated router between the entry Control Layer and internal business logic.
  */
 
-import { supabase } from "../supabaseAdmin";
+import sql from "@/lib/db";
 import { createCareEpisode } from "./careEpisodeService";
 import { updateConsultationStatus } from "./consultationStateMachine";
 import { dispatchService } from "./serviceDispatcher";
@@ -91,11 +91,13 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
   }
 
   // Verify doctor fee
-  const { data: doctorDetails } = await supabase
-    .from("doctor_details")
-    .select("consultation_fee, meta, full_name")
-    .eq("id", doctor_id)
-    .single();
+  const doctorRows = await sql`
+    SELECT consultation_fee, meta, full_name
+    FROM doctor_details
+    WHERE id = ${doctor_id}
+    LIMIT 1
+  `;
+  const doctorDetails = doctorRows[0];
 
   const meta = doctorDetails?.meta || {};
   const fee = appointment_type === "video" || appointment_type === "video_consultation"
@@ -105,45 +107,64 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
       : (meta?.home_visit_fee ?? doctorDetails?.consultation_fee ?? 0);
 
   // Prevent duplicate booking for the same slot
-  const { data: existingAppt } = await supabase
-    .from("appointments")
-    .select("id")
-    .eq("doctor_id", doctor_id)
-    .eq("appointment_date", appointment_date)
-    .eq("appointment_time", appointment_time)
-    .neq("status", "cancelled")
-    .neq("status", "rejected")
-    .maybeSingle();
+  const existingAppts = await sql`
+    SELECT id FROM appointments
+    WHERE doctor_id = ${doctor_id}
+      AND appointment_date = ${appointment_date}::date
+      AND appointment_time = ${appointment_time}::time
+      AND status NOT IN ('cancelled', 'rejected')
+    LIMIT 1
+  `;
 
-  if (existingAppt) {
+  if (existingAppts.length > 0) {
     throw new Error("This appointment slot is already booked. Please choose a different time.");
   }
 
   // Insert appointment
-  const { data: appointment, error: insertErr } = await supabase
-    .from("appointments")
-    .insert([
-      {
-        doctor_id,
-        patient_id,
-        screening_id,
-        appointment_date,
-        appointment_time,
-        appointment_type: appointment_type || "clinic_visit",
-        disease_info,
-        razorpay_order_id: razorpay_order_id || null,
-        razorpay_payment_id: payment_id || null,
-        status: "booked",
-        payment_status: payment_id ? "paid" : (fee > 0 ? "pending" : "not_applicable"),
-        care_episode_id: careEpisodeId,
-        clinic_name: clinic_name || null,
-        clinic_address: clinic_address || null,
-      }
-    ])
-    .select()
-    .single();
+  const diseaseInfoVal = disease_info
+    ? (typeof disease_info === 'string' ? disease_info : JSON.stringify(disease_info))
+    : null;
 
-  if (insertErr) throw insertErr;
+  const apptRows = await sql`
+    INSERT INTO appointments (
+      doctor_id,
+      patient_id,
+      screening_id,
+      appointment_date,
+      appointment_time,
+      appointment_type,
+      disease_info,
+      razorpay_order_id,
+      razorpay_payment_id,
+      status,
+      payment_status,
+      care_episode_id,
+      clinic_name,
+      clinic_address,
+      created_at,
+      updated_at
+    ) VALUES (
+      ${doctor_id},
+      ${patient_id},
+      ${screening_id || null},
+      ${appointment_date}::date,
+      ${appointment_time}::time,
+      ${appointment_type || "clinic_visit"},
+      ${diseaseInfoVal},
+      ${razorpay_order_id || null},
+      ${payment_id || null},
+      'booked',
+      ${payment_id ? "paid" : (fee > 0 ? "pending" : "not_applicable")},
+      ${careEpisodeId},
+      ${clinic_name || null},
+      ${clinic_address || null},
+      NOW(),
+      NOW()
+    )
+    RETURNING *
+  `;
+  const appointment = apptRows[0];
+  if (!appointment) throw new Error("Failed to insert appointment into AWS RDS.");
 
   // Log consents FIRST so DPDP consent checks pass for notifications
   await logConsent({
@@ -165,21 +186,12 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
   // Dispatch In-App, FCM Push, and WhatsApp notifications
   (async () => {
     try {
-      const { data: patientUser } = await supabase
-        .from("users")
-        .select("phone_number")
-        .eq("id", patient_id)
-        .single();
+      const patientUsers = await sql`SELECT phone_number FROM users WHERE id = ${patient_id} LIMIT 1`;
+      const patientDetailsRows = await sql`SELECT full_name FROM patient_details WHERE id = ${patient_id} LIMIT 1`;
 
-      const { data: patientDetails } = await supabase
-        .from("patient_details")
-        .select("full_name")
-        .eq("id", patient_id)
-        .single();
-
-      const patientName = patientDetails?.full_name || "Patient";
+      const patientName = patientDetailsRows[0]?.full_name || "Patient";
       const doctorName = doctorDetails?.full_name || "Doctor";
-      const phoneNumber = patientUser?.phone_number;
+      const phoneNumber = patientUsers[0]?.phone_number;
 
       // 1. In-App & FCM Push Notification for Patient (Pending doctor approval)
       await sendPushAndInAppNotification({
@@ -205,7 +217,7 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
           phone_number: phoneNumber,
           recipient_name: patientName,
           status_type: "booked",
-          appointment_code: "MCAPT-" + appointment.id.slice(0, 8).toUpperCase(),
+          appointment_code: "MCAPT-" + String(appointment.id).slice(0, 8).toUpperCase(),
           patient_name: patientName,
           doctor_or_service: "Dr. " + doctorName,
           date: appointment_date,
@@ -220,24 +232,36 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
   })();
 
   // Initialize clinical consultation (STARTED)
-  const { data: consultation, error: consultErr } = await supabase
-    .from("consultations")
-    .insert({
-      appointment_id: appointment.id,
-      patient_id,
-      doctor_id,
-      care_episode_id: careEpisodeId,
-      case_status: "STARTED",
-      consultation_mode:
-        (appointment_type === "video_call" || appointment_type === "video_consultation" || appointment_type === "video")
-          ? "VIDEO"
-          : "IN_PERSON",
-      is_active: true
-    })
-    .select()
-    .single();
-
-  if (consultErr) throw consultErr;
+  let consultation = null;
+  try {
+    const consultRows = await sql`
+      INSERT INTO consultations (
+        appointment_id,
+        patient_id,
+        doctor_id,
+        care_episode_id,
+        case_status,
+        consultation_mode,
+        is_active,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${appointment.id},
+        ${patient_id},
+        ${doctor_id},
+        ${careEpisodeId},
+        'STARTED',
+        ${(appointment_type === "video_call" || appointment_type === "video_consultation" || appointment_type === "video") ? "VIDEO" : "IN_PERSON"},
+        true,
+        NOW(),
+        NOW()
+      )
+      RETURNING *
+    `;
+    consultation = consultRows[0] || null;
+  } catch (cErr) {
+    console.warn("[ROUTER] Consultation create note:", cErr.message);
+  }
 
   // Financial Ledger recording
   if (fee > 0) {
@@ -437,13 +461,11 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
     throw new Error("appointment_id and status are required");
   }
 
-  const { data: appointment, error } = await supabase
-    .from("appointments")
-    .select("*")
-    .eq("id", appointment_id)
-    .single();
-
-  if (error || !appointment) throw new Error("Appointment not found.");
+  const aptRows = await sql`
+    SELECT * FROM appointments WHERE id = ${appointment_id} LIMIT 1
+  `;
+  const appointment = aptRows[0];
+  if (!appointment) throw new Error("Appointment not found.");
 
   if (status === "approved" && appointment.appointment_date) {
     try {
@@ -468,14 +490,14 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
     }
   }
 
-  const { data: updated, error: updateErr } = await supabase
-    .from("appointments")
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq("id", appointment_id)
-    .select("*")
-    .single();
-
-  if (updateErr) throw new Error(`Update failed: ${updateErr.message}`);
+  const updatedRows = await sql`
+    UPDATE appointments
+    SET status = ${status}, updated_at = NOW()
+    WHERE id = ${appointment_id}
+    RETURNING *
+  `;
+  const updated = updatedRows[0];
+  if (!updated) throw new Error("Update failed.");
 
   // Dispatch in-app, push, and WhatsApp notifications asynchronously
   (async () => {
@@ -483,27 +505,13 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
       let whatsappStatusType = status;
       if (status === "approved") whatsappStatusType = "confirmed";
 
-      const { data: patientUser } = await supabase
-        .from("users")
-        .select("phone_number")
-        .eq("id", appointment.patient_id)
-        .single();
+      const patientUsers = await sql`SELECT phone_number FROM users WHERE id = ${appointment.patient_id} LIMIT 1`;
+      const patientDetails = await sql`SELECT full_name FROM patient_details WHERE id = ${appointment.patient_id} LIMIT 1`;
+      const doctorDetails = await sql`SELECT full_name FROM doctor_details WHERE id = ${appointment.doctor_id} LIMIT 1`;
 
-      const { data: patientDetails } = await supabase
-        .from("patient_details")
-        .select("full_name")
-        .eq("id", appointment.patient_id)
-        .single();
-
-      const { data: doctorDetails } = await supabase
-        .from("doctor_details")
-        .select("full_name")
-        .eq("id", appointment.doctor_id)
-        .single();
-
-      const patientName = patientDetails?.full_name || "Patient";
-      const doctorName = doctorDetails?.full_name || "Doctor";
-      const phoneNumber = patientUser?.phone_number;
+      const patientName = patientDetails[0]?.full_name || "Patient";
+      const doctorName = doctorDetails[0]?.full_name || "Doctor";
+      const phoneNumber = patientUsers[0]?.phone_number;
 
       // In-App & FCM Push Notification for Patient upon Doctor Decision
       if (status === "approved") {
@@ -529,7 +537,7 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
           phone_number: phoneNumber,
           recipient_name: patientName,
           status_type: whatsappStatusType,
-          appointment_code: "MCAPT-" + appointment.id.slice(0, 8).toUpperCase(),
+          appointment_code: "MCAPT-" + String(appointment.id).slice(0, 8).toUpperCase(),
           patient_name: patientName,
           doctor_or_service: "Dr. " + doctorName,
           date: appointment.appointment_date,
@@ -542,7 +550,6 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
       console.error("[NOTIFICATION ENGINE] Failed to send update status notification:", err.message);
     }
   })();
-
 
   // Audit log
   logAudit({
@@ -566,23 +573,11 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
     metadata: { previous_status: appointment.status, new_status: status },
   }).catch((err) => console.error("[Layer111] Activity log dropped:", err.message));
 
-  // Notification for patient
-  const { error: notifErr } = await supabase.from("notifications").insert({
-    user_id: appointment.patient_id,
-    title: `Appointment ${status === "approved" ? "Approved" : "Rejected"}`,
-    message: `Your appointment for ${appointment.appointment_date} at ${appointment.appointment_time} has been ${status}.`,
-    type: "appointment_status",
-    metadata: { appointment_id, status, by_user: actorId }
-  });
-  if (notifErr) {
-    console.error("[Layer111] Notification dropped:", notifErr.message);
-  }
-
   return updated;
 }
 
 /**
- * 7. RESCHEDULE_APPOINTMENT Action Router
+ * 7. RESCHEDULE_APPOINTMENT Action Router (Migrated to AWS RDS PostgreSQL)
  */
 async function executeRescheduleAppointment(payload, actorId) {
   const { appointment_id, new_date, new_time } = payload;
@@ -591,72 +586,52 @@ async function executeRescheduleAppointment(payload, actorId) {
     throw new Error("appointment_id, new_date, and new_time are required");
   }
 
-  const { data: appointment, error: fetchErr } = await supabase
-    .from("appointments")
-    .select("*")
-    .eq("id", appointment_id)
-    .single();
-
-  if (fetchErr || !appointment) throw new Error("Appointment not found.");
+  const appts = await sql`
+    SELECT * FROM appointments WHERE id = ${appointment_id} LIMIT 1
+  `;
+  const appointment = appts[0];
+  if (!appointment) throw new Error("Appointment not found.");
 
   // Check slot
-  const { data: slot, error: slotErr } = await supabase
-    .from("appointments")
-    .select("id")
-    .eq("doctor_id", appointment.doctor_id)
-    .eq("appointment_date", new_date)
-    .eq("appointment_time", new_time)
-    .in("status", ["booked", "approved"])
-    .maybeSingle();
+  const slots = await sql`
+    SELECT id FROM appointments
+    WHERE doctor_id = ${appointment.doctor_id}
+      AND appointment_date = ${new_date}
+      AND appointment_time = ${new_time}
+      AND status IN ('booked', 'approved')
+      AND id != ${appointment_id}
+    LIMIT 1
+  `;
+  if (slots.length > 0) throw new Error("This new slot is already booked.");
 
-  if (slotErr) throw new Error(`Slot check failed: ${slotErr.message}`);
-  if (slot) throw new Error("This new slot is already booked.");
-
-  const { data: updated, error: updateErr } = await supabase
-    .from("appointments")
-    .update({
-      appointment_date: new_date,
-      appointment_time: new_time,
-      updated_at: new Date().toISOString(),
-      status: "booked" // Reset to booked if rescheduled
-    })
-    .eq("id", appointment_id)
-    .select("*")
-    .single();
-
-  if (updateErr) throw new Error(`Reschedule failed: ${updateErr.message}`);
+  const updatedRows = await sql`
+    UPDATE appointments
+    SET appointment_date = ${new_date},
+        appointment_time = ${new_time},
+        status = 'booked',
+        updated_at = NOW()
+    WHERE id = ${appointment_id}
+    RETURNING *
+  `;
+  const updated = updatedRows[0];
 
   // Dispatch WhatsApp Rescheduled Template notification asynchronously
   (async () => {
     try {
-      const { data: patientUser } = await supabase
-        .from("users")
-        .select("phone_number")
-        .eq("id", appointment.patient_id)
-        .single();
+      const patientUsers = await sql`SELECT phone_number FROM users WHERE id = ${appointment.patient_id} LIMIT 1`;
+      const patientDetails = await sql`SELECT full_name FROM patient_details WHERE id = ${appointment.patient_id} LIMIT 1`;
+      const doctorDetails = await sql`SELECT full_name FROM doctor_details WHERE id = ${appointment.doctor_id} LIMIT 1`;
 
-      const { data: patientDetails } = await supabase
-        .from("patient_details")
-        .select("full_name")
-        .eq("id", appointment.patient_id)
-        .single();
-
-      const { data: doctorDetails } = await supabase
-        .from("doctor_details")
-        .select("full_name")
-        .eq("id", appointment.doctor_id)
-        .single();
-
-      const patientName = patientDetails?.full_name || "Patient";
-      const doctorName = doctorDetails?.full_name || "Doctor";
-      const phoneNumber = patientUser?.phone_number;
+      const patientName = patientDetails[0]?.full_name || "Patient";
+      const doctorName = doctorDetails[0]?.full_name || "Doctor";
+      const phoneNumber = patientUsers[0]?.phone_number;
 
       if (phoneNumber) {
         await sendAppointmentUpdateAlert({
           phone_number: phoneNumber,
           recipient_name: patientName,
           status_type: "rescheduled",
-          appointment_code: "MCAPT-" + appointment.id.slice(0, 8).toUpperCase(),
+          appointment_code: "MCAPT-" + String(appointment.id).slice(0, 8).toUpperCase(),
           patient_name: patientName,
           doctor_or_service: "Dr. " + doctorName,
           date: new_date,
@@ -670,47 +645,42 @@ async function executeRescheduleAppointment(payload, actorId) {
     }
   })();
 
-
-  const notifications = [
-    {
+  // In-app and push notifications for both doctor and patient
+  try {
+    await sendPushAndInAppNotification({
       user_id: appointment.doctor_id,
       title: "Appointment Rescheduled",
       message: `Appointment has been rescheduled to ${new_date} at ${new_time}.`,
       type: "appointment_reschedule",
       metadata: { appointment_id, new_date, new_time, by_user: actorId }
-    },
-    {
+    });
+    await sendPushAndInAppNotification({
       user_id: appointment.patient_id,
       title: "Appointment Rescheduled",
       message: `Your appointment has been moved to ${new_date} at ${new_time}.`,
       type: "appointment_reschedule",
       metadata: { appointment_id, new_date, new_time, by_user: actorId }
-    }
-  ];
-
-  const { error: notifErr2 } = await supabase.from("notifications").insert(notifications);
-  if (notifErr2) {
-    console.error("[Layer111] Notification dropped:", notifErr2.message);
+    });
+  } catch (notifErr) {
+    console.error("[Layer111] Reschedule notification dropped:", notifErr.message);
   }
 
   return updated;
 }
 
 /**
- * 8. CANCEL_APPOINTMENT Action Router
+ * 8. CANCEL_APPOINTMENT Action Router (Migrated to AWS RDS PostgreSQL)
  */
 async function executeCancelAppointment(payload, actorId) {
   const { appointment_id } = payload;
 
   if (!appointment_id) throw new Error("appointment_id is required");
 
-  const { data: appointment, error } = await supabase
-    .from("appointments")
-    .select("*")
-    .eq("id", appointment_id)
-    .single();
-
-  if (error || !appointment) throw new Error("Appointment not found.");
+  const appts = await sql`
+    SELECT * FROM appointments WHERE id = ${appointment_id} LIMIT 1
+  `;
+  const appointment = appts[0];
+  if (!appointment) throw new Error("Appointment not found.");
 
   if (![appointment.doctor_id, appointment.patient_id].includes(actorId)) {
     throw new Error("Permission denied to cancel this appointment.");
@@ -719,21 +689,16 @@ async function executeCancelAppointment(payload, actorId) {
   // Dispatch WhatsApp Cancelled Template notification asynchronously to BOTH patient and doctor
   (async () => {
     try {
-      const [
-        { data: patientUser },
-        { data: patientDetails },
-        { data: doctorUser },
-        { data: doctorDetails },
-      ] = await Promise.all([
-        supabase.from("users").select("phone_number").eq("id", appointment.patient_id).maybeSingle(),
-        supabase.from("patient_details").select("full_name").eq("id", appointment.patient_id).maybeSingle(),
-        supabase.from("users").select("phone_number").eq("id", appointment.doctor_id).maybeSingle(),
-        supabase.from("doctor_details").select("full_name").eq("id", appointment.doctor_id).maybeSingle(),
+      const [patientUser, patientDetails, doctorUser, doctorDetails] = await Promise.all([
+        sql`SELECT phone_number FROM users WHERE id = ${appointment.patient_id} LIMIT 1`,
+        sql`SELECT full_name FROM patient_details WHERE id = ${appointment.patient_id} LIMIT 1`,
+        sql`SELECT phone_number FROM users WHERE id = ${appointment.doctor_id} LIMIT 1`,
+        sql`SELECT full_name FROM doctor_details WHERE id = ${appointment.doctor_id} LIMIT 1`,
       ]);
 
-      const patientName = patientDetails?.full_name || "Patient";
-      const doctorName = doctorDetails?.full_name || "Doctor";
-      const appointmentCode = "MCAPT-" + appointment.id.slice(0, 8).toUpperCase();
+      const patientName = patientDetails[0]?.full_name || "Patient";
+      const doctorName = doctorDetails[0]?.full_name || "Doctor";
+      const appointmentCode = "MCAPT-" + String(appointment.id).slice(0, 8).toUpperCase();
       const locationOrMode =
         appointment.appointment_type === "video_call" ||
         appointment.appointment_type === "video_consultation" ||
@@ -744,9 +709,9 @@ async function executeCancelAppointment(payload, actorId) {
           : "Clinic Visit";
 
       // 1. Send WhatsApp message to Patient
-      if (patientUser?.phone_number) {
+      if (patientUser[0]?.phone_number) {
         await sendAppointmentUpdateAlert({
-          phone_number: patientUser.phone_number,
+          phone_number: patientUser[0].phone_number,
           recipient_name: patientName,
           status_type: "cancelled",
           appointment_code: appointmentCode,
@@ -760,9 +725,9 @@ async function executeCancelAppointment(payload, actorId) {
       }
 
       // 2. Send WhatsApp message to Doctor
-      if (doctorUser?.phone_number) {
+      if (doctorUser[0]?.phone_number) {
         await sendAppointmentUpdateAlert({
-          phone_number: doctorUser.phone_number,
+          phone_number: doctorUser[0].phone_number,
           recipient_name: "Dr. " + doctorName,
           status_type: "cancelled",
           appointment_code: appointmentCode,
@@ -779,54 +744,47 @@ async function executeCancelAppointment(payload, actorId) {
     }
   })();
 
-  const { data: updatedAppointment, error: updateErr } = await supabase
-    .from("appointments")
-    .update({
-      status: "cancelled",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", appointment_id)
-    .select()
-    .single();
+  const updatedRows = await sql`
+    UPDATE appointments
+    SET status = 'cancelled',
+        updated_at = NOW()
+    WHERE id = ${appointment_id}
+    RETURNING *
+  `;
+  const updatedAppointment = updatedRows[0];
 
-  if (updateErr) throw new Error(`Cancel failed: ${updateErr.message}`);
-
-  const notifications = [
-    {
+  try {
+    await sendPushAndInAppNotification({
       user_id: appointment.doctor_id,
       title: "Appointment Cancelled",
       message: `Appointment for ${appointment.appointment_date} at ${appointment.appointment_time} has been cancelled.`,
       type: "appointment_cancelled",
       metadata: { appointment_id, by_user: actorId }
-    },
-    {
+    });
+    await sendPushAndInAppNotification({
       user_id: appointment.patient_id,
       title: "Appointment Cancelled",
       message: `Your appointment for ${appointment.appointment_date} at ${appointment.appointment_time} has been cancelled.`,
       type: "appointment_cancelled",
       metadata: { appointment_id, by_user: actorId }
-    }
-  ];
-
-  const { error: notifErr3 } = await supabase.from("notifications").insert(notifications);
-  if (notifErr3) {
-    console.error("[Layer111] Notification dropped:", notifErr3.message);
+    });
+  } catch (notifErr) {
+    console.error("[Layer111] Cancel notification dropped:", notifErr.message);
   }
 
   // Note: if payment was made, could trigger outbox event for refund here
   if (appointment.payment_status === "paid") {
-    const { data: consultation } = await supabase
-      .from("consultations")
-      .select("id")
-      .eq("appointment_id", appointment_id)
-      .single();
+    const consultations = await sql`
+      SELECT id FROM consultations WHERE appointment_id = ${appointment_id} LIMIT 1
+    `;
+    const consultation = consultations[0];
 
     await insertOutboxEvent({
       event_type: "PAYMENT_REFUND_REQUESTED",
       consultation_id: consultation?.id || null,
       care_episode_id: appointment.care_episode_id,
       consultation_type: "SYSTEM_RECOVERY",
-      payload: { patient_id: appointment.patient_id, reason: "appointment_cancelled", amount: null } // Amount handled by refund engine lookup
+      payload: { patient_id: appointment.patient_id, reason: "appointment_cancelled", amount: null }
     });
   }
 

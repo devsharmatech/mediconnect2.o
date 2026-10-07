@@ -1,17 +1,13 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { 
   MapPin, 
   Navigation, 
   Layers, 
   ExternalLink, 
-  Maximize2, 
-  Compass, 
-  Activity, 
   ZoomIn, 
   ZoomOut,
-  RefreshCw
 } from "lucide-react";
 import { getSavedPatientLocation, savePatientLocation, reverseGeocodeCoords } from "@/lib/patientLocation";
 
@@ -19,6 +15,8 @@ import { getSavedPatientLocation, savePatientLocation, reverseGeocodeCoords } fr
 const CITY_COORDS = {
   "Bulandshahr, Uttar Pradesh": { lat: 28.4069, lng: 77.8498 },
   "Bulandshahr": { lat: 28.4069, lng: 77.8498 },
+  "Murtzabad Bhatwara, Uttar Pradesh": { lat: 28.2798, lng: 77.9073 },
+  "Murtzabad Bhatwara": { lat: 28.2798, lng: 77.9073 },
   "Delhi": { lat: 28.7041, lng: 77.1025 },
   "New Delhi, Delhi": { lat: 28.6139, lng: 77.2090 },
   "Bengaluru, Karnataka": { lat: 12.9716, lng: 77.5946 },
@@ -39,10 +37,12 @@ const CITY_COORDS = {
   "Gurugram, Haryana": { lat: 28.4595, lng: 77.0266 },
 };
 
+const GOOGLE_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+
 /**
  * RealGpsMap
- * A real, authentic geographic map powered by OpenStreetMap & Leaflet with real GPS coordinates,
- * live user pin, real polyline path tracking, layer switching, and Google Maps deep link.
+ * Authentic geographic map powered by Google Maps with real GPS coordinates,
+ * live user pin, polyline route tracking, Street/Satellite layers, and Google Maps deep link.
  */
 export default function RealGpsMap({
   coords = null,
@@ -56,16 +56,17 @@ export default function RealGpsMap({
   showControls = true,
 }) {
   const mapContainerRef = useRef(null);
-  const leafletMapRef = useRef(null);
-  const polylineRef = useRef(null);
+  const googleMapInstanceRef = useRef(null);
   const markerRef = useRef(null);
-  const [mapLayer, setMapLayer] = useState("streets"); // "streets" | "satellite" | "topo"
-  const [isLeafletReady, setIsLeafletReady] = useState(false);
+  const polylineRef = useRef(null);
+
+  const [mapLayer, setMapLayer] = useState("streets"); // "streets" (roadmap) | "satellite" (hybrid)
+  const [isGoogleReady, setIsGoogleReady] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(15);
   const [resolvedCityName, setResolvedCityName] = useState(locationName || "");
   const lastReverseGeocodeRef = useRef("");
 
-  // Determine effective coordinates: explicitly passed coords -> saved patient coords -> city lookup -> default
+  // Determine effective coordinates
   const savedPatientLoc = typeof window !== "undefined" ? getSavedPatientLocation() : null;
   const activeCityName = (resolvedCityName && resolvedCityName !== "Delhi" && resolvedCityName !== "Current Location")
     ? resolvedCityName
@@ -78,7 +79,7 @@ export default function RealGpsMap({
   const effectiveLat = coords?.lat ?? (points.length > 0 ? points[points.length - 1].lat : defaultCoord.lat);
   const effectiveLng = coords?.lng ?? (points.length > 0 ? points[points.length - 1].lng : defaultCoord.lng);
 
-  // Dynamic reverse-geocoding if coordinates are provided but location name is missing, generic, or Delhi
+  // Dynamic reverse-geocoding
   useEffect(() => {
     const hasCustomCoords = effectiveLat && effectiveLng && (Math.abs(effectiveLat - 28.7041) > 0.05 || Math.abs(effectiveLng - 77.1025) > 0.05);
 
@@ -125,226 +126,179 @@ export default function RealGpsMap({
     return () => window.removeEventListener("patient-location-updated", onLocationUpdated);
   }, []);
 
-  // Load Leaflet CSS and JS dynamically on the client
+  // Load Google Maps JavaScript API SDK dynamically
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    if (!document.getElementById("leaflet-css")) {
-      const link = document.createElement("link");
-      link.id = "leaflet-css";
-      link.rel = "stylesheet";
-      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      link.crossOrigin = "";
-      document.head.appendChild(link);
-    }
-
-    if (window.L) {
-      setIsLeafletReady(true);
+    if (window.google && window.google.maps) {
+      setIsGoogleReady(true);
       return;
     }
 
-    if (!document.getElementById("leaflet-js")) {
-      const script = document.createElement("script");
-      script.id = "leaflet-js";
-      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-      script.crossOrigin = "";
-      script.onload = () => setIsLeafletReady(true);
-      script.onerror = () => setIsLeafletReady(false);
+    if (!GOOGLE_API_KEY) {
+      return;
+    }
+
+    const scriptId = "google-maps-js-sdk";
+    let script = document.getElementById(scriptId);
+
+    if (!script) {
+      script = document.createElement("script");
+      script.id = scriptId;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&libraries=geometry`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => setIsGoogleReady(true);
+      script.onerror = () => setIsGoogleReady(false);
       document.head.appendChild(script);
     } else {
-      const existing = document.getElementById("leaflet-js");
-      existing.addEventListener("load", () => setIsLeafletReady(true));
+      script.addEventListener("load", () => setIsGoogleReady(true));
     }
   }, []);
 
-  // Initialize and update Leaflet Map
+  // Initialize and update Google Map instance
   useEffect(() => {
-    if (!isLeafletReady || !mapContainerRef.current || typeof window === "undefined" || !window.L) return;
+    if (!isGoogleReady || !mapContainerRef.current || typeof window === "undefined" || !window.google?.maps) return;
 
-    const L = window.L;
+    const maps = window.google.maps;
+    const center = { lat: effectiveLat, lng: effectiveLng };
 
-    // Tile Layer URLs
-    const tileLayers = {
-      streets: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      topo: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-    };
-
-    const tileAttributions = {
-      streets: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      satellite: "Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community",
-      topo: 'Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)',
-    };
-
-    // Initialize map instance if not already initialized
-    if (!leafletMapRef.current) {
-      const map = L.map(mapContainerRef.current, {
-        center: [effectiveLat, effectiveLng],
+    if (!googleMapInstanceRef.current) {
+      const map = new maps.Map(mapContainerRef.current, {
+        center,
         zoom: zoomLevel,
-        zoomControl: false, // Custom controls
-        attributionControl: false,
+        mapTypeId: mapLayer === "satellite" ? maps.MapTypeId.HYBRID : maps.MapTypeId.ROADMAP,
+        disableDefaultUI: true,
+        zoomControl: false,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        gestureHandling: "greedy",
       });
 
-      // Add default tile layer
-      const activeTile = L.tileLayer(tileLayers[mapLayer], {
-        maxZoom: 19,
-        attribution: tileAttributions[mapLayer],
-      }).addTo(map);
+      googleMapInstanceRef.current = map;
 
-      leafletMapRef.current = map;
-      leafletMapRef.current._activeTile = activeTile;
-
-      // Custom Pulsing User Location Beacon Marker
-      const customIcon = L.divIcon({
-        className: "custom-gps-pin",
-        html: `
-          <div style="position: relative; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;">
-            <div style="position: absolute; width: 24px; height: 24px; border-radius: 50%; background: rgba(2, 132, 199, 0.35); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-            <div style="width: 14px; height: 14px; border-radius: 50%; background: #0067A1; border: 2.5px solid #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.35);"></div>
-          </div>
-        `,
-        iconSize: [26, 26],
-        iconAnchor: [13, 13],
+      // Add User Location Marker
+      const marker = new maps.Marker({
+        position: center,
+        map,
+        title: resolvedCityName || locationName || "Live Location",
+        icon: {
+          path: maps.SymbolPath.CIRCLE,
+          scale: 9,
+          fillColor: "#0067A1",
+          fillOpacity: 1,
+          strokeWeight: 3,
+          strokeColor: "#ffffff",
+        },
       });
-
-      const marker = L.marker([effectiveLat, effectiveLng], { icon: customIcon }).addTo(map);
-      marker.bindPopup(`<b>${locationName}</b><br><span style="font-size: 11px; color: #64748b;">Live GPS Location: ${effectiveLat.toFixed(4)}°, ${effectiveLng.toFixed(4)}°</span>`);
       markerRef.current = marker;
     } else {
-      // Recenter existing map
-      const map = leafletMapRef.current;
-      map.setView([effectiveLat, effectiveLng], zoomLevel, { animate: true });
+      const map = googleMapInstanceRef.current;
+      map.setCenter(center);
+      map.setZoom(zoomLevel);
+      map.setMapTypeId(mapLayer === "satellite" ? maps.MapTypeId.HYBRID : maps.MapTypeId.ROADMAP);
 
       if (markerRef.current) {
-        markerRef.current.setLatLng([effectiveLat, effectiveLng]);
+        markerRef.current.setPosition(center);
       }
     }
 
-    // Update Tile Layer if changed
-    if (leafletMapRef.current && leafletMapRef.current._activeTile) {
-      leafletMapRef.current.removeLayer(leafletMapRef.current._activeTile);
-      const newTile = L.tileLayer(tileLayers[mapLayer], {
-        maxZoom: 19,
-        attribution: tileAttributions[mapLayer],
-      }).addTo(leafletMapRef.current);
-      leafletMapRef.current._activeTile = newTile;
-    }
-
-    // Draw Real GPS Route Polyline if points exist
-    if (points && points.length >= 2 && leafletMapRef.current) {
-      const latLngs = points.map((pt) => [pt.lat, pt.lng]);
-
+    // Polyline route if points are passed
+    if (points && points.length >= 2 && googleMapInstanceRef.current) {
+      const path = points.map((p) => ({ lat: p.lat, lng: p.lng }));
       if (polylineRef.current) {
-        polylineRef.current.setLatLngs(latLngs);
+        polylineRef.current.setPath(path);
       } else {
-        const polyline = L.polyline(latLngs, {
-          color: "#0067A1",
-          weight: 5,
-          opacity: 0.9,
-          lineJoin: "round",
-          lineCap: "round",
-        }).addTo(leafletMapRef.current);
+        const polyline = new maps.Polyline({
+          path,
+          geodesic: true,
+          strokeColor: "#0067A1",
+          strokeOpacity: 0.9,
+          strokeWeight: 4,
+          map: googleMapInstanceRef.current,
+        });
         polylineRef.current = polyline;
       }
 
-      // Auto-fit bounds of tracked points
-      try {
-        leafletMapRef.current.fitBounds(polylineRef.current.getBounds(), {
-          padding: [25, 25],
-          maxZoom: 17,
-        });
-      } catch (_) {}
+      // Auto-fit bounds
+      const bounds = new maps.LatLngBounds();
+      points.forEach((p) => bounds.extend(p));
+      googleMapInstanceRef.current.fitBounds(bounds);
     }
+  }, [isGoogleReady, effectiveLat, effectiveLng, zoomLevel, mapLayer, points, resolvedCityName, locationName]);
 
-    // Cleanup on unmount
-    return () => {
-      // Map instance is kept until unmount
-    };
-  }, [isLeafletReady, effectiveLat, effectiveLng, mapLayer, points]);
-
-  // Clean destruction on unmount
-  useEffect(() => {
-    return () => {
-      if (leafletMapRef.current) {
-        leafletMapRef.current.remove();
-        leafletMapRef.current = null;
-      }
-    };
+  // Handle Layer Toggle
+  const toggleLayer = useCallback((layer) => {
+    setMapLayer(layer);
+    if (googleMapInstanceRef.current && window.google?.maps) {
+      const type = layer === "satellite" ? window.google.maps.MapTypeId.HYBRID : window.google.maps.MapTypeId.ROADMAP;
+      googleMapInstanceRef.current.setMapTypeId(type);
+    }
   }, []);
 
-  // Zoom helpers
-  const handleZoomIn = () => {
-    if (leafletMapRef.current) {
-      leafletMapRef.current.zoomIn();
-      setZoomLevel(leafletMapRef.current.getZoom());
+  // Zoom and Recenter handlers
+  const handleZoomIn = useCallback(() => {
+    const next = Math.min(zoomLevel + 1, 19);
+    setZoomLevel(next);
+    if (googleMapInstanceRef.current) {
+      googleMapInstanceRef.current.setZoom(next);
     }
-  };
+  }, [zoomLevel]);
 
-  const handleZoomOut = () => {
-    if (leafletMapRef.current) {
-      leafletMapRef.current.zoomOut();
-      setZoomLevel(leafletMapRef.current.getZoom());
+  const handleZoomOut = useCallback(() => {
+    const next = Math.max(zoomLevel - 1, 6);
+    setZoomLevel(next);
+    if (googleMapInstanceRef.current) {
+      googleMapInstanceRef.current.setZoom(next);
     }
-  };
+  }, [zoomLevel]);
 
-  const handleRecenter = () => {
-    if (leafletMapRef.current) {
-      leafletMapRef.current.setView([effectiveLat, effectiveLng], 15, { animate: true });
-      if (markerRef.current) {
-        markerRef.current.openPopup();
-      }
+  const handleRecenter = useCallback(() => {
+    setZoomLevel(15);
+    if (googleMapInstanceRef.current) {
+      googleMapInstanceRef.current.setCenter({ lat: effectiveLat, lng: effectiveLng });
+      googleMapInstanceRef.current.setZoom(15);
     }
-  };
+  }, [effectiveLat, effectiveLng]);
 
-  // Open Google Maps external link
-  const googleMapsUrl = `https://www.google.com/maps?q=${effectiveLat},${effectiveLng}`;
-  const osmUrl = `https://www.openstreetmap.org/?mlat=${effectiveLat}&mlon=${effectiveLng}#map=16/${effectiveLat}/${effectiveLng}`;
-
-  // Clean display of city and state
-  const [primaryCityName, subRegionName] = (activeCityName || "Current Location").split(",").map(s => s.trim());
+  const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${effectiveLat},${effectiveLng}`;
+  const embedIframeUrl = GOOGLE_API_KEY
+    ? `https://www.google.com/maps/embed/v1/view?key=${GOOGLE_API_KEY}&center=${effectiveLat},${effectiveLng}&zoom=${zoomLevel}&maptype=${mapLayer === "satellite" ? "satellite" : "roadmap"}`
+    : `https://maps.google.com/maps?q=${effectiveLat},${effectiveLng}&z=${zoomLevel}&t=${mapLayer === "satellite" ? "k" : "m"}&output=embed`;
 
   return (
-    <div className={`relative overflow-hidden rounded-[5px] border border-slate-200 bg-slate-100 shadow-xs flex flex-col ${className}`}>
-      {/* Top Telemetry Header Bar - Double-Line Clean Responsive Layout */}
-      <div className="px-3 py-1.5 bg-white/95 backdrop-blur-xs border-b border-slate-200 flex flex-col gap-1 shrink-0 z-20">
-        {/* Line 1: Location & Map Controls */}
+    <div className={`relative rounded-[5px] overflow-hidden border border-slate-200 bg-white shadow-xs ${className}`}>
+      {/* Map Control Header Bar */}
+      <div className="bg-white/95 backdrop-blur-xs border-b border-slate-200 px-3 py-2 text-xs flex flex-col gap-1.5 z-20 relative">
+        {/* Line 1: Location & Layer Controls */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             <MapPin className="w-3.5 h-3.5 text-[#0067A1] shrink-0" />
-            <span className="text-[11px] sm:text-xs font-bold text-slate-900 truncate">
-              {primaryCityName}
+            <span className="font-bold text-slate-900 truncate text-[11px] sm:text-xs">
+              {resolvedCityName || locationName || "Live Location"}
             </span>
-            {subRegionName && (
-              <span className="text-[10px] text-slate-500 font-normal truncate">
-                ({subRegionName})
-              </span>
-            )}
           </div>
 
-          {/* Layer Selector & External Maps Link */}
-          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-            <div className="flex items-center rounded-[4px] border border-slate-200 p-0.5 bg-slate-100 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Street / Satellite Toggle */}
+            <div className="inline-flex rounded-[4px] border border-slate-200 bg-slate-50 p-0.5 text-[10px] font-semibold">
               <button
                 type="button"
-                onClick={() => setMapLayer("streets")}
-                className={`px-1.5 py-0.5 text-[9px] font-semibold rounded-[3px] transition-colors cursor-pointer ${
-                  mapLayer === "streets" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                onClick={() => toggleLayer("streets")}
+                className={`px-1.5 py-0.5 rounded-[3px] transition-colors cursor-pointer ${
+                  mapLayer === "streets" ? "bg-white text-slate-950 shadow-2xs font-bold" : "text-slate-600 hover:text-slate-950"
                 }`}
-                title="Street View"
               >
                 Street
               </button>
               <button
                 type="button"
-                onClick={() => setMapLayer("satellite")}
-                className={`px-1.5 py-0.5 text-[9px] font-semibold rounded-[3px] transition-colors cursor-pointer ${
-                  mapLayer === "satellite" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-600 hover:text-slate-900"
+                onClick={() => toggleLayer("satellite")}
+                className={`px-1.5 py-0.5 rounded-[3px] transition-colors cursor-pointer ${
+                  mapLayer === "satellite" ? "bg-white text-slate-950 shadow-2xs font-bold" : "text-slate-600 hover:text-slate-950"
                 }`}
-                title="Satellite Aerial View"
               >
                 Satellite
               </button>
@@ -385,30 +339,34 @@ export default function RealGpsMap({
                 </span>
               </div>
             ) : (
-              <span className="text-[9px] text-slate-400 font-medium">Leaflet OSM</span>
+              <span className="inline-flex items-center gap-1 text-[9px] text-slate-600 font-semibold bg-slate-100 px-1.5 py-0.5 rounded-[3px] border border-slate-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                Google Maps
+              </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* Main Map Body: Leaflet Interactive Container with Iframe Fallback */}
-      <div className={`relative w-full ${height} bg-slate-200 z-10`}>
-        {/* Leaflet Dynamic Container */}
+      {/* Main Map Body: Google Maps Interactive Container with Instant Google Embed Fallback */}
+      <div className={`relative w-full ${height} bg-slate-100 z-10`}>
+        {/* Google Maps JS SDK Container */}
         <div ref={mapContainerRef} className="w-full h-full" style={{ minHeight: "160px" }} />
 
-        {/* Fallback OpenStreetMap Embed if script is loading or offline */}
-        {!isLeafletReady && (
+        {/* Instant Google Maps Iframe if JS SDK is initializing or offline */}
+        {!isGoogleReady && (
           <iframe
-            title={`Real Map of ${locationName}`}
-            src={`https://www.openstreetmap.org/export/embed.html?bbox=${effectiveLng - 0.015}%2C${effectiveLat - 0.01}%2C${effectiveLng + 0.015}%2C${effectiveLat + 0.01}&layer=mapnik&marker=${effectiveLat}%2C${effectiveLng}`}
+            title={`Google Map of ${resolvedCityName || locationName || "Location"}`}
+            src={embedIframeUrl}
             className="absolute inset-0 w-full h-full border-0 pointer-events-auto"
             loading="lazy"
+            allowFullScreen
           />
         )}
 
         {/* Floating In-Map Interactive Controls */}
         {showControls && (
-          <div className="absolute right-3 top-3 z-[400] flex flex-col gap-1 bg-white/95 backdrop-blur-xs rounded-[5px] shadow-md border border-slate-200 p-1">
+          <div className="absolute right-3 top-3 z-[10] flex flex-col gap-1 bg-white/95 backdrop-blur-xs rounded-[5px] shadow-md border border-slate-200 p-1">
             <button
               type="button"
               onClick={handleZoomIn}
@@ -437,9 +395,9 @@ export default function RealGpsMap({
         )}
 
         {/* Floating Bottom Badge */}
-        <div className="absolute bottom-2 left-2 z-[400] bg-slate-900/80 backdrop-blur-xs text-white px-2 py-1 rounded-[4px] text-[10px] font-medium flex items-center gap-1.5 shadow-sm">
+        <div className="absolute bottom-2 left-2 z-[10] bg-slate-900/85 backdrop-blur-xs text-white px-2 py-1 rounded-[4px] text-[10px] font-medium flex items-center gap-1.5 shadow-sm">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Real OpenStreetMap Telemetry • {activity} Mode</span>
+          <span>Google Maps Telemetry • {activity} Mode</span>
         </div>
       </div>
     </div>

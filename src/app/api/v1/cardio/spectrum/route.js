@@ -91,16 +91,16 @@ export async function GET(req) {
       }
     }
 
-    // Query real logged movement/steps from activity_log if available
+    // Query real logged movement/steps from lung_activity_sessions if available
     let latestActivitySteps = null;
     if (userId) {
       try {
         const stepRows = await sql`
-          SELECT steps FROM activity_log
-          WHERE (user_id = ${userId} OR patient_id = ${userId}) AND steps > 0
+          SELECT steps FROM lung_activity_sessions
+          WHERE user_id = ${String(userId)} AND steps > 0
           ORDER BY created_at DESC
           LIMIT 1;
-        `;
+        `.catch(() => []);
         if (stepRows && stepRows.length > 0) {
           latestActivitySteps = Number(stepRows[0].steps);
         }

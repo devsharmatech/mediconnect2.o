@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import sql from "@/lib/db";
@@ -10,7 +13,10 @@ export async function OPTIONS() {
 const INDIAN_CITIES = {
   "delhi": { lat: 28.7041, lng: 77.1025, name: "Delhi, India" },
   "new delhi": { lat: 28.6139, lng: 77.2090, name: "New Delhi, India" },
+  "delhi ncr": { lat: 28.6139, lng: 77.2090, name: "Delhi NCR, India" },
+  "ncr": { lat: 28.6139, lng: 77.2090, name: "Delhi NCR, India" },
   "bulandshahr": { lat: 28.4069, lng: 77.8498, name: "Bulandshahr, Uttar Pradesh" },
+  "murtzabad bhatwara": { lat: 28.4069, lng: 77.8498, name: "Murtzabad Bhatwara, Uttar Pradesh" },
   "noida": { lat: 28.5355, lng: 77.3910, name: "Noida, Uttar Pradesh" },
   "greater noida": { lat: 28.4744, lng: 77.5040, name: "Greater Noida, Uttar Pradesh" },
   "ghaziabad": { lat: 28.6692, lng: 77.4538, name: "Ghaziabad, Uttar Pradesh" },
@@ -149,11 +155,21 @@ export async function GET(req) {
 
     // 1. If NOT GPS mode and a city was chosen, ALWAYS prioritize that city's coordinates:
     if (!isGps && resolvedLocation) {
-      const lower = resolvedLocation.toLowerCase().split(",")[0].trim();
-      if (INDIAN_CITIES[lower]) {
-        lat = INDIAN_CITIES[lower].lat;
-        lng = INDIAN_CITIES[lower].lng;
-        resolvedLocation = INDIAN_CITIES[lower].name;
+      const lower = resolvedLocation.toLowerCase().trim();
+      const firstWord = lower.split(",")[0].trim();
+      let match = INDIAN_CITIES[lower] || INDIAN_CITIES[firstWord];
+      if (!match) {
+        for (const [k, v] of Object.entries(INDIAN_CITIES)) {
+          if (lower.includes(k) || k.includes(firstWord)) {
+            match = v;
+            break;
+          }
+        }
+      }
+      if (match) {
+        lat = match.lat;
+        lng = match.lng;
+        resolvedLocation = match.name;
       } else {
         const resolved = await resolveCityCoords(resolvedLocation);
         if (resolved) {
@@ -164,11 +180,21 @@ export async function GET(req) {
       }
     } else if ((lat === null || lng === null || isNaN(lat) || isNaN(lng)) && resolvedLocation) {
       // Lat/lng missing, lookup in dictionary or geocode
-      const lower = resolvedLocation.toLowerCase().split(",")[0].trim();
-      if (INDIAN_CITIES[lower]) {
-        lat = INDIAN_CITIES[lower].lat;
-        lng = INDIAN_CITIES[lower].lng;
-        resolvedLocation = INDIAN_CITIES[lower].name;
+      const lower = resolvedLocation.toLowerCase().trim();
+      const firstWord = lower.split(",")[0].trim();
+      let match = INDIAN_CITIES[lower] || INDIAN_CITIES[firstWord];
+      if (!match) {
+        for (const [k, v] of Object.entries(INDIAN_CITIES)) {
+          if (lower.includes(k) || k.includes(firstWord)) {
+            match = v;
+            break;
+          }
+        }
+      }
+      if (match) {
+        lat = match.lat;
+        lng = match.lng;
+        resolvedLocation = match.name;
       } else {
         const resolved = await resolveCityCoords(resolvedLocation);
         if (resolved) {
@@ -315,8 +341,9 @@ export async function GET(req) {
 
     const payload = {
       screen_id: "CC-13",
+      aqi: aqiVal,
       aqi_value: aqiVal,
-      standard: "CPCB NAQI (India)",
+      standard: apiSource,
       unit: "AQI",
       category: catInfo.category,
       description: catInfo.description,
@@ -336,13 +363,23 @@ export async function GET(req) {
       clinical_interpretation: false,
     };
 
+    const responseHeaders = {
+      ...corsHeaders,
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    };
+
     return success("Real AQI & environmental telemetry loaded and saved to DB.", payload, 200, {
-      headers: corsHeaders,
+      headers: responseHeaders,
     });
   } catch (err) {
     console.error("GET /api/v1/cardio/aqi error:", err);
     return failure("Failed to fetch AQI context: " + err.message, "aqi_fetch_failed", 500, {
-      headers: corsHeaders,
+      headers: {
+        ...corsHeaders,
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
     });
   }
 }

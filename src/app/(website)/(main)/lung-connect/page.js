@@ -1728,7 +1728,7 @@ function LungConnectHubContent() {
                         </span>
                       </div>
                       <div className="text-xl sm:text-2xl font-bold font-mono text-slate-900">
-                        Baseline Recorded
+                        {progressData?.previous_assessment?.is_baseline ? "Baseline Recorded" : "Assessment Recorded"}
                       </div>
                     </div>
                   </div>
@@ -2006,52 +2006,67 @@ function LungConnectHubContent() {
                 );
               })()}
 
-              {/* Activity List (Chronological Latest First) */}
+              {/* Activity List (Chronological Latest 5 First) */}
               <div className="space-y-2 pt-2">
                 {recentActivities.length > 0 ? (
-                  recentActivities.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => setSelectedActivityDetail(item)}
-                      className="flex items-center justify-between p-3 rounded-[5px] border border-slate-200 hover:border-blue-300 bg-white hover:bg-slate-50/50 transition-all cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-[5px] flex items-center justify-center font-bold text-xs ${
-                          item.activity_type === "breathing" || item.activity_type === "lung_breathing"
-                            ? "bg-blue-50 text-[#0067A1] border border-blue-200"
-                            : item.activity_type === "run" || item.activity_type === "lung_run"
-                            ? "bg-purple-50 text-purple-700 border border-purple-200"
-                            : item.activity_type === "jog" || item.activity_type === "lung_jog"
-                            ? "bg-amber-50 text-amber-700 border border-amber-200"
-                            : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                        }`}>
-                          {item.activity_type === "breathing" || item.activity_type === "lung_breathing" ? (
-                            <Wind className="w-4 h-4" />
-                          ) : (
-                            <Footprints className="w-4 h-4" />
-                          )}
+                  <>
+                    {recentActivities.slice(0, 5).map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => setSelectedActivityDetail(item)}
+                        className="flex items-center justify-between p-3 rounded-[5px] border border-slate-200 hover:border-blue-300 bg-white hover:bg-slate-50/50 transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-[5px] flex items-center justify-center font-bold text-xs ${
+                            item.activity_type === "breathing" || item.activity_type === "lung_breathing"
+                              ? "bg-blue-50 text-[#0067A1] border border-blue-200"
+                              : item.activity_type === "run" || item.activity_type === "lung_run"
+                              ? "bg-purple-50 text-purple-700 border border-purple-200"
+                              : item.activity_type === "jog" || item.activity_type === "lung_jog"
+                              ? "bg-amber-50 text-amber-700 border border-amber-200"
+                              : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          }`}>
+                            {item.activity_type === "breathing" || item.activity_type === "lung_breathing" ? (
+                              <Wind className="w-4 h-4" />
+                            ) : (
+                              <Footprints className="w-4 h-4" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-950 capitalize">
+                              {item.title || item.activity_type?.replace("lung_", "")}
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium">
+                              {formatReadableDateTime(item.created_at)}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-xs font-bold text-slate-950 capitalize">
-                            {item.title || item.activity_type?.replace("lung_", "")}
-                          </div>
-                          <div className="text-[11px] text-slate-500 font-medium">
-                            {formatReadableDateTime(item.created_at)}
-                          </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-bold text-slate-900">
+                            {item.duration_seconds
+                              ? item.duration_seconds < 60
+                                ? `${item.duration_seconds}s`
+                                : `${Math.round(item.duration_seconds / 60)} min`
+                              : "—"}
+                          </span>
+                          <ChevronRight className="w-4 h-4 text-slate-800" />
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold text-slate-900">
-                          {item.duration_seconds
-                            ? item.duration_seconds < 60
-                              ? `${item.duration_seconds}s`
-                              : `${Math.round(item.duration_seconds / 60)} min`
-                            : "—"}
-                        </span>
-                        <ChevronRight className="w-4 h-4 text-slate-800" />
+                    ))}
+
+                    {/* View More Button with Pagination & Date Filters */}
+                    {recentActivities.length > 5 && (
+                      <div className="pt-2 text-center">
+                        <Link
+                          href="/lung-activities"
+                          className="w-full inline-flex items-center justify-center gap-2 bg-[#003358] hover:bg-[#00223d] text-white py-2.5 px-4 rounded-[5px] text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                        >
+                          <span>View More Activities ({recentActivities.length} Total • Date Filters & Pagination)</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </Link>
                       </div>
-                    </div>
-                  ))
+                    )}
+                  </>
                 ) : (
                   <div className="p-6 text-center border border-dashed border-slate-200 rounded-[5px] bg-slate-50/60">
                     <Footprints className="w-8 h-8 text-slate-300 mx-auto mb-2" />
@@ -2561,6 +2576,7 @@ function LungConnectHubContent() {
                     category={envData?.aqi_category || "Moderate"}
                     location={envData?.aqi_location || selectedCity}
                     lastUpdated={formatReadableDateTime(envData?.aqi_last_updated || new Date())}
+                    standard={envData?.standard || envData?.aqi_source || "Google Air Quality API (NAQI)"}
                     onInfoClick={() => setShowAqiSourceModal(true)}
                   />
 
@@ -2671,13 +2687,20 @@ function LungConnectHubContent() {
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-200">
                     <span className="text-slate-800 font-semibold">Air Quality:</span>
-                    <span className="font-bold text-emerald-800">
-                      {isEnvLoading && !envData ? (
-                        <span className="text-slate-500 animate-pulse font-normal">Confirming live Google AQI...</span>
-                      ) : (
-                        `${envData?.aqi_category || "Moderate"} (AQI ${envData?.aqi ?? "--"})`
+                    <div className="text-right">
+                      <span className="font-bold text-emerald-800">
+                        {isEnvLoading && !envData ? (
+                          <span className="text-slate-500 animate-pulse font-normal">Confirming live Google AQI...</span>
+                        ) : (
+                          `${envData?.aqi_category || "Moderate"} (AQI ${envData?.aqi ?? "--"})`
+                        )}
+                      </span>
+                      {envData?.aqi_source && (
+                        <span className="block text-[9.5px] font-medium text-slate-500">
+                          {envData.aqi_source}
+                        </span>
                       )}
-                    </span>
+                    </div>
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-200">
                     <span className="text-slate-800 font-semibold">Weather:</span>
@@ -2694,7 +2717,7 @@ function LungConnectHubContent() {
                     <span className="font-bold text-slate-950">{envData?.aqi_location || selectedCity}</span>
                   </div>
 
-                  {/* Real Geographic Map for Selected Activity (OpenStreetMap / Leaflet) */}
+                  {/* Real Geographic Map for Selected Activity (Google Maps) */}
                   <RealGpsMap
                     coords={userCoords}
                     locationName={envData?.aqi_location || selectedCity}
@@ -3466,7 +3489,7 @@ function LungConnectHubContent() {
                         </div>
                       </div>
 
-                      {/* Real GPS Geographic Route (OpenStreetMap / Leaflet) */}
+                      {/* Real GPS Geographic Route (Google Maps) */}
                       <RealGpsMap
                         isLiveTracking={false}
                         distanceKm={distanceLabel !== "—" ? distanceLabel : "0 km"}
@@ -3775,7 +3798,7 @@ function LungConnectHubContent() {
                     </span>
                   </div>
                   <p className="text-slate-800 text-[11px] leading-relaxed">
-                    Data is ingested from CPCB (Central Pollution Control Board, India) official ambient air quality monitoring stations and OpenAQ / IQAir aggregated telemetry feeds.
+                    Data is ingested live from Google Air Quality API using the official Indian National Air Quality Index (NAQI / CPCB standard) and continuous ambient air quality monitoring telemetry.
                   </p>
                 </div>
 

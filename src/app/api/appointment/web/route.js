@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -11,7 +11,7 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page")) || 1;
     const limit = parseInt(searchParams.get("limit")) || 10;
-    const search = searchParams.get("search") || "";
+    const search = (searchParams.get("search") || "").trim();
     const status = searchParams.get("status") || "all";
     const date = searchParams.get("date") || "";
     const doctor_id = searchParams.get("doctor_id") || "";
@@ -19,184 +19,132 @@ export async function GET(req) {
 
     const offset = (page - 1) * limit;
 
-    // Main query
-    let query = supabase.from("appointments").select(
-      `
-        *,
-        patient:patient_id (
-          id,
-          phone_number,
-          un_id,
-          profile_picture,
-          patient_details (
-            full_name,
-            email,
-            gender
-          )
-        ),
-        doctor:doctor_id (
-          id,
-          phone_number,
-          un_id,
-          profile_picture,
-          doctor_details (
-            full_name,
-            email,
-            specialization,
-            clinic_name,
-            consultation_fee
-          )
-        )
-      `,
-      { count: "exact" }
-    );
+    let baseFilter = sql`WHERE a.status != 'freezed'`;
 
-    // Filters
     if (status !== "all") {
-      query = query.eq("status", status);
-    } else {
-      query = query.neq("status", "freezed");
+      baseFilter = sql`${baseFilter} AND a.status = ${status}`;
     }
-
-    if (date) query = query.eq("appointment_date", date);
-    if (doctor_id) query = query.eq("doctor_id", doctor_id);
-    if (patient_id) query = query.eq("patient_id", patient_id);
-
+    if (date) {
+      baseFilter = sql`${baseFilter} AND a.appointment_date = ${date}`;
+    }
+    if (doctor_id) {
+      baseFilter = sql`${baseFilter} AND a.doctor_id = ${doctor_id}`;
+    }
+    if (patient_id) {
+      baseFilter = sql`${baseFilter} AND a.patient_id = ${patient_id}`;
+    }
     if (search) {
-      const s = `%${search}%`;
-
-      // Find matching patients
-      const { data: matchingPatients } = await supabase
-        .from("patient_details")
-        .select("id")
-        .or(`full_name.ilike.${s},email.ilike.${s}`);
-
-      const { data: matchingPatientsPhone } = await supabase
-        .from("users")
-        .select("id")
-        .ilike("phone_number", s)
-        .eq("role", "patient");
-
-      // Find matching doctors
-      const { data: matchingDoctors } = await supabase
-        .from("doctor_details")
-        .select("id")
-        .or(`full_name.ilike.${s},email.ilike.${s}`);
-
-      const { data: matchingDoctorsPhone } = await supabase
-        .from("users")
-        .select("id")
-        .ilike("phone_number", s)
-        .eq("role", "doctor");
-
-      const patientIds = [
-        ...(matchingPatients?.map(p => p.id) || []),
-        ...(matchingPatientsPhone?.map(p => p.id) || [])
-      ].filter(Boolean);
-
-      const doctorIds = [
-        ...(matchingDoctors?.map(d => d.id) || []),
-        ...(matchingDoctorsPhone?.map(d => d.id) || [])
-      ].filter(Boolean);
-
-      let orClauses = [];
-      if (patientIds.length > 0) {
-        orClauses.push(`patient_id.in.(${patientIds.join(',')})`);
-      }
-      if (doctorIds.length > 0) {
-        orClauses.push(`doctor_id.in.(${doctorIds.join(',')})`);
-      }
-
-      if (orClauses.length > 0) {
-        query = query.or(orClauses.join(','));
-      } else {
-        // If no matches, force empty result
-        query = query.eq('id', '00000000-0000-0000-0000-000000000000');
-      }
+      const searchPattern = `%${search}%`;
+      baseFilter = sql`${baseFilter} AND (
+        pd.full_name ILIKE ${searchPattern} OR
+        pd.email ILIKE ${searchPattern} OR
+        pu.phone_number ILIKE ${searchPattern} OR
+        dd.full_name ILIKE ${searchPattern} OR
+        dd.email ILIKE ${searchPattern} OR
+        du.phone_number ILIKE ${searchPattern}
+      )`;
     }
 
-    // Execute paginated query
-    const {
-      data: appointments,
-      error,
-      count,
-    } = await query
-      .order("appointment_date", { ascending: false })
-      .order("appointment_time", { ascending: false })
-      .range(offset, offset + limit - 1);
+    // Main records query
+    const appointments = await sql`
+      SELECT 
+        a.id, a.appointment_date, a.appointment_time, a.appointment_type, a.status,
+        a.disease_info, a.created_at, a.updated_at, a.patient_id, a.doctor_id,
+        pu.un_id AS patient_un_id, pu.phone_number AS patient_phone, pu.profile_picture AS patient_picture,
+        pd.full_name AS patient_name, pd.email AS patient_email, pd.gender AS patient_gender,
+        du.un_id AS doctor_un_id, du.phone_number AS doctor_phone, du.profile_picture AS doctor_picture,
+        dd.full_name AS doctor_name, dd.email AS doctor_email, dd.specialization,
+        dd.clinic_name, dd.consultation_fee
+      FROM appointments a
+      LEFT JOIN users pu ON pu.id = a.patient_id
+      LEFT JOIN patient_details pd ON pd.id = a.patient_id
+      LEFT JOIN users du ON du.id = a.doctor_id
+      LEFT JOIN doctor_details dd ON dd.id = a.doctor_id
+      ${baseFilter}
+      ORDER BY a.appointment_date DESC, a.appointment_time DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
 
-    if (error) throw error;
+    // Filtered count
+    const [countRow] = await sql`
+      SELECT COUNT(*)::int AS count
+      FROM appointments a
+      LEFT JOIN users pu ON pu.id = a.patient_id
+      LEFT JOIN patient_details pd ON pd.id = a.patient_id
+      LEFT JOIN users du ON du.id = a.doctor_id
+      LEFT JOIN doctor_details dd ON dd.id = a.doctor_id
+      ${baseFilter}
+    `;
+    const totalMatching = countRow?.count || 0;
 
-    // ✅ Get total counts for each status
-    const statusList = [
-      "booked",
-      "approved",
-      "cancelled",
-      "completed",
-      "rejected",
-    ];
+    // Summary counts by status
+    const summaryRows = await sql`
+      SELECT 
+        status, 
+        COUNT(*)::int AS count
+      FROM appointments
+      WHERE status != 'freezed'
+      GROUP BY status
+    `;
 
-    const statusCounts = {};
-    for (const s of statusList) {
-      const { count: c } = await supabase
-        .from("appointments")
-        .select("*", { count: "exact", head: true })
-        .eq("status", s)
-        .neq("status", "freezed");
+    const statusCounts = {
+      booked: 0,
+      approved: 0,
+      cancelled: 0,
+      completed: 0,
+      rejected: 0,
+    };
+    let totalAll = 0;
 
-      statusCounts[s] = c || 0;
+    for (const r of summaryRows) {
+      if (statusCounts[r.status] !== undefined) {
+        statusCounts[r.status] = r.count;
+      }
+      totalAll += r.count;
     }
 
-    // Get total count (excluding freezed)
-    const { count: totalCount } = await supabase
-      .from("appointments")
-      .select("*", { count: "exact", head: true })
-      .neq("status", "freezed");
+    const transformedAppointments = appointments.map((apt) => ({
+      id: apt.id,
+      appointment_date: apt.appointment_date,
+      appointment_time: apt.appointment_time,
+      appointment_type: apt.appointment_type,
+      status: apt.status,
+      disease_info: apt.disease_info,
+      created_at: apt.created_at,
+      patient: {
+        id: apt.patient_id,
+        un_id: apt.patient_un_id,
+        phone_number: apt.patient_phone,
+        profile_picture: apt.patient_picture,
+        full_name: apt.patient_name,
+        email: apt.patient_email,
+        gender: apt.patient_gender,
+      },
+      doctor: {
+        id: apt.doctor_id,
+        un_id: apt.doctor_un_id,
+        phone_number: apt.doctor_phone,
+        profile_picture: apt.doctor_picture,
+        full_name: apt.doctor_name,
+        email: apt.doctor_email,
+        specialization: apt.specialization,
+        clinic_name: apt.clinic_name,
+        consultation_fee: apt.consultation_fee,
+      },
+    }));
 
-    // Transform data
-    const transformedAppointments =
-      appointments?.map((apt) => ({
-        id: apt.id,
-        appointment_date: apt.appointment_date,
-        appointment_time: apt.appointment_time,
-        status: apt.status,
-        disease_info: apt.disease_info,
-        created_at: apt.created_at,
-        patient: {
-          id: apt.patient?.id,
-          un_id: apt.patient?.un_id,
-          phone_number: apt.patient?.phone_number,
-          profile_picture: apt.patient?.profile_picture,
-          full_name: apt.patient?.patient_details?.full_name,
-          email: apt.patient?.patient_details?.email,
-          gender: apt.patient?.patient_details?.gender,
-        },
-        doctor: {
-          id: apt.doctor?.id,
-          un_id: apt.doctor?.un_id,
-          phone_number: apt.doctor?.phone_number,
-          profile_picture: apt.doctor?.profile_picture,
-          full_name: apt.doctor?.doctor_details?.full_name,
-          email: apt.doctor?.doctor_details?.email,
-          specialization: apt.doctor?.doctor_details?.specialization,
-          clinic_name: apt.doctor?.doctor_details?.clinic_name,
-          consultation_fee: apt.doctor?.doctor_details?.consultation_fee,
-        },
-      })) || [];
-
-    // ✅ Final response
     return success(
       "Appointments fetched successfully.",
       {
         appointments: transformedAppointments,
         pagination: {
-          total: count,
+          total: totalMatching,
           perPage: limit,
           currentPage: page,
-          totalPages: Math.ceil((count || 0) / limit),
+          totalPages: Math.ceil(totalMatching / limit),
         },
         summary: {
-          total: totalCount,
+          total: totalAll,
           ...statusCounts,
         },
       },

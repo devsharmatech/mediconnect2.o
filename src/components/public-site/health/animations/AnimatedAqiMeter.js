@@ -21,6 +21,7 @@ export default function AnimatedAqiMeter({
   category = "Satisfactory",
   location = "Bulandshahr, Uttar Pradesh",
   lastUpdated = "Today, 11:46 AM",
+  standard = "Google Air Quality API (NAQI)",
   onInfoClick = null,
   className = "",
 }) {
@@ -113,7 +114,7 @@ export default function AnimatedAqiMeter({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-emerald-100/90">
             <Gauge className="w-3 h-3 text-emerald-200" />
-            <span>AQI (India CPCB)</span>
+            <span>{standard || "Google Air Quality API (NAQI)"}</span>
             {onInfoClick && (
               <button
                 type="button"

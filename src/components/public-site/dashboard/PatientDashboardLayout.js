@@ -309,6 +309,7 @@ const PatientDashboardLayout = ({ children }) => {
         {/* Page Content */}
         <main className={
           pathname?.includes("/lung-connect") || 
+          pathname?.includes("/lung-activities") || 
           pathname?.includes("/lung-assessment") || 
           pathname?.includes("/lung-health") || 
           pathname?.includes("/respiratory-history") || 

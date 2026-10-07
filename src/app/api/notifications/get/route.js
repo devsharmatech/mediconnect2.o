@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -16,32 +16,35 @@ export async function POST(req) {
     if (!user_id)
       return failure("user_id is required.", null, 400, { headers: corsHeaders });
 
-    // Guard: reject non-UUID values before they hit Postgres (prevents 22P02 errors
-    // from stale dev localStorage values like "test-patient-id")
+    // Guard: reject non-UUID values before they hit Postgres (prevents 22P02 errors)
     if (!UUID_REGEX.test(user_id)) {
       return success("Notifications fetched successfully.", [], 200, { headers: corsHeaders });
     }
 
     const limit = 15;
-    const offset = (page - 1) * limit;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const offset = (pageNum - 1) * limit;
 
-    let query = supabase
-      .from("notifications")
-      .select("*")
-      .eq("user_id", user_id)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (unread) query = query.eq("read", false);
-
-    const { data, error } = await query;
-
-    if (error) throw error;
+    let data;
+    if (unread) {
+      data = await sql`
+        SELECT * FROM notifications
+        WHERE user_id = ${user_id} AND read = false
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+    } else {
+      data = await sql`
+        SELECT * FROM notifications
+        WHERE user_id = ${user_id}
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+    }
 
     return success("Notifications fetched successfully.", data, 200, { headers: corsHeaders });
   } catch (error) {
-    console.error(error);
+    console.error("Notifications get error:", error);
     return failure("Failed to fetch notifications.", error.message, 500, { headers: corsHeaders });
   }
 }
-

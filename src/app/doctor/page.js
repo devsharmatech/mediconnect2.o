@@ -22,16 +22,12 @@ export default function DoctorDashboard() {
   });
   const [recentAppointments, setRecentAppointments] = useState([]);
   const [recentPrescriptions, setRecentPrescriptions] = useState([]);
-  const [callRequests, setCallRequests] = useState([]);
   const [aiAlerts, setAiAlerts] = useState([]);
   const [logs, setLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [incomingCalls, setIncomingCalls] = useState([]);
-  const [acceptingCallId, setAcceptingCallId] = useState(null);
   const [scorecard, setScorecard] = useState(null);
   const router = useRouter();
-  const pollRef = useRef(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -61,44 +57,6 @@ export default function DoctorDashboard() {
     fetchDashboardData(userId);
   }, [router]);
 
-  // Play ringtone chime sound when call arrives
-  const playRingtone = () => {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.5);
-    } catch {
-      /* ignore audio context restrictions */
-    }
-  };
-
-  // Poll for incoming instant calls every 5 seconds
-  useEffect(() => {
-    if (!doctorId) return;
-    fetchIncomingCalls(doctorId);
-    pollRef.current = setInterval(() => fetchIncomingCalls(doctorId), 5000);
-    return () => clearInterval(pollRef.current);
-  }, [doctorId]);
-
-  // Listen for FCM instant_call events
-  useEffect(() => {
-    const handleInstantCall = () => {
-      playRingtone();
-      if (doctorId) fetchIncomingCalls(doctorId);
-    };
-    window.addEventListener("instant-call-received", handleInstantCall);
-    return () => window.removeEventListener("instant-call-received", handleInstantCall);
-  }, [doctorId]);
-
   const formatTimeString = (timeStr) => {
     if (!timeStr) return "";
     const [h, m] = timeStr.split(":");
@@ -107,56 +65,6 @@ export default function DoctorDashboard() {
     d.setMinutes(parseInt(m, 10));
     return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase();
   };
-
-  const fetchIncomingCalls = async (uid) => {
-    try {
-      const res = await api.post("/appointment/doctor-appointment", {
-        doctor_id: uid,
-        date_filter: "today",
-        page: 1,
-      });
-      if (res.success && res.data?.appointments) {
-        // Get current IST time in minutes from midnight
-        const nowIST = new Date(
-          new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-        );
-        const nowMinutes = nowIST.getHours() * 60 + nowIST.getMinutes();
-
-        const pending = res.data.appointments
-          .filter((a) => {
-            if (a.status !== "booked") return false;
-            // Parse appointment time and check if it's within the 30-min window
-            if (!a.appointment_time) return true;
-            const [h, m] = a.appointment_time.split(":").map(Number);
-            const aptMinutes = h * 60 + m;
-            // Show if: appointment time is in the future OR within 30 mins past
-            const minutesPast = nowMinutes - aptMinutes;
-            return minutesPast <= 30; // expires 30 minutes after the appointment time
-          })
-          .map((a) => {
-            const [h, m] = (a.appointment_time || "00:00").split(":").map(Number);
-            const aptMinutes = h * 60 + m;
-            const nowIST2 = new Date(
-              new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-            );
-            const nowMin = nowIST2.getHours() * 60 + nowIST2.getMinutes();
-            const minutesLeft = Math.max(0, 30 - (nowMin - aptMinutes));
-            return {
-              id: a.id,
-              patient: a.patient?.full_name || "Patient",
-              time: a.appointment_time ? formatTimeString(a.appointment_time) : "",
-              date: a.appointment_date,
-              reason: a.reason || a.chief_complaint || "",
-              minutesLeft, // remaining minutes before expiry
-            };
-          });
-        setIncomingCalls(pending);
-      }
-    } catch {
-      /* silent */
-    }
-  };
-
 
   const fetchDashboardData = async (userId) => {
     try {
@@ -240,17 +148,7 @@ export default function DoctorDashboard() {
         }))
       );
 
-      setCallRequests(
-        appointments
-          .filter((a) => a.status === "booked" && a.appointment_type === "instant")
-          .slice(0, 5)
-          .map((a) => ({
-            id: a.id,
-            patient: a.patient?.full_name || "Patient",
-            time: `${a.appointment_date} \u2022 ${a.appointment_time ? formatTimeString(a.appointment_time) : ""}`,
-            status: "pending",
-          }))
-      );
+
 
       const logsFromAppointments = appointments.slice(0, 5).map((a) => ({
         id: `apt-${a.id}`,
@@ -272,37 +170,8 @@ export default function DoctorDashboard() {
     }
   };
 
-  const handleAcceptAndJoin = async (appointmentId) => {
-    if (!doctorId) return;
-    setAcceptingCallId(appointmentId);
-    const tid = toast.loading("Accepting call\u2026");
-    try {
-      const res = await api.post("/instant-call/accept", {
-        appointment_id: appointmentId,
-        doctor_id: doctorId,
-      });
-      toast.dismiss(tid);
-      if (res.success) {
-        toast.success("Call accepted! Joining video\u2026");
-        router.push(`/appointments/${appointmentId}/video?userId=${doctorId}&role=doctor`);
-      } else {
-        toast.error(res.message || "Failed to accept call");
-      }
-    } catch {
-      toast.dismiss(tid);
-      toast.error("Something went wrong");
-    } finally {
-      setAcceptingCallId(null);
-    }
-  };
-
   const handleStartCall = async (apt) => {
     if (!doctorId) return;
-    
-    // If it's an instant call, accept it first
-    if (apt.type === "instant" && apt.status === "booked") {
-      return handleAcceptAndJoin(apt.id);
-    }
 
     const url = `/appointments/${apt.id}/video?userId=${doctorId}&role=doctor`;
     window.open(url, "_blank");
@@ -413,80 +282,6 @@ export default function DoctorDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      {/* Incoming Instant Call Strip */}
-      <AnimatePresence>
-        {incomingCalls.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: -40 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -40 }}
-            className="mb-4"
-          >
-            {incomingCalls.map((call) => (
-              <div
-                key={call.id}
-                className="bg-gradient-to-r from-[#0067A1] via-[#0080C6] to-[#0067A1] px-4 sm:px-6 py-3 rounded-2xl mb-2"
-              >
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                        <FaPhoneAlt className="w-4 h-4 text-white animate-pulse" />
-                      </div>
-                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />
-                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-white text-sm font-semibold">
-                          Incoming Instant Call from {call.patient}
-                        </p>
-                        {call.minutesLeft !== undefined && (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${call.minutesLeft <= 5 ? 'bg-red-500/80 text-white animate-pulse' : 'bg-white/20 text-white'}`}>
-                            Expires in {call.minutesLeft}m
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-white/60 text-xs">
-                        {call.time ? `Requested at ${call.time}` : "Requesting instant video consultation"}
-                        {call.reason ? ` • ${call.reason}` : ""}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <motion.button
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => handleAcceptAndJoin(call.id)}
-                      disabled={acceptingCallId === call.id}
-                      className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-[#0067A1] rounded-xl text-sm font-bold hover:bg-gray-100 transition-all disabled:opacity-50 shadow-lg"
-                    >
-                      {acceptingCallId === call.id ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin" />
-                          Connecting&hellip;
-                        </>
-                      ) : (
-                        <>
-                          <FaVideo className="w-4 h-4" />
-                          Accept &amp; Join
-                        </>
-                      )}
-                    </motion.button>
-                    <Link
-                      href="/doctor/instant-request"
-                      className="px-4 py-2.5 bg-white/15 backdrop-blur-sm border border-white/20 text-white rounded-xl text-sm font-medium hover:bg-white/25 transition-all"
-                    >
-                      View All
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <div className="w-full mx-auto space-y-5 sm:space-y-6">
         {/* Hero Banner */}
         <div className="relative overflow-hidden bg-gradient-to-br from-[#0067A1] via-[#0080C6] to-[#0067A1] rounded-3xl px-5 sm:px-8 pt-6 pb-8 sm:pb-10">
@@ -523,21 +318,16 @@ export default function DoctorDashboard() {
           <h2 className="text-lg font-bold text-gray-800 mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Link
-              href="/doctor/instant-request"
+              href="/doctor/my-patients"
               className="group relative bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-lg hover:border-[#0067A1]/20 transition-all duration-300 text-left overflow-hidden"
             >
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#0067A1] to-[#0080C6] opacity-0 group-hover:opacity-100 transition-opacity rounded-t-2xl" />
               <div className="w-11 h-11 bg-[#0067A1]/10 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative">
-                <FaVideo className="w-5 h-5 text-[#0067A1]" />
-                {incomingCalls.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-pulse">
-                    {incomingCalls.length}
-                  </span>
-                )}
+                <FaUserMd className="w-5 h-5 text-[#0067A1]" />
               </div>
-              <h3 className="text-sm font-semibold text-gray-800">Instant Calls</h3>
+              <h3 className="text-sm font-semibold text-gray-800">My Patients</h3>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                {incomingCalls.length > 0 ? `${incomingCalls.length} pending` : "No pending"}
+                View patient records
               </p>
             </Link>
 
@@ -733,68 +523,6 @@ export default function DoctorDashboard() {
                         Acknowledge
                       </button>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Instant Call Requests (prominent section) */}
-        {callRequests.length > 0 && (
-          <section>
-            <div className="bg-gradient-to-r from-[#0067A1] via-[#0080C6] to-[#0067A1] rounded-2xl p-5 sm:p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                    <FaPhone className="w-4 h-4 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-white">Pending Call Requests</h3>
-                    <p className="text-xs text-white/60">{callRequests.length} patient{callRequests.length !== 1 ? "s" : ""} waiting</p>
-                  </div>
-                </div>
-                <Link
-                  href="/doctor/instant-request"
-                  className="text-xs text-white/80 hover:text-white font-medium flex items-center gap-1 transition-colors"
-                >
-                  View All <FaChevronRight className="w-3 h-3" />
-                </Link>
-              </div>
-              <div className="space-y-2.5">
-                {callRequests.map((req) => (
-                  <div
-                    key={req.id}
-                    className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-                        <FaUser className="w-4 h-4 text-white/80" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-white font-semibold">{req.patient}</p>
-                        <p className="text-[11px] text-white/50">{req.time}</p>
-                      </div>
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => handleAcceptAndJoin(req.id)}
-                      disabled={acceptingCallId === req.id}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white text-[#0067A1] rounded-xl text-sm font-bold hover:bg-gray-100 transition-all disabled:opacity-50 shadow-lg"
-                    >
-                      {acceptingCallId === req.id ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin" />
-                          Connecting&hellip;
-                        </>
-                      ) : (
-                        <>
-                          <FaVideo className="w-3.5 h-3.5" />
-                          Accept &amp; Join Call
-                        </>
-                      )}
-                    </motion.button>
                   </div>
                 ))}
               </div>

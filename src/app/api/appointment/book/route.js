@@ -3,6 +3,7 @@ import { corsHeaders } from "@/lib/cors";
 import { executeOrchestration } from "@/lib/layer1/controlLayer";
 import { randomUUID } from "crypto";
 import { resolveCallerFromRequest } from "@/lib/layer1/authGuard";
+import sql from "@/lib/db";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -38,12 +39,9 @@ export async function POST(req) {
     if (!caller && patient_id) {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(patient_id)) {
-        const { supabase } = await import("@/lib/supabaseAdmin");
-        const { data: fallbackUser } = await supabase
-          .from("users")
-          .select("id, role")
-          .eq("id", patient_id)
-          .maybeSingle();
+        const [fallbackUser] = await sql`
+          SELECT id, role FROM users WHERE id = ${patient_id} LIMIT 1
+        `;
         if (fallbackUser) caller = fallbackUser;
       }
     }
@@ -100,11 +98,15 @@ export async function POST(req) {
 
     // 3. Update attempt status if attempt_id is provided
     if (attempt_id) {
-      const { supabase } = await import("@/lib/supabaseClient");
-      await supabase
-        .from("booking_attempts")
-        .update({ status: "completed" })
-        .eq("id", attempt_id);
+      try {
+        await sql`
+          UPDATE booking_attempts
+          SET status = 'completed', updated_at = NOW()
+          WHERE id = ${attempt_id}
+        `;
+      } catch (attErr) {
+        console.warn("[BOOK] Attempt update warning:", attErr.message);
+      }
     }
 
     // 4. Return successfully orchestrated data

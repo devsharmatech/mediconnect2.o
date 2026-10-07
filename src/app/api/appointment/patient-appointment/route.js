@@ -1,25 +1,12 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-
 import { resolveCallerFromRequest } from "@/lib/layer1/authGuard";
 
 export const dynamic = 'force-dynamic';
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
-}
-
-// Helper to retry transient fetch errors
-async function withRetry(operation, retries = 3) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await operation();
-    } catch (err) {
-      if (i === retries - 1 || !err.message?.includes('fetch failed')) throw err;
-      await new Promise(res => setTimeout(res, 500 * (i + 1))); // exponential backoff
-    }
-  }
 }
 
 export async function POST(req) {
@@ -30,14 +17,12 @@ export async function POST(req) {
       return failure("patient_id is required.", null, 400, { headers: corsHeaders });
     }
 
-    let caller = await resolveCallerFromRequest(req);
+    let caller = await resolveCallerFromRequest(req, patient_id);
     if (!caller && patient_id) {
-      const { data: fallbackUser } = await supabase
-        .from("users")
-        .select("id, role")
-        .eq("id", patient_id)
-        .maybeSingle();
-      if (fallbackUser) caller = fallbackUser;
+      const users = await sql`
+        SELECT id, role FROM users WHERE id = ${patient_id} LIMIT 1
+      `;
+      if (users && users.length > 0) caller = users[0];
     }
 
     if (!caller) {
@@ -48,11 +33,12 @@ export async function POST(req) {
     }
 
     // Verify user role
-    const { data: patientUser, error: userErr } = await withRetry(() => 
-      supabase.from("users").select("id, role").eq("id", patient_id).single()
-    );
+    const patientUsers = await sql`
+      SELECT id, role FROM users WHERE id = ${patient_id} LIMIT 1
+    `;
+    const patientUser = patientUsers[0];
 
-    if (userErr || !patientUser) {
+    if (!patientUser) {
       return failure("Invalid patient_id. User not found.", null, 400, { headers: corsHeaders });
     }
 
@@ -61,61 +47,107 @@ export async function POST(req) {
     }
 
     const perPage = 50;
-    const offset = (page - 1) * perPage;
-    const today = new Date().toISOString().split("T")[0];
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const offset = (pageNum - 1) * perPage;
 
-    let query = supabase
-      .from("appointments")
-      .select("*", { count: "exact" })
-      .eq("patient_id", patient_id)
-      .order("appointment_date", { ascending: false })
-      .order("created_at", { ascending: false });
-
-    if (date_filter === "today") query = query.eq("appointment_date", today);
-    else if (date_filter !== "all") query = query.eq("appointment_date", date_filter);
-
-    query = query.range(offset, offset + perPage - 1);
-
-    const { data: appointments, error, count } = await withRetry(() => query);
-    if (error) {
-      console.error("[PATIENT-APPOINTMENT] DB error querying appointments:", error);
-      throw error;
+    // Date filter fragment
+    let dateCondition = sql``;
+    if (date_filter === "today") {
+      dateCondition = sql`AND a.appointment_date = CURRENT_DATE`;
+    } else if (date_filter && date_filter !== "all") {
+      dateCondition = sql`AND a.appointment_date = ${date_filter}::date`;
     }
 
-    if (!appointments.length) {
-      return success("No appointments found.", { appointments: [], pagination: {} }, 200, { headers: corsHeaders });
+    const rows = await sql`
+      SELECT 
+        a.id,
+        a.doctor_id,
+        a.patient_id,
+        TO_CHAR(a.appointment_date, 'YYYY-MM-DD') AS appointment_date,
+        a.appointment_time::text AS appointment_time,
+        a.status,
+        a.disease_info,
+        a.appointment_type,
+        a.payment_status,
+        a.razorpay_order_id,
+        a.razorpay_payment_id,
+        a.clinic_name,
+        a.clinic_address,
+        a.screening_id,
+        a.care_episode_id,
+        a.created_at,
+        a.updated_at,
+        d.full_name AS doctor_full_name,
+        d.email AS doctor_email,
+        d.specialization AS doctor_specialization,
+        d.clinic_name AS doctor_clinic_name,
+        d.clinic_address AS doctor_clinic_address,
+        d.license_number AS doctor_license_number,
+        d.qualification AS doctor_qualification,
+        d.consultation_fee AS doctor_consultation_fee,
+        d.meta AS doctor_meta,
+        p.full_name AS patient_full_name,
+        p.gender AS patient_gender,
+        p.date_of_birth AS patient_date_of_birth,
+        p.address AS patient_address,
+        COUNT(*) OVER()::int AS full_count
+      FROM appointments a
+      LEFT JOIN doctor_details d ON d.id = a.doctor_id
+      LEFT JOIN patient_details p ON p.id = a.patient_id
+      WHERE a.patient_id = ${patient_id}
+        ${dateCondition}
+      ORDER BY a.appointment_date DESC, a.created_at DESC
+      LIMIT ${perPage} OFFSET ${offset}
+    `;
+
+    const total = rows.length > 0 ? rows[0].full_count : 0;
+
+    if (!rows.length) {
+      return success(
+        "No appointments found.",
+        { appointments: [], pagination: { total: 0, perPage, currentPage: pageNum, totalPages: 0 } },
+        200,
+        { headers: corsHeaders }
+      );
     }
 
-    // Fetch doctor details
-    const doctorIds = appointments.map((a) => a.doctor_id);
-
-    const { data: doctors, error: dErr } = await supabase
-      .from("doctor_details")
-      .select("id, full_name, email, specialization, clinic_name, clinic_address, license_number, qualification, consultation_fee, meta")
-      .in("id", doctorIds);
-
-    if (dErr) {
-      console.error("[PATIENT-APPOINTMENT] DB error fetching doctor details:", dErr);
-      throw dErr;
-    }
-
-    // Fetch patient details
-    const { data: patientDetails, error: pErr } = await supabase
-      .from("patient_details")
-      .select("id, full_name, gender, date_of_birth, address")
-      .eq("id", patient_id)
-      .single();
-
-    if (pErr && pErr.code !== 'PGRST116') {
-      console.error("[PATIENT-APPOINTMENT] DB error fetching patient details:", pErr);
-      // Don't throw, we can still return appointments without patient details if they failed
-    }
-
-    // Merge
-    const merged = appointments.map((a) => ({
-      ...a,
-      doctor: doctors.find((d) => d.id === a.doctor_id) || null,
-      patient: patientDetails || null,
+    const merged = rows.map((a) => ({
+      id: a.id,
+      doctor_id: a.doctor_id,
+      patient_id: a.patient_id,
+      appointment_date: a.appointment_date,
+      appointment_time: a.appointment_time,
+      status: a.status,
+      disease_info: a.disease_info,
+      appointment_type: a.appointment_type,
+      payment_status: a.payment_status,
+      razorpay_order_id: a.razorpay_order_id,
+      razorpay_payment_id: a.razorpay_payment_id,
+      clinic_name: a.clinic_name,
+      clinic_address: a.clinic_address,
+      screening_id: a.screening_id,
+      care_episode_id: a.care_episode_id,
+      created_at: a.created_at,
+      updated_at: a.updated_at,
+      doctor: a.doctor_id ? {
+        id: a.doctor_id,
+        full_name: a.doctor_full_name || null,
+        email: a.doctor_email || null,
+        specialization: a.doctor_specialization || null,
+        clinic_name: a.doctor_clinic_name || null,
+        clinic_address: a.doctor_clinic_address || null,
+        license_number: a.doctor_license_number || null,
+        qualification: a.doctor_qualification || null,
+        consultation_fee: a.doctor_consultation_fee || null,
+        meta: a.doctor_meta || null,
+      } : null,
+      patient: a.patient_id ? {
+        id: a.patient_id,
+        full_name: a.patient_full_name || null,
+        gender: a.patient_gender || null,
+        date_of_birth: a.patient_date_of_birth || null,
+        address: a.patient_address || null,
+      } : null,
     }));
 
     return success(
@@ -123,10 +155,10 @@ export async function POST(req) {
       {
         appointments: merged,
         pagination: {
-          total: count,
+          total,
           perPage,
-          currentPage: page,
-          totalPages: Math.ceil((count || 0) / perPage),
+          currentPage: pageNum,
+          totalPages: Math.ceil((total || 0) / perPage),
         },
       },
       200,

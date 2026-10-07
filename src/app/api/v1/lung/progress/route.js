@@ -152,12 +152,14 @@ export async function GET(req) {
       const earlierDayAssessment = assessmentRows.find(a => new Date(a.created_at).toISOString().slice(0, 10) !== latestDateStr);
       const prevRow = earlierDayAssessment || assessmentRows[1];
 
+      const isBaseline = (prevRow.id === assessmentRows[assessmentRows.length - 1].id);
       previousAssessment = {
         id: prevRow.id,
         score: prevRow.health_score,
         date: prevRow.created_at,
         calculated_age: prevRow.calculated_age,
         risk_level: prevRow.risk_level,
+        is_baseline: isBaseline,
       };
       const scoreDiff = Number(latestAssessment.score) - Number(previousAssessment.score);
       recordedChange = {
@@ -170,31 +172,32 @@ export async function GET(req) {
     }
 
     // Build B02 Longitudinal Continuing Checkpoints
-    // Journey "Day 0" = date of the user's baseline assessment for the current cycle
+    // Journey "Day 0" = The authoritative start date of the user's longitudinal health journey.
+    // Authoritative milestones:
+    // 1. Initial baseline assessment (oldest record in assessmentRows)
+    // 2. User account creation date in AWS RDS users table
+    // 3. Care episode start date in care_episodes table
     let baselineDate = null;
 
-    // Priority 1: If previousAssessment exists (S03 state), it is the authoritative baseline
-    if (previousAssessment && previousAssessment.date) {
-      const d = new Date(previousAssessment.date);
-      if (!isNaN(d.getTime())) {
-        baselineDate = d;
+    // 1. User account registration date from users table in AWS RDS
+    let userCreatedAt = null;
+    if (userId && userId !== "usr_guest" && isRegisteredUuid) {
+      try {
+        const userRows = await sql`
+          SELECT created_at FROM users WHERE id = ${userId}::uuid LIMIT 1;
+        `;
+        if (userRows && userRows.length > 0 && userRows[0].created_at) {
+          const d = new Date(userRows[0].created_at);
+          if (!isNaN(d.getTime())) userCreatedAt = d;
+        }
+      } catch (e) {
+        console.warn("[Lung Progress] Could not query user created_at from RDS:", e.message);
       }
     }
 
-    // Priority 2: Oldest assessment in the active cycle (within last 60 days of latest)
-    if (!baselineDate && assessmentRows.length > 0) {
-      const latestTime = new Date(assessmentRows[0].created_at).getTime();
-      const cycleRows = assessmentRows.filter(a => {
-        const t = new Date(a.created_at).getTime();
-        return !isNaN(t) && (latestTime - t) <= 60 * 24 * 60 * 60 * 1000;
-      });
-      const oldestInCycle = cycleRows[cycleRows.length - 1] || assessmentRows[0];
-      const d = new Date(oldestInCycle.created_at);
-      if (!isNaN(d.getTime())) baselineDate = d;
-    }
-
-    // Priority 3: Check care_episodes table for active care episode
-    if (!baselineDate && isRegisteredUuid) {
+    // 2. Care episode start date in care_episodes table
+    let careEpisodeDate = null;
+    if (userId && userId !== "usr_guest" && isRegisteredUuid) {
       try {
         const episodeRows = await sql`
           SELECT created_at FROM care_episodes 
@@ -203,29 +206,41 @@ export async function GET(req) {
         `;
         if (episodeRows && episodeRows.length > 0 && episodeRows[0].created_at) {
           const d = new Date(episodeRows[0].created_at);
-          if (!isNaN(d.getTime())) baselineDate = d;
+          if (!isNaN(d.getTime())) careEpisodeDate = d;
         }
       } catch (e) {
         console.warn("[Lung Progress] Could not query care_episodes from RDS:", e.message);
       }
     }
 
-    // Priority 4: User account registration date from users table in AWS RDS
-    if (!baselineDate && isRegisteredUuid) {
-      try {
-        const userRows = await sql`
-          SELECT created_at FROM users WHERE id = ${userId}::uuid LIMIT 1;
-        `;
-        if (userRows && userRows.length > 0 && userRows[0].created_at) {
-          const d = new Date(userRows[0].created_at);
-          if (!isNaN(d.getTime())) baselineDate = d;
-        }
-      } catch (e) {
-        console.warn("[Lung Progress] Could not query user created_at from RDS:", e.message);
-      }
+    // 3. Oldest assessment in the user's history (true initial baseline)
+    let oldestAssessmentDate = null;
+    if (assessmentRows && assessmentRows.length > 0) {
+      const oldestRow = assessmentRows[assessmentRows.length - 1];
+      const d = new Date(oldestRow.created_at);
+      if (!isNaN(d.getTime())) oldestAssessmentDate = d;
     }
 
-    // Priority 5: Real-time fallback to current date (today) — NEVER a hardcoded past date!
+    // Resolve authoritative journey start date
+    // If the user registered recently, their account creation date or initial assessment date marks Day 0.
+    if (oldestAssessmentDate && userCreatedAt) {
+      const diffDays = Math.abs((oldestAssessmentDate.getTime() - userCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays <= 60) {
+        // Enrolled and started within the same health cycle: use earliest date
+        baselineDate = new Date(Math.min(userCreatedAt.getTime(), oldestAssessmentDate.getTime()));
+      } else {
+        // Registered long before starting lung program: use oldest assessment date
+        baselineDate = oldestAssessmentDate;
+      }
+    } else if (oldestAssessmentDate) {
+      baselineDate = oldestAssessmentDate;
+    } else if (userCreatedAt) {
+      baselineDate = userCreatedAt;
+    } else if (careEpisodeDate) {
+      baselineDate = careEpisodeDate;
+    }
+
+    // Real-time fallback to current date (today) — NEVER a hardcoded past date!
     if (!baselineDate || isNaN(baselineDate.getTime())) {
       baselineDate = new Date();
     }
@@ -267,7 +282,9 @@ export async function GET(req) {
           foundCurrent = true;
         }
       } else {
-        const matched = followUpDays.some(f => Math.abs(f.day - cp.day) <= (cp.day <= 15 ? 4 : 7));
+        // A checkpoint is completed if daysSinceStart >= cp.day AND an assessment was recorded near or after that checkpoint,
+        // or if daysSinceStart > cp.day (the timeline day has clearly passed)
+        const matched = followUpDays.some(f => Math.abs(f.day - cp.day) <= (cp.day <= 7 ? 2 : cp.day <= 15 ? 3 : 5) && f.day >= cp.day - 2);
         if (matched) {
           status = "completed";
         } else if (daysSinceStart > cp.day) {

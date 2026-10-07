@@ -26,10 +26,9 @@ const Sidebar = () => {
     { name: 'Manage Slots', icon: <FaClock className="w-5 h-5" />, href: '/doctor/manage-slots' },
     { name: 'Prescriptions', icon: <FaStethoscope className="w-5 h-5" />, href: '/doctor/prescriptions' },
     { 
-      name: 'Instant Request', 
-      icon: <FaBolt className="w-5 h-5" />, 
-      href: '/doctor/instant-request',
-      badge: 3 // Example badge count
+      name: 'Appointments', 
+      icon: <FaCalendarAlt className="w-5 h-5" />, 
+      href: '/doctor/appointments'
     },
     { name: 'Profile Settings', icon: <FaUserCog className="w-5 h-5" />, href: '/doctor/profile-settings' },
   ];

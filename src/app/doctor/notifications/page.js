@@ -184,7 +184,7 @@ export default function DoctorNotificationsPage() {
       type === "instant_request" ||
       type === "instant"
     ) {
-      router.push("/doctor/instant-request");
+      router.push("/doctor/appointments?date=all&status=all");
     } else if (
       type === "consultation" ||
       type === "teleconsultation" ||

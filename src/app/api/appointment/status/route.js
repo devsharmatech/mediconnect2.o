@@ -3,6 +3,8 @@ import { corsHeaders } from "@/lib/cors";
 import { executeOrchestration } from "@/lib/layer1/controlLayer";
 import { randomUUID } from "crypto";
 
+import sql from "@/lib/db";
+
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
@@ -18,12 +20,12 @@ export async function POST(req) {
 
     // Validate that appointment slot has not expired if approving
     if (status === "approved") {
-      const { supabase } = await import("@/lib/supabaseAdmin");
-      const { data: apt } = await supabase
-        .from("appointments")
-        .select("appointment_date, appointment_time, status")
-        .eq("id", appointment_id)
-        .maybeSingle();
+      const [apt] = await sql`
+        SELECT appointment_date, appointment_time, status
+        FROM appointments
+        WHERE id = ${appointment_id}
+        LIMIT 1
+      `;
 
       if (apt?.appointment_date) {
         const timeStr = String(apt.appointment_time || "23:59").slice(0, 5);

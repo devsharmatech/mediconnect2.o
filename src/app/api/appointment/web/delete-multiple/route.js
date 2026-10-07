@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -14,19 +14,15 @@ export async function POST(req) {
       return failure("No appointment IDs provided.", null, 400, { headers: corsHeaders });
     }
 
-    // Delete appointments
-    const { error } = await supabase
-      .from('appointments')
-      .delete()
-      .in('id', ids);
-
-    if (error) {
-      throw error;
-    }
+    const result = await sql`
+      DELETE FROM appointments
+      WHERE id = ANY(${ids}::uuid[])
+      RETURNING id
+    `;
 
     return success(
-      `${ids.length} appointment(s) deleted successfully.`,
-      { deletedCount: ids.length },
+      `${result.length} appointment(s) deleted successfully.`,
+      { deletedCount: result.length },
       200,
       { headers: corsHeaders }
     );

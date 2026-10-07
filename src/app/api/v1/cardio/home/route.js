@@ -41,29 +41,68 @@ export async function GET(req) {
     if (userId) {
       // Query recent activity sessions from AWS RDS
       try {
-        const sessions = await sql`
-          SELECT * FROM activity_log
-          WHERE (user_id = ${userId} OR patient_id = ${userId})
-          ORDER BY created_at DESC
-          LIMIT 20;
-        `;
+        const [activitySessions, auditLogs] = await Promise.all([
+          sql`
+            SELECT id, duration_seconds, steps, created_at
+            FROM lung_activity_sessions
+            WHERE user_id = ${String(userId)}
+            ORDER BY created_at DESC
+            LIMIT 50;
+          `.catch(() => []),
+          sql`
+            SELECT id, metadata, created_at
+            FROM activity_log
+            WHERE patient_id = ${String(userId)}::uuid
+            ORDER BY created_at DESC
+            LIMIT 50;
+          `.catch(() => [])
+        ]);
 
-        if (sessions && sessions.length > 0) {
-          const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-          weeklyActivityMinutes = sessions
-            .filter(s => new Date(s.created_at) >= oneWeekAgo && s.duration_minutes)
-            .reduce((acc, s) => acc + Number(s.duration_minutes || 0), 0);
+        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const today = new Date().toISOString().split("T")[0];
 
-          const today = new Date().toISOString().split("T")[0];
-          const todaySession = sessions.find(s => new Date(s.created_at).toISOString().split("T")[0] === today && s.steps);
-          if (todaySession) {
-            todaySteps = Number(todaySession.steps);
+        let totalWeeklySecs = 0;
+        let todayStepSum = 0;
+        let foundAny = false;
+
+        if (activitySessions && activitySessions.length > 0) {
+          foundAny = true;
+          activitySessions.forEach(s => {
+            const dt = new Date(s.created_at);
+            const sec = Number(s.duration_seconds) || 0;
+            if (dt >= oneWeekAgo) {
+              totalWeeklySecs += sec;
+            }
+            if (dt.toISOString().split("T")[0] === today && s.steps) {
+              todayStepSum += Number(s.steps) || 0;
+            }
+          });
+        }
+
+        if (auditLogs && auditLogs.length > 0) {
+          foundAny = true;
+          auditLogs.forEach(l => {
+            const dt = new Date(l.created_at);
+            const meta = typeof l.metadata === "object" && l.metadata !== null ? l.metadata : {};
+            const sec = Number(meta.duration_seconds || (meta.duration_minutes ? meta.duration_minutes * 60 : 0)) || 0;
+            if (dt >= oneWeekAgo) {
+              totalWeeklySecs += sec;
+            }
+            if (dt.toISOString().split("T")[0] === today && meta.steps) {
+              todayStepSum = Math.max(todayStepSum, Number(meta.steps) || 0);
+            }
+          });
+        }
+
+        if (foundAny) {
+          weeklyActivityMinutes = Math.round(totalWeeklySecs / 60);
+          if (todayStepSum > 0) {
+            todaySteps = todayStepSum;
           }
-
           state = "partial";
         }
       } catch (err) {
-        console.warn("[Cardio Home] Could not query activity_log from RDS:", err.message);
+        console.warn("[Cardio Home] Could not query activity records from RDS:", err.message);
       }
 
       // Query latest vitals / spectrum data from AWS RDS

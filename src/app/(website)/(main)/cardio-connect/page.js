@@ -208,15 +208,33 @@ export default function CardioConnectHome() {
   };
 
   // Fetch CC-13 Real AQI Data & Persist to Database
-  const fetchAqiData = async (cityOverride, latOverride, lngOverride, forceRefresh = false) => {
+  const fetchAqiData = async (
+    cityOverride = null,
+    latOverride = null,
+    lngOverride = null,
+    forceRefresh = false,
+    isGpsExplicit = null
+  ) => {
     const saved = typeof window !== "undefined" ? getSavedPatientLocation() : null;
     const targetCity = cityOverride || (savedUserCity && savedUserCity !== "Your Location" ? savedUserCity : null) || saved?.city || "Delhi";
-    const targetLat = latOverride !== undefined && latOverride !== null ? latOverride : (saved?.lat || gpsPoints?.[0]?.lat || 28.7041);
-    const targetLng = lngOverride !== undefined && lngOverride !== null ? lngOverride : (saved?.lng || gpsPoints?.[0]?.lng || 77.1025);
 
-    const latKey = targetLat ? Number(targetLat).toFixed(3) : "null";
-    const lngKey = targetLng ? Number(targetLng).toFixed(3) : "null";
-    const fetchKey = `${targetCity}_${latKey}_${lngKey}`;
+    // Determine if this request is from GPS or manual city
+    const isGpsMode = isGpsExplicit !== null
+      ? isGpsExplicit
+      : (latOverride !== null && lngOverride !== null && saved?.isGps ? true : false);
+
+    let targetLat = latOverride;
+    let targetLng = lngOverride;
+
+    // Only fallback to saved GPS coordinates if explicitly in GPS mode
+    if ((targetLat === null || targetLat === undefined) && isGpsMode) {
+      targetLat = saved?.lat || gpsPoints?.[0]?.lat || null;
+      targetLng = saved?.lng || gpsPoints?.[0]?.lng || null;
+    }
+
+    const latKey = targetLat ? Number(targetLat).toFixed(3) : "auto";
+    const lngKey = targetLng ? Number(targetLng).toFixed(3) : "auto";
+    const fetchKey = `${targetCity}_${latKey}_${lngKey}_${isGpsMode}`;
 
     if (!forceRefresh && lastAqiFetchKeyRef.current === fetchKey) {
       return;
@@ -231,20 +249,48 @@ export default function CardioConnectHome() {
       lastAqiFetchKeyRef.current = fetchKey;
       setIsAqiLoading(true);
 
-      let url = `/api/v1/cardio/aqi?city=${encodeURIComponent(targetCity)}`;
-      if (targetLat && targetLng) {
-        url += `&lat=${targetLat}&lng=${targetLng}&is_gps=true`;
-      } else {
-        url += `&is_gps=false`;
+      let url = `/api/v1/cardio/aqi?city=${encodeURIComponent(targetCity)}&is_gps=${isGpsMode}`;
+      if (targetLat !== null && targetLng !== null && !isNaN(targetLat) && !isNaN(targetLng)) {
+        url += `&lat=${targetLat}&lng=${targetLng}`;
       }
       if (forceRefresh) {
         url += `&refresh=true`;
       }
+      url += `&_t=${Date.now()}`;
 
-      const res = await fetch(url);
+      const res = await fetch(url, { cache: "no-store" });
       const json = await res.json();
       if (json.success && json.data) {
         setAqiDetailData(json.data);
+        if (json.data.location && json.data.location !== "Current Location") {
+          setSavedUserCity(json.data.location);
+        }
+        // Keep main dashboard aqi_context & live_aqi_context in sync
+        setHomeData((prev) => {
+          if (!prev) return prev;
+          const aqiUpdate = {
+            value: json.data.aqi_value,
+            category: json.data.category,
+            location: json.data.location || targetCity,
+            standard: "CPCB NAQI (India)",
+            unit: "AQI",
+          };
+          return {
+            ...prev,
+            aqi_context: { ...(prev.aqi_context || {}), ...aqiUpdate },
+            live_aqi_context: { ...(prev.live_aqi_context || {}), ...aqiUpdate },
+          };
+        });
+
+        // Also update unified patient location so all reports/screens have fresh AQI
+        savePatientLocation({
+          city: json.data.location || targetCity,
+          aqi: json.data.aqi_value,
+          lat: json.data.latitude || undefined,
+          lng: json.data.longitude || undefined,
+          isGps: isGpsMode,
+          silent: true,
+        });
       }
     } catch (e) {
       console.warn("Could not fetch AQI:", e);
@@ -282,6 +328,7 @@ export default function CardioConnectHome() {
 
   const handleSelectSuggestion = async (sug) => {
     const cityName = sug.name || sug.text.split(",")[0].trim();
+    setGpsStatus("manual");
     setCitySearchInput("");
     setCitySuggestions([]);
     setShowLocationPicker(false);
@@ -291,7 +338,7 @@ export default function CardioConnectHome() {
     let lng = null;
     if (sug.placeId) {
       try {
-        const detRes = await fetch(`/api/location/search?place_id=${encodeURIComponent(sug.placeId)}`);
+        const detRes = await fetch(`/api/location/search?place_id=${encodeURIComponent(sug.placeId)}`, { cache: "no-store" });
         const detJson = await detRes.json();
         if (detJson.success && detJson.data) {
           lat = detJson.data.latitude;
@@ -308,14 +355,16 @@ export default function CardioConnectHome() {
       lat: lat || undefined,
       lng: lng || undefined,
       isGps: false,
+      isManual: true,
       forceReset: true,
     });
-    await fetchAqiData(cityName, lat, lng, true);
+    await fetchAqiData(cityName, lat, lng, true, false);
     toast.dismiss("city-sel");
     toast.success(`Location updated to ${cityName}`);
   };
 
   const handleSelectCity = async (cityName) => {
+    setGpsStatus("manual");
     setSavedUserCity(cityName);
     setCitySuggestions([]);
     setShowLocationPicker(false);
@@ -324,7 +373,7 @@ export default function CardioConnectHome() {
     let lat = null;
     let lng = null;
     try {
-      const geoRes = await fetch(`/api/location/search?geocode=${encodeURIComponent(cityName)}`);
+      const geoRes = await fetch(`/api/location/search?geocode=${encodeURIComponent(cityName)}`, { cache: "no-store" });
       const geoJson = await geoRes.json();
       if (geoJson.success && geoJson.data) {
         lat = geoJson.data.latitude;
@@ -339,9 +388,10 @@ export default function CardioConnectHome() {
       lat: lat || undefined,
       lng: lng || undefined,
       isGps: false,
+      isManual: true,
       forceReset: true,
     });
-    await fetchAqiData(cityName, lat, lng, true);
+    await fetchAqiData(cityName, lat, lng, true, false);
     toast.dismiss("city-sel");
     toast.success(`Location updated to ${cityName}`);
   };
@@ -383,12 +433,14 @@ export default function CardioConnectHome() {
             lat: latitude,
             lng: longitude,
             isGps: true,
+            isManual: false,
             forceReset: true,
           });
           toast.success(`GPS locked to ${finalCity} (±${Math.round(accuracy)}m)`);
-          fetchAqiData(finalCity, latitude, longitude, true);
+          await fetchAqiData(finalCity, latitude, longitude, true, true);
         } catch (e) {
           toast.success(`GPS Location active (±${Math.round(accuracy)}m)`);
+          await fetchAqiData(savedUserCity || "Bulandshahr", latitude, longitude, true, true);
         }
       },
       (err) => {
@@ -1170,7 +1222,7 @@ export default function CardioConnectHome() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div
                 onClick={() => {
-                  fetchAqiData(savedUserCity, null, null, false);
+                  fetchAqiData(savedUserCity, null, null, true);
                   setActiveModal("aqi");
                 }}
                 className="flex items-center gap-3 cursor-pointer flex-1 min-w-0"
@@ -1188,14 +1240,14 @@ export default function CardioConnectHome() {
                   </div>
                   <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5 truncate">
                     <MapPin className="w-3 h-3 text-[#0067A1] shrink-0" />
-                    <span className="font-semibold text-slate-800">{savedUserCity}</span>
+                    <span className="font-semibold text-slate-800">{aqiDetailData?.location || savedUserCity}</span>
                   </p>
                 </div>
               </div>
 
               <div
                 onClick={() => {
-                  fetchAqiData(savedUserCity, null, null, false);
+                  fetchAqiData(savedUserCity, null, null, true);
                   setActiveModal("aqi");
                 }}
                 className="flex items-center sm:flex-col sm:items-end justify-between gap-1 cursor-pointer shrink-0"
@@ -1231,7 +1283,7 @@ export default function CardioConnectHome() {
                 <button
                   type="button"
                   onClick={() => {
-                    fetchAqiData(savedUserCity, null, null, false);
+                    fetchAqiData(savedUserCity, null, null, true);
                     setActiveModal("aqi");
                     setShowLocationPicker(true);
                   }}
@@ -1240,12 +1292,21 @@ export default function CardioConnectHome() {
                   <Search className="w-3 h-3" />
                   <span>Choose City</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => fetchAqiData(savedUserCity, null, null, true)}
+                  disabled={isAqiLoading}
+                  className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 font-semibold rounded-[5px] text-[11px] flex items-center gap-1 border border-slate-200 transition-colors cursor-pointer"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isAqiLoading ? "animate-spin text-[#0067A1]" : ""}`} />
+                  <span>{isAqiLoading ? "Syncing..." : "Sync"}</span>
+                </button>
               </div>
 
               <button
                 type="button"
                 onClick={() => {
-                  fetchAqiData(savedUserCity, null, null, false);
+                  fetchAqiData(savedUserCity, null, null, true);
                   setActiveModal("aqi");
                 }}
                 className="text-[#0067A1] font-semibold hover:underline flex items-center gap-1 text-[11px] cursor-pointer ml-auto"
@@ -2868,14 +2929,27 @@ export default function CardioConnectHome() {
               {/* Active Location & Switcher Header */}
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-[5px] space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-[#0067A1]" />
-                    <span className="text-xs font-semibold text-slate-900">{savedUserCity}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <MapPin className="w-4 h-4 text-[#0067A1] shrink-0" />
+                    <span className="text-xs font-semibold text-slate-900 truncate">
+                      {aqiDetailData?.location || savedUserCity}
+                    </span>
                   </div>
-                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    {gpsStatus === 'granted' ? 'GPS Active' : 'Live Sync'}
-                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      {gpsStatus === 'granted' ? 'GPS Active' : 'Live Sync'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => fetchAqiData(savedUserCity, null, null, true, gpsStatus === 'granted')}
+                      disabled={isAqiLoading}
+                      title="Refresh Live Telemetry"
+                      className="p-1 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded-[5px] transition-colors cursor-pointer border border-slate-200 bg-white inline-flex items-center"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isAqiLoading ? "animate-spin text-[#0067A1]" : ""}`} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Quick Location Action Buttons */}
@@ -2976,7 +3050,15 @@ export default function CardioConnectHome() {
               </div>
 
               {/* Real AQI Value & Category Card */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-[5px] text-center">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-[5px] text-center relative overflow-hidden">
+                {isAqiLoading && (
+                  <div className="absolute inset-0 bg-white/80 backdrop-blur-2xs flex items-center justify-center z-10 transition-all">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-[#0067A1]">
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Fetching Live Google AQI...</span>
+                    </div>
+                  </div>
+                )}
                 <span className="text-[11px] text-slate-600 block">Current Air Quality Index (CPCB NAQI)</span>
                 <div className="text-5xl font-semibold text-slate-900 font-mono my-2 tracking-tight">
                   {aqiDetailData?.aqi_value ?? "--"}
@@ -3003,6 +3085,12 @@ export default function CardioConnectHome() {
                     Dominant Pollutant: <strong className="text-slate-800">{aqiDetailData.dominant_pollutant}</strong>
                   </div>
                 )}
+                <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[10px] text-slate-500">
+                  <span className="truncate">Feed: {aqiDetailData?.source || "Google Air Quality API"}</span>
+                  <span className="font-mono shrink-0 ml-2">
+                    {aqiDetailData?.timestamp ? new Date(aqiDetailData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Live"}
+                  </span>
+                </div>
               </div>
 
               {/* Real Weather Telemetry Grid */}
@@ -3068,7 +3156,7 @@ export default function CardioConnectHome() {
               {/* Refresh button */}
               <button
                 type="button"
-                onClick={() => fetchAqiData(savedUserCity, null, null, true)}
+                onClick={() => fetchAqiData(savedUserCity, null, null, true, gpsStatus === 'granted')}
                 disabled={isAqiLoading}
                 className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs rounded-[5px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-slate-200"
               >

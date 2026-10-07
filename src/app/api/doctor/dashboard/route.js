@@ -1,5 +1,5 @@
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseClient";
+import sql from "@/lib/db";
 
 export async function GET(req) {
   try {
@@ -10,39 +10,34 @@ export async function GET(req) {
       return failure("doctor_id is required", null, 400);
     }
 
-    const todayIST = new Date(
-      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-    );
-    const yyyy = todayIST.getFullYear();
-    const mm = String(todayIST.getMonth() + 1).padStart(2, "0");
-    const dd = String(todayIST.getDate()).padStart(2, "0");
-    const todayStr = `${yyyy}-${mm}-${dd}`;
+    const appointments = await sql`
+      SELECT id, status
+      FROM appointments
+      WHERE doctor_id = ${doctor_id}
+        AND appointment_date = CURRENT_DATE
+    `;
 
-    const { data: appointments, error } = await supabase
-      .from("appointments")
-      .select("id, status")
-      .eq("doctor_id", doctor_id)
-      .eq("appointment_date", todayStr);
+    const doctorRows = await sql`
+      SELECT consultation_fee, meta
+      FROM doctor_details
+      WHERE id = ${doctor_id}
+      LIMIT 1
+    `;
 
-    if (error) throw error;
+    const doctor = doctorRows[0];
+    const fee = doctor?.consultation_fee ? Number(doctor.consultation_fee) : 500;
 
-    const { data: doctor } = await supabase
-      .from("doctor_details")
-      .select("videoConsultFee, inPersonVisitFee")
-      .eq("id", doctor_id)
-      .maybeSingle();
-
-    const fee = doctor?.videoConsultFee || doctor?.inPersonVisitFee || 500;
+    const completedCount = appointments.filter((a) => a.status === "completed").length;
+    const pendingCount = appointments.filter((a) =>
+      ["booked", "approved", "checked_in", "waiting"].includes(a.status)
+    ).length;
 
     const stats = {
       total_appointments: appointments.length,
-      completed: appointments.filter(a => a.status === 'completed').length,
-      pending: appointments.filter(a => ['booked', 'approved', 'checked_in', 'waiting'].includes(a.status)).length,
-      earnings: 0 
+      completed: completedCount,
+      pending: pendingCount,
+      earnings: completedCount * fee,
     };
-
-    // Calculate real earnings based on doctor's fee
-    stats.earnings = stats.completed * fee;
 
     return success("Dashboard stats fetched", { stats }, 200);
   } catch (error) {

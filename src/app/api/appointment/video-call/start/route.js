@@ -1,5 +1,5 @@
-import admin from "@/lib/firebaseAdmin";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+import { sendPushAndInAppNotification } from "@/lib/notifications";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { logActivity } from "@/lib/layer1/activityLogger";
@@ -18,17 +18,20 @@ export async function POST(req) {
       });
     }
 
-    const { data: appointment, error: appointmentError } = await supabase
-      .from("appointments")
-      .select("id, doctor_id, patient_id, appointment_type, appointment_date, appointment_time")
-      .eq("id", appointment_id)
-      .single();
+    const appointments = await sql`
+      SELECT id, doctor_id, patient_id, appointment_type, appointment_date, appointment_time, care_episode_id
+      FROM appointments
+      WHERE id = ${appointment_id}
+      LIMIT 1
+    `;
 
-    if (appointmentError || !appointment) {
+    if (appointments.length === 0) {
       return failure("Appointment not found", null, 404, {
         headers: corsHeaders,
       });
     }
+
+    const appointment = appointments[0];
 
     if (String(appointment.doctor_id) !== String(doctor_id)) {
       return failure("Forbidden", null, 403, { headers: corsHeaders });
@@ -47,8 +50,8 @@ export async function POST(req) {
 
     const patient_id = appointment.patient_id;
 
-    // Insert notification for patient (DB)
-    const { error: insertError } = await supabase.from("notifications").insert({
+    // Send in-app notification directly to RDS notifications table and FCM push
+    await sendPushAndInAppNotification({
       user_id: patient_id,
       title: "Video Call Started",
       message: "Doctor has started the video consultation. Tap to join.",
@@ -60,45 +63,17 @@ export async function POST(req) {
       },
     });
 
-    if (insertError) {
-      console.error("Notification insert error:", insertError);
-      return failure("Failed to create notification", insertError.message, 500, {
-        headers: corsHeaders,
-      });
-    }
-
-    // ✅ LAYER-1: Activity log for video call start (fire-and-forget)
+    // Activity log for video call start
     logActivity({
       patient_id,
-      care_episode_id: appointment.care_episode_id || null, // appointment might not have care_episode_id fetched, but we log anyway
+      care_episode_id: appointment.care_episode_id || null,
       actor_id: doctor_id,
       module_type: "consultation",
       action_type: "video_call_started",
       reference_id: appointment_id,
-      description: `Doctor started video consultation`,
+      description: "Doctor started video consultation",
       metadata: { appointment_id, doctor_id },
     }).then(null, () => {});
-
-    // Send FCM push to patient (best-effort)
-    const { data: patientUser } = await supabase
-      .from("users")
-      .select("fcm_token")
-      .eq("id", patient_id)
-      .single();
-
-    if (patientUser?.fcm_token) {
-      await admin.messaging().send({
-        token: patientUser.fcm_token,
-        notification: {
-          title: "Video Call Started",
-          body: "Doctor has started the consultation. Join now.",
-        },
-        data: {
-          type: "video_call_started",
-          appointment_id: String(appointment_id),
-        },
-      });
-    }
 
     return success(
       "Patient notified successfully",

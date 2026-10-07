@@ -38,75 +38,96 @@ export async function generateClientPdf(element, filename = "MediConnect_Health_
   try {
     const html2canvas = await getHtml2Canvas();
 
-    // High-resolution canvas rendering with Tailwind v4 lab/oklch color immunity
-    const canvas = await html2canvas(element, {
-      scale: options.scale || 2, // 2x DPI for crisp medical typography
-      useCORS: true,
-      allowTaint: true,
-      logging: false,
-      backgroundColor: "#ffffff",
-      windowWidth: options.windowWidth || 850,
-      imageTimeout: 15000,
-      onclone: (clonedDoc) => {
-        try {
-          // Tailwind v4 global stylesheets inject modern lab() and oklch() color functions
-          // which cause standard html2canvas parsers to throw "unsupported color function lab".
-          // AssessmentPrintReport is 100% styled via inline CSS attributes and does not need
-          // global stylesheets. Removing external/injected style tags in the cloned frame
-          // prevents color parser crashes while preserving identical report rendering.
-          const styleNodes = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
-          styleNodes.forEach((node) => node.remove());
+    const sanitizeClone = (clonedDoc) => {
+      try {
+        const styleNodes = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
+        styleNodes.forEach((node) => node.remove());
 
-          if (clonedDoc.documentElement) {
-            clonedDoc.documentElement.removeAttribute("class");
-          }
-
-          // Locate the cloned report element and reset positioning to origin for clean canvas rendering
-          const clonedReport = clonedDoc.querySelector('#assessment-print-report') ||
-                               clonedDoc.querySelector('[data-print-report="true"]');
-
-          if (clonedReport) {
-            clonedReport.style.position = "static";
-            clonedReport.style.left = "0";
-            clonedReport.style.top = "0";
-            clonedReport.style.display = "block";
-            clonedReport.style.visibility = "visible";
-            clonedReport.style.margin = "0";
-          }
-        } catch (err) {
-          console.warn("Notice: stylesheet sanitization in canvas clone skipped:", err);
+        if (clonedDoc.documentElement) {
+          clonedDoc.documentElement.removeAttribute("class");
         }
-      },
-      ...options.html2canvas
-    });
 
-    const imgData = canvas.toDataURL("image/png");
-    
+        const clonedReport = clonedDoc.querySelector('#assessment-print-report') ||
+                             clonedDoc.querySelector('[data-print-report="true"]');
+
+        if (clonedReport) {
+          clonedReport.style.position = "static";
+          clonedReport.style.left = "0";
+          clonedReport.style.top = "0";
+          clonedReport.style.display = "block";
+          clonedReport.style.visibility = "visible";
+          clonedReport.style.margin = "0";
+        }
+      } catch (err) {
+        console.warn("Notice: stylesheet sanitization in canvas clone skipped:", err);
+      }
+    };
+
     // Standard ISO A4 dimensions in mm: 210 x 297
     const pdf = new jsPDF("p", "mm", "a4");
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
-    
-    // Scale image to fit A4 width
-    const imgWidth = pdfWidth;
-    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-    // If document is near single-page height (within 15% of A4), auto-fit to 1 page so footer is never clipped or sliced
-    if (imgHeight <= pdfHeight * 1.15) {
-      const scaleFactor = (pdfHeight - 4) / Math.max(imgHeight, pdfHeight);
-      const fittedWidth = imgWidth * scaleFactor;
-      const fittedHeight = imgHeight * scaleFactor;
-      const xOffset = (pdfWidth - fittedWidth) / 2;
-      pdf.addImage(imgData, "PNG", xOffset, 2, fittedWidth, fittedHeight, undefined, "FAST");
+    // Check if the report has explicit multi-page containers
+    const pageNodes = Array.from(element.querySelectorAll('[data-report-page="true"]'));
+
+    if (pageNodes.length > 1) {
+      // High-precision per-page rendering: each page rendered individually to its own A4 page
+      for (let i = 0; i < pageNodes.length; i++) {
+        if (i > 0) pdf.addPage();
+        const pageCanvas = await html2canvas(pageNodes[i], {
+          scale: options.scale || 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          backgroundColor: "#ffffff",
+          windowWidth: options.windowWidth || 850,
+          imageTimeout: 15000,
+          onclone: sanitizeClone,
+          ...options.html2canvas
+        });
+
+        const pImgData = pageCanvas.toDataURL("image/png");
+        const pImgHeight = (pageCanvas.height * pdfWidth) / pageCanvas.width;
+        const scaleFactor = Math.min(1, (pdfHeight - 4) / pImgHeight);
+        const fittedW = pdfWidth * scaleFactor;
+        const fittedH = pImgHeight * scaleFactor;
+        const xOffset = (pdfWidth - fittedW) / 2;
+        pdf.addImage(pImgData, "PNG", xOffset, 2, fittedW, fittedH, undefined, "FAST");
+      }
     } else {
-      // True multi-page handling with proper page offsets
-      let heightLeft = imgHeight;
-      let page = 0;
-      while (heightLeft > 3) {
-        if (page > 0) pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, -(page * pdfHeight), imgWidth, imgHeight, undefined, "FAST");
-        heightLeft -= pdfHeight;
-        page++;
+      // Single canvas flow
+      const canvas = await html2canvas(element, {
+        scale: options.scale || 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        windowWidth: options.windowWidth || 850,
+        imageTimeout: 15000,
+        onclone: sanitizeClone,
+        ...options.html2canvas
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      if (imgHeight <= pdfHeight * 1.15) {
+        const scaleFactor = (pdfHeight - 4) / Math.max(imgHeight, pdfHeight);
+        const fittedWidth = imgWidth * scaleFactor;
+        const fittedHeight = imgHeight * scaleFactor;
+        const xOffset = (pdfWidth - fittedWidth) / 2;
+        pdf.addImage(imgData, "PNG", xOffset, 2, fittedWidth, fittedHeight, undefined, "FAST");
+      } else {
+        let heightLeft = imgHeight;
+        let page = 0;
+        while (heightLeft > 3) {
+          if (page > 0) pdf.addPage();
+          pdf.addImage(imgData, "PNG", 0, -(page * pdfHeight), imgWidth, imgHeight, undefined, "FAST");
+          heightLeft -= pdfHeight;
+          page++;
+        }
       }
     }
 

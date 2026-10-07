@@ -6,7 +6,8 @@ import Link from 'next/link';
 import {
   Activity, Heart, ShieldAlert, ChevronLeft, Download,
   TrendingUp, AlertTriangle, Stethoscope, Calendar, Clock,
-  User, Ruler, Scale, Zap, Info, CheckCircle2, Printer, X, FileText, Eye
+  User, Ruler, Scale, Zap, Info, CheckCircle2, Printer, X, FileText, Eye,
+  ArrowUpRight, ArrowRight
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import AssessmentTrendChart from '@/components/public-site/health/AssessmentTrendChart';
@@ -284,6 +285,26 @@ export default function HeartHealthResult() {
 
   const inputs = (effectiveAssessmentData || assessmentData).heart_health_inputs?.[0] || {};
 
+  const isCardioAbnormal =
+    (inputs.systolic_bp && Number(inputs.systolic_bp) >= 130) ||
+    (inputs.diastolic_bp && Number(inputs.diastolic_bp) >= 85) ||
+    inputs.chest_pain === true ||
+    inputs.breathlessness === true ||
+    inputs.palpitations === true ||
+    (inputs.resting_heart_rate && (Number(inputs.resting_heart_rate) > 100 || Number(inputs.resting_heart_rate) < 50)) ||
+    (inputs.ldl_cholesterol && Number(inputs.ldl_cholesterol) >= 130) ||
+    inputs.family_cardiac_history === true ||
+    inputs.smoking_status === 'current';
+
+  const suggestedSpecialties = isCardioAbnormal
+    ? [
+        { shortName: "Cardiologist", specialtyParam: "Cardiologist" },
+        { shortName: "General Physician", specialtyParam: "General Physician" }
+      ]
+    : [
+        { shortName: "General Physician", specialtyParam: "General Physician" }
+      ];
+
   // Safely parse AI analysis
   let parsedAi = null;
   if (ai_analysis) {
@@ -401,7 +422,7 @@ export default function HeartHealthResult() {
       <AssessmentPrintReport
         assessmentType="heart"
         formatType={selectedFormat}
-        assessmentData={assessmentData}
+        assessmentData={effectiveAssessmentData || assessmentData}
         patientData={patientData}
         reportRef={reportRef}
       />
@@ -845,6 +866,52 @@ export default function HeartHealthResult() {
             </div>
           )}
 
+          {/* ── Suggested Doctor Consultation (Premium Healthcare Banner) ── */}
+          <div className="p-3.5 sm:p-4 bg-gradient-to-r from-sky-50/80 via-white to-blue-50/40 rounded-xl border border-sky-200/80 shadow-2xs space-y-2.5">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-[#0067A1]/10 flex items-center justify-center text-[#0067A1] shrink-0">
+                  <Stethoscope className="w-4 h-4" />
+                </div>
+                <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                  Suggested Specialist Consultation
+                </h4>
+              </div>
+              <Link
+                href="/doctors"
+                className="text-[11px] font-semibold text-[#0067A1] hover:underline inline-flex items-center gap-1"
+              >
+                <span>Browse All Doctors</span>
+                <ArrowUpRight className="w-3 h-3" />
+              </Link>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed sm:pl-9">
+              Based on your recorded screening responses, you may consider consulting a{" "}
+              <span className="font-semibold text-slate-900">
+                {suggestedSpecialties.map(s => s.shortName).join(" or ")}
+              </span>{" "}
+              for personalized clinical guidance and evaluation.
+            </p>
+
+            <div className="flex items-center gap-2 flex-wrap sm:pl-9 pt-0.5">
+              {suggestedSpecialties.map((s, idx) => (
+                <Link
+                  key={idx}
+                  href={`/doctors?specialty=${s.specialtyParam}`}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-2xs cursor-pointer ${
+                    idx === 0
+                      ? "bg-[#0067A1] hover:bg-[#005584] text-white hover:shadow-xs"
+                      : "bg-white border border-slate-300 hover:border-[#0067A1] text-slate-800 hover:text-[#0067A1] hover:bg-slate-50"
+                  }`}
+                >
+                  <span>Consult {s.shortName}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              ))}
+            </div>
+          </div>
+
           {/* Action Recommendations */}
           <div className="pt-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2.5">
@@ -884,6 +951,18 @@ export default function HeartHealthResult() {
                     <span className="font-semibold text-slate-900 text-xs">2. Heart-Healthy Nutrition</span>
                     <p className="text-[11px] text-slate-950 leading-relaxed">
                       Choose a dietary pattern rich in vegetables, whole grains, and legumes; prefer unsaturated plant oils and limit excess sodium, saturated fat, and processed foods.
+                    </p>
+                  </div>
+                  <div className="p-3 bg-slate-50/70 rounded-[5px] border border-slate-200/90 text-xs space-y-1">
+                    <span className="font-semibold text-slate-900 text-xs">3. Blood Pressure & Stress Regulation</span>
+                    <p className="text-[11px] text-slate-950 leading-relaxed">
+                      Record home blood pressure at consistent times and practice 10 minutes of slow 4-7-8 diaphragmatic breathing daily to support autonomic vascular balance.
+                    </p>
+                  </div>
+                  <div className="p-3 bg-slate-50/70 rounded-[5px] border border-slate-200/90 text-xs space-y-1">
+                    <span className="font-semibold text-slate-900 text-xs">4. Restorative Sleep & Recovery</span>
+                    <p className="text-[11px] text-slate-950 leading-relaxed">
+                      Maintain consistent 7–8 hours of restorative sleep to promote nocturnal blood pressure dipping and cellular recovery. Limit screen time 45 minutes before bedtime.
                     </p>
                   </div>
                 </>

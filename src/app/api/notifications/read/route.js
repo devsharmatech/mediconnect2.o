@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -13,19 +13,21 @@ export async function POST(req) {
     if (!user_id)
       return failure("user_id is required.", null, 400, { headers: corsHeaders });
 
-    let query = supabase.from("notifications").update({ read: true }).eq("user_id", user_id);
-
-    if (notification_ids.length > 0) {
+    if (Array.isArray(notification_ids) && notification_ids.length > 0) {
       // Mark specific notifications
-      query = query.in("id", notification_ids);
+      await sql`
+        UPDATE notifications
+        SET read = true
+        WHERE user_id = ${user_id} AND id = ANY(${notification_ids})
+      `;
     } else {
       // Mark all unread for this user
-      query = query.eq("read", false);
+      await sql`
+        UPDATE notifications
+        SET read = true
+        WHERE user_id = ${user_id} AND read = false
+      `;
     }
-
-    const { error } = await query;
-
-    if (error) throw error;
 
     return success(
       notification_ids.length > 0

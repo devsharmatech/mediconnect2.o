@@ -6,31 +6,53 @@ export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
-// Pre-mapped city coordinates for zero-latency lookups
-const CITY_COORDINATES = {
-  "Delhi": { lat: 28.7041, lng: 77.1025, name: "Delhi" },
-  "New Delhi, Delhi": { lat: 28.6139, lng: 77.2090, name: "New Delhi, Delhi" },
-  "New Delhi": { lat: 28.6139, lng: 77.2090, name: "New Delhi, Delhi" },
-  "Bulandshahr, Uttar Pradesh": { lat: 28.4069, lng: 77.8498, name: "Bulandshahr, Uttar Pradesh" },
-  "Bulandshahr": { lat: 28.4069, lng: 77.8498, name: "Bulandshahr, Uttar Pradesh" },
-  "Noida, Uttar Pradesh": { lat: 28.5355, lng: 77.3910, name: "Noida, Uttar Pradesh" },
-  "Noida": { lat: 28.5355, lng: 77.3910, name: "Noida, Uttar Pradesh" },
-  "Gurugram, Haryana": { lat: 28.4595, lng: 77.0266, name: "Gurugram, Haryana" },
-  "Gurugram": { lat: 28.4595, lng: 77.0266, name: "Gurugram, Haryana" },
-  "Bengaluru, Karnataka": { lat: 12.9716, lng: 77.5946, name: "Bengaluru, Karnataka" },
-  "Bengaluru": { lat: 12.9716, lng: 77.5946, name: "Bengaluru, Karnataka" },
-  "Mumbai, Maharashtra": { lat: 19.0760, lng: 72.8777, name: "Mumbai, Maharashtra" },
-  "Mumbai": { lat: 19.0760, lng: 72.8777, name: "Mumbai, Maharashtra" },
-  "Kolkata, West Bengal": { lat: 22.5726, lng: 88.3639, name: "Kolkata, West Bengal" },
-  "Kolkata": { lat: 22.5726, lng: 88.3639, name: "Kolkata, West Bengal" },
-  "Chennai, Tamil Nadu": { lat: 13.0827, lng: 80.2707, name: "Chennai, Tamil Nadu" },
-  "Chennai": { lat: 13.0827, lng: 80.2707, name: "Chennai, Tamil Nadu" },
-  "Hyderabad, Telangana": { lat: 17.3850, lng: 78.4867, name: "Hyderabad, Telangana" },
-  "Hyderabad": { lat: 17.3850, lng: 78.4867, name: "Hyderabad, Telangana" },
-  "Pune, Maharashtra": { lat: 18.5204, lng: 73.8567, name: "Pune, Maharashtra" },
-  "Pune": { lat: 18.5204, lng: 73.8567, name: "Pune, Maharashtra" },
-  "Ahmedabad, Gujarat": { lat: 23.0225, lng: 72.5714, name: "Ahmedabad, Gujarat" },
-  "Jaipur, Rajasthan": { lat: 26.9124, lng: 75.7873, name: "Jaipur, Rajasthan" }
+// Pre-mapped city coordinates for zero-latency lookups matching CardioConnect
+const INDIAN_CITIES = {
+  "delhi": { lat: 28.7041, lng: 77.1025, name: "Delhi" },
+  "new delhi": { lat: 28.6139, lng: 77.2090, name: "New Delhi, Delhi" },
+  "new delhi, delhi": { lat: 28.6139, lng: 77.2090, name: "New Delhi, Delhi" },
+  "delhi ncr": { lat: 28.6139, lng: 77.2090, name: "Delhi NCR" },
+  "ncr": { lat: 28.6139, lng: 77.2090, name: "Delhi NCR" },
+  "bulandshahr": { lat: 28.4069, lng: 77.8498, name: "Bulandshahr, Uttar Pradesh" },
+  "bulandshahr, uttar pradesh": { lat: 28.4069, lng: 77.8498, name: "Bulandshahr, Uttar Pradesh" },
+  "murtzabad bhatwara": { lat: 28.4069, lng: 77.8498, name: "Murtzabad Bhatwara, Uttar Pradesh" },
+  "murtzabad bhatwara, uttar pradesh": { lat: 28.4069, lng: 77.8498, name: "Murtzabad Bhatwara, Uttar Pradesh" },
+  "murtzabad": { lat: 28.4069, lng: 77.8498, name: "Murtzabad Bhatwara, Uttar Pradesh" },
+  "bhatwara": { lat: 28.4069, lng: 77.8498, name: "Murtzabad Bhatwara, Uttar Pradesh" },
+  "noida": { lat: 28.5355, lng: 77.3910, name: "Noida, Uttar Pradesh" },
+  "noida, uttar pradesh": { lat: 28.5355, lng: 77.3910, name: "Noida, Uttar Pradesh" },
+  "greater noida": { lat: 28.4744, lng: 77.5040, name: "Greater Noida, Uttar Pradesh" },
+  "ghaziabad": { lat: 28.6692, lng: 77.4538, name: "Ghaziabad, Uttar Pradesh" },
+  "gurugram": { lat: 28.4595, lng: 77.0266, name: "Gurugram, Haryana" },
+  "gurugram, haryana": { lat: 28.4595, lng: 77.0266, name: "Gurugram, Haryana" },
+  "gurgaon": { lat: 28.4595, lng: 77.0266, name: "Gurugram, Haryana" },
+  "faridabad": { lat: 28.4089, lng: 77.3178, name: "Faridabad, Haryana" },
+  "meerut": { lat: 28.9845, lng: 77.7064, name: "Meerut, Uttar Pradesh" },
+  "lucknow": { lat: 26.8467, lng: 80.9462, name: "Lucknow, Uttar Pradesh" },
+  "kanpur": { lat: 26.4499, lng: 80.3319, name: "Kanpur, Uttar Pradesh" },
+  "varanasi": { lat: 25.3176, lng: 82.9739, name: "Varanasi, Uttar Pradesh" },
+  "mumbai": { lat: 19.0760, lng: 72.8777, name: "Mumbai, Maharashtra" },
+  "mumbai, maharashtra": { lat: 19.0760, lng: 72.8777, name: "Mumbai, Maharashtra" },
+  "pune": { lat: 18.5204, lng: 73.8567, name: "Pune, Maharashtra" },
+  "pune, maharashtra": { lat: 18.5204, lng: 73.8567, name: "Pune, Maharashtra" },
+  "bengaluru": { lat: 12.9716, lng: 77.5946, name: "Bengaluru, Karnataka" },
+  "bengaluru, karnataka": { lat: 12.9716, lng: 77.5946, name: "Bengaluru, Karnataka" },
+  "bangalore": { lat: 12.9716, lng: 77.5946, name: "Bengaluru, Karnataka" },
+  "hyderabad": { lat: 17.3850, lng: 78.4867, name: "Hyderabad, Telangana" },
+  "hyderabad, telangana": { lat: 17.3850, lng: 78.4867, name: "Hyderabad, Telangana" },
+  "chennai": { lat: 13.0827, lng: 80.2707, name: "Chennai, Tamil Nadu" },
+  "chennai, tamil nadu": { lat: 13.0827, lng: 80.2707, name: "Chennai, Tamil Nadu" },
+  "kolkata": { lat: 22.5726, lng: 88.3639, name: "Kolkata, West Bengal" },
+  "kolkata, west bengal": { lat: 22.5726, lng: 88.3639, name: "Kolkata, West Bengal" },
+  "jaipur": { lat: 26.9124, lng: 75.7873, name: "Jaipur, Rajasthan" },
+  "jaipur, rajasthan": { lat: 26.9124, lng: 75.7873, name: "Jaipur, Rajasthan" },
+  "chandigarh": { lat: 30.7333, lng: 76.7794, name: "Chandigarh, India" },
+  "ahmedabad": { lat: 23.0225, lng: 72.5714, name: "Ahmedabad, Gujarat" },
+  "ahmedabad, gujarat": { lat: 23.0225, lng: 72.5714, name: "Ahmedabad, Gujarat" },
+  "patna": { lat: 25.5941, lng: 85.1376, name: "Patna, Bihar" },
+  "agra": { lat: 27.1767, lng: 78.0081, name: "Agra, Uttar Pradesh" },
+  "bhopal": { lat: 23.2599, lng: 77.4126, name: "Bhopal, Madhya Pradesh" },
+  "indore": { lat: 22.7196, lng: 75.8577, name: "Indore, Madhya Pradesh" }
 };
 
 function weatherCodeToCondition(code) {
@@ -181,11 +203,22 @@ export async function GET(req) {
       }
     } else {
       // 1. Check predefined city coordinates
-      const mapped = CITY_COORDINATES[cityParam] || CITY_COORDINATES[cityParam.trim()];
-      if (mapped) {
-        lat = mapped.lat;
-        lng = mapped.lng;
-        locationName = mapped.name;
+      const lowerCity = (cityParam || "").toLowerCase().trim();
+      const firstWord = lowerCity.split(",")[0].trim();
+      let match = INDIAN_CITIES[lowerCity] || INDIAN_CITIES[firstWord];
+      if (!match) {
+        for (const [k, v] of Object.entries(INDIAN_CITIES)) {
+          if (lowerCity.includes(k) || k.includes(firstWord)) {
+            match = v;
+            break;
+          }
+        }
+      }
+
+      if (match) {
+        lat = match.lat;
+        lng = match.lng;
+        locationName = match.name;
       } else {
         let cityResolved = false;
 
@@ -251,7 +284,8 @@ export async function GET(req) {
       visibility_km: null,
       last_updated: new Date().toISOString()
     };
-    let sourceName = googleApiKey ? "Google Air Quality API" : "Open-Meteo Air Quality & CPCB Telemetry";
+    let sourceName = googleApiKey ? "Google Air Quality API (NAQI (IN))" : "Open-Meteo Air Quality & CPCB Telemetry";
+    let standardName = "Google Air Quality API (NAQI (IN))";
     let lastUpdated = new Date().toISOString();
     let googleAqiLoaded = false;
 
@@ -290,11 +324,12 @@ export async function GET(req) {
               || indexes[0];
 
             if (resolvedIndex && resolvedIndex.aqi !== undefined) {
-              aqiVal = resolvedIndex.aqi;
-              aqiCat = resolvedIndex.category || aqiCategory(aqiVal);
+              aqiVal = Math.round(resolvedIndex.aqi);
+              aqiCat = aqiCategory(aqiVal);
               dominantPollutant = (resolvedIndex.dominantPollutant || gAqiJson.dominantPollutant || dominantPollutant).toUpperCase();
               if (dominantPollutant === "PM25") dominantPollutant = "PM2.5";
-              sourceName = "Google Air Quality API";
+              sourceName = `Google Air Quality API (${resolvedIndex.displayName || "NAQI (IN)"})`;
+              standardName = `Google Air Quality API (${resolvedIndex.displayName || "NAQI (IN)"})`;
               lastUpdated = gAqiJson.dateTime || new Date().toISOString();
               googleAqiLoaded = true;
 
@@ -429,7 +464,7 @@ export async function GET(req) {
       latitude: lat,
       longitude: lng,
       aqi: aqiVal,
-      standard: "CPCB NAQI (India)",
+      standard: standardName,
       unit: "AQI",
       aqi_category: aqiCat,
       aqi_location: locationName,

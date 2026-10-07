@@ -1,5 +1,5 @@
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseClient";
+import sql from "@/lib/db";
 
 export async function POST(req) {
   try {
@@ -17,28 +17,17 @@ export async function POST(req) {
       return failure("Missing required fields for booking attempt", null, 400);
     }
 
-    const { data, error } = await supabase
-      .from("booking_attempts")
-      .insert([
-        {
-          patient_id: patient_id || null,
-          doctor_id,
-          appointment_date,
-          appointment_time,
-          appointment_type: appointment_type || 'clinic_visit',
-          fee: fee || 0,
-          status: 'initiated'
-        }
-      ])
-      .select()
-      .single();
+    const rows = await sql`
+      INSERT INTO booking_attempts (
+        patient_id, doctor_id, appointment_date, appointment_time, appointment_type, fee, status
+      ) VALUES (
+        ${patient_id || null}, ${doctor_id}, ${appointment_date}, ${appointment_time},
+        ${appointment_type || 'clinic_visit'}, ${fee || 0}, 'initiated'
+      )
+      RETURNING *
+    `;
 
-    if (error) {
-      console.error("[Attempt API] Database error:", error);
-      return failure("Failed to log booking attempt", error.message, 500);
-    }
-
-    return success("Booking attempt logged successfully", data, 201);
+    return success("Booking attempt logged successfully", rows[0], 201);
   } catch (err) {
     console.error("[Attempt API] Exception:", err);
     return failure("Failed to log booking attempt", err.message, 500);
