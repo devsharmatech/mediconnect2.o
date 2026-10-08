@@ -234,9 +234,15 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
           if (user_id) localStorage.setItem('userId', String(user_id));
           if (role) localStorage.setItem('userRole', role);
           if (user) localStorage.setItem('userData', JSON.stringify(user));
-          if (role === 'patient') {
+          if (role === 'doctor') {
+            localStorage.setItem('doctorUser', JSON.stringify(user));
+          } else if (role === 'patient') {
+            localStorage.setItem('patientUser', JSON.stringify(user));
             localStorage.removeItem('labUser');
             localStorage.removeItem('chemistUser');
+          }
+          if (user_id) {
+            document.cookie = `session_id=${user_id}; path=/; max-age=86400; SameSite=Lax`;
           }
           sessionStorage.removeItem('loginPhoneNumber');
           sessionStorage.removeItem('loginEmail');
@@ -244,6 +250,10 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
           sessionStorage.removeItem('loginUserType');
           sessionStorage.removeItem('registrationPhone');
           sessionStorage.removeItem('userId');
+
+          // Notify Navbar and active components immediately
+          window.dispatchEvent(new Event('storage'));
+          window.dispatchEvent(new CustomEvent('userProfileUpdated', { detail: user }));
         }
 
         setTimeout(() => {

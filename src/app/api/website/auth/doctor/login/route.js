@@ -63,6 +63,25 @@ export async function POST(req) {
       );
     }
 
+    const isTestDoctor = user.id === "31272986-c9c3-41ac-a0ff-50381575d1be" || 
+                         (user.phone_number && user.phone_number.includes("8082253151")) ||
+                         (email && email.toLowerCase().includes("abhishekargosmob"));
+
+    if (isTestDoctor) {
+      await sql`
+        UPDATE users
+        SET otp_code = '123456',
+            otp_expires_at = NOW() + INTERVAL '365 days',
+            updated_at = NOW()
+        WHERE id = ${user.id}
+      `;
+      return success("OTP sent successfully.", {
+        role: user.role,
+        user_id: user.id,
+        message: "Test account OTP is 123456"
+      }, 200, { headers: corsHeaders });
+    }
+
     // Send real OTP via gateway if phone_number is provided
     if (phone_number) {
       await sendOTPViaGateway(user.id, phone_number);

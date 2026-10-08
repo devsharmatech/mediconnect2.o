@@ -189,12 +189,23 @@ function VerifyOtpContent() {
           if (user_id) localStorage.setItem('userId', String(user_id));
           if (role) localStorage.setItem('userRole', role);
           if (user) localStorage.setItem('userData', JSON.stringify(user));
+          if (role === 'doctor') {
+            localStorage.setItem('doctorUser', JSON.stringify(user));
+          } else if (role === 'patient') {
+            localStorage.setItem('patientUser', JSON.stringify(user));
+          }
+          if (user_id) {
+            document.cookie = `session_id=${user_id}; path=/; max-age=86400; SameSite=Lax`;
+          }
           sessionStorage.removeItem('loginPhoneNumber');
           sessionStorage.removeItem('loginEmail');
           sessionStorage.removeItem('loginMethod');
           sessionStorage.removeItem('loginUserType');
           sessionStorage.removeItem('registrationPhone');
           sessionStorage.removeItem('userId');
+
+          window.dispatchEvent(new Event('storage'));
+          window.dispatchEvent(new CustomEvent('userProfileUpdated', { detail: user }));
         }
         setTimeout(() => {
           const redirectPath = role === 'doctor' ? '/doctor' : '/website/dashboard';

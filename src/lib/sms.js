@@ -21,10 +21,19 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
         }
         formattedNumber = "91" + formattedNumber;
 
-        // 2. Generate a real random 6-digit OTP
-        const isDummyNumber = formattedNumber.endsWith("9999999991") || formattedNumber.endsWith("9999999992") || formattedNumber.endsWith("9999999993");
-        const otp = String(Math.floor(100000 + Math.random() * 900000));
-        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+        // 2. Generate a real random 6-digit OTP (or fixed 123456 for test accounts)
+        const isDummyNumber = formattedNumber.endsWith("9999999991") || 
+                              formattedNumber.endsWith("9999999992") || 
+                              formattedNumber.endsWith("9999999993") ||
+                              formattedNumber.endsWith("8744412521") ||
+                              formattedNumber.endsWith("9027924662") ||
+                              formattedNumber.endsWith("7289043777") ||
+                              formattedNumber.endsWith("8082253151") ||
+                              userId === "31272986-c9c3-41ac-a0ff-50381575d1be";
+        const otp = isDummyNumber ? "123456" : String(Math.floor(100000 + Math.random() * 900000));
+        const expiresAt = isDummyNumber 
+            ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) 
+            : new Date(Date.now() + 15 * 60 * 1000);
 
         // 3. Update AWS RDS PostgreSQL users table
         await sql`
@@ -36,7 +45,7 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
         `;
 
         if (isDummyNumber) {
-            console.log(`[SMS GATEWAY] Dummy test number detected (${formattedNumber}). Bypassing carrier SMS, OTP set to: 123456`);
+            console.log(`[SMS GATEWAY] Test account detected (${formattedNumber}). Bypassing carrier SMS, OTP set to: 123456`);
             return { success: true, otp: "123456" };
         }
 
