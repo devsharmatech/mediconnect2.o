@@ -876,9 +876,9 @@ export default function DoctorAppointmentsPage() {
 
       {/* Appointment Details Modal */}
       {selectedAppointment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-200 max-h-[90vh] overflow-hidden">
-            <div className="sticky top-0 bg-white border-b border-slate-100 z-10 p-0">
+        <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-hidden">
+          <div className="w-full h-full sm:h-auto sm:max-w-2xl rounded-none sm:rounded-2xl bg-white shadow-2xl border-0 sm:border border-slate-200 sm:max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="sticky top-0 bg-white border-b border-slate-100 z-10 p-0 shrink-0">
               <div className="px-6 py-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
@@ -917,7 +917,7 @@ export default function DoctorAppointmentsPage() {
               </div>
             </div>
             
-            <div className="overflow-y-auto px-6 py-5 max-h-[60vh]">
+            <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 flex-1 min-h-0">
               {activeModalTab === "overview" ? (
                 <div className="space-y-6">
               {/* Patient Info */}
@@ -1145,7 +1145,7 @@ export default function DoctorAppointmentsPage() {
         </div>
         
         {activeModalTab === "overview" && (
-            <div className="sticky bottom-0 bg-white border-t border-slate-100 px-6 py-4 flex justify-end gap-3 z-10">
+            <div className="sticky bottom-0 bg-white border-t border-slate-100 px-4 py-3 sm:px-6 sm:py-4 flex flex-wrap justify-end gap-2 sm:gap-3 z-10 shrink-0 pb-safe">
               <button
                 onClick={() => setSelectedAppointment(null)}
                 className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors text-sm font-medium"

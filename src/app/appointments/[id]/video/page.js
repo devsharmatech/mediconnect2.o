@@ -1417,13 +1417,13 @@ function PrescriptionModal({ userId, data, chemistOrder, chemistInfo, labOrder, 
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/70" onClick={onClose} />
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[95vh] flex flex-col"
+        className="relative w-full sm:max-w-4xl bg-white rounded-none sm:rounded-2xl shadow-none sm:shadow-2xl overflow-hidden h-full sm:h-auto sm:max-h-[95vh] flex flex-col"
       >
         {/* ── Close bar ── */}
         <div className="flex items-center justify-between px-5 py-3 bg-[#0067A1] text-white shrink-0">
@@ -1827,7 +1827,7 @@ function PrescriptionModal({ userId, data, chemistOrder, chemistInfo, labOrder, 
         <AnimatePresence>
           {shareTarget && (
             <SharePrescriptionModal
-              userId={userId}
+              userId={userId || data?.patient_id || data?.patient_details?.id || (typeof window !== "undefined" ? (localStorage.getItem("userId") || localStorage.getItem("user_id")) : null)}
               type={shareTarget}
               prescriptionId={data.id}
               prescriptionDisplayId={prescriptionId}

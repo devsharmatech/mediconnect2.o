@@ -1,7 +1,6 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-import { resolveCallerFromRequest } from "@/lib/layer1/authGuard";
 
 export async function OPTIONS() {
     return new Response("OK", { headers: corsHeaders });
@@ -20,73 +19,63 @@ export async function GET(req) {
             return failure("patient_id is required", null, 400, { headers: corsHeaders });
         }
 
-        const caller = await resolveCallerFromRequest(req);
-        if (!caller) {
-            return failure("Unauthorized - missing or invalid token.", null, 401, { headers: corsHeaders });
-        }
-        if (caller.id !== patient_id && caller.role !== "admin") {
-            return failure("Forbidden - you do not have permission to view this order history.", null, 403, { headers: corsHeaders });
-        }
-
-        const from = (page - 1) * limit;
-        const to = from + limit - 1;
+        const offset = (page - 1) * limit;
 
         // Count total
-        let countQuery = supabase
-            .from("lab_test_orders")
-            .select("*", { count: "exact", head: true })
-            .eq("patient_id", patient_id);
-        if (status) countQuery = countQuery.eq("status", status);
+        let countRes;
+        if (status) {
+            countRes = await sql`
+                SELECT COUNT(*)::int as count 
+                FROM lab_test_orders 
+                WHERE patient_id = ${patient_id} AND status = ${status}
+            `;
+        } else {
+            countRes = await sql`
+                SELECT COUNT(*)::int as count 
+                FROM lab_test_orders 
+                WHERE patient_id = ${patient_id}
+            `;
+        }
+        const count = countRes[0]?.count || 0;
 
-        const { count } = await countQuery;
-
-        // Fetch orders with payment info
-        let query = supabase
-            .from("lab_test_orders")
-            .select(`
-                id,
-                unid,
-                status,
-                payment_status,
-                total_amount,
-                patient_notes,
-                lab_notes,
-                visit_type,
-                delivery_address,
-                razorpay_order_id,
-                created_at,
-                updated_at,
-                lab:lab_id (
-                    id
-                )
-            `)
-            .eq("patient_id", patient_id)
-            .order("created_at", { ascending: false })
-            .range(from, to);
-
-        if (status) query = query.eq("status", status);
-
-        const { data: orders, error } = await query;
-        if (error) throw error;
-
-        // Attach lab name from lab_details
-        const labIds = [...new Set(orders.map(o => o.lab?.id).filter(Boolean))];
-        let labDetailsMap = {};
-        if (labIds.length > 0) {
-            const { data: labDetails } = await supabase
-                .from("lab_details")
-                .select("id, lab_name, address")
-                .in("id", labIds);
-            (labDetails || []).forEach(l => { labDetailsMap[l.id] = l; });
+        // Fetch orders
+        let orders;
+        if (status) {
+            orders = await sql`
+                SELECT 
+                    lto.*,
+                    json_build_object(
+                        'id', ld.id,
+                        'lab_name', ld.lab_name,
+                        'address', ld.address,
+                        'phone_number', ld.phone_number
+                    ) as lab_details
+                FROM lab_test_orders lto
+                LEFT JOIN lab_details ld ON ld.id = lto.lab_id
+                WHERE lto.patient_id = ${patient_id} AND lto.status = ${status}
+                ORDER BY lto.created_at DESC
+                LIMIT ${limit} OFFSET ${offset}
+            `;
+        } else {
+            orders = await sql`
+                SELECT 
+                    lto.*,
+                    json_build_object(
+                        'id', ld.id,
+                        'lab_name', ld.lab_name,
+                        'address', ld.address,
+                        'phone_number', ld.phone_number
+                    ) as lab_details
+                FROM lab_test_orders lto
+                LEFT JOIN lab_details ld ON ld.id = lto.lab_id
+                WHERE lto.patient_id = ${patient_id}
+                ORDER BY lto.created_at DESC
+                LIMIT ${limit} OFFSET ${offset}
+            `;
         }
 
-        const enrichedOrders = orders.map(o => ({
-            ...o,
-            lab_details: labDetailsMap[o.lab?.id] || null,
-        }));
-
         return success("Order history fetched", {
-            orders: enrichedOrders,
+            orders,
             pagination: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
         }, 200, { headers: corsHeaders });
 

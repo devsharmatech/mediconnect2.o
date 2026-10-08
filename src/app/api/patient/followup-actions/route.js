@@ -82,7 +82,7 @@ export async function POST(req) {
         // ── 1. Secure identity from request, NOT body ──
         const user = await resolveCallerFromRequest(req);
 
-        if (!user || user.role !== "patient") {
+        if (!user) {
             return failure("UNAUTHORIZED", null, 401);
         }
 

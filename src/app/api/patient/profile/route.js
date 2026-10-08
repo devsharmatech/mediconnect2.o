@@ -1,3 +1,4 @@
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { supabase } from "@/lib/supabaseAdmin";
 import { uploadToS3 } from "@/lib/s3";
@@ -24,18 +25,65 @@ export async function GET(req) {
       });
     }
 
-    const [{ data: user, error: userError }, { data: profile, error: profileError }] =
-      await Promise.all([
-        supabase
-          .from("users")
-          .select("id, un_id, role, phone_number, profile_picture, is_verified, created_at")
-          .eq("id", id)
-          .maybeSingle(),
-        supabase.from("patient_details").select("*").eq("id", id).maybeSingle(),
-      ]);
+    // 1. Fetch user from AWS RDS
+    const userRows = await sql`
+      SELECT id, un_id, role, phone_number, profile_picture, is_verified, created_at
+      FROM users
+      WHERE id = ${id}
+      LIMIT 1
+    `;
+    const user = userRows[0] || null;
 
-    if (userError) console.warn("Notice fetching user in patient profile:", userError.message);
-    if (profileError) console.warn("Notice fetching details in patient profile:", profileError.message);
+    // 2. Fetch patient_details from AWS RDS
+    let patientRows = await sql`
+      SELECT *
+      FROM patient_details
+      WHERE id = ${id}
+      LIMIT 1
+    `;
+    let profile = patientRows[0] || null;
+
+    // 3. Auto-provision patient_details if missing for professional accounts (doctor, chemist, lab, admin)
+    if (!profile && user) {
+      let resolvedName = null;
+      let resolvedEmail = null;
+
+      if (user.role === "doctor") {
+        const docRows = await sql`SELECT full_name, email FROM doctor_details WHERE id = ${id} LIMIT 1`;
+        if (docRows[0]) {
+          resolvedName = docRows[0].full_name;
+          resolvedEmail = docRows[0].email;
+        }
+      } else if (user.role === "chemist") {
+        const chemRows = await sql`SELECT owner_name, pharmacist_name, pharmacy_name, email FROM chemist_details WHERE id = ${id} LIMIT 1`;
+        if (chemRows[0]) {
+          resolvedName = chemRows[0].owner_name || chemRows[0].pharmacist_name || chemRows[0].pharmacy_name;
+          resolvedEmail = chemRows[0].email;
+        }
+      } else if (user.role === "lab") {
+        const labRows = await sql`SELECT owner_name, lab_name, email FROM lab_details WHERE id = ${id} LIMIT 1`;
+        if (labRows[0]) {
+          resolvedName = labRows[0].owner_name || labRows[0].lab_name;
+          resolvedEmail = labRows[0].email;
+        }
+      } else if (user.role === "admin") {
+        resolvedName = "Administrator";
+      }
+
+      if (resolvedName) {
+        try {
+          const inserted = await sql`
+            INSERT INTO patient_details (id, full_name, email, created_at, updated_at)
+            VALUES (${id}, ${resolvedName}, ${resolvedEmail || null}, NOW(), NOW())
+            ON CONFLICT (id) DO UPDATE SET updated_at = NOW()
+            RETURNING *
+          `;
+          profile = inserted[0] || null;
+        } catch (provErr) {
+          console.warn("Auto-provision patient_details warning:", provErr.message);
+        }
+      }
+    }
 
     if (!user && !profile) {
       return failure("Profile not found", null, 404, { headers: corsHeaders });
@@ -57,6 +105,8 @@ export async function GET(req) {
     const mergedProfile = {
       ...(profile || {}),
       id: id,
+      full_name: profile?.full_name || "Patient",
+      email: profile?.email || null,
       phone_number: user?.phone_number || profile?.phone_number || "",
       profile_picture: cleanPic,
       un_id: user?.un_id || null,
@@ -255,28 +305,58 @@ async function handleProfileUpdate(req) {
       // It is handled in the users table update below — do not add here
     }
 
-    // Upsert into patient_details (only columns that exist in this table)
-    const { data: profile, error: updateError } = await supabase
-      .from("patient_details")
-      .upsert({
-        id: userId,
-        ...updates,
-      })
-      .select()
-      .maybeSingle();
+    // Upsert into patient_details in AWS RDS PostgreSQL
+    const insertedRows = await sql`
+      INSERT INTO patient_details (id, full_name, email, gender, date_of_birth, blood_group, address, emergency_contact, updated_at)
+      VALUES (
+        ${userId},
+        ${updates.full_name || null},
+        ${updates.email || null},
+        ${updates.gender || null},
+        ${updates.date_of_birth || null},
+        ${updates.blood_group || null},
+        ${updates.address || null},
+        ${updates.emergency_contact || null},
+        NOW()
+      )
+      ON CONFLICT (id) DO UPDATE SET
+        full_name = COALESCE(EXCLUDED.full_name, patient_details.full_name),
+        email = COALESCE(EXCLUDED.email, patient_details.email),
+        gender = COALESCE(EXCLUDED.gender, patient_details.gender),
+        date_of_birth = COALESCE(EXCLUDED.date_of_birth, patient_details.date_of_birth),
+        blood_group = COALESCE(EXCLUDED.blood_group, patient_details.blood_group),
+        address = COALESCE(EXCLUDED.address, patient_details.address),
+        emergency_contact = COALESCE(EXCLUDED.emergency_contact, patient_details.emergency_contact),
+        updated_at = NOW()
+      RETURNING *
+    `;
+    const profile = insertedRows[0] || null;
 
-    if (updateError) throw updateError;
-
-    // Update users table (profile_picture and phone_number)
-    const userUpdates = {};
-    if (newProfilePictureUrl) userUpdates.profile_picture = newProfilePictureUrl;
-    if (phoneNumber && typeof phoneNumber === "string") {
-      const cleanPhone = phoneNumber.replace(/\D/g, "").slice(-10);
-      if (/^[0-9]{10}$/.test(cleanPhone)) userUpdates.phone_number = cleanPhone;
-    }
-
-    if (Object.keys(userUpdates).length > 0) {
-      await supabase.from("users").update(userUpdates).eq("id", userId);
+    // Update users table in AWS RDS (profile_picture and phone_number)
+    if (newProfilePictureUrl && phoneNumber) {
+      const cleanPhone = String(phoneNumber).replace(/\D/g, "").slice(-10);
+      await sql`
+        UPDATE users 
+        SET profile_picture = ${newProfilePictureUrl}, 
+            phone_number = CASE WHEN ${cleanPhone} ~ '^[0-9]{10}$' THEN ${cleanPhone} ELSE phone_number END,
+            updated_at = NOW()
+        WHERE id = ${userId}
+      `;
+    } else if (newProfilePictureUrl) {
+      await sql`
+        UPDATE users 
+        SET profile_picture = ${newProfilePictureUrl}, updated_at = NOW()
+        WHERE id = ${userId}
+      `;
+    } else if (phoneNumber) {
+      const cleanPhone = String(phoneNumber).replace(/\D/g, "").slice(-10);
+      if (/^[0-9]{10}$/.test(cleanPhone)) {
+        await sql`
+          UPDATE users 
+          SET phone_number = ${cleanPhone}, updated_at = NOW()
+          WHERE id = ${userId}
+        `;
+      }
     }
 
     return success(

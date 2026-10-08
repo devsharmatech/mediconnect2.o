@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   FaUserMd,
+  FaHome,
   FaCalendarAlt,
   FaVideo,
   FaClock,
@@ -35,15 +36,25 @@ import {
   FaPhoneAlt,
   FaPhoneSlash,
   FaTimes,
+  FaCheck,
+  FaCheckDouble,
 } from "react-icons/fa";
 import api from "@/utils/websiteApi";
 
 const formatMessageText = (message) => {
   if (!message) return "";
   try {
+    let formattedMessage = message;
+
+    // 0. Shorten raw UUIDs (e.g. #af0013e4-3e51-9485-f0e6d2475f98 -> #af0013e4)
+    formattedMessage = formattedMessage.replace(
+      /#?([a-f0-9]{8})-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\b/gi,
+      "#$1"
+    );
+
     // 1. Match YYYY-MM-DD
     const dateRegex = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
-    let formattedMessage = message.replace(dateRegex, (match, y, m, d) => {
+    formattedMessage = formattedMessage.replace(dateRegex, (match, y, m, d) => {
       const date = new Date(Number(y), Number(m) - 1, Number(d));
       if (isNaN(date.getTime())) return match;
       return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -73,6 +84,15 @@ const formatMessageText = (message) => {
   }
 };
 
+const getInitials = (name) => {
+  if (!name || typeof name !== "string") return "DR";
+  const parts = name.replace(/^Dr\.?\s*/i, "").trim().split(/\s+/);
+  if (parts.length >= 2 && parts[0] && parts[1]) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return (parts[0] ? parts[0].slice(0, 2) : "DR").toUpperCase();
+};
+
 export default function DoctorDashboardLayout({ children }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -94,6 +114,8 @@ export default function DoctorDashboardLayout({ children }) {
     });
   };
 
+  const [doctorImage, setDoctorImage] = useState(null);
+  const [notificationTab, setNotificationTab] = useState("all"); // 'all' | 'unread'
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -114,7 +136,24 @@ export default function DoctorDashboardLayout({ children }) {
   const [sharedDocs, setSharedDocs] = useState([]);
   const [sharedDocsLoading, setSharedDocsLoading] = useState(false);
 
-
+  const fetchDoctorProfile = useCallback(async (uid) => {
+    if (!uid) return;
+    try {
+      const res = await fetch(`/api/doctor/profile?doctor_id=${uid}`);
+      if (res.ok) {
+        const data = await res.json();
+        const prof = data?.profile || data?.data;
+        if (prof?.profile_picture) {
+          setDoctorImage(prof.profile_picture);
+        }
+        if (prof?.name && prof.name !== "Doctor") {
+          setDoctorName(prof.name.replace(/^Dr\.\s*/i, ""));
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to load doctor profile:", err);
+    }
+  }, []);
 
   const fetchSharedDocs = useCallback(async () => {
     if (!doctorId) return;
@@ -173,6 +212,7 @@ export default function DoctorDashboardLayout({ children }) {
 
     if (storedUserId) {
       setDoctorId(storedUserId);
+      fetchDoctorProfile(storedUserId);
       // Register FCM device token + foreground listener
       initNotifications(storedUserId);
     }
@@ -187,6 +227,28 @@ export default function DoctorDashboardLayout({ children }) {
           const cleanedName = name.replace(/^Dr\.\s*/i, "");
           setDoctorName(cleanedName);
         }
+
+        // Extract profile picture from stored userData
+        let pic = parsed?.profile_picture || parsed?.avatar || parsed?.details?.profile_picture;
+        if (!pic && parsed?.details?.passport_photo) {
+          if (Array.isArray(parsed.details.passport_photo) && parsed.details.passport_photo.length > 0) {
+            pic = parsed.details.passport_photo[0];
+          } else if (typeof parsed.details.passport_photo === "string") {
+            try {
+              const arr = JSON.parse(parsed.details.passport_photo);
+              if (Array.isArray(arr) && arr.length > 0) pic = arr[0];
+              else if (typeof arr === "string") pic = arr;
+            } catch {
+              if (parsed.details.passport_photo.startsWith("http")) pic = parsed.details.passport_photo;
+            }
+          }
+        }
+        if (pic && typeof pic === "string") {
+          pic = pic.replace(/^'+|'+$/g, "").replace(/::text$/i, "").trim();
+          if (pic.startsWith("http") && !pic.includes("::text")) {
+            setDoctorImage(pic);
+          }
+        }
       } catch {
         // ignore parsing errors, keep default name
       }
@@ -196,7 +258,35 @@ export default function DoctorDashboardLayout({ children }) {
     const todayKey = `session_agreed_${new Date().toISOString().split("T")[0]}`;
     const alreadyAgreed = sessionStorage.getItem(todayKey) === "yes";
     setSessionAgreed(alreadyAgreed);
-  }, [router]);
+  }, [pathname, router, fetchDoctorProfile]);
+
+  // Synchronize doctor image on profile update events
+  useEffect(() => {
+    const handleSyncProfile = () => {
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("userData");
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            const pic = parsed?.profile_picture || parsed?.avatar || parsed?.details?.profile_picture;
+            if (pic && typeof pic === "string" && pic.startsWith("http")) {
+              setDoctorImage(pic);
+            }
+          } catch {}
+        }
+        if (doctorId) {
+          fetchDoctorProfile(doctorId);
+        }
+      }
+    };
+
+    window.addEventListener("userProfileUpdated", handleSyncProfile);
+    window.addEventListener("storage", handleSyncProfile);
+    return () => {
+      window.removeEventListener("userProfileUpdated", handleSyncProfile);
+      window.removeEventListener("storage", handleSyncProfile);
+    };
+  }, [doctorId, fetchDoctorProfile]);
 
   /** Tracks whether foreground listener is already attached */
   const foregroundListenerRef = useRef(false);
@@ -357,18 +447,61 @@ export default function DoctorDashboardLayout({ children }) {
     router.replace("/website");
   }, [router]);
 
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case "consultation":
-        return <FaVideo className="w-3.5 h-3.5 text-[#0067A1]" />;
-      case "appointment":
-      case "appointment_status":
-        return <FaCalendarCheck className="w-3.5 h-3.5 text-green-500" />;
-      case "prescription":
-        return <FaFileMedical className="w-3.5 h-3.5 text-purple-500" />;
-      default:
-        return <FaExclamationCircle className="w-3.5 h-3.5 text-amber-500" />;
+  const getNotificationIcon = (type, title = "", message = "") => {
+    const combined = `${type || ""} ${title || ""} ${message || ""}`.toLowerCase();
+
+    if (
+      combined.includes("slot") ||
+      combined.includes("time") ||
+      combined.includes("consumed") ||
+      combined.includes("schedule")
+    ) {
+      return (
+        <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600 shadow-sm shrink-0">
+          <FaClock className="w-3.5 h-3.5" />
+        </div>
+      );
     }
+    if (
+      combined.includes("consultation") ||
+      combined.includes("video") ||
+      combined.includes("teleconsult") ||
+      combined.includes("call")
+    ) {
+      return (
+        <div className="w-8 h-8 rounded-xl bg-sky-50 border border-sky-200/80 flex items-center justify-center text-[#0067A1] shadow-sm shrink-0">
+          <FaVideo className="w-3.5 h-3.5" />
+        </div>
+      );
+    }
+    if (
+      combined.includes("prescription") ||
+      combined.includes("rx") ||
+      combined.includes("medication") ||
+      combined.includes("medicine")
+    ) {
+      return (
+        <div className="w-8 h-8 rounded-xl bg-purple-50 border border-purple-200/80 flex items-center justify-center text-purple-600 shadow-sm shrink-0">
+          <FaFileMedical className="w-3.5 h-3.5" />
+        </div>
+      );
+    }
+    if (
+      combined.includes("appointment") ||
+      combined.includes("booked") ||
+      combined.includes("booking")
+    ) {
+      return (
+        <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 shadow-sm shrink-0">
+          <FaCalendarCheck className="w-3.5 h-3.5" />
+        </div>
+      );
+    }
+    return (
+      <div className="w-8 h-8 rounded-xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-600 shadow-sm shrink-0">
+        <FaBell className="w-3.5 h-3.5" />
+      </div>
+    );
   };
 
   const formatNotificationTime = (createdAt) => {
@@ -611,52 +744,56 @@ export default function DoctorDashboardLayout({ children }) {
     <div className="h-screen bg-[#F8FAFC] overflow-hidden">
       {/* ── Session Agreement Gate Modal ── */}
       {!sessionAgreed && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 text-center space-y-6 animate-in fade-in zoom-in duration-200">
-            <div className="w-16 h-16 rounded-2xl bg-[#0067A1] flex items-center justify-center mx-auto shadow-xl">
-              <FaUserMd className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <h2 className="text-xl font-extrabold text-slate-900">Daily Session Agreement</h2>
-              <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-                By proceeding, you confirm that:
-              </p>
-            </div>
-            <div className="text-left space-y-3">
-              {[
-                "All AI suggestions are assistive only — final clinical decisions are yours alone.",
-                "You are practising under a valid and current medical registration.",
-                "You will not complete consultations with unresolved HIGH clinical risk flags without documented justification.",
-                "Patient data accessed today is solely for the clinical purpose of this session.",
-              ].map((text, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <div className="w-5 h-5 rounded-full bg-[#0067A1]/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="text-[#0067A1] text-xs font-bold">{i + 1}</span>
+        <div className="fixed inset-0 z-[9999] flex sm:items-center sm:justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-md p-6 sm:p-8 flex flex-col justify-between overflow-y-auto animate-in fade-in duration-200 pb-safe">
+            <div className="space-y-6 my-auto">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#0067A1] flex items-center justify-center mx-auto shadow-xl">
+                <FaUserMd className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
+              </div>
+              <div className="text-center">
+                <h2 className="text-xl font-extrabold text-slate-900">Daily Session Agreement</h2>
+                <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+                  By proceeding, you confirm that:
+                </p>
+              </div>
+              <div className="text-left space-y-3">
+                {[
+                  "All AI suggestions are assistive only — final clinical decisions are yours alone.",
+                  "You are practising under a valid and current medical registration.",
+                  "You will not complete consultations with unresolved HIGH clinical risk flags without documented justification.",
+                  "Patient data accessed today is solely for the clinical purpose of this session.",
+                ].map((text, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <div className="w-5 h-5 rounded-full bg-[#0067A1]/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-[#0067A1] text-xs font-bold">{i + 1}</span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">{text}</p>
                   </div>
-                  <p className="text-sm text-slate-700 leading-relaxed">{text}</p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-            <button
-              onClick={() => {
-                const todayKey = `session_agreed_${new Date().toISOString().split("T")[0]}`;
-                sessionStorage.setItem(todayKey, "yes");
-                setSessionAgreed(true);
-                // MC-3: Persist to DB for medico-legal audit trail (non-blocking)
-                fetch("/api/doctor/session-agreement", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${typeof window !== "undefined" ? localStorage.getItem("userId") : ""}`,
-                  },
-                  body: JSON.stringify({}),
-                }).catch(() => {});
-              }}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0067A1] to-[#0080C6] text-white font-bold text-sm shadow-lg shadow-[#0067A1]/20 hover:shadow-xl transition-all"
-            >
-              I Understand &amp; Agree — Start Session
-            </button>
-            <p className="text-[10px] text-slate-400">This prompt appears once per browser session per day.</p>
+            <div className="mt-6 pt-4 border-t border-slate-100 text-center space-y-2">
+              <button
+                onClick={() => {
+                  const todayKey = `session_agreed_${new Date().toISOString().split("T")[0]}`;
+                  sessionStorage.setItem(todayKey, "yes");
+                  setSessionAgreed(true);
+                  // MC-3: Persist to DB for medico-legal audit trail (non-blocking)
+                  fetch("/api/doctor/session-agreement", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${typeof window !== "undefined" ? localStorage.getItem("userId") : ""}`,
+                    },
+                    body: JSON.stringify({}),
+                  }).catch(() => {});
+                }}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0067A1] to-[#0080C6] text-white font-bold text-sm shadow-lg shadow-[#0067A1]/20 hover:shadow-xl transition-all cursor-pointer"
+              >
+                I Understand &amp; Agree — Start Session
+              </button>
+              <p className="text-[10px] text-slate-400">This prompt appears once per browser session per day.</p>
+            </div>
           </div>
         </div>
       )}
@@ -675,12 +812,21 @@ export default function DoctorDashboardLayout({ children }) {
                 onClick={() => setIsSidebarOpen(false)}
                 className="flex items-center gap-3"
               >
-                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/20">
-                  <FaUserMd className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 rounded-xl bg-white p-1.5 flex items-center justify-center shadow-md border border-white/20 shrink-0 overflow-hidden">
+                  <img
+                    src="/real-logo.png"
+                    alt="MediConnect"
+                    className="w-full h-full object-contain"
+                  />
                 </div>
-                <span className="text-base font-bold text-white tracking-wide">
-                  MediConnect
-                </span>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-base font-bold text-white tracking-wide leading-tight">
+                    MediConnect
+                  </span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-teal-300">
+                    Doctor Portal
+                  </span>
+                </div>
               </Link>
               <button
                 onClick={() => setIsSidebarOpen(false)}
@@ -728,8 +874,17 @@ export default function DoctorDashboardLayout({ children }) {
             {/* Footer actions */}
             <div className="p-4 shrink-0 border-t border-white/10 bg-black/10">
               <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-xl border border-white/10 mb-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-400 flex items-center justify-center text-[#003358] font-bold text-sm shadow-md">
-                  {getInitials(doctorName)}
+                <div className="w-10 h-10 rounded-full bg-[#0067A1] text-white flex items-center justify-center font-bold text-sm shadow-md overflow-hidden border border-white/20 shrink-0">
+                  {doctorImage ? (
+                    <img
+                      src={doctorImage}
+                      alt={doctorName}
+                      className="w-full h-full object-cover"
+                      onError={() => setDoctorImage(null)}
+                    />
+                  ) : (
+                    getInitials(doctorName)
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-white truncate">
@@ -763,13 +918,22 @@ export default function DoctorDashboardLayout({ children }) {
               href="/doctor"
               className="flex items-center gap-3 overflow-hidden"
             >
-              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/20 shrink-0">
-                <FaUserMd className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-xl bg-white p-1.5 flex items-center justify-center shadow-md border border-white/20 shrink-0 overflow-hidden">
+                <img
+                  src="/real-logo.png"
+                  alt="MediConnect"
+                  className="w-full h-full object-contain"
+                />
               </div>
               {!isSidebarCollapsed && (
-                <span className="text-base font-bold text-white tracking-wide whitespace-nowrap">
-                  MediConnect
-                </span>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-base font-bold text-white tracking-wide whitespace-nowrap leading-tight">
+                    MediConnect
+                  </span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-teal-300 whitespace-nowrap">
+                    Doctor Portal
+                  </span>
+                </div>
               )}
             </Link>
 
@@ -828,8 +992,17 @@ export default function DoctorDashboardLayout({ children }) {
           <div className="p-4 shrink-0 border-t border-white/10 bg-black/10">
             {!isSidebarCollapsed && (
               <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-xl border border-white/10 mb-3 overflow-hidden">
-                <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-400 flex items-center justify-center text-[#003358] font-bold text-sm shadow-md">
-                  {getInitials(doctorName)}
+                <div className="w-10 h-10 shrink-0 rounded-full bg-[#0067A1] text-white flex items-center justify-center font-bold text-sm shadow-md overflow-hidden border border-white/20">
+                  {doctorImage ? (
+                    <img
+                      src={doctorImage}
+                      alt={doctorName}
+                      className="w-full h-full object-cover"
+                      onError={() => setDoctorImage(null)}
+                    />
+                  ) : (
+                    getInitials(doctorName)
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-white truncate">
@@ -874,106 +1047,168 @@ export default function DoctorDashboardLayout({ children }) {
               {/* Notifications Dropdown */}
               <div className="relative" ref={notificationsRef}>
                 <button
-                  onClick={async () => {
-                    const next = !showNotifications;
-                    setShowNotifications(next);
-                    if (!showNotifications) {
-                      await markAllNotificationsRead();
-                    }
-                  }}
-                  className="relative w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition-all flex items-center justify-center"
+                  type="button"
+                  onClick={() => setShowNotifications((prev) => !prev)}
+                  className="relative w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all flex items-center justify-center shadow-xs cursor-pointer"
+                  title="Notifications"
                 >
                   <FaBell className="w-4 h-4 text-slate-600" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4.5 h-4.5 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center font-bold border border-white">
-                      {unreadCount}
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                      {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                   )}
                 </button>
 
                 {/* Notifications Dropdown Menu */}
                 {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-80 max-h-[70vh] bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden z-50 flex flex-col">
-                    <div className="p-4 border-b border-slate-100">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-slate-800">
-                          Notifications
-                        </h3>
+                  <div className="fixed sm:absolute right-2 sm:right-0 top-16 sm:top-auto sm:mt-2 w-[calc(100vw-1rem)] sm:w-[430px] max-w-[450px] max-h-[82vh] sm:max-h-[580px] bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.14),0_4px_12px_rgba(0,0,0,0.06)] border border-slate-200 overflow-hidden z-50 flex flex-col animate-in fade-in zoom-in-95 duration-150">
+                    {/* Header */}
+                    <div className="p-3.5 sm:p-4 border-b border-slate-100 bg-slate-50/50">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                            Notifications
+                          </h3>
+                          {unreadCount > 0 ? (
+                            <span className="px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-bold rounded-full">
+                              {unreadCount} unread
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-200 text-[11px] font-semibold rounded-full">
+                              All caught up
+                            </span>
+                          )}
+                        </div>
+
                         {unreadCount > 0 && (
-                          <span className="px-2 py-1 bg-red-100 text-red-600 text-xs font-semibold rounded-full">
-                            {unreadCount} new
-                          </span>
+                          <button
+                            type="button"
+                            onClick={markAllNotificationsRead}
+                            className="inline-flex items-center gap-1.5 text-xs text-[#0067A1] hover:text-[#004f7c] font-semibold px-2 py-1 rounded-lg hover:bg-sky-50 transition-colors cursor-pointer"
+                            title="Mark all as read"
+                          >
+                            <FaCheckDouble className="w-3 h-3" />
+                            <span>Mark all read</span>
+                          </button>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Recent alerts and updates
-                      </p>
+
+                      {/* Filter Tabs */}
+                      <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-slate-200/60">
+                        <button
+                          type="button"
+                          onClick={() => setNotificationTab("all")}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            notificationTab === "all"
+                              ? "bg-[#0067A1] text-white shadow-xs"
+                              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/70"
+                          }`}
+                        >
+                          All ({notifications.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNotificationTab("unread")}
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            notificationTab === "unread"
+                              ? "bg-[#0067A1] text-white shadow-xs"
+                              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/70"
+                          }`}
+                        >
+                          Unread ({unreadCount})
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto">
+                    {/* Notification Items */}
+                    <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
                       {notificationsLoading ? (
-                        <div className="p-6 text-center text-xs text-slate-500">
-                          Loading notifications...
+                        <div className="py-12 text-center text-xs text-slate-500 space-y-2">
+                          <div className="w-6 h-6 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin mx-auto" />
+                          <p>Loading alerts...</p>
                         </div>
-                      ) : notifications.length > 0 ? (
-                        <div className="divide-y divide-slate-100">
-                          {notifications.map((notification) => (
-                            <div
-                              key={notification.id}
-                              className={`p-4 hover:bg-slate-100/70 transition-colors cursor-pointer ${!notification.read ? "bg-[#0067A1]/5" : ""}`}
-                              onClick={() => handleNotificationClick(notification, true)}
-                            >
-                              <div className="flex items-start gap-3">
-                                <div className="mt-0.5">
-                                  {getNotificationIcon(notification.type)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-0.5">
-                                    {notification.title || "Notification"}
-                                  </p>
-                                  <p className="text-sm text-slate-800 font-medium">
-                                    {formatMessageText(notification.message)}
-                                  </p>
-                                  <p className="text-xs text-slate-500 mt-1">
-                                    {formatNotificationTime(notification.created_at)}
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-2 ml-2">
+                      ) : (notificationTab === "unread" ? notifications.filter(n => !n.read) : notifications).length > 0 ? (
+                        (notificationTab === "unread" ? notifications.filter(n => !n.read) : notifications).map((notification) => (
+                          <div
+                            key={notification.id}
+                            className={`p-3.5 sm:p-4 transition-colors cursor-pointer flex items-start gap-3 group ${
+                              !notification.read
+                                ? "bg-sky-50/35 hover:bg-sky-50/60 border-l-[3px] border-l-[#0067A1]"
+                                : "bg-white hover:bg-slate-50 border-l-[3px] border-l-transparent"
+                            }`}
+                            onClick={() => handleNotificationClick(notification, true)}
+                          >
+                            <div className="mt-0.5 shrink-0">
+                              {getNotificationIcon(notification.type, notification.title, notification.message)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1 mb-1">
+                                <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
+                                  {notification.title || "Alert"}
+                                </p>
+                                {!notification.read && (
+                                  <span className="w-2 h-2 rounded-full bg-[#0067A1] shrink-0" title="Unread" />
+                                )}
+                              </div>
+                              <p className="text-xs sm:text-[13px] text-slate-800 font-medium leading-relaxed break-words">
+                                {formatMessageText(notification.message)}
+                              </p>
+                              <div className="flex items-center justify-between gap-2 mt-2">
+                                <span className="text-[11px] text-slate-400 font-medium">
+                                  {formatNotificationTime(notification.created_at)}
+                                </span>
+                                <div className="flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
                                   {!notification.read && (
                                     <button
                                       type="button"
-                                      onClick={(e) => { e.stopPropagation(); handleMarkNotificationRead(notification.id); }}
-                                      className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleMarkNotificationRead(notification.id);
+                                      }}
+                                      className="p-1.5 rounded-md text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                                      title="Mark as read"
                                     >
-                                      <FaCheckCircle className="w-3.5 h-3.5" />
+                                      <FaCheck className="w-3 h-3" />
                                     </button>
                                   )}
                                   <button
                                     type="button"
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteNotification(notification.id); }}
-                                    className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-50 text-red-600 hover:bg-red-100 border border-red-100"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteNotification(notification.id);
+                                    }}
+                                    className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                    title="Delete notification"
                                   >
-                                    <FaTrash className="w-3.5 h-3.5" />
+                                    <FaTrash className="w-3 h-3" />
                                   </button>
                                 </div>
                               </div>
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))
                       ) : (
-                        <div className="p-8 text-center">
-                          <FaBell className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-                          <p className="text-sm text-slate-500">
-                            No notifications yet
+                        <div className="py-12 px-6 text-center">
+                          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
+                            <FaBell className="w-5 h-5" />
+                          </div>
+                          <p className="text-sm font-semibold text-slate-700">
+                            {notificationTab === "unread" ? "No unread alerts" : "No alerts yet"}
+                          </p>
+                          <p className="text-xs text-slate-400 mt-1 max-w-[240px] mx-auto leading-relaxed">
+                            {notificationTab === "unread"
+                              ? "You are all caught up with your consultation activity."
+                              : "New appointments, consultation updates, and slot activity will appear here."}
                           </p>
                         </div>
                       )}
                     </div>
 
-                    <div className="p-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between gap-3 text-xs">
-                      <span className="text-slate-500">
-                        Showing {notifications.length} notification
-                        {notifications.length === 1 ? "" : "s"}
+                    {/* Footer */}
+                    <div className="p-3 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3 text-xs">
+                      <span className="text-slate-500 font-medium">
+                        Showing {notifications.length} alert{notifications.length === 1 ? "" : "s"}
                       </span>
                       <button
                         type="button"
@@ -981,10 +1216,10 @@ export default function DoctorDashboardLayout({ children }) {
                           setShowNotifications(false);
                           openNotificationsModal();
                         }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0067A1] text-white font-semibold hover:bg-[#004F7C] transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0067A1] text-white font-semibold hover:bg-[#004F7C] transition-colors shadow-xs"
                       >
-                        Show more
-                        <FaChevronRight className="w-3 h-3" />
+                        <span>View all</span>
+                        <FaChevronRight className="w-2.5 h-2.5" />
                       </button>
                     </div>
                   </div>
@@ -1004,43 +1239,60 @@ export default function DoctorDashboardLayout({ children }) {
               <div className="hidden md:block relative" ref={profileRef}>
                 <button
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="flex items-center gap-2.5 p-1 rounded-lg hover:bg-slate-50 transition-colors animate-fade-in"
+                  className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-slate-50 transition-colors"
                 >
                   <div className="relative">
-                    <div className="w-9 h-9 rounded-full bg-[#0067A1] flex items-center justify-center text-white text-xs font-bold shadow-md">
-                      {getInitials(doctorName)}
+                    <div className="w-9 h-9 rounded-full bg-[#0067A1] text-white flex items-center justify-center text-xs font-bold shadow-xs overflow-hidden border border-slate-200 shrink-0">
+                      {doctorImage ? (
+                        <img
+                          src={doctorImage}
+                          alt={doctorName}
+                          className="w-full h-full object-cover"
+                          onError={() => setDoctorImage(null)}
+                        />
+                      ) : (
+                        getInitials(doctorName)
+                      )}
                     </div>
-                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white"></div>
+                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white ring-1 ring-emerald-500/20"></div>
                   </div>
                   <div className="text-left hidden sm:block">
                     <p className="text-xs font-bold text-slate-800 truncate max-w-[150px]">
                       {doctorName || "Doctor"}
                     </p>
-                    <p className="text-[10px] text-slate-500">Online</p>
+                    <p className="text-[10px] text-emerald-600 font-medium">Online</p>
                   </div>
                   <FaChevronDown
                     className={`w-3 h-3 text-slate-400 transition-transform duration-200 ${showProfileMenu ? "rotate-180" : ""}`}
                   />
                 </button>
 
-
                 {/* Profile Dropdown Menu */}
                 {showProfileMenu && (
-                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden z-50">
-                    <div className="p-4 border-b border-slate-100">
+                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="p-4 border-b border-slate-100 bg-slate-50/50">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-[#0067A1] flex items-center justify-center text-white text-lg font-bold">
-                          {getInitials(doctorName)}
+                        <div className="w-12 h-12 rounded-full bg-[#0067A1] text-white flex items-center justify-center text-lg font-bold overflow-hidden border border-slate-200 shadow-xs shrink-0">
+                          {doctorImage ? (
+                            <img
+                              src={doctorImage}
+                              alt={doctorName}
+                              className="w-full h-full object-cover"
+                              onError={() => setDoctorImage(null)}
+                            />
+                          ) : (
+                            getInitials(doctorName)
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-800 truncate">
+                          <p className="text-sm font-bold text-slate-900 truncate">
                             {doctorName || "Doctor"}
                           </p>
                           <p className="text-xs text-slate-500 truncate">
-                            Board Certified Physician
+                            Attending Physician
                           </p>
-                          <p className="text-xs text-green-600 font-medium mt-1 flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+                          <p className="text-xs text-emerald-600 font-medium mt-1 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
                             Active now
                           </p>
                         </div>
@@ -1090,7 +1342,7 @@ export default function DoctorDashboardLayout({ children }) {
           </div>
 
           {/* Page content */}
-          <main className="flex-1 overflow-y-auto px-3 py-3 sm:px-2 sm:py-6 lg:px-4 lg:py-4 bg-[#F8FAFC]">
+          <main className="flex-1 overflow-y-auto px-3 py-3 sm:px-2 sm:py-6 lg:px-4 lg:py-4 bg-[#F8FAFC] pb-20 md:pb-4">
             <div className="w-full mx-auto">
               <div className=" md:min-h-[calc(100vh-12rem)] p-2 sm:p-2 lg:p-2">
                 {children}
@@ -1098,8 +1350,8 @@ export default function DoctorDashboardLayout({ children }) {
             </div>
           </main>
 
-          {/* Footer */}
-          <footer className="relative z-10 h-12 bg-white border-t border-slate-100 shadow-[0_-4px_24px_rgba(15,23,42,0.04)] flex items-center justify-between px-5 sm:px-6 lg:px-8">
+          {/* Desktop Footer */}
+          <footer className="hidden md:flex relative z-10 h-12 bg-white border-t border-slate-100 shadow-[0_-4px_24px_rgba(15,23,42,0.04)] items-center justify-between px-5 sm:px-6 lg:px-8">
             <div className="flex items-center gap-4">
               <span className="text-xs font-medium text-slate-600">
                 mediconnect.fit® Doctor Panel v2.1
@@ -1122,11 +1374,102 @@ export default function DoctorDashboardLayout({ children }) {
               </span>
             </div>
           </footer>
+
+          {/* ── Mobile Footer Navigation Bar (Doctor Panel) ── */}
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center justify-around">
+            <Link
+              href="/doctor"
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+                pathname === "/doctor"
+                  ? "text-[#0067A1] font-bold"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <div className={`p-1 rounded-lg ${pathname === "/doctor" ? "bg-[#0067A1]/10 text-[#0067A1]" : ""}`}>
+                <FaHome className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] mt-0.5">Home</span>
+            </Link>
+
+            <Link
+              href="/doctor/appointments"
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+                pathname?.startsWith("/doctor/appointments")
+                  ? "text-[#0067A1] font-bold"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <div className={`p-1 rounded-lg ${pathname?.startsWith("/doctor/appointments") ? "bg-[#0067A1]/10 text-[#0067A1]" : ""}`}>
+                <FaCalendarAlt className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] mt-0.5">Appts</span>
+            </Link>
+
+            <Link
+              href="/doctor/prescriptions"
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+                pathname?.startsWith("/doctor/prescriptions")
+                  ? "text-[#0067A1] font-bold"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <div className={`p-1 rounded-lg ${pathname?.startsWith("/doctor/prescriptions") ? "bg-[#0067A1]/10 text-[#0067A1]" : ""}`}>
+                <FaFileMedical className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] mt-0.5">Rx</span>
+            </Link>
+
+            <Link
+              href="/doctor/my-patients"
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+                pathname?.startsWith("/doctor/my-patients")
+                  ? "text-[#0067A1] font-bold"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <div className={`p-1 rounded-lg ${pathname?.startsWith("/doctor/my-patients") ? "bg-[#0067A1]/10 text-[#0067A1]" : ""}`}>
+                <FaUsers className="w-5 h-5" />
+              </div>
+              <span className="text-[10px] mt-0.5">Patients</span>
+            </Link>
+
+            <Link
+              href="/doctor/profile-settings"
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+                pathname?.startsWith("/doctor/profile-settings")
+                  ? "text-[#0067A1] font-bold"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              <div className="relative">
+                <div className={`w-6 h-6 rounded-full overflow-hidden border-2 transition-all ${
+                  pathname?.startsWith("/doctor/profile-settings")
+                    ? "border-[#0067A1] ring-2 ring-[#0067A1]/20"
+                    : "border-slate-300"
+                }`}>
+                  {doctorImage ? (
+                    <img
+                      src={doctorImage}
+                      alt={doctorName || "Profile"}
+                      className="w-full h-full object-cover"
+                      onError={() => setDoctorImage(null)}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-[#0067A1] text-white flex items-center justify-center text-[10px] font-bold">
+                      {getInitials(doctorName)}
+                    </div>
+                  )}
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-white"></div>
+              </div>
+              <span className="text-[10px] mt-0.5">Profile</span>
+            </Link>
+          </nav>
         </div>
       </div>
       {showNotificationsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-lg sm:max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[80vh] flex flex-col overflow-hidden">
+        <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center bg-black/60 p-0 sm:px-4 overflow-hidden">
+          <div className="w-full h-full sm:h-auto sm:max-w-lg sm:max-w-2xl bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 sm:max-h-[85vh] flex flex-col overflow-hidden">
             <div className="px-4 sm:px-6 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-[#0067A1] flex items-center justify-center text-white">
@@ -1166,7 +1509,7 @@ export default function DoctorDashboardLayout({ children }) {
                       onClick={() => handleNotificationClick(n, false)}
                     >
                       <div className="mt-0.5">
-                        {getNotificationIcon(n.type)}
+                        {getNotificationIcon(n.type, n.title, n.message)}
                       </div>
                       <div className="flex-1 min-w-0 space-y-1">
                         <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
@@ -1266,12 +1609,12 @@ export default function DoctorDashboardLayout({ children }) {
 
       {/* --- Shared Records Modal --- */}
       {showSharedDocsModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex sm:items-center sm:justify-center p-0 sm:p-4 overflow-hidden">
           <div 
             className="absolute inset-0 bg-black/60 backdrop-blur-md" 
             onClick={() => setShowSharedDocsModal(false)} 
           />
-          <div className="relative w-full max-w-4xl bg-[#F8FAFC] rounded-xl shadow-2xl border border-white overflow-hidden animate-in fade-in zoom-in duration-300 max-h-[90vh] flex flex-col">
+          <div className="relative w-full h-full sm:h-auto sm:max-w-4xl bg-[#F8FAFC] rounded-none sm:rounded-xl shadow-2xl border-0 sm:border border-white overflow-hidden sm:max-h-[90vh] flex flex-col">
             
             {/* Header */}
             <div className="px-6 py-4 bg-white border-b border-slate-100 flex items-center justify-between sticky top-0 z-10">

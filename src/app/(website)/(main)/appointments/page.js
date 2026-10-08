@@ -300,12 +300,22 @@ export default function AppointmentsPage() {
         setLoading(true);
         setError("");
 
-        const patientId =
+        let patientId =
           typeof window !== "undefined" ? localStorage.getItem("userId") : null;
-        console.log("[DEBUG APPOINTMENTS] patientId retrieved from localStorage:", patientId);
+        if (!patientId || patientId === "undefined" || patientId === "null") {
+          try {
+            const userData = JSON.parse(localStorage.getItem("userData") || sessionStorage.getItem("userData") || "{}");
+            patientId = userData?.id || userData?.user?.id || null;
+          } catch (_) {}
+        }
+        if (!patientId || patientId === "undefined" || patientId === "null") {
+          try {
+            const docUser = JSON.parse(localStorage.getItem("doctorUser") || "{}");
+            patientId = docUser?.id || null;
+          } catch (_) {}
+        }
 
-        if (!patientId) {
-          console.warn("[DEBUG APPOINTMENTS] No patientId found in localStorage! Setting empty appointments.");
+        if (!patientId || patientId === "undefined" || patientId === "null") {
           setAppointments([]);
           setLoading(false);
           return;
@@ -360,7 +370,13 @@ export default function AppointmentsPage() {
   // Fetch FOLLOW_UP_PENDING consultations (recoveries doctor is monitoring)
   useEffect(() => {
     const fetchPendingFollowUps = async () => {
-      const patientId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+      let patientId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+      if (!patientId || patientId === "undefined" || patientId === "null") {
+        try {
+          const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+          patientId = userData?.id || null;
+        } catch (_) {}
+      }
       if (!patientId) return;
       try {
         setFollowUpLoading(true);
@@ -380,8 +396,14 @@ export default function AppointmentsPage() {
 
   // Poll for active video-call notifications so we can highlight the right appointment
   useEffect(() => {
-    const patientId =
+    let patientId =
       typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+    if (!patientId || patientId === "undefined" || patientId === "null") {
+      try {
+        const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+        patientId = userData?.id || null;
+      } catch (_) {}
+    }
     if (!patientId) return;
 
     const checkActiveCall = async () => {
@@ -810,20 +832,20 @@ export default function AppointmentsPage() {
 
       {/* Reschedule Modal */}
       {isRescheduleModalOpen && appointmentToReschedule && (
-        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-9999 flex sm:items-center sm:justify-center p-0 sm:p-6 overflow-hidden">
           <div
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-black/60 backdrop-blur-xs"
             onClick={() => setIsRescheduleModalOpen(false)}
           />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Reschedule Appointment</h2>
-              <p className="text-sm text-gray-600 mt-1">
+          <div className="relative bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-lg sm:max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="p-4 sm:p-6 border-b border-gray-200 shrink-0">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Reschedule Appointment</h2>
+              <p className="text-xs sm:text-sm text-gray-600 mt-1">
                 Select a new date, type, and available time slot.
               </p>
             </div>
 
-            <div className="p-6 space-y-5 flex-1 overflow-y-auto">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 flex-1 overflow-y-auto">
               {/* Appointment Type */}
               <div className="space-y-2">
                 <label className="block text-xs font-medium text-gray-700">
@@ -915,7 +937,7 @@ export default function AppointmentsPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+            <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50 shrink-0 pb-safe">
               <button
                 type="button"
                 className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
@@ -938,66 +960,70 @@ export default function AppointmentsPage() {
 
       {/* Cancel Confirmation Modal */}
       {isCancelModalOpen && appointmentToCancel && (
-        <div className="fixed inset-0 z-9999 flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-[9999] flex sm:items-center sm:justify-center p-0 sm:p-6 overflow-hidden">
           <div
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-black/50 backdrop-blur-xs"
             onClick={() => setIsCancelModalOpen(false)}
           />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-            <div className="flex items-center gap-3 text-amber-600">
-              <div className="p-3 bg-amber-50 rounded-full">
-                <FaExclamationTriangle className="w-6 h-6" />
+          <div className="relative bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-md p-6 flex flex-col justify-between overflow-y-auto pb-safe z-10">
+            <div className="space-y-4 my-auto">
+              <div className="flex items-center gap-3 text-amber-600">
+                <div className="p-3 bg-amber-50 rounded-full shrink-0">
+                  <FaExclamationTriangle className="w-6 h-6" />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-900">Cancel Appointment?</h2>
               </div>
-              <h2 className="text-lg font-semibold text-gray-900">Cancel Appointment?</h2>
+
+              <p className="text-sm text-gray-600">
+                Are you sure you want to cancel this appointment? If you need to change the date or time,
+                consider <span className="font-medium text-[#0067A1]">rescheduling</span> instead.
+              </p>
+
+              <div className="bg-gray-50 rounded-lg p-3 text-sm border border-gray-100">
+                <p className="font-medium text-gray-900">
+                  {appointmentToCancel.doctor?.full_name || appointmentToCancel.doctor?.name || "Doctor"}
+                </p>
+                <p className="text-gray-600">
+                  {getDateTime(appointmentToCancel).dateObj?.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                  })}{" "}
+                  at {formatTimeTo12Hour(getDateTime(appointmentToCancel).timeStr)}
+                </p>
+              </div>
             </div>
 
-            <p className="text-sm text-gray-600">
-              Are you sure you want to cancel this appointment? If you need to change the date or time,
-              consider <span className="font-medium text-[#0067A1]">rescheduling</span> instead.
-            </p>
+            <div className="space-y-3 pt-6 border-t border-gray-100 mt-4">
+              <div className="flex flex-col sm:flex-row items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCancelModalOpen(false);
+                    handleRescheduleClick(appointmentToCancel);
+                  }}
+                  className="w-full sm:flex-1 py-2.5 px-4 text-sm font-medium rounded-lg border border-[#0067A1] text-[#0067A1] hover:bg-blue-50 transition-colors cursor-pointer"
+                >
+                  Reschedule Instead
+                </button>
+                <button
+                  type="button"
+                  disabled={cancelLoading}
+                  onClick={handleConfirmCancel}
+                  className="w-full sm:flex-1 py-2.5 px-4 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  {cancelLoading ? "Cancelling..." : "Yes, Cancel"}
+                </button>
+              </div>
 
-            <div className="bg-gray-50 rounded-lg p-3 text-sm">
-              <p className="font-medium text-gray-900">
-                {appointmentToCancel.doctor?.full_name || appointmentToCancel.doctor?.name || "Doctor"}
-              </p>
-              <p className="text-gray-600">
-                {getDateTime(appointmentToCancel).dateObj?.toLocaleDateString("en-US", {
-                  weekday: "short",
-                  month: "short",
-                  day: "numeric",
-                })}{" "}
-                at {formatTimeTo12Hour(getDateTime(appointmentToCancel).timeStr)}
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => {
-                  setIsCancelModalOpen(false);
-                  handleRescheduleClick(appointmentToCancel);
-                }}
-                className="w-full sm:flex-1 px-4 py-2.5 text-sm font-medium rounded-lg border border-[#0067A1] text-[#0067A1] hover:bg-emerald-50 transition-colors"
+                onClick={() => setIsCancelModalOpen(false)}
+                className="w-full text-center py-2 text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
               >
-                Reschedule Instead
-              </button>
-              <button
-                type="button"
-                disabled={cancelLoading}
-                onClick={handleConfirmCancel}
-                className="w-full sm:flex-1 px-4 py-2.5 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-              >
-                {cancelLoading ? "Cancelling..." : "Yes, Cancel"}
+                Keep Appointment
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setIsCancelModalOpen(false)}
-              className="w-full text-center text-sm text-gray-500 hover:text-gray-700"
-            >
-              Keep Appointment
-            </button>
           </div>
         </div>
       )}

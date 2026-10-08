@@ -48,7 +48,7 @@ export default function CheckoutPage() {
         // Get patient ID
         const userId = localStorage.getItem("userId");
         const userRole = localStorage.getItem("userRole");
-        if (!userId || !["patient", "chemist", "lab"].includes(userRole)) {
+        if (!userId) {
             toast.error("Please login to proceed");
             router.push("/website");
             return;

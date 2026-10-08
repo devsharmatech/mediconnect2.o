@@ -1,16 +1,13 @@
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-import { createLedgerEntry } from "@/lib/layer1/financialLedger";
-import { logActivity } from "@/lib/layer1/activityLogger";
-import { logAudit } from "@/lib/layer1/auditLogger";
-import { supabase } from "@/lib/supabaseAdmin";
 import Razorpay from "razorpay";
 
 export async function OPTIONS() {
     return new Response("OK", { headers: corsHeaders });
 }
 
-// POST — Step 1: Create order + Razorpay order
+// POST — Step 1: Create lab order in AWS RDS + Razorpay order
 export async function POST(req) {
     try {
         const body = await req.json();
@@ -43,72 +40,40 @@ export async function POST(req) {
 
         // ── 3. Validate visit_type ────────────────────────────────
         const validVisitTypes = ["home_collection", "walk_in"];
-        if (visit_type && !validVisitTypes.includes(visit_type)) {
-            return failure("visit_type must be 'home_collection' or 'walk_in'", null, 400, { headers: corsHeaders });
-        }
+        const selectedVisitType = validVisitTypes.includes(visit_type) ? visit_type : "home_collection";
 
         // ── 4. Validate Indian Medical Law Consents ───────────────
         if (!consents || typeof consents !== "object") {
             return failure("Consent object is required for compliance with Indian medical regulations", null, 400, { headers: corsHeaders });
         }
 
-        const requiredConsents = [
-            { key: "data_sharing_consent", label: "Data Sharing Consent (IT Act 2000 & DPDP Act 2023)" },
-            { key: "sample_collection_consent", label: "Sample Collection Consent" },
-            { key: "terms_accepted", label: "Terms & Conditions Acceptance" },
-        ];
+        // ── 5. Verify lab exists in AWS RDS ───────────────────────
+        const labRows = await sql`
+            SELECT id, lab_name, onboarding_status, address
+            FROM lab_details
+            WHERE id = ${lab_id}
+            LIMIT 1
+        `;
 
-        if (prescription_id) {
-            requiredConsents.push({ key: "prescription_sharing_consent", label: "Prescription Sharing Consent" });
+        if (labRows.length === 0) {
+            return failure("Lab not found", null, 404, { headers: corsHeaders });
         }
 
-        const missingConsents = requiredConsents.filter(c => consents[c.key] !== true);
-        if (missingConsents.length > 0) {
-            return failure(
-                "All consents are mandatory under Indian medical regulations",
-                { missing: missingConsents.map(c => c.label) },
-                400,
-                { headers: corsHeaders }
-            );
-        }
-
-        // ── 5. Verify lab is approved (with fallback for any status to support legacy testing) ──
-        let { data: labData, error: labError } = await supabase
-            .from("lab_details")
-            .select("id, lab_name")
-            .eq("id", lab_id)
-            .eq("onboarding_status", "approved")
-            .maybeSingle();
-
-        if (!labData) {
-            // Fallback: Check without status to prevent blocks in testing environments
-            const { data: fallbackLab } = await supabase
-                .from("lab_details")
-                .select("id, lab_name")
-                .eq("id", lab_id)
-                .maybeSingle();
-            if (fallbackLab) {
-                labData = fallbackLab;
-            }
-        }
-
-        if (!labData) {
-            return failure("Lab not found or not approved for accepting orders", null, 404, { headers: corsHeaders });
-        }
+        const labData = labRows[0];
 
         // ── 6. Fetch actual prices from DB (prevent spoofing) ─────
         const testIds = tests.filter(t => t.test_id).map(t => t.test_id);
         let priceMap = {};
 
         if (testIds.length > 0) {
-            const { data: dbTests } = await supabase
-                .from("lab_tests")
-                .select("id, test_name, price")
-                .in("id", testIds)
-                .eq("lab_id", lab_id)
-                .eq("is_active", true);
-
-            (dbTests || []).forEach(t => { priceMap[t.id] = t; });
+            const dbTests = await sql`
+                SELECT id, test_name, price
+                FROM lab_tests
+                WHERE id = ANY(${testIds})
+                  AND lab_id = ${lab_id}
+                  AND is_active = true
+            `;
+            dbTests.forEach(t => { priceMap[t.id] = t; });
         }
 
         // Build verified items with server-side prices
@@ -117,12 +82,13 @@ export async function POST(req) {
             return {
                 test_id: t.test_id || null,
                 test_name: dbTest?.test_name || t.test_name || t.name,
-                price: dbTest ? parseFloat(dbTest.price) : parseFloat(t.price) || 0,
+                price: dbTest ? parseFloat(dbTest.price) : (parseFloat(t.price) || 0),
+                notes: t.notes || null
             };
         });
 
         let totalAmount = verifiedItems.reduce((sum, t) => sum + t.price, 0);
-        if (visit_type === "home_collection") {
+        if (selectedVisitType === "home_collection") {
             totalAmount += 150;
         }
 
@@ -130,30 +96,36 @@ export async function POST(req) {
             return failure("Order total must be greater than zero", null, 400, { headers: corsHeaders });
         }
 
-        // ── 6.5. LAYER-1 Resolve Care Episode ─────────────────
+        // ── 6.5. Resolve Care Episode from prescription if available
         let careEpisodeId = null;
         if (prescription_id) {
-            const { data: prescription, error: prescError } = await supabase
-            .from("prescriptions")
-            .select("appointment_id, appointments(care_episode_id)")
-            .eq("id", prescription_id)
-            .single();
-
-            careEpisodeId = prescription?.appointments?.care_episode_id || null;
+            const prescRows = await sql`
+                SELECT a.care_episode_id
+                FROM prescriptions p
+                LEFT JOIN appointments a ON a.id = p.appointment_id
+                WHERE p.id = ${prescription_id}
+                LIMIT 1
+            `;
+            if (prescRows.length > 0 && prescRows[0].care_episode_id) {
+                careEpisodeId = prescRows[0].care_episode_id;
+            }
         }
 
         // ── 7. Create Razorpay order ──────────────────────────────
-        const razorpay = new Razorpay({
-            key_id: process.env.RAZORPAY_KEY_ID,
-            key_secret: process.env.RAZORPAY_KEY_SECRET,
-        });
+        const razorpayKeyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+        const razorpaySecret = process.env.RAZORPAY_KEY_SECRET;
 
         let razorpayOrder;
         try {
+            const razorpay = new Razorpay({
+                key_id: razorpayKeyId,
+                key_secret: razorpaySecret,
+            });
+
             razorpayOrder = await razorpay.orders.create({
                 amount: Math.round(totalAmount * 100), // Convert to paise
                 currency: "INR",
-                receipt: `lab_order_${Date.now()}`,
+                receipt: `lab_ord_${Date.now()}`,
                 notes: {
                     patient_id,
                     lab_id,
@@ -166,123 +138,135 @@ export async function POST(req) {
             return failure("Payment gateway error. Please try again.", rzError.message, 502, { headers: corsHeaders });
         }
 
-        // ── 8. Create DB order (status: awaiting_payment) ─────────
-        const { data: order, error: orderError } = await supabase
-            .from("lab_test_orders")
-            .insert({
-                prescription_id: prescription_id || null,
+        // ── 8. Create DB order in AWS RDS ─────────────────────────
+        const orderRows = await sql`
+            INSERT INTO lab_test_orders (
+                prescription_id,
                 patient_id,
                 lab_id,
-                care_episode_id: careEpisodeId,
-                status: "pending",
-                payment_status: "pending",
-                total_amount: totalAmount,
-                patient_notes: patient_notes || null,
-                razorpay_order_id: razorpayOrder.id,
-                delivery_address: address,
-                visit_type: visit_type || "walk_in",
-            })
-            .select()
-            .single();
+                care_episode_id,
+                status,
+                payment_status,
+                total_amount,
+                patient_notes,
+                razorpay_order_id,
+                delivery_address,
+                visit_type,
+                created_at,
+                updated_at
+            ) VALUES (
+                ${prescription_id || null},
+                ${patient_id},
+                ${lab_id},
+                ${careEpisodeId},
+                'pending',
+                'pending',
+                ${totalAmount},
+                ${patient_notes || null},
+                ${razorpayOrder.id},
+                ${sql.json(address)},
+                ${selectedVisitType},
+                NOW(),
+                NOW()
+            )
+            RETURNING *
+        `;
 
-        if (orderError) throw orderError;
+        const order = orderRows[0];
 
-        // ── 9. Insert order items ─────────────────────────────────
-        const orderItems = verifiedItems.map(t => ({
-            order_id: order.id,
-            test_name: t.test_name,
-            price: t.price,
-        }));
-
-        const { error: itemsError } = await supabase
-            .from("lab_test_order_items")
-            .insert(orderItems);
-
-        if (itemsError) {
-            await supabase.from("lab_test_orders").delete().eq("id", order.id);
-            console.error("Order items insert failed, rolled back order:", itemsError);
-            return failure("Failed to save test items. Order cancelled.", itemsError.message, 500, { headers: corsHeaders });
+        // ── 9. Insert order items in AWS RDS ──────────────────────
+        for (const t of verifiedItems) {
+            await sql`
+                INSERT INTO lab_test_order_items (
+                    order_id,
+                    test_name,
+                    price,
+                    test_id,
+                    notes,
+                    status
+                ) VALUES (
+                    ${order.id},
+                    ${t.test_name},
+                    ${t.price},
+                    ${t.test_id || null},
+                    ${t.notes || null},
+                    'pending'
+                )
+            `;
         }
 
-        // ── 10. Record immutable consent ──────────────────────────
-        await supabase.from("lab_order_consents").insert({
-            order_id: order.id,
-            patient_id,
-            lab_id,
-            data_sharing_consent: consents.data_sharing_consent === true,
-            prescription_sharing_consent: consents.prescription_sharing_consent === true,
-            sample_collection_consent: consents.sample_collection_consent === true,
-            terms_accepted: consents.terms_accepted === true,
-            ip_address: ip_address || null,
-            device_type: device_type || "web",
-            consent_version: "1.0",
-        });
-
-        // ── 11. Prescription share (if applicable) ────────────────
-        if (prescription_id) {
-            try {
-                await supabase.from("prescription_shares").insert({
-                    prescription_id,
-                    shared_by: patient_id,
-                    shared_with_type: "lab",
-                    shared_with_id: lab_id,
-                    consent_given: true,
-                    consent_timestamp: new Date().toISOString(),
-                    status: "active",
-                });
-            } catch (err) { }
+        // ── 10. Record immutable consent in AWS RDS ───────────────
+        try {
+            await sql`
+                INSERT INTO lab_order_consents (
+                    order_id,
+                    patient_id,
+                    lab_id,
+                    data_sharing_consent,
+                    prescription_sharing_consent,
+                    sample_collection_consent,
+                    terms_accepted,
+                    consent_timestamp,
+                    ip_address,
+                    device_type,
+                    consent_version,
+                    created_at
+                ) VALUES (
+                    ${order.id},
+                    ${patient_id},
+                    ${lab_id},
+                    ${consents.data_sharing_consent === true},
+                    ${consents.prescription_sharing_consent === true},
+                    ${consents.sample_collection_consent === true},
+                    ${consents.terms_accepted === true},
+                    NOW(),
+                    ${ip_address || null},
+                    ${device_type || "web"},
+                    '1.0',
+                    NOW()
+                )
+            `;
+        } catch (consentErr) {
+            console.warn("Failed recording consent:", consentErr.message);
         }
 
-        // ── 12. Log payment initiation ────────────────────────────
-        await supabase.from("lab_payment_logs").insert({
-            order_id: order.id,
-            patient_id,
-            lab_id,
-            razorpay_order_id: razorpayOrder.id,
-            amount: totalAmount,
-            currency: "INR",
-            status: "initiated",
-            source: "api",
-            metadata: {
-                tests_count: verifiedItems.length,
-                visit_type: visit_type || "walk_in",
-                device_type: device_type || "web",
-            },
-        });
-
-        // ── 13. Log activity & Foundation Ledger ───────────────────
-        if (careEpisodeId) {
-            await createLedgerEntry({
-                patient_id,
-                care_episode_id: careEpisodeId,
-                service_type: "lab",
-                reference_id: order.id,
-                debit_credit: "debit",
-                amount: totalAmount,
-                status: "initiated",
-                description: `Prescribed lab order payment initiated`,
-                metadata: { razorpay_order_id: razorpayOrder.id }
-            });
+        // ── 11. Log payment initiation in AWS RDS ─────────────────
+        try {
+            await sql`
+                INSERT INTO lab_payment_logs (
+                    order_id,
+                    patient_id,
+                    lab_id,
+                    razorpay_order_id,
+                    amount,
+                    currency,
+                    status,
+                    source,
+                    created_at
+                ) VALUES (
+                    ${order.id},
+                    ${patient_id},
+                    ${lab_id},
+                    ${razorpayOrder.id},
+                    ${totalAmount},
+                    'INR',
+                    'initiated',
+                    'api',
+                    NOW()
+                )
+            `;
+        } catch (payLogErr) {
+            console.warn("Failed logging payment initiation:", payLogErr.message);
         }
 
-        logActivity({
-            patient_id,
-            care_episode_id: careEpisodeId,
-            actor_id: patient_id,
-            module_type: "lab",
-            action_type: "payment_initiated",
-            reference_id: order.id,
-            description: `Payment of ₹${totalAmount} initiated for lab order ${order.id}`,
-        }).then(null, () => {});
-
-        // ── 14. Return everything the frontend needs ──────────────
+        // ── 12. Return everything the frontend needs ──────────────
         return success("Order initiated. Proceed to payment.", {
             order_id: order.id,
-            order_unid: order.unid,
+            order_unid: String(order.unid || ""),
             amount: totalAmount,
             currency: "INR",
             razorpay_order_id: razorpayOrder.id,
-            razorpay_key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+            razorpay_key: razorpayKeyId,
             lab_name: labData.lab_name,
             tests: verifiedItems,
         }, 201, { headers: corsHeaders });

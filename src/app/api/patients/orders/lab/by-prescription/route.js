@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -16,15 +16,39 @@ export async function POST(req) {
       });
     }
 
-    const { data, error } = await supabase
-      .from("lab_test_orders")
-      .select("*, lab_test_order_items(*)")
-      .eq("prescription_id", prescription_id)
-      .eq("patient_id", patient_id);
+    const orders = await sql`
+      SELECT 
+        lto.*,
+        ld.lab_name,
+        ld.address as lab_address
+      FROM lab_test_orders lto
+      LEFT JOIN lab_details ld ON ld.id = lto.lab_id
+      WHERE lto.prescription_id = ${prescription_id} 
+        AND lto.patient_id = ${patient_id}
+      ORDER BY lto.created_at DESC
+    `;
 
-    if (error) throw error;
+    const orderIds = orders.map((o) => o.id);
+    let itemsByOrder = {};
 
-    return success("Lab orders fetched successfully", data, 200, {
+    if (orderIds.length > 0) {
+      const items = await sql`
+        SELECT * FROM lab_test_order_items
+        WHERE order_id = ANY(${orderIds})
+        ORDER BY unid ASC
+      `;
+      items.forEach((item) => {
+        if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
+        itemsByOrder[item.order_id].push(item);
+      });
+    }
+
+    const result = orders.map((o) => ({
+      ...o,
+      lab_test_order_items: itemsByOrder[o.id] || [],
+    }));
+
+    return success("Lab orders fetched successfully", result, 200, {
       headers: corsHeaders,
     });
 

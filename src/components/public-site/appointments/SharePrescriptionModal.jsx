@@ -45,9 +45,9 @@ function SharePrescriptionModal({
   const [broadcastId, setBroadcastId] = useState(null);
   const [quotes, setQuotes] = useState([]);
   const [timeLeft, setTimeLeft] = useState(120);
-  const [showPaymentDisclaimer, setShowPaymentDisclaimer] = useState(null);
+  const [visitType, setVisitType] = useState("home_collection"); // "home_collection" | "walk_in"
 
-  const patientId = userId || (typeof window !== "undefined" ? localStorage.getItem("userId") : null);
+  const patientId = userId || (typeof window !== "undefined" ? (localStorage.getItem("userId") || localStorage.getItem("user_id")) : null);
 
   const [labTestsCatalog, setLabTestsCatalog] = useState([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
@@ -404,13 +404,19 @@ function SharePrescriptionModal({
     return map;
   }, [items, labTestsCatalog, isChemist]);
 
-  const calculatedTotal = (() => {
+  const testsTotal = useMemo(() => {
     if (isChemist || loadingCatalog) return 0;
     return items.reduce((sum, item) => {
       const match = memoizedMatches[item.name];
       return sum + (match ? parseFloat(match.price) || 0 : 0);
     }, 0);
-  })();
+  }, [items, memoizedMatches, isChemist, loadingCatalog]);
+
+  const calculatedTotal = useMemo(() => {
+    if (isChemist) return 0;
+    const fee = (!isChemist && testsTotal > 0 && visitType === "home_collection") ? 150 : 0;
+    return testsTotal + fee;
+  }, [isChemist, testsTotal, visitType]);
 
   const hasOnRequestTests = (() => {
     if (isChemist || loadingCatalog) return false;
@@ -431,10 +437,7 @@ function SharePrescriptionModal({
       return;
     }
 
-    const totalToPay = items.reduce((sum, item) => {
-      const match = getTestPrice(item.name);
-      return sum + (match ? parseFloat(match.price) || 0 : 0);
-    }, 0);
+    const totalToPay = calculatedTotal;
 
     if (!isChemist && totalToPay > 0) {
       setShowPaymentConsentConfirm(true);
@@ -490,7 +493,14 @@ function SharePrescriptionModal({
           finalNotes = `[PATIENT_CONSENT_FOR_CUSTOM_TESTS: AGREED] Patient explicitly consented to add these custom tests not in original prescription: ${listStr}.\n${finalNotes}`;
         }
 
-        const body = { prescription_id: prescriptionId, patient_id: patientId, lab_id: selected.id, tests: mappedTests, patient_notes: finalNotes || undefined };
+        const body = { 
+          prescription_id: prescriptionId, 
+          patient_id: patientId, 
+          lab_id: selected.id, 
+          tests: mappedTests, 
+          patient_notes: finalNotes || undefined,
+          visit_type: visitType
+        };
 
         const res = await fetch(endpoint, {
           method: "POST",
@@ -591,7 +601,7 @@ function SharePrescriptionModal({
             city: "Online",
             pincode: "110001"
           },
-          visit_type: "home_collection",
+          visit_type: visitType,
           patient_notes: finalNotes || undefined,
           consents: {
             data_sharing_consent: true,
@@ -702,7 +712,7 @@ function SharePrescriptionModal({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="absolute inset-0 z-10 flex flex-col bg-white rounded-2xl overflow-hidden"
+      className="fixed inset-0 z-[10000] flex flex-col bg-white w-full h-[100dvh] sm:h-full sm:absolute sm:inset-0 sm:rounded-2xl sm:z-10 overflow-hidden"
     >
       {/* Header */}
       <div className="bg-gradient-to-r from-[#0067A1] to-[#0080C6] text-white shrink-0">
@@ -1079,12 +1089,22 @@ function SharePrescriptionModal({
                 <span className="text-gray-400">from prescription {prescriptionDisplayId}</span>
               </div>
               {!isChemist && (
-                <div className="mt-3 pt-3 border-t border-[#0067A1]/10 flex items-center justify-between text-xs font-semibold text-[#0067A1]">
-                  <span>Estimated Total Price:</span>
-                  <span>
-                    ₹{calculatedTotal}
-                    {hasOnRequestTests && <span className="text-[10px] font-normal text-gray-500"> (+ Price on request)</span>}
-                  </span>
+                <div className="mt-3 pt-3 border-t border-[#0067A1]/10 space-y-1 text-xs">
+                  <div className="flex items-center justify-between text-gray-600">
+                    <span>Tests Subtotal:</span>
+                    <span className="font-semibold text-gray-900">₹{testsTotal}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-gray-600">
+                    <span>Collection Method:</span>
+                    <span className="font-semibold text-gray-900">{visitType === "home_collection" ? "Home Collection (+₹150)" : "Walk-in (Free)"}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-bold text-sm text-[#0067A1] pt-1.5 border-t border-gray-100">
+                    <span>Total Amount:</span>
+                    <span>
+                      ₹{calculatedTotal}
+                      {hasOnRequestTests && <span className="text-[10px] font-normal text-gray-500"> (+ Price on request)</span>}
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -1191,15 +1211,50 @@ function SharePrescriptionModal({
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-3 p-3 bg-[#0067A1]/5 rounded-xl border border-[#0067A1]/10">
-                <div className="w-10 h-10 rounded-xl bg-[#0067A1] text-white flex items-center justify-center text-sm font-bold shrink-0">
-                  {getName(selected).charAt(0).toUpperCase()}
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-[#0067A1]/5 rounded-xl border border-[#0067A1]/10">
+                  <div className="w-10 h-10 rounded-xl bg-[#0067A1] text-white flex items-center justify-center text-sm font-bold shrink-0">
+                    {getName(selected).charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{getName(selected)}</p>
+                    <p className="text-xs text-gray-500 truncate">{getSubtext(selected)}</p>
+                  </div>
+                  <button onClick={() => setStep("select")} className="text-xs text-[#0067A1] font-medium hover:underline shrink-0">Change</button>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{getName(selected)}</p>
-                  <p className="text-xs text-gray-500 truncate">{getSubtext(selected)}</p>
+
+                {/* Visit Type / Collection Method Selector */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-600 uppercase tracking-wider block">
+                    Collection Method
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setVisitType("home_collection")}
+                      className={`p-2.5 rounded-xl border text-left transition-all ${
+                        visitType === "home_collection"
+                          ? "border-[#0067A1] bg-[#0067A1]/5 ring-1 ring-[#0067A1]"
+                          : "border-gray-200 bg-white hover:bg-gray-50"
+                      }`}
+                    >
+                      <p className="text-xs font-bold text-gray-900">Home Collection</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">Sample collected at home (+₹150)</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVisitType("walk_in")}
+                      className={`p-2.5 rounded-xl border text-left transition-all ${
+                        visitType === "walk_in"
+                          ? "border-[#0067A1] bg-[#0067A1]/5 ring-1 ring-[#0067A1]"
+                          : "border-gray-200 bg-white hover:bg-gray-50"
+                      }`}
+                    >
+                      <p className="text-xs font-bold text-gray-900">Walk-in Lab Visit</p>
+                      <p className="text-[10px] text-gray-500 mt-0.5">Visit the lab directly (₹0)</p>
+                    </button>
+                  </div>
                 </div>
-                <button onClick={() => setStep("select")} className="text-xs text-[#0067A1] font-medium hover:underline shrink-0">Change</button>
               </div>
             )}
 
@@ -1424,13 +1479,13 @@ function SharePrescriptionModal({
       {/* Online Payment Consent Confirmation Modal (For Labs) */}
       <AnimatePresence>
         {showPaymentConsentConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setShowPaymentConsentConfirm(false)} />
+          <div className="fixed inset-0 z-[10002] flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => setShowPaymentConsentConfirm(false)} />
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="relative w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden"
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden pb-4 sm:pb-0"
             >
               <div className="p-5">
                 <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
@@ -1474,12 +1529,12 @@ function SharePrescriptionModal({
         )}
 
         {showPaymentDisclaimer && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[10002] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm">
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="relative w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden"
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-t-2xl sm:rounded-2xl shadow-xl overflow-hidden pb-4 sm:pb-0"
             >
               <div className="p-5">
                 <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4">

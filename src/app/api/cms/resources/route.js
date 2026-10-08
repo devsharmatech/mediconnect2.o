@@ -1,25 +1,28 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 export async function GET(req) {
     try {
         const { searchParams } = new URL(req.url);
         const type = searchParams.get('type');
 
-        let query = supabase
-            .from("resources")
-            .select("*")
-            .order("created_at", { ascending: false });
-
+        let data;
         if (type) {
-            query = query.eq("type", type);
+            data = await sql`
+                SELECT * FROM resources 
+                WHERE type = ${type}
+                ORDER BY created_at DESC
+            `;
+        } else {
+            data = await sql`
+                SELECT * FROM resources 
+                ORDER BY created_at DESC
+            `;
         }
 
-        const { data, error } = await query;
-
-        if (error) throw error;
         return NextResponse.json({ success: true, data }, { status: 200 });
     } catch (err) {
+        console.error("GET /api/cms/resources error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }
@@ -28,19 +31,30 @@ export async function POST(req) {
     try {
         const payload = await req.json();
 
-        if (payload.title && !payload.slug) {
-            payload.slug = payload.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+        let slug = payload.slug;
+        if (payload.title && !slug) {
+            slug = payload.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
         }
 
-        const { data, error } = await supabase
-            .from("resources")
-            .insert([payload])
-            .select()
-            .single();
+        const rows = await sql`
+            INSERT INTO resources (
+                title, slug, content, image, type, status, created_at, updated_at
+            ) VALUES (
+                ${payload.title || null},
+                ${slug || null},
+                ${payload.content || null},
+                ${payload.image || null},
+                ${payload.type || 'guide'},
+                ${payload.status || 'active'},
+                NOW(),
+                NOW()
+            )
+            RETURNING *
+        `;
 
-        if (error) throw error;
-        return NextResponse.json({ success: true, data }, { status: 201 });
+        return NextResponse.json({ success: true, data: rows[0] }, { status: 201 });
     } catch (err) {
+        console.error("POST /api/cms/resources error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }
@@ -50,20 +64,32 @@ export async function PUT(req) {
         const payload = await req.json();
         const { id, ...updateData } = payload;
         
-        if (updateData.title && !updateData.slug) {
-            updateData.slug = updateData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+        if (!id) {
+            return NextResponse.json({ success: false, error: "ID is required" }, { status: 400 });
         }
 
-        const { data, error } = await supabase
-            .from("resources")
-            .update({ ...updateData, updated_at: new Date().toISOString() })
-            .eq("id", id)
-            .select()
-            .single();
+        let slug = updateData.slug;
+        if (updateData.title && !slug) {
+            slug = updateData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+        }
 
-        if (error) throw error;
-        return NextResponse.json({ success: true, data }, { status: 200 });
+        const rows = await sql`
+            UPDATE resources
+            SET 
+                title = ${updateData.title !== undefined ? updateData.title : sql`title`},
+                slug = ${slug !== undefined ? slug : sql`slug`},
+                content = ${updateData.content !== undefined ? updateData.content : sql`content`},
+                image = ${updateData.image !== undefined ? updateData.image : sql`image`},
+                type = ${updateData.type !== undefined ? updateData.type : sql`type`},
+                status = ${updateData.status !== undefined ? updateData.status : sql`status`},
+                updated_at = NOW()
+            WHERE id = ${id}
+            RETURNING *
+        `;
+
+        return NextResponse.json({ success: true, data: rows[0] }, { status: 200 });
     } catch (err) {
+        console.error("PUT /api/cms/resources error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }
@@ -73,14 +99,14 @@ export async function DELETE(req) {
         const { searchParams } = new URL(req.url);
         const id = searchParams.get('id');
         
-        const { error } = await supabase
-            .from("resources")
-            .delete()
-            .eq("id", id);
+        if (!id) {
+            return NextResponse.json({ success: false, error: "ID is required" }, { status: 400 });
+        }
 
-        if (error) throw error;
+        await sql`DELETE FROM resources WHERE id = ${id}`;
         return NextResponse.json({ success: true }, { status: 200 });
     } catch (err) {
+        console.error("DELETE /api/cms/resources error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }

@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -13,96 +13,71 @@ export async function GET(req, { params }) {
         const { searchParams } = new URL(req.url);
         const patient_id = searchParams.get("patient_id");
 
-        if (!id || !patient_id) {
-            return failure("Order ID and patient_id are required", null, 400, { headers: corsHeaders });
+        if (!id) {
+            return failure("Order ID is required", null, 400, { headers: corsHeaders });
         }
 
-        // Fetch order with payment info
-        const { data: order, error: orderError } = await supabase
-            .from("lab_test_orders")
-            .select(`
-                id,
-                unid,
-                prescription_id,
-                status,
-                payment_status,
-                total_amount,
-                patient_notes,
-                lab_notes,
-                visit_type,
-                delivery_address,
-                razorpay_order_id,
-                razorpay_payment_id,
-                created_at,
-                updated_at,
-                lab:lab_id (
-                    id
-                )
-            `)
-            .eq("id", id)
-            .eq("patient_id", patient_id)
-            .single();
-
-        if (orderError) {
-            if (orderError?.code === "PGRST116") {
-                return failure("Order not found", null, 404, { headers: corsHeaders });
-            }
-            throw orderError;
+        let orders;
+        if (patient_id) {
+            orders = await sql`
+                SELECT 
+                    lto.*,
+                    ld.lab_name,
+                    ld.address as lab_address,
+                    ld.phone_number as lab_phone,
+                    ld.opening_hours,
+                    ld.accepts_home_collection
+                FROM lab_test_orders lto
+                LEFT JOIN lab_details ld ON ld.id = lto.lab_id
+                WHERE lto.id = ${id} AND lto.patient_id = ${patient_id}
+                LIMIT 1
+            `;
+        } else {
+            orders = await sql`
+                SELECT 
+                    lto.*,
+                    ld.lab_name,
+                    ld.address as lab_address,
+                    ld.phone_number as lab_phone,
+                    ld.opening_hours,
+                    ld.accepts_home_collection
+                FROM lab_test_orders lto
+                LEFT JOIN lab_details ld ON ld.id = lto.lab_id
+                WHERE lto.id = ${id}
+                LIMIT 1
+            `;
         }
+
+        if (orders.length === 0) {
+            return failure("Order not found", null, 404, { headers: corsHeaders });
+        }
+
+        const order = orders[0];
 
         // Fetch order items
-        const { data: items, error: itemsError } = await supabase
-            .from("lab_test_order_items")
-            .select("*")
-            .eq("order_id", id);
+        const items = await sql`
+            SELECT * FROM lab_test_order_items
+            WHERE order_id = ${id}
+            ORDER BY unid ASC
+        `;
 
-        if (itemsError) throw itemsError;
+        // Fetch consents
+        const consents = await sql`
+            SELECT * FROM lab_order_consents
+            WHERE order_id = ${id}
+            LIMIT 1
+        `;
 
-        // Fetch lab details
-        let labDetails = null;
-        if (order.lab?.id) {
-            const { data: ld } = await supabase
-                .from("lab_details")
-                .select("id, lab_name, address, phone_number, opening_hours, accepts_home_collection")
-                .eq("id", order.lab.id)
-                .single();
-            labDetails = ld;
-        }
+        const result = {
+            ...order,
+            items,
+            consent: consents[0] || null,
+        };
 
-        // Fetch consent record (audit trail)
-        const { data: consent } = await supabase
-            .from("lab_order_consents")
-            .select("*")
-            .eq("order_id", id)
-            .eq("patient_id", patient_id)
-            .maybeSingle();
-
-        // Fetch payment logs for this order
-        const { data: paymentLogs } = await supabase
-            .from("lab_payment_logs")
-            .select("id, status, source, amount, razorpay_payment_id, created_at")
-            .eq("order_id", id)
-            .order("created_at", { ascending: true });
-
-        // Log activity
-        await supabase.from("lab_activity_logs").insert({
-            lab_id: order.lab?.id,
-            action: "PATIENT_ORDER_VIEWED",
-            details: { order_id: id, patient_id },
-        });
-
-        return success("Order details fetched", {
-            order: {
-                ...order,
-                lab_details: labDetails,
-            },
-            items: items || [],
-            consent: consent || null,
-            payment_history: paymentLogs || [],
-        }, 200, { headers: corsHeaders });
+        return success("Order details fetched", result, 200, { headers: corsHeaders });
 
     } catch (error) {
-        console.error("Patient order detail error:", error);
+        console.error("Order detail error:", error);
         return failure("Failed to fetch order details", error.message, 500, { headers: corsHeaders });
     }
 }

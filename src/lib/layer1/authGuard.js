@@ -18,31 +18,44 @@ import sql from "@/lib/db";
  */
 export async function resolveCallerFromRequest(req, fallbackUserId = null) {
     const authHeader = req.headers.get("authorization") || req.headers.get("x-user-id") || "";
-    let token = null;
+    let rawToken = null;
 
     if (authHeader.startsWith("Bearer ")) {
-        token = authHeader.replace("Bearer ", "").trim();
+        rawToken = authHeader.replace("Bearer ", "").trim();
     } else if (authHeader) {
-        token = authHeader.trim();
+        rawToken = authHeader.trim();
     }
 
-    if (!token && fallbackUserId) {
-        token = String(fallbackUserId).trim();
-    }
-
-    if (!token) return null;
-
-    // Enforce valid UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(token)) {
-        console.warn(`[AuthGuard] Intercepted non-standard authorization parameter string format: ${token}`);
-        return null;
+    let targetUserId = null;
+
+    if (rawToken && uuidRegex.test(rawToken)) {
+        targetUserId = rawToken;
+    } else if (rawToken && rawToken.includes('.')) {
+        // Handle JWT tokens if passed in Authorization Bearer
+        try {
+            const parts = rawToken.split('.');
+            if (parts.length === 3) {
+                const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
+                const candId = payload.id || payload.sub || payload.userId || payload.user_id;
+                if (candId && uuidRegex.test(candId)) {
+                    targetUserId = candId;
+                }
+            }
+        } catch (_) {}
     }
+
+    // Fallback to fallbackUserId if token was missing or non-UUID
+    if (!targetUserId && fallbackUserId && uuidRegex.test(String(fallbackUserId).trim())) {
+        targetUserId = String(fallbackUserId).trim();
+    }
+
+    if (!targetUserId) return null;
 
     try {
         if (sql) {
             const users = await sql`
-                SELECT id, role, is_verified FROM users WHERE id = ${token} LIMIT 1
+                SELECT id, role, is_verified FROM users WHERE id = ${targetUserId} LIMIT 1
             `;
             if (users && users.length > 0) return users[0];
         }
@@ -55,7 +68,7 @@ export async function resolveCallerFromRequest(req, fallbackUserId = null) {
         const { data: user } = await supabase
             .from("users")
             .select("id, role, is_verified")
-            .eq("id", token)
+            .eq("id", targetUserId)
             .maybeSingle();
 
         if (user) return user;
@@ -118,11 +131,7 @@ export async function requirePatientOwnership(req, expected_patient_id) {
         return { ok: false, error: "Unauthorized — missing or invalid token", status: 401 };
     }
 
-    if (user.role !== "patient") {
-        return { ok: false, error: "Forbidden — only patients can submit outcomes", status: 403 };
-    }
-
-    if (user.id !== expected_patient_id) {
+    if (user.id !== expected_patient_id && user.role !== "admin") {
         return {
             ok: false,
             error: "Forbidden — caller identity does not match consultation patient",

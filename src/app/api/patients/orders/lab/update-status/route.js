@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -8,24 +8,31 @@ export async function OPTIONS() {
 
 export async function POST(req) {
   try {
-    const { order_id, status, lab_notes } = await req.json();
+    const { order_id, id, status, lab_notes, cancelled_by } = await req.json();
+    const targetId = order_id || id;
 
-    if (!order_id || !status) {
+    if (!targetId || !status) {
       return failure("order_id & status required", null, 400, {
         headers: corsHeaders,
       });
     }
 
-    const { data, error } = await supabase
-      .from("lab_test_orders")
-      .update({ status, lab_notes })
-      .eq("id", order_id)
-      .select()
-      .single();
+    const rows = await sql`
+      UPDATE lab_test_orders
+      SET 
+        status = ${status},
+        lab_notes = ${lab_notes !== undefined ? lab_notes : sql`lab_notes`},
+        cancelled_at = ${status === 'cancelled' ? sql`NOW()` : sql`cancelled_at`},
+        updated_at = NOW()
+      WHERE id = ${targetId}
+      RETURNING *
+    `;
 
-    if (error) throw error;
+    if (rows.length === 0) {
+      return failure("Order not found", null, 404, { headers: corsHeaders });
+    }
 
-    return success("Lab order status updated", data, 200, {
+    return success("Lab order status updated", rows[0], 200, {
       headers: corsHeaders,
     });
   } catch (err) {

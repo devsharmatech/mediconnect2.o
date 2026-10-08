@@ -9491,7 +9491,24 @@ export class SupabasePostgresQueryBuilder {
         queryStr = `DELETE FROM "${this.tableName}" ${whereClause} RETURNING *`;
       }
 
-      const result = await this.sql.unsafe(queryStr, this.parameters);
+      let result;
+      try {
+        result = await this.sql.unsafe(queryStr, this.parameters);
+      } catch (firstErr) {
+        const isConnErr = firstErr && (
+          firstErr.code === 'CONNECT_TIMEOUT' ||
+          firstErr.message?.includes('CONNECT_TIMEOUT') ||
+          firstErr.message?.includes('CONNECTION_') ||
+          firstErr.message?.includes('ECONNRESET') ||
+          firstErr.message?.includes('timeout')
+        );
+        if (isConnErr) {
+          await new Promise(r => setTimeout(r, 300));
+          result = await this.sql.unsafe(queryStr, this.parameters);
+        } else {
+          throw firstErr;
+        }
+      }
       let data = Array.from(result);
 
       let count = null;
@@ -9575,7 +9592,24 @@ export class SupabasePostgresRpcBuilder {
         }
       }
 
-      const result = await this.sql.unsafe(queryStr, parameters);
+      let result;
+      try {
+        result = await this.sql.unsafe(queryStr, parameters);
+      } catch (firstErr) {
+        const isConnErr = firstErr && (
+          firstErr.code === 'CONNECT_TIMEOUT' ||
+          firstErr.message?.includes('CONNECT_TIMEOUT') ||
+          firstErr.message?.includes('CONNECTION_') ||
+          firstErr.message?.includes('ECONNRESET') ||
+          firstErr.message?.includes('timeout')
+        );
+        if (isConnErr) {
+          await new Promise(r => setTimeout(r, 300));
+          result = await this.sql.unsafe(queryStr, parameters);
+        } else {
+          throw firstErr;
+        }
+      }
       let data = Array.from(result);
 
       if (this.funcName === 'nextval' && data.length > 0) {

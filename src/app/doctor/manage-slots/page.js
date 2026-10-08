@@ -629,33 +629,35 @@ export default function ManageSlots() {
 
         {/* ── Blocked Appointments Modal ──────────────────────────────── */}
         {showBlockedModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center">
-                  <FaExclamationCircle className="text-amber-500 w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900">Cannot Go Offline</h3>
-                  <p className="text-sm text-gray-500">You have active appointments today</p>
-                </div>
-              </div>
-              <div className="space-y-2 max-h-52 overflow-y-auto">
-                {blockedAppointments.map((apt, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-100 text-sm">
-                    <span className="font-medium text-gray-800">
-                      {apt.appointment_time?.slice(0, 5)} — {apt.appointment_type?.replace('_', ' ')}
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${apt.status === 'booked' ? 'bg-blue-100 text-[#004F7C]' : 'bg-green-100 text-green-700'}`}>
-                      {apt.status}
-                    </span>
+          <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm overflow-hidden">
+            <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-md p-6 flex flex-col justify-between overflow-y-auto pb-safe">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+                    <FaExclamationCircle className="text-amber-500 w-5 h-5" />
                   </div>
-                ))}
+                  <div>
+                    <h3 className="font-bold text-gray-900">Cannot Go Offline</h3>
+                    <p className="text-sm text-gray-500">You have active appointments today</p>
+                  </div>
+                </div>
+                <div className="space-y-2 max-h-60 sm:max-h-52 overflow-y-auto">
+                  {blockedAppointments.map((apt, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-100 text-sm">
+                      <span className="font-medium text-gray-800">
+                        {apt.appointment_time?.slice(0, 5)} — {apt.appointment_type?.replace('_', ' ')}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${apt.status === 'booked' ? 'bg-blue-100 text-[#004F7C]' : 'bg-green-100 text-green-700'}`}>
+                        {apt.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500">Complete or cancel these appointments before going offline.</p>
               </div>
-              <p className="text-xs text-gray-500">Complete or cancel these appointments before going offline.</p>
               <button
                 onClick={() => setShowBlockedModal(false)}
-                className="w-full py-2.5 bg-[#0067A1] text-white rounded-xl font-semibold text-sm hover:bg-[#09403c] transition-colors"
+                className="w-full mt-6 py-3 sm:py-2.5 bg-[#0067A1] text-white rounded-xl font-semibold text-sm hover:bg-[#004F7C] transition-colors cursor-pointer"
               >
                 OK, Got It
               </button>

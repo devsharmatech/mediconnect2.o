@@ -17,14 +17,14 @@ export async function GET(req) {
         }
 
         // 1. Fetch latest care episode
-        const { data: episode } = await supabase
-            .from("care_episodes")
-            .select("id, status, episode_type, created_at")
-            .eq("patient_id", user_id)
-            .eq("status", "active")
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+        const episodes = await sql`
+            SELECT id, status, episode_type, created_at 
+            FROM care_episodes 
+            WHERE patient_id = ${user_id} AND status = 'active'
+            ORDER BY created_at DESC 
+            LIMIT 1
+        `;
+        const episode = episodes[0];
 
         if (!episode) {
             return success("No active episodes", { next_action: "NONE" });
@@ -32,26 +32,23 @@ export async function GET(req) {
 
         const care_episode_id = episode.id;
 
-        // Fetch related entities
+        // Fetch related entities safely using direct AWS RDS queries
         const [
-            { data: consultations },
-            { data: payments },
-            { data: patientConsents },
-            { data: services },
-            { data: pharmacyOrders },
-            { data: labOrders },
-            { data: appointments }
+            consultations,
+            payments,
+            patientConsents,
+            services,
+            pharmacyOrders,
+            labOrders,
+            appointments
         ] = await Promise.all([
-            supabase.from("consultations").select("id, appointment_id, case_status, doctor_id, completed_at, follow_up_required, created_at").eq("care_episode_id", care_episode_id).order("created_at", { ascending: false }),
-            supabase.from("financial_transaction_log").select("id, status, created_at, amount").eq("care_episode_id", care_episode_id).eq("service_type", "consultation").order("created_at", { ascending: false }),
-            supabase.from("patient_consent_log").select("consent_type, is_active").eq("patient_id", user_id),
-            supabase.from("service_recommendation").select("service_type, priority").or(`diagnosis_id.eq.${care_episode_id},problem_id.eq.${care_episode_id}`),
-            supabase.from("medicine_orders")
-                .select("id, status")
-                .eq("patient_id", user_id)
-                .gte("created_at", episode.created_at),
-            supabase.from("lab_test_orders").select("id, status").eq("care_episode_id", care_episode_id),
-            supabase.from("appointments").select("id, payment_status, status").eq("care_episode_id", care_episode_id)
+            sql`SELECT id, appointment_id, case_status, doctor_id, completed_at, follow_up_required, created_at FROM consultations WHERE care_episode_id = ${care_episode_id} ORDER BY created_at DESC`,
+            sql`SELECT id, status, created_at, amount FROM financial_transaction_log WHERE care_episode_id = ${care_episode_id} AND service_type = 'consultation' ORDER BY created_at DESC`,
+            sql`SELECT consent_type, is_active FROM patient_consent_log WHERE patient_id = ${user_id}`,
+            sql`SELECT service_type, priority FROM service_recommendation WHERE diagnosis_id = ${care_episode_id} OR problem_id = ${care_episode_id}`,
+            sql`SELECT id, status FROM medicine_orders WHERE patient_id = ${user_id} AND created_at >= ${episode.created_at}`,
+            sql`SELECT id, status FROM lab_test_orders WHERE care_episode_id = ${care_episode_id}`,
+            sql`SELECT id, payment_status, status FROM appointments WHERE care_episode_id = ${care_episode_id}`
         ]);
 
         const latestConsultation = consultations?.[0];
@@ -150,12 +147,13 @@ export async function GET(req) {
                 }
                 // 5. Follow-up Check
                 else if (latestConsultation.follow_up_required) {
-                    const { data: followup } = await supabase
-                        .from("appointments")
-                        .select("id")
-                        .eq("care_episode_id", care_episode_id)
-                        .eq("appointment_type", "follow_up")
-                        .maybeSingle();
+                    const followups = await sql`
+                        SELECT id FROM appointments 
+                        WHERE care_episode_id = ${care_episode_id} 
+                          AND appointment_type = 'follow_up' 
+                        LIMIT 1
+                    `;
+                    const followup = followups[0];
 
                     if (!followup) {
                         rawAction = "BOOK_FOLLOWUP";

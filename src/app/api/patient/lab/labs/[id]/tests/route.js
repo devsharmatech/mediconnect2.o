@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -19,73 +19,128 @@ export async function GET(req, { params }) {
         const search = (searchParams.get("search") || "").trim();
         const category_id = searchParams.get("category_id");
 
-        // Verify the lab is approved
-        const { data: labData, error: labError } = await supabase
-            .from("lab_details")
-            .select("id, lab_name")
-            .eq("id", id)
-            .eq("onboarding_status", "approved")
-            .single();
+        // Verify the lab is approved (or exists)
+        const labRows = await sql`
+            SELECT id, lab_name, onboarding_status, address, phone_number, accepts_home_collection
+            FROM lab_details
+            WHERE id = ${id}
+            LIMIT 1
+        `;
 
-        if (labError || !labData) {
-            return failure("Lab not found or not approved", null, 404, { headers: corsHeaders });
+        if (labRows.length === 0) {
+            return failure("Lab not found", null, 404, { headers: corsHeaders });
         }
 
-        // Fetch active tests
-        let query = supabase
-            .from("lab_tests")
-            .select(`
-                id,
-                test_code,
-                test_name,
-                price,
-                collection_type,
-                specimen_type,
-                container,
-                temperature,
-                turnaround_time,
-                schedule,
-                reporting_schedule,
-                remarks,
-                clinical_history_required,
-                category:lab_test_categories (
-                    id,
-                    name,
-                    icon
-                )
-            `)
-            .eq("lab_id", id)
-            .eq("is_active", true)
-            .order("test_name", { ascending: true });
+        const labData = labRows[0];
 
-        if (search) query = query.ilike("test_name", `%${search}%`);
-        if (category_id) query = query.eq("category_id", category_id);
-
-        const { data: tests, error } = await query;
-        if (error) throw error;
+        // Fetch active tests for this lab
+        let tests = [];
+        if (search && category_id) {
+            tests = await sql`
+                SELECT 
+                    lt.id,
+                    lt.test_code,
+                    lt.test_name,
+                    lt.price,
+                    lt.collection_type,
+                    lt.specimen_type,
+                    lt.container,
+                    lt.temperature,
+                    lt.turnaround_time,
+                    lt.schedule,
+                    lt.reporting_schedule,
+                    lt.remarks,
+                    lt.clinical_history_required,
+                    json_build_object('id', c.id, 'name', c.name, 'icon', c.icon) as category
+                FROM lab_tests lt
+                LEFT JOIN lab_test_categories c ON c.id = lt.category_id
+                WHERE lt.lab_id = ${id}
+                  AND lt.is_active = true
+                  AND lt.category_id = ${category_id}
+                  AND (lt.test_name ILIKE ${'%' + search + '%'} OR lt.test_code ILIKE ${'%' + search + '%'})
+                ORDER BY lt.test_name ASC
+            `;
+        } else if (search) {
+            tests = await sql`
+                SELECT 
+                    lt.id,
+                    lt.test_code,
+                    lt.test_name,
+                    lt.price,
+                    lt.collection_type,
+                    lt.specimen_type,
+                    lt.container,
+                    lt.temperature,
+                    lt.turnaround_time,
+                    lt.schedule,
+                    lt.reporting_schedule,
+                    lt.remarks,
+                    lt.clinical_history_required,
+                    json_build_object('id', c.id, 'name', c.name, 'icon', c.icon) as category
+                FROM lab_tests lt
+                LEFT JOIN lab_test_categories c ON c.id = lt.category_id
+                WHERE lt.lab_id = ${id}
+                  AND lt.is_active = true
+                  AND (lt.test_name ILIKE ${'%' + search + '%'} OR lt.test_code ILIKE ${'%' + search + '%'})
+                ORDER BY lt.test_name ASC
+            `;
+        } else if (category_id) {
+            tests = await sql`
+                SELECT 
+                    lt.id,
+                    lt.test_code,
+                    lt.test_name,
+                    lt.price,
+                    lt.collection_type,
+                    lt.specimen_type,
+                    lt.container,
+                    lt.temperature,
+                    lt.turnaround_time,
+                    lt.schedule,
+                    lt.reporting_schedule,
+                    lt.remarks,
+                    lt.clinical_history_required,
+                    json_build_object('id', c.id, 'name', c.name, 'icon', c.icon) as category
+                FROM lab_tests lt
+                LEFT JOIN lab_test_categories c ON c.id = lt.category_id
+                WHERE lt.lab_id = ${id}
+                  AND lt.is_active = true
+                  AND lt.category_id = ${category_id}
+                ORDER BY lt.test_name ASC
+            `;
+        } else {
+            tests = await sql`
+                SELECT 
+                    lt.id,
+                    lt.test_code,
+                    lt.test_name,
+                    lt.price,
+                    lt.collection_type,
+                    lt.specimen_type,
+                    lt.container,
+                    lt.temperature,
+                    lt.turnaround_time,
+                    lt.schedule,
+                    lt.reporting_schedule,
+                    lt.remarks,
+                    lt.clinical_history_required,
+                    json_build_object('id', c.id, 'name', c.name, 'icon', c.icon) as category
+                FROM lab_tests lt
+                LEFT JOIN lab_test_categories c ON c.id = lt.category_id
+                WHERE lt.lab_id = ${id}
+                  AND lt.is_active = true
+                ORDER BY lt.test_name ASC
+            `;
+        }
 
         // Fetch categories available at this lab
-        const categoryIds = [...new Set(tests.filter(t => t.category).map(t => t.category.id))];
-        let categories = [];
-        if (categoryIds.length > 0) {
-            const { data: catData } = await supabase
-                .from("lab_test_categories")
-                .select("id, name, icon")
-                .in("id", categoryIds)
-                .eq("status", true)
-                .order("name");
-            categories = catData || [];
-        }
-
-        // Log activity
-        const patient_id = searchParams.get("patient_id");
-        if (patient_id) {
-            await supabase.from("lab_activity_logs").insert({
-                lab_id: id,
-                action: "PATIENT_VIEW_TESTS",
-                details: { patient_id, tests_count: tests.length },
-            });
-        }
+        const categories = await sql`
+            SELECT DISTINCT c.id, c.name, c.icon
+            FROM lab_tests lt
+            JOIN lab_test_categories c ON c.id = lt.category_id
+            WHERE lt.lab_id = ${id} AND lt.is_active = true
+            ORDER BY c.name ASC
+        `;
 
         return success("Tests fetched successfully", {
             lab: { id: labData.id, name: labData.lab_name },

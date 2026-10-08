@@ -693,8 +693,8 @@ export default function Prescriptions() {
 
         {/* New Prescription Modal */}
         {showNewPrescription && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-4xl w-full max-h-[95vh] overflow-hidden flex flex-col">
+          <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn overflow-hidden">
+            <div className="bg-white rounded-none sm:rounded-3xl shadow-2xl border-0 sm:border border-slate-100 max-w-4xl w-full h-full sm:h-auto sm:max-h-[95vh] overflow-hidden flex flex-col">
               
               {/* Modal Header */}
               <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
@@ -788,10 +788,10 @@ export default function Prescriptions() {
           </div>
         )}
 
-        {/* Prescription Details Modal â€” md-pdf style */}
+        {/* Prescription Details Modal — md-pdf style */}
         {currentPrescription && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[96vh] flex flex-col overflow-hidden">
+          <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm overflow-hidden">
+            <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl w-full max-w-4xl h-full sm:h-auto sm:max-h-[96vh] flex flex-col overflow-hidden">
 
               {/* Modal toolbar */}
               <div className="flex items-center justify-between px-5 py-3 bg-slate-800 flex-shrink-0">
@@ -1050,9 +1050,9 @@ export default function Prescriptions() {
 
         {/* Custom UI Modal for Prescription Deletion */}
         {prescriptionToDelete && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full overflow-hidden flex flex-col">
-              <div className="p-6 text-center space-y-4">
+          <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-fadeIn overflow-hidden">
+            <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-100 max-w-md w-full h-full sm:h-auto overflow-hidden flex flex-col justify-between pb-safe">
+              <div className="p-6 text-center space-y-4 my-auto">
                 <div className="w-14 h-14 mx-auto rounded-full bg-red-50 flex items-center justify-center text-red-500">
                   <FaTrash className="w-6 h-6" />
                 </div>
@@ -1067,12 +1067,12 @@ export default function Prescriptions() {
                   </p>
                 </div>
               </div>
-              <div className="bg-slate-50 px-6 py-4 flex items-center justify-end gap-3 border-t border-slate-100">
+              <div className="bg-slate-50 px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-end gap-2.5 sm:gap-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setPrescriptionToDelete(null)}
                   disabled={isDeleting}
-                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-50"
+                  className="flex-1 sm:flex-none justify-center px-4 py-2.5 sm:py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1080,7 +1080,7 @@ export default function Prescriptions() {
                   type="button"
                   onClick={confirmDelete}
                   disabled={isDeleting}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm transition-colors disabled:opacity-50"
+                  className="flex-1 sm:flex-none justify-center inline-flex items-center gap-2 px-4 py-2.5 sm:py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {isDeleting ? (
                     <>

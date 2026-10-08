@@ -59,23 +59,24 @@ export default function OutcomeTrackerModal({ isOpen, onClose, appointment, onSu
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-[9999] flex sm:items-center sm:justify-center p-0 sm:p-6 overflow-hidden">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-50 focus:outline-none">
-          <h2 className="text-xl font-bold text-blue-900 flex items-center gap-2">
-            <FaHeartbeat className="text-blue-500 w-5 h-5" />
-            Follow-Up Health Check
+      <div className="relative bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-lg flex flex-col overflow-hidden animate-in fade-in duration-200 z-10">
+        <div className="shrink-0 p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-50 focus:outline-none">
+          <h2 className="text-lg sm:text-xl font-bold text-blue-900 flex items-center gap-2">
+            <FaHeartbeat className="text-blue-500 w-5 h-5 shrink-0" />
+            <span>Follow-Up Health Check</span>
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-colors text-gray-500">
             <FaTimes className="w-4 h-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          <p className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-100">
-            Your doctor requested a follow-up on your recent consultation. Please let us know how you are feeling to help guide your treatment.
-          </p>
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6 min-h-0 flex flex-col justify-between pb-safe">
+          <div className="space-y-4">
+            <p className="text-xs sm:text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-100">
+              Your doctor requested a follow-up on your recent consultation. Please let us know how you are feeling to help guide your treatment.
+            </p>
 
           <div className="space-y-3">
             <label className="block text-sm font-semibold text-gray-900">How are you feeling overall? <span className="text-red-500">*</span></label>
@@ -120,21 +121,22 @@ export default function OutcomeTrackerModal({ isOpen, onClose, appointment, onSu
             </select>
           </div>
 
-          <div className="space-y-3">
-            <label className="block text-sm font-semibold text-gray-900">Any additional notes for the doctor? (Optional)</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="E.g., Still have a slight cough..."
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 resize-none"
-            />
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold text-gray-900">Any additional notes for the doctor? (Optional)</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                placeholder="E.g., Still have a slight cough..."
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-700 resize-none"
+              />
+            </div>
           </div>
 
           <button
             type="submit"
             disabled={isSubmitting || !improvementStatus}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0067A1] to-indigo-600 text-white font-bold text-lg hover:from-blue-700 hover:to-indigo-700 transition-all disabled:opacity-50 shadow-lg shadow-blue-200"
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0067A1] to-indigo-600 text-white font-bold text-base sm:text-lg hover:from-blue-700 hover:to-indigo-700 transition-all disabled:opacity-50 shadow-lg shadow-blue-200 mt-4 cursor-pointer"
           >
             {isSubmitting ? "Submitting..." : "Submit Health Update"}
           </button>

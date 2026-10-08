@@ -62,6 +62,24 @@ export async function POST(req) {
       cleanPic = String(cleanPic).replace(/^'+|'+$/g, "").replace(/::text$/i, "").trim();
       if (!cleanPic.startsWith("http") || cleanPic.includes("::text")) cleanPic = null;
     }
+    // Check role details for profile picture or passport photo if user table doesn't have it
+    if (!cleanPic && details?.profile_picture) {
+      let dp = String(details.profile_picture).replace(/^'+|'+$/g, "").replace(/::text$/i, "").trim();
+      if (dp.startsWith("http") && !dp.includes("::text")) cleanPic = dp;
+    }
+    if (!cleanPic && details?.passport_photo) {
+      if (Array.isArray(details.passport_photo) && details.passport_photo.length > 0) {
+        cleanPic = details.passport_photo[0];
+      } else if (typeof details.passport_photo === "string") {
+        try {
+          const parsed = JSON.parse(details.passport_photo);
+          if (Array.isArray(parsed) && parsed.length > 0) cleanPic = parsed[0];
+          else if (typeof parsed === "string" && parsed.startsWith("http")) cleanPic = parsed;
+        } catch {
+          if (details.passport_photo.startsWith("http")) cleanPic = details.passport_photo;
+        }
+      }
+    }
     if (!cleanPic) {
       const name = details?.full_name || details?.owner_name || details?.lab_name || user.role || "User";
       cleanPic = `https://ui-avatars.com/api/?name=${encodeURIComponent(name.trim())}&background=0067A1&color=fff&bold=true`;

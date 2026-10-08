@@ -11,8 +11,8 @@ export default function AIDoctorCard() {
     e.stopPropagation(); // Prevent card click handler from firing
     if (typeof window !== "undefined") {
       const role = localStorage.getItem("userRole");
-      if (role !== "patient") {
-        alert("Please login as a patient to use the Health Assistant.");
+      if (!role) {
+        alert("Please login to use the Health Assistant.");
         return;
       }
     }

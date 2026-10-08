@@ -1,22 +1,28 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 export async function GET(req) {
     try {
         const { searchParams } = new URL(req.url);
         const includeHidden = searchParams.get("includeHidden") === "true";
 
-        let query = supabase.from("compliance_logos").select("*").order("display_order", { ascending: true });
-        
+        let data;
         if (!includeHidden) {
-            query = query.eq("status", "published");
+            data = await sql`
+                SELECT * FROM compliance_logos 
+                WHERE status = 'published'
+                ORDER BY display_order ASC
+            `;
+        } else {
+            data = await sql`
+                SELECT * FROM compliance_logos 
+                ORDER BY display_order ASC
+            `;
         }
-
-        const { data, error } = await query;
-        if (error) throw error;
 
         return NextResponse.json({ success: true, data }, { status: 200 });
     } catch (err) {
+        console.error("GET /api/cms/compliance-logos error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }
@@ -24,15 +30,24 @@ export async function GET(req) {
 export async function POST(req) {
     try {
         const payload = await req.json();
-        const { data, error } = await supabase
-            .from("compliance_logos")
-            .insert([{ ...payload }])
-            .select()
-            .single();
+        const rows = await sql`
+            INSERT INTO compliance_logos (
+                name, title, link, image, display_order, status, created_at
+            ) VALUES (
+                ${payload.name || null},
+                ${payload.title || null},
+                ${payload.link || null},
+                ${payload.image || null},
+                ${payload.display_order !== undefined ? payload.display_order : 0},
+                ${payload.status || 'published'},
+                NOW()
+            )
+            RETURNING *
+        `;
 
-        if (error) throw error;
-        return NextResponse.json({ success: true, data }, { status: 201 });
+        return NextResponse.json({ success: true, data: rows[0] }, { status: 201 });
     } catch (err) {
+        console.error("POST /api/cms/compliance-logos error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }
@@ -44,16 +59,22 @@ export async function PUT(req) {
         
         if (!id) return NextResponse.json({ success: false, error: "Missing ID" }, { status: 400 });
 
-        const { data, error } = await supabase
-            .from("compliance_logos")
-            .update(updates)
-            .eq("id", id)
-            .select()
-            .single();
+        const rows = await sql`
+            UPDATE compliance_logos
+            SET 
+                name = ${updates.name !== undefined ? updates.name : sql`name`},
+                title = ${updates.title !== undefined ? updates.title : sql`title`},
+                link = ${updates.link !== undefined ? updates.link : sql`link`},
+                image = ${updates.image !== undefined ? updates.image : sql`image`},
+                display_order = ${updates.display_order !== undefined ? updates.display_order : sql`display_order`},
+                status = ${updates.status !== undefined ? updates.status : sql`status`}
+            WHERE id = ${id}
+            RETURNING *
+        `;
 
-        if (error) throw error;
-        return NextResponse.json({ success: true, data }, { status: 200 });
+        return NextResponse.json({ success: true, data: rows[0] }, { status: 200 });
     } catch (err) {
+        console.error("PUT /api/cms/compliance-logos error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }
@@ -65,11 +86,10 @@ export async function DELETE(req) {
 
         if (!id) return NextResponse.json({ success: false, error: "Missing ID" }, { status: 400 });
 
-        const { error } = await supabase.from("compliance_logos").delete().eq("id", id);
-        if (error) throw error;
-
+        await sql`DELETE FROM compliance_logos WHERE id = ${id}`;
         return NextResponse.json({ success: true }, { status: 200 });
     } catch (err) {
+        console.error("DELETE /api/cms/compliance-logos error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }

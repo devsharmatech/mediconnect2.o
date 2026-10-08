@@ -80,10 +80,7 @@ export async function GET(request) {
       emergencyApptsRes,
       callDurationsRes,
       ratingsRes,
-      labOrdersCountRes,
-      homeLabOrdersRes,
-      walkInLabOrdersRes,
-      paidLabOrdersRes,
+      labMetricsRes,
       popularTestsRes,
       patientsDOBRes,
       weeklyApptsRes,
@@ -173,11 +170,51 @@ export async function GET(request) {
         WHERE rating IS NOT NULL AND rating > 0
       `,
 
-      // Diagnostic Lab Analytics
-      sql`SELECT count(*)::int as count FROM lab_test_orders`,
-      sql`SELECT count(*)::int as count FROM lab_test_orders WHERE visit_type = 'home_collection'`,
-      sql`SELECT count(*)::int as count FROM lab_test_orders WHERE visit_type = 'walk_in'`,
-      sql`SELECT COALESCE(SUM(total_amount), 0)::numeric as revenue FROM lab_test_orders WHERE payment_status = 'paid' OR status = 'completed'`,
+      // Diagnostic Lab Analytics & Category-Based Commission Revenue
+      sql`
+        WITH item_categories AS (
+          SELECT 
+            oi.id as item_id,
+            oi.order_id,
+            COALESCE(oi.price, 0)::numeric as item_price,
+            COALESCE(
+              c_by_id.commission_percentage,
+              c_by_name.commission_percentage,
+              50.00
+            )::numeric as commission_percentage
+          FROM lab_test_order_items oi
+          LEFT JOIN lab_tests t_by_id ON oi.test_id = t_by_id.id
+          LEFT JOIN lab_test_categories c_by_id ON t_by_id.category_id = c_by_id.id
+          LEFT JOIN LATERAL (
+            SELECT t2.category_id 
+            FROM lab_tests t2 
+            WHERE LOWER(TRIM(t2.test_name)) = LOWER(TRIM(oi.test_name))
+               OR t2.test_name ILIKE ('%' || oi.test_name || '%')
+               OR oi.test_name ILIKE ('%' || t2.test_name || '%')
+            LIMIT 1
+          ) t_by_name ON t_by_id.id IS NULL
+          LEFT JOIN lab_test_categories c_by_name ON t_by_name.category_id = c_by_name.id
+        ),
+        order_commissions AS (
+          SELECT 
+            order_id,
+            ROUND(SUM(item_price * commission_percentage / 100.0), 2) as order_admin_commission
+          FROM item_categories
+          GROUP BY order_id
+        )
+        SELECT 
+          COUNT(o.id)::int as total_orders,
+          COUNT(o.id) FILTER (WHERE o.visit_type = 'home_collection')::int as home_collection_count,
+          COUNT(o.id) FILTER (WHERE o.visit_type = 'walk_in')::int as walk_in_count,
+          COUNT(o.id) FILTER (WHERE o.payment_status = 'paid' OR o.status = 'completed')::int as paid_orders_count,
+          COALESCE(SUM(o.total_amount) FILTER (WHERE o.payment_status = 'paid' OR o.status = 'completed'), 0)::numeric as paid_gross_volume,
+          COALESCE(SUM(oc.order_admin_commission) FILTER (WHERE o.payment_status = 'paid' OR o.status = 'completed'), 0)::numeric as paid_admin_commission,
+          COALESCE(SUM(o.total_amount), 0)::numeric as all_gross_volume,
+          COALESCE(SUM(oc.order_admin_commission), 0)::numeric as all_admin_commission
+        FROM lab_test_orders o
+        LEFT JOIN order_commissions oc ON o.id = oc.order_id
+        ${start ? sql`WHERE o.created_at >= ${start.toISOString()} AND o.created_at <= ${end.toISOString()}` : sql``}
+      `,
       sql`
         SELECT test_name as name, count(*)::int as count 
         FROM lab_test_order_items 
@@ -253,6 +290,15 @@ export async function GET(request) {
       `;
       totalRevenue = Number(apptRev[0]?.total) || 0;
     }
+
+    // Process Diagnostic Lab Metrics & Category-Based Commission
+    const labRow = labMetricsRes[0] || {};
+    const labPaidGross = Number(labRow.paid_gross_volume || 0);
+    const labPaidCommission = Number(labRow.paid_admin_commission || 0);
+    const labPayouts = Math.max(0, parseFloat((labPaidGross - labPaidCommission).toFixed(2)));
+
+    // Realized Lab Commission directly added to Admin's Total Platform Revenue
+    totalRevenue += labPaidCommission;
 
     // Process Quick Stats
     const todayAppointments = todayApptsRes[0]?.count || 0;
@@ -406,10 +452,15 @@ export async function GET(request) {
         prescriptionsToday: todayPrescriptions
       },
       labAnalytics: {
-        totalOrders: labOrdersCountRes[0]?.count || 0,
-        homeCollectionCount: homeLabOrdersRes[0]?.count || 0,
-        walkInCount: walkInLabOrdersRes[0]?.count || 0,
-        revenue: Number(paidLabOrdersRes[0]?.revenue) || 0,
+        totalOrders: labRow.total_orders || 0,
+        homeCollectionCount: labRow.home_collection_count || 0,
+        walkInCount: labRow.walk_in_count || 0,
+        paidOrdersCount: labRow.paid_orders_count || 0,
+        revenue: labPaidCommission, // Admin-side earned lab revenue!
+        grossRevenue: labPaidGross, // Total customer gross spend
+        labPayouts: labPayouts,     // Amount to disburse to partner labs
+        allGrossVolume: Number(labRow.all_gross_volume || 0),
+        allPotentialCommission: Number(labRow.all_admin_commission || 0),
         popularTests: popularTestsRes || []
       }
     };

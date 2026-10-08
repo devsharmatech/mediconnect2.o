@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { getLoggedInUser } from "@/lib/authHelpers";
 import {
   Users,
@@ -27,6 +28,9 @@ import {
   XCircle,
   Inbox,
   FlaskConical,
+  ArrowRight,
+  Percent,
+  Building2,
 } from "lucide-react";
 import {
   BarChart,
@@ -539,43 +543,98 @@ export default function AdminDashboard() {
             {/* Diagnostic Lab Analytics Card */}
             {dashboardData?.labAnalytics && (
               <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 space-y-6 mt-6">
-                <div className="flex items-center justify-between border-b pb-4 border-gray-100 dark:border-gray-700">
-                  <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
-                    <FlaskConical className="w-5 h-5 text-[#0067A1]" />
-                    <span>Diagnostic Lab Analytics Dashboard</span>
-                  </h3>
-                  <span className="text-xs bg-[#0067A1]/10 text-[#0067A1] px-2.5 py-1 rounded-full font-bold">
-                    Real-time Metrics
-                  </span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4 border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-lg bg-[#0067A1]/10 text-[#0067A1]">
+                      <FlaskConical className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <span>Diagnostic Lab Revenue & Analytics</span>
+                      </h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        Category-based platform commissions (Cat 1: 50%, Cat 2: 40%, Cat 3: 30%, Cat 4: 5%, Packages: 50%)
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Link
+                      href="/admin/labs/categories"
+                      className="text-xs text-gray-600 dark:text-gray-300 hover:text-[#0067A1] font-medium flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition"
+                    >
+                      <Percent className="w-3.5 h-3.5" />
+                      <span>Rates</span>
+                    </Link>
+                    <Link
+                      href="/admin/labs/orders"
+                      className="text-xs bg-[#0067A1] text-white px-3.5 py-1.5 rounded-lg font-bold hover:bg-[#005282] transition flex items-center gap-1.5 shadow-sm"
+                    >
+                      <span>Manage Lab Orders</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                   {/* Total Orders */}
-                  <div className="bg-[#0067A1]/5 dark:bg-[#0067A1]/10 p-4 rounded-xl border border-[#0067A1]/10 text-center">
-                    <p className="text-xs text-gray-500 font-medium">Total Lab Orders</p>
-                    <p className="text-3xl font-black text-[#0067A1] dark:text-[#0080C6] mt-1">
+                  <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Total Orders</p>
+                    <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">
                       {dashboardData.labAnalytics.totalOrders || 0}
                     </p>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      {dashboardData.labAnalytics.paidOrdersCount || 0} Paid orders
+                    </p>
                   </div>
-                  {/* Home collection ratio */}
-                  <div className="bg-blue-50/50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100/50 dark:border-blue-900/30 text-center">
-                    <p className="text-xs text-gray-500 font-medium">Home Collections</p>
-                    <p className="text-3xl font-black text-[#0067A1] dark:text-blue-400 mt-1">
+
+                  {/* Fulfillment Method */}
+                  <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Fulfillment Type</p>
+                    <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">
                       {dashboardData.labAnalytics.homeCollectionCount || 0}
+                      <span className="text-xs font-normal text-gray-500 ml-1">Home</span>
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      {dashboardData.labAnalytics.walkInCount || 0} Walk-in visits
                     </p>
                   </div>
-                  {/* Walk-in ratio */}
-                  <div className="bg-green-50/50 dark:bg-green-900/10 p-4 rounded-xl border border-green-100/50 dark:border-green-900/30 text-center">
-                    <p className="text-xs text-gray-500 font-medium">Walk-in Bookings</p>
-                    <p className="text-3xl font-black text-green-600 dark:text-green-400 mt-1">
-                      {dashboardData.labAnalytics.walkInCount || 0}
+
+                  {/* Gross Lab Volume */}
+                  <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Gross Booking Volume</p>
+                    <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">
+                      ₹{(dashboardData.labAnalytics.grossRevenue || 0).toLocaleString()}
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Total patient billed
                     </p>
                   </div>
-                  {/* Lab revenue */}
-                  <div className="bg-[#0080C6]/5 dark:bg-[#0080C6]/10 p-4 rounded-xl border border-[#0080C6]/10 text-center">
-                    <p className="text-xs text-gray-500 font-medium">Diagnostic Revenue</p>
-                    <p className="text-3xl font-black text-[#0080C6] dark:text-[#38efdf] mt-1">
+
+                  {/* Admin Net Commission (Platform Revenue) */}
+                  <div className="bg-emerald-50/70 dark:bg-emerald-950/20 p-4 rounded-xl border border-emerald-200 dark:border-emerald-900/40">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-emerald-800 dark:text-emerald-300 font-bold">Admin Lab Revenue</p>
+                      <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200 px-1.5 py-0.5 rounded font-bold">Platform Cut</span>
+                    </div>
+                    <p className="text-2xl font-black text-emerald-700 dark:text-emerald-400 mt-1">
                       ₹{(dashboardData.labAnalytics.revenue || 0).toLocaleString()}
+                    </p>
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-1 font-medium">
+                      Earned platform commission
+                    </p>
+                  </div>
+
+                  {/* Lab Partner Payouts */}
+                  <div className="bg-blue-50/70 dark:bg-blue-950/20 p-4 rounded-xl border border-blue-200 dark:border-blue-900/40">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-blue-800 dark:text-blue-300 font-bold">Lab Partner Payouts</p>
+                      <span className="text-[10px] bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-200 px-1.5 py-0.5 rounded font-bold">Partner Cut</span>
+                    </div>
+                    <p className="text-2xl font-black text-blue-700 dark:text-blue-400 mt-1">
+                      ₹{(dashboardData.labAnalytics.labPayouts || 0).toLocaleString()}
+                    </p>
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-1 font-medium">
+                      Payable to partner labs
                     </p>
                   </div>
                 </div>

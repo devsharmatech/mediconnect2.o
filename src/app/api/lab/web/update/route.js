@@ -13,7 +13,17 @@ export async function POST(req) {
   const uploadedFiles = [];
 
   try {
-    const formData = await req.formData();
+    const contentType = req.headers.get("content-type") || "";
+    let formData;
+
+    if (contentType.includes("application/json")) {
+      const jsonBody = await req.json();
+      formData = {
+        get: (key) => jsonBody[key] !== undefined ? jsonBody[key] : null
+      };
+    } else {
+      formData = await req.formData();
+    }
 
     const rawId = formData.get("id");
     const cleanId = safeUuid(rawId);
@@ -31,7 +41,7 @@ export async function POST(req) {
 
     const raw_phone = formData.get("phone_number") || "";
     const phone_number = String(raw_phone).replace(/\D/g, "").slice(-10);
-    const email = formData.get("email").trim();
+    const email = String(formData.get("email") || "").trim();
 
     // Check if lab exists in RDS
     const existingLabs = await sql`
@@ -65,15 +75,46 @@ export async function POST(req) {
     const owner_photo_url = await upload(formData.get("owner_photo"), "owner_photo");
     const signature_url = await upload(formData.get("signature"), "signature");
 
-    const json = (f) => {
-      const val = formData.get(f);
-      if (!val) return existingLab[f];
+    // Extract and guarantee valid JSON array for services
+    // CRITICAL: Must use sql.json(servicesArray) so postgres.js passes it as real JSONB array,
+    // avoiding ${JSON.stringify()}::jsonb string scalar check constraint violation
+    let servicesArray = [];
+    const rawServices = formData.get("services");
+    if (rawServices !== undefined && rawServices !== null && rawServices !== "" && rawServices !== "null") {
       try {
-        return typeof val === "string" ? JSON.parse(val) : val;
-      } catch {
-        return existingLab[f];
+        const parsed = typeof rawServices === "string" ? JSON.parse(rawServices) : rawServices;
+        if (Array.isArray(parsed)) {
+          servicesArray = parsed;
+        } else if (parsed && typeof parsed === "object") {
+          servicesArray = Object.values(parsed);
+        }
+      } catch (err) {
+        console.warn("Failed to parse services JSON:", err.message);
+        servicesArray = Array.isArray(existingLab.services) ? existingLab.services : [];
       }
-    };
+    } else if (Array.isArray(existingLab.services)) {
+      servicesArray = existingLab.services;
+    }
+
+    if (!Array.isArray(servicesArray)) {
+      servicesArray = [];
+    }
+
+    // Extract opening hours
+    let openingHoursVal = null;
+    const rawOpeningHours = formData.get("opening_hours");
+    if (rawOpeningHours !== undefined && rawOpeningHours !== null && rawOpeningHours !== "" && rawOpeningHours !== "null") {
+      try {
+        const parsedHours = typeof rawOpeningHours === "string" ? JSON.parse(rawOpeningHours) : rawOpeningHours;
+        if (parsedHours && typeof parsedHours === "object") {
+          openingHoursVal = parsedHours;
+        }
+      } catch {
+        openingHoursVal = existingLab.opening_hours || null;
+      }
+    } else if (existingLab.opening_hours) {
+      openingHoursVal = existingLab.opening_hours;
+    }
 
     if (phone_number && phone_number !== existingLab.phone_number) {
       await sql`
@@ -84,13 +125,16 @@ export async function POST(req) {
       `;
     }
 
+    const rawHome = formData.get("accepts_home_collection");
+    const acceptsHomeCollection = rawHome === "true" || rawHome === true || rawHome === "1" || rawHome === 1;
+
     const updated = await sql`
       UPDATE lab_details
       SET
-        lab_name = ${formData.get("lab_name")},
-        owner_name = ${formData.get("owner_name")},
-        email = ${email},
-        phone_number = ${phone_number},
+        lab_name = ${formData.get("lab_name") || existingLab.lab_name},
+        owner_name = ${formData.get("owner_name") || existingLab.owner_name},
+        email = ${email || existingLab.email},
+        phone_number = ${phone_number || existingLab.phone_number},
         contact_person = ${formData.get("contact_person") || existingLab.contact_person},
         address = ${formData.get("address") || existingLab.address},
         license_number = ${formData.get("license_number") || existingLab.license_number},
@@ -99,9 +143,9 @@ export async function POST(req) {
         pan_number = ${formData.get("pan_number") || existingLab.pan_number},
         latitude = ${formData.get("latitude") ? Number(formData.get("latitude")) : existingLab.latitude},
         longitude = ${formData.get("longitude") ? Number(formData.get("longitude")) : existingLab.longitude},
-        opening_hours = ${json("opening_hours") ? JSON.stringify(json("opening_hours")) : null}::jsonb,
-        services = ${json("services") ? JSON.stringify(json("services")) : null}::jsonb,
-        accepts_home_collection = ${formData.get("accepts_home_collection") === "true"},
+        opening_hours = ${openingHoursVal ? sql.json(openingHoursVal) : null},
+        services = ${sql.json(servicesArray)},
+        accepts_home_collection = ${acceptsHomeCollection},
         general_turnaround = ${formData.get("general_turnaround") || existingLab.general_turnaround},
         pan_card_url = ${pan_card_url || existingLab.pan_card_url},
         aadhaar_card_url = ${aadhaar_card_url || existingLab.aadhaar_card_url},

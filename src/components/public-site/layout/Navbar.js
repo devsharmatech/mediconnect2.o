@@ -383,9 +383,9 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                       <button
                         type="button"
                         onClick={toggleLoginMenu}
-                        className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0067A1] whitespace-nowrap transition-colors shadow-sm"
+                        className="inline-flex items-center justify-center px-5 py-2.5 text-xs font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] focus:outline-none transition-colors cursor-pointer"
                       >
-                        <FaUser className="mr-2 h-4 w-4 text-white" />
+                        <FaUser className="mr-2 h-3.5 w-3.5 text-white" />
                         Login / Register
                         <FaChevronDown
                           className={`ml-2 h-3 w-3 transition-transform duration-200 ${
@@ -394,82 +394,70 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                         />
                       </button>
                       {isLoginMenuOpen && (
-                        <div className="absolute right-0 mt-3 w-[260px] rounded-2xl shadow-2xl bg-white border border-gray-100 z-50 overflow-hidden">
-                          <div className="p-3">
+                        <div className="absolute right-0 mt-2 w-64 rounded-lg bg-white border border-slate-200 z-50 overflow-hidden">
+                          <div className="p-2 space-y-1">
                             <button
                               onClick={(e) => {
                                 setIsLoginMenuOpen(false);
                                 handleOpenSignup(e);
                               }}
-                              className="flex items-center gap-3 w-full px-3 py-3 text-left text-sm text-[#0067A1] bg-[#f0fdfa] border border-[#ccfbf1] hover:bg-[#ccfbf1] rounded-xl transition-colors mb-3 shadow-sm"
+                              className="flex items-center gap-2.5 w-full px-3 py-2 text-left text-xs font-semibold text-[#0067A1] bg-sky-50/70 hover:bg-sky-100/70 rounded-md transition-colors cursor-pointer"
                             >
-                              <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm">
-                                <FaUserPlus className="w-3.5 h-3.5 text-[#0067A1]" />
-                              </div>
-                              <div className="font-bold">Register New Account</div>
+                              <FaUserPlus className="w-3.5 h-3.5 text-[#0067A1] shrink-0" />
+                              <span>Register New Account</span>
                             </button>
 
-                            <p className="px-3 py-1.5 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 mb-2">
-                              Login to Dashboard
+                            <p className="px-3 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-t border-slate-100">
+                              Login to Portal
                             </p>
                             <button
                               onClick={() => handleRoleLogin("patient")}
-                              className="flex items-center gap-3 w-full px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                              className="flex items-center gap-2.5 w-full px-3 py-2 text-left text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors group cursor-pointer"
                             >
-                              <div className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center">
-                                <FaUser className="w-4 h-4 text-[#0067A1]" />
-                              </div>
+                              <FaUser className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
                               <div>
-                                <div className="font-medium">Patient</div>
-                                <div className="text-xs text-gray-400">Book appointments</div>
+                                <div className="font-semibold text-slate-900">Patient</div>
+                                <div className="text-[11px] text-slate-500">Book doctor & test consults</div>
                               </div>
                             </button>
                             <button
                               onClick={() => handleRoleLogin("doctor")}
-                              className="flex items-center gap-3 w-full px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                              className="flex items-center gap-2.5 w-full px-3 py-2 text-left text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors group cursor-pointer"
                             >
-                              <div className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center">
-                                <FaUserMd className="w-4 h-4 text-[#0067A1]" />
-                              </div>
+                              <FaUserMd className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
                               <div>
-                                <div className="font-medium">Doctor</div>
-                                <div className="text-xs text-gray-400">Manage patients</div>
+                                <div className="font-semibold text-slate-900">Doctor</div>
+                                <div className="text-[11px] text-slate-500">Manage clinical appointments</div>
                               </div>
                             </button>
                             <button
                               onClick={() => handleRoleLogin("chemist")}
-                              className="flex items-center gap-3 w-full px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                              className="flex items-center gap-2.5 w-full px-3 py-2 text-left text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors group cursor-pointer"
                             >
-                              <div className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center">
-                                <FaPills className="w-4 h-4 text-[#0067A1]" />
-                              </div>
+                              <FaPills className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
                               <div>
-                                <div className="font-medium">Chemist</div>
-                                <div className="text-xs text-gray-400">Manage pharmacy</div>
+                                <div className="font-semibold text-slate-900">Chemist / Pharmacy</div>
+                                <div className="text-[11px] text-slate-500">Manage prescriptions & store</div>
                               </div>
                             </button>
                             <button
                               onClick={() => handleRoleLogin("lab")}
-                              className="flex items-center gap-3 w-full px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                              className="flex items-center gap-2.5 w-full px-3 py-2 text-left text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors group cursor-pointer"
                             >
-                              <div className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center">
-                                <FaFlask className="w-4 h-4 text-[#0067A1]" />
-                              </div>
+                              <FaFlask className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
                               <div>
-                                <div className="font-medium">Lab</div>
-                                <div className="text-xs text-gray-400">Manage tests</div>
+                                <div className="font-semibold text-slate-900">Diagnostic Lab</div>
+                                <div className="text-[11px] text-slate-500">Manage diagnostic test orders</div>
                               </div>
                             </button>
                             <button
                               onClick={() => handleRoleLogin("nursing")}
-                              className="flex items-center gap-3 w-full px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
+                              className="flex items-center gap-2.5 w-full px-3 py-2 text-left text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors group cursor-pointer"
                             >
-                              <div className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center">
-                                <FaHeartbeat className="w-4 h-4 text-[#0067A1]" />
-                              </div>
+                              <FaHeartbeat className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
                               <div>
-                                <div className="font-medium">Nursing Care</div>
-                                <div className="text-xs text-gray-400">Request homecare</div>
+                                <div className="font-semibold text-slate-900">Nursing Care</div>
+                                <div className="text-[11px] text-slate-500">Homecare assistance</div>
                               </div>
                             </button>
                           </div>
@@ -493,43 +481,42 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
 
         {/* Mobile navigation menu drawer */}
         {isMenuOpen && (
-          <div className="lg:hidden border-t border-gray-100 bg-white shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="lg:hidden border-t border-slate-200 bg-white">
             <div className="px-4 pt-3 pb-6 space-y-2">
               {/* LOGGED IN USER CARD (MOBILE) */}
               {mounted && isLoggedIn && (
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-50/90 via-sky-50/40 to-slate-50 border border-sky-100 shadow-sm mb-3">
+                <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="relative w-12 h-12 rounded-full bg-[#0067A1] text-white flex items-center justify-center font-bold text-sm shadow-md shrink-0 overflow-hidden ring-2 ring-white">
+                    <div className="w-10 h-10 rounded-full bg-white border border-slate-200 text-[#0067A1] flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
                       {avatarUrl ? (
                         <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
                       ) : (
                         <span>{getInitials(displayName)}</span>
                       )}
-                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></span>
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <h4 className="font-bold text-gray-900 text-sm truncate">{displayName}</h4>
+                        <h4 className="font-bold text-slate-900 text-xs truncate">{displayName}</h4>
                         {isDoctor && (
-                          <FaCheckCircle className="w-3.5 h-3.5 text-teal-600 shrink-0" title="Verified Doctor" />
+                          <FaCheckCircle className="w-3 h-3 text-teal-600 shrink-0" title="Verified Doctor" />
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 truncate mt-0.5">{displayEmail}</p>
+                      <p className="text-[11px] text-slate-500 truncate mt-0.5">{displayEmail}</p>
                       <div className="mt-1">
                         {isDoctor ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-teal-100 text-teal-800">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded border border-teal-200 bg-teal-50 text-teal-800">
                             <FaUserMd className="w-2.5 h-2.5" /> Doctor
                           </span>
                         ) : isChemist ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-800">
+                          <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded border border-amber-200 bg-amber-50 text-amber-800">
                             Chemist
                           </span>
                         ) : isLab ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-800">
+                          <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded border border-blue-200 bg-blue-50 text-blue-800">
                             Lab
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-full bg-sky-100 text-sky-800">
+                          <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded border border-slate-200 bg-slate-100 text-slate-700">
                             Patient
                           </span>
                         )}
@@ -541,10 +528,10 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                   <Link
                     href={isDoctor ? "/doctor" : isChemist ? "/chemist/dashboard" : isLab ? "/lab/dashboard" : "/website/dashboard"}
                     onClick={toggleSideBar}
-                    className="mt-3.5 flex items-center justify-between w-full py-2.5 px-4 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold text-xs rounded-xl shadow-md transition-all active:scale-[0.98]"
+                    className="mt-3 flex items-center justify-between w-full py-2 px-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium text-xs rounded-lg transition-colors cursor-pointer"
                   >
                     <div className="flex items-center gap-2">
-                      {isDoctor ? <FaUserMd className="w-4 h-4" /> : <FaUser className="w-4 h-4" />}
+                      {isDoctor ? <FaUserMd className="w-3.5 h-3.5" /> : <FaUser className="w-3.5 h-3.5" />}
                       <span>{isDoctor ? "Open Doctor Dashboard" : "Open Dashboard"}</span>
                     </div>
                     <FaChevronRight className="w-3 h-3 opacity-80" />
@@ -606,6 +593,23 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                           <span>Clinic & Profile Settings</span>
                         </div>
                       </MobileNavLink>
+                      <div className="pt-2 mt-1 border-t border-gray-100">
+                        <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                          Patient View
+                        </div>
+                        <MobileNavLink href="/website/dashboard" onClick={toggleSideBar}>
+                          <div className="flex items-center gap-2.5">
+                            <FaUser className="w-4 h-4 text-[#0067A1]" />
+                            <span>Patient Dashboard</span>
+                          </div>
+                        </MobileNavLink>
+                        <MobileNavLink href="/website/appointments" onClick={toggleSideBar}>
+                          <div className="flex items-center gap-2.5">
+                            <FaCalendarAlt className="w-4 h-4 text-[#0067A1]" />
+                            <span>My Consultations</span>
+                          </div>
+                        </MobileNavLink>
+                      </div>
                     </>
                   ) : (
                     <>
@@ -651,9 +655,9 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                   {/* Sign Out Button in Drawer */}
                   <button
                     onClick={handleLogout}
-                    className="flex items-center gap-2.5 w-full mt-2 px-3 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                    className="flex items-center gap-2.5 w-full mt-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                   >
-                    <FaSignOutAlt className="w-4 h-4" />
+                    <FaSignOutAlt className="w-3.5 h-3.5" />
                     <span>Sign Out</span>
                   </button>
                 </div>

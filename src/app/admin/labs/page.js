@@ -334,14 +334,24 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
 
   useEffect(() => {
     if (lab) {
-      // Parse services and opening hours from existing lab data
-      const parsedServices = Array.isArray(lab.services)
-        ? lab.services
-        : (typeof lab.services === 'string' ? JSON.parse(lab.services) : []);
+      let parsedServices = [];
+      if (Array.isArray(lab.services)) {
+        parsedServices = lab.services;
+      } else if (typeof lab.services === 'string') {
+        try {
+          const s = JSON.parse(lab.services);
+          if (Array.isArray(s)) parsedServices = s;
+        } catch {}
+      }
 
-      const parsedOpeningHours = lab.opening_hours && typeof lab.opening_hours === 'string'
-        ? JSON.parse(lab.opening_hours)
-        : (lab.opening_hours || { open: "09:00", close: "18:00" });
+      let parsedOpeningHours = { open: "09:00", close: "18:00" };
+      if (lab.opening_hours && typeof lab.opening_hours === 'object') {
+        parsedOpeningHours = lab.opening_hours;
+      } else if (typeof lab.opening_hours === 'string') {
+        try {
+          parsedOpeningHours = JSON.parse(lab.opening_hours);
+        } catch {}
+      }
 
       setFormData({
         lab_name: lab.lab_name || "",
@@ -487,12 +497,15 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
 
       // Append form data
       Object.keys(formData).forEach((key) => {
-        if (key === 'opening_hours' || key === 'services') {
-          submitFormData.append(key, JSON.stringify(formData[key]));
+        if (key === 'services') {
+          const sArray = Array.isArray(formData[key]) ? formData[key] : [];
+          submitFormData.append(key, JSON.stringify(sArray));
+        } else if (key === 'opening_hours') {
+          submitFormData.append(key, JSON.stringify(formData[key] || { open: "09:00", close: "18:00" }));
         } else if (key === 'accepts_home_collection') {
-          submitFormData.append(key, formData[key].toString());
+          submitFormData.append(key, formData[key] ? "true" : "false");
         } else {
-          submitFormData.append(key, formData[key]);
+          submitFormData.append(key, formData[key] !== undefined && formData[key] !== null ? formData[key] : "");
         }
       });
 
@@ -772,77 +785,92 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
     <div className="space-y-6">
       <div className="flex items-center space-x-3">
         <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-          <Beaker className="w-5 h-5 text-gray-700 dark:text-white" />
+          <Clock className="w-5 h-5 text-gray-700 dark:text-white" />
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Services & Operations
-        </h3>
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Operations & Timings
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Set turnaround timings, home collection availability, and daily operating hours
+          </p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Info Notice about Lab Tests Catalog */}
+      <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-4 flex items-start space-x-3">
+        <div className="p-1.5 bg-blue-100 dark:bg-blue-900/60 rounded-lg mt-0.5 text-blue-600 dark:text-blue-300">
+          <Beaker className="w-4 h-4" />
+        </div>
+        <div className="text-sm">
+          <p className="font-medium text-blue-900 dark:text-blue-200">
+            Lab Tests Catalog Managed Separately
+          </p>
+          <p className="text-xs text-blue-700 dark:text-blue-300/80 mt-0.5 leading-relaxed">
+            All 1,450+ diagnostic tests, packages, and commission categories (Cat 1–4) are maintained through the dedicated <strong>Lab Tests Master</strong> catalog and CSV import. Manual service entry is not required here.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white dark:bg-gray-850 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-            Services with Prices *
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            General Turnaround Time *
           </label>
-          <ServiceInput
-            services={formData.services}
-            onChange={handleServicesChange}
-          />
+          <select
+            value={formData.general_turnaround}
+            onChange={(e) => handleInputChange("general_turnaround", e.target.value)}
+            className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+          >
+            <option value="">Select turnaround time</option>
+            {turnaroundOptions.map(option => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              General Turnaround Time *
-            </label>
-            <select
-              value={formData.general_turnaround}
-              onChange={(e) => handleInputChange("general_turnaround", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
-            >
-              <option value="">Select turnaround time</option>
-              {turnaroundOptions.map(option => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center space-x-3 p-4 border border-gray-300 dark:border-gray-600 rounded-lg">
+        <div className="flex items-center">
+          <label className="flex items-center space-x-3 p-3.5 border border-gray-300 dark:border-gray-600 rounded-lg w-full cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
             <input
               type="checkbox"
               id="home-collection"
               checked={formData.accepts_home_collection}
               onChange={(e) => handleInputChange("accepts_home_collection", e.target.checked)}
-              className="rounded border-gray-300 dark:border-gray-600 text-black focus:ring-black bg-white dark:bg-gray-700"
+              className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-black focus:ring-black bg-white dark:bg-gray-700"
             />
-            <label htmlFor="home-collection" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Accepts Home Collection
-            </label>
-          </div>
+            <div className="text-sm">
+              <span className="font-medium text-gray-900 dark:text-white block">
+                Accepts Home Collection
+              </span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                Phlebotomist sample collection available at patient's location
+              </span>
+            </div>
+          </label>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Opening Hours
-            </label>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Open Time</label>
-                <input
-                  type="time"
-                  value={formData.opening_hours.open}
-                  onChange={(e) => handleOpeningHoursChange('open', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Close Time</label>
-                <input
-                  type="time"
-                  value={formData.opening_hours.close}
-                  onChange={(e) => handleOpeningHoursChange('close', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
-                />
-              </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Opening Hours
+          </label>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Open Time</label>
+              <input
+                type="time"
+                value={formData.opening_hours.open}
+                onChange={(e) => handleOpeningHoursChange('open', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Close Time</label>
+              <input
+                type="time"
+                value={formData.opening_hours.close}
+                onChange={(e) => handleOpeningHoursChange('close', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
+              />
             </div>
           </div>
         </div>
@@ -1942,7 +1970,9 @@ function ModalContent({ lab, onClose, onOpenUploadCsv }) {
                   </div>
                 ))}
                 {parsedServices.length === 0 && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">No services added</p>
+                  <div className="p-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded-lg text-xs text-gray-600 dark:text-gray-300">
+                    Active on Lab Tests Master Catalog (1,450+ tests mapped)
+                  </div>
                 )}
               </div>
             </div>
@@ -2998,7 +3028,9 @@ export default function LabsPage() {
                               </td>
                               <td className="px-4 py-3">
                                 <div className="text-sm text-gray-900 dark:text-white">
-                                  {parsedServices.slice(0, 2).map(s => s.service_name).join(", ") || "No services"}
+                                  {parsedServices.length > 0
+                                    ? parsedServices.slice(0, 2).map(s => s.service_name).join(", ")
+                                    : "Master Catalog (1,450+ Tests)"}
                                   {parsedServices.length > 2 && (
                                     <span className="text-gray-500"> +{parsedServices.length - 2} more</span>
                                   )}

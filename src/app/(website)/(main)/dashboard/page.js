@@ -56,14 +56,25 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    let parsed = null;
     const userData = localStorage.getItem("userData");
     if (userData) {
       try {
-        setUser(JSON.parse(userData));
+        parsed = JSON.parse(userData);
       } catch (e) {
         console.error("Failed to parse user data:", e);
       }
     }
+    if (!parsed) {
+      const docData = localStorage.getItem("doctorUser");
+      if (docData) {
+        try { parsed = JSON.parse(docData); } catch (e) {}
+      }
+    }
+    if (!parsed && localStorage.getItem("userId")) {
+      parsed = { id: localStorage.getItem("userId") };
+    }
+    if (parsed) setUser(parsed);
   }, []);
 
   useEffect(() => {

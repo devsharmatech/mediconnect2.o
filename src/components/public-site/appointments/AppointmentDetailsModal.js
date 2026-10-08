@@ -173,34 +173,34 @@ const AppointmentDetailsModal = ({ isOpen, onClose, appointment }) => {
   }
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-[9999] flex sm:items-center sm:justify-center p-0 sm:p-6 overflow-hidden">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Modal */}
       <div
-        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="relative bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-4xl sm:max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-[#F6F8FA]">
+        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-200 bg-[#F6F8FA] shrink-0">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Consultation Receipt</h2>
-            <p className="text-sm text-gray-500 mt-1">Ref ID: {appointment.id?.split("-")[0].toUpperCase()}</p>
+            <h2 className="text-lg sm:text-2xl font-bold text-gray-900">Consultation Receipt</h2>
+            <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">Ref ID: {appointment.id?.split("-")[0].toUpperCase()}</p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/50 rounded-lg transition-colors duration-200"
+            className="p-2 hover:bg-white/80 rounded-lg transition-colors duration-200 text-gray-500 hover:text-gray-800"
           >
-            <FaTimes className="h-5 w-5 text-gray-500" />
+            <FaTimes className="h-5 w-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-8 flex-1 overflow-y-auto">
+        <div className="px-4 py-4 sm:p-6 space-y-6 sm:space-y-8 flex-1 overflow-y-auto">
           {/* Status + Type + Amount Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
              <div className="flex items-center gap-3">
@@ -376,11 +376,11 @@ const AppointmentDetailsModal = ({ isOpen, onClose, appointment }) => {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between space-x-3 p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-          <p className="text-xs text-gray-400 max-w-md">This receipt is generated automatically and serves as a record of consultation in compliance with Telemedicine Practice Guidelines.</p>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0 pb-safe">
+          <p className="text-[11px] sm:text-xs text-gray-400 max-w-md text-center sm:text-left">This receipt is generated automatically and serves as a record of consultation in compliance with Telemedicine Practice Guidelines.</p>
           <button
             onClick={onClose}
-            className="px-6 py-2.5 border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-colors duration-200 shadow-sm"
+            className="w-full sm:w-auto px-6 py-2.5 border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-colors duration-200 shadow-sm cursor-pointer"
           >
             Close
           </button>

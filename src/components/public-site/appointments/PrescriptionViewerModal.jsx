@@ -327,9 +327,9 @@ export default function PrescriptionViewerModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-4xl h-[95dvh] sm:max-h-[96vh] flex flex-col overflow-hidden">
+      <div className="relative bg-white rounded-none sm:rounded-2xl shadow-none sm:shadow-2xl w-full sm:max-w-4xl h-full sm:h-[95dvh] sm:max-h-[96vh] flex flex-col overflow-hidden">
 
         {/* Modal toolbar */}
         <div className="flex items-center justify-between px-5 py-3 bg-slate-800 flex-shrink-0">
@@ -636,7 +636,7 @@ export default function PrescriptionViewerModal({
       <AnimatePresence>
         {shareTarget && (
           <SharePrescriptionModal
-            userId={typeof window !== "undefined" ? localStorage.getItem("userId") : null}
+            userId={data?.patient_id || data?.patient_details?.id || (typeof window !== "undefined" ? (localStorage.getItem("userId") || localStorage.getItem("user_id")) : null)}
             type={shareTarget}
             prescriptionId={data.id}
             prescriptionDisplayId={prescriptionId}

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 // GET header for a specific page
 export async function GET(req) {
@@ -8,21 +8,22 @@ export async function GET(req) {
         const page = searchParams.get('page');
 
         if (!page) {
-            return NextResponse.json({ success: false, error: "Missing 'page' parameter" }, { status: 400 });
+            const rows = await sql`
+                SELECT * FROM section_headers 
+                ORDER BY id ASC
+            `;
+            return NextResponse.json({ success: true, data: rows }, { status: 200 });
         }
 
-        let { data, error } = await supabase
-            .from("section_headers")
-            .select("*")
-            .eq('page_identifier', page)
-            .maybeSingle();
+        const rows = await sql`
+            SELECT * FROM section_headers 
+            WHERE page_identifier = ${page}
+            LIMIT 1
+        `;
 
-        if (error) {
-            throw error;
-        }
-
-        return NextResponse.json({ success: true, data: data || {} }, { status: 200 });
+        return NextResponse.json({ success: true, data: rows[0] || {} }, { status: 200 });
     } catch (err) {
+        console.error("GET /api/cms/section-headers error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }
@@ -36,39 +37,42 @@ export async function POST(req) {
             return NextResponse.json({ success: false, error: "Missing 'page_identifier'" }, { status: 400 });
         }
 
-        // Check if a row exists
-        const { data: existing } = await supabase
-            .from("section_headers")
-            .select("id")
-            .eq("page_identifier", payload.page_identifier)
-            .maybeSingle();
+        const existing = await sql`
+            SELECT id FROM section_headers 
+            WHERE page_identifier = ${payload.page_identifier}
+            LIMIT 1
+        `;
 
-        if (existing) {
-            // Update
-            const { data, error } = await supabase
-                .from("section_headers")
-                .update({ 
-                    title: payload.title,
-                    heading: payload.heading, 
-                    subheading: payload.subheading,
-                    updated_at: new Date().toISOString() 
-                })
-                .eq("id", existing.id)
-                .select()
-                .single();
-            if (error) throw error;
-            return NextResponse.json({ success: true, data }, { status: 200 });
+        if (existing.length > 0) {
+            const rows = await sql`
+                UPDATE section_headers
+                SET 
+                    title = ${payload.title !== undefined ? payload.title : sql`title`},
+                    heading = ${payload.heading !== undefined ? payload.heading : sql`heading`},
+                    subheading = ${payload.subheading !== undefined ? payload.subheading : sql`subheading`},
+                    updated_at = NOW()
+                WHERE id = ${existing[0].id}
+                RETURNING *
+            `;
+            return NextResponse.json({ success: true, data: rows[0] }, { status: 200 });
         } else {
-            // Insert
-            const { data, error } = await supabase
-                .from("section_headers")
-                .insert([{ ...payload }])
-                .select()
-                .single();
-            if (error) throw error;
-            return NextResponse.json({ success: true, data }, { status: 201 });
+            const rows = await sql`
+                INSERT INTO section_headers (
+                    page_identifier, title, heading, subheading, created_at, updated_at
+                ) VALUES (
+                    ${payload.page_identifier},
+                    ${payload.title || null},
+                    ${payload.heading || null},
+                    ${payload.subheading || null},
+                    NOW(),
+                    NOW()
+                )
+                RETURNING *
+            `;
+            return NextResponse.json({ success: true, data: rows[0] }, { status: 201 });
         }
     } catch (err) {
+        console.error("POST /api/cms/section-headers error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }

@@ -28,7 +28,7 @@ export async function POST(req) {
 
     await sql`
       UPDATE lab_details
-      SET services = ${JSON.stringify(services)}::jsonb,
+      SET services = ${sql.json(services)},
           updated_at = NOW()
       WHERE id = ${cleanLabId}
     `;

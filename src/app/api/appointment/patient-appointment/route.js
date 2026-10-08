@@ -17,6 +17,11 @@ export async function POST(req) {
       return failure("patient_id is required.", null, 400, { headers: corsHeaders });
     }
 
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(String(patient_id).trim())) {
+      return failure("Invalid patient_id format. Must be a valid UUID.", null, 400, { headers: corsHeaders });
+    }
+
     let caller = await resolveCallerFromRequest(req, patient_id);
     if (!caller && patient_id) {
       const users = await sql`
@@ -32,7 +37,7 @@ export async function POST(req) {
       return failure("Forbidden - you do not have permission to view these appointments.", null, 403, { headers: corsHeaders });
     }
 
-    // Verify user role
+    // Verify user exists in users table
     const patientUsers = await sql`
       SELECT id, role FROM users WHERE id = ${patient_id} LIMIT 1
     `;
@@ -42,8 +47,32 @@ export async function POST(req) {
       return failure("Invalid patient_id. User not found.", null, 400, { headers: corsHeaders });
     }
 
-    if (patientUser.role !== "patient") {
-      return failure("Invalid patient_id or user is not a patient.", null, 400, { headers: corsHeaders });
+    // Auto-ensure patient_details row exists for the user if missing (supports doctors, chemists, labs, admins in patient mode)
+    const [pDetail] = await sql`SELECT id FROM patient_details WHERE id = ${patient_id} LIMIT 1`;
+    if (!pDetail) {
+      let resolvedName = "Patient";
+      let resolvedEmail = null;
+      if (patientUser.role === "doctor") {
+        const [doc] = await sql`SELECT full_name, email FROM doctor_details WHERE id = ${patient_id} LIMIT 1`;
+        if (doc) { resolvedName = doc.full_name; resolvedEmail = doc.email; }
+      } else if (patientUser.role === "chemist") {
+        const [chem] = await sql`SELECT owner_name, pharmacist_name, pharmacy_name, email FROM chemist_details WHERE id = ${patient_id} LIMIT 1`;
+        if (chem) { resolvedName = chem.owner_name || chem.pharmacist_name || chem.pharmacy_name || "Chemist"; resolvedEmail = chem.email; }
+      } else if (patientUser.role === "lab") {
+        const [lab] = await sql`SELECT owner_name, lab_name, email FROM lab_details WHERE id = ${patient_id} LIMIT 1`;
+        if (lab) { resolvedName = lab.owner_name || lab.lab_name || "Lab"; resolvedEmail = lab.email; }
+      } else if (patientUser.role === "admin") {
+        resolvedName = "Administrator";
+      }
+      try {
+        await sql`
+          INSERT INTO patient_details (id, full_name, email, created_at, updated_at)
+          VALUES (${patient_id}, ${resolvedName}, ${resolvedEmail}, NOW(), NOW())
+          ON CONFLICT (id) DO NOTHING
+        `;
+      } catch (e) {
+        console.warn("Auto-provision patient_details warning:", e.message);
+      }
     }
 
     const perPage = 50;

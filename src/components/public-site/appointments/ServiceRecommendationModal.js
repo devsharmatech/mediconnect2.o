@@ -76,20 +76,20 @@ export default function ServiceRecommendationModal({ isOpen, onClose, appointmen
     };
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-[9999] flex sm:items-center sm:justify-center p-0 sm:p-6 overflow-hidden">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-teal-50">
-                    <h2 className="text-xl font-bold text-emerald-900 flex items-center gap-2">
-                        <FaStethoscope className="text-emerald-500 w-5 h-5" />
-                        Recommended Next Steps
+            <div className="relative bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-md flex flex-col overflow-hidden animate-in fade-in duration-200 z-10">
+                <div className="shrink-0 p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-emerald-50 to-teal-50">
+                    <h2 className="text-lg sm:text-xl font-bold text-emerald-900 flex items-center gap-2">
+                        <FaStethoscope className="text-emerald-500 w-5 h-5 shrink-0" />
+                        <span>Recommended Next Steps</span>
                     </h2>
                     <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-colors text-gray-500">
                         <FaTimes className="w-4 h-4" />
                     </button>
                 </div>
 
-                <div className="p-6">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 min-h-0 flex flex-col justify-between pb-safe">
                     {loading ? (
                         <div className="space-y-4 animate-pulse">
                             <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto mb-6"></div>

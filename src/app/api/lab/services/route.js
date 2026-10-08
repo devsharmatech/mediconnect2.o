@@ -36,7 +36,7 @@ export async function POST(req) {
     // Update lab services in RDS
     const updated = await sql`
       UPDATE lab_details
-      SET services = ${JSON.stringify(validServices)}::jsonb,
+      SET services = ${sql.json(validServices)},
           updated_at = NOW()
       WHERE id = ${cleanLabId}
       RETURNING *

@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 export async function GET() {
     try {
-        const { data, error } = await supabase
-            .from("faqs")
-            .select("*")
-            .order("display_order", { ascending: true });
-
-        if (error) throw error;
+        const data = await sql`
+            SELECT * FROM faqs 
+            ORDER BY display_order ASC
+        `;
         return NextResponse.json({ success: true, data }, { status: 200 });
     } catch (err) {
+        console.error("GET /api/cms/faqs error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }
@@ -18,15 +17,23 @@ export async function GET() {
 export async function POST(req) {
     try {
         const payload = await req.json();
-        const { data, error } = await supabase
-            .from("faqs")
-            .insert([payload])
-            .select()
-            .single();
-
-        if (error) throw error;
-        return NextResponse.json({ success: true, data }, { status: 201 });
+        const rows = await sql`
+            INSERT INTO faqs (
+                question, answer, category, display_order, status, created_at, updated_at
+            ) VALUES (
+                ${payload.question || null},
+                ${payload.answer || null},
+                ${payload.category || 'General'},
+                ${payload.display_order !== undefined ? payload.display_order : 0},
+                ${payload.status || 'active'},
+                NOW(),
+                NOW()
+            )
+            RETURNING *
+        `;
+        return NextResponse.json({ success: true, data: rows[0] }, { status: 201 });
     } catch (err) {
+        console.error("POST /api/cms/faqs error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }
@@ -36,16 +43,26 @@ export async function PUT(req) {
         const payload = await req.json();
         const { id, ...updateData } = payload;
         
-        const { data, error } = await supabase
-            .from("faqs")
-            .update({ ...updateData, updated_at: new Date().toISOString() })
-            .eq("id", id)
-            .select()
-            .single();
+        if (!id) {
+            return NextResponse.json({ success: false, error: "ID is required" }, { status: 400 });
+        }
 
-        if (error) throw error;
-        return NextResponse.json({ success: true, data }, { status: 200 });
+        const rows = await sql`
+            UPDATE faqs
+            SET 
+                question = ${updateData.question !== undefined ? updateData.question : sql`question`},
+                answer = ${updateData.answer !== undefined ? updateData.answer : sql`answer`},
+                category = ${updateData.category !== undefined ? updateData.category : sql`category`},
+                display_order = ${updateData.display_order !== undefined ? updateData.display_order : sql`display_order`},
+                status = ${updateData.status !== undefined ? updateData.status : sql`status`},
+                updated_at = NOW()
+            WHERE id = ${id}
+            RETURNING *
+        `;
+
+        return NextResponse.json({ success: true, data: rows[0] }, { status: 200 });
     } catch (err) {
+        console.error("PUT /api/cms/faqs error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }
@@ -55,14 +72,14 @@ export async function DELETE(req) {
         const { searchParams } = new URL(req.url);
         const id = searchParams.get('id');
         
-        const { error } = await supabase
-            .from("faqs")
-            .delete()
-            .eq("id", id);
+        if (!id) {
+            return NextResponse.json({ success: false, error: "ID is required" }, { status: 400 });
+        }
 
-        if (error) throw error;
+        await sql`DELETE FROM faqs WHERE id = ${id}`;
         return NextResponse.json({ success: true }, { status: 200 });
     } catch (err) {
+        console.error("DELETE /api/cms/faqs error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }

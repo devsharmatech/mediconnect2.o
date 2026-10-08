@@ -217,14 +217,14 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
       />
 
       {/* Modal */}
-      <div className="flex h-full items-center justify-center p-4">
+      <div className="flex h-full sm:items-center sm:justify-center p-0 sm:p-4 overflow-hidden">
         <div
-          className="relative flex flex-col w-full max-w-2xl bg-white rounded-[5px] shadow-2xl overflow-hidden border border-slate-200 max-h-[90vh]"
+          className="relative flex flex-col w-full h-full sm:h-auto sm:max-w-2xl bg-white rounded-none sm:rounded-2xl shadow-2xl overflow-hidden border-0 sm:border border-slate-200 sm:max-h-[90vh]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="shrink-0 flex items-center justify-between px-6 py-4 bg-[#0067A1]">
-            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <div className="shrink-0 flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 bg-[#0067A1]">
+            <h2 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
               <FaUser className="text-white/80" /> Edit Profile
             </h2>
             <button
@@ -239,7 +239,7 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 bg-[#F8FAFC]">
 
             {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
               {/* Profile Picture Upload Placeholder */}
               <div className="flex flex-col items-center justify-center mb-6">
                 <div
@@ -409,18 +409,18 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
             </div>
 
             {/* Footer Buttons */}
-            <div className="shrink-0 flex items-center justify-end space-x-3 px-6 py-4 border-t border-slate-200 bg-white z-10 relative">
+            <div className="shrink-0 flex items-center justify-end gap-2 sm:gap-3 px-4 py-3 sm:px-6 sm:py-4 border-t border-slate-200 bg-white z-10 relative pb-safe">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-2 text-sm border border-slate-300 text-slate-700 font-medium rounded-[5px] hover:bg-slate-50 transition-all duration-200 cursor-pointer"
+                className="flex-1 sm:flex-none justify-center text-center px-4 sm:px-5 py-2.5 sm:py-2 text-sm border border-slate-300 text-slate-700 font-medium rounded-lg sm:rounded-[5px] hover:bg-slate-50 transition-all duration-200 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-6 py-2 text-sm bg-[#0067A1] text-white font-medium rounded-[5px] hover:bg-[#004F7C] transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center shadow-xs cursor-pointer"
+                className="flex-1 sm:flex-none justify-center px-5 sm:px-6 py-2.5 sm:py-2 text-sm bg-[#0067A1] text-white font-medium rounded-lg sm:rounded-[5px] hover:bg-[#004F7C] transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center shadow-xs cursor-pointer"
               >
                 {isSaving ? (
                   <>

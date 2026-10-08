@@ -47,17 +47,13 @@ export async function POST(req) {
       return failure("Forbidden - you do not have permission to view these appointments.", null, 403, { headers: corsHeaders });
     }
 
-    // Verify user role
+    // Verify user exists
     const { data: patientUser, error: userErr } = await withRetry(() => 
       supabase.from("users").select("id, role").eq("id", patient_id).single()
     );
 
     if (userErr || !patientUser) {
       return failure("Invalid patient_id. User not found.", null, 400, { headers: corsHeaders });
-    }
-
-    if (patientUser.role !== "patient") {
-      return failure("Invalid patient_id or user is not a patient.", null, 400, { headers: corsHeaders });
     }
 
     const perPage = 50;
