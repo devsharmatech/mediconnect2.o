@@ -3,6 +3,7 @@
 import "../../website-globals.css";
 import Navbar from "@/components/public-site/layout/Navbar";
 import Footer from "@/components/public-site/layout/footer";
+import MobileFooterBar from "@/components/public-site/layout/MobileFooterBar";
 import ComplianceStrip from "@/components/public-site/ui/ComplianceStrip";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
@@ -87,14 +88,15 @@ export default function MainLayout({ children }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col w-full max-w-full overflow-x-hidden">
       <OfflineBanner />
       <Navbar isMenuOpen={isMenuOpen} toggleSideBar={toggleSideBar} />
-      <main className="flex-1 overflow-y-auto ">
+      <main className="flex-1 pb-16 lg:pb-0 w-full max-w-full overflow-x-hidden">
         {children}
       </main>
       <ComplianceStrip />
       <Footer />
+      <MobileFooterBar />
     </div>
   );
 }

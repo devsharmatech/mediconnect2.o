@@ -12,13 +12,39 @@ export async function syncClinicalData(consultation_id, medicines = null, sympto
       return { success: false, error: "Missing consultation_id" };
     }
 
+    // Resolve true consultation_id:
+    // It might be a direct consultations.id or an appointment_id linked to a consultation.
+    let targetConsultationId = consultation_id;
+    const { data: directConsult } = await supabase
+      .from("consultations")
+      .select("id")
+      .eq("id", consultation_id)
+      .maybeSingle();
+
+    if (directConsult?.id) {
+      targetConsultationId = directConsult.id;
+    } else {
+      const { data: apptConsult } = await supabase
+        .from("consultations")
+        .select("id")
+        .eq("appointment_id", consultation_id)
+        .maybeSingle();
+
+      if (apptConsult?.id) {
+        targetConsultationId = apptConsult.id;
+      } else {
+        console.warn(`[syncClinicalData] No consultation found for id or appointment_id '${consultation_id}'. Skipping structured sync.`);
+        return { success: false, skipped: true, error: "Consultation record not found" };
+      }
+    }
+
     // --- 1. Sync Medications ---
     if (medicines !== null && Array.isArray(medicines)) {
       // First, delete existing consultation_medications for this consultation_id
       await supabase
         .from("consultation_medications")
         .delete()
-        .eq("consultation_id", consultation_id);
+        .eq("consultation_id", targetConsultationId);
 
       if (medicines.length > 0) {
         const medRows = [];
@@ -41,7 +67,7 @@ export async function syncClinicalData(consultation_id, medicines = null, sympto
 
           medRows.push({
             id: crypto.randomUUID(),
-            consultation_id,
+            consultation_id: targetConsultationId,
             medicine_name: mName,
             normalized_name: normName,
             dosage: med.dosage || "",
@@ -81,14 +107,14 @@ export async function syncClinicalData(consultation_id, medicines = null, sympto
       await supabase
         .from("consultation_symptoms")
         .delete()
-        .eq("consultation_id", consultation_id);
+        .eq("consultation_id", targetConsultationId);
 
       if (parsedSymptoms.length > 0) {
         const symRows = parsedSymptoms.map(sym => {
           const symId = sym.toLowerCase().replace(/[^a-z0-9_]/g, "_").substring(0, 50);
           return {
             id: crypto.randomUUID(),
-            consultation_id,
+            consultation_id: targetConsultationId,
             symptom_id: symId,
             symptom_name: sym,
             severity: "MEDIUM",

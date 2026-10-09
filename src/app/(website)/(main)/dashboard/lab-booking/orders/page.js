@@ -13,6 +13,7 @@ import toast from "react-hot-toast";
 
 const statusConfig = {
     pending: { label: "Pending", color: "bg-amber-100 text-amber-800", dot: "bg-amber-500" },
+    approved: { label: "Confirmed", color: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500" },
     sent_to_lab: { label: "Sent to Lab", color: "bg-blue-100 text-blue-800", dot: "bg-blue-500" },
     sample_collected: { label: "Sample Collected", color: "bg-indigo-100 text-indigo-800", dot: "bg-indigo-500" },
     processing: { label: "Processing", color: "bg-purple-100 text-purple-800", dot: "bg-purple-500" },
@@ -104,15 +105,15 @@ export default function OrdersPage() {
 
     // Download/Print Invoice
     const downloadInvoice = (order, detail) => {
-        const labName = detail.order?.lab_details?.lab_name || "Laboratory";
-        const labPhone = detail.order?.lab_details?.phone_number || "";
-        const labAddress = detail.order?.lab_details?.address || "";
-        const orderId = detail.order?.unid || order.id?.slice(0, 8);
-        const invoiceDate = formatDate(detail.order?.created_at || order.created_at);
-        const total = detail.items?.reduce((sum, item) => sum + Number(item.price || 0), 0) || Number(order.total_amount || 0);
-        const paymentStatus = (detail.order?.payment_status || order.payment_status || "pending").toUpperCase();
-        const razorpayId = detail.order?.razorpay_payment_id || "";
-        const visitType = (detail.order?.visit_type || order.visit_type || "walk_in").replace(/_/g, " ").toUpperCase();
+        const labName = detail.lab_name || detail.lab_details?.lab_name || detail.order?.lab_name || detail.order?.lab_details?.lab_name || order.lab_details?.lab_name || "Laboratory";
+        const labPhone = detail.lab_phone || detail.lab_details?.phone_number || detail.order?.lab_phone || detail.order?.lab_details?.phone_number || "";
+        const labAddress = detail.lab_address || detail.lab_details?.address || detail.order?.lab_address || detail.order?.lab_details?.address || "";
+        const orderId = detail.unid || detail.order?.unid || order.unid || order.id?.slice(0, 8);
+        const invoiceDate = formatDate(detail.created_at || detail.order?.created_at || order.created_at);
+        const total = detail.items?.reduce((sum, item) => sum + Number(item.price || 0), 0) || Number(detail.total_amount || order.total_amount || 0);
+        const paymentStatus = (detail.payment_status || detail.order?.payment_status || order.payment_status || "pending").toUpperCase();
+        const razorpayId = detail.razorpay_payment_id || detail.order?.razorpay_payment_id || order.razorpay_payment_id || "";
+        const visitType = (detail.visit_type || detail.order?.visit_type || order.visit_type || "walk_in").replace(/_/g, " ").toUpperCase();
 
         const itemsRows = (detail.items || []).map((item, i) => `
           <tr>
@@ -262,42 +263,52 @@ export default function OrdersPage() {
     };
 
     return (
-        <div className="min-h-screen pb-12">
-            {/* Hero Header */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-[#0067A1] via-[#0080C6] to-[#127a72] rounded-3xl px-6 sm:px-10 pt-8 pb-10 mb-8 shadow-xl shadow-[#0067A1]/20">
-                <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-40 -mt-40" />
-                <div className="absolute bottom-0 left-0 w-56 h-56 bg-white/5 rounded-full -ml-28 -mb-28" />
-                <div className="absolute top-1/2 right-10 w-24 h-24 bg-white/5 rounded-full hidden sm:block" />
-                <div className="relative">
-                    <button onClick={() => router.push("/website/dashboard/lab-booking")}
-                        className="flex items-center gap-2 text-white/60 hover:text-white text-sm mb-5 transition-colors group cursor-pointer">
-                        <FaArrowLeft className="w-3 h-3 group-hover:-translate-x-1 transition-transform" /> Browse Labs
+        <div className="min-h-screen pb-20 pt-2 sm:pt-4">
+            {/* Header Banner - Solid #0067A1, rounded-xl, no gradients, no heavy shadow */}
+            <div className="bg-[#0067A1] text-white rounded-xl px-4 sm:px-6 py-4 sm:py-5 mb-5 border border-[#005585]">
+                <div className="flex flex-col gap-2">
+                    <button
+                        type="button"
+                        onClick={() => router.push("/website/dashboard/lab-booking")}
+                        className="inline-flex items-center gap-1.5 text-white/80 hover:text-white text-xs font-semibold transition-colors cursor-pointer w-fit group"
+                    >
+                        <FaArrowLeft className="w-2.5 h-2.5 group-hover:-translate-x-1 transition-transform" />
+                        Back to Labs
                     </button>
-                    <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-white/15 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/10">
-                            <FaVial className="w-6 h-6 text-white" />
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 bg-white/15 rounded-lg border border-white/20 flex items-center justify-center shrink-0">
+                            <FaVial className="w-4 h-4 text-white" />
                         </div>
-                        <div>
-                            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">My Lab Orders</h1>
-                            <p className="text-white/50 text-sm mt-1">Track your test orders, payments & download invoices</p>
+                        <div className="min-w-0">
+                            <h1 className="text-lg sm:text-2xl font-bold text-white tracking-tight leading-tight truncate">
+                                My Lab Orders
+                            </h1>
+                            <p className="text-white/80 text-xs mt-0.5 font-normal truncate">
+                                Track orders, view payment status & download invoices
+                            </p>
                         </div>
                     </div>
-                    {/* Stats bar */}
+
+                    {/* Stats Bar */}
                     {!loading && orders.length > 0 && (
-                        <div className="flex items-center gap-6 mt-6 pt-5 border-t border-white/10">
-                            <div>
-                                <p className="text-2xl font-bold text-white">{orders.length}</p>
-                                <p className="text-white/40 text-xs">Total Orders</p>
+                        <div className="grid grid-cols-3 gap-2 mt-4 pt-3.5 border-t border-white/15 text-center sm:text-left sm:flex sm:items-center sm:gap-8">
+                            <div className="bg-white/10 sm:bg-transparent rounded-lg py-1.5 sm:py-0">
+                                <p className="text-base sm:text-xl font-bold text-white">{orders.length}</p>
+                                <p className="text-white/70 text-[10px] sm:text-xs font-normal">Total Orders</p>
                             </div>
-                            <div className="w-px h-8 bg-white/10" />
-                            <div>
-                                <p className="text-2xl font-bold text-emerald-300">{orders.filter(o => o.payment_status === "paid").length}</p>
-                                <p className="text-white/40 text-xs">Paid</p>
+                            <div className="hidden sm:block w-px h-7 bg-white/20" />
+                            <div className="bg-white/10 sm:bg-transparent rounded-lg py-1.5 sm:py-0">
+                                <p className="text-base sm:text-xl font-bold text-emerald-200">
+                                    {orders.filter(o => o.payment_status === "paid").length}
+                                </p>
+                                <p className="text-white/70 text-[10px] sm:text-xs font-normal">Paid</p>
                             </div>
-                            <div className="w-px h-8 bg-white/10" />
-                            <div>
-                                <p className="text-2xl font-bold text-amber-300">{orders.filter(o => o.status === "pending" || o.status === "processing").length}</p>
-                                <p className="text-white/40 text-xs">In Progress</p>
+                            <div className="hidden sm:block w-px h-7 bg-white/20" />
+                            <div className="bg-white/10 sm:bg-transparent rounded-lg py-1.5 sm:py-0">
+                                <p className="text-base sm:text-xl font-bold text-amber-200">
+                                    {orders.filter(o => ["pending", "processing", "approved", "sent_to_lab", "sample_collected"].includes(o.status)).length}
+                                </p>
+                                <p className="text-white/70 text-[10px] sm:text-xs font-normal">In Progress</p>
                             </div>
                         </div>
                     )}
@@ -305,312 +316,305 @@ export default function OrdersPage() {
             </div>
 
             {loading ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                     {[1, 2, 3].map(i => (
-                        <div key={i} className="bg-white rounded-2xl border border-gray-100 p-6 animate-pulse">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-gray-200 rounded-xl" />
-                                <div className="flex-1">
-                                    <div className="h-5 bg-gray-200 rounded w-2/5 mb-2" />
-                                    <div className="h-3 bg-gray-100 rounded w-1/4" />
+                        <div key={i} className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 animate-pulse">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-slate-200 rounded-lg shrink-0" />
+                                <div className="flex-1 space-y-2">
+                                    <div className="h-4 bg-slate-200 rounded w-1/3" />
+                                    <div className="h-3 bg-slate-100 rounded w-1/4" />
                                 </div>
-                                <div className="text-right">
-                                    <div className="h-5 bg-gray-200 rounded w-16 mb-2 ml-auto" />
-                                    <div className="h-4 bg-gray-100 rounded w-20 ml-auto" />
-                                </div>
+                                <div className="h-4 bg-slate-200 rounded w-16" />
                             </div>
                         </div>
                     ))}
                 </div>
             ) : orders.length === 0 ? (
-                <div className="bg-white rounded-3xl border border-gray-100 p-14 text-center shadow-sm">
-                    <div className="w-24 h-24 bg-gradient-to-br from-gray-50 to-gray-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                        <FaFlask className="w-10 h-10 text-gray-300" />
+                <div className="bg-white rounded-xl border border-slate-200 p-8 sm:p-12 text-center">
+                    <div className="w-14 h-14 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-3.5 text-slate-400">
+                        <FaFlask className="w-6 h-6" />
                     </div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-3">No Orders Yet</h3>
-                    <p className="text-gray-500 max-w-md mx-auto leading-relaxed">You haven't placed any lab test orders yet. Browse labs and book your first test to get started!</p>
-                    <button onClick={() => router.push("/website/dashboard/lab-booking")}
-                        className="mt-6 px-8 py-3.5 bg-gradient-to-r from-[#0067A1] to-[#0080C6] text-white rounded-xl font-semibold hover:shadow-lg hover:shadow-[#0067A1]/25 transition-all cursor-pointer">
+                    <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1">No Orders Yet</h3>
+                    <p className="text-gray-500 text-xs sm:text-sm max-w-sm mx-auto leading-relaxed">
+                        You have not placed any lab test orders yet. Browse our verified partner laboratories to get started.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => router.push("/website/dashboard/lab-booking")}
+                        className="mt-5 px-5 py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    >
                         Browse Labs
                     </button>
                 </div>
             ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                     {orders.map((order, idx) => {
                         const status = statusConfig[order.status] || statusConfig.pending;
                         const payment = paymentConfig[order.payment_status] || paymentConfig.pending;
                         const PayIcon = payment.icon;
                         const isExpanded = expandedOrder === order.id;
                         const detail = orderDetails[order.id];
-                        const testCount = detail?.items?.length || 0;
 
                         return (
-                            <motion.div key={order.id}
-                                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.04, duration: 0.3 }}
-                                className={`bg-white rounded-2xl border overflow-hidden transition-all duration-300 ${isExpanded ? "shadow-lg border-[#0067A1]/20 ring-1 ring-[#0067A1]/10" : "shadow-sm border-gray-100 hover:shadow-md hover:border-gray-200"}`}>
-
-                                {/* Order Card */}
-                                <button onClick={() => toggleOrder(order.id)}
-                                    className="w-full text-left p-5 sm:p-6 cursor-pointer">
-                                    <div className="flex items-start sm:items-center gap-3 sm:gap-4">
-                                        {/* Icon */}
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 mt-1 sm:mt-0 transition-colors ${isExpanded ? "bg-[#0067A1] shadow-lg shadow-[#0067A1]/25" : "bg-gradient-to-br from-[#0067A1]/10 to-[#0067A1]/5"}`}>
-                                            <FaFlask className={`w-5 h-5 ${isExpanded ? "text-white" : "text-[#0067A1]"}`} />
+                            <div
+                                key={order.id}
+                                className={`bg-white rounded-xl border transition-colors overflow-hidden ${
+                                    isExpanded ? "border-[#0067A1] ring-1 ring-[#0067A1]/20" : "border-slate-200 hover:border-slate-300"
+                                }`}
+                            >
+                                {/* Order Card Header / Trigger */}
+                                <button
+                                    type="button"
+                                    onClick={() => toggleOrder(order.id)}
+                                    className="w-full text-left p-4 sm:p-4.5 cursor-pointer flex items-center justify-between gap-3"
+                                >
+                                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        {/* Lab Flask Icon */}
+                                        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                                            isExpanded ? "bg-[#0067A1] text-white" : "bg-[#0067A1]/10 text-[#0067A1]"
+                                        }`}>
+                                            <FaFlask className="w-4 h-4" />
                                         </div>
 
-                                        {/* Info */}
-                                        <div className="flex-1 min-w-0">
+                                        {/* Lab & Meta Info */}
+                                        <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <p className="text-sm sm:text-base font-bold text-gray-900 truncate">
-                                                    {order.lab?.lab_name || order.lab_details?.lab_name || "Lab Order"}
+                                                <p className="text-xs sm:text-sm font-semibold text-gray-900 truncate">
+                                                    {order.lab?.lab_name || order.lab_details?.lab_name || "Diagnostic Lab"}
                                                 </p>
                                             </div>
-                                            <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${status.color}`}>
+
+                                            <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-md ${status.color}`}>
                                                     {status.label}
                                                 </span>
-                                                <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${payment.bg} ${payment.color}`}>
+                                                <span className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md border ${payment.bg} ${payment.color}`}>
                                                     <PayIcon className="w-2.5 h-2.5" /> {payment.label}
                                                 </span>
                                             </div>
-                                            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-gray-400">
-                                                <span className="flex items-center gap-1 shrink-0">
-                                                    <FaClock className="w-3 h-3" />
+
+                                            <div className="flex items-center gap-2 text-[11px] text-gray-500 font-normal">
+                                                <span className="flex items-center gap-1">
+                                                    <FaClock className="w-2.5 h-2.5 text-gray-400" />
                                                     {formatDate(order.created_at)}
                                                 </span>
-                                                {order.visit_type && (
-                                                    <span className="flex items-center gap-1 shrink-0">
-                                                        {order.visit_type === "home_collection"
-                                                            ? <><FaTruck className="w-3 h-3" /> Home</>
-                                                            : <><FaWalking className="w-3 h-3" /> Walk-in</>}
-                                                    </span>
-                                                )}
+                                                <span>•</span>
+                                                <span className="flex items-center gap-1">
+                                                    {order.visit_type === "home_collection" ? (
+                                                        <><FaTruck className="w-2.5 h-2.5 text-gray-400" /> Home</>
+                                                    ) : (
+                                                        <><FaWalking className="w-2.5 h-2.5 text-gray-400" /> Walk-in</>
+                                                    )}
+                                                </span>
                                             </div>
                                         </div>
+                                    </div>
 
-                                        {/* Right side */}
-                                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 sm:gap-4 shrink-0 mt-1 sm:mt-0">
-                                            <div className="text-right">
-                                                <p className="text-base sm:text-lg font-extrabold text-gray-900">₹{Number(order.total_amount || 0).toLocaleString()}</p>
-                                            </div>
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all ${isExpanded ? "bg-[#0067A1] rotate-180" : "bg-gray-100"}`}>
-                                                <FaChevronDown className={`w-3 h-3 transition-colors ${isExpanded ? "text-white" : "text-gray-400"}`} />
-                                            </div>
+                                    {/* Right Side: Price & Chevron */}
+                                    <div className="flex items-center gap-2.5 shrink-0 pl-2">
+                                        <div className="text-right">
+                                            <p className="text-sm sm:text-base font-semibold text-gray-900">
+                                                ₹{Number(order.total_amount || 0).toLocaleString()}
+                                            </p>
+                                        </div>
+                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-transform ${
+                                            isExpanded ? "bg-[#0067A1] text-white rotate-180" : "bg-slate-100 text-slate-500"
+                                        }`}>
+                                            <FaChevronDown className="w-3 h-3" />
                                         </div>
                                     </div>
                                 </button>
 
-                                {/* Expanded Content */}
-                                <AnimatePresence>
-                                    {isExpanded && (
-                                        <motion.div
-                                            initial={{ height: 0, opacity: 0 }}
-                                            animate={{ height: "auto", opacity: 1 }}
-                                            exit={{ height: 0, opacity: 0 }}
-                                            transition={{ duration: 0.3 }}
-                                            className="overflow-hidden">
-                                            <div className="px-5 sm:px-6 pb-6 space-y-5 border-t border-gray-100 pt-5">
-                                                {!detail ? (
-                                                    <div className="flex flex-col items-center justify-center py-10 gap-3">
-                                                        <div className="w-8 h-8 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin" />
-                                                        <p className="text-xs text-gray-400">Loading order details...</p>
+                                {/* Expanded Order Details */}
+                                {isExpanded && (
+                                    <div className="border-t border-slate-100 bg-white px-4 sm:px-5 py-4 space-y-4">
+                                        {!detail ? (
+                                            <div className="flex items-center justify-center py-6 gap-2 text-xs text-gray-500">
+                                                <div className="w-4 h-4 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin" />
+                                                <span>Loading order details...</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {/* Info Grid: Order Info & Lab Info */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    {/* Order Info */}
+                                                    <div className="bg-slate-50/70 rounded-lg border border-slate-200 p-3.5 space-y-2 text-xs">
+                                                        <div className="flex items-center gap-1.5 font-semibold text-gray-700 pb-1.5 border-b border-slate-200">
+                                                            <FaHashtag className="w-3 h-3 text-[#0067A1]" />
+                                                            Order Information
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-500">Order ID</span>
+                                                            <span className="font-mono font-medium text-gray-800 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                                                                #{detail.order?.unid || order.id?.slice(0, 8)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-500">Date Placed</span>
+                                                            <span className="font-medium text-gray-800">
+                                                                {formatDate(detail.order?.created_at || order.created_at)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span className="text-gray-500">Collection Type</span>
+                                                            <span className="font-medium text-gray-800">
+                                                                {(detail.order?.visit_type || order.visit_type) === "home_collection"
+                                                                    ? "Home Sample Collection"
+                                                                    : "Diagnostic Center Walk-in"}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-gray-500">Status</span>
+                                                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-md ${status.color}`}>
+                                                                {status.label}
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                ) : (
-                                                    <>
-                                                        {/* Info Grid */}
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                                            {/* Order Summary */}
-                                                            <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-100 p-5">
-                                                                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                                    <FaHashtag className="w-3 h-3 text-[#0067A1]" /> Order Info
-                                                                </h4>
-                                                                <div className="space-y-3 text-sm">
-                                                                    <div className="flex justify-between">
-                                                                        <span className="text-gray-400">Order ID</span>
-                                                                        <span className="font-bold text-gray-800 font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">#{detail.order?.unid || order.id?.slice(0, 8)}</span>
-                                                                    </div>
-                                                                    <div className="flex justify-between">
-                                                                        <span className="text-gray-400">Date</span>
-                                                                        <span className="font-medium text-gray-700">{formatDate(detail.order?.created_at || order.created_at)}</span>
-                                                                    </div>
-                                                                    <div className="flex justify-between">
-                                                                        <span className="text-gray-400">Collection</span>
-                                                                        <span className="font-medium text-gray-700 flex items-center gap-1.5">
-                                                                            {(detail.order?.visit_type || order.visit_type) === "home_collection"
-                                                                                ? <><FaTruck className="w-3 h-3 text-[#0067A1]" /> Home Collection</>
-                                                                                : <><FaWalking className="w-3 h-3 text-[#0067A1]" /> Walk-in Visit</>}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="flex justify-between items-center">
-                                                                        <span className="text-gray-400">Status</span>
-                                                                        <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${status.color}`}>
-                                                                            {status.label}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
 
-                                                            {/* Lab Info */}
-                                                            {detail.order?.lab_details && (
-                                                                <div className="bg-gradient-to-br from-[#0067A1]/5 to-white rounded-2xl border border-[#0067A1]/10 p-5">
-                                                                    <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                                        <FaHospital className="w-3 h-3 text-[#0067A1]" /> Lab Details
-                                                                    </h4>
-                                                                    <div className="space-y-3 text-sm">
-                                                                        <p className="font-bold text-gray-900 text-base">{detail.order.lab_details.lab_name}</p>
-                                                                        {detail.order.lab_details.phone_number && (
-                                                                            <p className="text-gray-600 flex items-center gap-2">
-                                                                                <span className="w-7 h-7 bg-[#0067A1]/10 rounded-lg flex items-center justify-center shrink-0">
-                                                                                    <FaPhoneAlt className="w-3 h-3 text-[#0067A1]" />
-                                                                                </span>
-                                                                                {detail.order.lab_details.phone_number}
-                                                                            </p>
-                                                                        )}
-                                                                        {detail.order.lab_details.address && (
-                                                                            <p className="text-gray-600 flex items-start gap-2">
-                                                                                <span className="w-7 h-7 bg-[#0067A1]/10 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
-                                                                                    <FaMapMarkerAlt className="w-3 h-3 text-[#0067A1]" />
-                                                                                </span>
-                                                                                <span className="leading-relaxed">{detail.order.lab_details.address}</span>
-                                                                            </p>
-                                                                        )}
-                                                                        {detail.order.lab_details.opening_hours && (
-                                                                            <p className="text-gray-500 flex items-center gap-2 text-xs">
-                                                                                <span className="w-7 h-7 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
-                                                                                    <FaClock className="w-3 h-3 text-gray-400" />
-                                                                                </span>
-                                                                                {typeof detail.order.lab_details.opening_hours === "object"
-                                                                                    ? `${detail.order.lab_details.opening_hours.open || ""} - ${detail.order.lab_details.opening_hours.close || ""}`
-                                                                                    : detail.order.lab_details.opening_hours}
-                                                                            </p>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
+                                                    {/* Lab Details */}
+                                                    {detail.order?.lab_details && (
+                                                        <div className="bg-slate-50/70 rounded-lg border border-slate-200 p-3.5 space-y-2 text-xs">
+                                                            <div className="flex items-center gap-1.5 font-semibold text-gray-700 pb-1.5 border-b border-slate-200">
+                                                                <FaHospital className="w-3 h-3 text-[#0067A1]" />
+                                                                Diagnostic Laboratory
+                                                            </div>
+                                                            <p className="font-semibold text-gray-900 text-xs sm:text-sm">
+                                                                {detail.order.lab_details.lab_name}
+                                                            </p>
+                                                            {detail.order.lab_details.phone_number && (
+                                                                <p className="text-gray-600 flex items-center gap-1.5">
+                                                                    <FaPhoneAlt className="w-3 h-3 text-[#0067A1]" />
+                                                                    {detail.order.lab_details.phone_number}
+                                                                </p>
+                                                            )}
+                                                            {detail.order.lab_details.address && (
+                                                                <p className="text-gray-600 flex items-start gap-1.5 leading-relaxed">
+                                                                    <FaMapMarkerAlt className="w-3 h-3 text-[#0067A1] shrink-0 mt-0.5" />
+                                                                    <span>{detail.order.lab_details.address}</span>
+                                                                </p>
                                                             )}
                                                         </div>
+                                                    )}
+                                                </div>
 
-                                                        {/* Test Items */}
-                                                        {detail.items?.length > 0 && (
-                                                            <div>
-                                                                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                                                    <FaVial className="w-3 h-3 text-[#0067A1]" /> Tests Ordered ({detail.items.length})
-                                                                </h4>
-                                                                <div className="bg-white rounded-xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
-                                                                    {detail.items.map((item, i) => (
-                                                                        <div key={item.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
-                                                                            <div className="flex items-center gap-3">
-                                                                                <span className="w-7 h-7 bg-[#0067A1]/8 rounded-lg flex items-center justify-center text-[10px] font-bold text-[#0067A1]">{i + 1}</span>
-                                                                                <span className="text-sm font-semibold text-gray-800">{item.test_name}</span>
-                                                                            </div>
-                                                                            <span className="text-sm font-bold text-gray-900">₹{Number(item.price || 0).toLocaleString()}</span>
-                                                                        </div>
-                                                                    ))}
-                                                                    {/* Total row */}
-                                                                    <div className="flex items-center justify-between px-5 py-3.5 bg-[#0067A1]/5">
-                                                                        <span className="text-sm font-bold text-[#0067A1]">Total</span>
-                                                                        <span className="text-base font-extrabold text-[#0067A1]">
-                                                                            ₹{detail.items.reduce((sum, item) => sum + Number(item.price || 0), 0).toLocaleString()}
+                                                {/* Tests Ordered List */}
+                                                {detail.items?.length > 0 && (
+                                                    <div>
+                                                        <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                                            <FaVial className="w-3 h-3 text-[#0067A1]" /> Tests Ordered ({detail.items.length})
+                                                        </h4>
+                                                        <div className="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100 overflow-hidden text-xs">
+                                                            {detail.items.map((item, i) => (
+                                                                <div key={item.id} className="flex items-center justify-between px-3.5 py-2.5">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="w-5 h-5 bg-slate-100 rounded text-[10px] font-medium text-slate-600 flex items-center justify-center">
+                                                                            {i + 1}
                                                                         </span>
+                                                                        <span className="font-normal text-gray-800">{item.test_name}</span>
                                                                     </div>
+                                                                    <span className="font-semibold text-gray-900">
+                                                                        ₹{Number(item.price || 0).toLocaleString()}
+                                                                    </span>
                                                                 </div>
-                                                            </div>
-                                                        )}
-
-                                                        {/* Payment Card */}
-                                                        <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-100 p-5">
-                                                            <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                                <FaCreditCard className="w-3 h-3 text-[#0067A1]" /> Payment Details
-                                                            </h4>
-                                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                                                <div className="bg-white rounded-xl border border-gray-100 p-3.5 text-center">
-                                                                    <p className="text-xs text-gray-400 mb-1">Amount</p>
-                                                                    <p className="text-xl font-extrabold text-[#0067A1]">₹{Number(detail.order?.total_amount || order.total_amount || 0).toLocaleString()}</p>
-                                                                </div>
-                                                                <div className="bg-white rounded-xl border border-gray-100 p-3.5 text-center">
-                                                                    <p className="text-xs text-gray-400 mb-1">Status</p>
-                                                                    <div className={`inline-flex items-center gap-1.5 font-bold text-sm ${payment.color}`}>
-                                                                        <PayIcon className="w-4 h-4" /> {payment.label}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="bg-white rounded-xl border border-gray-100 p-3.5 text-center">
-                                                                    <p className="text-xs text-gray-400 mb-1">Method</p>
-                                                                    <p className="text-sm font-bold text-gray-700">Razorpay</p>
-                                                                </div>
-                                                                <div className="bg-white rounded-xl border border-gray-100 p-3.5 text-center">
-                                                                    <p className="text-xs text-gray-400 mb-1">Transaction</p>
-                                                                    <p className="text-xs font-mono text-gray-600 truncate">
-                                                                        {detail.order?.razorpay_payment_id || "—"}
-                                                                    </p>
-                                                                </div>
+                                                            ))}
+                                                            <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50 font-semibold">
+                                                                <span className="text-gray-700">Subtotal</span>
+                                                                <span className="text-[#0067A1] text-sm font-bold">
+                                                                    ₹{detail.items.reduce((sum, item) => sum + Number(item.price || 0), 0).toLocaleString()}
+                                                                </span>
                                                             </div>
                                                         </div>
-
-                                                        {/* Address */}
-                                                        {detail.order?.delivery_address && (
-                                                            <div className="bg-gradient-to-br from-blue-50/50 to-white rounded-2xl border border-blue-100/50 p-5">
-                                                                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                                    <FaMapMarkerAlt className="w-3 h-3 text-blue-500" /> Delivery Address
-                                                                </h4>
-                                                                <p className="text-sm text-gray-700 leading-relaxed">
-                                                                    {typeof detail.order.delivery_address === "object"
-                                                                        ? `${detail.order.delivery_address.full_address}, ${detail.order.delivery_address.city} - ${detail.order.delivery_address.pincode}`
-                                                                        : detail.order.delivery_address}
-                                                                </p>
-                                                            </div>
-                                                        )}
-
-                                                        {/* Payment Timeline */}
-                                                        {detail.payment_history?.length > 0 && (
-                                                            <div>
-                                                                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Payment Timeline</h4>
-                                                                <div className="relative pl-4 border-l-2 border-gray-200 space-y-3">
-                                                                    {detail.payment_history.map(log => (
-                                                                        <div key={log.id} className="relative">
-                                                                            <div className={`absolute -left-[21px] w-3 h-3 rounded-full border-2 border-white ${log.status === "success" ? "bg-green-500" : log.status === "failed" ? "bg-red-500" : "bg-amber-500"}`} />
-                                                                            <div className="bg-white rounded-xl border border-gray-100 px-4 py-3 text-xs flex items-center justify-between">
-                                                                                <div>
-                                                                                    <span className="font-semibold text-gray-800">{log.source}</span>
-                                                                                    {log.amount && <span className="ml-2 text-gray-500">₹{log.amount}</span>}
-                                                                                </div>
-                                                                                <span className="text-gray-400">{formatDateTime(log.created_at)}</span>
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        {/* Action Button */}
-                                                        <div className="flex items-center gap-3 pt-1">
-                                                            <button
-                                                                onClick={() => downloadInvoice(order, detail)}
-                                                                className="flex items-center gap-2.5 px-6 py-3 bg-gradient-to-r from-[#0067A1] to-[#0080C6] text-white rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-[#0067A1]/25 transition-all cursor-pointer"
-                                                            >
-                                                                <FaFileInvoice className="w-4 h-4" />
-                                                                Download Invoice
-                                                            </button>
-                                                        </div>
-                                                    </>
+                                                    </div>
                                                 )}
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </motion.div>
+
+                                                {/* Payment Summary Box */}
+                                                <div className="bg-slate-50/70 rounded-lg border border-slate-200 p-3.5 space-y-2.5">
+                                                    <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+                                                        <FaCreditCard className="w-3 h-3 text-[#0067A1]" /> Payment Details
+                                                    </div>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                                                        <div className="bg-white rounded-lg border border-slate-200 p-2.5 text-center">
+                                                            <p className="text-[11px] text-gray-500 mb-0.5">Total Amount</p>
+                                                            <p className="text-sm sm:text-base font-semibold text-[#0067A1]">
+                                                                ₹{Number(detail.total_amount || detail.order?.total_amount || order.total_amount || 0).toLocaleString()}
+                                                            </p>
+                                                        </div>
+                                                        <div className="bg-white rounded-lg border border-slate-200 p-2.5 text-center">
+                                                            <p className="text-[11px] text-gray-500 mb-0.5">Payment Status</p>
+                                                            <div className={`inline-flex items-center gap-1 font-medium text-xs ${payment.color}`}>
+                                                                <PayIcon className="w-3 h-3" /> {payment.label}
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-white rounded-lg border border-slate-200 p-2.5 text-center">
+                                                            <p className="text-[11px] text-gray-500 mb-0.5">Gateway</p>
+                                                            <p className="font-medium text-gray-800">Razorpay</p>
+                                                        </div>
+                                                        <div className="bg-white rounded-lg border border-slate-200 p-2.5 text-center">
+                                                            <p className="text-[11px] text-gray-500 mb-0.5">Payment ID</p>
+                                                            <p className="font-mono text-[11px] text-gray-700 truncate" title={detail.razorpay_payment_id || detail.order?.razorpay_payment_id || order.razorpay_payment_id || ""}>
+                                                                {detail.razorpay_payment_id || detail.order?.razorpay_payment_id || order.razorpay_payment_id || "—"}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Delivery / Collection Address */}
+                                                {(detail.delivery_address || detail.order?.delivery_address || order.delivery_address) && (
+                                                    <div className="bg-slate-50/70 rounded-lg border border-slate-200 p-3 text-xs space-y-1">
+                                                        <p className="font-semibold text-gray-700 flex items-center gap-1.5">
+                                                            <FaMapMarkerAlt className="w-3 h-3 text-[#0067A1]" /> Collection Address
+                                                        </p>
+                                                        <p className="text-gray-600 leading-relaxed pl-4">
+                                                            {(() => {
+                                                                const addr = detail.delivery_address || detail.order?.delivery_address || order.delivery_address;
+                                                                return typeof addr === "object"
+                                                                    ? `${addr.full_address || ""}, ${addr.city || ""} ${addr.pincode ? "- " + addr.pincode : ""}`
+                                                                    : addr;
+                                                            })()}
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {/* Action Bar: Download Invoice */}
+                                                <div className="pt-1 flex justify-end">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => downloadInvoice(order, detail)}
+                                                        className="px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                                                    >
+                                                        <FaFileInvoice className="w-3.5 h-3.5" />
+                                                        Print Invoice
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         );
                     })}
 
                     {/* Pagination */}
                     {totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-3 mt-8">
-                            <button disabled={page <= 1} onClick={() => setPage(page - 1)}
-                                className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-sm">
+                        <div className="flex items-center justify-center gap-2 mt-6">
+                            <button
+                                type="button"
+                                disabled={page <= 1}
+                                onClick={() => setPage(page - 1)}
+                                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            >
                                 Previous
                             </button>
-                            <span className="text-sm text-gray-400 font-medium">Page {page} of {totalPages}</span>
-                            <button disabled={page >= totalPages} onClick={() => setPage(page + 1)}
-                                className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-sm">
+                            <span className="text-xs text-gray-500 font-medium px-2">
+                                Page {page} of {totalPages}
+                            </span>
+                            <button
+                                type="button"
+                                disabled={page >= totalPages}
+                                onClick={() => setPage(page + 1)}
+                                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            >
                                 Next
                             </button>
                         </div>

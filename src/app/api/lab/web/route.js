@@ -181,7 +181,7 @@ export async function POST(req) {
         }
       }
 
-      const documentFields = ["pan_card", "aadhaar_card", "lab_license", "gst_certificate", "owner_photo", "signature"];
+      const documentFields = ["pan_card", "aadhaar_card", "lab_license", "gst_certificate", "owner_photo", "signature", "logo", "profile_picture"];
       async function uploadFileLegacy(fieldName, file) {
         if (!file || file.size === 0) return null;
         const fileExt = file.name.split(".").pop();
@@ -221,10 +221,12 @@ export async function POST(req) {
       return failure("User already registered with this phone.", "user_already_registered", 409, { headers: corsHeaders });
     }
 
-    // Create user in RDS
+    const logo_url = fields.logo || fields.profile_picture || null;
+
+    // Create user in RDS with profile_picture/logo
     const createdUsers = await sql`
-      INSERT INTO users (phone_number, role, is_verified, status, created_at, updated_at)
-      VALUES (${phone_number}, 'lab', true, 1, NOW(), NOW())
+      INSERT INTO users (phone_number, role, is_verified, status, profile_picture, created_at, updated_at)
+      VALUES (${phone_number}, 'lab', true, 1, ${logo_url}, NOW(), NOW())
       RETURNING id
     `;
     createdUserId = createdUsers[0]?.id;
@@ -266,6 +268,7 @@ export async function POST(req) {
         gst_certificate_url,
         owner_photo_url,
         signature_url,
+        logo_url,
         created_at,
         updated_at
       ) VALUES (
@@ -293,6 +296,7 @@ export async function POST(req) {
         ${gst_certificate_url},
         ${owner_photo_url},
         ${signature_url},
+        ${logo_url},
         NOW(),
         NOW()
       )

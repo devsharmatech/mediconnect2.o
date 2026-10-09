@@ -46,7 +46,8 @@ const SpecialtyFilter = ({ specialties, selectedSpecialty, onSelect }) => {
 
       <div
         ref={scrollContainer}
-        className="flex overflow-x-auto gap-3 py-2 px-1 hide-scrollbar snap-x snap-mandatory scroll-smooth w-full"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        className="flex overflow-x-auto gap-3 py-2 px-1 no-scrollbar hide-scrollbar scrollbar-none snap-x snap-mandatory scroll-smooth w-full [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0"
       >
         {specialties.map((specialty, index) => (
           <button
@@ -107,7 +108,8 @@ const ConditionsStrip = ({ conditions, onSelectCondition }) => {
 
         <div
           ref={scrollContainer}
-          className="flex overflow-x-auto pb-6 px-4 md:px-0 hide-scrollbar snap-x snap-mandatory scroll-smooth gap-4 md:gap-5 w-full items-stretch"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          className="flex overflow-x-auto pb-2 px-4 md:px-0 no-scrollbar hide-scrollbar scrollbar-none snap-x snap-mandatory scroll-smooth gap-4 md:gap-5 w-full items-stretch [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0"
         >
           {conditions.map((condition) => (
             <div

@@ -15,6 +15,7 @@ const CARE_TYPES = [
   { id: "Post-Surgical Care", label: "Post-Surgical Care", icon: Activity, desc: "Recovery support after surgery" },
   { id: "ICU-Trained Nurse (Home)", label: "ICU-Trained Nurse (Home)", icon: Stethoscope, desc: "Critical care trained nurse at home" },
   { id: "Caregiver / Attendant Support", label: "Caregiver / Attendant Support", icon: HandHeart, desc: "General attendant / caregiver" },
+  { id: "Medical & Nursing Equipment", label: "Medical & Nursing Equipment", icon: Activity, desc: "Oxygen, hospital beds, wheelchairs & suction machines" },
 ];
 
 const DURATIONS = [
@@ -377,6 +378,29 @@ export default function NursingCareRequestPage() {
                 </button>
               );
             })}
+          </div>
+
+          {/* Medical Equipment Spotlight */}
+          <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Activity className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-emerald-950">
+                  Need Specialized Medical Equipment for Home Care?
+                </p>
+                <p className="text-[11px] text-emerald-800">
+                  Rent or buy oxygen concentrators, hospital beds, wheelchairs, BiPAP/CPAP & cardiac monitors with home delivery.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/medical-equipment"
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold whitespace-nowrap transition-colors shadow-xs"
+            >
+              Browse Equipment →
+            </Link>
           </div>
         </div>
 

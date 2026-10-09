@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   FaUser,
@@ -18,6 +18,13 @@ import {
   FaSignOutAlt,
   FaChevronRight,
   FaCheckCircle,
+  FaSearch,
+  FaTruck,
+  FaBriefcaseMedical,
+  FaBookOpen,
+  FaInfoCircle,
+  FaPhoneAlt,
+  FaWheelchair,
 } from "react-icons/fa";
 import { TbLungsFilled } from "react-icons/tb";
 import Link from "next/link";
@@ -50,9 +57,69 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [isLoginMenuOpen, setIsLoginMenuOpen] = useState(false);
+  const [activeMenu, setActiveMenu] = useState(null); // 'lab' | 'nursing' | 'more' | null
+  const [isPinned, setIsPinned] = useState(false); // true if opened via click
   const [loginUserType, setLoginUserType] = useState("patient");
   const [mounted, setMounted] = useState(false);
   const [settings, setSettings] = useState(null);
+
+  const timeoutRef = useRef(null);
+  const navContainerRef = useRef(null);
+
+  const handleMenuEnter = (menuKey) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    setActiveMenu(menuKey);
+  };
+
+  const handleMenuLeave = () => {
+    // If user explicitly clicked the menu open, keep it pinned and do NOT auto-hide!
+    if (isPinned) return;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      setActiveMenu((prev) => (isPinned ? prev : null));
+    }, 350);
+  };
+
+  const handleToggleMenu = (menuKey) => {
+    if (activeMenu === menuKey && isPinned) {
+      // Toggle closed
+      setActiveMenu(null);
+      setIsPinned(false);
+    } else {
+      // Pin open
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      setActiveMenu(menuKey);
+      setIsPinned(true);
+    }
+  };
+
+  const closeAllMenus = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    setActiveMenu(null);
+    setIsPinned(false);
+  };
+
+  // Close menus on route change
+  useEffect(() => {
+    closeAllMenus();
+  }, [pathname]);
+
+  // Click outside to close menus
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (navContainerRef.current && !navContainerRef.current.contains(e.target)) {
+        closeAllMenus();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     fetch("/api/cms/settings")
@@ -65,21 +132,15 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
       .catch(console.error);
   }, []);
 
-  // Prevent background scrolling when any modal is open
+  // Prevent background scrolling when any modal or mobile menu is open
   useEffect(() => {
     if (activeModal || isMenuOpen) {
       document.body.style.overflow = "hidden";
-      document.body.style.position = "fixed";
-      document.body.style.width = "100%";
     } else {
       document.body.style.overflow = "unset";
-      document.body.style.position = "";
-      document.body.style.width = "";
     }
     return () => {
       document.body.style.overflow = "unset";
-      document.body.style.position = "";
-      document.body.style.width = "";
     };
   }, [activeModal, isMenuOpen]);
 
@@ -330,7 +391,7 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
         onSignupClick={handleOpenSignup}
         initialUserType={loginUserType}
       />
-      <nav className="sticky top-0 z-[999] border-b border-gray-100 bg-white">
+      <nav className="sticky top-0 z-[10001] border-b border-gray-100 bg-white">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             {/* LOGO */}
@@ -347,25 +408,293 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
             {/* DESKTOP NAV (Right aligned) */}
             <div className="hidden lg:flex items-center space-x-2 xl:space-x-4">
               {/* Nav Links */}
-              <div className="flex items-center space-x-1">
+              <div className="flex items-center gap-1 xl:gap-2" ref={navContainerRef}>
                 <NavLink href="/" active={pathname === "/"}>
                   Home
-                </NavLink>
-                <NavLink href="/services" active={pathname === "/services"}>
-                  Services
-                </NavLink>
-                <NavLink href="/resources" active={pathname === "/resources"}>
-                  Resources
                 </NavLink>
                 <NavLink href="/doctors" active={pathname === "/doctors"}>
                   Doctors
                 </NavLink>
-                <NavLink href="/about" active={pathname === "/about"}>
-                  About
-                </NavLink>
-                <NavLink href="/contact" active={pathname === "/contact"}>
-                  Contact Us
-                </NavLink>
+
+                {/* Lab Tests Dropdown Menu */}
+                <div
+                  className="relative"
+                  onMouseEnter={() => handleMenuEnter("lab")}
+                  onMouseLeave={handleMenuLeave}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleToggleMenu("lab")}
+                    className={`px-3 py-1.5 text-xs lg:text-[13px] xl:text-sm font-semibold rounded-md transition-all duration-150 whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer ${
+                      activeMenu === "lab" || pathname?.startsWith("/services/lab-tests")
+                        ? "text-[#0067A1] bg-sky-50 font-bold shadow-2xs ring-1 ring-sky-200/60"
+                        : "text-slate-600 hover:text-[#0067A1] hover:bg-slate-50"
+                    }`}
+                  >
+                    <span>Lab Tests</span>
+                    <FaChevronDown
+                      className={`w-2.5 h-2.5 text-slate-400 group-hover:text-[#0067A1] transition-transform duration-200 ${
+                        activeMenu === "lab" ? "rotate-180 text-[#0067A1]" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {activeMenu === "lab" && (
+                    <div
+                      className="absolute top-full left-0 xl:left-1/2 xl:-translate-x-1/2 pt-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                      onMouseEnter={() => handleMenuEnter("lab")}
+                      onMouseLeave={handleMenuLeave}
+                    >
+                      <div className="w-64 rounded-xl bg-white border border-slate-200 shadow-xl p-2 relative before:content-[''] before:absolute before:-top-2 before:inset-x-0 before:h-3">
+                        <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
+                          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                            Lab Services
+                          </p>
+                        </div>
+
+                        <div className="space-y-0.5">
+                          <Link
+                            href="/services/lab-tests"
+                            onClick={closeAllMenus}
+                            className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-sky-50 transition-colors group"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-sky-50 text-[#0067A1] flex items-center justify-center shrink-0 group-hover:bg-[#0067A1] group-hover:text-white transition-colors">
+                              <FaFlask className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-semibold text-slate-800 group-hover:text-[#0067A1] transition-colors flex items-center justify-between">
+                                <span>All Lab Tests</span>
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-sky-100 text-[#0067A1]">
+                                  500+
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 truncate">
+                                Blood tests & health checkups
+                              </p>
+                            </div>
+                          </Link>
+
+                          <Link
+                            href="/services/lab-tests?home_collection=true"
+                            onClick={closeAllMenus}
+                            className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-sky-50 transition-colors group"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-sky-50 text-[#0067A1] flex items-center justify-center shrink-0 group-hover:bg-[#0067A1] group-hover:text-white transition-colors">
+                              <FaTruck className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-semibold text-slate-800 group-hover:text-[#0067A1] transition-colors flex items-center justify-between">
+                                <span>Home Sample Pickup</span>
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-sky-100 text-[#0067A1]">
+                                  Doorstep
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 truncate">
+                                Sample collection at home
+                              </p>
+                            </div>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Nursing Care Dropdown Menu */}
+                <div
+                  className="relative"
+                  onMouseEnter={() => handleMenuEnter("nursing")}
+                  onMouseLeave={handleMenuLeave}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleToggleMenu("nursing")}
+                    className={`px-3 py-1.5 text-xs lg:text-[13px] xl:text-sm font-semibold rounded-md transition-all duration-150 whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer ${
+                      activeMenu === "nursing" || pathname === "/nursing-care" || pathname === "/medical-equipment"
+                        ? "text-[#0067A1] bg-sky-50 font-bold shadow-2xs ring-1 ring-sky-200/60"
+                        : "text-slate-600 hover:text-[#0067A1] hover:bg-slate-50"
+                    }`}
+                  >
+                    <span>Nursing Care</span>
+                    <FaChevronDown
+                      className={`w-2.5 h-2.5 text-slate-400 group-hover:text-[#0067A1] transition-transform duration-200 ${
+                        activeMenu === "nursing" ? "rotate-180 text-[#0067A1]" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {activeMenu === "nursing" && (
+                    <div
+                      className="absolute top-full right-0 xl:left-1/2 xl:-translate-x-1/2 pt-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                      onMouseEnter={() => handleMenuEnter("nursing")}
+                      onMouseLeave={handleMenuLeave}
+                    >
+                      <div className="w-64 rounded-xl bg-white border border-slate-200 shadow-xl p-2 relative before:content-[''] before:absolute before:-top-2 before:inset-x-0 before:h-3">
+                        <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
+                          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                            Home Care
+                          </p>
+                        </div>
+
+                        <div className="space-y-0.5">
+                          <Link
+                            href="/nursing-care"
+                            onClick={closeAllMenus}
+                            className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-sky-50 transition-colors group"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-sky-50 text-[#0067A1] flex items-center justify-center shrink-0 group-hover:bg-[#0067A1] group-hover:text-white transition-colors">
+                              <FaUserMd className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-semibold text-slate-800 group-hover:text-[#0067A1] transition-colors flex items-center justify-between">
+                                <span>Home Nurse</span>
+                                <FaChevronRight className="w-2.5 h-2.5 text-slate-300 group-hover:text-[#0067A1] group-hover:translate-x-0.5 transition-all" />
+                              </div>
+                              <p className="text-[10px] text-slate-500 truncate">
+                                Trained nurses & attendants
+                              </p>
+                            </div>
+                          </Link>
+
+                          <Link
+                            href="/medical-equipment"
+                            onClick={closeAllMenus}
+                            className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-sky-50 transition-colors group"
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-sky-50 text-[#0067A1] flex items-center justify-center shrink-0 group-hover:bg-[#0067A1] group-hover:text-white transition-colors">
+                              <FaWheelchair className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-semibold text-slate-800 group-hover:text-[#0067A1] transition-colors flex items-center justify-between">
+                                <span>Medical Equipment</span>
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-sky-100 text-[#0067A1]">
+                                  Rent/Buy
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-500 truncate">
+                                Oxygen, beds & wheelchairs
+                              </p>
+                            </div>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* More Dropdown Menu */}
+                <div
+                  className="relative"
+                  onMouseEnter={() => handleMenuEnter("more")}
+                  onMouseLeave={handleMenuLeave}
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleToggleMenu("more")}
+                    className={`px-3 py-1.5 text-xs lg:text-[13px] xl:text-sm font-semibold rounded-md transition-all duration-150 whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer ${
+                      activeMenu === "more" ||
+                      pathname === "/services" ||
+                      pathname === "/resources" ||
+                      pathname === "/about" ||
+                      pathname === "/contact"
+                        ? "text-[#0067A1] bg-sky-50 font-bold shadow-2xs ring-1 ring-sky-200/60"
+                        : "text-slate-600 hover:text-[#0067A1] hover:bg-slate-50"
+                    }`}
+                  >
+                    <span>More</span>
+                    <FaChevronDown
+                      className={`w-2.5 h-2.5 text-slate-400 group-hover:text-[#0067A1] transition-transform duration-200 ${
+                        activeMenu === "more" ? "rotate-180 text-[#0067A1]" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {activeMenu === "more" && (
+                    <div
+                      className="absolute top-full right-0 pt-2 z-50 animate-in fade-in slide-in-from-top-1 duration-150"
+                      onMouseEnter={() => handleMenuEnter("more")}
+                      onMouseLeave={handleMenuLeave}
+                    >
+                      <div className="w-56 rounded-xl bg-white border border-slate-200 shadow-xl p-2 relative before:content-[''] before:absolute before:-top-2 before:inset-x-0 before:h-3">
+                        <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
+                          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                            More Links
+                          </p>
+                        </div>
+
+                        <div className="space-y-0.5">
+                          <Link
+                            href="/services"
+                            onClick={closeAllMenus}
+                            className={`flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-50 transition-colors group ${
+                              pathname === "/services" ? "bg-sky-50" : ""
+                            }`}
+                          >
+                            <div className="w-7 h-7 rounded-lg bg-sky-50 text-[#0067A1] flex items-center justify-center shrink-0 group-hover:bg-[#0067A1] group-hover:text-white transition-colors">
+                              <FaBriefcaseMedical className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-semibold text-slate-800 group-hover:text-[#0067A1] transition-colors">
+                                All Services
+                              </div>
+                            </div>
+                          </Link>
+
+                          <Link
+                            href="/resources"
+                            onClick={closeAllMenus}
+                            className={`flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-50 transition-colors group ${
+                              pathname === "/resources" ? "bg-sky-50" : ""
+                            }`}
+                          >
+                            <div className="w-7 h-7 rounded-lg bg-sky-50 text-[#0067A1] flex items-center justify-center shrink-0 group-hover:bg-[#0067A1] group-hover:text-white transition-colors">
+                              <FaBookOpen className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-semibold text-slate-800 group-hover:text-[#0067A1] transition-colors">
+                                Health Guides
+                              </div>
+                            </div>
+                          </Link>
+
+                          <Link
+                            href="/about"
+                            onClick={closeAllMenus}
+                            className={`flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-50 transition-colors group ${
+                              pathname === "/about" ? "bg-sky-50" : ""
+                            }`}
+                          >
+                            <div className="w-7 h-7 rounded-lg bg-sky-50 text-[#0067A1] flex items-center justify-center shrink-0 group-hover:bg-[#0067A1] group-hover:text-white transition-colors">
+                              <FaInfoCircle className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-semibold text-slate-800 group-hover:text-[#0067A1] transition-colors">
+                                About Us
+                              </div>
+                            </div>
+                          </Link>
+
+                          <Link
+                            href="/contact"
+                            onClick={closeAllMenus}
+                            className={`flex items-center gap-2.5 p-2 rounded-lg hover:bg-slate-50 transition-colors group ${
+                              pathname === "/contact" ? "bg-sky-50" : ""
+                            }`}
+                          >
+                            <div className="w-7 h-7 rounded-lg bg-sky-50 text-[#0067A1] flex items-center justify-center shrink-0 group-hover:bg-[#0067A1] group-hover:text-white transition-colors">
+                              <FaPhoneAlt className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-semibold text-slate-800 group-hover:text-[#0067A1] transition-colors">
+                                Help & Support
+                              </div>
+                            </div>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* CTA & Profile (Desktop) */}
@@ -383,82 +712,67 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                       <button
                         type="button"
                         onClick={toggleLoginMenu}
-                        className="inline-flex items-center justify-center px-5 py-2.5 text-xs font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] focus:outline-none transition-colors cursor-pointer"
+                        className="inline-flex items-center justify-center px-4 py-2 text-xs xl:text-sm font-semibold rounded-xl bg-[#0067A1] text-white hover:bg-[#004F7C] focus:outline-none transition-colors cursor-pointer shadow-xs gap-1.5"
                       >
-                        <FaUser className="mr-2 h-3.5 w-3.5 text-white" />
-                        Login / Register
+                        <FaUser className="h-3.5 w-3.5 text-white" />
+                        <span>Login / Register</span>
                         <FaChevronDown
-                          className={`ml-2 h-3 w-3 transition-transform duration-200 ${
+                          className={`h-3 w-3 transition-transform duration-200 ${
                             isLoginMenuOpen ? "rotate-180" : ""
                           }`}
                         />
                       </button>
                       {isLoginMenuOpen && (
-                        <div className="absolute right-0 mt-2 w-64 rounded-lg bg-white border border-slate-200 z-50 overflow-hidden">
-                          <div className="p-2 space-y-1">
+                        <div className="absolute right-0 mt-2 w-56 rounded-xl bg-white border border-slate-200 shadow-xl p-1.5 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                          <div className="space-y-0.5">
                             <button
                               onClick={(e) => {
                                 setIsLoginMenuOpen(false);
                                 handleOpenSignup(e);
                               }}
-                              className="flex items-center gap-2.5 w-full px-3 py-2 text-left text-xs font-semibold text-[#0067A1] bg-sky-50/70 hover:bg-sky-100/70 rounded-md transition-colors cursor-pointer"
+                              className="flex items-center gap-2 w-full px-2.5 py-2 text-left text-xs font-bold text-[#0067A1] bg-sky-50 hover:bg-sky-100 rounded-lg transition-colors cursor-pointer"
                             >
                               <FaUserPlus className="w-3.5 h-3.5 text-[#0067A1] shrink-0" />
-                              <span>Register New Account</span>
+                              <span>Register Account</span>
                             </button>
 
-                            <p className="px-3 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-t border-slate-100">
+                            <p className="px-2.5 pt-2 pb-0.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-t border-slate-100">
                               Login to Portal
                             </p>
                             <button
                               onClick={() => handleRoleLogin("patient")}
-                              className="flex items-center gap-2.5 w-full px-3 py-2 text-left text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors group cursor-pointer"
+                              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-left text-xs text-slate-700 hover:text-[#0067A1] hover:bg-slate-50 rounded-lg transition-colors group cursor-pointer"
                             >
                               <FaUser className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                              <div>
-                                <div className="font-semibold text-slate-900">Patient</div>
-                                <div className="text-[11px] text-slate-500">Book doctor & test consults</div>
-                              </div>
+                              <span className="font-medium">Patient</span>
                             </button>
                             <button
                               onClick={() => handleRoleLogin("doctor")}
-                              className="flex items-center gap-2.5 w-full px-3 py-2 text-left text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors group cursor-pointer"
+                              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-left text-xs text-slate-700 hover:text-[#0067A1] hover:bg-slate-50 rounded-lg transition-colors group cursor-pointer"
                             >
                               <FaUserMd className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                              <div>
-                                <div className="font-semibold text-slate-900">Doctor</div>
-                                <div className="text-[11px] text-slate-500">Manage clinical appointments</div>
-                              </div>
+                              <span className="font-medium">Doctor</span>
                             </button>
                             <button
                               onClick={() => handleRoleLogin("chemist")}
-                              className="flex items-center gap-2.5 w-full px-3 py-2 text-left text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors group cursor-pointer"
+                              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-left text-xs text-slate-700 hover:text-[#0067A1] hover:bg-slate-50 rounded-lg transition-colors group cursor-pointer"
                             >
                               <FaPills className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                              <div>
-                                <div className="font-semibold text-slate-900">Chemist / Pharmacy</div>
-                                <div className="text-[11px] text-slate-500">Manage prescriptions & store</div>
-                              </div>
+                              <span className="font-medium">Chemist / Pharmacy</span>
                             </button>
                             <button
                               onClick={() => handleRoleLogin("lab")}
-                              className="flex items-center gap-2.5 w-full px-3 py-2 text-left text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors group cursor-pointer"
+                              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-left text-xs text-slate-700 hover:text-[#0067A1] hover:bg-slate-50 rounded-lg transition-colors group cursor-pointer"
                             >
                               <FaFlask className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                              <div>
-                                <div className="font-semibold text-slate-900">Diagnostic Lab</div>
-                                <div className="text-[11px] text-slate-500">Manage diagnostic test orders</div>
-                              </div>
+                              <span className="font-medium">Diagnostic Lab</span>
                             </button>
                             <button
                               onClick={() => handleRoleLogin("nursing")}
-                              className="flex items-center gap-2.5 w-full px-3 py-2 text-left text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-md transition-colors group cursor-pointer"
+                              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-left text-xs text-slate-700 hover:text-[#0067A1] hover:bg-slate-50 rounded-lg transition-colors group cursor-pointer"
                             >
                               <FaHeartbeat className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                              <div>
-                                <div className="font-semibold text-slate-900">Nursing Care</div>
-                                <div className="text-[11px] text-slate-500">Homecare assistance</div>
-                              </div>
+                              <span className="font-medium">Nursing Care</span>
                             </button>
                           </div>
                         </div>
@@ -469,11 +783,8 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
               </div>
             </div>
 
-            {/* MOBILE CONTROLS (Profile Dropdown + Hamburger) */}
+            {/* MOBILE CONTROLS (Hamburger Menu - Profile is located in mobile bottom navigation) */}
             <div className="flex items-center gap-2 lg:hidden">
-              {mounted && isLoggedIn && (
-                <ProfileDropdown user={user} userRole={userRole} onLogout={handleLogout} />
-              )}
               <MobileMenuButton isOpen={isMenuOpen} onClick={toggleSideBar} />
             </div>
           </div>
@@ -481,8 +792,11 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
 
         {/* Mobile navigation menu drawer */}
         {isMenuOpen && (
-          <div className="lg:hidden border-t border-slate-200 bg-white">
-            <div className="px-4 pt-3 pb-6 space-y-2">
+          <div
+            className="lg:hidden fixed inset-x-0 top-20 bottom-0 bg-white z-[10000] overflow-y-auto overscroll-contain shadow-2xl border-t border-slate-200"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
+            <div className="px-4 pt-3 pb-32 space-y-2">
               {/* LOGGED IN USER CARD (MOBILE) */}
               {mounted && isLoggedIn && (
                 <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200 mb-3">
@@ -502,24 +816,14 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                         )}
                       </div>
                       <p className="text-[11px] text-slate-500 truncate mt-0.5">{displayEmail}</p>
-                      <div className="mt-1">
-                        {isDoctor ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded border border-teal-200 bg-teal-50 text-teal-800">
-                            <FaUserMd className="w-2.5 h-2.5" /> Doctor
-                          </span>
-                        ) : isChemist ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded border border-amber-200 bg-amber-50 text-amber-800">
-                            Chemist
-                          </span>
-                        ) : isLab ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded border border-blue-200 bg-blue-50 text-blue-800">
-                            Lab
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold rounded border border-slate-200 bg-slate-100 text-slate-700">
-                            Patient
-                          </span>
-                        )}
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-[11px] font-semibold text-[#0067A1]">
+                          {isDoctor ? "Doctor" : isChemist ? "Chemist" : isLab ? "Lab Partner" : "Patient"}
+                        </span>
+                        <span className="text-slate-300 text-[10px]">•</span>
+                        <span className="text-[11px] text-emerald-600 font-medium">
+                          Active
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -544,21 +848,93 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                 <MobileNavLink href="/" active={pathname === "/"} onClick={toggleSideBar}>
                   Home
                 </MobileNavLink>
-                <MobileNavLink href="/services" active={pathname === "/services"} onClick={toggleSideBar}>
-                  Services
-                </MobileNavLink>
-                <MobileNavLink href="/resources" active={pathname === "/resources"} onClick={toggleSideBar}>
-                  Resources
-                </MobileNavLink>
                 <MobileNavLink href="/doctors" active={pathname === "/doctors"} onClick={toggleSideBar}>
-                  Doctors
+                  <div className="flex items-center gap-2.5">
+                    <FaUserMd className="w-4 h-4 text-[#0067A1]" />
+                    <span>Doctors</span>
+                  </div>
                 </MobileNavLink>
-                <MobileNavLink href="/about" active={pathname === "/about"} onClick={toggleSideBar}>
-                  About
-                </MobileNavLink>
-                <MobileNavLink href="/contact" active={pathname === "/contact"} onClick={toggleSideBar}>
-                  Contact Us
-                </MobileNavLink>
+
+                {/* Lab Tests Section */}
+                <div className="pt-2">
+                  <p className="px-3 py-1 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                    Diagnostic Services
+                  </p>
+                  <MobileNavLink href="/services/lab-tests" active={pathname === "/services/lab-tests"} onClick={toggleSideBar}>
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2.5">
+                        <FaFlask className="w-4 h-4 text-[#0067A1]" />
+                        <span>Book Lab Tests & Packages</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-[#0067A1]">500+ Tests</span>
+                    </div>
+                  </MobileNavLink>
+                  <MobileNavLink href="/services/lab-tests?home_collection=true" active={false} onClick={toggleSideBar}>
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2.5">
+                        <FaTruck className="w-4 h-4 text-emerald-600" />
+                        <span>Home Sample Collection</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Doorstep</span>
+                    </div>
+                  </MobileNavLink>
+                </div>
+
+                {/* Nursing & Medical Equipment Section */}
+                <div className="pt-2">
+                  <p className="px-3 py-1 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                    Home Healthcare
+                  </p>
+                  <MobileNavLink href="/nursing-care" active={pathname === "/nursing-care"} onClick={toggleSideBar}>
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2.5">
+                        <FaHeartbeat className="w-4 h-4 text-rose-500" />
+                        <span>Home Nursing Support</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-600">Caregivers</span>
+                    </div>
+                  </MobileNavLink>
+                  <MobileNavLink href="/medical-equipment" active={pathname === "/medical-equipment"} onClick={toggleSideBar}>
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-2.5">
+                        <FaWheelchair className="w-4 h-4 text-emerald-600" />
+                        <span>Nursing & Medical Equipment</span>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Rent / Buy</span>
+                    </div>
+                  </MobileNavLink>
+                </div>
+
+                {/* Secondary More Links */}
+                <div className="pt-2 mt-2 border-t border-slate-100 space-y-0.5">
+                  <p className="px-3 py-1 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                    More Pages
+                  </p>
+                  <MobileNavLink href="/services" active={pathname === "/services"} onClick={toggleSideBar}>
+                    <div className="flex items-center gap-2.5">
+                      <FaBriefcaseMedical className="w-3.5 h-3.5 text-slate-400" />
+                      <span>All Services</span>
+                    </div>
+                  </MobileNavLink>
+                  <MobileNavLink href="/resources" active={pathname === "/resources"} onClick={toggleSideBar}>
+                    <div className="flex items-center gap-2.5">
+                      <FaBookOpen className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Health Resources</span>
+                    </div>
+                  </MobileNavLink>
+                  <MobileNavLink href="/about" active={pathname === "/about"} onClick={toggleSideBar}>
+                    <div className="flex items-center gap-2.5">
+                      <FaInfoCircle className="w-3.5 h-3.5 text-slate-400" />
+                      <span>About Us</span>
+                    </div>
+                  </MobileNavLink>
+                  <MobileNavLink href="/contact" active={pathname === "/contact"} onClick={toggleSideBar}>
+                    <div className="flex items-center gap-2.5">
+                      <FaPhoneAlt className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Contact Us</span>
+                    </div>
+                  </MobileNavLink>
+                </div>
               </div>
 
               {/* Quick Account Links in Drawer (When Logged In) */}
@@ -654,7 +1030,10 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
 
                   {/* Sign Out Button in Drawer */}
                   <button
-                    onClick={handleLogout}
+                    onClick={() => {
+                      toggleSideBar?.();
+                      handleLogout();
+                    }}
                     className="flex items-center gap-2.5 w-full mt-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
                   >
                     <FaSignOutAlt className="w-3.5 h-3.5" />
@@ -720,11 +1099,11 @@ const MobileMenuButton = ({ isOpen, onClick }) => (
 const NavLink = ({ href, active, children }) => (
   <Link
     href={href}
-    className={`${
+    className={`px-3 py-1.5 text-xs lg:text-[13px] xl:text-sm font-semibold rounded-md transition-all duration-150 whitespace-nowrap inline-flex items-center ${
       active
-        ? "text-[#0067A1] font-semibold border-b-2 border-[#0067A1]"
-        : "text-gray-600 hover:text-[#0067A1]"
-    } px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap`}
+        ? "text-[#0067A1] bg-sky-50 font-bold shadow-2xs ring-1 ring-sky-200/60"
+        : "text-slate-600 hover:text-[#0067A1] hover:bg-slate-50"
+    }`}
   >
     {children}
   </Link>

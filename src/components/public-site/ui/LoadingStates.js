@@ -9,21 +9,21 @@ import { FaHeartbeat } from 'react-icons/fa';
 export function LoadingScreen({ message = 'Loading...', submessage = '' }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 sm:py-32 gap-5">
-      {/* Animated logo pulse */}
+      {/* Animated logo pulse - Solid theme color #0067A1 */}
       <div className="relative">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0067A1] to-teal-500 flex items-center justify-center shadow-lg shadow-[#0067A1]/20 animate-pulse">
+        <div className="w-16 h-16 rounded-2xl bg-[#0067A1] flex items-center justify-center shadow-lg shadow-[#0067A1]/20 animate-pulse">
           <FaHeartbeat className="w-7 h-7 text-white" />
         </div>
         {/* Orbiting dot */}
         <div className="absolute inset-0 animate-spin" style={{ animationDuration: '2s' }}>
-          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-teal-400 rounded-full shadow-sm shadow-teal-300" />
+          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-[#0067A1] rounded-full shadow-sm shadow-[#0067A1]/30" />
         </div>
       </div>
 
-      {/* Progress bar */}
+      {/* Progress bar - Solid theme color #0067A1 */}
       <div className="w-48 h-1 bg-gray-100 rounded-full overflow-hidden">
         <div
-          className="h-full bg-gradient-to-r from-[#0067A1] to-teal-400 rounded-full"
+          className="h-full bg-[#0067A1] rounded-full"
           style={{
             animation: 'loadingBar 1.8s ease-in-out infinite',
           }}
@@ -101,7 +101,7 @@ export function DashboardSkeleton() {
   return (
     <div className="min-h-screen animate-pulse">
       {/* Hero skeleton */}
-      <div className="bg-gradient-to-br from-[#0067A1]/80 via-[#0080C6]/80 to-[#0067A1]/80 rounded-3xl px-6 pt-6 pb-14 mb-6">
+      <div className="bg-[#0067A1] rounded-3xl px-6 pt-6 pb-14 mb-6">
         <div className="space-y-3">
           <div className="h-3 bg-white/20 rounded w-24" />
           <div className="h-7 bg-white/20 rounded w-48" />

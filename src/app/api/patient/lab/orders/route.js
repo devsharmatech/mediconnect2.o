@@ -21,24 +21,28 @@ export async function GET(req) {
 
         const offset = (page - 1) * limit;
 
-        // Count total
+        // Count total - only show confirmed orders:
+        // Exclude uncompleted/abandoned checkout drafts where payment is pending and status is pending
         let countRes;
         if (status) {
             countRes = await sql`
                 SELECT COUNT(*)::int as count 
                 FROM lab_test_orders 
-                WHERE patient_id = ${patient_id} AND status = ${status}
+                WHERE patient_id = ${patient_id} 
+                  AND status = ${status}
+                  AND (payment_status = 'paid' OR status != 'pending')
             `;
         } else {
             countRes = await sql`
                 SELECT COUNT(*)::int as count 
                 FROM lab_test_orders 
                 WHERE patient_id = ${patient_id}
+                  AND (payment_status = 'paid' OR status != 'pending')
             `;
         }
         const count = countRes[0]?.count || 0;
 
-        // Fetch orders
+        // Fetch orders - only confirmed/paid orders
         let orders;
         if (status) {
             orders = await sql`
@@ -52,7 +56,9 @@ export async function GET(req) {
                     ) as lab_details
                 FROM lab_test_orders lto
                 LEFT JOIN lab_details ld ON ld.id = lto.lab_id
-                WHERE lto.patient_id = ${patient_id} AND lto.status = ${status}
+                WHERE lto.patient_id = ${patient_id} 
+                  AND lto.status = ${status}
+                  AND (lto.payment_status = 'paid' OR lto.status != 'pending')
                 ORDER BY lto.created_at DESC
                 LIMIT ${limit} OFFSET ${offset}
             `;
@@ -69,6 +75,7 @@ export async function GET(req) {
                 FROM lab_test_orders lto
                 LEFT JOIN lab_details ld ON ld.id = lto.lab_id
                 WHERE lto.patient_id = ${patient_id}
+                  AND (lto.payment_status = 'paid' OR lto.status != 'pending')
                 ORDER BY lto.created_at DESC
                 LIMIT ${limit} OFFSET ${offset}
             `;

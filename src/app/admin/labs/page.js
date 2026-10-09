@@ -53,6 +53,7 @@ import {
   Activity,
   Pill,
   Home,
+  Image as ImageIcon,
 } from "lucide-react";
 import Papa from "papaparse";
 import Link from "next/link";
@@ -316,6 +317,8 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
   const [showTermsModal, setShowTermsModal] = useState(false);
 
   // File states
+  const [logo_file, setLogoFile] = useState(null);
+  const [logo_preview, setLogoPreview] = useState(null);
   const [pan_card_file, setPanCardFile] = useState(null);
   const [aadhaar_card_file, setAadhaarCardFile] = useState(null);
   const [lab_license_file, setLabLicenseFile] = useState(null);
@@ -390,6 +393,18 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
         opening_hours: { open: "09:00", close: "18:00" },
         services: [],
       });
+      setLogoFile(null);
+      setLogoPreview(null);
+    }
+
+    if (lab) {
+      setLogoFile(null);
+      setLogoPreview(
+        lab.logo_url ||
+        lab.profile_picture ||
+        (lab.users && lab.users.profile_picture) ||
+        null
+      );
     }
 
     setStep(1);
@@ -402,6 +417,40 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
     setOwnerPhotoFile(null);
     setSignatureFile(null);
   }, [lab, isOpen]);
+
+  const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 0) return "0 B";
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+  };
+
+  const handleLogoChange = (file) => {
+    if (!file) return;
+    const validTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/svg+xml",
+      "image/webp",
+    ];
+    if (!validTypes.includes(file.type)) {
+      toast.error("Please upload SVG, PNG, JPG, or WebP logo only");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Logo file size must be less than 5MB");
+      return;
+    }
+    setLogoFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setLogoPreview(objectUrl);
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoFile(null);
+    setLogoPreview(null);
+  };
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({
@@ -511,6 +560,7 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
 
       // Append files
       const fileFields = [
+        { field: "logo", file: logo_file },
         { field: "pan_card", file: pan_card_file },
         { field: "aadhaar_card", file: aadhaar_card_file },
         { field: "lab_license", file: lab_license_file },
@@ -527,9 +577,21 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
           toast.success(`Uploading ${field.replace(/_/g, ' ')}...`, { id: 'uploading' });
           const publicUrl = await uploadFileViaSignedUrl(file, field);
           submitFormData.append(field, publicUrl);
+          if (field === "logo") {
+            submitFormData.append("profile_picture", publicUrl);
+          }
         } else {
           submitFormData.append(field, file);
+          if (field === "logo") {
+            submitFormData.append("profile_picture", file);
+          }
         }
+      }
+
+      // If existing logo wasn't changed
+      if (!logo_file && logo_preview && typeof logo_preview === "string") {
+        submitFormData.append("logo", logo_preview);
+        submitFormData.append("profile_picture", logo_preview);
       }
       toast.dismiss('uploading');
 
@@ -612,6 +674,82 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           Basic Information
         </h3>
+      </div>
+
+      {/* Lab Brand Logo Upload Section with Size & Live Preview */}
+      <div className="bg-white dark:bg-gray-800/90 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xs">
+        <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
+          Lab Brand Logo
+        </label>
+        
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+          {/* Logo Preview Container */}
+          <div className="relative w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-850 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs group">
+            {logo_preview ? (
+              <img
+                src={logo_preview}
+                alt="Lab Logo Preview"
+                className="w-full h-full object-contain p-1.5"
+              />
+            ) : (
+              <div className="text-center p-2">
+                <ImageIcon className="w-7 h-7 text-gray-400 mx-auto mb-1" />
+                <span className="text-[10px] text-gray-400 font-medium block">No Logo</span>
+              </div>
+            )}
+          </div>
+
+          {/* Logo Upload Actions & File Size Display */}
+          <div className="flex-1 w-full space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-black hover:bg-gray-800 text-white text-xs font-semibold transition-all shadow-xs">
+                <Upload size={14} />
+                <span>{logo_file || logo_preview ? "Change Logo" : "Choose Logo File"}</span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+                  onChange={(e) => handleLogoChange(e.target.files[0])}
+                  className="hidden"
+                />
+              </label>
+
+              {(logo_file || logo_preview) && (
+                <button
+                  type="button"
+                  onClick={handleRemoveLogo}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 dark:border-red-900/50 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-semibold transition-all cursor-pointer"
+                >
+                  <X size={14} />
+                  <span>Remove</span>
+                </button>
+              )}
+            </div>
+
+            {/* Dynamic File Size & Status Badge */}
+            {logo_file ? (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs font-semibold border border-emerald-200 dark:border-emerald-800">
+                  <CheckCircle size={12} />
+                  <span className="truncate max-w-[200px]">{logo_file.name}</span>
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-sky-50 dark:bg-sky-950/40 text-[#0067A1] dark:text-sky-400 text-xs font-bold border border-sky-200 dark:border-sky-800">
+                  Size: {formatFileSize(logo_file.size)}
+                </span>
+              </div>
+            ) : logo_preview ? (
+              <div className="flex items-center gap-2 pt-1 text-xs text-slate-500 dark:text-slate-400">
+                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200">
+                  ✓ Current Logo Active
+                </span>
+                <span>(Click "Change Logo" to replace)</span>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                Upload official diagnostic laboratory logo (SVG, PNG, JPG, WebP). Max file size: 5MB.
+              </p>
+            )}
+          </div>
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
@@ -2981,19 +3119,19 @@ export default function LabsPage() {
                               <td className="px-4 py-3">
                                 <div className="flex items-center">
                                   <div className="flex-shrink-0 h-10 w-10">
-                                    {lab.owner_photo_url ? (
+                                    {(lab.logo_url || lab.users?.profile_picture || lab.owner_photo_url) ? (
                                       <motion.img
                                         whileHover={{ scale: 1.1 }}
-                                        className="h-10 w-10 rounded-full object-cover shadow-sm"
-                                        src={lab.owner_photo_url}
-                                        alt=""
+                                        className="h-10 w-10 rounded-xl object-contain bg-white border border-gray-200 dark:border-gray-700 p-0.5 shadow-xs"
+                                        src={lab.logo_url || lab.users?.profile_picture || lab.owner_photo_url}
+                                        alt={lab.lab_name || "Lab"}
                                       />
                                     ) : (
                                       <motion.div
                                         whileHover={{ scale: 1.1 }}
-                                        className="h-10 w-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-800 dark:from-gray-700 dark:to-gray-900 flex items-center justify-center text-white font-medium text-sm shadow-sm"
+                                        className="h-10 w-10 rounded-xl bg-gradient-to-br from-gray-700 to-gray-800 dark:from-gray-700 dark:to-gray-900 flex items-center justify-center text-white font-medium text-sm shadow-sm"
                                       >
-                                        {getInitials(lab.owner_name)}
+                                        {getInitials(lab.owner_name || lab.lab_name)}
                                       </motion.div>
                                     )}
                                   </div>

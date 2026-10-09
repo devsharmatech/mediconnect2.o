@@ -112,7 +112,7 @@ const DoctorCardSkeleton = () => (
         <div className="h-2.5 bg-slate-100 rounded w-12" />
         <div className="h-5 bg-slate-200 rounded w-16" />
       </div>
-      <div className="h-9 bg-slate-200 rounded-xl w-32" />
+      <div className="h-9 bg-slate-200 rounded-lg shadow-sm w-32" />
     </div>
   </div>
 );
@@ -133,7 +133,7 @@ const DoctorCard = ({ doctor, isHighlighted, onSelect, onOpenProfile }) => {
       {/* Top Header: Avatar + Info */}
       <div className="flex items-start gap-3.5">
         <div className="relative shrink-0">
-          <div className="h-16 w-16 rounded-2xl overflow-hidden border-2 border-slate-100 bg-gradient-to-br from-slate-50 to-blue-50/50 flex items-center justify-center shadow-2xs group-hover:border-[#0067A1]/30 transition-colors">
+          <div className="h-16 w-16 rounded-xl overflow-hidden border-2 border-slate-100 bg-gradient-to-br from-slate-50 to-blue-50/50 flex items-center justify-center shadow-2xs group-hover:border-[#0067A1]/30 transition-colors">
             <img
               src={doctor.profileImage || "/dr.png"}
               alt={doctor.name}
@@ -212,7 +212,7 @@ const DoctorCard = ({ doctor, isHighlighted, onSelect, onOpenProfile }) => {
             e.stopPropagation();
             onOpenProfile();
           }}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#0067A1] hover:bg-[#005585] text-white text-xs font-bold rounded-xl transition-all shadow-xs hover:shadow-md active:scale-95 shrink-0"
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#0067A1] hover:bg-[#005585] text-white text-xs font-bold rounded-lg transition-all shadow-md hover:shadow-lg active:scale-95 shrink-0"
         >
           <FaVideo className="h-3 w-3" />
           <span>Book Appointment</span>
@@ -237,7 +237,7 @@ const SpecialtyFilter = ({ specialties, selectedSpecialty, onSelect }) => {
       <button
         type="button"
         onClick={() => scroll("left")}
-        className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 md:-ml-4 z-10 bg-white border border-gray-200 rounded-full p-2 shadow-md text-gray-600 hover:text-[#0067A1] hover:border-[#0067A1] transition hidden md:flex opacity-0 group-hover:opacity-100 focus:opacity-100"
+        className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 md:-ml-4 z-10 bg-white border border-gray-200 rounded-lg p-2 shadow-md text-gray-600 hover:text-[#0067A1] hover:border-[#0067A1] transition hidden md:flex opacity-0 group-hover:opacity-100 focus:opacity-100"
         aria-label="Scroll left"
       >
         <FaChevronLeft className="w-3 h-3" />
@@ -245,13 +245,14 @@ const SpecialtyFilter = ({ specialties, selectedSpecialty, onSelect }) => {
 
       <div
         ref={scrollContainer}
-        className="flex overflow-x-auto gap-3 py-2 px-1 hide-scrollbar snap-x snap-mandatory scroll-smooth w-full"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        className="flex overflow-x-auto gap-3 py-2 px-1 no-scrollbar hide-scrollbar scrollbar-none snap-x snap-mandatory scroll-smooth w-full [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0"
       >
         {specialties.map((specialty, index) => (
           <button
             key={index}
             onClick={() => onSelect(specialty)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors snap-center ${selectedSpecialty === specialty
+            className={`shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-all snap-center shadow-xs hover:shadow-sm ${selectedSpecialty === specialty
               ? "bg-[#0067A1] text-white shadow-md shadow-[#0067A1]/20"
               : "border border-gray-200 bg-white text-gray-700 hover:border-[#0067A1]/50 hover:bg-gray-50"
               }`}
@@ -318,16 +319,17 @@ const ConditionsStrip = ({ conditions, onSelectCondition }) => {
 
       <div
         ref={scrollContainer}
-        className="flex overflow-x-auto gap-3 pb-1 hide-scrollbar scroll-smooth w-full items-stretch"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        className="flex overflow-x-auto gap-3 pb-1 no-scrollbar hide-scrollbar scrollbar-none scroll-smooth w-full items-stretch [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0"
       >
         {conditions.map((condition) => (
           <button
             key={condition.id}
             type="button"
             onClick={() => onSelectCondition(condition.slug)}
-            className="bg-slate-50/70 hover:bg-[#0067A1]/5 border border-slate-200/80 hover:border-[#0067A1] rounded-2xl p-3.5 flex flex-col items-center justify-center min-w-[105px] sm:min-w-[115px] cursor-pointer group/item shrink-0 transition-all duration-200"
+            className="bg-slate-50/70 hover:bg-[#0067A1]/5 border border-slate-200/80 hover:border-[#0067A1] rounded-xl p-3.5 flex flex-col items-center justify-center min-w-[105px] sm:min-w-[115px] cursor-pointer group/item shrink-0 transition-all duration-200 shadow-xs hover:shadow-md"
           >
-            <div className="w-12 h-12 rounded-xl bg-white border border-slate-200/80 group-hover:border-[#0067A1]/40 flex items-center justify-center p-2 group-hover/item:scale-105 transition-all shadow-2xs mb-2 shrink-0">
+            <div className="w-12 h-12 rounded-lg bg-white border border-slate-200/80 group-hover:border-[#0067A1]/40 flex items-center justify-center p-2 group-hover/item:scale-105 transition-all shadow-xs mb-2 shrink-0">
               {condition.icon_name ? (
                 <img
                   src={condition.icon_name}
@@ -421,7 +423,10 @@ const CustomSelect = ({
             </div>
           )}
 
-          <div className="space-y-0.5 max-h-48 overflow-y-auto hide-scrollbar">
+          <div
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            className="space-y-0.5 max-h-48 overflow-y-auto no-scrollbar hide-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0"
+          >
             {filteredOptions.length === 0 ? (
               <div className="px-3 py-2.5 text-slate-400 text-center italic text-xs">No matching options</div>
             ) : (
@@ -681,9 +686,9 @@ function DoctorsContent() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
-      {/* Top Page Header Bar */}
-      <div className="bg-white border-b border-slate-200/80 py-5 px-4 sm:px-6 lg:px-8 shadow-2xs">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Top Page Header Bar - Matches Hero Section container width */}
+      <div className="bg-white border-b border-slate-200/80 py-5 shadow-2xs">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
@@ -715,7 +720,7 @@ function DoctorsContent() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Mobile Toolbar: Search + Quick Filter Drawer Trigger */}
         <div className="lg:hidden space-y-3 mb-6">
           {/* Mobile Search Bar */}
@@ -857,8 +862,8 @@ function DoctorsContent() {
                       onClick={() => setFeeFilter(pill.value)}
                       className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
                         feeFilter === pill.value
-                          ? "bg-[#0067A1] text-white border-[#0067A1] shadow-2xs"
-                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
+                          ? "bg-[#0067A1] text-white border-[#0067A1] shadow-md"
+                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:border-slate-300 shadow-xs hover:shadow-sm"
                       }`}
                     >
                       {pill.label}
@@ -934,7 +939,7 @@ function DoctorsContent() {
                       setPage(1);
                       loadDoctorsFromApi(1, true);
                     }}
-                    className="mt-4 px-4 py-2 bg-[#0067A1] text-white text-xs font-semibold rounded-xl hover:bg-[#004F7C] transition-colors shadow-2xs"
+                    className="mt-4 px-5 py-2.5 bg-[#0067A1] text-white text-xs font-semibold rounded-lg hover:bg-[#004F7C] transition-all shadow-md hover:shadow-lg"
                   >
                     Reset All Filters
                   </button>
@@ -965,7 +970,7 @@ function DoctorsContent() {
                           setPage(nextPage);
                           loadDoctorsFromApi(nextPage, false);
                         }}
-                        className="px-6 py-2.5 bg-[#0067A1] hover:bg-[#004F7C] disabled:opacity-50 text-white font-semibold text-xs rounded-lg transition-colors shadow-xs inline-flex items-center gap-2"
+                        className="px-6 py-2.5 bg-[#0067A1] hover:bg-[#004F7C] disabled:opacity-50 text-white font-semibold text-xs rounded-lg transition-all shadow-md hover:shadow-lg inline-flex items-center gap-2"
                       >
                         {loadingMore ? (
                           <>
@@ -1169,13 +1174,13 @@ function DoctorsContent() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 onClick={handleSignupClick}
-                className="rounded-full bg-white px-8 py-3 text-sm font-semibold text-[#0067A1]"
+                className="rounded-lg bg-white px-8 py-3 text-sm font-semibold text-[#0067A1] shadow-md hover:shadow-lg transition-all"
               >
                 Sign Up Now
               </button>
               <button
                 onClick={handleLoginClick}
-                className="rounded-full border border-white/70 px-8 py-3 text-sm font-semibold text-white"
+                className="rounded-lg border border-white/70 px-8 py-3 text-sm font-semibold text-white shadow-md hover:shadow-lg hover:bg-white/10 transition-all"
               >
                 Login
               </button>

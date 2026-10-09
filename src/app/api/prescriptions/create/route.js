@@ -356,8 +356,21 @@ export async function POST(req) {
 
     // Sync structured tables (consultation_medications, consultation_symptoms)
     if (prescription) {
+      const apptId = appointment_id || prescription.appointment_id;
+      let consultId = apptId;
+      if (apptId) {
+        const { data: linkedConsult } = await supabase
+          .from("consultations")
+          .select("id")
+          .eq("appointment_id", apptId)
+          .maybeSingle();
+        if (linkedConsult?.id) {
+          consultId = linkedConsult.id;
+        }
+      }
+
       await syncClinicalData(
-        appointment_id || prescription.appointment_id,
+        consultId,
         medicines || null,
         body.symptoms || null
       ).catch(err => console.error("[Sync Prescription Create Error]:", err.message));

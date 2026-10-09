@@ -74,6 +74,7 @@ export async function POST(req) {
     const gst_certificate_url = await upload(formData.get("gst_certificate"), "gst_certificate");
     const owner_photo_url = await upload(formData.get("owner_photo"), "owner_photo");
     const signature_url = await upload(formData.get("signature"), "signature");
+    const logo_url = await upload(formData.get("logo") || formData.get("profile_picture"), "logo");
 
     // Extract and guarantee valid JSON array for services
     // CRITICAL: Must use sql.json(servicesArray) so postgres.js passes it as real JSONB array,
@@ -125,6 +126,15 @@ export async function POST(req) {
       `;
     }
 
+    if (logo_url) {
+      await sql`
+        UPDATE users
+        SET profile_picture = ${logo_url},
+            updated_at = NOW()
+        WHERE id = ${cleanId}
+      `;
+    }
+
     const rawHome = formData.get("accepts_home_collection");
     const acceptsHomeCollection = rawHome === "true" || rawHome === true || rawHome === "1" || rawHome === 1;
 
@@ -153,6 +163,7 @@ export async function POST(req) {
         gst_certificate_url = ${gst_certificate_url || existingLab.gst_certificate_url},
         owner_photo_url = ${owner_photo_url || existingLab.owner_photo_url},
         signature_url = ${signature_url || existingLab.signature_url},
+        logo_url = ${logo_url || existingLab.logo_url || null},
         updated_at = NOW()
       WHERE id = ${cleanId}
       RETURNING *

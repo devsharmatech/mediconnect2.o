@@ -66,6 +66,7 @@ function SharePrescriptionModal({
   const [showPaymentConsentConfirm, setShowPaymentConsentConfirm] = useState(false);
   const [quoteToConfirm, setQuoteToConfirm] = useState(null);
   const [disclosureAccepted, setDisclosureAccepted] = useState(false);
+  const [showPaymentDisclaimer, setShowPaymentDisclaimer] = useState(null);
 
   // Real-time SSE Stream for broadcast quotes (0 DB polling load)
   useEffect(() => {

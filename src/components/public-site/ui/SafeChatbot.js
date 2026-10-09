@@ -52,7 +52,7 @@ const SafeChatbot = () => {
         "/medicine-order", "/digital-locker", "/nursing-care", "/heart-health",
         "/cardio-connect", "/lung-assessment", "/lung-health", "/lung-connect",
         "/profile", "/settings", "/lab-booking", "/find-doctors",
-        "/prescriptions", "/patient", "/consultation"
+        "/prescriptions", "/patient", "/consultation", "/services/lab-tests"
     ];
     const isPatientRoute = patientRoutes.some(r => pathname?.includes(r));
 
@@ -221,12 +221,12 @@ const SafeChatbot = () => {
             {/* Floating Button */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="fixed bottom-6 right-6 z-[9999] bg-[#0067A1] hover:bg-[#004F7C] text-white p-4 rounded-full shadow-2xl transition-all hover:scale-105 flex items-center justify-center group border-4 border-white"
+                className="fixed bottom-20 lg:bottom-6 right-4 sm:right-6 z-[9999] bg-[#0067A1] hover:bg-[#004F7C] text-white p-3.5 sm:p-4 rounded-full shadow-2xl transition-all hover:scale-105 flex items-center justify-center group border-4 border-white"
             >
                 {isOpen ? (
-                    <FaTimes className="w-6 h-6" />
+                    <FaTimes className="w-5 h-5 sm:w-6 sm:h-6" />
                 ) : (
-                    <FaComments className="w-6 h-6 transform group-hover:-rotate-12 transition-transform" />
+                    <FaComments className="w-5 h-5 sm:w-6 sm:h-6 transform group-hover:-rotate-12 transition-transform" />
                 )}
             </button>
 
@@ -238,10 +238,10 @@ const SafeChatbot = () => {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
                         style={{ maxHeight: "calc(100dvh - 120px)" }}
-                        className="fixed bottom-24 right-4 sm:right-6 z-[9999] w-[calc(100vw-2rem)] sm:w-[400px] h-[600px] max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col"
+                        className="fixed bottom-36 lg:bottom-24 right-4 sm:right-6 z-[9999] w-[calc(100vw-2rem)] sm:w-[400px] h-[600px] max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col"
                     >
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-[#0067A1] to-[#004F7C] p-4 flex items-center justify-between shadow-sm">
+                        <div className="bg-[#0067A1] p-4 flex items-center justify-between shadow-sm">
                             <div className="flex items-center gap-3">
                                 <div className="bg-white/10 p-2 rounded-full backdrop-blur-sm">
                                     <FaComments className="text-white w-5 h-5" />

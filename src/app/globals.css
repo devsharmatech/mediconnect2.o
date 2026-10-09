@@ -127,6 +127,9 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+    max-width: 100%;
+    width: 100%;
   }
 }
 
@@ -305,6 +308,45 @@ aside .overflow-y-auto::-webkit-scrollbar-button {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
+}
+
+/* ========================================================
+   HIDE SCROLLBAR UTILITIES (no-scrollbar, hide-scrollbar, scrollbar-none)
+   ======================================================== */
+.no-scrollbar,
+.hide-scrollbar,
+.scrollbar-none,
+[data-no-scrollbar="true"] {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important;    /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar,
+.hide-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar,
+[data-no-scrollbar="true"]::-webkit-scrollbar,
+.no-scrollbar *::-webkit-scrollbar,
+.hide-scrollbar *::-webkit-scrollbar,
+.scrollbar-none *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+  opacity: 0 !important;
+}
+
+.no-scrollbar::-webkit-scrollbar-thumb,
+.hide-scrollbar::-webkit-scrollbar-thumb,
+.scrollbar-none::-webkit-scrollbar-thumb {
+  display: none !important;
+  background: transparent !important;
+}
+
+.no-scrollbar::-webkit-scrollbar-track,
+.hide-scrollbar::-webkit-scrollbar-track,
+.scrollbar-none::-webkit-scrollbar-track {
+  display: none !important;
+  background: transparent !important;
 }
 
 /* Glass morphism */

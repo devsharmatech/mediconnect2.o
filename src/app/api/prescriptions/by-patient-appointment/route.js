@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { resolveCallerFromRequest } from "@/lib/layer1/authGuard";
@@ -26,65 +26,69 @@ export async function POST(req) {
       return failure("Forbidden - you do not have permission to view these prescriptions.", null, 403, { headers: corsHeaders });
     }
 
-    // 1. Fetch the appointment to get its care_episode_id
-    const { data: appt, error: apptError } = await supabase
-      .from("appointments")
-      .select("id, care_episode_id")
-      .eq("id", appointment_id)
-      .maybeSingle();
+    // 1. Fetch appointment to get its care_episode_id
+    const apptRows = await sql`
+      SELECT id, care_episode_id FROM appointments WHERE id = ${appointment_id} LIMIT 1
+    `;
 
-    if (apptError) throw apptError;
-    if (!appt) {
+    if (!apptRows || apptRows.length === 0) {
       return failure("Appointment not found", null, 404, { headers: corsHeaders });
     }
+    const appt = apptRows[0];
 
     // 2. Fetch all appointments in the care episode
     let allApptIds = [appt.id];
     if (appt.care_episode_id) {
-      const { data: episodeAppts } = await supabase
-        .from("appointments")
-        .select("id")
-        .eq("care_episode_id", appt.care_episode_id);
-      if (episodeAppts && episodeAppts.length > 0) {
-        allApptIds = episodeAppts.map(a => a.id);
+      const epAppts = await sql`
+        SELECT id FROM appointments WHERE care_episode_id = ${appt.care_episode_id}
+      `;
+      if (epAppts && epAppts.length > 0) {
+        allApptIds = epAppts.map((a) => a.id);
       }
     }
 
     // 3. Fetch prescription matching any of those appointment IDs
-    const { data: prescription, error } = await supabase
-      .from("prescriptions")
-      .select("*")
-      .eq("patient_id", patient_id)
-      .in("appointment_id", allApptIds)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const prescRows = await sql`
+      SELECT 
+        p.*,
+        a.care_episode_id,
+        ce.episode_id AS care_episode_code
+      FROM prescriptions p
+      LEFT JOIN appointments a ON a.id = p.appointment_id
+      LEFT JOIN care_episodes ce ON ce.id = a.care_episode_id
+      WHERE p.patient_id = ${patient_id}
+        AND p.appointment_id = ANY(${allApptIds})
+      ORDER BY p.created_at DESC
+      LIMIT 1
+    `;
 
-    if (error) throw error;
-    if (!prescription) {
+    if (!prescRows || prescRows.length === 0) {
       return failure("No prescription found for this episode of care.", null, 404, {
         headers: corsHeaders,
       });
     }
 
+    const prescription = prescRows[0];
+
     // Fetch related info
-    const [doctorRes, patientRes, appointmentRes, doctorUserRes, patientUserRes] = await Promise.all([
-      supabase.from("doctor_details").select("*").eq("id", prescription.doctor_id).maybeSingle(),
-      supabase.from("patient_details").select("*").eq("id", prescription.patient_id).maybeSingle(),
-      supabase.from("appointments").select("*").eq("id", prescription.appointment_id).maybeSingle(),
-      supabase.from("users").select("un_id").eq("id", prescription.doctor_id).maybeSingle(),
-      supabase.from("users").select("un_id").eq("id", prescription.patient_id).maybeSingle(),
+    const [docRows, patRows, fullApptRows, docUserRows, patUserRows] = await Promise.all([
+      sql`SELECT * FROM doctor_details WHERE id = ${prescription.doctor_id} LIMIT 1`,
+      sql`SELECT * FROM patient_details WHERE id = ${prescription.patient_id} LIMIT 1`,
+      sql`SELECT * FROM appointments WHERE id = ${prescription.appointment_id} LIMIT 1`,
+      sql`SELECT un_id FROM users WHERE id = ${prescription.doctor_id} LIMIT 1`,
+      sql`SELECT un_id FROM users WHERE id = ${prescription.patient_id} LIMIT 1`,
     ]);
 
-    if (doctorRes.error) throw doctorRes.error;
-    if (patientRes.error) throw patientRes.error;
-    if (appointmentRes.error) throw appointmentRes.error;
+    const careEpisodeCode = prescription.care_episode_code || 
+      (prescription.care_episode_id ? `EP-${String(prescription.care_episode_id).slice(0, 8).toUpperCase()}` : (appt.care_episode_id ? `EP-${String(appt.care_episode_id).slice(0, 8).toUpperCase()}` : null));
 
     const response = {
       ...prescription,
-      doctor_details: { ...(doctorRes.data || {}), un_id: doctorUserRes.data?.un_id || null },
-      patient_details: { ...(patientRes.data || {}), un_id: patientUserRes.data?.un_id || null },
-      appointments: appointmentRes.data || {},
+      doctor_details: { ...(docRows[0] || {}), un_id: docUserRows[0]?.un_id || null },
+      patient_details: { ...(patRows[0] || {}), un_id: patUserRows[0]?.un_id || null },
+      appointments: fullApptRows[0] || {},
+      care_episode_id: prescription.care_episode_id || appt.care_episode_id,
+      episode_id: careEpisodeCode,
     };
 
     return success("Prescription fetched successfully.", response, 200, {

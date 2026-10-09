@@ -70,6 +70,7 @@ export async function GET(req, { params }) {
 
         const result = {
             ...order,
+            order,
             items,
             consent: consents[0] || null,
         };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import api from "@/utils/websiteApi";
 import {
   Calendar,
@@ -81,8 +81,16 @@ export default function DoctorAppointmentsPage() {
   const [error, setError] = useState("");
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [activeModalTab, setActiveModalTab] = useState("overview");
   const [isOffline, setIsOffline] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const prevAppointmentsRef = useRef([]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -137,10 +145,12 @@ export default function DoctorAppointmentsPage() {
     return { total, upcoming, completed, video, clinic };
   }, [appointments]);
 
-  const loadAppointments = async (pageToLoad = 1, date = dateFilter) => {
+  const loadAppointments = async (pageToLoad = 1, date = dateFilter, isBackground = false) => {
     try {
-      setIsLoading(true);
-      setError("");
+      if (!isBackground) {
+        setIsLoading(true);
+        setError("");
+      }
 
       const userId =
         typeof window !== "undefined" ? localStorage.getItem("userId") : null;
@@ -148,9 +158,11 @@ export default function DoctorAppointmentsPage() {
         typeof window !== "undefined" ? localStorage.getItem("userRole") : null;
 
       if (!userId || role !== "doctor") {
-        setError("Please login as a doctor to view appointments.");
-        setAppointments([]);
-        setPagination(null);
+        if (!isBackground) {
+          setError("Please login as a doctor to view appointments.");
+          setAppointments([]);
+          setPagination(null);
+        }
         return;
       }
 
@@ -161,14 +173,32 @@ export default function DoctorAppointmentsPage() {
       });
 
       if (!res.success || !res.data?.appointments) {
-        setError(res.error || "Unable to load appointments.");
-        setAppointments([]);
-        setPagination(null);
+        if (!isBackground) {
+          setError(res.error || "Unable to load appointments.");
+          setAppointments([]);
+          setPagination(null);
+        }
         return;
       }
 
       const loaded = res.data.appointments || [];
+
+      // Detect new appointments in real-time background poll safely outside setState
+      if (isBackground && prevAppointmentsRef.current.length > 0) {
+        const prevIds = new Set(prevAppointmentsRef.current.map((a) => a.id));
+        const newApts = loaded.filter((a) => !prevIds.has(a.id));
+        if (newApts.length > 0) {
+          const patientName = newApts[0].patient?.full_name || "A patient";
+          toast.success(`New appointment from ${patientName}!`, {
+            icon: "🔔",
+            duration: 5000,
+            id: `new-apt-${newApts[0].id}`,
+          });
+        }
+      }
+      prevAppointmentsRef.current = loaded;
       setAppointments(loaded);
+
       setPagination(res.data.pagination || null);
       setPage(pageToLoad);
 
@@ -179,7 +209,7 @@ export default function DoctorAppointmentsPage() {
           const matched = loaded.find((a) => a.id === targetId || String(a.id) === String(targetId));
           if (matched) {
             setSelectedAppointment(matched);
-          } else {
+          } else if (!isBackground) {
             api.post("/appointment/doctor-appointments-detailed", {
               doctor_id: userId,
               date_filter: "all",
@@ -192,19 +222,30 @@ export default function DoctorAppointmentsPage() {
         }
       }
     } catch (err) {
-      console.error("Error loading appointments", err);
-      setError("Unable to load appointments. Please try again.");
-      setAppointments([]);
-      setPagination(null);
+      if (!isBackground) {
+        console.error("Error loading appointments", err);
+        setError("Unable to load appointments. Please try again.");
+        setAppointments([]);
+        setPagination(null);
+      }
     } finally {
-      setIsLoading(false);
+      if (!isBackground) {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    loadAppointments(1, dateFilter);
+    loadAppointments(1, dateFilter, false);
+
+    // Real-time polling every 8 seconds so new appointments reflect immediately
+    const pollInterval = setInterval(() => {
+      loadAppointments(page, dateFilter, true);
+    }, 8000);
+
+    return () => clearInterval(pollInterval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFilter]);
+  }, [dateFilter, page]);
 
   const updateAppointmentStatus = async (appointmentId, newStatus) => {
     try {
@@ -212,8 +253,13 @@ export default function DoctorAppointmentsPage() {
       setError("");
 
       const apt = appointments.find((a) => a.id === appointmentId);
-      if (newStatus === "approved" && apt && isAppointmentExpired(apt)) {
+      const isExpired = apt && isAppointmentExpired(apt, new Date());
+      if (newStatus === "approved" && isExpired) {
         toast.error("This appointment slot has expired and can no longer be approved.");
+        // Immediately mark expired locally so UI reflects Expired Slot and hides Approve button
+        setAppointments((prev) =>
+          prev.map((a) => (a.id === appointmentId ? { ...a, _forceExpired: true } : a))
+        );
         setIsLoading(false);
         return;
       }
@@ -301,23 +347,49 @@ export default function DoctorAppointmentsPage() {
     return ["video", "video_consultation", "video_call", "teleconsultation", "instant_call", "telemedicine", "instant"].includes(t);
   }
 
-  function isWithinSlot(apt) {
-    if (!apt.appointment_date || !apt.appointment_time) return false;
+  function getVideoCallTiming(apt, now = currentTime) {
+    if (!apt?.appointment_date || !apt?.appointment_time) {
+      return { isAvailable: false, label: "Start Call", status: "unavailable" };
+    }
 
     try {
-      const start = new Date(apt.appointment_date + "T" + apt.appointment_time);
-      // Allow starting 15 min before and up to 2 hours after the slot start
-      const earlyStart = new Date(start.getTime() - 15 * 60 * 1000);
-      const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
-      const now = new Date();
-      return now >= earlyStart && now <= end;
+      const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "00:00";
+      const dateStr = typeof apt.appointment_date === "string" 
+        ? apt.appointment_date 
+        : apt.appointment_date instanceof Date 
+        ? apt.appointment_date.toISOString().split("T")[0]
+        : String(apt.appointment_date || "");
+      const dateOnly = dateStr.split("T")[0];
+      const [year, month, day] = dateOnly.split("-").map(Number);
+      const [hours, minutes] = timePart.split(":").map(Number);
+      if (isNaN(year) || isNaN(month) || isNaN(day)) {
+        return { isAvailable: false, label: "Start Call", status: "unavailable" };
+      }
+      const start = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
+
+      // Call is available from 5 minutes before up to 40 minutes after start
+      const earlyStart = new Date(start.getTime() - 5 * 60 * 1000);
+      const end = new Date(start.getTime() + 40 * 60 * 1000);
+
+      if (now < earlyStart) {
+        return { isAvailable: false, label: "Opens 5m before", status: "early", earlyStart };
+      } else if (now > end) {
+        return { isAvailable: false, label: "Call Ended", status: "expired" };
+      } else {
+        return { isAvailable: true, label: "Start Call", status: "active" };
+      }
     } catch {
-      return false;
+      return { isAvailable: false, label: "Start Call", status: "unavailable" };
     }
   }
 
-  function isAppointmentExpired(apt) {
+  function isWithinSlot(apt, now = currentTime) {
+    return getVideoCallTiming(apt, now).isAvailable;
+  }
+
+  function isAppointmentExpired(apt, now = currentTime) {
     if (!apt?.appointment_date) return false;
+    if (apt._forceExpired) return true;
     try {
       const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "23:59";
       const dateStr = typeof apt.appointment_date === "string" 
@@ -330,9 +402,9 @@ export default function DoctorAppointmentsPage() {
       const [hours, minutes] = timePart.split(":").map(Number);
       if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
       const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
-      const now = new Date();
-      // If appointment slot start was more than 30 mins ago, it's expired
-      return now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000;
+      const checkNow = now instanceof Date ? now : new Date();
+      // If appointment slot start was more than 40 mins ago, it's expired
+      return checkNow.getTime() > aptDateTime.getTime() + 40 * 60 * 1000;
     } catch {
       return false;
     }
@@ -468,7 +540,7 @@ export default function DoctorAppointmentsPage() {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-[#0067A1] shadow-lg">
+              <div className="p-2.5 rounded-lg bg-[#0067A1]">
                 <CalendarDays className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -488,12 +560,12 @@ export default function DoctorAppointmentsPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search patients, reasons, phone..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all shadow-sm"
+                className="w-full pl-10 pr-4 py-2.5 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all text-sm"
               />
             </div>
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`p-2.5 rounded-xl border transition-all ${
+              className={`p-2.5 rounded-md border transition-all ${
                 showFilters 
                   ? "bg-[#0067A1] text-white border-[#0067A1]" 
                   : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
@@ -508,7 +580,7 @@ export default function DoctorAppointmentsPage() {
         <DoctorAnalyticsWidget />
 
         {/* Filters Section */}
-        <div className={`bg-white rounded-2xl shadow-lg border border-slate-100 p-5 transition-all duration-300 ${
+        <div className={`bg-white rounded-lg border border-slate-200 p-4 sm:p-5 transition-all duration-300 ${
           showFilters ? 'block' : 'hidden lg:block'
         }`}>
           <div className="flex items-center gap-2 mb-4">
@@ -525,7 +597,7 @@ export default function DoctorAppointmentsPage() {
               <select
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all"
+                className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all text-sm"
               >
                 <option value="today">Today</option>
                 <option value="tomorrow">Tomorrow</option>
@@ -543,7 +615,7 @@ export default function DoctorAppointmentsPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all"
+                className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all text-sm"
               >
                 <option value="all">All Status</option>
                 <option value="booked">Booked</option>
@@ -563,7 +635,7 @@ export default function DoctorAppointmentsPage() {
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all"
+                className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all text-sm"
               >
                 <option value="all">All Types</option>
                 <option value="clinic">Clinic Visit</option>
@@ -576,7 +648,7 @@ export default function DoctorAppointmentsPage() {
 
         {/* Error Alert */}
         {error && (
-          <div className="flex items-center gap-3 rounded-xl bg-red-50 border border-red-100 px-4 py-3">
+          <div className="flex items-center gap-3 rounded-md bg-red-50 border border-red-100 px-4 py-3">
             <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-medium text-red-700">{error}</p>
@@ -591,7 +663,7 @@ export default function DoctorAppointmentsPage() {
         )}
 
         {/* Appointments List */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-100">
             <div className="flex items-center justify-between">
               <div>
@@ -647,11 +719,11 @@ export default function DoctorAppointmentsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start gap-3">
                         <div className="relative">
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#0067A1]/10 to-[#0067A1]/5 flex items-center justify-center">
-                            <User className="w-6 h-6 text-[#0067A1]" />
+                          <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-[#0067A1]/10 to-[#0067A1]/5 flex items-center justify-center">
+                            <User className="w-5 h-5 text-[#0067A1]" />
                           </div>
-                          {isWithinSlot(apt) && (
-                            <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white"></div>
+                          {isWithinSlot(apt, currentTime) && !isAppointmentExpired(apt, currentTime) && (
+                            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white"></div>
                           )}
                         </div>
                         
@@ -661,12 +733,12 @@ export default function DoctorAppointmentsPage() {
                               {apt.patient?.full_name || "Patient"}
                             </h4>
                             {isNext && (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold uppercase tracking-wide">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[11px] font-semibold uppercase tracking-wide">
                                 <Clock className="w-3 h-3" />
                                 Next
                               </span>
                             )}
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium ${
                               TYPE_COLORS[apt.appointment_type] || "bg-slate-100 text-slate-700"
                             }`}>
                               {(() => {
@@ -728,12 +800,19 @@ export default function DoctorAppointmentsPage() {
                     {/* Status & Actions */}
                     <div className="flex flex-col items-start lg:items-end gap-3">
                       <div className="flex items-center gap-2">
-                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium ${
-                          STATUS_COLORS[apt.status] || "bg-slate-100 text-slate-700 border-slate-200"
-                        }`}>
-                          {getStatusIcon(apt.status)}
-                          <span className="capitalize">{apt.status || "unknown"}</span>
-                        </div>
+                        {isAppointmentExpired(apt, currentTime) && apt.status === "booked" ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-amber-200 bg-amber-50 text-amber-700 text-xs font-medium">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>Expired</span>
+                          </div>
+                        ) : (
+                          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium ${
+                            STATUS_COLORS[apt.status] || "bg-slate-100 text-slate-700 border-slate-200"
+                          }`}>
+                            {getStatusIcon(apt.status)}
+                            <span className="capitalize">{apt.status || "unknown"}</span>
+                          </div>
+                        )}
                         
                         <button
                           onClick={() => setSelectedAppointment(apt)}
@@ -746,47 +825,79 @@ export default function DoctorAppointmentsPage() {
 
                       <div className="flex flex-wrap gap-2">
                         {["rejected", "cancelled"].includes(apt.status) ? (
-                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-200/60 inline-flex items-center gap-1.5">
+                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1.5 rounded-md border border-slate-200/60 inline-flex items-center gap-1.5">
                             <Info className="w-3.5 h-3.5" />
                             Appointment {apt.status}
                           </span>
-                        ) : isAppointmentExpired(apt) ? (
-                          <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200/60 inline-flex items-center gap-1.5">
-                            <Info className="w-3.5 h-3.5" />
-                            Expired Slot
-                          </span>
-                        ) : (
-                          <>
-                            {isVideoAppointment(apt) && ["approved", "booked"].includes(apt.status) && (
+                        ) : isAppointmentExpired(apt, currentTime) ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-md border border-amber-200/60 inline-flex items-center gap-1.5">
+                              <Info className="w-3.5 h-3.5" />
+                              Expired Slot
+                            </span>
+                            {apt.status === "booked" && (
                               <button
-                                onClick={() => handleStartCall(apt)}
+                                onClick={() => updateAppointmentStatus(apt.id, "rejected")}
                                 disabled={isLoading}
-                                className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                                  isWithinSlot(apt)
-                                    ? "bg-[#0067A1] text-white hover:bg-[#004F7C]"
-                                    : "bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-100"
-                                }`}
+                                title="Reject or dismiss expired appointment"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-red-50 text-red-700 border border-red-100 hover:bg-red-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
                               >
-                                <PhoneCall className="w-4 h-4" />
-                                Start Call
+                                <XCircle className="w-3.5 h-3.5" />
+                                Reject
                               </button>
                             )}
+                          </div>
+                        ) : (
+                          <>
+                            {isVideoAppointment(apt) && ["approved", "booked"].includes(apt.status) && (() => {
+                              const timing = getVideoCallTiming(apt, currentTime);
+
+                              if (timing.status === "early") {
+                                return (
+                                  <button
+                                    type="button"
+                                    disabled={true}
+                                    title="Video call will be enabled 5 minutes before scheduled start time"
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-slate-100 text-slate-400 border border-slate-200 text-xs font-medium cursor-not-allowed transition-all"
+                                  >
+                                    <PhoneCall className="w-3.5 h-3.5 text-slate-400" />
+                                    Opens 5m before
+                                  </button>
+                                );
+                              }
+
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartCall(apt)}
+                                  disabled={isLoading || !timing.isAvailable}
+                                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                                    timing.isAvailable
+                                      ? "bg-[#0067A1] text-white hover:bg-[#004F7C] active:scale-[0.98]"
+                                      : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                                  }`}
+                                >
+                                  <PhoneCall className="w-4 h-4" />
+                                  Start Call
+                                </button>
+                              );
+                            })()}
                             
                             <button
                               onClick={() => handleNotifyPatient(apt)}
                               disabled={isLoading}
-                              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                              className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                             >
                               <Bell className="w-4 h-4" />
                               Notify
                             </button>
 
-                            {apt.status === "booked" && (
+                            {apt.status === "booked" && !isAppointmentExpired(apt, currentTime) && (
                               <>
                                 <button
                                   onClick={() => updateAppointmentStatus(apt.id, "approved")}
-                                  disabled={isLoading}
-                                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                                  disabled={isLoading || isAppointmentExpired(apt, currentTime)}
+                                  className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                                 >
                                   <CheckSquare className="w-4 h-4" />
                                   Approve
@@ -794,7 +905,7 @@ export default function DoctorAppointmentsPage() {
                                 <button
                                   onClick={() => updateAppointmentStatus(apt.id, "rejected")}
                                   disabled={isLoading}
-                                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-100 hover:bg-red-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                                  className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-red-50 text-red-700 border border-red-100 hover:bg-red-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
                                 >
                                   <XCircle className="w-4 h-4" />
                                   Reject
@@ -814,8 +925,8 @@ export default function DoctorAppointmentsPage() {
         </div>
 
         {/* Pagination */}
-              {pagination && pagination.totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
+        {pagination && pagination.totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white rounded-lg border border-slate-200 p-4">
             <div className="text-sm text-slate-600">
               Showing page {pagination.currentPage} of {pagination.totalPages} •{" "}
               {(pagination.totalItems ?? pagination.total ?? 0)} total appointments
@@ -825,7 +936,7 @@ export default function DoctorAppointmentsPage() {
               <button
                 onClick={() => handlePageChange(page - 1)}
                 disabled={page <= 1 || isLoading}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Previous
@@ -849,7 +960,7 @@ export default function DoctorAppointmentsPage() {
                       key={pageNum}
                       onClick={() => handlePageChange(pageNum)}
                       disabled={isLoading}
-                      className={`w-10 h-10 rounded-xl text-sm font-medium transition-all ${
+                      className={`w-9 h-9 rounded-md text-sm font-medium transition-all ${
                         page === pageNum
                           ? "bg-[#0067A1] text-white"
                           : "text-slate-600 hover:bg-slate-100"
@@ -864,7 +975,7 @@ export default function DoctorAppointmentsPage() {
               <button
                 onClick={() => handlePageChange(page + 1)}
                 disabled={page >= pagination.totalPages || isLoading}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
@@ -877,22 +988,22 @@ export default function DoctorAppointmentsPage() {
       {/* Appointment Details Modal */}
       {selectedAppointment && (
         <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-hidden">
-          <div className="w-full h-full sm:h-auto sm:max-w-2xl rounded-none sm:rounded-2xl bg-white shadow-2xl border-0 sm:border border-slate-200 sm:max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="w-full h-full sm:h-auto sm:max-w-2xl rounded-none sm:rounded-lg bg-white border-0 sm:border border-slate-200 sm:max-h-[90vh] flex flex-col overflow-hidden">
             <div className="sticky top-0 bg-white border-b border-slate-100 z-10 p-0 shrink-0">
-              <div className="px-6 py-4 flex items-center justify-between">
+              <div className="px-5 py-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
                     Appointment Details
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${STATUS_COLORS[selectedAppointment.status] || "bg-slate-100 text-slate-700"}`}>
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold ${STATUS_COLORS[selectedAppointment.status] || "bg-slate-100 text-slate-700"}`}>
                       {getStatusIcon(selectedAppointment.status)}
                       <span className="capitalize">{selectedAppointment.status}</span>
                     </span>
                   </h3>
-                  <p className="text-sm text-slate-500 mt-0.5">ID: {selectedAppointment.id}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">ID: {selectedAppointment.id}</p>
                 </div>
                 <button
                   onClick={() => setSelectedAppointment(null)}
-                  className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   <XCircle className="w-5 h-5" />
                 </button>
@@ -922,14 +1033,14 @@ export default function DoctorAppointmentsPage() {
                 <div className="space-y-6">
               {/* Patient Info */}
               <div className="flex items-start gap-4">
-                <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-[#0067A1]/10 to-[#0067A1]/5 flex items-center justify-center">
-                  <User className="w-8 h-8 text-[#0067A1]" />
+                <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-[#0067A1]/10 to-[#0067A1]/5 flex items-center justify-center">
+                  <User className="w-7 h-7 text-[#0067A1]" />
                 </div>
                 <div className="flex-1">
-                  <h4 className="text-xl font-bold text-slate-800">
+                  <h4 className="text-lg sm:text-xl font-bold text-slate-800">
                     {selectedAppointment.patient?.full_name || "Patient"}
                   </h4>
-                  <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-600">
+                  <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-slate-600">
                     {selectedAppointment.patient?.gender && (
                       <span className="capitalize">• {selectedAppointment.patient.gender}</span>
                     )}
@@ -949,28 +1060,28 @@ export default function DoctorAppointmentsPage() {
               {/* Contact Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {selectedAppointment.patient?.phone && (
-                  <div className="bg-slate-50 rounded-xl p-4">
+                  <div className="bg-slate-50 rounded-md p-3.5 border border-slate-100">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-white">
+                      <div className="p-2 rounded-md bg-white border border-slate-200">
                         <Phone className="w-4 h-4 text-[#0067A1]" />
                       </div>
                       <div>
                         <p className="text-xs text-slate-500">Phone Number</p>
-                        <p className="font-medium text-slate-800">{selectedAppointment.patient.phone}</p>
+                        <p className="font-medium text-slate-800 text-sm">{selectedAppointment.patient.phone}</p>
                       </div>
                     </div>
                   </div>
                 )}
                 
                 {selectedAppointment.patient?.email && (
-                  <div className="bg-slate-50 rounded-xl p-4">
+                  <div className="bg-slate-50 rounded-md p-3.5 border border-slate-100">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-white">
+                      <div className="p-2 rounded-md bg-white border border-slate-200">
                         <Mail className="w-4 h-4 text-[#0067A1]" />
                       </div>
                       <div>
                         <p className="text-xs text-slate-500">Email Address</p>
-                        <p className="font-medium text-slate-800 break-all">{selectedAppointment.patient.email}</p>
+                        <p className="font-medium text-slate-800 text-sm break-all">{selectedAppointment.patient.email}</p>
                       </div>
                     </div>
                   </div>
@@ -978,26 +1089,26 @@ export default function DoctorAppointmentsPage() {
               </div>
 
               {/* Appointment Details */}
-              <div className="bg-gradient-to-r from-[#0067A1]/5 to-transparent rounded-xl p-5">
-                <h5 className="text-sm font-semibold text-[#0067A1] mb-3">Appointment Information</h5>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-gradient-to-r from-[#0067A1]/5 to-transparent rounded-md p-4 border border-[#0067A1]/10">
+                <h5 className="text-xs font-bold text-[#0067A1] uppercase tracking-wider mb-2.5">Appointment Information</h5>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   <div>
                     <p className="text-xs text-slate-500">Date</p>
-                    <p className="font-medium text-slate-800">{selectedAppointment.appointment_date}</p>
+                    <p className="font-medium text-slate-800 text-sm">{selectedAppointment.appointment_date}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500">Time</p>
-                    <p className="font-medium text-slate-800">{formatTime(selectedAppointment.appointment_time)}</p>
+                    <p className="font-medium text-slate-800 text-sm">{formatTime(selectedAppointment.appointment_time)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500">Type</p>
-                    <p className="font-medium text-slate-800 capitalize">
+                    <p className="font-medium text-slate-800 text-sm capitalize">
                       {selectedAppointment.appointment_type?.replace('_', ' ') || 'N/A'}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500">Status</p>
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold ${
                       STATUS_COLORS[selectedAppointment.status] || "bg-slate-100 text-slate-700"
                     }`}>
                       {getStatusIcon(selectedAppointment.status)}
@@ -1015,7 +1126,7 @@ export default function DoctorAppointmentsPage() {
                       <BarChart3 className="w-4 h-4 text-slate-400" />
                       <p className="text-sm font-medium text-slate-700">Screening Summary</p>
                     </div>
-                    <div className="bg-slate-50 rounded-xl p-4 space-y-3 text-sm text-slate-700">
+                    <div className="bg-slate-50 rounded-md p-3.5 space-y-3 text-sm text-slate-700 border border-slate-100">
                       {selectedAppointment.screening.initial_symptoms && (
                         <div>
                           <p className="text-xs font-semibold text-slate-500 mb-1">Commonly reported symptoms (optional). Doctor may add or modify.</p>
@@ -1075,7 +1186,7 @@ export default function DoctorAppointmentsPage() {
                       <MapPin className="w-4 h-4 text-slate-400" />
                       <p className="text-sm font-medium text-slate-700">Clinic Location</p>
                     </div>
-                    <div className="bg-slate-50 rounded-xl p-4">
+                    <div className="bg-slate-50 rounded-md p-3.5 border border-slate-100">
                       <p className="text-sm font-medium text-slate-800">
                         {selectedAppointment.doctor.clinic_name}
                       </p>
@@ -1102,7 +1213,7 @@ export default function DoctorAppointmentsPage() {
                       <MapPin className="w-4 h-4 text-slate-400" />
                       <p className="text-sm font-medium text-slate-700">Address</p>
                     </div>
-                    <p className="text-sm text-slate-600 bg-slate-50 rounded-xl p-4">
+                    <p className="text-sm text-slate-600 bg-slate-50 rounded-md p-3.5 border border-slate-100">
                       {selectedAppointment.patient.address}
                     </p>
                   </div>
@@ -1114,7 +1225,7 @@ export default function DoctorAppointmentsPage() {
                       <MessageSquare className="w-4 h-4 text-slate-400" />
                       <p className="text-sm font-medium text-slate-700">Consultation Reason</p>
                     </div>
-                    <p className="text-sm text-slate-600 bg-slate-50 rounded-xl p-4 whitespace-pre-line">
+                    <p className="text-sm text-slate-600 bg-slate-50 rounded-md p-3.5 border border-slate-100 whitespace-pre-line">
                       {selectedAppointment.reason}
                     </p>
                   </div>
@@ -1122,9 +1233,9 @@ export default function DoctorAppointmentsPage() {
               </div>
             </div>
           ) : ["rejected", "cancelled"].includes(selectedAppointment?.status) ? (
-            <div className="py-12 px-6 text-center space-y-3 bg-slate-50 rounded-2xl border border-slate-200/80 m-4">
-              <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
-                <AlertCircle className="w-6 h-6" />
+            <div className="py-10 px-6 text-center space-y-3 bg-slate-50 rounded-lg border border-slate-200/80 m-4">
+              <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
+                <AlertCircle className="w-5 h-5" />
               </div>
               <h4 className="text-base font-bold text-slate-800">
                 Clinical Workspace Unavailable
@@ -1148,7 +1259,7 @@ export default function DoctorAppointmentsPage() {
             <div className="sticky bottom-0 bg-white border-t border-slate-100 px-4 py-3 sm:px-6 sm:py-4 flex flex-wrap justify-end gap-2 sm:gap-3 z-10 shrink-0 pb-safe">
               <button
                 onClick={() => setSelectedAppointment(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors text-sm font-medium"
+                className="px-4 py-2 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors text-sm font-medium"
               >
                 Close
               </button>
@@ -1157,28 +1268,32 @@ export default function DoctorAppointmentsPage() {
                   onClick={() => {
                     window.open(`/api/screening/${selectedAppointment.screening.id}/doctors`, "_blank");
                   }}
-                  className="px-4 py-2 rounded-xl border border-[#0067A1]/20 text-[#0067A1] bg-white hover:bg-[#0067A1]/5 transition-colors text-sm font-medium flex items-center gap-2"
+                  className="px-4 py-2 rounded-md border border-[#0067A1]/20 text-[#0067A1] bg-white hover:bg-[#0067A1]/5 transition-colors text-sm font-medium flex items-center gap-2"
                 >
                   <ExternalLink className="w-4 h-4" />
                   View Full Screening
                 </button>
               )}
-              {isVideoAppointment(selectedAppointment) && !["rejected", "cancelled"].includes(selectedAppointment.status) && !isAppointmentExpired(selectedAppointment) && (
-                <button
-                  onClick={() => {
-                    handleStartCall(selectedAppointment);
-                    setSelectedAppointment(null);
-                  }}
-                  disabled={!isWithinSlot(selectedAppointment)}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                    isWithinSlot(selectedAppointment)
-                      ? "bg-[#0067A1] text-white hover:bg-[#004F7C]"
-                      : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                  }`}
-                >
-                  Start Video Call
-                </button>
-              )}
+              {isVideoAppointment(selectedAppointment) && !["rejected", "cancelled"].includes(selectedAppointment.status) && !isAppointmentExpired(selectedAppointment, currentTime) && (() => {
+                const timing = getVideoCallTiming(selectedAppointment, currentTime);
+                return (
+                  <button
+                    onClick={() => {
+                      handleStartCall(selectedAppointment);
+                      setSelectedAppointment(null);
+                    }}
+                    disabled={!timing.isAvailable}
+                    title={timing.status === "early" ? "Opens 5 minutes before scheduled start time" : undefined}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                      timing.isAvailable
+                        ? "bg-[#0067A1] text-white hover:bg-[#004F7C]"
+                        : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                    }`}
+                  >
+                    {timing.status === "early" ? "Call Opens 5m Before" : "Start Video Call"}
+                  </button>
+                );
+              })()}
             </div>
         )}
           </div>

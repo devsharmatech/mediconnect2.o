@@ -10,15 +10,15 @@ const fallbackFaqs = [
     questions: [
       {
         q: 'What is mediconnect.fit?',
-        a: 'mediconnect.fit is a digital health platform that helps patients connect with verified doctors, diagnostic partners and pharmacies. You can check your symptoms in a guided way, book video consultations, order lab tests at home, receive digital prescriptions, and access your health records in one place.',
+        a: 'mediconnect.fit is an integrated digital health platform connecting patients with verified doctors, accredited diagnostic labs, and registered pharmacies. You can consult online, book home lab tests, get verified prescriptions, and manage digital health records in one place.',
       },
       {
-        q: 'Is mediconnect.fit free to use?',
-        a: 'Creating an account is free. You only pay for the services you choose to use, such as consultations, lab tests or medicines. Where available, symptom screening tools are offered without additional charges for registered patients.',
+        q: 'Is creating an account free?',
+        a: 'Yes, creating an account and maintaining your Health Locker is completely free. You only pay for consultations, diagnostic tests, or pharmacy orders you book, with upfront pricing and zero hidden fees.',
       },
       {
         q: 'How does symptom screening work?',
-        a: 'Our guided symptom check helps you describe your concern clearly, suggests what kind of doctor or service may be relevant, and highlights when you should seek urgent care. It supports, but never replaces, the judgement of a qualified doctor or emergency services.',
+        a: 'Our guided symptom assessment helps you describe your symptoms accurately and directs you to the appropriate medical specialist. It provides clinical context to support you, but never replaces clinical diagnosis.',
       },
     ],
   },
@@ -26,29 +26,50 @@ const fallbackFaqs = [
     category: 'Consultations',
     questions: [
       {
-        q: 'How do video consultations work?',
-        a: 'After booking, you\'ll receive a link to join the HD video call at your scheduled time. Our platform works directly in your browser \u2014 no app download needed. Features include screen sharing for reports and digital prescription generation.',
+        q: 'How do online video consultations work?',
+        a: 'Once booked, you receive a direct link to join a private, high-definition video call with your specialist on your phone or computer—no software downloads required. You can share past reports and discuss your treatment plan face-to-face.',
       },
       {
         q: 'Are all doctors on mediconnect.fit verified?',
-        a: 'Doctors listed on mediconnect.fit go through a vetting process. This includes checking medical degrees, registration with state medical councils and relevant experience. Only doctors who meet these criteria are onboarded.',
+        a: 'Yes. Every doctor undergoes rigorous medical council verification, including degree cross-checks, active license verification with state medical councils, and clinical credential validation before onboarding.',
       },
       {
-        q: 'Can I get prescriptions through video consultation?',
-        a: 'Yes! Doctors issue legally valid digital prescriptions after consultations. These are stored in your Digital Health Locker and can be used to order medicines directly through our platform with doorstep delivery.',
+        q: 'Can I get a valid digital prescription?',
+        a: 'Yes. Following your consultation, your doctor issues a legally valid digital prescription (compliant with Indian Telemedicine Practice Guidelines) stored instantly in your Health Locker.',
+      },
+      {
+        q: 'What happens if I miss my scheduled consultation?',
+        a: 'You can easily reschedule up to 2 hours before the appointment without any penalty. If an unforeseen clinician emergency occurs, our care team provides immediate re-allocation or a 100% refund.',
       },
     ],
   },
   {
-    category: 'Lab Tests & Medicines',
+    category: 'Lab Tests',
     questions: [
       {
-        q: 'How does home lab test collection work?',
-        a: 'You can book diagnostic tests, choose an available time slot, and a certified phlebotomist will visit your home for sample collection. Reports are delivered digitally within a typical processing window and stored in your Health Locker.',
+        q: 'How does home sample collection work?',
+        a: 'Select your required tests or health package, choose your preferred morning time slot, and a certified phlebotomist visits your home with sealed, temperature-regulated sample kits.',
       },
       {
-        q: 'How fast is medicine delivery?',
-        a: 'Delivery timelines depend on your location and the pharmacy fulfilling the order. You can upload or share your prescription, and medicines are supplied by verified pharmacy partners in line with local regulations.',
+        q: 'When will I receive my lab test reports?',
+        a: 'Most routine blood tests (CBC, Lipid, Thyroid, HbA1c) are processed within 12–24 hours. Digital reports with doctor summaries are automatically uploaded to your dashboard and emailed to you.',
+      },
+      {
+        q: 'Are your diagnostic laboratory partners accredited?',
+        a: 'Yes, all sample analysis is conducted exclusively by NABL-accredited and ICMR-recognized diagnostic laboratories adhering to strict quality control standards.',
+      },
+    ],
+  },
+  {
+    category: 'Pharmacy',
+    questions: [
+      {
+        q: 'How do I order medicines from my prescription?',
+        a: 'You can order medicines directly with one click from your digital prescription, or upload an existing valid prescription. Partner licensed pharmacies verify the order and dispatch to your doorstep.',
+      },
+      {
+        q: 'Are medicines delivered with proper cold-chain maintenance?',
+        a: 'All medications are dispensed strictly by verified licensed chemists following strict cold-chain maintenance for temperature-sensitive drugs like insulin and biologicals.',
       },
     ],
   },
@@ -56,12 +77,12 @@ const fallbackFaqs = [
     category: 'Privacy & Security',
     questions: [
       {
-        q: 'Is my health data secure?',
-        a: 'Yes, security is our top priority. All data is encrypted with 256-bit SSL encryption. We are HIPAA compliant and follow ISO 27001 standards. Your data is never sold or shared with third parties without your explicit consent.',
+        q: 'Is my medical data confidential and secure?',
+        a: 'Yes. Your health data is protected with AES-256 bank-grade encryption at rest and in transit. We comply with ISO 27001, Indian DPDP guidelines, and never share or monetize your private medical records.',
       },
       {
-        q: 'What is the Digital Health Locker?',
-        a: 'Your Digital Health Locker is an ABHA-integrated secure vault for all prescriptions, lab reports, and medical records. Access everything from one place, share with doctors instantly, and maintain your complete health history digitally.',
+        q: 'Can I link my Ayushman Bharat Health Account (ABHA)?',
+        a: 'Yes. MediConnect seamlessly integrates with India\'s ABDM ecosystem. You can create a new 14-digit ABHA address or link your existing ABHA to automatically sync and access your lifelong longitudinal health history.',
       },
     ],
   },
@@ -132,15 +153,14 @@ const FAQ = () => {
     <section className="py-8 lg:py-10 pt-2 bg-[#F6F8FA]">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="text-center mb-8">
-          <span className="inline-flex items-center gap-2 px-4 py-2 bg-[#0067A1] text-white text-sm font-semibold rounded-full mb-4">
-            <FaQuestionCircle className="w-4 h-4" />
-            {headerData.title}
-          </span>
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-[#0067A1] mb-4">
-            {headerData.heading}
+        <div className="text-center mb-8 sm:mb-10">
+          <p className="text-xs sm:text-sm font-semibold tracking-wider text-[#0067A1] uppercase mb-2">
+            {headerData.title || "GOT QUESTIONS?"}
+          </p>
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-3 tracking-tight">
+            {headerData.heading || "Frequently Asked Questions"}
           </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl mx-auto">
             {headerData.subheading}
           </p>
         </div>

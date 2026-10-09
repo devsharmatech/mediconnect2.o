@@ -23,8 +23,7 @@ export async function POST(req) {
             return failure(
                 "Missing payment verification details: order_id, razorpay_order_id, razorpay_payment_id, razorpay_signature",
                 null,
-                400,
-                { headers: corsHeaders }
+                400
             );
         }
 
@@ -37,7 +36,7 @@ export async function POST(req) {
         `;
 
         if (orders.length === 0) {
-            return failure("Order not found", null, 404, { headers: corsHeaders });
+            return failure("Order not found", null, 404);
         }
 
         const order = orders[0];
@@ -47,7 +46,7 @@ export async function POST(req) {
             return success("Payment already verified for this order", {
                 order_id: order.id,
                 status: "already_paid",
-            }, 200, { headers: corsHeaders });
+            }, 200);
         }
 
         // Verify razorpay_order_id matches
@@ -61,7 +60,7 @@ export async function POST(req) {
                     )
                 `;
             } catch {}
-            return failure("Payment verification failed — order ID mismatch", null, 400, { headers: corsHeaders });
+            return failure("Payment verification failed — order ID mismatch", null, 400);
         }
 
         // ── 3. Verify HMAC SHA256 signature ──────────────────────
@@ -83,8 +82,7 @@ export async function POST(req) {
             return failure(
                 "Payment signature verification failed. Please contact support.",
                 null,
-                400,
-                { headers: corsHeaders }
+                400
             );
         }
 
@@ -92,7 +90,7 @@ export async function POST(req) {
         await sql`
             UPDATE lab_test_orders
             SET 
-                status = 'booked',
+                status = 'approved',
                 payment_status = 'paid',
                 razorpay_payment_id = ${razorpay_payment_id},
                 updated_at = NOW()
@@ -101,20 +99,95 @@ export async function POST(req) {
 
         await sql`
             UPDATE lab_test_order_items
-            SET status = 'booked'
+            SET status = 'approved'
             WHERE order_id = ${order_id}
         `;
 
-        // ── 5. Log successful payment in AWS RDS ──────────────────
+        // ── 5. Compute Financial Breakdown & Audit Distribution ─
+        let adminCommission = 0;
+        let labPayout = 0;
+        let auditBreakdown = [];
+        try {
+            const items = await sql`
+                SELECT 
+                    oi.id, oi.test_name, oi.price, oi.test_id,
+                    COALESCE(c.commission_percentage, 50.00)::numeric as commission_percentage
+                FROM lab_test_order_items oi
+                LEFT JOIN lab_tests lt ON lt.id = oi.test_id
+                LEFT JOIN lab_test_categories c ON c.id = lt.category_id
+                WHERE oi.order_id = ${order.id}
+            `;
+            const homeFee = order.visit_type === 'home_collection' ? 150 : 0;
+            for (const item of items) {
+                const itemPrice = parseFloat(item.price) || 0;
+                const commPct = parseFloat(item.commission_percentage) || 50;
+                const itemComm = parseFloat(((itemPrice * commPct) / 100).toFixed(2));
+                const itemLabShare = parseFloat((itemPrice - itemComm).toFixed(2));
+                adminCommission += itemComm;
+                labPayout += itemLabShare;
+                auditBreakdown.push({
+                    test_name: item.test_name,
+                    price: itemPrice,
+                    commission_percentage: commPct,
+                    admin_commission: itemComm,
+                    lab_share: itemLabShare,
+                });
+            }
+            adminCommission = parseFloat(adminCommission.toFixed(2));
+            labPayout = parseFloat((labPayout + homeFee).toFixed(2));
+        } catch (commErr) {
+            console.warn("Commission distribution calculation warning:", commErr.message);
+        }
+
+        // ── 5.1. Log payment & audit trail in AWS RDS ──────────────
         try {
             await sql`
                 INSERT INTO lab_payment_logs (
-                    order_id, patient_id, lab_id, razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, currency, status, source, created_at
+                    order_id, patient_id, lab_id, razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, currency, status, source, error_details, created_at
                 ) VALUES (
-                    ${order.id}, ${order.patient_id}, ${order.lab_id}, ${razorpay_order_id}, ${razorpay_payment_id}, ${razorpay_signature}, ${order.total_amount}, 'INR', 'paid', 'api', NOW()
+                    ${order.id}, ${order.patient_id}, ${order.lab_id}, ${razorpay_order_id}, ${razorpay_payment_id}, ${razorpay_signature}, ${order.total_amount}, 'INR', 'paid', 'api', ${sql.json({ admin_commission: adminCommission, lab_payout: labPayout, audit: auditBreakdown })}, NOW()
                 )
             `;
-        } catch {}
+        } catch (logErr) {
+            console.warn("Payment log insert warning:", logErr.message);
+        }
+
+        // ── 5.2. Record immutable Activity Audit Log ───────────────
+        try {
+            await sql`
+                INSERT INTO activity_log (
+                    patient_id,
+                    actor_id,
+                    reference_id,
+                    module_type,
+                    action_type,
+                    description,
+                    metadata,
+                    created_at
+                ) VALUES (
+                    ${order.patient_id},
+                    ${order.patient_id},
+                    ${order.id},
+                    'lab',
+                    'PAYMENT_VERIFIED',
+                    ${`Payment of ₹${order.total_amount} verified via Razorpay (${razorpay_payment_id}). Order confirmed. MediConnect Platform Commission: ₹${adminCommission}, Lab Disbursable Share: ₹${labPayout}.`},
+                    ${sql.json({
+                        order_id: order.id,
+                        order_unid: order.unid,
+                        razorpay_order_id,
+                        razorpay_payment_id,
+                        gross_amount: Number(order.total_amount),
+                        admin_commission: adminCommission,
+                        lab_payout: labPayout,
+                        audit_breakdown: auditBreakdown,
+                        status: 'paid'
+                    })},
+                    NOW()
+                )
+            `;
+        } catch (actErr) {
+            console.warn("Activity log audit insert warning:", actErr.message);
+        }
 
         // ── 6. Notify lab and patient ─────────────────────────────
         try {
@@ -151,10 +224,10 @@ export async function POST(req) {
             order_unid: String(order.unid || ""),
             status: "booked",
             payment_status: "paid",
-        }, 200, { headers: corsHeaders });
+        }, 200);
 
     } catch (error) {
         console.error("Payment verification error:", error);
-        return failure("Failed to verify payment", error.message, 500, { headers: corsHeaders });
+        return failure("Failed to verify payment", error.message, 500);
     }
 }

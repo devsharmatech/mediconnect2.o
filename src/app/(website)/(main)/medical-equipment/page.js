@@ -157,7 +157,7 @@ export default function MedicalEquipmentRequestPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              href="/website"
+              href="/"
               className="inline-block px-6 py-3 bg-[#0067A1] text-white rounded-xl font-medium hover:bg-[#004F7C] transition-colors"
             >
               Back to Home

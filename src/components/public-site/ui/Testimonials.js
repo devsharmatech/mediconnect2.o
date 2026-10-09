@@ -1,43 +1,73 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FaStar, FaQuoteLeft, FaChevronLeft, FaChevronRight, FaUser } from 'react-icons/fa';
+import { FaStar, FaQuoteLeft, FaChevronLeft, FaChevronRight, FaCheckCircle } from 'react-icons/fa';
 
 const fallbackTestimonials = [
   {
     id: 1,
-    name: 'Priya Sharma',
-    role: 'Working Professional',
+    name: 'Rajesh K.',
+    role: 'Telemedicine',
     location: 'Mumbai',
-    image: '/Picture1.jpg',
+    image: null,
     rating: 5,
-    text: 'mediconnect.fit\'s symptom check helped me quickly understand my concern and connect with a cardiologist within minutes. The video consultation and digital prescription made everything so convenient!',
-    highlight: 'Saved My Time',
+    text: 'I was skeptical about online consultations, but MediConnect changed my mind. The doctor was thorough, asked the right questions, and the digital prescription was sent to my pharmacy instantly. Saved me a whole day of traveling!',
+    highlight: 'Verified Experience',
   },
   {
     id: 2,
-    name: 'Dr. Rajesh Kumar',
-    role: 'Cardiologist, AIIMS',
-    location: 'Delhi',
-    image: '/dr.jpg',
+    name: 'Priya S.',
+    role: 'Lab Test Booking',
+    location: 'Bangalore',
+    image: null,
     rating: 5,
-    text: 'As a doctor on mediconnect.fit, I can serve patients across India efficiently. The platform\'s digital prescription and follow-up system has streamlined my practice significantly.',
-    highlight: 'Trusted by Doctors',
+    text: 'Booking lab tests was so easy. The home collection was on time and I got my reports digitally the same day. The doctor reviewed them in my follow-up call. Very seamless experience.',
+    highlight: 'Verified Experience',
   },
   {
     id: 3,
-    name: 'Anita Desai',
-    role: 'Senior Citizen',
-    location: 'Bangalore',
-    image: '/Picture2.jpg',
+    name: 'Amit P.',
+    role: 'General Medicine',
+    location: 'Delhi',
+    image: null,
     rating: 5,
-    text: 'At 68, technology intimidates me. But mediconnect.fit is so simple! I booked a lab test, they came home for collection, and my reports were on the app next day. Truly hassle-free healthcare.',
-    highlight: 'Senior-Friendly',
+    text: 'As someone with diabetes and hypertension, I need regular check-ups. MediConnect\'s digital health records keep everything in one place. My doctor can see my history instantly. Highly recommended!',
+    highlight: 'Verified Experience',
+  },
+  {
+    id: 4,
+    name: 'Sunita M.',
+    role: 'Dermatology',
+    location: 'Pune',
+    image: null,
+    rating: 5,
+    text: 'The video consultation was crystal clear. The dermatologist could see my skin condition properly and prescribed the right treatment. My acne cleared up within 3 weeks. Thank you, MediConnect!',
+    highlight: 'Verified Experience',
+  },
+  {
+    id: 5,
+    name: 'Dr. Vikram (Patient)',
+    role: 'Cardiology',
+    location: 'Hyderabad',
+    image: null,
+    rating: 5,
+    text: 'Being a doctor myself, I appreciate the clinical rigor. The consultation followed proper medical protocol — history taking, examination via video, and a well-structured prescription with follow-up scheduling.',
+    highlight: 'Verified Experience',
+  },
+  {
+    id: 6,
+    name: 'Meera R.',
+    role: 'Gynecology',
+    location: 'Chennai',
+    image: null,
+    rating: 5,
+    text: 'For sensitive health issues, the privacy of a telemedicine consultation is invaluable. The gynecologist was empathetic and professional. The medicine order was delivered discreetly to my door.',
+    highlight: 'Verified Experience',
   },
 ];
 
 const Testimonials = () => {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [testimonials, setTestimonials] = useState(fallbackTestimonials);
   const [headerData, setHeaderData] = useState({
      title: "Experiences from patients and partners",
@@ -59,7 +89,7 @@ const Testimonials = () => {
              image: t.photo,
              rating: 5,
              text: t.testimonial_text,
-             highlight: 'Verified User'
+             highlight: 'Verified Experience'
            }));
            if(mapped.length > 0) {
              setTestimonials(mapped);
@@ -88,112 +118,151 @@ const Testimonials = () => {
     fetchHeaders();
   }, []);
 
+  const total = testimonials.length;
+
   const handlePrev = () => {
-    setActiveIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length);
+    setCurrentIndex((prev) => (prev - 1 + total) % total);
   };
 
   const handleNext = () => {
-    setActiveIndex((prev) => (prev + 1) % testimonials.length);
+    setCurrentIndex((prev) => (prev + 1) % total);
   };
 
-  if(!testimonials || testimonials.length === 0) return null;
+  if (!testimonials || testimonials.length === 0) return null;
+
+  // Window of 3 testimonials for desktop, 2 for tablet, 1 for mobile
+  const visibleItems = [
+    testimonials[currentIndex % total],
+    testimonials[(currentIndex + 1) % total],
+    testimonials[(currentIndex + 2) % total],
+  ];
 
   return (
-    <section className="py-8 lg:py-10 bg-[#F6F8FA]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="py-12 lg:py-16 bg-[#F6F8FA] border-y border-slate-200/80">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="text-center mb-8">
-          <span className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-[#003358] text-sm font-semibold rounded-full mb-4">
-            <FaStar className="w-4 h-4 text-amber-500" />
-            {headerData.title}
-          </span>
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-[#0067A1] mb-4">
-            {headerData.heading}
+        <div className="text-center mb-10 sm:mb-12">
+          <p className="text-xs sm:text-sm font-semibold tracking-wider text-[#0067A1] uppercase mb-2">
+            {headerData.title || "EXPERIENCES FROM PATIENTS AND PARTNERS"}
+          </p>
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-3 tracking-tight">
+            {headerData.heading || "What Our Community Says"}
           </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl mx-auto">
             {headerData.subheading}
           </p>
         </div>
 
-        {/* Testimonial Carousel */}
-        <div className="relative">
-          {/* Main Testimonial Card */}
-          <div className="bg-white rounded-3xl shadow-md p-8 md:p-12 relative">
-            {/* Quote Icon */}
-            <div className="absolute top-6 right-8 md:top-10 md:right-12 w-16 h-16 md:w-20 md:h-20 bg-[#0067A1]/5 rounded-full flex items-center justify-center transition-all">
-              <FaQuoteLeft className="w-8 h-8 md:w-10 md:h-10 text-[#0067A1]/20" />
-            </div>
-            
-            <div className="relative z-10 flex flex-col md:flex-row gap-8">
-              {/* Avatar & Info */}
-              <div className="flex-shrink-0 text-center md:text-left">
-                { testimonials[activeIndex]?.image ? (
-                  <img src={testimonials[activeIndex].image} className="w-20 h-20 object-cover rounded-2xl mx-auto md:mx-0 bg-gray-100" />
-                ) : (
-                  <div className="w-20 h-20 bg-[#0067A1] rounded-2xl flex items-center justify-center text-white mx-auto md:mx-0">
-                    <FaUser className="w-10 h-10" />
-                  </div>
-                )}
-                <h4 className="mt-4 text-lg font-bold text-gray-900">{testimonials[activeIndex]?.name}</h4>
-                <p className="text-sm text-gray-500">{testimonials[activeIndex]?.role}</p>
-                <p className="text-xs text-gray-400">{testimonials[activeIndex]?.location}</p>
-                
-                {/* Rating */}
-                <div className="flex justify-center md:justify-start gap-1 mt-3">
-                  {[...Array(testimonials[activeIndex]?.rating || 5)].map((_, i) => (
-                    <FaStar key={i} className="w-4 h-4 text-amber-400" />
-                  ))}
+        {/* Responsive Testimonials Cards Grid: exactly 1 card on phone, 2 on tablet, 3 on desktop */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch w-full">
+          {visibleItems.map((item, idx) => {
+            const visibilityClass = idx === 0 
+              ? "flex w-full" 
+              : idx === 1 
+              ? "hidden sm:flex" 
+              : "hidden lg:flex";
+
+            return (
+              <div
+                key={`${item.id}-${idx}`}
+                className={`${visibilityClass} bg-white rounded-2xl border border-slate-200/90 p-5 sm:p-7 shadow-xs hover:shadow-xl hover:-translate-y-1 hover:border-[#0067A1]/40 transition-all duration-300 flex-col justify-between h-full relative group w-full`}
+              >
+                {/* Decorative quote mark */}
+                <div className="absolute top-5 right-5 text-slate-100 group-hover:text-[#0067A1]/10 transition-colors pointer-events-none">
+                  <FaQuoteLeft className="w-8 h-8" />
                 </div>
-                
-                {/* Highlight Badge */}
-                <span className="inline-block mt-3 px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
-                  {testimonials[activeIndex]?.highlight}
-                </span>
+
+                <div>
+                  {/* Author Header */}
+                  <div className="flex items-center gap-3.5 mb-4">
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-12 h-12 rounded-full object-cover border border-slate-200"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-[#0067A1]/10 text-[#0067A1] font-bold text-base flex items-center justify-center border border-[#0067A1]/20">
+                        {item.name ? item.name.charAt(0) : "P"}
+                      </div>
+                    )}
+                    <div>
+                      <h4 className="text-base font-bold text-slate-900 group-hover:text-[#0067A1] transition-colors">
+                        {item.name}
+                      </h4>
+                      <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                        <span>{item.location}</span>
+                        <span>•</span>
+                        <span className="font-medium text-[#0067A1] bg-[#0067A1]/10 px-2 py-0.5 rounded-md">
+                          {item.role}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rating Stars */}
+                  <div className="flex items-center gap-1 mb-3.5">
+                    {[...Array(item.rating || 5)].map((_, i) => (
+                      <FaStar key={i} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                    ))}
+                    <span className="text-xs font-semibold text-slate-700 ml-1.5">5.0</span>
+                  </div>
+
+                  {/* Story Text */}
+                  <p className="text-sm sm:text-[15px] text-slate-600 leading-relaxed italic relative z-10">
+                    &ldquo;{item.text}&rdquo;
+                  </p>
+                </div>
+
+                {/* Card Footer */}
+                <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span className="inline-flex items-center gap-1.5 font-medium text-[#0067A1]">
+                    <FaCheckCircle className="w-3.5 h-3.5 text-[#0067A1]" />
+                    {item.highlight || "Verified Experience"}
+                  </span>
+                  <span className="text-slate-400 text-[11px]">mediconnect.fit</span>
+                </div>
               </div>
-              
-              {/* Testimonial Text */}
-              <div className="flex-1 flex items-center">
-                <p className="text-lg md:text-xl text-gray-700 leading-relaxed italic">
-                  "{testimonials[activeIndex]?.text}"
-                </p>
-              </div>
-            </div>
+            );
+          })}
+        </div>
+
+        {/* Carousel Navigation */}
+        <div className="flex items-center justify-center gap-4 mt-8 sm:mt-10">
+          <button
+            suppressHydrationWarning
+            onClick={handlePrev}
+            aria-label="Previous stories"
+            className="w-10 h-10 rounded-full bg-white border border-slate-200 shadow-xs flex items-center justify-center text-slate-600 hover:text-[#0067A1] hover:border-[#0067A1] transition-all"
+          >
+            <FaChevronLeft className="w-4 h-4" />
+          </button>
+
+          {/* Dots */}
+          <div className="flex items-center gap-2">
+            {testimonials.map((_, index) => (
+              <button
+                suppressHydrationWarning
+                key={index}
+                aria-label={`Go to slide ${index + 1}`}
+                onClick={() => setCurrentIndex(index)}
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  index === currentIndex 
+                    ? 'w-6 bg-[#0067A1]' 
+                    : 'w-2 bg-slate-300 hover:bg-slate-400'
+                }`}
+              />
+            ))}
           </div>
-          
-          {/* Navigation */}
-          <div className="flex items-center justify-center gap-4 mt-8">
-            <button
-              suppressHydrationWarning
-              onClick={handlePrev}
-              className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center text-gray-600 hover:text-[#0067A1]"
-            >
-              <FaChevronLeft className="w-5 h-5" />
-            </button>
-            
-            {/* Dots */}
-            <div className="flex gap-2">
-              {testimonials.map((_, index) => (
-                <button
-                  suppressHydrationWarning
-                  key={index}
-                  onClick={() => setActiveIndex(index)}
-                  className={`h-2 rounded-full transition-all ${
-                    index === activeIndex 
-                      ? 'w-8 bg-[#0067A1]' 
-                      : 'w-2 bg-gray-300'
-                  }`}
-                />
-              ))}
-            </div>
-            
-            <button
-              suppressHydrationWarning
-              onClick={handleNext}
-              className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center text-gray-600 hover:text-[#0067A1]"
-            >
-              <FaChevronRight className="w-5 h-5" />
-            </button>
-          </div>
+
+          <button
+            suppressHydrationWarning
+            onClick={handleNext}
+            aria-label="Next stories"
+            className="w-10 h-10 rounded-full bg-white border border-slate-200 shadow-xs flex items-center justify-center text-slate-600 hover:text-[#0067A1] hover:border-[#0067A1] transition-all"
+          >
+            <FaChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </section>

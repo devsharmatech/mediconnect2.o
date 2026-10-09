@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%">
+  <defs>
+    <linearGradient id="apexBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0067A1"/>
+      <stop offset="100%" stop-color="#003358"/>
+    </linearGradient>
+    <linearGradient id="apexTeal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0D9488"/>
+      <stop offset="100%" stop-color="#0F766E"/>
+    </linearGradient>
+  </defs>
+  <!-- Background Shield -->
+  <rect width="200" height="200" rx="44" fill="#FFFFFF"/>
+  <rect x="6" y="6" width="188" height="188" rx="38" fill="#F0F9FF" stroke="#BAE6FD" stroke-width="3"/>
+  
+  <!-- Apex Diamond / Triangle Crest -->
+  <path d="M100 26 L148 76 L124 116 L76 116 L52 76 Z" fill="url(#apexBlue)"/>
+  
+  <!-- Test Tube / Science Wave Symbol -->
+  <circle cx="100" cy="62" r="14" fill="#FFFFFF"/>
+  <circle cx="100" cy="62" r="8" fill="url(#apexTeal)"/>
+  
+  <path d="M84 94 Q100 82 116 94 Q100 106 84 94" fill="#FFFFFF" opacity="0.9"/>
+  <circle cx="88" cy="82" r="4" fill="#FFFFFF"/>
+  <circle cx="112" cy="82" r="4" fill="#FFFFFF"/>
+  
+  <!-- Brand Name Typography -->
+  <text x="100" y="150" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="24" fill="#003358" text-anchor="middle" letter-spacing="-0.5">APEX</text>
+  <text x="100" y="172" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="10" fill="#0D9488" text-anchor="middle" letter-spacing="2">DIAGNOSTICS</text>
+</svg>

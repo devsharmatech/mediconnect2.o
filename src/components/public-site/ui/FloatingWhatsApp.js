@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { FaWhatsapp, FaPhoneAlt } from "react-icons/fa";
 
 export default function FloatingWhatsApp() {
+    const pathname = usePathname();
     const [contactData, setContactData] = useState({ whatsapp: null, message: "", phone: null });
 
+    const isLabPage = pathname?.includes("/services/lab-tests") || pathname?.includes("/lab-booking");
+
     useEffect(() => {
+        if (isLabPage) return;
         fetch("/api/cms/settings")
             .then((res) => res.json())
             .then((json) => {
@@ -19,7 +24,12 @@ export default function FloatingWhatsApp() {
                 }
             })
             .catch(console.error);
-    }, []);
+    }, [pathname, isLabPage]);
+
+    // Hide WhatsApp and Call buttons on lab test and booking pages
+    if (isLabPage) {
+        return null;
+    }
 
     if (!contactData.whatsapp && !contactData.phone) return null;
 
@@ -27,7 +37,7 @@ export default function FloatingWhatsApp() {
     const phoneUrl = contactData.phone ? `tel:${contactData.phone}` : null;
 
     return (
-        <div className="fixed bottom-4 left-4 z-[9998] flex flex-col gap-3 items-center">
+        <div className="fixed bottom-20 lg:bottom-6 left-4 z-[9998] flex flex-col gap-3 items-center">
             {/* Call Button */}
             {phoneUrl && (
                 <a

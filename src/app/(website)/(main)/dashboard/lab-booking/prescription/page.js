@@ -244,22 +244,29 @@ function PrescriptionLabBookingInner() {
     if (!prescription) return <LoadingScreen message="Loading Prescription..." />;
 
     return (
-        <div className="min-h-screen pb-12">
-            {/* Header */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-[#0067A1] via-[#0080C6] to-[#0067A1] rounded-3xl px-5 sm:px-8 pt-6 pb-8 mb-8">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32" />
-                <div className="relative">
-                    <button onClick={() => router.back()}
-                        className="flex items-center gap-2 text-white/70 hover:text-white text-sm mb-4 transition-colors">
-                        <FaArrowLeft className="w-3 h-3" /> Back
+        <div className="min-h-screen pb-20 pt-2 sm:pt-4">
+            {/* Header Banner - Solid #0067A1, rounded-xl */}
+            <div className="bg-[#0067A1] text-white rounded-xl px-4 sm:px-6 py-4 sm:py-5 mb-5 border border-[#005585]">
+                <div className="flex flex-col gap-2">
+                    <button
+                        type="button"
+                        onClick={() => router.back()}
+                        className="inline-flex items-center gap-1.5 text-white/80 hover:text-white text-xs font-semibold transition-colors cursor-pointer w-fit group"
+                    >
+                        <FaArrowLeft className="w-2.5 h-2.5 group-hover:-translate-x-1 transition-transform" />
+                        Back
                     </button>
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-white/15 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-                            <FaFlask className="w-5 h-5 text-white" />
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 bg-white/15 rounded-lg border border-white/20 flex items-center justify-center shrink-0">
+                            <FaFlask className="w-4 h-4 text-white" />
                         </div>
-                        <div>
-                            <h1 className="text-2xl font-bold text-white">Prescription Checkout</h1>
-                            <p className="text-white/60 text-sm">Book lab tests directly from your recent consultation</p>
+                        <div className="min-w-0">
+                            <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight leading-tight truncate">
+                                Prescription Checkout
+                            </h1>
+                            <p className="text-white/80 text-xs mt-0.5 font-medium truncate">
+                                Book lab tests directly from your recent consultation
+                            </p>
                         </div>
                     </div>
                 </div>

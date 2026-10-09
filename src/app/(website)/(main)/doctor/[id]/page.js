@@ -7,6 +7,7 @@ import {
   FaMapMarkerAlt,
   FaClock,
   FaCalendarAlt,
+  FaCalendarCheck,
   FaCheckCircle,
   FaStar,
   FaVideo,
@@ -15,6 +16,9 @@ import {
   FaInfoCircle,
   FaShieldAlt,
   FaGraduationCap,
+  FaPhoneAlt,
+  FaWhatsapp,
+  FaArrowDown,
 } from "react-icons/fa";
 import { getDoctorDetailsAction, checkDoctorDiscountAction, getDoctorSlotsAction } from "./actions";
 import { loadRazorpayScript } from "@/lib/razorpay";
@@ -153,13 +157,41 @@ export default function DoctorProfilePage() {
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [appointmentType, setAppointmentType] = useState("clinic_visit");
   const [activeTab, setActiveTab] = useState("overview");
-  const [dataSharingConsent, setDataSharingConsent] = useState(false);
-  const [teleconsultConsent, setTeleconsultConsent] = useState(false);
+  const [dataSharingConsent, setDataSharingConsent] = useState(true);
+  const [teleconsultConsent, setTeleconsultConsent] = useState(true);
   const [showConsentGate, setShowConsentGate] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [selectedClinicIndex, setSelectedClinicIndex] = useState(0);
   const [discountDetails, setDiscountDetails] = useState(null);
+
+  const scrollToBooking = () => {
+    const el = document.getElementById("booking-panel");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("ring-4", "ring-[#0067A1]/40", "transition-all");
+      setTimeout(() => {
+        el.classList.remove("ring-4", "ring-[#0067A1]/40");
+      }, 2500);
+    }
+  };
+
+  const getQuickDates = () => {
+    const result = [];
+    const now = new Date();
+    for (let i = 0; i < 3; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() + i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const dateStr = `${yyyy}-${mm}-${dd}`;
+      const dayLabel = i === 0 ? "Today" : i === 1 ? "Tomorrow" : "Day After";
+      const dateNum = d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+      result.push({ dateStr, label: dayLabel, dateNum });
+    }
+    return result;
+  };
 
   useEffect(() => {
     const fetchDiscount = async () => {
@@ -578,7 +610,7 @@ export default function DoctorProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-12">
+    <div className="min-h-screen bg-slate-50 pb-28 lg:pb-12">
       {/* Top Header Navigation */}
       <div className="bg-white border-b border-slate-200 py-3.5 px-4 sm:px-6 lg:px-8 shadow-2xs">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -609,7 +641,7 @@ export default function DoctorProfilePage() {
               </div>
             </div>
 
-            <div className="flex-1 text-center md:text-left">
+            <div className="flex-1 text-center md:text-left w-full">
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-1">
                 <h1 className="text-xl md:text-2xl font-bold text-slate-900">
                   {fullName}
@@ -623,7 +655,7 @@ export default function DoctorProfilePage() {
                 {specialty}
               </p>
 
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-xs text-slate-600">
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-xs text-slate-600 mb-4">
                 <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
                   <FaMapMarkerAlt className="text-[#0067A1]" /> <span>{clinic}</span>
                 </div>
@@ -635,6 +667,49 @@ export default function DoctorProfilePage() {
                   <span>{rating > 0 ? rating.toFixed(1) : "New"}</span>
                   {reviews > 0 && <span className="font-normal text-amber-700">({reviews} Reviews)</span>}
                 </div>
+              </div>
+
+              {/* High-Visibility Appointment Action Box */}
+              <div className="pt-3.5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-gradient-to-r from-sky-50/90 via-blue-50/40 to-slate-50/60 p-3.5 sm:p-4 rounded-lg border border-sky-100/90">
+                <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+                  <div>
+                    <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider block leading-none mb-1">
+                      Consultation Fee
+                    </span>
+                    <div className="flex items-baseline gap-1.5">
+                      {discountDetails?.is_discount_applicable ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl sm:text-2xl font-semibold text-[#0067A1]">
+                            ₹{discountDetails.discounted_fee}
+                          </span>
+                          <span className="text-xs text-slate-400 line-through">
+                            ₹{discountDetails.original_fee}
+                          </span>
+                        </div>
+                      ) : fee > 0 ? (
+                        <span className="text-xl sm:text-2xl font-semibold text-[#0067A1]">
+                          ₹{fee}
+                        </span>
+                      ) : (
+                        <span className="text-xl sm:text-2xl font-semibold text-emerald-600">Free</span>
+                      )}
+                      <span className="text-xs text-slate-500 font-medium">/ consultation</span>
+                    </div>
+                  </div>
+                  <span className="sm:hidden inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md">
+                    <FaCheckCircle className="text-emerald-600 text-xs" /> Verified
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={scrollToBooking}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#0067A1] hover:bg-[#004F7C] active:bg-[#003e61] text-white px-5 sm:px-6 py-2.5 rounded-md font-medium text-sm shadow-sm transition-all cursor-pointer"
+                >
+                  <FaCalendarCheck className="w-4 h-4 text-emerald-300" />
+                  <span>Book Appointment</span>
+                  <FaArrowDown className="w-3 h-3 opacity-80" />
+                </button>
               </div>
             </div>
           </div>
@@ -760,71 +835,104 @@ export default function DoctorProfilePage() {
             </div>
 
             {/* Right Column: Appointment Booking Panel */}
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-5">
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                  <div>
-                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                      Consultation Fee
-                    </span>
-                    {discountDetails?.is_discount_applicable ? (
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl font-bold text-[#0067A1]">
-                            ₹{discountDetails.discounted_fee}
-                          </span>
-                          <span className="text-xs text-slate-400 line-through">
-                            ₹{discountDetails.original_fee}
-                          </span>
-                        </div>
-                        <span className="inline-block text-[10px] bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 rounded border border-emerald-200/60">
-                          2nd Booking Discount Applied
+            <div className="lg:col-span-1" id="booking-panel">
+              <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-5 transition-all">
+                {/* Panel Title & Fee */}
+                <div className="pb-4 border-b border-slate-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-sky-50 text-[#0067A1] flex items-center justify-center">
+                        <FaCalendarCheck className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-semibold text-slate-900 leading-tight">
+                          Book Appointment
+                        </h2>
+                        <span className="text-[11px] text-slate-500 block leading-tight">
+                          Select slot & confirm
                         </span>
                       </div>
-                    ) : fee > 0 ? (
-                      <span className="text-xl font-bold text-slate-900">
-                        ₹{fee}
-                      </span>
-                    ) : (
-                      <span className="text-lg font-bold text-emerald-600">Free</span>
-                    )}
+                    </div>
+                    <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-2.5 py-1 rounded-md text-[11px] font-medium flex items-center gap-1">
+                      <FaShieldAlt className="w-3 h-3 text-emerald-500" /> Verified
+                    </span>
                   </div>
-                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1">
-                    <FaShieldAlt className="w-3 h-3 text-emerald-500" /> Verified
-                  </span>
+
+                  <div className="bg-slate-50/80 p-3 rounded-lg border border-slate-100 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block leading-none mb-1">
+                        Consultation Fee
+                      </span>
+                      {discountDetails?.is_discount_applicable ? (
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl font-semibold text-[#0067A1]">
+                              ₹{discountDetails.discounted_fee}
+                            </span>
+                            <span className="text-xs text-slate-400 line-through">
+                              ₹{discountDetails.original_fee}
+                            </span>
+                          </div>
+                          <span className="inline-block text-[10px] bg-emerald-50 text-emerald-700 font-medium px-2 py-0.5 rounded border border-emerald-200/60">
+                            2nd Booking Discount Applied
+                          </span>
+                        </div>
+                      ) : fee > 0 ? (
+                        <span className="text-xl font-semibold text-slate-900">
+                          ₹{fee}
+                        </span>
+                      ) : (
+                        <span className="text-lg font-semibold text-emerald-600">Free</span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-medium text-right">
+                      No Extra Charges<br />
+                      <span className="text-emerald-600 font-medium">Safe & Verified</span>
+                    </span>
+                  </div>
                 </div>
 
-                {/* Consultation Mode Selection */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                    Consultation Mode
+                {/* Step 1: Consultation Mode Selection */}
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block">
+                    1. Consultation Mode
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
                       {
                         id: "video_consultation",
-                        icon: <FaVideo className="w-3.5 h-3.5" />,
-                        label: "Video",
+                        icon: <FaVideo className="w-4 h-4" />,
+                        title: "Video Call",
+                        sub: "Online consultation",
                       },
                       {
                         id: "clinic_visit",
-                        icon: <FaClinicMedical className="w-3.5 h-3.5" />,
-                        label: "Clinic",
+                        icon: <FaClinicMedical className="w-4 h-4" />,
+                        title: "Clinic Visit",
+                        sub: "In-person visit",
                       },
-                      { id: "home_visit", icon: <FaHome className="w-3.5 h-3.5" />, label: "Home" },
+                      {
+                        id: "home_visit",
+                        icon: <FaHome className="w-4 h-4" />,
+                        title: "Home Visit",
+                        sub: "Doctor at home",
+                      },
                     ].map((type) => (
                       <button
                         key={type.id}
                         type="button"
                         onClick={() => setAppointmentType(type.id)}
-                        className={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-xs font-semibold transition-colors ${
+                        className={`flex flex-col items-center justify-center p-2.5 rounded-md border text-center transition-all cursor-pointer ${
                           appointmentType === type.id
-                            ? "border-[#0067A1] bg-[#0067A1] text-white shadow-2xs"
-                            : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                            ? "border-[#0067A1] bg-[#0067A1] text-white shadow-sm ring-2 ring-[#0067A1]/20"
+                            : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
                         }`}
                       >
                         <span className="mb-1">{type.icon}</span>
-                        <span className="text-[11px]">{type.label}</span>
+                        <span className="text-xs font-medium leading-tight">{type.title}</span>
+                        <span className={`text-[10px] mt-0.5 leading-tight ${appointmentType === type.id ? "text-sky-100" : "text-slate-500"}`}>
+                          {type.sub}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -833,13 +941,13 @@ export default function DoctorProfilePage() {
                 {/* Multiple Clinics Dropdown */}
                 {appointmentType === "clinic_visit" && (details.meta?.additional_clinics || []).length > 0 && (
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                    <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block">
                       Clinic Location
                     </label>
                     <select
                       value={selectedClinicIndex}
                       onChange={(e) => setSelectedClinicIndex(parseInt(e.target.value, 10))}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50 text-slate-800 font-medium focus:outline-none focus:border-[#0067A1]"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-md text-xs bg-slate-50 text-slate-800 font-medium focus:outline-none focus:border-[#0067A1]"
                     >
                       <option value={0}>{details.clinic_name || "Primary Clinic"} ({details.clinic_address})</option>
                       {(details.meta.additional_clinics).map((c, cIdx) => (
@@ -851,84 +959,140 @@ export default function DoctorProfilePage() {
                   </div>
                 )}
 
-                {/* Date Picker */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center justify-between">
-                    <span>Consultation Date</span>
-                    <span className="text-[10px] font-semibold text-[#0067A1]">
+                {/* Step 2: Date Picker with 1-Tap Quick Dates */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block">
+                      2. Select Date
+                    </label>
+                    <span className="text-[11px] font-medium text-[#0067A1] bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">
                       {selectedDate}
                     </span>
-                  </label>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    min={todayStr}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:border-[#0067A1]"
-                  />
+                  </div>
+
+                  {/* Quick Date Chips (Today / Tomorrow / Day After) */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {getQuickDates().map((q) => {
+                      const isSelected = selectedDate === q.dateStr;
+                      return (
+                        <button
+                          key={q.dateStr}
+                          type="button"
+                          onClick={() => setSelectedDate(q.dateStr)}
+                          className={`py-2 px-1 rounded-md border text-center transition-all flex flex-col items-center justify-center cursor-pointer ${
+                            isSelected
+                              ? "border-[#0067A1] bg-[#0067A1] text-white shadow-sm ring-2 ring-[#0067A1]/20"
+                              : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 hover:border-slate-300"
+                          }`}
+                        >
+                          <span className={`text-[11px] font-medium ${isSelected ? "text-white" : "text-slate-800"}`}>
+                            {q.label}
+                          </span>
+                          <span className={`text-[10px] ${isSelected ? "text-sky-100" : "text-slate-500"}`}>
+                            {q.dateNum}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Or Pick another custom date */}
+                  <div className="pt-1">
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mb-1">
+                      <FaCalendarAlt className="w-3 h-3 text-slate-400" />
+                      <span>Or pick another date:</span>
+                    </div>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      min={todayStr}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:border-[#0067A1] focus:bg-white transition-colors"
+                    />
+                  </div>
                 </div>
 
-                {/* Available Slots */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-                    Available Time Slots
-                  </label>
+                {/* Step 3: Available Slots */}
+                <div id="time-slots-section" className="space-y-2 p-3 bg-slate-50/70 rounded-lg border border-slate-200/80 transition-all">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 uppercase tracking-wider block">
+                      3. Available Time Slots
+                    </label>
+                    {selectedSlot && (
+                      <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
+                        <FaCheckCircle className="text-emerald-500 text-[10px]" /> {selectedSlot}
+                      </span>
+                    )}
+                  </div>
+
                   {slotsLoading ? (
-                    <div className="text-center py-4">
-                      <div className="animate-spin h-5 w-5 border-2 border-[#0067A1] border-t-transparent rounded-full mx-auto"></div>
+                    <div className="text-center py-5">
+                      <div className="animate-spin h-5 w-5 border-2 border-[#0067A1] border-t-transparent rounded-full mx-auto mb-1.5"></div>
+                      <p className="text-xs text-slate-500">Checking doctor slots...</p>
                     </div>
                   ) : slots.length === 0 ? (
-                    <div className="text-center py-5 bg-slate-50 rounded-lg border border-slate-200">
-                      <p className="text-xs text-slate-500 font-medium">
+                    <div className="text-center py-5 bg-white rounded-lg border border-slate-200 p-3">
+                      <p className="text-xs text-slate-700 font-semibold mb-1">
                         No slots available for this date.
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Please select tomorrow or another date above.
                       </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 gap-2 max-h-44 overflow-y-auto hide-scrollbar p-0.5">
-                      {slots.map((slot) => {
-                        const isBooked =
-                          slot.slot_booked ||
-                          [
-                            "booked",
-                            "approved",
-                            "completed",
-                            "freezed",
-                          ].includes(slot.status);
-                        const rawTime = slot.time?.slice(0, 5) || slot.time;
-                        const [hStr, mStr] = (rawTime || "").split(":");
-                        const hNum = parseInt(hStr || "", 10);
-                        const suffix =
-                          !Number.isNaN(hNum) && hNum >= 12 ? "PM" : "AM";
-                        const displayHour = !Number.isNaN(hNum)
-                          ? ((hNum + 11) % 12) + 1
-                          : rawTime;
-                        const label = `${displayHour}:${mStr} ${suffix}`;
-                        const isPast = isPastSlot(selectedDate, rawTime);
-                        const disabled = isBooked || isPast;
-                        const isSelected = selectedSlot === rawTime;
+                    <>
+                      <p className="text-[11px] text-slate-500 leading-tight">
+                        Select an available time slot below:
+                      </p>
+                      <div 
+                        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                        className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto no-scrollbar hide-scrollbar scrollbar-none p-0.5"
+                      >
+                        {slots.map((slot) => {
+                          const isBooked =
+                            slot.slot_booked ||
+                            [
+                              "booked",
+                              "approved",
+                              "completed",
+                              "freezed",
+                            ].includes(slot.status);
+                          const rawTime = slot.time?.slice(0, 5) || slot.time;
+                          const [hStr, mStr] = (rawTime || "").split(":");
+                          const hNum = parseInt(hStr || "", 10);
+                          const suffix =
+                            !Number.isNaN(hNum) && hNum >= 12 ? "PM" : "AM";
+                          const displayHour = !Number.isNaN(hNum)
+                            ? ((hNum + 11) % 12) + 1
+                            : rawTime;
+                          const label = `${displayHour}:${mStr} ${suffix}`;
+                          const isPast = isPastSlot(selectedDate, rawTime);
+                          const disabled = isBooked || isPast;
+                          const isSelected = selectedSlot === rawTime;
 
-                        return (
-                          <button
-                            key={slot.time}
-                            disabled={disabled}
-                            onClick={() => setSelectedSlot(rawTime)}
-                            className={`text-[11px] py-2 px-1 rounded-lg border font-semibold transition-colors ${
-                              disabled
-                                ? "bg-slate-100 text-slate-300 border-transparent cursor-not-allowed"
-                                : isSelected
-                                  ? "bg-[#0067A1] text-white border-[#0067A1] shadow-2xs"
-                                  : "bg-slate-50 text-slate-700 border-slate-200 hover:border-[#0067A1] hover:bg-slate-100"
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                          return (
+                            <button
+                              key={slot.time}
+                              disabled={disabled}
+                              onClick={() => setSelectedSlot(rawTime)}
+                              className={`text-[11px] py-2 px-1 rounded-md border font-medium transition-all cursor-pointer ${
+                                disabled
+                                  ? "bg-slate-100 text-slate-300 border-transparent cursor-not-allowed"
+                                  : isSelected
+                                    ? "bg-[#0067A1] text-white border-[#0067A1] shadow-sm ring-2 ring-[#0067A1]/20 font-medium"
+                                    : "bg-white text-slate-700 border-slate-200 hover:border-[#0067A1] hover:bg-sky-50/50"
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
                   )}
                 </div>
 
-                {/* DPDP Consents */}
+                {/* DPDP Consents - Simplified & Pre-agreed */}
                 <div className="space-y-2 pt-1 border-t border-slate-100">
                   <div className="flex items-start gap-2.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200/80">
                     <input
@@ -944,7 +1108,7 @@ export default function DoctorProfilePage() {
                       htmlFor="dataSharing"
                       className="text-[11px] text-slate-600 leading-normal cursor-pointer"
                     >
-                      I consent to sharing medical records with this doctor for clinical care as per DPDP Act 2023.
+                      Consent for medical consultation & records sharing (as per DPDP Act 2023)
                     </label>
                   </div>
 
@@ -962,7 +1126,7 @@ export default function DoctorProfilePage() {
                       htmlFor="teleconsult"
                       className="text-[11px] text-slate-600 leading-normal cursor-pointer"
                     >
-                      I agree to Telemedicine Practice Guidelines (2020) and understand digital consultation terms.
+                      Acceptance of Telemedicine Practice Guidelines (2020)
                     </label>
                   </div>
                 </div>
@@ -977,33 +1141,106 @@ export default function DoctorProfilePage() {
 
                   <button
                     type="button"
-                    onClick={handleBook}
+                    onClick={() => {
+                      if (!selectedSlot) {
+                        const slotSection = document.getElementById("time-slots-section");
+                        if (slotSection) {
+                          slotSection.scrollIntoView({ behavior: "smooth", block: "center" });
+                          slotSection.classList.add("ring-2", "ring-amber-400");
+                          setTimeout(() => slotSection.classList.remove("ring-2", "ring-amber-400"), 2000);
+                        }
+                        return;
+                      }
+                      handleBook();
+                    }}
                     disabled={
                       booking ||
-                      !selectedSlot ||
                       !dataSharingConsent ||
                       !teleconsultConsent
                     }
-                    className="w-full bg-[#0067A1] text-white py-3 rounded-lg font-bold text-xs hover:bg-[#004F7C] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-xs flex items-center justify-center gap-2"
+                    className={`w-full py-3 px-4 rounded-md font-medium text-xs sm:text-sm transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                      !selectedSlot
+                        ? "bg-amber-500 hover:bg-amber-600 text-white animate-pulse"
+                        : "bg-[#0067A1] hover:bg-[#004F7C] active:bg-[#003e61] text-white"
+                    }`}
                   >
                     {booking ? (
                       <>
-                        <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         <span>Processing Booking...</span>
                       </>
+                    ) : !selectedSlot ? (
+                      <>
+                        <FaClock className="w-4 h-4" />
+                        <span>Select a Time Slot Above</span>
+                      </>
                     ) : (
-                      "Book Appointment"
+                      <>
+                        <FaCalendarCheck className="w-4 h-4 text-emerald-300" />
+                        <span>Confirm & Book • {fee > 0 ? `₹${fee}` : "Free"}</span>
+                      </>
                     )}
                   </button>
 
                   {bookingSuccess && (
-                    <div className="mt-2.5 bg-emerald-50 text-emerald-800 p-2.5 rounded-lg border border-emerald-200 flex items-center justify-center gap-2 text-xs font-semibold">
+                    <div className="mt-2.5 bg-emerald-50 text-emerald-800 p-2.5 rounded-lg border border-emerald-200 flex items-center justify-center gap-2 text-xs font-medium">
                       <FaCheckCircle className="text-emerald-600" /> Booking Confirmed! Redirecting...
                     </div>
                   )}
                 </div>
+
+                {/* Direct Phone / WhatsApp Assistance */}
+                <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-3 text-center space-y-2">
+                  <div className="text-[11px] font-medium text-slate-700 leading-tight">
+                    Need help booking your appointment?
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <a
+                      href="tel:18001234567"
+                      className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#0067A1] bg-white px-3 py-1.5 rounded-md border border-slate-200 hover:bg-sky-50 shadow-2xs"
+                    >
+                      <FaPhoneAlt className="text-[10px] text-[#0067A1]" />
+                      <span>Call Support</span>
+                    </a>
+                    <a
+                      href="https://wa.me/919999999999?text=Hello%20MediConnect,%20I%20need%20help%20booking%20a%20doctor%20appointment"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 bg-white px-3 py-1.5 rounded-md border border-emerald-200 hover:bg-emerald-50 shadow-2xs"
+                    >
+                      <FaWhatsapp className="text-xs text-emerald-500" />
+                      <span>WhatsApp Help</span>
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Mobile Sticky Quick Booking Bar (visible only on mobile, placed above mobile navigation) */}
+        {!loading && !error && doctor && (
+          <div className="lg:hidden fixed bottom-[56px] left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 px-4 py-2.5 shadow-[0_-4px_20px_rgba(0,0,0,0.12)] flex items-center justify-between gap-3">
+            <div>
+              <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block leading-none mb-1">
+                Consultation Fee
+              </span>
+              <span className="text-base font-semibold text-[#0067A1] leading-none">
+                {discountDetails?.is_discount_applicable
+                  ? `₹${discountDetails.discounted_fee}`
+                  : fee > 0
+                  ? `₹${fee}`
+                  : "Free"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={scrollToBooking}
+              className="flex-1 max-w-[260px] inline-flex items-center justify-center gap-2 bg-[#0067A1] active:bg-[#004F7C] text-white py-2 px-3 rounded-md font-medium text-xs shadow-sm active:scale-95 transition-all cursor-pointer"
+            >
+              <FaCalendarCheck className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Book Appointment</span>
+            </button>
           </div>
         )}
       </div>

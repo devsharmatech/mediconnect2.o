@@ -81,8 +81,8 @@ export async function GET(req) {
       activeCount = activeRes[0]?.count || 0;
       data = rows;
     } else {
-      // 2. Query Master Catalog from `lab_master`
-      const conditions = [];
+      // 2. Query Master Catalog from `lab_master` (excluding packages from tests/investigations)
+      const conditions = [sql`(is_package = false OR is_package IS NULL)`];
       if (q) {
         conditions.push(sql`(test_name ILIKE ${'%' + q + '%'} OR test_code ILIKE ${'%' + q + '%'})`);
       }
@@ -90,11 +90,9 @@ export async function GET(req) {
         conditions.push(sql`category = ${category}`);
       }
 
-      const whereClause = conditions.length > 0
-        ? sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`
-        : sql``;
+      const whereClause = sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`;
 
-      const activeConditions = [sql`is_active = true`];
+      const activeConditions = [sql`is_active = true`, sql`(is_package = false OR is_package IS NULL)`];
       if (q) activeConditions.push(sql`(test_name ILIKE ${'%' + q + '%'} OR test_code ILIKE ${'%' + q + '%'})`);
       if (category) activeConditions.push(sql`category = ${category}`);
       const activeWhere = sql`WHERE ${activeConditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`;

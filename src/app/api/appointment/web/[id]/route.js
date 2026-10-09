@@ -18,6 +18,10 @@ export async function GET(req, { params }) {
       SELECT 
         a.id, a.appointment_date, a.appointment_time, a.appointment_type, a.status,
         a.disease_info, a.created_at, a.updated_at, a.patient_id, a.doctor_id,
+        a.care_episode_id,
+        ce.episode_id AS care_episode_code,
+        ce.status AS care_episode_status,
+        ce.service_type AS care_episode_service_type,
         pu.un_id AS patient_un_id, pu.phone_number AS patient_phone, pu.profile_picture AS patient_picture,
         pd.full_name AS patient_name, pd.email AS patient_email, pd.gender AS patient_gender,
         pd.date_of_birth AS patient_dob, pd.blood_group AS patient_blood_group, pd.address AS patient_address,
@@ -28,6 +32,7 @@ export async function GET(req, { params }) {
         dd.consultation_fee, dd.rating, dd.total_reviews, dd.qualification, dd.latitude, dd.longitude,
         dd.signature_url
       FROM appointments a
+      LEFT JOIN care_episodes ce ON ce.id = a.care_episode_id
       LEFT JOIN users pu ON pu.id = a.patient_id
       LEFT JOIN patient_details pd ON pd.id = a.patient_id
       LEFT JOIN users du ON du.id = a.doctor_id
@@ -42,6 +47,8 @@ export async function GET(req, { params }) {
 
     const row = rows[0];
 
+    const generatedEpisodeCode = row.care_episode_code || (row.care_episode_id ? `EP-${String(row.care_episode_id).slice(0, 8).toUpperCase()}` : null);
+
     const transformedAppointment = {
       id: row.id,
       appointment_date: row.appointment_date,
@@ -51,6 +58,10 @@ export async function GET(req, { params }) {
       disease_info: row.disease_info,
       created_at: row.created_at,
       updated_at: row.updated_at,
+      care_episode_id: row.care_episode_id,
+      care_episode_code: row.care_episode_code,
+      episode_id: generatedEpisodeCode,
+      care_episode_status: row.care_episode_status,
 
       patient: {
         id: row.patient_id,

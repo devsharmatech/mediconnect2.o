@@ -114,7 +114,9 @@ export async function POST(req) {
         d.license_number AS doctor_license_number,
         d.qualification AS doctor_qualification,
         d.consultation_fee AS doctor_consultation_fee,
+        d.passport_photo AS doctor_passport_photo,
         d.meta AS doctor_meta,
+        du.profile_picture AS doctor_profile_picture,
         p.full_name AS patient_full_name,
         p.gender AS patient_gender,
         p.date_of_birth AS patient_date_of_birth,
@@ -122,6 +124,7 @@ export async function POST(req) {
         COUNT(*) OVER()::int AS full_count
       FROM appointments a
       LEFT JOIN doctor_details d ON d.id = a.doctor_id
+      LEFT JOIN users du ON du.id = a.doctor_id
       LEFT JOIN patient_details p ON p.id = a.patient_id
       WHERE a.patient_id = ${patient_id}
         ${dateCondition}
@@ -140,44 +143,65 @@ export async function POST(req) {
       );
     }
 
-    const merged = rows.map((a) => ({
-      id: a.id,
-      doctor_id: a.doctor_id,
-      patient_id: a.patient_id,
-      appointment_date: a.appointment_date,
-      appointment_time: a.appointment_time,
-      status: a.status,
-      disease_info: a.disease_info,
-      appointment_type: a.appointment_type,
-      payment_status: a.payment_status,
-      razorpay_order_id: a.razorpay_order_id,
-      razorpay_payment_id: a.razorpay_payment_id,
-      clinic_name: a.clinic_name,
-      clinic_address: a.clinic_address,
-      screening_id: a.screening_id,
-      care_episode_id: a.care_episode_id,
-      created_at: a.created_at,
-      updated_at: a.updated_at,
-      doctor: a.doctor_id ? {
-        id: a.doctor_id,
-        full_name: a.doctor_full_name || null,
-        email: a.doctor_email || null,
-        specialization: a.doctor_specialization || null,
-        clinic_name: a.doctor_clinic_name || null,
-        clinic_address: a.doctor_clinic_address || null,
-        license_number: a.doctor_license_number || null,
-        qualification: a.doctor_qualification || null,
-        consultation_fee: a.doctor_consultation_fee || null,
-        meta: a.doctor_meta || null,
-      } : null,
-      patient: a.patient_id ? {
-        id: a.patient_id,
-        full_name: a.patient_full_name || null,
-        gender: a.patient_gender || null,
-        date_of_birth: a.patient_date_of_birth || null,
-        address: a.patient_address || null,
-      } : null,
-    }));
+    const merged = rows.map((a) => {
+      let resolvedDocPhoto = a.doctor_profile_picture || null;
+      if (!resolvedDocPhoto && a.doctor_passport_photo) {
+        const raw = a.doctor_passport_photo;
+        if (Array.isArray(raw) && raw.length > 0 && typeof raw[0] === "string") {
+          resolvedDocPhoto = raw[0];
+        } else if (typeof raw === "string") {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) resolvedDocPhoto = parsed[0];
+            else if (typeof parsed === "string") resolvedDocPhoto = parsed;
+          } catch (_) {}
+          if (!resolvedDocPhoto && raw.startsWith("http")) resolvedDocPhoto = raw;
+        }
+      }
+
+      return {
+        id: a.id,
+        doctor_id: a.doctor_id,
+        patient_id: a.patient_id,
+        appointment_date: a.appointment_date,
+        appointment_time: a.appointment_time,
+        status: a.status,
+        disease_info: a.disease_info,
+        appointment_type: a.appointment_type,
+        payment_status: a.payment_status,
+        razorpay_order_id: a.razorpay_order_id,
+        razorpay_payment_id: a.razorpay_payment_id,
+        clinic_name: a.clinic_name,
+        clinic_address: a.clinic_address,
+        screening_id: a.screening_id,
+        care_episode_id: a.care_episode_id,
+        created_at: a.created_at,
+        updated_at: a.updated_at,
+        doctor: a.doctor_id ? {
+          id: a.doctor_id,
+          full_name: a.doctor_full_name || null,
+          email: a.doctor_email || null,
+          specialization: a.doctor_specialization || null,
+          clinic_name: a.doctor_clinic_name || null,
+          clinic_address: a.doctor_clinic_address || null,
+          license_number: a.doctor_license_number || null,
+          qualification: a.doctor_qualification || null,
+          consultation_fee: a.doctor_consultation_fee || null,
+          meta: a.doctor_meta || null,
+          profile_image_url: resolvedDocPhoto || null,
+          profile_image: resolvedDocPhoto || null,
+          profile_picture: a.doctor_profile_picture || null,
+          passport_photo: a.doctor_passport_photo || null,
+        } : null,
+        patient: a.patient_id ? {
+          id: a.patient_id,
+          full_name: a.patient_full_name || null,
+          gender: a.patient_gender || null,
+          date_of_birth: a.patient_date_of_birth || null,
+          address: a.patient_address || null,
+        } : null,
+      };
+    });
 
     return success(
       "Patient appointments fetched successfully.",

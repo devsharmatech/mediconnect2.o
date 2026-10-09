@@ -3,13 +3,68 @@ import { NextResponse } from "next/server";
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req) {
   try {
-    const data = await sql`
-      SELECT *
-      FROM drug_master
-      ORDER BY created_at DESC
-    `;
+    const { searchParams } = new URL(req.url);
+    const search = (searchParams.get("search") || "").trim();
+    const category = (searchParams.get("category") || "").trim();
+    const limit = parseInt(searchParams.get("limit"), 10) || null;
+
+    let data;
+
+    if (search && category) {
+      const searchPattern = `%${search}%`;
+      const prefixPattern = `${search}%`;
+      data = await sql`
+        SELECT *
+        FROM drug_master
+        WHERE is_active = true
+          AND category ILIKE ${category}
+          AND (name ILIKE ${searchPattern} OR salt ILIKE ${searchPattern} OR category ILIKE ${searchPattern})
+        ORDER BY 
+          CASE 
+            WHEN name ILIKE ${prefixPattern} THEN 1
+            WHEN name ILIKE ${searchPattern} THEN 2
+            ELSE 3
+          END,
+          name ASC
+        ${limit ? sql`LIMIT ${limit}` : sql``}
+      `;
+    } else if (search) {
+      const searchPattern = `%${search}%`;
+      const prefixPattern = `${search}%`;
+      data = await sql`
+        SELECT *
+        FROM drug_master
+        WHERE is_active = true
+          AND (name ILIKE ${searchPattern} OR salt ILIKE ${searchPattern} OR category ILIKE ${searchPattern})
+        ORDER BY 
+          CASE 
+            WHEN name ILIKE ${prefixPattern} THEN 1
+            WHEN name ILIKE ${searchPattern} THEN 2
+            WHEN category ILIKE ${searchPattern} THEN 3
+            ELSE 4
+          END,
+          name ASC
+        ${limit ? sql`LIMIT ${limit}` : sql``}
+      `;
+    } else if (category) {
+      data = await sql`
+        SELECT *
+        FROM drug_master
+        WHERE is_active = true
+          AND category ILIKE ${category}
+        ORDER BY name ASC
+        ${limit ? sql`LIMIT ${limit}` : sql``}
+      `;
+    } else {
+      data = await sql`
+        SELECT *
+        FROM drug_master
+        ORDER BY name ASC
+        ${limit ? sql`LIMIT ${limit}` : sql``}
+      `;
+    }
 
     return NextResponse.json({ success: true, data });
   } catch (error) {

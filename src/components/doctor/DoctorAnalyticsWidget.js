@@ -37,8 +37,8 @@ export default function DoctorAnalyticsWidget() {
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm animate-pulse">
-            <div className="w-10 h-10 bg-slate-100 rounded-xl mb-3"></div>
+          <div key={i} className="bg-white rounded-lg p-4 border border-slate-200 animate-pulse">
+            <div className="w-10 h-10 bg-slate-100 rounded-md mb-3"></div>
             <div className="h-5 bg-slate-100 rounded w-1/2 mb-2"></div>
             <div className="h-4 bg-slate-100 rounded w-3/4"></div>
           </div>
@@ -85,13 +85,13 @@ export default function DoctorAnalyticsWidget() {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
       {statCards.map((stat, idx) => (
-        <div key={idx} className={`bg-white rounded-2xl p-5 border ${stat.border} shadow-sm flex items-center gap-4 transition-all hover:shadow-md hover:-translate-y-0.5`}>
-          <div className={`${stat.bg} ${stat.color} p-3 rounded-xl flex-shrink-0`}>
-            <stat.icon className="w-6 h-6" />
+        <div key={idx} className={`bg-white rounded-lg p-4 border ${stat.border} flex items-center gap-4 transition-colors hover:border-slate-300`}>
+          <div className={`${stat.bg} ${stat.color} p-2.5 rounded-md flex-shrink-0`}>
+            <stat.icon className="w-5 h-5" />
           </div>
-          <div>
-            <p className="text-2xl font-bold text-slate-800">{stat.value}</p>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-1">{stat.label}</p>
+          <div className="min-w-0">
+            <p className="text-xl md:text-2xl font-bold text-slate-800">{stat.value}</p>
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mt-0.5 truncate">{stat.label}</p>
           </div>
         </div>
       ))}

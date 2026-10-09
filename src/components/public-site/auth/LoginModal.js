@@ -501,7 +501,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
 
               {/* Header */}
               <div className="text-center mb-5">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0067A1] to-teal-500 shadow-lg shadow-[#0067A1]/20 mb-3">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-[#0067A1] shadow-lg shadow-[#0067A1]/20 mb-3">
                   <FaShieldAlt className="w-5 h-5 text-white" />
                 </div>
                 <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-1.5">
@@ -510,7 +510,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
                 <p className="text-sm text-gray-500 mb-2">
                   We sent a 6-digit code to
                 </p>
-                <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-full px-4 py-2">
+                <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-full px-4 py-2">
                   {loginMethod === 'email' ? (
                     <FaEnvelope className="w-3 h-3 text-emerald-600" />
                   ) : (
@@ -545,7 +545,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
                 {/* Progress bar */}
                 <div className="h-1 bg-gray-100 rounded-full mb-5 overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-[#0067A1] to-teal-400 rounded-full transition-all duration-500 ease-out"
+                    className="h-full bg-[#0067A1] rounded-full transition-all duration-500 ease-out"
                     style={{ width: `${(filledCount / 6) * 100}%` }}
                   />
                 </div>
@@ -594,7 +594,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
                     transition-all duration-300
                     disabled:opacity-40 disabled:cursor-not-allowed
                     ${filledCount >= 6
-                      ? 'bg-gradient-to-r from-[#0067A1] to-[#0080C6] shadow-lg shadow-[#0067A1]/30 hover:shadow-xl hover:-translate-y-0.5'
+                      ? 'bg-[#0067A1] hover:bg-[#004F7C] shadow-lg shadow-[#0067A1]/30 hover:shadow-xl hover:-translate-y-0.5'
                       : 'bg-gray-300'
                     }
                   `}
@@ -645,7 +645,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
           {/* ========== STEP 3: SUCCESS ========== */}
           {step === 'success' && (
             <div className="text-center py-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-400 shadow-lg shadow-emerald-200 mb-4 animate-bounce">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-600 shadow-lg shadow-emerald-200 mb-4 animate-bounce">
                 <FaCheckCircle className="w-7 h-7 text-white" />
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">

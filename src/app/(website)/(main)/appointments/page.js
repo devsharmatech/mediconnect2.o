@@ -36,6 +36,21 @@ const normalizeStatus = (status) => {
   return s;
 };
 
+const parseTimeTo24H = (timeStr) => {
+  if (!timeStr) return null;
+  const trimmed = String(timeStr).trim();
+  const isPM = /pm/i.test(trimmed);
+  const isAM = /am/i.test(trimmed);
+  const clean = trimmed.replace(/[^\d:]/g, "");
+  const [hStr, mStr] = clean.split(":");
+  let h = parseInt(hStr, 10);
+  const m = parseInt(mStr || "0", 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  if (isPM && h < 12) h += 12;
+  if (isAM && h === 12) h = 0;
+  return { hours: h, minutes: m };
+};
+
 const getDateTime = (apt) => {
   const dateStr = apt.date || apt.appointment_date;
   const timeStr = apt.time || (apt.appointment_time ? apt.appointment_time.slice(0, 5) : "");
@@ -51,43 +66,35 @@ const getDateTime = (apt) => {
   return { dateStr, timeStr, dateObj };
 };
 
-const getEffectiveStatus = (apt) => {
-  const base = normalizeStatus(apt.status);
-  if (!["confirmed", "pending"].includes(base)) return base;
-
-  const { dateObj, timeStr } = getDateTime(apt);
-  if (!dateObj || !timeStr) return base;
-
-  const [hStr, mStr] = timeStr.split(":");
-  const hNum = parseInt(hStr, 10);
-  const mNum = parseInt(mStr, 10);
-  if (Number.isNaN(hNum) || Number.isNaN(mNum)) return base;
-
-  const start = new Date(dateObj);
-  start.setHours(hNum, mNum, 0, 0);
-  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
-  const now = new Date();
-
-  if (now > end) return "expired";
-  return base;
-};
-
 const getAppointmentStart = (apt) => {
   const { dateObj, timeStr } = getDateTime(apt);
-  if (!dateObj || !timeStr) return null;
-  const [hStr, mStr] = timeStr.split(":");
-  const hNum = parseInt(hStr, 10);
-  const mNum = parseInt(mStr, 10);
-  if (Number.isNaN(hNum) || Number.isNaN(mNum)) return null;
+  if (!dateObj) return null;
+  const rawTime = timeStr || apt.time || apt.appointment_time;
+  const parsed = parseTimeTo24H(rawTime);
+  if (!parsed) return null;
   const start = new Date(dateObj);
-  start.setHours(hNum, mNum, 0, 0);
+  start.setHours(parsed.hours, parsed.minutes, 0, 0);
   return start;
 };
 
 const getAppointmentEnd = (apt) => {
   const start = getAppointmentStart(apt);
   if (!start) return null;
-  return new Date(start.getTime() + 2 * 60 * 60 * 1000);
+  // Consultation window is active up to 40 minutes from start
+  return new Date(start.getTime() + 40 * 60 * 1000);
+};
+
+const getEffectiveStatus = (apt, now = new Date()) => {
+  const base = normalizeStatus(apt.status);
+  if (!["confirmed", "pending"].includes(base)) return base;
+
+  const start = getAppointmentStart(apt);
+  if (!start) return base;
+
+  // After 40 minutes past start time, appointment is expired
+  const end = new Date(start.getTime() + 40 * 60 * 1000);
+  if (now > end) return "expired";
+  return base;
 };
 
 const getLocalTodayString = () => {
@@ -99,11 +106,11 @@ const isSameLocalDay = (aDateString, bDateString) => {
   return !!aDateString && !!bDateString && String(aDateString) === String(bDateString);
 };
 
-const getAppointmentBucket = (apt) => {
+const getAppointmentBucket = (apt, now = new Date()) => {
   const normalized = normalizeStatus(apt.status);
   if (normalized === "cancelled") return "cancelled";
 
-  const effective = getEffectiveStatus(apt);
+  const effective = getEffectiveStatus(apt, now);
   if (effective === "completed" || effective === "expired") return "past";
 
   // Anything else that is not cancelled/completed/expired is considered active/upcoming
@@ -125,22 +132,68 @@ const isVideoAppointment = (apt) => {
   return ["video", "video_consultation", "video_call", "teleconsultation", "instant_call", "telemedicine", "instant"].includes(t.toLowerCase());
 };
 
-const canJoinVideoCall = (apt) => {
-  if (!isVideoAppointment(apt)) return false;
-  const status = getEffectiveStatus(apt);
-  return ["confirmed", "pending"].includes(status);
+const getVideoCallTiming = (apt, now = new Date()) => {
+  if (!isVideoAppointment(apt)) {
+    return { isVideo: false, canJoin: false };
+  }
+
+  const normStatus = normalizeStatus(apt.status);
+  if (!["confirmed", "pending"].includes(normStatus)) {
+    return { isVideo: true, canJoin: false, label: "Call Unavailable", disabledReason: "invalid_status", tooltip: "Appointment is not confirmed" };
+  }
+
+  const start = getAppointmentStart(apt);
+  if (!start) {
+    return { isVideo: true, canJoin: false, label: "Join Call", disabledReason: "no_time", tooltip: "Appointment time not set" };
+  }
+
+  const nowMs = now.getTime();
+  const startMs = start.getTime();
+  const windowStartMs = startMs - 5 * 60 * 1000; // Enabled 5 minutes before start
+  const windowEndMs = startMs + 40 * 60 * 1000;  // Disabled after 40 minutes
+
+  if (nowMs < windowStartMs) {
+    const diffMs = windowStartMs - nowMs;
+    const diffMins = Math.ceil(diffMs / (60 * 1000));
+    const label = diffMins <= 60 ? `Opens in ${diffMins}m` : "Opens 5m before";
+    return {
+      isVideo: true,
+      canJoin: false,
+      isTooEarly: true,
+      label,
+      disabledReason: "too_early",
+      tooltip: `Video call button will automatically enable 5 minutes before ${formatTimeTo12Hour(apt.appointment_time || apt.time)}`,
+    };
+  }
+
+  if (nowMs > windowEndMs) {
+    return {
+      isVideo: true,
+      canJoin: false,
+      isExpired: true,
+      label: "Call Ended",
+      disabledReason: "expired",
+      tooltip: "Video call session has ended (40 minutes after appointment start time)",
+    };
+  }
+
+  return {
+    isVideo: true,
+    canJoin: true,
+    isOpen: true,
+    label: "Join Call",
+    tooltip: "Video call is ready - click to join",
+  };
 };
 
+const canJoinVideoCall = (apt, now = new Date()) => {
+  const timing = getVideoCallTiming(apt, now);
+  return timing.canJoin;
+};
 
 const isLiveVideoCall = (apt, now = new Date()) => {
-  if (!isVideoAppointment(apt)) return false;
-  const status = getEffectiveStatus(apt);
-  if (!["confirmed", "pending"].includes(status)) return false;
-  const start = getAppointmentStart(apt);
-  if (!start) return false;
-  const fifteenMinBefore = new Date(start.getTime() - 15 * 60 * 1000);
-  const twoHoursAfter = new Date(start.getTime() + 2 * 60 * 60 * 1000);
-  return now >= fifteenMinBefore && now <= twoHoursAfter;
+  const timing = getVideoCallTiming(apt, now);
+  return timing.canJoin;
 };
 
 const APPOINTMENT_TYPE_ICONS = {
@@ -282,6 +335,15 @@ export default function AppointmentsPage() {
   // Track which appointment has an active video call (via notification)
   const [activeCallAppointmentId, setActiveCallAppointmentId] = useState(null);
   const [activeCallTick, setActiveCallTick] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Real-time clock tick every 5 seconds to automatically enable/disable Join Call button
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (isDetailsModalOpen || isRescheduleModalOpen || isCancelModalOpen || isPrescriptionModalOpen) {
@@ -294,77 +356,85 @@ export default function AppointmentsPage() {
     };
   }, [isDetailsModalOpen, isRescheduleModalOpen, isCancelModalOpen, isPrescriptionModalOpen]);
 
-  useEffect(() => {
-    const fetchAppointments = async () => {
-      try {
+  const fetchAppointments = async (isBackground = false) => {
+    try {
+      if (!isBackground) {
         setLoading(true);
         setError("");
+      }
 
-        let patientId =
-          typeof window !== "undefined" ? localStorage.getItem("userId") : null;
-        if (!patientId || patientId === "undefined" || patientId === "null") {
-          try {
-            const userData = JSON.parse(localStorage.getItem("userData") || sessionStorage.getItem("userData") || "{}");
-            patientId = userData?.id || userData?.user?.id || null;
-          } catch (_) {}
-        }
-        if (!patientId || patientId === "undefined" || patientId === "null") {
-          try {
-            const docUser = JSON.parse(localStorage.getItem("doctorUser") || "{}");
-            patientId = docUser?.id || null;
-          } catch (_) {}
-        }
+      let patientId =
+        typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+      if (!patientId || patientId === "undefined" || patientId === "null") {
+        try {
+          const userData = JSON.parse(localStorage.getItem("userData") || sessionStorage.getItem("userData") || "{}");
+          patientId = userData?.id || userData?.user?.id || null;
+        } catch (_) {}
+      }
+      if (!patientId || patientId === "undefined" || patientId === "null") {
+        try {
+          const docUser = JSON.parse(localStorage.getItem("doctorUser") || "{}");
+          patientId = docUser?.id || null;
+        } catch (_) {}
+      }
 
-        if (!patientId || patientId === "undefined" || patientId === "null") {
-          setAppointments([]);
-          setLoading(false);
-          return;
-        }
+      if (!patientId || patientId === "undefined" || patientId === "null") {
+        setAppointments([]);
+        if (!isBackground) setLoading(false);
+        return;
+      }
 
-        console.log("[DEBUG APPOINTMENTS] Fetching appointments from /api/appointment/patient-appointment for patient_id:", patientId);
-        const res = await fetch("/api/appointment/patient-appointment", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ patient_id: patientId, date_filter: "all", page: 1 }),
-        });
+      const res = await fetch("/api/appointment/patient-appointment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patient_id: patientId, date_filter: "all", page: 1 }),
+      });
 
-        const data = await res.json();
-        console.log("[DEBUG APPOINTMENTS] API response data:", data);
-        if (!data.success) throw new Error(data.message || "Failed to fetch appointments");
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || "Failed to fetch appointments");
 
-        const retrievedAppointments = data.data?.appointments || [];
-        console.log(`[DEBUG APPOINTMENTS] Successfully set ${retrievedAppointments.length} appointments:`, retrievedAppointments);
-        setAppointments(retrievedAppointments);
+      const retrievedAppointments = data.data?.appointments || [];
+      setAppointments(retrievedAppointments);
 
-        // ── Bulk-check which appointments have prescriptions ──
-        // Send ALL appointment IDs — the API is lightweight (only selects appointment_id column)
-        // We can't cheaply replicate getEffectiveStatus here, so let the server do the lookup for all.
-        const allIds = retrievedAppointments.map(a => a.id).filter(Boolean);
+      // ── Bulk-check which appointments have prescriptions ──
+      const allIds = retrievedAppointments.map(a => a.id).filter(Boolean);
 
-        if (allIds.length > 0) {
-          try {
-            const checkRes = await fetch("/api/prescriptions/exists-bulk", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ appointment_ids: allIds }),
-            });
-            if (checkRes.ok) {
-              const checkData = await checkRes.json();
-              setPrescriptionExistsMap(checkData.data || {});
-            }
-          } catch (e) {
-            console.warn("[PRESCRIPTIONS] Bulk exists check failed:", e);
+      if (allIds.length > 0) {
+        try {
+          const checkRes = await fetch("/api/prescriptions/exists-bulk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ appointment_ids: allIds }),
+          });
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            setPrescriptionExistsMap(checkData.data || {});
           }
+        } catch (e) {
+          console.warn("[PRESCRIPTIONS] Bulk exists check failed:", e);
         }
-      } catch (e) {
+      }
+    } catch (e) {
+      if (!isBackground) {
         console.error("[DEBUG APPOINTMENTS] Fetch appointments error:", e);
         setError(e.message || "Failed to fetch appointments");
-      } finally {
+      }
+    } finally {
+      if (!isBackground) {
         setLoading(false);
       }
-    };
+    }
+  };
 
-    fetchAppointments();
+  useEffect(() => {
+    fetchAppointments(false);
+
+    // Real-time polling for appointments every 8 seconds
+    const pollInterval = setInterval(() => {
+      fetchAppointments(true);
+    }, 8000);
+
+    return () => clearInterval(pollInterval);
   }, []);
 
   // Fetch FOLLOW_UP_PENDING consultations (recoveries doctor is monitoring)
@@ -437,15 +507,15 @@ export default function AppointmentsPage() {
     };
 
     checkActiveCall();
-    const interval = setInterval(checkActiveCall, 60000); // Changed from 10s to 60s to reduce API load
+    const interval = setInterval(checkActiveCall, 8000);
     return () => clearInterval(interval);
   }, []);
 
-  // Update live-call visibility every minute
+  // Update live-call visibility every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveCallTick(Date.now());
-    }, 60000);
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -487,7 +557,7 @@ export default function AppointmentsPage() {
   }, [isRescheduleModalOpen, appointmentToReschedule, rescheduleDate]);
 
   const getFilteredAppointments = () => {
-    const now = new Date();
+    const now = currentTime;
     const todayStr = getLocalTodayString();
 
     // Separate appointments with and without time data
@@ -1060,7 +1130,7 @@ export default function AppointmentsPage() {
                     const userId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
                     router.push(`/appointments/${activeCallIdToShow}/video?userId=${userId}&role=patient`);
                   }}
-                  className="shrink-0 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors shadow-md"
+                  className="shrink-0 px-4 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
                 >
                   <span className="flex items-center gap-2"><FaVideo className="w-4 h-4" /> Join Call Now</span>
                 </button>
@@ -1079,8 +1149,8 @@ export default function AppointmentsPage() {
             <div className="mb-8 space-y-4">
               <div className="flex items-center gap-2 mb-1">
                 <Stethoscope className="w-5 h-5 text-[#0067A1]" />
-                <h2 className="text-lg font-bold text-gray-900">Recovery Check-ins</h2>
-                <span className="ml-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-bold">
+                <h2 className="text-lg font-semibold text-gray-900">Recovery Check-ins</h2>
+                <span className="ml-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-md text-xs font-medium">
                   {pendingFollowUps.length} pending
                 </span>
               </div>
@@ -1097,18 +1167,18 @@ export default function AppointmentsPage() {
                 return (
                   <div
                     key={followUp.consultation_id}
-                    className={`rounded-2xl border-2 ${cfg.border} ${cfg.bg} p-5 shadow-md`}
+                    className={`rounded-lg border-2 ${cfg.border} ${cfg.bg} p-5 shadow-sm`}
                   >
                     {/* Banner Header */}
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-xl bg-white shadow-sm`}>
+                        <div className={`p-2 rounded-md bg-white shadow-sm`}>
                           <UrgencyIcon className={`w-5 h-5 ${cfg.iconColor}`} />
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-bold text-gray-900 text-sm">Your doctor is monitoring your recovery</p>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${cfg.badge}`}>
+                            <p className="font-semibold text-gray-900 text-sm">Your doctor is monitoring your recovery</p>
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium ${cfg.badge}`}>
                               {followUp.urgency} PRIORITY
                             </span>
                           </div>
@@ -1135,7 +1205,7 @@ export default function AppointmentsPage() {
                           "update_symptoms"
                         )}
                         disabled={!!isProcessing}
-                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-[#0067A1] text-[#0067A1] bg-white text-sm font-semibold hover:bg-[#0067A1]/5 transition-all disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-[#0067A1] text-[#0067A1] bg-white text-sm font-medium hover:bg-[#0067A1]/5 transition-all disabled:opacity-50 cursor-pointer"
                       >
                         <ClipboardList className="w-4 h-4" />
                         Update Symptoms
@@ -1149,7 +1219,7 @@ export default function AppointmentsPage() {
                           "book_followup"
                         )}
                         disabled={!!isProcessing}
-                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-blue-500 text-[#0067A1] bg-white text-sm font-semibold hover:bg-blue-50 transition-all disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-blue-500 text-[#0067A1] bg-white text-sm font-medium hover:bg-blue-50 transition-all disabled:opacity-50 cursor-pointer"
                       >
                         <CalendarPlus className="w-4 h-4" />
                         Book Follow-up
@@ -1163,7 +1233,7 @@ export default function AppointmentsPage() {
                           "mark_resolved"
                         )}
                         disabled={!!isProcessing}
-                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#0067A1] to-[#0080C6] text-white text-sm font-bold shadow-md shadow-[#0067A1]/20 hover:shadow-lg transition-all disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-[#0067A1] hover:bg-[#004F7C] text-white text-sm font-medium shadow-sm transition-all disabled:opacity-50 cursor-pointer"
                       >
                         {isProcessing === "mark_resolved" ? (
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -1219,6 +1289,7 @@ export default function AppointmentsPage() {
                 <AppointmentCard
                   key={appointment.id}
                   appointment={appointment}
+                  currentTime={currentTime}
                   isActiveCall={appointment.id === activeCallIdToShow}
                   hasPrescription={!!prescriptionExistsMap[appointment.id]}
                   onViewDetails={handleViewDetails}
@@ -1254,11 +1325,11 @@ export default function AppointmentsPage() {
 }
 
 // Appointment Card Component
-const AppointmentCard = ({ appointment, isActiveCall, hasPrescription, onViewDetails, onCancel, onReschedule, onJoinCall, onViewPrescription, onOutcomeTracker, onServiceRecommendations }) => {
+const AppointmentCard = ({ appointment, currentTime = new Date(), isActiveCall, hasPrescription, onViewDetails, onCancel, onReschedule, onJoinCall, onViewPrescription, onOutcomeTracker, onServiceRecommendations }) => {
   const [orchestrator, setOrchestrator] = useState({ loading: false, data: null });
+  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
-    // Fetch orchestrator rules only for states that usually have actions or monitoring
     if (!["COMPLETED", "FOLLOW_UP_PENDING", "CLOSED_NO_RESPONSE"].includes(appointment.case_status)) return;
 
     let isMounted = true;
@@ -1280,227 +1351,266 @@ const AppointmentCard = ({ appointment, isActiveCall, hasPrescription, onViewDet
     fetchNextSteps();
     return () => { isMounted = false; };
   }, [appointment.id, appointment.case_status, appointment.has_submitted_outcome]);
-  const getStatusColor = (status) => {
+
+  const getStatusConfig = (status) => {
     switch (status) {
-      case "confirmed":
-        return "bg-green-100 text-green-800 border-green-200";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "completed":
-        return "bg-emerald-100 text-emerald-800 border-emerald-200";
-      case "expired":
-        return "bg-gray-100 text-gray-700 border-gray-300";
-      case "cancelled":
-        return "bg-red-100 text-red-800 border-red-200";
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200";
+      case "confirmed":   return { cls: "bg-green-100 text-green-700 border-green-200",   dot: "bg-green-500",  label: "Confirmed" };
+      case "pending":     return { cls: "bg-amber-100 text-amber-700 border-amber-200",   dot: "bg-amber-500",  label: "Pending" };
+      case "completed":   return { cls: "bg-emerald-100 text-emerald-700 border-emerald-200", dot: "bg-emerald-500", label: "Completed" };
+      case "expired":     return { cls: "bg-gray-100 text-gray-500 border-gray-200",      dot: "bg-gray-400",   label: "Expired" };
+      case "cancelled":   return { cls: "bg-red-100 text-red-700 border-red-200",         dot: "bg-red-500",    label: "Cancelled" };
+      default:            return { cls: "bg-gray-100 text-gray-600 border-gray-200",      dot: "bg-gray-400",   label: status };
     }
   };
 
-  const effectiveStatus = getEffectiveStatus(appointment);
-  const canModify = canModifyAppointment(appointment);
-  const showVideoButton = canJoinVideoCall(appointment) || isActiveCall;
+  const effectiveStatus   = getEffectiveStatus(appointment, currentTime);
+  const statusCfg         = getStatusConfig(effectiveStatus);
+  const canModify         = canModifyAppointment(appointment);
+  const timing            = getVideoCallTiming(appointment, currentTime);
+  const showVideoButton   = timing.isVideo;
   const appointmentTypeKey = getAppointmentTypeKey(appointment);
-  const TypeIcon = APPOINTMENT_TYPE_ICONS[appointmentTypeKey] || FaHospital;
-  const isPast = effectiveStatus === "completed" || effectiveStatus === "expired";
+  const TypeIcon          = APPOINTMENT_TYPE_ICONS[appointmentTypeKey] || FaHospital;
+  const isPast            = effectiveStatus === "completed" || effectiveStatus === "expired";
+
+  // Doctor image resolution
+  const doctorImageUrl = (() => {
+    const doc = appointment.doctor;
+    if (!doc) return null;
+    if (doc.profile_image_url) return doc.profile_image_url;
+    if (doc.profile_image) return doc.profile_image;
+    if (doc.profile_picture) return doc.profile_picture;
+    if (doc.photo_url) return doc.photo_url;
+    if (doc.avatar_url) return doc.avatar_url;
+
+    // Check passport_photo (array or JSON string)
+    const pp = doc.passport_photo;
+    if (Array.isArray(pp) && pp.length > 0 && typeof pp[0] === "string") return pp[0];
+    if (typeof pp === "string") {
+      try {
+        const parsed = JSON.parse(pp);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+        if (typeof parsed === "string") return parsed;
+      } catch (_) {}
+      if (pp.startsWith("http")) return pp;
+    }
+    return null;
+  })();
+
+  useEffect(() => {
+    setImgError(false);
+  }, [doctorImageUrl]);
+
+  const doctorName =
+    appointment.doctor?.full_name ||
+    appointment.doctor?.name ||
+    "Doctor";
+
+  const specialty = (() => {
+    const raw =
+      appointment.doctor?.specialty ||
+      appointment.doctor?.specialization ||
+      "";
+    if (Array.isArray(raw)) return raw.join(", ");
+    if (typeof raw === "string") {
+      const trimmed = raw.trim();
+      if (!trimmed) return "";
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed.join(", ");
+      } catch { }
+      return trimmed.replace(/^[\[\"']+|[\]"']+$/g, "");
+    }
+    return String(raw);
+  })();
+
+  const typeColorCls =
+    appointmentTypeKey === "video"
+      ? "bg-blue-50 text-blue-700 border-blue-100"
+      : appointmentTypeKey === "home"
+        ? "bg-purple-50 text-purple-700 border-purple-100"
+        : "bg-teal-50 text-teal-700 border-teal-100";
 
   return (
-    <div className={`bg-white/95 backdrop-blur-md rounded-2xl border border-slate-100/80 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgba(11,79,74,0.08)] hover:-translate-y-1 transition-all duration-300 overflow-hidden ${isActiveCall
-      ? "border-2 border-emerald-500 ring-4 ring-emerald-50"
-      : ""
-      }`}>
-      {/* Active call indicator */}
+    <div className={`bg-white border rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md ${
+      isActiveCall
+        ? "border-emerald-400 shadow-md shadow-emerald-100"
+        : "border-gray-200 shadow-sm"
+    }`}>
+
+      {/* Active call banner */}
       {isActiveCall && (
-        <div className="bg-emerald-500 text-white px-4 py-2 text-xs font-bold text-center flex items-center justify-center gap-2 tracking-wide animate-pulse">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+        <div className="bg-emerald-500 text-white px-3 py-1.5 text-[11px] font-semibold text-center flex items-center justify-center gap-1.5 animate-pulse">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
           </span>
-          ACTIVE CALL — Doctor is waiting
+          ACTIVE — Doctor is waiting
         </div>
       )}
 
-      <div className="p-5 flex flex-col h-full">
-        {/* Top Badges (Type & Status) */}
-        <div className="flex items-center justify-between gap-2 mb-4">
-          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${appointmentTypeKey === "video"
-            ? "bg-blue-50 text-[#004F7C] border border-blue-100/60"
-            : appointmentTypeKey === "home"
-              ? "bg-purple-50 text-purple-700 border border-purple-100/60"
-              : "bg-emerald-50 text-[#0067A1] border border-emerald-100/60"
-            }`}>
-            <TypeIcon className="w-3.5 h-3.5" />
-            <span>{getAppointmentTypeLabel(appointment)}</span>
+      <div className="p-3.5">
+        {/* Top row — type badge + status badge */}
+        <div className="flex items-center justify-between mb-3">
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium border rounded ${typeColorCls}`}>
+            <TypeIcon className="w-3 h-3" />
+            {getAppointmentTypeLabel(appointment)}
           </span>
-
-          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${getStatusColor(effectiveStatus)}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${effectiveStatus === "confirmed" || effectiveStatus === "completed"
-              ? "bg-green-500"
-              : effectiveStatus === "pending"
-                ? "bg-yellow-500"
-                : effectiveStatus === "cancelled"
-                  ? "bg-red-500"
-                  : "bg-gray-400"
-              }`} />
-            {effectiveStatus.charAt(0).toUpperCase() + effectiveStatus.slice(1)}
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium border rounded ${statusCfg.cls}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+            {statusCfg.label}
           </span>
         </div>
 
-        {/* Doctor Info Row */}
-        <div className="flex items-start gap-4 mb-4">
-          <div className="w-12 h-12 rounded-xl bg-[#0067A1]/5 flex items-center justify-center shrink-0 border border-[#0067A1]/10 shadow-sm">
-            <FaUserMd className="w-6 h-6 text-[#0067A1]" />
+        {/* Doctor info row */}
+        <div className="flex items-center gap-3 mb-3">
+          {/* Profile image with fallback */}
+          <div className="w-10 h-10 rounded-full bg-[#0067A1]/10 border border-[#0067A1]/20 flex items-center justify-center shrink-0 overflow-hidden">
+            {doctorImageUrl && !imgError ? (
+              <img
+                src={doctorImageUrl}
+                alt={doctorName}
+                className="w-full h-full object-cover"
+                onError={() => setImgError(true)}
+              />
+            ) : (
+              <FaUserMd className="w-5 h-5 text-[#0067A1]" />
+            )}
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-base font-bold text-slate-800 tracking-tight truncate leading-snug">
-              {appointment.doctor?.name || appointment.doctor?.full_name || "Doctor"}
+            <h3 className="text-sm font-semibold text-gray-900 truncate leading-tight">
+              {doctorName}
             </h3>
-            <p className="text-xs font-medium text-slate-500 truncate mt-0.5">
-              {(() => {
-                const raw =
-                  appointment.doctor?.specialty ||
-                  appointment.doctor?.specialization ||
-                  "";
-                if (Array.isArray(raw)) return raw.join(", ");
-                if (typeof raw === "string") {
-                  const trimmed = raw.trim();
-                  if (!trimmed) return "";
-                  try {
-                    const parsed = JSON.parse(trimmed);
-                    if (Array.isArray(parsed)) return parsed.join(", ");
-                  } catch { }
-                  return trimmed.replace(/^[\[\"']+|[\]"']+$/g, "");
-                }
-                return String(raw);
-              })()}
-            </p>
+            {specialty && (
+              <p className="text-xs text-gray-500 truncate mt-0.5">{specialty}</p>
+            )}
           </div>
         </div>
 
-        {/* Info Box */}
-        <div className="space-y-2.5 bg-slate-50/60 p-3.5 rounded-xl border border-slate-100/80 mb-5">
-          <div className="flex items-center gap-3 text-xs font-medium text-slate-700">
-            <div className="w-6 h-6 bg-white rounded-lg flex items-center justify-center border border-slate-100/50 shrink-0 shadow-sm">
-              <FaCalendarAlt className="h-3.5 w-3.5 text-[#0067A1]" />
-            </div>
+        {/* Date / Time / Location */}
+        <div className="bg-gray-50 border border-gray-100 rounded-md p-2.5 space-y-1.5 mb-3">
+          <div className="flex items-center gap-2 text-[11px] text-gray-600">
+            <FaCalendarAlt className="w-3 h-3 text-[#0067A1] shrink-0" />
             <span>
               {getDateTime(appointment).dateObj?.toLocaleDateString("en-US", {
                 weekday: "short",
                 month: "short",
                 day: "numeric",
                 year: "numeric",
-              })}
+              }) || "—"}
             </span>
           </div>
-          <div className="flex items-center gap-3 text-xs font-medium text-slate-700">
-            <div className="w-6 h-6 bg-white rounded-lg flex items-center justify-center border border-slate-100/50 shrink-0 shadow-sm">
-              <FaClock className="h-3.5 w-3.5 text-[#0067A1]" />
-            </div>
-            <span>{formatTimeTo12Hour(getDateTime(appointment).timeStr)}</span>
+          <div className="flex items-center gap-2 text-[11px] text-gray-600">
+            <FaClock className="w-3 h-3 text-[#0067A1] shrink-0" />
+            <span>{formatTimeTo12Hour(getDateTime(appointment).timeStr) || "—"}</span>
           </div>
-          <div className="flex items-center gap-3 text-xs font-medium text-slate-700">
-            <div className="w-6 h-6 bg-white rounded-lg flex items-center justify-center border border-slate-100/50 shrink-0 shadow-sm">
-              <FaMapMarkerAlt className="h-3.5 w-3.5 text-[#0067A1]" />
-            </div>
+          <div className="flex items-center gap-2 text-[11px] text-gray-600">
+            <FaMapMarkerAlt className="w-3 h-3 text-[#0067A1] shrink-0" />
             <span className="truncate">
               {appointment.location || appointment.doctor?.clinic_name || "Online consultation"}
             </span>
           </div>
         </div>
 
-        {/* Action Buttons Section */}
-        <div className="space-y-3 mt-auto pt-4 border-t border-slate-100">
-          {/* Primary Buttons Row */}
-          <div className={isPast && hasPrescription ? "grid grid-cols-2 gap-2" : showVideoButton ? "grid grid-cols-2 gap-2" : "grid grid-cols-1"}>
+        {/* Action Buttons */}
+        <div className="space-y-2">
+          {/* Primary row */}
+          <div className={`grid gap-2 ${showVideoButton || (isPast && hasPrescription) ? "grid-cols-2" : "grid-cols-1"}`}>
             <button
               onClick={() => onViewDetails(appointment)}
-              className="h-10 w-full flex items-center justify-center gap-2 px-3 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold rounded-xl shadow-sm transition-all duration-200"
+              className="h-8 w-full flex items-center justify-center gap-1.5 px-3 rounded-md bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-medium transition-colors"
             >
-              <FaEye className="h-3.5 w-3.5 shrink-0" />
-              <span>Details</span>
+              <FaEye className="h-3 w-3 shrink-0" />
+              Details
             </button>
 
             {showVideoButton && (
               <button
-                onClick={() => onJoinCall(appointment)}
-                className={`h-10 w-full flex items-center justify-center gap-2 px-3 text-white text-xs font-bold rounded-xl transition-all duration-200 ${isActiveCall
-                  ? "bg-emerald-500 hover:bg-emerald-600 animate-pulse shadow-md shadow-emerald-200"
-                  : "bg-emerald-600 hover:bg-emerald-700 shadow-sm"
-                  }`}
+                onClick={() => timing.canJoin && onJoinCall(appointment)}
+                disabled={!timing.canJoin}
+                title={timing.tooltip || (timing.canJoin ? "Join video consultation" : "Call unavailable")}
+                className={`h-8 w-full flex items-center justify-center gap-1.5 px-3 rounded-md text-xs font-medium transition-all ${
+                  timing.canJoin
+                    ? isActiveCall
+                      ? "bg-emerald-500 hover:bg-emerald-600 animate-pulse text-white shadow-sm shadow-emerald-200 cursor-pointer"
+                      : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm cursor-pointer"
+                    : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none"
+                }`}
               >
-                <FaVideo className="h-3.5 w-3.5 shrink-0" />
-                <span>{isActiveCall ? "Join Active" : "Join Call"}</span>
+                <FaVideo className={`h-3 w-3 shrink-0 ${!timing.canJoin ? "opacity-40" : "text-white"}`} />
+                {isActiveCall && timing.canJoin ? "Join Active" : timing.label}
               </button>
             )}
 
-            {isPast && hasPrescription && (
+            {isPast && hasPrescription && !showVideoButton && (
               <button
                 onClick={() => onViewPrescription(appointment)}
-                className="h-10 w-full flex items-center justify-center gap-2 px-3 bg-emerald-50 hover:bg-emerald-100 text-[#0067A1] border border-emerald-200 text-xs font-semibold rounded-xl transition-all duration-200"
+                className="h-8 w-full flex items-center justify-center gap-1.5 px-3 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-medium transition-colors"
               >
-                <FaFileMedical className="h-3.5 w-3.5 shrink-0" />
-                <span>Rx</span>
+                <FaFileMedical className="h-3 w-3 shrink-0" />
+                Rx
               </button>
             )}
           </div>
 
-          {/* Secondary Actions (Reschedule, Cancel, or Orchestrator Outflow) */}
-          <div className="w-full">
-            {canModify && (
-              <div className="grid grid-cols-2 gap-2 w-full">
-                <button
-                  onClick={() => onReschedule(appointment)}
-                  className="h-8 flex items-center justify-center text-xs font-medium text-[#0067A1] bg-slate-50 hover:bg-emerald-50/50 border border-slate-200 rounded-xl transition-all duration-200"
-                >
-                  Reschedule
-                </button>
-                <button
-                  onClick={() => onCancel(appointment)}
-                  className="h-8 flex items-center justify-center text-xs font-medium text-red-600 bg-red-50/10 hover:bg-red-50 border border-red-200/60 rounded-xl transition-all duration-200"
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
+          {/* Secondary row — reschedule / cancel */}
+          {canModify && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => onReschedule(appointment)}
+                className="h-7 flex items-center justify-center rounded-md text-[11px] font-medium text-[#0067A1] bg-gray-50 hover:bg-blue-50 border border-gray-200 transition-colors"
+              >
+                Reschedule
+              </button>
+              <button
+                onClick={() => onCancel(appointment)}
+                className="h-7 flex items-center justify-center rounded-md text-[11px] font-medium text-red-600 bg-red-50/30 hover:bg-red-50 border border-red-200/60 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
 
-            {/* Orchestrator Actions */}
-            {orchestrator.loading ? (
-              <div className="flex justify-center items-center py-2 bg-slate-50 border border-slate-100 rounded-xl">
-                <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                <span className="ml-2 text-[11px] text-gray-500 font-medium">Checking actions...</span>
-              </div>
-            ) : orchestrator.data?.type === "ACTION" && orchestrator.data.actions.length > 0 ? (
-              <div className="flex flex-col gap-1.5 w-full">
-                {orchestrator.data.actions.map((action, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      if (action.action_id === "SUBMIT_OUTCOME") onOutcomeTracker(appointment);
-                      else if (action.action_id === "BOOK_FOLLOWUP" || action.action_id === "CONFIRM_FOLLOWUP") onReschedule(appointment);
-                      else if (action.action_id?.startsWith("ORDER_")) onServiceRecommendations(appointment);
-                    }}
-                    className={`h-9 w-full flex items-center justify-center gap-1.5 text-xs font-bold rounded-xl transition-all duration-200 border ${action.priority === 1
-                      ? "bg-[#0067A1] hover:bg-[#004F7C] text-white border-blue-600 shadow-md shadow-blue-100"
-                      : "bg-blue-50 hover:bg-blue-100 text-[#004F7C] border-blue-200/60"
-                      }`}
-                    title={action.description}
-                  >
-                    {action.action_id === "SUBMIT_OUTCOME" ? <Activity className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
-                    <span>{action.label}</span>
-                  </button>
-                ))}
-              </div>
-            ) : orchestrator.data?.type === "MONITOR" ? (
-              <div className="w-full bg-slate-50 border border-slate-200 text-slate-600 rounded-xl py-2 text-center text-[11px] font-semibold tracking-wide">
-                Monitoring Status: Awaiting Doctor Action
-              </div>
-            ) : null}
-          </div>
+          {/* Orchestrator actions */}
+          {orchestrator.loading ? (
+            <div className="flex justify-center items-center py-1.5 bg-gray-50 border border-gray-100 rounded-md">
+              <div className="w-3 h-3 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin" />
+              <span className="ml-2 text-[10px] text-gray-500">Checking actions...</span>
+            </div>
+          ) : orchestrator.data?.type === "ACTION" && orchestrator.data.actions.length > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              {orchestrator.data.actions.map((action, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    if (action.action_id === "SUBMIT_OUTCOME") onOutcomeTracker(appointment);
+                    else if (action.action_id === "BOOK_FOLLOWUP" || action.action_id === "CONFIRM_FOLLOWUP") onReschedule(appointment);
+                    else if (action.action_id?.startsWith("ORDER_")) onServiceRecommendations(appointment);
+                  }}
+                  className={`h-8 w-full flex items-center justify-center gap-1.5 text-xs font-medium border rounded-md transition-colors ${
+                    action.priority === 1
+                      ? "bg-[#0067A1] hover:bg-[#004F7C] text-white border-[#0067A1]"
+                      : "bg-blue-50 hover:bg-blue-100 text-[#004F7C] border-blue-200"
+                  }`}
+                  title={action.description}
+                >
+                  {action.action_id === "SUBMIT_OUTCOME" ? <Activity className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          ) : orchestrator.data?.type === "MONITOR" ? (
+            <div className="w-full bg-gray-50 border border-gray-200 text-gray-500 py-1.5 text-center text-[10px] font-medium tracking-wide rounded-md">
+              Monitoring — Awaiting Doctor Action
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
   );
 };
+
+
+
 
 // Empty State Component
 const EmptyState = ({ dateFilter }) => {

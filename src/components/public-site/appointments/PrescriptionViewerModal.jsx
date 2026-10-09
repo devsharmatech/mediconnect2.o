@@ -197,6 +197,16 @@ export default function PrescriptionViewerModal({
 
   const prescriptionId = `MED-${doc.un_id || "0"}-${pat.un_id || "0"}-${data.unid || data.id?.slice(0, 8) || "0"}`;
 
+  const episodeCode = (() => {
+    if (data.episode_id) return data.episode_id;
+    if (data.episode_code) return data.episode_code;
+    if (appt.care_episode_code) return appt.care_episode_code;
+    if (data.care_episode_id) return `EP-${String(data.care_episode_id).slice(0, 8).toUpperCase()}`;
+    if (appt.care_episode_id) return `EP-${String(appt.care_episode_id).slice(0, 8).toUpperCase()}`;
+    if (data.id) return `EP-${String(data.id).slice(0, 8).toUpperCase()}`;
+    return null;
+  })();
+
   const fmtDate = (d) => {
     if (!d) return "N/A";
     try { return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); } catch { return d; }
@@ -375,8 +385,11 @@ export default function PrescriptionViewerModal({
             </div>
 
             {/* TOP ROW */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f0f7ff', padding: '10px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-              <div>Booking ID: <span style={{ color: '#0067A1' }}>{prescriptionId}</span></div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', background: '#f0f7ff', padding: '10px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, gap: '8px 14px', marginBottom: 12 }}>
+              <div>Rx ID: <span style={{ color: '#0067A1' }}>{data.pid ? `RX-${String(data.pid).padStart(4, '0')}` : prescriptionId}</span></div>
+              {episodeCode && (
+                <div>Episode ID: <span style={{ color: '#0067A1', fontFamily: 'monospace' }}>{episodeCode}</span></div>
+              )}
               <div>Date: <span style={{ color: '#0067A1' }}>{fmtDate(data.created_at)}</span></div>
               <div>Time: <span style={{ color: '#0067A1' }}>{fmtTime(appt.appointment_time || appt.time || data.created_at)}</span></div>
             </div>

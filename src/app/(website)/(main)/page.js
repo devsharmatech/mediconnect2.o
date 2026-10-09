@@ -9,6 +9,7 @@ import {
   FaFileMedical,
   FaFilter,
   FaNotesMedical,
+  FaShieldAlt,
   FaUserMd,
   FaVideo,
 } from "react-icons/fa";
@@ -94,13 +95,13 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white w-full max-w-full overflow-x-hidden">
       {/* Hero Section - Full Width */}
-      <section className="w-full">
+      <section className="w-full max-w-full overflow-x-hidden">
         <Hero onLoginClick={handleLoginClick} />
       </section>
 
-      <main className="bg-white">
+      <main className="bg-white w-full max-w-full overflow-x-hidden">
         {/* Featured Doctors, Specialties, and Conditions Section */}
         <section id="book-consultation" className="scroll-mt-8">
           <FeaturedDoctorsHome />
@@ -183,45 +184,124 @@ export default function Home() {
 
 
         {/* Mission block - Why mediconnect.fit exists */}
-        <section className="bg-white border-y border-gray-100">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-5 lg:py-8">
-            <div className="max-w-3xl mx-auto text-center">
-              <p className="text-xs font-semibold tracking-wide text-[#0067A1] uppercase mb-2">
-                {homeData?.mission_title || "Our Mission"}
-              </p>
-              <h2 className="text-2xl sm:text-3xl font-bold text-[#0067A1] mb-4">
-                {homeData?.mission_heading || "Making Healthcare Easier for Patients"}
-              </h2>
-              {homeData?.mission_text ? (
-                <div
-                  className="text-sm sm:text-base text-gray-700 leading-relaxed mb-3 prose prose-sm max-w-none mx-auto text-center [&>p]:mb-3"
-                  dangerouslySetInnerHTML={{ __html: homeData.mission_text.replace(/&nbsp;/g, ' ') }}
-                />
-              ) : (
-                <>
-                  <p className="text-sm sm:text-base text-gray-700 leading-relaxed mb-3">
-                    Patients many times have to go to different places for doctor visits, tests, medicines, and follow-ups.
+        {(() => {
+          const missionParagraphs = (homeData?.mission_text || "")
+            .replace(/&nbsp;/g, " ")
+            .split(/<\/p>/i)
+            .map((p) => p.replace(/<[^>]+>/g, "").trim())
+            .filter(Boolean);
+
+          const defaultPillars = [
+            {
+              step: "01",
+              title: "Unified Care Journey",
+              content: "Patients often navigate disconnected clinics, diagnostic labs, and pharmacies. We bridge every step so your care is never fragmented.",
+              renderIcon: () => (
+                <svg className="w-6 h-6 text-[#0067A1] transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                  <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                  <path d="M9 14l2 2 4-4"></path>
+                </svg>
+              ),
+            },
+            {
+              step: "02",
+              title: "All in One Place",
+              content: "MediConnect.fit unifies appointments, verified digital prescriptions, and accredited lab tests into a single accessible portal.",
+              renderIcon: () => (
+                <svg className="w-6 h-6 text-[#0067A1] transition-transform duration-300 group-hover:scale-110 group-hover:-translate-y-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                  <polyline points="2 17 12 22 22 17"></polyline>
+                  <polyline points="2 12 12 17 22 12"></polyline>
+                </svg>
+              ),
+            },
+            {
+              step: "03",
+              title: "Save Time & Worry",
+              content: "We eliminate healthcare anxiety through transparent clinician schedules, upfront clarity, and reliable, honest medical guidance.",
+              renderIcon: () => (
+                <svg className="w-6 h-6 text-[#0067A1] transition-transform duration-300 group-hover:scale-110 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                  <path d="m9 12 2 2 4-4"></path>
+                </svg>
+              ),
+            },
+            {
+              step: "04",
+              title: "Doctor-Led Trust",
+              content: "Every consultation is guided strictly by licensed doctors adhering to clinical standards—free from commercial rush or sponsored bias.",
+              renderIcon: () => (
+                <svg className="w-6 h-6 text-[#0067A1] transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M19 8v6"></path>
+                  <path d="M22 11h-6"></path>
+                </svg>
+              ),
+            },
+          ];
+
+          const cards = defaultPillars.map((p, idx) => ({
+            ...p,
+            content: missionParagraphs[idx] || p.content,
+          }));
+
+          return (
+            <section className="bg-slate-50/50 border-y border-slate-200/80 py-12 lg:py-16">
+              <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
+                <div className="max-w-3xl mx-auto text-center mb-10 sm:mb-12">
+                  <p className="text-xs sm:text-sm font-semibold tracking-wider text-[#0067A1] uppercase mb-2">
+                    {homeData?.mission_title || "OUR MISSION"}
                   </p>
-                  <p className="text-sm sm:text-base text-gray-700 leading-relaxed mb-3">
-                    MediConnect.fit exists to make healthcare easier by helping patients manage these needs in one place.
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-3 tracking-tight">
+                    {homeData?.mission_heading || "Making Healthcare Easier for Patients"}
+                  </h2>
+                  <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl mx-auto">
+                    Healthcare decisions shouldn&apos;t feel disconnected or rushed. We bring consultations, diagnostics, and patient support together into one transparent ecosystem.
                   </p>
-                  <p className="text-sm sm:text-base text-gray-700 leading-relaxed mb-3">
-                    Our aim is to save patients time and effort, reduce unnecessary worry, and support honest medical advice.
-                  </p>
-                  <p className="text-sm sm:text-base text-gray-700 leading-relaxed">
-                    We focus on doctor-led care that patients can trust, without rushing decisions or taking shortcuts.
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-        </section>
+                </div>
+
+                {/* 4 Professional Responsive Pillar Cards with Theme-Consistent Animated Icons */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
+                  {cards.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="group p-6 rounded-2xl border border-slate-200/90 bg-white hover:border-[#0067A1]/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between h-full"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-5">
+                          <div className="relative w-12 h-12 rounded-xl bg-[#0067A1]/10 text-[#0067A1] flex items-center justify-center transition-transform duration-300 group-hover:scale-105">
+                            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0067A1] opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#0067A1]"></span>
+                            </span>
+                            {item.renderIcon()}
+                          </div>
+                          <span className="text-[11px] font-bold tracking-widest text-slate-400 group-hover:text-[#0067A1] uppercase px-2.5 py-1 rounded-md bg-slate-50 group-hover:bg-[#0067A1]/10 transition-colors">
+                            {item.step}
+                          </span>
+                        </div>
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-2.5 group-hover:text-[#0067A1] transition-colors">
+                          {item.title}
+                        </h3>
+                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-normal">
+                          {item.content}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          );
+        })()}
 
         {/* BANNER BREAK (CALM & PREMIUM) */}
-        <section className="bg-[#F6F8FA] border-y border-gray-100">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 text-center">
+        <section className="bg-[#F6F8FA] border-b border-gray-100 py-8 sm:py-10">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <p className="text-lg sm:text-xl lg:text-2xl font-semibold text-[#003358] leading-relaxed italic">
-              "Healthcare decisions feel easier when you're guided, not rushed."
+              &ldquo;Healthcare decisions feel easier when you&apos;re guided, not rushed.&rdquo;
             </p>
           </div>
         </section>

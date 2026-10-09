@@ -75,7 +75,7 @@ const Hero = ({ onLoginClick }) => {
   const secondaryText = cmsData?.secondary_button_text || "How It Works";
 
   return (
-    <div className="bg-[#F6F8FA]">
+    <div className="bg-[#F6F8FA] w-full max-w-full overflow-hidden">
       {/* Hero Section */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-10">
         <div className="grid md:grid-cols-2 gap-10 lg:gap-16 items-center">

@@ -113,7 +113,7 @@ const Chatbot = () => {
                         className="fixed bottom-24 right-4 sm:right-6 z-[9999] w-[calc(100vw-2rem)] sm:w-[380px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col"
                     >
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-[#0067A1] to-[#004F7C] p-4 flex items-center gap-3 shadow-sm">
+                        <div className="bg-[#0067A1] p-4 flex items-center gap-3 shadow-sm">
                             <div className="bg-white/10 p-2 rounded-full backdrop-blur-sm">
                                 <FaComments className="text-white w-5 h-5" />
                             </div>

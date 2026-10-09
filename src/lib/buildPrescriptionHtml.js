@@ -352,6 +352,7 @@ h4 {
 <table class="top-info">
 <tr>
   <td>Prescription ID: <span class="value">${escapeHtml(rec.pid || "N/A")}</span></td>
+  ${(rec.episode_id || rec.care_episode_id) ? `<td>Episode ID: <span class="value">${escapeHtml(rec.episode_id || ('EP-' + String(rec.care_episode_id).slice(0, 8).toUpperCase()))}</span></td>` : ''}
   <td align="right">Date: <span class="value">${escapeHtml(createdAt)}</span></td>
 </tr>
 </table>

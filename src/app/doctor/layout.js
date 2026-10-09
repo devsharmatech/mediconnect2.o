@@ -130,6 +130,8 @@ export default function DoctorDashboardLayout({ children }) {
   const [modalPage, setModalPage] = useState(1);
   const [modalHasMore, setModalHasMore] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
+  const [isClearingNotifications, setIsClearingNotifications] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // --- Shared Documents (Layer-111 Digital Locker Sharing) ---
   const [showSharedDocsModal, setShowSharedDocsModal] = useState(false);
@@ -374,10 +376,49 @@ export default function DoctorDashboardLayout({ children }) {
           read: true,
         }))
       );
+      setModalNotifications((prev) =>
+        prev.map((n) => ({
+          ...n,
+          read: true,
+        }))
+      );
     } catch (error) {
       console.error("Failed to mark notifications as read", error);
     }
   }, [doctorId, unreadCount]);
+
+  const clearAllNotifications = useCallback(async () => {
+    if (!doctorId || notifications.length === 0) return;
+    try {
+      setIsClearingNotifications(true);
+      const res = await api.post("/notifications/delete", {
+        user_id: doctorId,
+        all: true,
+      });
+      if (res?.success) {
+        setNotifications([]);
+        setModalNotifications([]);
+        toast.success("All notifications cleared");
+      } else {
+        const ids = notifications.map((n) => n.id);
+        if (ids.length > 0) {
+          await api.post("/notifications/delete", {
+            user_id: doctorId,
+            notification_ids: ids,
+          });
+          setNotifications([]);
+          setModalNotifications([]);
+          toast.success("All notifications cleared");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to clear all notifications", error);
+      toast.error("Failed to clear notifications");
+    } finally {
+      setIsClearingNotifications(false);
+      setShowClearConfirm(false);
+    }
+  }, [doctorId, notifications]);
 
   useEffect(() => {
     if (doctorId) {
@@ -457,7 +498,7 @@ export default function DoctorDashboardLayout({ children }) {
       combined.includes("schedule")
     ) {
       return (
-        <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600 shadow-sm shrink-0">
+        <div className="w-8 h-8 rounded-md bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600 shrink-0">
           <FaClock className="w-3.5 h-3.5" />
         </div>
       );
@@ -469,7 +510,7 @@ export default function DoctorDashboardLayout({ children }) {
       combined.includes("call")
     ) {
       return (
-        <div className="w-8 h-8 rounded-xl bg-sky-50 border border-sky-200/80 flex items-center justify-center text-[#0067A1] shadow-sm shrink-0">
+        <div className="w-8 h-8 rounded-md bg-sky-50 border border-sky-200/80 flex items-center justify-center text-[#0067A1] shrink-0">
           <FaVideo className="w-3.5 h-3.5" />
         </div>
       );
@@ -481,7 +522,7 @@ export default function DoctorDashboardLayout({ children }) {
       combined.includes("medicine")
     ) {
       return (
-        <div className="w-8 h-8 rounded-xl bg-purple-50 border border-purple-200/80 flex items-center justify-center text-purple-600 shadow-sm shrink-0">
+        <div className="w-8 h-8 rounded-md bg-purple-50 border border-purple-200/80 flex items-center justify-center text-purple-600 shrink-0">
           <FaFileMedical className="w-3.5 h-3.5" />
         </div>
       );
@@ -492,13 +533,13 @@ export default function DoctorDashboardLayout({ children }) {
       combined.includes("booking")
     ) {
       return (
-        <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 shadow-sm shrink-0">
+        <div className="w-8 h-8 rounded-md bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-600 shrink-0">
           <FaCalendarCheck className="w-3.5 h-3.5" />
         </div>
       );
     }
     return (
-      <div className="w-8 h-8 rounded-xl bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-600 shadow-sm shrink-0">
+      <div className="w-8 h-8 rounded-md bg-slate-100 border border-slate-200/80 flex items-center justify-center text-slate-600 shrink-0">
         <FaBell className="w-3.5 h-3.5" />
       </div>
     );
@@ -1048,13 +1089,16 @@ export default function DoctorDashboardLayout({ children }) {
               <div className="relative" ref={notificationsRef}>
                 <button
                   type="button"
-                  onClick={() => setShowNotifications((prev) => !prev)}
-                  className="relative w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-all flex items-center justify-center shadow-xs cursor-pointer"
+                  onClick={() => {
+                    setShowNotifications((prev) => !prev);
+                    setShowClearConfirm(false);
+                  }}
+                  className="relative w-9 h-9 rounded-md border border-slate-200 bg-white hover:bg-slate-50 transition-all flex items-center justify-center cursor-pointer active:scale-95"
                   title="Notifications"
                 >
                   <FaBell className="w-4 h-4 text-slate-600" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-xs">
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-md flex items-center justify-center border-2 border-white">
                       {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                   )}
@@ -1062,46 +1106,88 @@ export default function DoctorDashboardLayout({ children }) {
 
                 {/* Notifications Dropdown Menu */}
                 {showNotifications && (
-                  <div className="fixed sm:absolute right-2 sm:right-0 top-16 sm:top-auto sm:mt-2 w-[calc(100vw-1rem)] sm:w-[430px] max-w-[450px] max-h-[82vh] sm:max-h-[580px] bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.14),0_4px_12px_rgba(0,0,0,0.06)] border border-slate-200 overflow-hidden z-50 flex flex-col animate-in fade-in zoom-in-95 duration-150">
+                  <div className="fixed sm:absolute right-2 sm:right-0 top-16 sm:top-auto sm:mt-2 w-[calc(100vw-1rem)] sm:w-[440px] max-w-[460px] max-h-[85vh] sm:max-h-[580px] bg-white rounded-lg border border-slate-200 overflow-hidden z-50 flex flex-col animate-in fade-in zoom-in-95 duration-150">
                     {/* Header */}
-                    <div className="p-3.5 sm:p-4 border-b border-slate-100 bg-slate-50/50">
-                      <div className="flex items-center justify-between gap-2">
+                    <div className="p-3.5 sm:p-4 border-b border-slate-100 bg-slate-50/70">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2">
                           <h3 className="text-sm font-bold text-slate-900 tracking-tight">
                             Notifications
                           </h3>
                           {unreadCount > 0 ? (
-                            <span className="px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-bold rounded-full">
+                            <span className="px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-bold rounded-md">
                               {unreadCount} unread
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-200 text-[11px] font-semibold rounded-full">
+                            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-200 text-[11px] font-semibold rounded-md">
                               All caught up
                             </span>
                           )}
                         </div>
 
-                        {unreadCount > 0 && (
-                          <button
-                            type="button"
-                            onClick={markAllNotificationsRead}
-                            className="inline-flex items-center gap-1.5 text-xs text-[#0067A1] hover:text-[#004f7c] font-semibold px-2 py-1 rounded-lg hover:bg-sky-50 transition-colors cursor-pointer"
-                            title="Mark all as read"
-                          >
-                            <FaCheckDouble className="w-3 h-3" />
-                            <span>Mark all read</span>
-                          </button>
-                        )}
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                          {unreadCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={markAllNotificationsRead}
+                              className="inline-flex items-center gap-1.5 text-xs text-[#0067A1] hover:text-[#004f7c] font-semibold px-2 py-1 rounded-md hover:bg-sky-50 transition-colors cursor-pointer"
+                              title="Mark all as read"
+                            >
+                              <FaCheckDouble className="w-3 h-3" />
+                              <span>Mark all read</span>
+                            </button>
+                          )}
+                          {notifications.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setShowClearConfirm((prev) => !prev)}
+                              className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700 font-semibold px-2 py-1 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Clear all notifications"
+                            >
+                              <FaTrash className="w-2.5 h-2.5" />
+                              <span>Clear all</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Clear All Confirmation Banner */}
+                      {showClearConfirm && (
+                        <div className="mt-2.5 p-2.5 bg-rose-50 border border-rose-200/80 rounded-md flex items-center justify-between gap-2 animate-in fade-in duration-150">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <FaExclamationCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                            <span className="text-xs font-semibold text-rose-800 truncate">
+                              Clear all {notifications.length} alerts?
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={clearAllNotifications}
+                              disabled={isClearingNotifications}
+                              className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold rounded-md transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {isClearingNotifications ? "Clearing..." : "Yes, Clear"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowClearConfirm(false)}
+                              className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-semibold rounded-md transition-colors cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Filter Tabs */}
                       <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-slate-200/60">
                         <button
                           type="button"
                           onClick={() => setNotificationTab("all")}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                          className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                             notificationTab === "all"
-                              ? "bg-[#0067A1] text-white shadow-xs"
+                              ? "bg-[#0067A1] text-white"
                               : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/70"
                           }`}
                         >
@@ -1110,9 +1196,9 @@ export default function DoctorDashboardLayout({ children }) {
                         <button
                           type="button"
                           onClick={() => setNotificationTab("unread")}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                          className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                             notificationTab === "unread"
-                              ? "bg-[#0067A1] text-white shadow-xs"
+                              ? "bg-[#0067A1] text-white"
                               : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/70"
                           }`}
                         >
@@ -1190,7 +1276,7 @@ export default function DoctorDashboardLayout({ children }) {
                         ))
                       ) : (
                         <div className="py-12 px-6 text-center">
-                          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
+                          <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
                             <FaBell className="w-5 h-5" />
                           </div>
                           <p className="text-sm font-semibold text-slate-700">
@@ -1207,20 +1293,32 @@ export default function DoctorDashboardLayout({ children }) {
 
                     {/* Footer */}
                     <div className="p-3 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3 text-xs">
-                      <span className="text-slate-500 font-medium">
-                        Showing {notifications.length} alert{notifications.length === 1 ? "" : "s"}
+                      <span className="text-slate-500 font-medium truncate">
+                        Showing {(notificationTab === "unread" ? notifications.filter(n => !n.read) : notifications).length} of {notifications.length} alerts
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowNotifications(false);
-                          openNotificationsModal();
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0067A1] text-white font-semibold hover:bg-[#004F7C] transition-colors shadow-xs"
-                      >
-                        <span>View all</span>
-                        <FaChevronRight className="w-2.5 h-2.5" />
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {notifications.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowClearConfirm(true)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 font-semibold transition-colors text-xs cursor-pointer"
+                          >
+                            <FaTrash className="w-2.5 h-2.5" />
+                            <span>Clear all</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNotifications(false);
+                            openNotificationsModal();
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#0067A1] text-white font-semibold hover:bg-[#004F7C] transition-colors text-xs cursor-pointer"
+                        >
+                          <span>View all</span>
+                          <FaChevronRight className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1469,28 +1567,41 @@ export default function DoctorDashboardLayout({ children }) {
       </div>
       {showNotificationsModal && (
         <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center bg-black/60 p-0 sm:px-4 overflow-hidden">
-          <div className="w-full h-full sm:h-auto sm:max-w-lg sm:max-w-2xl bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 sm:max-h-[85vh] flex flex-col overflow-hidden">
-            <div className="px-4 sm:px-6 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-[#0067A1] flex items-center justify-center text-white">
+          <div className="w-full h-full sm:h-auto sm:max-w-2xl bg-white rounded-none sm:rounded-lg border-0 sm:border border-slate-200 sm:max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="px-4 sm:px-6 py-3.5 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-md bg-[#0067A1] flex items-center justify-center text-white">
                   <FaBell className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">
+                  <p className="text-sm font-bold text-slate-800">
                     All Notifications
                   </p>
                   <p className="text-[11px] text-slate-500">
-                    Review your recent alerts with pagination
+                    Review your recent consultation & platform alerts
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowNotificationsModal(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 text-sm font-bold"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                {modalNotifications.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearAllNotifications}
+                    disabled={isClearingNotifications}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-md transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <FaTrash className="w-3 h-3" />
+                    <span>{isClearingNotifications ? "Clearing..." : "Clear all"}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowNotificationsModal(false)}
+                  className="w-8 h-8 rounded-md bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 text-sm font-bold transition-colors cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto">

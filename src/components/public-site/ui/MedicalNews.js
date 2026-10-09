@@ -76,7 +76,7 @@ const MedicalNews = () => {
     }
 
     return (
-        <section className="py-8 lg:py-10 bg-white border-y border-gray-100 medical-news-section">
+        <section className="py-8 lg:py-10 bg-white border-y border-gray-100 medical-news-section w-full max-w-full overflow-hidden">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
                     <div>
@@ -124,7 +124,7 @@ const MedicalNews = () => {
                 </div>
 
                 {/* Swiper Container */}
-                <div className="relative min-h-[350px]">
+                <div className="relative min-h-[350px] w-full max-w-full overflow-hidden">
                     <Swiper
                         modules={[Navigation, Pagination]}
                         spaceBetween={20}
@@ -150,7 +150,7 @@ const MedicalNews = () => {
                                 spaceBetween: 24,
                             }
                         }}
-                        className="pb-12 !overflow-visible sm:!overflow-hidden"
+                        className="pb-12 overflow-hidden w-full max-w-full"
                     >
                         {news.map((item, index) => (
                             <SwiperSlide key={index} className="h-auto">
