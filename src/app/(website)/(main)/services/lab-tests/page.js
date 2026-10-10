@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   FaFlask,
@@ -99,7 +99,7 @@ function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   return Math.round(distance * 10) / 10;
 }
 
-export default function PublicLabsPage() {
+function PublicLabsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -719,5 +719,22 @@ export default function PublicLabsPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function PublicLabsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-3 text-slate-500 text-xs">
+            <div className="w-8 h-8 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin" />
+            <span>Loading lab tests & diagnostic centers...</span>
+          </div>
+        </div>
+      }
+    >
+      <PublicLabsContent />
+    </Suspense>
   );
 }

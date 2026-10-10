@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Pill,
@@ -67,7 +67,7 @@ const POPULAR_MEDICINES = [
   { name: "Cough Syrup (Ascoril LS)", defaultQty: 1, dosage: "100ml", type: "Syrup" },
 ];
 
-export default function MedicineOrderPage() {
+function MedicineOrderContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -2438,5 +2438,22 @@ export default function MedicineOrderPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function MedicineOrderPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-3 text-slate-500 text-xs">
+            <div className="w-8 h-8 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin" />
+            <span>Loading medicine orders & tracking...</span>
+          </div>
+        </div>
+      }
+    >
+      <MedicineOrderContent />
+    </Suspense>
   );
 }

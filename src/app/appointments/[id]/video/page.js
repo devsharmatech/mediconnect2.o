@@ -2,7 +2,7 @@
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { Autocomplete } from "@/components/ui/Autocomplete";
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   VideoCameraIcon,
@@ -50,7 +50,7 @@ import {
 } from "lucide-react";
 
 /* ─── Page Wrapper ──────────────────────────────────── */
-export default function Page() {
+function VideoCallPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
 
@@ -94,6 +94,20 @@ export default function Page() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-screen bg-gray-950 flex items-center justify-center text-white text-sm">
+          Loading consultation room...
+        </div>
+      }
+    >
+      <VideoCallPageContent />
+    </Suspense>
   );
 }
 
