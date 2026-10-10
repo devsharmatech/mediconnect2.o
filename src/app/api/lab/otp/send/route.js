@@ -37,9 +37,18 @@ export async function POST(request) {
       );
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + OTP_EXPIRY_MS);
+    const isPermanentTestUser = Boolean(
+      user.phone_number?.includes("8744412521") ||
+      user.phone_number?.includes("9999999991") ||
+      user.phone_number?.includes("9999999992") ||
+      user.id === "4c2e8cb1-df50-438d-a46b-96e673f0341a"
+    );
+
+    // Generate 6-digit OTP (fixed 123456 for test/dev accounts)
+    const otp = isPermanentTestUser ? "123456" : Math.floor(100000 + Math.random() * 900000).toString();
+    const expiry = isPermanentTestUser
+      ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+      : new Date(Date.now() + OTP_EXPIRY_MS);
 
     // Store OTP in users table
     await sql`
@@ -47,6 +56,14 @@ export async function POST(request) {
       SET otp_code = ${otp}, otp_expires_at = ${expiry}, updated_at = NOW()
       WHERE id = ${user.id}
     `;
+
+    if (isPermanentTestUser) {
+      console.log(`[DEV] Lab Test account detected (${user.id} / ${user.phone_number}). Bypassing carrier SMS, OTP set to: 123456`);
+      return NextResponse.json(
+        { success: true, message: "Development test account: OTP is 123456" },
+        { status: 200, headers: corsHeaders }
+      );
+    }
 
     // 1. Send SMS if phone exists
     let smsSent = false;

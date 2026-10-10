@@ -171,7 +171,8 @@ export async function POST(req) {
       user.phone_number?.includes("9027924662") ||
       user.phone_number?.includes("7289043777") ||
       user.phone_number?.includes("8082253151") ||
-      user.id === "31272986-c9c3-41ac-a0ff-50381575d1be"
+      user.id === "31272986-c9c3-41ac-a0ff-50381575d1be" ||
+      user.id === "4c2e8cb1-df50-438d-a46b-96e673f0341a"
     );
     const isTestOTP = String(otp).trim() === "123456" && isPermanentTestUser;
 

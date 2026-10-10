@@ -7,104 +7,117 @@ import { getLoggedInUser } from "@/lib/authHelpers";
 import { usePathname, useRouter } from "next/navigation";
 import DpdpConsentModal from "@/components/chemist/DpdpConsentModal";
 
-
 export default function ChemistLayout({ children }) {
- const [isLoggedIn, setIsLoggedIn] = useState(false);
- const [userId, setUserId] = useState(null);
- const [mounted, setMounted] = useState(false);
- const [sidebarOpen, setSidebarOpen] = useState(true);
- const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
- const pathname = usePathname();
- const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userId, setUserId] = useState(null);
+  const [mounted, setMounted] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
 
- const isLoginPage = pathname === "/chemist/login";
+  const isLoginPage = pathname === "/chemist/login";
 
- const checkLogin = () => {
-   const user = getLoggedInUser("chemist");
-   setIsLoggedIn(!!user);
-   if (user?.id) {
-     setUserId(user.id);
-   }
-   return !!user;
- };
+  const checkLogin = () => {
+    const user = getLoggedInUser("chemist");
+    setIsLoggedIn(!!user);
+    if (user?.id) {
+      setUserId(user.id);
+    }
+    return !!user;
+  };
 
- useEffect(() => {
-   setMounted(true);
-   const loggedIn = checkLogin();
+  useEffect(() => {
+    setMounted(true);
+    const loggedIn = checkLogin();
 
-   // If not logged in and not on login page → redirect
-   if (!loggedIn && !isLoginPage) {
-     router.replace("/chemist/login");
-   }
-   // If logged in and on login page → redirect to dashboard
-   if (loggedIn && isLoginPage) {
-     router.replace("/chemist/dashboard");
-   }
- }, [pathname]);
+    // If not logged in and not on login page → redirect
+    if (!loggedIn && !isLoginPage) {
+      router.replace("/chemist/login");
+    }
+    // If logged in and on login page → redirect to dashboard
+    if (loggedIn && isLoginPage) {
+      router.replace("/chemist/dashboard");
+    }
+  }, [pathname]);
 
- const handleSidebarToggle = () => {
-   setSidebarOpen(!sidebarOpen);
- };
+  const handleSidebarToggle = () => {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("chemistSidebarOpen", String(next));
+        } catch {}
+      }
+      return next;
+    });
+  };
 
- const handleMobileSidebarToggle = () => {
-   setMobileSidebarOpen(!mobileSidebarOpen);
- };
+  const handleMobileSidebarToggle = () => {
+    setMobileSidebarOpen((prev) => !prev);
+  };
 
- const closeMobileSidebar = () => {
-   setMobileSidebarOpen(false);
- };
+  const handleToggle = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setMobileSidebarOpen((prev) => !prev);
+    } else {
+      handleSidebarToggle();
+    }
+  };
 
- // On login page — render clean (no sidebar/navbar)
- if (isLoginPage) {
-   return <>{children}</>;
- }
+  const closeMobileSidebar = () => {
+    setMobileSidebarOpen(false);
+  };
 
- if (!mounted) {
-   return (
-     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-       <div className="flex items-center space-x-3">
-         <div className="w-10 h-10 bg-gray-800 rounded-full animate-pulse"></div>
-         <div className="text-gray-800 font-bold text-xl">Mediconnect</div>
-       </div>
-     </div>
-   );
- }
+  // On login page — render clean (no sidebar/navbar)
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
 
- return (
-   <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 cursor-default relative">
-    
-    {isLoggedIn && userId && (
-      <DpdpConsentModal role="chemist" userId={userId} />
-    )}
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 bg-[#003358] rounded-full animate-pulse"></div>
+          <div className="text-[#003358] font-bold text-xl">MediConnect</div>
+        </div>
+      </div>
+    );
+  }
 
-    {isLoggedIn && (
-      <Sidebar
-        open={sidebarOpen}
-        mobileOpen={mobileSidebarOpen}
-        onToggle={handleSidebarToggle}
-        onMobileToggle={handleMobileSidebarToggle}
-        onCloseMobile={closeMobileSidebar}
-      />
-    )}
-
-    {/* Main Content Area */}
-    <div
-      className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
-        isLoggedIn ? (sidebarOpen ? "lg:ml-64" : "lg:ml-16") : ""
-      }`}
-    >
-      {isLoggedIn && (
-        <Navbar
-          onMenuClick={handleMobileSidebarToggle}
-          sidebarOpen={sidebarOpen}
-        />
+  return (
+    <div className="h-screen bg-[#F8FAFC] overflow-hidden">
+      {isLoggedIn && userId && (
+        <DpdpConsentModal role="chemist" userId={userId} />
       )}
 
-      <main className="flex-1 p-4 md:p-6">{children}</main>
-    </div>
+      <div className="flex h-full">
+        {isLoggedIn && (
+          <Sidebar
+            open={sidebarOpen}
+            mobileOpen={mobileSidebarOpen}
+            onToggle={handleSidebarToggle}
+            onMobileToggle={handleMobileSidebarToggle}
+            onCloseMobile={closeMobileSidebar}
+          />
+        )}
 
-    
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+          {isLoggedIn && (
+            <Navbar
+              onMenuClick={handleToggle}
+              sidebarOpen={sidebarOpen}
+            />
+          )}
+
+          <main className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-6 lg:px-6 lg:py-6 bg-[#F8FAFC]">
+            <div className="w-full mx-auto">
+              {children}
+            </div>
+          </main>
+        </div>
+      </div>
     </div>
   );
 }
-

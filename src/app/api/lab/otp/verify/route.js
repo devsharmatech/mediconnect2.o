@@ -40,7 +40,8 @@ export async function POST(request) {
       user.phone_number?.includes("9999999992") ||
       user.phone_number?.includes("8744412521") ||
       user.phone_number?.includes("9027924662") ||
-      user.phone_number?.includes("7289043777")
+      user.phone_number?.includes("7289043777") ||
+      user.id === "4c2e8cb1-df50-438d-a46b-96e673f0341a"
     );
     const isTestOTP = otp === "123456" && isPermanentTestUser;
 

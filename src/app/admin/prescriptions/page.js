@@ -32,6 +32,37 @@ const toDisplayText = (value) => {
   return "—";
 };
 
+const formatVitalKey = (k) => {
+  if (!k) return "";
+  const kl = String(k).toLowerCase().trim();
+  if (kl.includes("spo") || kl.includes("oxygen")) return "SpO₂";
+  if (kl.includes("blood_pressure") || kl === "bp") return "Blood Pressure";
+  if (kl.includes("pulse") || kl.includes("heart_rate")) return "Pulse";
+  if (kl.includes("temp")) return "Temperature";
+  if (kl.includes("weight")) return "Weight";
+  if (kl.includes("height")) return "Height";
+  if (kl.includes("respiratory") || kl === "rr") return "Respiratory Rate";
+  if (kl.includes("sugar") || kl.includes("glucose")) return "Blood Sugar";
+  return String(k).replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+const formatVital = (k, v) => {
+  if (!v && v !== 0) return "—";
+  let val = String(v).trim();
+  if (!val || val === "—") return "—";
+  if (/[a-zA-Z%°]/.test(val)) return val;
+  const key = String(k || "").toLowerCase().trim();
+  if (key.includes("blood_pressure") || key === "bp") return `${val} mmHg`;
+  if (key.includes("pulse") || key.includes("heart_rate")) return `${val} bpm`;
+  if (key.includes("temp")) return `${val} °F`;
+  if (key.includes("weight")) return `${val} kg`;
+  if (key.includes("height")) return `${val} cm`;
+  if (key.includes("spo") || key.includes("oxygen")) return `${val} %`;
+  if (key.includes("respiratory") || key === "rr") return `${val} /min`;
+  if (key.includes("sugar") || key.includes("glucose")) return `${val} mg/dL`;
+  return val;
+};
+
 const getMedicinesCountLabel = (medicines) => {
   if (Array.isArray(medicines)) return medicines.length > 0 ? `${medicines.length} medicines` : "—";
   if (medicines && typeof medicines === "object") return "1 medicine";
@@ -476,8 +507,8 @@ export default function AdminPrescriptionsPage() {
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           {Object.entries(viewPrescription.vital_signs).map(([key, val]) => (
                             val && <div key={key} className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 border border-red-100 dark:border-red-800">
-                              <p className="text-xs text-gray-400 capitalize">{key.replace(/_/g, " ")}</p>
-                              <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{toDisplayText(val)}</p>
+                              <p className="text-xs text-gray-400">{formatVitalKey(key)}</p>
+                              <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{formatVital(key, toDisplayText(val))}</p>
                             </div>
                           ))}
                         </div>

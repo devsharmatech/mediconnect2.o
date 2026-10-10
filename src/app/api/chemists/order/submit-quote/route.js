@@ -19,11 +19,13 @@ export async function POST(req) {
       delivery_charge = 0,
       discount = 0,
       final_amount,
+      items_breakdown = [],
+      bid_notes = "",
     } = await req.json();
 
     const rawCost = estimated_cost !== undefined ? estimated_cost : final_amount;
 
-    if (!broadcast_id || !chemist_id || rawCost === undefined) {
+    if (!broadcast_id || !chemist_id || rawCost === undefined || rawCost === null) {
       return failure(
         "Missing required fields: broadcast_id, chemist_id, estimated_cost (or final_amount)",
         null,
@@ -32,12 +34,23 @@ export async function POST(req) {
       );
     }
 
-    // 1. Price Arithmetic
-    const subtotal = parseFloat(medicine_subtotal !== undefined ? medicine_subtotal : rawCost);
-    const delCharge = parseFloat(delivery_charge || 0);
-    const disc = parseFloat(discount || 0);
-    const finalAmt = parseFloat(final_amount !== undefined ? final_amount : rawCost);
+    // 1. Price Arithmetic & NaN Safety
+    const parsedRaw = parseFloat(rawCost);
+    const parsedSub = parseFloat(medicine_subtotal);
+    const subtotal = !isNaN(parsedSub) && parsedSub >= 0 ? parsedSub : (!isNaN(parsedRaw) && parsedRaw >= 0 ? parsedRaw : 0);
+    const delCharge = Math.max(0, parseFloat(delivery_charge) || 0);
+    const disc = Math.max(0, parseFloat(discount) || 0);
+    const parsedFinal = parseFloat(final_amount !== undefined ? final_amount : rawCost);
+    const finalAmt = !isNaN(parsedFinal) && parsedFinal >= 0 ? parsedFinal : Math.max(0, subtotal + delCharge - disc);
     const deliveryMins = parseInt(delivery_time_minutes, 10) || 30;
+
+    if (isNaN(finalAmt) || finalAmt <= 0) {
+      return failure("Invalid quotation amount. Please provide valid prices for items.", null, 400, {
+        headers: corsHeaders,
+      });
+    }
+
+    const itemsJson = JSON.stringify(Array.isArray(items_breakdown) ? items_breakdown : []);
 
     // 2. Check if broadcast exists and is active
     const broadcastRows = await sql`
@@ -55,7 +68,9 @@ export async function POST(req) {
       });
     }
 
-    if (new Date(broadcast.expires_at) < new Date()) {
+    // Allow a 5-minute grace period for chemist submission
+    const expiryWithGrace = new Date(new Date(broadcast.expires_at).getTime() + 5 * 60 * 1000);
+    if (expiryWithGrace < new Date()) {
       return failure("This broadcast window has expired", null, 410, {
         headers: corsHeaders,
       });
@@ -90,6 +105,8 @@ export async function POST(req) {
           delivery_charge = ${delCharge},
           discount = ${disc},
           delivery_time_minutes = ${deliveryMins},
+          items_breakdown = ${itemsJson}::jsonb,
+          bid_notes = ${bid_notes.trim() || null},
           status = 'submitted',
           created_at = NOW()
         WHERE id = ${existingQuotes[0].id}
@@ -107,6 +124,8 @@ export async function POST(req) {
           discount,
           final_amount,
           delivery_time_minutes,
+          items_breakdown,
+          bid_notes,
           status,
           created_at
         ) VALUES (
@@ -118,6 +137,8 @@ export async function POST(req) {
           ${disc},
           ${finalAmt},
           ${deliveryMins},
+          ${itemsJson}::jsonb,
+          ${bid_notes.trim() || null},
           'submitted',
           NOW()
         )
@@ -137,6 +158,8 @@ export async function POST(req) {
       discount: disc,
       final_amount: finalAmt,
       delivery_time_minutes: deliveryMins,
+      items_breakdown: Array.isArray(items_breakdown) ? items_breakdown : [],
+      bid_notes: bid_notes.trim() || "",
       status: "submitted",
       pharmacy_name: pharmacyName,
       address: pharmacyAddress,

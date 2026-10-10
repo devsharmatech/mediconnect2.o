@@ -25,7 +25,22 @@ export async function POST(req) {
       channel = "web"
     } = await req.json();
 
-    if (!patient_id) {
+    let finalPatientId = patient_id;
+
+    if (!finalPatientId && prescription_id) {
+      try {
+        const rxUserRows = await sql`
+          SELECT patient_id FROM prescriptions WHERE id = ${prescription_id} LIMIT 1
+        `;
+        if (rxUserRows[0]?.patient_id) {
+          finalPatientId = rxUserRows[0].patient_id;
+        }
+      } catch (e) {
+        console.warn("Could not auto-lookup patient_id from prescription:", e.message);
+      }
+    }
+
+    if (!finalPatientId) {
       return failure("patient_id is required", null, 400, { headers: corsHeaders });
     }
 
@@ -54,7 +69,7 @@ export async function POST(req) {
           created_at,
           updated_at
         ) VALUES (
-          ${patient_id},
+          ${finalPatientId},
           ${JSON.stringify(formattedMeds)},
           ${patient_notes || "Self-submitted patient medicine order"},
           ${prescription_url || null},
@@ -76,6 +91,15 @@ export async function POST(req) {
     const parts = (delivery_address || "").split(",").map((s) => s.trim()).filter(Boolean);
     const resolvedArea = delivery_area || (parts.length > 1 ? parts.slice(-2).join(", ") : (parts[0] || "Local Delivery Area"));
 
+    // Expire any previous broadcasting entries for this prescription
+    if (targetPrescriptionId) {
+      await sql`
+        UPDATE medicine_order_broadcasts
+        SET status = 'expired'
+        WHERE prescription_id = ${targetPrescriptionId} AND status = 'broadcasting'
+      `;
+    }
+
     // Insert broadcast into AWS RDS
     const broadcastRows = await sql`
       INSERT INTO medicine_order_broadcasts (
@@ -89,7 +113,7 @@ export async function POST(req) {
         created_at
       ) VALUES (
         ${targetPrescriptionId},
-        ${patient_id},
+        ${finalPatientId},
         ${delivery_address},
         ${latitude ? parseFloat(latitude) : null},
         ${longitude ? parseFloat(longitude) : null},
@@ -112,7 +136,7 @@ export async function POST(req) {
           metadata,
           created_at
         ) VALUES (
-          ${patient_id},
+          ${finalPatientId},
           'Medicine Request Broadcasted 💊',
           'Your medicine order request is live in the pharmacy pool. Pharmacies are now reviewing and submitting quotes.',
           'e_pharmacy_consent',
@@ -131,15 +155,19 @@ export async function POST(req) {
       console.warn("Could not insert patient notification:", notifErr.message);
     }
 
+    const broadcastData = {
+      ...broadcast,
+      id: broadcast.id,
+      delivery_area: resolvedArea,
+      delivery_pincode: resolvedPincode,
+      prescription_id: targetPrescriptionId,
+    };
+
     return success(
       "Medicine order broadcasted successfully",
       {
-        broadcast: {
-          ...broadcast,
-          delivery_area: resolvedArea,
-          delivery_pincode: resolvedPincode,
-          prescription_id: targetPrescriptionId,
-        },
+        ...broadcastData,
+        broadcast: broadcastData,
       },
       201,
       { headers: corsHeaders }

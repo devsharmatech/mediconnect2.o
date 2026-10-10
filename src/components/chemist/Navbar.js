@@ -26,6 +26,7 @@ import {
   ExternalLink,
   Eye,
   ChevronRight,
+  ChevronDown,
   Sparkles,
   Zap,
   MessageSquare,
@@ -43,6 +44,15 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { generateDeviceToken, onForegroundMessage } from "@/lib/firebaseClient";
 import toast, { Toaster } from "react-hot-toast";
+
+const getInitials = (name) => {
+  if (!name || typeof name !== "string") return "CH";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2 && parts[0] && parts[1]) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return (parts[0] ? parts[0].slice(0, 2) : "CH").toUpperCase();
+};
 
 const formatMessageText = (message) => {
   if (!message) return "";
@@ -894,6 +904,8 @@ export default function ChemistNavbar({ onMenuClick, sidebarOpen }) {
   const [loadingAction, setLoadingAction] = useState(null);
   const [showAllModal, setShowAllModal] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isClearingNotifications, setIsClearingNotifications] = useState(false);
   const notificationsRef = useRef(null);
   const profileRef = useRef(null);
   const pathname = usePathname();
@@ -907,6 +919,39 @@ export default function ChemistNavbar({ onMenuClick, sidebarOpen }) {
   const handleLogout = () => {
     logoutUser("chemist");
     router.push("/chemist/login");
+  };
+
+  // Clear all notifications from dropdown
+  const clearAllDropdownNotifications = async () => {
+    try {
+      setIsClearingNotifications(true);
+      const chemist = getChemist();
+      if (!chemist?.id) return;
+
+      const response = await fetch("/api/chemists/notifications/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: chemist.id,
+          clear_all: true,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setRecentNotifications([]);
+        setUnreadCount(0);
+        setShowClearConfirm(false);
+        toast.success("All notifications cleared");
+      } else {
+        toast.error(data.message || "Failed to clear notifications");
+      }
+    } catch (error) {
+      console.error("Error clearing notifications:", error);
+      toast.error("Failed to clear notifications");
+    } finally {
+      setIsClearingNotifications(false);
+    }
   };
 
   const handleSwitchToPatient = () => {
@@ -1324,354 +1369,365 @@ export default function ChemistNavbar({ onMenuClick, sidebarOpen }) {
 
   return (
     <>
-      <header className="sticky top-0 z-20 bg-[#0067A1] border-b border-white/10 px-4 lg:px-6 py-4 shadow-sm flex-shrink-0">
-        <div className="flex items-center justify-between">
-          {/* Left Section - Menu Button & Title */}
-          <div className="flex items-center space-x-4">
-            {/* Mobile Menu Button - Only show on mobile */}
-            <button
-              onClick={onMenuClick}
-              className="lg:hidden p-2 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all duration-200 cursor-pointer"
-            >
-              <Menu size={20} />
-            </button>
+      <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 px-4 sm:px-6 lg:px-8 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] flex-shrink-0 flex items-center justify-between">
+        {/* Left Section - Menu Button & Title */}
+        <div className="flex items-center gap-2.5 sm:gap-4">
+          {/* Menu / Sidebar Toggle Button */}
+          <button
+            onClick={onMenuClick}
+            className="w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 shadow-xs hover:border-slate-300 hover:text-slate-900 transition-all flex items-center justify-center cursor-pointer shrink-0"
+            title={sidebarOpen ? "Minimize Sidebar" : "Open Sidebar"}
+          >
+            <Menu className="w-5 h-5 text-slate-700" />
+          </button>
 
-
-          </div>
-
-          {/* Right Section */}
-          <div className="flex items-center space-x-2 lg:space-x-4">
-
-            {/* Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="p-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all duration-200 cursor-pointer"
-              title={
-                theme === "light"
-                  ? "Switch to dark mode"
-                  : "Switch to light mode"
-              }
-            >
-              {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
-            </button>
-
-            {/* Connection Status */}
-            {isConnected && (
-              <div className="relative group hidden lg:block">
-                <div className="flex items-center space-x-1 px-2.5 py-1 bg-white/10 rounded-lg">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-green-300 font-medium">
-                    Live
-                  </span>
-                </div>
-                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2.5 py-1 bg-gray-900 text-white text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-[100]">
-                  Connected to real-time notifications
-                </div>
-              </div>
-            )}
-
-            {/* Notifications Dropdown */}
-            <div className="relative" ref={notificationsRef}>
-              <button
-                data-bell-button
-                onClick={() => {
-                  setNotificationsOpen(!notificationsOpen);
-                  if (!notificationsOpen) {
-                    fetchNotificationCount();
-                  }
-                }}
-                className="relative p-2.5 rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all duration-200 cursor-pointer group"
-              >
-                <Bell size={20} />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-semibold animate-pulse shadow-lg">
-                    {unreadCount}
-                  </span>
-                )}
-                {/* Hover tooltip - only show below bell when dropdown is closed */}
-                {!notificationsOpen && (
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-2.5 py-1 bg-gray-900 text-white text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-[100]">
-                    {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
-                  </div>
-                )}
-              </button>
-
-              {notificationsOpen && (
-                <div className="absolute right-0 top-12 w-96 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-[#0067A1]/20 dark:border-gray-700 z-[100] overflow-hidden">
-                  <div className="p-4 border-b border-[#0067A1]/20 dark:border-gray-700 bg-[#0067A1]/5 dark:bg-gray-800">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-semibold text-[#0067A1] dark:text-teal-300">
-                          Recent Notifications
-                        </h3>
-                        <p className="text-sm text-[#0067A1]/80 dark:text-[#0080C6]/80">
-                          {unreadCount} unread • {recentNotifications.length} recent
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={fetchNotificationCount}
-                          disabled={loading}
-                          className="p-1.5 rounded-lg hover:bg-[#0067A1]/10 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-300"
-                          title="Refresh"
-                        >
-                          <RefreshCw
-                            className={`w-4 h-4 ${loading ? "animate-spin" : ""
-                              }`}
-                          />
-                        </button>
-                        <button
-                          onClick={markAllAsRead}
-                          disabled={
-                            unreadCount === 0 || loadingAction === "all"
-                          }
-                          className="p-1.5 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/20 transition-colors disabled:opacity-50 text-gray-700 dark:text-gray-300"
-                          title="Mark all as read"
-                        >
-                          {loadingAction === "all" ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
-                          )}
-                        </button>
-                        <div className="px-3 py-1 bg-[#0067A1]/10 dark:bg-gray-800">
-                          <span className="text-xs font-medium text-[#0067A1] dark:text-[#0080C6]">
-                            Live
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="max-h-96 overflow-y-auto">
-                    {loading && recentNotifications.length === 0 ? (
-                      <div className="flex items-center justify-center p-8">
-                        <div className="text-center">
-                          <Loader2 className="w-8 h-8 animate-spin text-[#0067A1] dark:text-[#0080C6] mx-auto mb-3" />
-                          <p className="text-gray-600 dark:text-gray-400">Loading notifications...</p>
-                        </div>
-                      </div>
-                    ) : recentNotifications.length === 0 ? (
-                      <div className="text-center p-8">
-                        <Bell className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-3" />
-                        <p className="text-gray-500 dark:text-gray-400">
-                          No notifications yet
-                        </p>
-                        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                          You're all caught up!
-                        </p>
-                      </div>
-                    ) : (
-                      <div>
-                        {recentNotifications.map((notification) => (
-                          <div
-                            key={notification.id}
-                            onClick={() =>
-                              handleNotificationClick(notification)
-                            }
-                            className={`p-4 border-b border-[#0067A1]/10 dark:border-gray-700 hover:bg-[#0067A1]/5 dark:hover:bg-gray-800 cursor-pointer transition-all duration-300 group relative ${!notification.read
-                              ? "bg-[#0067A1]/10 dark:bg-gray-800"
-                              : ""
-                              }`}
-                          >
-                            <div className="flex items-start space-x-3">
-                              <div className="mt-0.5 relative">
-                                {getNotificationIcon(notification.type)}
-                                {!notification.read && (
-                                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-[#0067A1] dark:bg-teal-400 rounded-full animate-pulse"></div>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm text-gray-800 dark:text-gray-200 font-medium truncate">
-                                  {notification.title || "New Notification"}
-                                </p>
-                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate">
-                                  {notification.message}
-                                </p>
-                                <p className="text-xs text-[#0067A1] dark:text-[#0080C6] mt-1">
-                                  {formatTime(notification.created_at)}
-                                </p>
-                              </div>
-                              {!notification.read && (
-                                <div className="w-2 h-2 bg-[#0067A1] dark:bg-teal-400 rounded-full mt-1 flex-shrink-0 animate-pulse"></div>
-                              )}
-                            </div>
-
-                            {/* Hover actions - FIXED DELETE FUNCTION */}
-                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex space-x-1">
-                              {!notification.read && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    // Optimistically update UI
-                                    setRecentNotifications((prev) =>
-                                      prev.map((n) =>
-                                        n.id === notification.id
-                                          ? { ...n, read: true }
-                                          : n
-                                      )
-                                    );
-                                    setUnreadCount((prev) =>
-                                      Math.max(0, prev - 1)
-                                    );
-                                    // Call API
-                                    markAsRead(notification.id);
-                                  }}
-                                  className="p-1.5 rounded-full hover:bg-green-100 dark:hover:bg-green-900/20 text-gray-700 dark:text-gray-300 transition-all duration-200 hover:scale-110"
-                                  title="Mark as read"
-                                >
-                                  <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-                                </button>
-                              )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  // Optimistically remove from UI
-                                  setRecentNotifications((prev) =>
-                                    prev.filter(
-                                      (notif) => notif.id !== notification.id
-                                    )
-                                  );
-                                  // Update unread count if needed
-                                  if (!notification.read) {
-                                    setUnreadCount((prev) =>
-                                      Math.max(0, prev - 1)
-                                    );
-                                  }
-                                  // Call API
-                                  deleteNotification(notification.id);
-                                }}
-                                disabled={loadingAction === `delete-dropdown-${notification.id}`}
-                                className="p-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-900/20 text-gray-700 dark:text-gray-300 transition-all duration-200 hover:scale-110"
-                                title="Delete"
-                              >
-                                {loadingAction === `delete-dropdown-${notification.id}` ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-3 border-t border-[#0067A1]/20 dark:border-gray-700">
-                    <button
-                      onClick={() => {
-                        setNotificationsOpen(false);
-                        setShowAllModal(true);
-                      }}
-                      className="w-full flex items-center justify-center py-2.5 text-sm font-medium text-[#0067A1] dark:text-[#0080C6] hover:bg-[#0067A1]/5 dark:hover:bg-gray-800 rounded-lg transition-all duration-200 hover:scale-[1.02] group"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <div className="relative">
-                          <Eye className="w-4 h-4 text-[#0067A1] dark:text-[#0080C6]" />
-                          <div className="absolute -top-1 -right-1 w-2 h-2 bg-teal-400 rounded-full animate-ping"></div>
-                        </div>
-                        <span>View All Notifications</span>
-                        <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all text-[#0067A1] dark:text-[#0080C6]" />
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              )}
+          <div className="flex items-center gap-2">
+            <div className={`w-8 h-8 rounded-lg bg-white p-0.5 border border-slate-200 shadow-xs overflow-hidden shrink-0 ${sidebarOpen ? "md:hidden" : ""}`}>
+              <img
+                src="/real-logo.png"
+                alt="Logo"
+                className="w-full h-full object-cover scale-[1.38] -translate-y-0.5"
+              />
             </div>
-
-            {/* Switch to Patient Mode / Consult Doctor */}
-            <button
-              onClick={handleSwitchToPatient}
-              className="flex items-center space-x-1.5 md:space-x-2 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs md:text-sm font-medium transition-all duration-200 border border-white/20 shadow-sm cursor-pointer hover:scale-[1.02]"
-              title="Open Patient Portal to consult doctors or book tests"
-            >
-              <Heart className="w-4 h-4 text-pink-300" />
-              <span className="hidden sm:inline">Patient Mode</span>
-            </button>
-
-            {/* Profile Dropdown */}
-            <div className="relative" ref={profileRef}>
-              <button
-                onClick={() => setProfileOpen(!profileOpen)}
-                className="flex items-center space-x-2 lg:space-x-3 p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all duration-200 cursor-pointer border border-white/15"
-              >
-                <div className="w-9 h-9 bg-white/25 rounded-full flex items-center justify-center shadow-md">
-                  <User className="w-5 h-5 text-white" />
-                </div>
-                {/* Hide user info on mobile, show on desktop */}
-                <div className="hidden md:block text-left">
-                  <p className="text-sm font-semibold text-white">
-                    {chemistName || "Chemist User"}
-                  </p>
-                  <p className="text-xs text-teal-200 flex items-center">
-                    <span className="w-2 h-2 bg-green-400 rounded-full mr-1.5 animate-pulse"></span>
-                    Verified Chemist
-                  </p>
-                </div>
-              </button>
-
-              {profileOpen && (
-                <div className="absolute right-0 top-12 w-56 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-[#0067A1]/20 dark:border-gray-700 z-50 overflow-hidden">
-                  <div className="p-3 border-b border-[#0067A1]/20 dark:border-gray-700 bg-[#0067A1]/5 dark:bg-gray-800">
-                    <p className="text-sm font-medium text-[#0067A1] dark:text-teal-300">
-                      {chemistName || "Chemist User"}
-                    </p>
-                    <p className="text-xs text-[#0067A1]/80 dark:text-[#0080C6]">
-                      Pharmacy Account
-                    </p>
-                  </div>
-                  <div className="p-2">
-                    <button
-                      onClick={handleSwitchToPatient}
-                      className="flex items-center space-x-3 w-full p-2.5 rounded-xl hover:bg-pink-50 dark:hover:bg-gray-800 transition-colors cursor-pointer text-left group"
-                    >
-                      <Heart
-                        size={18}
-                        className="text-pink-500 group-hover:scale-110 transition-transform"
-                      />
-                      <div>
-                        <span className="text-sm font-medium text-gray-800 dark:text-gray-200 block">
-                          Consult Doctor
-                        </span>
-                        <span className="text-[10px] text-pink-600 dark:text-pink-400 font-medium">
-                          Switch to Patient Mode
-                        </span>
-                      </div>
-                    </button>
-
-                    <Link
-                      href="/chemist/profile"
-                      className="flex items-center space-x-3 w-full p-3 rounded-xl hover:bg-[#0067A1]/5 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                    >
-                      <User
-                        size={18}
-                        className="text-[#0067A1] dark:text-[#0080C6]"
-                      />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">
-                        My Profile
-                      </span>
-                    </Link>
-
-                    <div className="border-t border-[#0067A1]/15 dark:border-gray-700 my-1"></div>
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center justify-between w-full p-3 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition-colors cursor-pointer group"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <LogOut size={18} />
-                        <span className="text-sm font-medium">Sign Out</span>
-                      </div>
-                      <div className="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs rounded-full group-hover:bg-red-200 dark:group-hover:bg-red-900/50">
-                        Exit
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <span className="text-sm font-semibold text-slate-800 tracking-tight">
+              {getPageTitle()}
+            </span>
           </div>
         </div>
 
+        {/* Right Section */}
+        <div className="flex items-center gap-2 sm:gap-3.5">
+          {/* Real-time Connection Status */}
+          {isConnected && (
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+              <span>Live Orders</span>
+            </div>
+          )}
+
+          {/* Notifications Dropdown */}
+          <div className="relative" ref={notificationsRef}>
+            <button
+              data-bell-button
+              onClick={() => {
+                setNotificationsOpen(!notificationsOpen);
+                if (!notificationsOpen) {
+                  fetchNotificationCount();
+                }
+              }}
+              className="relative w-9 h-9 rounded-md border border-slate-200 bg-white hover:bg-slate-50 transition-all flex items-center justify-center cursor-pointer active:scale-95 shadow-xs"
+              title="Notifications"
+            >
+              <Bell className="w-4 h-4 text-slate-600" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-md flex items-center justify-center border-2 border-white shadow-xs">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {notificationsOpen && (
+              <div className="fixed sm:absolute right-2 sm:right-0 top-16 sm:top-12 w-[calc(100vw-1rem)] sm:w-96 max-w-[420px] bg-white rounded-2xl shadow-2xl border border-slate-200 z-[100] overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col">
+                <div className="p-3.5 sm:p-4 border-b border-slate-100 bg-slate-50/80">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div>
+                      <h3 className="font-bold text-sm text-slate-900">
+                        Notifications
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        {unreadCount} unread • {recentNotifications.length} recent
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={markAllAsRead}
+                          disabled={loadingAction === "all"}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0067A1] hover:text-[#004f7c] px-2 py-1 rounded-md hover:bg-sky-50 transition-colors cursor-pointer"
+                          title="Mark all as read"
+                        >
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          <span>Mark all read</span>
+                        </button>
+                      )}
+                      {recentNotifications.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowClearConfirm((prev) => !prev)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-700 px-2 py-1 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Clear all notifications"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Clear all</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={fetchNotificationCount}
+                        disabled={loading}
+                        className="p-1 rounded-md hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors cursor-pointer"
+                        title="Refresh"
+                      >
+                        <RefreshCw
+                          className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Clear All Confirmation Banner */}
+                  {showClearConfirm && (
+                    <div className="mt-2.5 p-2.5 bg-rose-50 border border-rose-200/80 rounded-md flex items-center justify-between gap-2 animate-in fade-in duration-150">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                        <span className="text-xs font-semibold text-rose-800 truncate">
+                          Clear all {recentNotifications.length} alerts?
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={clearAllDropdownNotifications}
+                          disabled={isClearingNotifications}
+                          className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold rounded-md transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          {isClearingNotifications ? "Clearing..." : "Yes, Clear"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowClearConfirm(false)}
+                          className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-semibold rounded-md transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="max-h-80 sm:max-h-96 overflow-y-auto divide-y divide-slate-100">
+                  {loading && recentNotifications.length === 0 ? (
+                    <div className="flex items-center justify-center p-8">
+                      <div className="text-center">
+                        <Loader2 className="w-7 h-7 animate-spin text-[#0067A1] mx-auto mb-2" />
+                        <p className="text-xs text-slate-500">Loading alerts...</p>
+                      </div>
+                    </div>
+                  ) : recentNotifications.length === 0 ? (
+                    <div className="text-center p-8">
+                      <Bell className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                      <p className="text-sm font-semibold text-slate-700">
+                        No notifications yet
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        You&apos;re all caught up!
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      {recentNotifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          onClick={() => handleNotificationClick(notification)}
+                          className={`p-3.5 hover:bg-slate-50 cursor-pointer transition-colors relative group ${
+                            !notification.read ? "bg-sky-50/40 border-l-[3px] border-l-[#0067A1]" : "border-l-[3px] border-l-transparent"
+                          }`}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <div className="mt-0.5 shrink-0">
+                              {getNotificationIcon(notification.type)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <p className="text-xs font-bold text-slate-800 truncate">
+                                  {notification.title || "Notification"}
+                                </p>
+                                {!notification.read && (
+                                  <span className="w-2 h-2 rounded-full bg-[#0067A1] shrink-0" />
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-600 mt-0.5 leading-relaxed break-words line-clamp-2">
+                                {formatMessageText(notification.message)}
+                              </p>
+                              <p className="text-[10px] text-slate-400 mt-1">
+                                {formatTime(notification.created_at)}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Hover actions */}
+                          <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1">
+                            {!notification.read && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRecentNotifications((prev) =>
+                                    prev.map((n) =>
+                                      n.id === notification.id ? { ...n, read: true } : n
+                                    )
+                                  );
+                                  setUnreadCount((prev) => Math.max(0, prev - 1));
+                                  markAsRead(notification.id);
+                                }}
+                                className="p-1 rounded-md hover:bg-emerald-50 text-emerald-600 transition-colors"
+                                title="Mark as read"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRecentNotifications((prev) =>
+                                  prev.filter((notif) => notif.id !== notification.id)
+                                );
+                                if (!notification.read) {
+                                  setUnreadCount((prev) => Math.max(0, prev - 1));
+                                }
+                                deleteNotification(notification.id);
+                              }}
+                              disabled={loadingAction === `delete-dropdown-${notification.id}`}
+                              className="p-1 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-2.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between gap-2 text-xs">
+                  {recentNotifications.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowClearConfirm(true)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 font-semibold transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3 text-rose-500" />
+                      <span>Clear all</span>
+                    </button>
+                  ) : (
+                    <span className="text-xs text-slate-400">All caught up</span>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotificationsOpen(false);
+                      setShowAllModal(true);
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] font-semibold transition-colors cursor-pointer shadow-xs"
+                  >
+                    <span>View All</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile logout */}
+          <button
+            onClick={handleLogout}
+            className="md:hidden inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
+          >
+            <LogOut className="w-3 h-3 mr-1" />
+            Logout
+          </button>
+
+          {/* Desktop Profile Dropdown */}
+          <div className="hidden md:block relative" ref={profileRef}>
+            <button
+              onClick={() => setProfileOpen(!profileOpen)}
+              className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <div className="relative">
+                <div className="w-9 h-9 rounded-full bg-[#0067A1] text-white flex items-center justify-center text-xs font-bold shadow-xs overflow-hidden border border-slate-200 shrink-0">
+                  {getInitials(chemistName)}
+                </div>
+                <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white ring-1 ring-emerald-500/20"></div>
+              </div>
+              <div className="text-left hidden sm:block">
+                <p className="text-xs font-bold text-slate-800 truncate max-w-[150px]">
+                  {chemistName || "Pharmacist"}
+                </p>
+                <p className="text-[10px] text-emerald-600 font-medium">Online</p>
+              </div>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+                  profileOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            {/* Profile Dropdown Menu */}
+            {profileOpen && (
+              <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-[#0067A1] text-white flex items-center justify-center text-lg font-bold overflow-hidden border border-slate-200 shadow-xs shrink-0">
+                      {getInitials(chemistName)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-slate-900 truncate">
+                        {chemistName || "Pharmacist"}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        Registered Pharmacist
+                      </p>
+                      <p className="text-xs text-emerald-600 font-medium mt-1 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
+                        Active now
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="py-2">
+                  <button
+                    onClick={() => {
+                      setProfileOpen(false);
+                      handleSwitchToPatient();
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors text-left cursor-pointer"
+                  >
+                    <Heart className="w-4 h-4 text-pink-500 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="font-semibold text-slate-800 block text-xs">Patient Mode</span>
+                      <span className="text-[10px] text-slate-500 block truncate">Consult doctor & book tests</span>
+                    </div>
+                  </button>
+
+                  <Link
+                    href="/chemist/profile"
+                    className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    onClick={() => setProfileOpen(false)}
+                  >
+                    <User className="w-4 h-4 text-slate-500 shrink-0" />
+                    <span className="text-xs font-semibold text-slate-800">Edit Profile</span>
+                  </Link>
+
+                  <div className="border-t border-slate-100 my-1.5"></div>
+                  <button
+                    onClick={() => {
+                      setProfileOpen(false);
+                      handleLogout();
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                  >
+                    <LogOut className="w-4 h-4 shrink-0" />
+                    <span className="text-xs">Sign Out</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </header>
 
       {/* All Notifications Modal */}

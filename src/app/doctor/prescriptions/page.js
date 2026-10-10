@@ -17,11 +17,15 @@ import {
   FaChevronRight,
   FaHistory,
   FaExclamationCircle,
-  FaCheckCircle
+  FaCheckCircle,
+  FaPrint,
+  FaArrowsAltH
 } from 'react-icons/fa';
 import api from '@/utils/websiteApi';
 import toast from 'react-hot-toast';
 import ConsultationWorkspace from '@/components/doctor/ConsultationWorkspace';
+import { printPrescriptionPdf } from '@/lib/prescriptionPdfEngine';
+import { MEDICONNECT_LOGO_BASE64, DOCTOR_CADUCEUS_BASE64 } from '@/lib/prescriptionAssets';
 
 function formatSpecialMessage(text) {
   if (!text) return null;
@@ -191,24 +195,45 @@ export default function Prescriptions() {
       }
 
       const mapped = res.data.map((p) => {
-        const rawDiagnosis = p.diagnosis || p.icd_diagnosis || '';
-        let diagnosisText = 'Not specified';
+        let rawDiagnosis = p.diagnosis || p.icd_diagnosis || '';
+        let diagnosisNotes = '';
 
-        if (rawDiagnosis) {
-          if (typeof rawDiagnosis === 'string') {
-            diagnosisText = rawDiagnosis;
-          } else if (Array.isArray(rawDiagnosis)) {
-            diagnosisText = rawDiagnosis.join(', ');
-          } else if (typeof rawDiagnosis === 'object') {
-            const parts = [];
-            if (rawDiagnosis.provisional_diagnosis) parts.push(rawDiagnosis.provisional_diagnosis);
-            if (rawDiagnosis.severity) parts.push(`Severity: ${rawDiagnosis.severity}`);
-            if (Array.isArray(rawDiagnosis.icd_codes) && rawDiagnosis.icd_codes.length) {
-              parts.push(`ICD: ${rawDiagnosis.icd_codes.join(', ')}`);
-            }
-            if (rawDiagnosis.notes) parts.push(rawDiagnosis.notes);
-            diagnosisText = parts.length ? parts.join(' â€¢ ') : 'Not specified';
+        if (typeof rawDiagnosis === 'string' && rawDiagnosis.trim().startsWith('{')) {
+          try {
+            rawDiagnosis = JSON.parse(rawDiagnosis);
+          } catch {}
+        }
+
+        let diagnosisText = '';
+        if (typeof rawDiagnosis === 'string') {
+          diagnosisText = rawDiagnosis.trim();
+        } else if (Array.isArray(rawDiagnosis)) {
+          diagnosisText = rawDiagnosis.filter(Boolean).join(', ');
+        } else if (typeof rawDiagnosis === 'object' && rawDiagnosis !== null) {
+          diagnosisText =
+            rawDiagnosis.primary ||
+            rawDiagnosis.provisional_diagnosis ||
+            rawDiagnosis.diagnosis ||
+            rawDiagnosis.name ||
+            rawDiagnosis.text ||
+            '';
+          diagnosisNotes = rawDiagnosis.notes || rawDiagnosis.clinical_notes || '';
+          if (!diagnosisText && rawDiagnosis.severity) {
+            diagnosisText = `Severity: ${rawDiagnosis.severity}`;
           }
+        }
+
+        // Fallback to template_data if still empty
+        if (!diagnosisText && p.template_data) {
+          const td = typeof p.template_data === 'string' ? safeJsonParse(p.template_data, {}) : (p.template_data || {});
+          diagnosisText = td['PROVISIONAL DIAGNOSIS__diagnosis'] || td.diagnosis || td.provisional_diagnosis || '';
+          if (!diagnosisNotes) {
+            diagnosisNotes = td['PROVISIONAL DIAGNOSIS__clinical_notes'] || td.diagnosis_notes || '';
+          }
+        }
+
+        if (!diagnosisText) {
+          diagnosisText = 'Not specified';
         }
 
         // Medicines: support array, JSON string, or legacy medicines_list
@@ -273,6 +298,7 @@ export default function Prescriptions() {
           date: p.created_at?.slice(0, 10) || '',
           time: p.created_at ? new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
           diagnosis: diagnosisText,
+          diagnosisNotes: diagnosisNotes,
           medicines: normalizedMedicines,
           notes: p.notes || p.instructions || '',
           followUp: p.follow_up_date || followUpInfo?.next_appointment_date || '',
@@ -800,20 +826,18 @@ export default function Prescriptions() {
                   <button
                     onClick={() => {
                       const el = document.getElementById('rx-print-area');
-                      const w = window.open('', '_blank');
-                      w.document.write(`<html><head><title>Prescription</title><style>body{font-family:Segoe UI,sans-serif;margin:0;padding:0;} .no-print{display:none;} @media print{.no-print{display:none;}}</style></head><body>${el.innerHTML}</body></html>`);
-                      w.document.close();
-                      w.focus();
-                      w.print();
-                      w.close();
+                      if (el) {
+                        printPrescriptionPdf(el, `Prescription_${currentPrescription.id}`);
+                      }
                     }}
-                    className="px-4 py-1.5 bg-[#0080C6] text-white rounded-lg text-xs font-semibold hover:bg-[#0067A1] transition"
+                    className="px-4 py-1.5 bg-[#0080C6] text-white rounded-xl text-xs font-semibold hover:bg-[#0067A1] active:scale-95 transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
                   >
-                    🖨 Print
+                    <FaPrint className="w-3.5 h-3.5" />
+                    <span>Download PDF</span>
                   </button>
                   <button
                     onClick={() => setCurrentPrescription(null)}
-                    className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                    className="p-1.5 rounded-xl hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white transition-all cursor-pointer"
                   >
                     <FaTimes className="w-4 h-4" />
                   </button>
@@ -821,40 +845,59 @@ export default function Prescriptions() {
               </div>
 
               {/* Scrollable prescription document */}
-              <div className="flex-1 overflow-y-auto bg-gradient-to-br from-[#f5f7fa] to-[#e4edf5] p-4">
-                <div id="rx-print-area" style={{ fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', background: 'white', maxWidth: '100%', margin: '0 auto', padding: 24, borderRadius: 8, boxShadow: '0 2px 12px rgba(0,0,0,0.1)', color: '#333' }}>
+              <div className="flex-1 overflow-x-auto overflow-y-auto bg-slate-100/90 p-2 sm:p-6">
+                <div className="min-w-fit flex flex-col items-center">
+                  <div className="block md:hidden text-[11px] text-slate-500 font-medium mb-2 w-[794px] px-2 text-center flex items-center justify-center gap-1.5">
+                    <FaArrowsAltH className="w-3.5 h-3.5 text-slate-400 inline" />
+                    <span>Scroll horizontally to view full standard A4 prescription sheet</span>
+                  </div>
+                  <div id="rx-print-area" style={{ fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', background: 'white', width: 794, minWidth: 794, maxWidth: 794, margin: '0 auto', padding: 28, borderRadius: 0, boxShadow: 'none', border: 'none', color: '#333', boxSizing: 'border-box' }}>
 
                   {/* HEADER */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', background: 'linear-gradient(135deg,#66baf7 0%,#62bcfb 100%)', borderRadius: 8, marginBottom: 16 }}>
-                    <div>
-                      <img src="/real-logo.png" alt="logo" style={{ width: 72, height: 72, borderRadius: '50%', background: 'white', objectFit: 'contain' }} />
-                    </div>
-                    <div style={{ textAlign: 'center', flexGrow: 1 }}>
-                      <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: 'black', textShadow: '1px 1px 3px rgba(0,0,0,0.3)' }}>MediConnect.fit</h1>
-                      <p style={{ margin: '4px 0 0', fontSize: 13, color: 'black', fontWeight: 500 }}>
-                        {(() => {
-                          const spec = currentPrescription.specialization || doctorInfo.specialization;
-                          if (!spec || spec === "—") return "Teleconsultation Care & Consultation";
-                          const singleSpec = spec.split(',')[0].trim();
-                          return `${singleSpec} Care & Consultation`;
-                        })()}
-                      </p>
-                      <p style={{ margin: '3px 0 0', fontSize: 12, color: 'black' }}>📧 hello@mediconnect.fit</p>
-                    </div>
-                    <div style={{ width: 72, height: 72, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                      <img src="/md-pdf/dr.png" alt="dr" style={{ width: 56, height: 56 }} />
-                    </div>
-                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', background: 'linear-gradient(135deg,#66baf7 0%,#62bcfb 100%)', borderRadius: 0, borderBottom: '2px solid #0067A1', marginBottom: 12 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ width: 84, textAlign: 'center', verticalAlign: 'middle', padding: '10px 14px' }}>
+                          <img src={MEDICONNECT_LOGO_BASE64} alt="logo" width={60} height={60} style={{ width: 60, height: 60, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
+                        </td>
+                        <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '10px 4px' }}>
+                          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'black', textShadow: '1px 1px 2px rgba(0,0,0,0.25)', whiteSpace: 'nowrap' }}>MediConnect.fit</h1>
+                          <p style={{ margin: '3px 0 0', fontSize: 12, color: 'black', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            {(() => {
+                              const spec = currentPrescription.specialization || doctorInfo.specialization;
+                              if (!spec || spec === "—") return "Teleconsultation Care & Consultation";
+                              const singleSpec = spec.split(',')[0].trim();
+                              return `${singleSpec} Care & Consultation`;
+                            })()}
+                          </p>
+                          <p style={{ margin: '2px 0 0', fontSize: 11, color: 'black' }}>hello@mediconnect.fit</p>
+                        </td>
+                        <td style={{ width: 84, textAlign: 'center', verticalAlign: 'middle', padding: '10px 14px' }}>
+                          <img src={DOCTOR_CADUCEUS_BASE64} alt="dr" width={60} height={60} style={{ width: 60, height: 60, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-                  {/* TOP ROW */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f0f7ff', padding: '10px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
-                    <div>Booking ID: <span style={{ color: '#0067A1' }}>{String(currentPrescription.id).slice(0, 8).toUpperCase()}</span></div>
-                    <div>Date: <span style={{ color: '#0067A1' }}>{formatDate(currentPrescription.date)}</span></div>
-                    <div>Time: <span style={{ color: '#0067A1' }}>{currentPrescription.time || '—'}</span></div>
-                  </div>
+                  {/* TOP ROW (Metadata line - No Box) */}
+                  <table style={{ width: '100%', borderCollapse: 'collapse', background: 'transparent', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', marginBottom: 10 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ padding: '8px 4px', fontSize: 12, fontWeight: 600, color: '#333', textAlign: 'left', width: '35%' }}>
+                          Booking ID: <span style={{ color: '#0067A1' }}>{String(currentPrescription.id).slice(0, 8).toUpperCase()}</span>
+                        </td>
+                        <td style={{ padding: '8px 4px', fontSize: 12, fontWeight: 600, textAlign: 'center', width: '35%' }}>
+                          Date: <span style={{ color: '#0067A1' }}>{formatDate(currentPrescription.date)}</span>
+                        </td>
+                        <td style={{ padding: '8px 4px', fontSize: 12, fontWeight: 600, color: '#333', textAlign: 'right', width: '30%' }}>
+                          Time: <span style={{ color: '#0067A1' }}>{currentPrescription.time || '—'}</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
 
                   {/* NOTICE */}
-                  <div style={{ background: '#fff8d6', padding: '10px 14px', fontSize: 12, borderRadius: 6, borderLeft: '4px solid #ffc107', fontStyle: 'italic', marginBottom: 12 }}>
+                  <div style={{ background: '#fffbeb', padding: '7px 12px', fontSize: 11, borderRadius: 0, borderLeft: '3px solid #f59e0b', fontStyle: 'italic', marginBottom: 10, color: '#475569' }}>
                     This prescription is based solely on information provided during teleconsultation without physical examination. If symptoms worsen, seek in-person evaluation or emergency care immediately.
                   </div>
 
@@ -880,7 +923,14 @@ export default function Prescriptions() {
 
                       <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 14 }}>PROVISIONAL DIAGNOSIS</h3>
                       <div style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                        <span style={{ color: '#0067A1', fontWeight: 500 }}>{currentPrescription.diagnosis || '—'}</span>
+                        <span style={{ color: '#0067A1', fontWeight: 600, fontSize: 13 }}>
+                          {currentPrescription.diagnosis && currentPrescription.diagnosis !== 'Not specified' ? currentPrescription.diagnosis : '—'}
+                        </span>
+                        {currentPrescription.diagnosisNotes && (
+                          <div style={{ fontSize: 11, color: '#555', marginTop: 3 }}>
+                            {currentPrescription.diagnosisNotes}
+                          </div>
+                        )}
                       </div>
 
                       {currentPrescription.vitalSigns && Object.values(currentPrescription.vitalSigns).some(Boolean) && (
@@ -888,22 +938,38 @@ export default function Prescriptions() {
                           <h4 style={{ margin: '12px 0 6px', fontSize: 12, fontWeight: 700, borderLeft: '3px solid #0080C6', paddingLeft: 8 }}>VITALS (Self-reported)</h4>
                           {Object.entries(currentPrescription.vitalSigns).map(([k, v]) => {
                             if (!v) return null;
+                            const formatVitalKey = (key) => {
+                              if (!key) return "";
+                              const kl = String(key).toLowerCase().trim();
+                              if (kl.includes("spo") || kl.includes("oxygen")) return "SpO₂";
+                              if (kl.includes("blood_pressure") || kl === "bp") return "Blood Pressure";
+                              if (kl.includes("pulse") || kl.includes("heart_rate")) return "Pulse";
+                              if (kl.includes("temp")) return "Temperature";
+                              if (kl.includes("weight")) return "Weight";
+                              if (kl.includes("height")) return "Height";
+                              if (kl.includes("respiratory") || kl === "rr") return "Respiratory Rate";
+                              if (kl.includes("sugar") || kl.includes("glucose")) return "Blood Sugar";
+                              return String(key).replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                            };
                             const formatVital = (key, val) => {
+                              if (!val && val !== 0) return "—";
                               let s = String(val).trim();
-                              if (/[a-zA-Z%]/.test(s)) return s;
-                              const kl = key.toLowerCase();
+                              if (!s) return "—";
+                              if (/[a-zA-Z%°]/.test(s)) return s;
+                              const kl = String(key || "").toLowerCase().trim();
                               if (kl.includes('blood_pressure') || kl === 'bp') return `${s} mmHg`;
                               if (kl.includes('pulse') || kl === 'heart_rate') return `${s} bpm`;
                               if (kl.includes('temp')) return `${s} °F`;
                               if (kl.includes('weight')) return `${s} kg`;
                               if (kl.includes('height')) return `${s} cm`;
-                              if (kl.includes('spo2') || kl.includes('oxygen')) return `${s} %`;
+                              if (kl.includes('spo') || kl.includes('oxygen')) return `${s} %`;
+                              if (kl.includes('respiratory') || kl === 'rr') return `${s} /min`;
                               if (kl.includes('sugar') || kl.includes('glucose')) return `${s} mg/dL`;
                               return s;
                             };
                             return (
                               <div key={k} style={{ position: 'relative', paddingBottom: 5, margin: '4px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                                <span style={{ fontWeight: 600 }}>{k.replace(/_/g, ' ')}: </span>
+                                <span style={{ fontWeight: 600 }}>{formatVitalKey(k)}: </span>
                                 <span style={{ color: '#0067A1', fontWeight: 500 }}>{formatVital(k, v)}</span>
                               </div>
                             );
@@ -1045,8 +1111,20 @@ export default function Prescriptions() {
                 </div>
               </div>
             </div>
+
+            {/* Modal footer */}
+            <div className="p-3 sm:p-4 border-t border-gray-200 bg-gray-50 flex items-center justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setCurrentPrescription(null)}
+                className="px-5 py-2 text-xs font-semibold rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 active:scale-98 transition-all cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+      )}
 
         {/* Custom UI Modal for Prescription Deletion */}
         {prescriptionToDelete && (

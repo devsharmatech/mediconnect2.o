@@ -29,23 +29,66 @@ export async function GET(req) {
 
     const orderIds = orders.map((o) => o.id);
     let itemsByOrder = {};
+    let reportsByOrder = {};
+    let lockerUrls = new Set();
 
     if (orderIds.length > 0) {
-      const items = await sql`
-        SELECT * FROM lab_test_order_items
-        WHERE order_id = ANY(${orderIds})
-        ORDER BY unid ASC
-      `;
+      const [items, reports, lockerDocs] = await Promise.all([
+        sql`
+          SELECT * FROM lab_test_order_items
+          WHERE order_id = ANY(${orderIds})
+          ORDER BY unid ASC
+        `,
+        sql`
+          SELECT * FROM lab_reports
+          WHERE order_id = ANY(${orderIds})
+          ORDER BY created_at DESC
+        `,
+        sql`
+          SELECT document_url FROM digital_locker_documents
+          WHERE user_id = ${patient_id} AND document_type = 'lab_report'
+        `
+      ]);
+
       items.forEach((item) => {
         if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
         itemsByOrder[item.order_id].push(item);
       });
+
+      reports.forEach((rep) => {
+        if (!reportsByOrder[rep.order_id]) reportsByOrder[rep.order_id] = [];
+        reportsByOrder[rep.order_id].push(rep);
+      });
+
+      lockerDocs.forEach((d) => {
+        if (d.document_url) lockerUrls.add(d.document_url);
+      });
     }
 
-    const result = orders.map((o) => ({
-      ...o,
-      lab_test_order_items: itemsByOrder[o.id] || [],
-    }));
+    const result = orders.map((o) => {
+      const orderReports = reportsByOrder[o.id] || [];
+      const hasSavedReport = orderReports.some((r) => lockerUrls.has(r.report_url));
+      const rawOrderItems = itemsByOrder[o.id] || [];
+      const orderItems = rawOrderItems.map((it) => {
+        const itReports = orderReports.filter((r) =>
+          (r.item_id && r.item_id === it.id) ||
+          (r.test_name && r.test_name.toLowerCase() === it.test_name.toLowerCase()) ||
+          (r.test_type && r.test_type.toLowerCase() === it.test_name.toLowerCase())
+        );
+        return {
+          ...it,
+          reports: itReports,
+          has_report: itReports.length > 0,
+        };
+      });
+
+      return {
+        ...o,
+        lab_test_order_items: orderItems,
+        reports: orderReports,
+        saved_in_digilocker: hasSavedReport,
+      };
+    });
 
     return success("Orders fetched", result, 200, { headers: corsHeaders });
   } catch (err) {

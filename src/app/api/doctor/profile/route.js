@@ -70,6 +70,9 @@ export async function GET(req) {
       inPersonVisitFee: Number(doctor.clinic_consultation_fee || doctor.consultation_fee || 800),
       homeVisitFee: Number(doctor.home_visit_fee || 1000),
       profile_picture: pic || null,
+      profile_photo_url: pic || null,
+      photo_url: pic || null,
+      avatar_url: pic || null,
       qualifications: (Array.isArray(doctor.qualification) && doctor.qualification.length > 0) 
         ? doctor.qualification 
         : (typeof doctor.qualification === 'string' 
@@ -128,6 +131,7 @@ export async function POST(req) {
     const bioValue = bio !== undefined ? bio : about_me;
     const rawExp = experience !== undefined ? experience : experience_years;
     const parsedExp = rawExp !== undefined ? parseInt(String(rawExp), 10) : undefined;
+    const generalFee = videoConsultFee !== undefined ? Number(videoConsultFee) : (inPersonVisitFee !== undefined ? Number(inPersonVisitFee) : null);
 
     // Update doctor_details in AWS RDS PostgreSQL
     await sql`
@@ -137,6 +141,7 @@ export async function POST(req) {
         experience_years = COALESCE(${!isNaN(parsedExp) ? parsedExp : null}, experience_years),
         video_consultation_fee = COALESCE(${videoConsultFee !== undefined ? Number(videoConsultFee) : null}, video_consultation_fee),
         clinic_consultation_fee = COALESCE(${inPersonVisitFee !== undefined ? Number(inPersonVisitFee) : null}, clinic_consultation_fee),
+        consultation_fee = COALESCE(${generalFee !== null ? generalFee : null}, consultation_fee),
         home_visit_fee = COALESCE(${homeVisitFee !== undefined ? Number(homeVisitFee) : null}, home_visit_fee),
         qualification = COALESCE(${qualifications !== undefined ? (Array.isArray(qualifications) ? qualifications.join(", ") : qualifications) : null}, qualification),
         languages = COALESCE(${languages !== undefined ? languages : null}, languages),

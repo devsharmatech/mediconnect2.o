@@ -395,13 +395,13 @@ export default function ChemistDashboard() {
       pulse: broadcasts.length > 0,
     },
     {
-      label: "Patient Mode",
-      sub: "Consult doctors",
-      href: "/dashboard",
-      icon: Heart,
-      gradient: "from-pink-500 to-rose-600",
-      bg: "bg-pink-50 dark:bg-pink-900/30",
-      text: "text-pink-600 dark:text-pink-300",
+      label: "Payment Scrutiny",
+      sub: "Verify UTR proofs",
+      href: "/chemist/orders",
+      icon: CheckCircle2,
+      gradient: "from-blue-600 to-indigo-600",
+      bg: "bg-blue-50 dark:bg-blue-900/30",
+      text: "text-blue-700 dark:text-blue-300",
     },
     {
       label: "Medicine Inventory",
@@ -462,23 +462,32 @@ export default function ChemistDashboard() {
       <div className="relative overflow-hidden bg-[#0067A1] rounded-[5px] px-4 sm:px-6 pt-6 pb-10 sm:pb-12 shadow-md">
         <div className="relative max-w-full mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-white/70 text-xs sm:text-sm font-medium tracking-wide">
-                  {greeting}
-                </span>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[5px] bg-white/20 text-white text-[11px] font-semibold">
-                  <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                  Verified Pharmacy
-                </span>
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-white p-1 shadow-md border border-white/30 shrink-0 overflow-hidden flex items-center justify-center mt-1">
+                <img
+                  src="/real-logo.png"
+                  alt="Pharmacy Logo"
+                  className="w-full h-full object-cover scale-[1.38] -translate-y-1"
+                />
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white mt-1">
-                {chemistInfo?.pharmacy_name || "Apex MediConnect Pharmacy"} 👋
-              </h1>
-              <p className="text-white/80 text-xs sm:text-sm mt-1">
-                {chemistInfo?.address || "Health Square, Sector 62, Noida"} • GST:{" "}
-                {chemistInfo?.gstin || "07AAAAA9999A1Z5"}
-              </p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-white/70 text-xs sm:text-sm font-medium tracking-wide">
+                    {greeting}
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[5px] bg-white/20 text-white text-[11px] font-semibold">
+                    <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                    Verified Pharmacy
+                  </span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white mt-1 truncate">
+                  {chemistInfo?.pharmacy_name || "Apex MediConnect Pharmacy"} 👋
+                </h1>
+                <p className="text-white/80 text-xs sm:text-sm mt-1">
+                  {chemistInfo?.address || "Health Square, Sector 62, Noida"} • GST:{" "}
+                  {chemistInfo?.gstin || "07AAAAA9999A1Z5"}
+                </p>
+              </div>
             </div>
 
             {/* Hero Quick Action Buttons */}

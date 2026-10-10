@@ -44,7 +44,7 @@ export async function GET(req) {
       FROM medicine_orders mo
       LEFT JOIN chemist_details cd ON cd.id = mo.chemist_id
       ${filterCondition}
-      ORDER BY mo.created_at DESC
+      ORDER BY mo.created_at DESC NULLS LAST, mo.id DESC
     `;
 
     // Fetch items for all retrieved orders
@@ -54,8 +54,12 @@ export async function GET(req) {
       const itemRows = await sql`
         SELECT * FROM medicine_order_items 
         WHERE order_id = ANY(${orderIds})
-        ORDER BY created_at ASC
       `;
+      // In-memory sort ensures 100% safety regardless of DB column schema
+      itemRows.sort((a, b) => {
+        if (a.created_at && b.created_at) return new Date(a.created_at) - new Date(b.created_at);
+        return String(a.id || "").localeCompare(String(b.id || ""));
+      });
       itemRows.forEach((item) => {
         if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
         itemsByOrder[item.order_id].push(item);

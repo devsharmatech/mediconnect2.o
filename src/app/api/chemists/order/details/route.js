@@ -44,9 +44,10 @@ export async function POST(req) {
         mo.patient_notes,
         mo.utr_number,
         mo.payment_proof_url,
-        mo.delivery_address AS raw_delivery_address,
+        pd.address AS raw_delivery_address,
 
         -- Patient basic
+        u.un_id        AS patient_un_id,
         u.phone_number AS patient_phone,
 
         -- Patient details
@@ -75,7 +76,7 @@ export async function POST(req) {
     const items = await sql`
       SELECT * FROM medicine_order_items
       WHERE order_id = ${order_id}
-      ORDER BY created_at ASC
+      ORDER BY unid ASC
     `;
 
     /* =====================================================
@@ -112,6 +113,9 @@ export async function POST(req) {
       const prescRows = await sql`
         SELECT
           p.id,
+          p.unid,
+          p.doctor_id,
+          p.patient_id,
           p.medicines,
           p.special_message,
           p.created_at,
@@ -119,17 +123,18 @@ export async function POST(req) {
           p.signed_at,
 
           -- Doctor details (for dispensing validation)
-          d.full_name        AS doctor_full_name,
-          d.specialization   AS doctor_specialization,
-          d.qualification    AS doctor_qualification,
-          d.clinic_name      AS doctor_clinic_name,
-          d.clinic_address   AS doctor_clinic_address,
-          d.signature_url    AS doctor_signature_url,
-          d.license_number   AS doctor_license_number,
-          d.consultation_fee AS doctor_consultation_fee
+          dd.full_name        AS doctor_full_name,
+          dd.specialization   AS doctor_specialization,
+          dd.qualification    AS doctor_qualification,
+          dd.clinic_name      AS doctor_clinic_name,
+          dd.clinic_address   AS doctor_clinic_address,
+          dd.signature_url    AS doctor_signature_url,
+          dd.license_number   AS doctor_license_number,
+          dd.council_name     AS doctor_council_name,
+          dd.consultation_fee AS doctor_consultation_fee
 
         FROM prescriptions p
-        LEFT JOIN doctors d ON d.id = p.doctor_id
+        LEFT JOIN doctor_details dd ON dd.id = p.doctor_id
         WHERE p.id = ${order.prescription_id}
         LIMIT 1
       `;
@@ -145,13 +150,30 @@ export async function POST(req) {
           medicines = [];
         }
 
+        // Canonical Prescription ID matching patient portal: MED-{doc.un_id}-{pat.un_id}-{rx.unid}
+        let docUnId = "0";
+        if (presc.doctor_id) {
+          const docUser = await sql`SELECT un_id FROM users WHERE id = ${presc.doctor_id} LIMIT 1`;
+          docUnId = docUser[0]?.un_id || "0";
+        }
+        let patUnId = order.patient_un_id || "0";
+        if (!order.patient_un_id && (presc.patient_id || order.patient_id)) {
+          const patUser = await sql`SELECT un_id FROM users WHERE id = ${presc.patient_id || order.patient_id} LIMIT 1`;
+          patUnId = patUser[0]?.un_id || "0";
+        }
+        const rxUnId = presc.unid || presc.id?.slice(0, 8) || "0";
+        const canonicalPid = `MED-${docUnId}-${patUnId}-${rxUnId}`;
+
         prescriptionFormatted = {
           id: presc.id,
+          unid: presc.unid,
+          pid: canonicalPid,
+          formatted_id: canonicalPid,
           created_at: presc.created_at,
           updated_at: presc.updated_at,
           medicines,
           special_message: presc.special_message || "",
-          signed_at: presc.signed_at,
+          signed_at: presc.signed_at || presc.created_at,
           // Redacted per DPDP minimum-necessary rule
           lab_tests: [],
           investigations: [],
@@ -168,9 +190,18 @@ export async function POST(req) {
                 clinic_address: presc.doctor_clinic_address,
                 signature_url: presc.doctor_signature_url,
                 license_number: presc.doctor_license_number,
+                council_name: presc.doctor_council_name,
                 consultation_fee: presc.doctor_consultation_fee,
+                un_id: docUnId,
               }
             : null,
+          patient_details: {
+            full_name: order.patient_full_name || "N/A",
+            gender: order.patient_gender || "N/A",
+            date_of_birth: order.patient_dob || null,
+            address: order.patient_address || "N/A",
+            un_id: patUnId,
+          },
         };
       }
     }

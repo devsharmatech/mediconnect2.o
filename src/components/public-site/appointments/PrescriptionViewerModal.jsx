@@ -2,8 +2,11 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { FaTimes, FaPaperPlane, FaFlask, FaPills, FaArrowRight, FaCheckCircle, FaPrint, FaEnvelope } from "react-icons/fa";
+import { FaTimes, FaPaperPlane, FaFlask, FaPills, FaArrowRight, FaCheckCircle, FaPrint, FaEnvelope, FaArrowsAltH, FaDownload, FaSpinner } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
+import toast from "react-hot-toast";
+import { exportPrescriptionPdf, printPrescriptionPdf } from "@/lib/prescriptionPdfEngine";
+import { MEDICONNECT_LOGO_BASE64, DOCTOR_CADUCEUS_BASE64 } from "@/lib/prescriptionAssets";
 import SharePrescriptionModal from "./SharePrescriptionModal";
 
 function SectionHeading({ title }) {
@@ -61,6 +64,8 @@ export default function PrescriptionViewerModal({
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [shareTarget, setShareTarget] = useState(null);
   const [showFulfillPrompt, setShowFulfillPrompt] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const fetchOrders = async () => {
     if (!data?.id) { setOrdersLoading(false); return; }
@@ -135,16 +140,33 @@ export default function PrescriptionViewerModal({
     return Object.keys(symp).length > 0 ? symp : null;
   })();
 
+  const formatVitalKey = (k) => {
+    if (!k) return "";
+    const kl = String(k).toLowerCase().trim();
+    if (kl.includes("spo") || kl.includes("oxygen")) return "SpO₂";
+    if (kl.includes("blood_pressure") || kl === "bp") return "Blood Pressure";
+    if (kl.includes("pulse") || kl.includes("heart_rate")) return "Pulse";
+    if (kl.includes("temp")) return "Temperature";
+    if (kl.includes("weight")) return "Weight";
+    if (kl.includes("height")) return "Height";
+    if (kl.includes("respiratory") || kl === "rr") return "Respiratory Rate";
+    if (kl.includes("sugar") || kl.includes("glucose")) return "Blood Sugar";
+    return String(k).replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+
   const formatVital = (k, v) => {
+    if (!v && v !== 0) return "—";
     let val = String(v).trim();
-    if (/[a-zA-Z%]/.test(val)) return val;
-    const key = k.toLowerCase();
+    if (!val) return "—";
+    if (/[a-zA-Z%°]/.test(val)) return val;
+    const key = String(k || "").toLowerCase().trim();
     if (key.includes('blood_pressure') || key === 'bp') return `${val} mmHg`;
     if (key.includes('pulse') || key === 'heart_rate') return `${val} bpm`;
     if (key.includes('temp')) return `${val} °F`;
     if (key.includes('weight')) return `${val} kg`;
     if (key.includes('height')) return `${val} cm`;
-    if (key.includes('spo2') || key.includes('oxygen')) return `${val} %`;
+    if (key.includes('spo') || key.includes('oxygen')) return `${val} %`;
+    if (key.includes('respiratory') || key === 'rr') return `${val} /min`;
     if (key.includes('sugar') || key.includes('glucose')) return `${val} mg/dL`;
     return val;
   };
@@ -169,16 +191,27 @@ export default function PrescriptionViewerModal({
   };
 
   const diagnosis = (() => {
-    const raw = data.diagnosis;
+    let raw = data.diagnosis;
     if (!raw) return "";
-    if (typeof raw === "string") return raw;
-    return safeStr(raw.primary || raw.diagnosis || "");
+    if (typeof raw === "string" && raw.trim().startsWith("{")) {
+      try { raw = JSON.parse(raw); } catch {}
+    }
+    if (typeof raw === "string") return raw.trim();
+    if (typeof raw === "object" && raw !== null) {
+      return safeStr(raw.primary || raw.provisional_diagnosis || raw.diagnosis || raw.name || raw.text || "");
+    }
+    return safeStr(raw);
   })();
   const diagnosisNotes = (() => {
-    const raw = data.diagnosis;
-    if (!raw) return safeStr(data.diagnosis_notes);
-    if (typeof raw === "string") return safeStr(data.diagnosis_notes);
-    return safeStr(raw.notes);
+    let raw = data.diagnosis;
+    if (typeof raw === "string" && raw.trim().startsWith("{")) {
+      try { raw = JSON.parse(raw); } catch {}
+    }
+    if (!raw || typeof raw === "string") {
+      const td = typeof data.template_data === "string" ? safeJsonParse(data.template_data, {}) : (data.template_data || {});
+      return safeStr(data.diagnosis_notes || td['PROVISIONAL DIAGNOSIS__clinical_notes']);
+    }
+    return safeStr(raw.notes || raw.clinical_notes || data.diagnosis_notes);
   })();
   const qualification = safeStr(doc.qualification);
   const specialization = (() => {
@@ -261,79 +294,27 @@ export default function PrescriptionViewerModal({
     return age >= 0 ? `${age} yrs` : "—";
   };
 
-  const handlePrint = () => {
+  const handleDownload = async () => {
     const el = document.getElementById('rx-print-area');
     if (!el) {
-      toast.error("Prescription content not ready for printing.");
+      toast.error("Prescription area not found");
       return;
     }
-
     try {
-      let iframe = document.getElementById('rx-print-iframe');
-      if (!iframe) {
-        iframe = document.createElement('iframe');
-        iframe.id = 'rx-print-iframe';
-        iframe.style.position = 'fixed';
-        iframe.style.right = '0';
-        iframe.style.bottom = '0';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.border = '0';
-        document.body.appendChild(iframe);
-      }
-
-      const doc = iframe.contentWindow?.document || iframe.contentDocument;
-      if (!doc) throw new Error("Print iframe unavailable");
-
-      doc.open();
-      doc.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>MediConnect Prescription - ${data?.patient_details?.full_name || 'Patient'}</title>
-            <style>
-              @page { size: auto; margin: 10mm; }
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                margin: 0;
-                padding: 0;
-                color: #333;
-                background: #fff;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-              }
-              .no-print { display: none !important; }
-              img { max-width: 100%; }
-            </style>
-          </head>
-          <body>
-            ${el.innerHTML}
-          </body>
-        </html>
-      `);
-      doc.close();
-
-      setTimeout(() => {
-        try {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-        } catch (e) {
-          console.warn("Iframe print fallback:", e);
-          window.print();
-        }
-      }, 300);
+      setIsDownloading(true);
+      const filename = `Prescription_${prescriptionId || "MediConnect"}.pdf`;
+      await exportPrescriptionPdf(el, filename, true);
+      toast.success("Prescription PDF downloaded & opened");
     } catch (err) {
-      console.warn("Print error, using window.open fallback:", err);
-      const w = window.open('', '_blank');
-      if (w) {
-        w.document.write(`<html><head><title>Prescription</title><style>body{font-family:Segoe UI,sans-serif;margin:16px;padding:0;}</style></head><body>${el.innerHTML}</body></html>`);
-        w.document.close();
-        w.focus();
-        setTimeout(() => { w.print(); }, 350);
-      } else {
-        window.print();
-      }
+      console.error("Prescription download error:", err);
+      toast.error("Failed to generate prescription PDF");
+    } finally {
+      setIsDownloading(false);
     }
+  };
+
+  const handlePrint = async () => {
+    await handleDownload();
   };
 
   return (
@@ -347,68 +328,88 @@ export default function PrescriptionViewerModal({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handlePrint}
-              className="px-4 py-1.5 bg-[#0080C6] text-white rounded-lg text-xs font-semibold hover:bg-[#0067A1] transition cursor-pointer shadow-sm flex items-center gap-1.5"
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="px-4 py-1.5 bg-[#0080C6] text-white hover:bg-[#0067A1] active:scale-95 disabled:opacity-50 rounded-lg text-xs font-semibold transition cursor-pointer shadow-sm flex items-center gap-1.5"
+              title="Download Prescription (A4 PDF)"
             >
-              <FaPrint className="w-3.5 h-3.5" /> Print
+              {isDownloading ? <FaSpinner className="w-3.5 h-3.5 animate-spin" /> : <FaDownload className="w-3.5 h-3.5" />}
+              <span>{isDownloading ? "Generating PDF..." : "Download PDF"}</span>
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition"
+              className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition ml-1"
             >
               <FaTimes className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Scrollable prescription document — vertical scroll on all screens, horizontal scroll on mobile to preserve layout */}
-        <div className="flex-1 overflow-y-auto bg-gradient-to-br from-[#f5f7fa] to-[#e4edf5] p-2 sm:p-4">
-          {/* Inner wrapper: allows horizontal scroll on narrow screens without breaking prescription structure */}
-          <div className="overflow-x-auto pb-2">
-          <div id="rx-print-area" style={{ fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', background: 'white', minWidth: 520, maxWidth: 860, margin: '0 auto', padding: 24, borderRadius: 8, boxShadow: '0 2px 12px rgba(0,0,0,0.1)', color: '#333' }}>
+        {/* Scrollable prescription document — vertical and horizontal scroll to preserve pristine A4 layout */}
+        <div className="flex-1 overflow-x-auto overflow-y-auto bg-slate-100/90 p-2 sm:p-6">
+          <div className="min-w-fit flex flex-col items-center">
+            <div className="block md:hidden text-[11px] text-slate-500 font-medium mb-2 w-[794px] px-2 text-center flex items-center justify-center gap-1.5">
+              <FaArrowsAltH className="w-3.5 h-3.5 text-slate-400 inline" />
+              <span>Scroll horizontally to view full standard A4 prescription sheet</span>
+            </div>
+            <div id="rx-print-area" style={{ fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', background: 'white', width: 794, minWidth: 794, maxWidth: 794, margin: '0 auto', padding: 28, borderRadius: 0, boxShadow: 'none', border: 'none', color: '#333', boxSizing: 'border-box' }}>
             
             {/* HEADER */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', background: 'linear-gradient(135deg,#66baf7 0%,#62bcfb 100%)', borderRadius: 8, marginBottom: 16 }}>
-              <div>
-                <img src="/real-logo.png" alt="logo" style={{ width: 72, height: 72, borderRadius: '50%', background: 'white', objectFit: 'contain' }} />
-              </div>
-              <div style={{ textAlign: 'center', flexGrow: 1 }}>
-                <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: 'black', textShadow: '1px 1px 3px rgba(0,0,0,0.3)' }}>MediConnect.fit</h1>
-                <p style={{ margin: '4px 0 0', fontSize: 13, color: 'black', fontWeight: 500 }}>
-                  {tagline}
-                </p>
-                <p style={{ margin: '3px 0 0', fontSize: 12, color: 'black' }}><FaEnvelope style={{ display: 'inline', width: 12, height: 12, marginRight: 4, verticalAlign: 'middle' }} /> hello@mediconnect.fit</p>
-              </div>
-              <div style={{ width: 72, height: 72, background: 'white', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                <img src="/md-pdf/dr.png" alt="dr" style={{ width: 56, height: 56 }} />
-              </div>
-            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', background: 'linear-gradient(135deg,#66baf7 0%,#62bcfb 100%)', borderRadius: 0, borderBottom: '2px solid #0067A1', marginBottom: 10 }}>
+              <tbody>
+                <tr>
+                  <td style={{ width: 84, textAlign: 'center', verticalAlign: 'middle', padding: '10px 14px' }}>
+                    <img src={MEDICONNECT_LOGO_BASE64} alt="logo" width={60} height={60} style={{ width: 60, height: 60, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
+                  </td>
+                  <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '10px 4px' }}>
+                    <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'black', textShadow: '1px 1px 2px rgba(0,0,0,0.25)', whiteSpace: 'nowrap' }}>MediConnect.fit</h1>
+                    <p style={{ margin: '3px 0 0', fontSize: 12, color: 'black', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {tagline}
+                    </p>
+                    <p style={{ margin: '2px 0 0', fontSize: 11, color: 'black' }}><FaEnvelope style={{ display: 'inline', width: 12, height: 12, marginRight: 4, verticalAlign: 'middle' }} /> hello@mediconnect.fit</p>
+                  </td>
+                  <td style={{ width: 84, textAlign: 'center', verticalAlign: 'middle', padding: '10px 14px' }}>
+                    <img src={DOCTOR_CADUCEUS_BASE64} alt="dr" width={60} height={60} style={{ width: 60, height: 60, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
 
-            {/* TOP ROW */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', background: '#f0f7ff', padding: '10px 14px', borderRadius: 6, fontSize: 13, fontWeight: 600, gap: '8px 14px', marginBottom: 12 }}>
-              <div>Rx ID: <span style={{ color: '#0067A1' }}>{data.pid ? `RX-${String(data.pid).padStart(4, '0')}` : prescriptionId}</span></div>
-              {episodeCode && (
-                <div>Episode ID: <span style={{ color: '#0067A1', fontFamily: 'monospace' }}>{episodeCode}</span></div>
-              )}
-              <div>Date: <span style={{ color: '#0067A1' }}>{fmtDate(data.created_at)}</span></div>
-              <div>Time: <span style={{ color: '#0067A1' }}>{fmtTime(appt.appointment_time || appt.time || data.created_at)}</span></div>
-            </div>
+            {/* TOP ROW (Metadata line - No Box) */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', background: 'transparent', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', marginBottom: 10 }}>
+              <tbody>
+                <tr>
+                  <td style={{ padding: '8px 4px', fontSize: 12, fontWeight: 600, color: '#333', textAlign: 'left', width: '35%' }}>
+                    Rx ID: <span style={{ color: '#0067A1' }}>{data.pid ? `RX-${String(data.pid).padStart(4, '0')}` : prescriptionId}</span>
+                  </td>
+                  <td style={{ padding: '8px 4px', fontSize: 12, fontWeight: 600, textAlign: 'center', width: '35%' }}>
+                    {episodeCode && (
+                      <span>Episode ID: <span style={{ color: '#0067A1', fontFamily: 'monospace' }}>{episodeCode}</span></span>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px 4px', fontSize: 12, fontWeight: 600, color: '#333', textAlign: 'right', width: '30%' }}>
+                    Date: <span style={{ color: '#0067A1' }}>{fmtDate(data.created_at)}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
 
             {/* NOTICE */}
             {isTele && (
-              <div style={{ background: '#fff8d6', padding: '10px 14px', fontSize: 12, borderRadius: 6, borderLeft: '4px solid #ffc107', fontStyle: 'italic', marginBottom: 12 }}>
+              <div style={{ background: '#fffbeb', padding: '7px 12px', fontSize: 11, borderRadius: 0, borderLeft: '3px solid #f59e0b', fontStyle: 'italic', marginBottom: 10, color: '#475569' }}>
                 This prescription is based solely on information provided during teleconsultation without physical examination. If symptoms worsen, seek in-person evaluation or emergency care immediately.
               </div>
             )}
 
-            <hr style={{ border: 'none', height: 1, background: 'linear-gradient(90deg,transparent,#0080C6,transparent)', margin: '12px 0' }} />
+            <hr style={{ border: 'none', height: 1, background: 'linear-gradient(90deg,transparent,#0080C6,transparent)', margin: '10px 0' }} />
 
-            {/* TWO COLUMNS */}
-            <div style={{ display: 'flex', gap: 20 }}>
-              
-              {/* LEFT COLUMN */}
-              <div style={{ width: '50%', fontSize: 12 }}>
-                <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 10 }}>DOCTOR DETAILS</h3>
+            {/* TWO COLUMNS (Table based) */}
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr>
+                  {/* LEFT COLUMN */}
+                  <td style={{ width: '48%', verticalAlign: 'top', paddingRight: 12, fontSize: 12 }}>
+                    <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 10 }}>DOCTOR DETAILS</h3>
                 {[['Name', `Dr. ${doc.full_name || 'Doctor'}`],
                   ['Qualification', qualification || 'N/A'],
                   ['Specialization', specialization || 'N/A'],
@@ -428,7 +429,12 @@ export default function PrescriptionViewerModal({
 
                 <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 14 }}>PROVISIONAL DIAGNOSIS</h3>
                 <div style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                  <span style={{ color: '#0067A1', fontWeight: 500 }}>{diagnosis || '—'}</span>
+                  <span style={{ color: '#0067A1', fontWeight: 600, fontSize: 13 }}>{diagnosis || '—'}</span>
+                  {diagnosisNotes && (
+                    <div style={{ fontSize: 11, color: '#555', marginTop: 3 }}>
+                      {diagnosisNotes}
+                    </div>
+                  )}
                 </div>
 
                 {vitals && Object.values(vitals).some(Boolean) && (
@@ -437,7 +443,7 @@ export default function PrescriptionViewerModal({
                     {Object.entries(vitals).map(([k, v]) =>
                       v ? (
                         <div key={k} style={{ position: 'relative', paddingBottom: 5, margin: '4px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                          <span style={{ fontWeight: 600 }}>{k.replace(/_/g, ' ')}: </span>
+                          <span style={{ fontWeight: 600 }}>{formatVitalKey(k)}: </span>
                           <span style={{ color: '#0067A1', fontWeight: 500 }}>{formatVital(k, v)}</span>
                         </div>
                       ) : null
@@ -455,93 +461,113 @@ export default function PrescriptionViewerModal({
                     ))}
                   </>
                 )}
-              </div>
+              </td>
 
-              {/* RIGHT COLUMN */}
-              <div style={{ width: '50%', fontSize: 12 }}>
-                <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 10 }}>PATIENT DETAILS</h3>
-                {[['Name', pat.full_name || '—'],
-                  ['Gender', pat.gender || '—'],
-                  ['Blood Group', pat.blood_group || '—'],
-                  ['Age', calculateAge(pat.date_of_birth, pat.age)]
-                ].map(([lbl, val]) => (
-                  <div key={lbl} style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                    <span style={{ fontWeight: 600 }}>{lbl}: </span>
-                    <span style={{ color: '#0067A1', fontWeight: 500 }}>{val}</span>
-                  </div>
-                ))}
+                  <td style={{ width: '4%', borderRight: '1px dashed #cbd5e1' }}></td>
 
-                <div style={{ background: 'linear-gradient(135deg,#66baf7,#62bcfb)', color: 'black', textAlign: 'center', fontWeight: 900, padding: 10, margin: '12px 0', borderRadius: 6, fontSize: 13, letterSpacing: '0.5px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                  {(data.appointment_type || 'TELECONSULTATION').toUpperCase().replace(/_/g, ' ')}
-                </div>
-
-                {symptoms && Object.keys(symptoms).length > 0 && (
-                  <>
-                    <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 12 }}>PRESENTING COMPLAINTS</h3>
-                    {Object.entries(symptoms).map(([k, v]) =>
-                      v ? (
-                        <div key={k} style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                          <span style={{ fontWeight: 600 }}>{k}: </span>
-                          <span style={{ color: '#0067A1', fontWeight: 500 }}>{String(v)}</span>
-                        </div>
-                      ) : null
-                    )}
-                  </>
-                )}
-
-                {medicines?.length > 0 && (
-                  <>
-                    <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 12 }}>TREATMENT (Rx)</h3>
-                    {medicines.map((med, idx) => (
-                      <div key={idx} style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                        <span style={{ color: '#0067A1', fontWeight: 500 }}>
-                          {idx + 1}. {med.name || `Medicine ${idx+1}`}
-                          {med.dosage ? ` - ${med.dosage}` : ''}
-                          {med.frequency ? `, ${med.frequency}` : ''}
-                          {med.duration ? ` x ${med.duration}` : ''}
-                          {med.instructions ? `. ${med.instructions}` : ''}
-                        </span>
+                  {/* RIGHT COLUMN */}
+                  <td style={{ width: '48%', verticalAlign: 'top', paddingLeft: 12, fontSize: 12 }}>
+                    <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 10 }}>PATIENT DETAILS</h3>
+                    {[['Name', pat.full_name || '—'],
+                      ['Gender', pat.gender || '—'],
+                      ['Blood Group', pat.blood_group || '—'],
+                      ['Age', calculateAge(pat.date_of_birth, pat.age)]
+                    ].map(([lbl, val]) => (
+                      <div key={lbl} style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
+                        <span style={{ fontWeight: 600 }}>{lbl}: </span>
+                        <span style={{ color: '#0067A1', fontWeight: 500 }}>{val}</span>
                       </div>
                     ))}
-                  </>
-                )}
 
-                <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 12 }}>FOLLOW-UP</h3>
-                {(() => {
-                  const dateVal = (isDateVal && followUpDateVal) ? followUpDateVal : null;
-                  const retVal = followUpObj?.return_after;
-                  const displayDate = retVal || dateVal;
-                  return displayDate ? (
-                    <div style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                      <span style={{ fontWeight: 600 }}>Next Visit: </span>
-                      <span style={{ color: '#0067A1', fontWeight: 500 }}>{displayDate}</span>
+                    <div style={{ background: 'transparent', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', color: '#0067A1', textAlign: 'center', fontWeight: 800, padding: '6px 0', margin: '10px 0', borderRadius: 0, fontSize: '11px', letterSpacing: '1px' }}>
+                      {(data.appointment_type || 'TELECONSULTATION').toUpperCase().replace(/_/g, ' ')}
                     </div>
-                  ) : null;
-                })()}
-                {warningSignsHtml && (
-                  <div style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                    <span style={{ fontWeight: 600, color: 'red' }}>Warning Signs: </span>
-                    <span style={{ color: '#0067A1', fontWeight: 500 }}>
-                      {warningSignsHtml}
-                    </span>
-                  </div>
-                )}
-                {(data.notes || data.special_message || diagnosisNotes) && (
-                  <>
-                    <h4 style={{ margin: '12px 0 6px', fontSize: 12, fontWeight: 700, borderLeft: '3px solid #0080C6', paddingLeft: 8 }}>SPECIAL ADVICE / CLINICAL NOTES</h4>
-                    <div style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', color: '#0067A1' }}>
-                      {formatSpecialMessage(data.special_message || data.notes || diagnosisNotes)}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
+
+                    {symptoms && Object.keys(symptoms).length > 0 && (
+                      <>
+                        <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 12 }}>PRESENTING COMPLAINTS</h3>
+                        {Object.entries(symptoms).map(([k, v]) =>
+                          v ? (
+                            <div key={k} style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
+                              <span style={{ fontWeight: 600 }}>{k}: </span>
+                              <span style={{ color: '#0067A1', fontWeight: 500 }}>{String(v)}</span>
+                            </div>
+                          ) : null
+                        )}
+                      </>
+                    )}
+
+                    {medicines?.length > 0 && (
+                      <>
+                        <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 12 }}>TREATMENT (Rx)</h3>
+                        {medicines.map((med, idx) => (
+                          <div key={idx} style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
+                            <span style={{ color: '#0067A1', fontWeight: 500 }}>
+                              {idx + 1}. {med.name || `Medicine ${idx+1}`}
+                              {med.dosage ? ` - ${med.dosage}` : ''}
+                              {med.frequency ? `, ${med.frequency}` : ''}
+                              {med.duration ? ` x ${med.duration}` : ''}
+                              {med.instructions ? `. ${med.instructions}` : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 12 }}>FOLLOW-UP</h3>
+                    {(() => {
+                      const dateVal = (isDateVal && followUpDateVal) ? followUpDateVal : null;
+                      const retVal = followUpObj?.return_after;
+                      const displayDate = retVal || dateVal;
+                      return displayDate ? (
+                        <div style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
+                          <span style={{ fontWeight: 600 }}>Next Visit: </span>
+                          <span style={{ color: '#0067A1', fontWeight: 500 }}>{displayDate}</span>
+                        </div>
+                      ) : null;
+                    })()}
+                    {warningSignsHtml && (
+                      <div style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
+                        <span style={{ fontWeight: 600, color: 'red' }}>Warning Signs: </span>
+                        <span style={{ color: '#0067A1', fontWeight: 500 }}>
+                          {warningSignsHtml}
+                        </span>
+                      </div>
+                    )}
+                    {(data.notes || data.special_message || diagnosisNotes) && (
+                      <>
+                        <h4 style={{ margin: '12px 0 6px', fontSize: 12, fontWeight: 700, borderLeft: '3px solid #0080C6', paddingLeft: 8 }}>SPECIAL ADVICE / CLINICAL NOTES</h4>
+                        <div style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', color: '#0067A1' }}>
+                          {formatSpecialMessage(data.special_message || data.notes || diagnosisNotes)}
+                        </div>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
 
             <hr style={{ border: 'none', height: 1, background: 'linear-gradient(90deg,transparent,#0080C6,transparent)', margin: '14px 0 8px' }} />
-            <p style={{ textAlign: 'center', fontSize: 10, color: '#888', margin: 0 }}>MediConnect Healthcare Services &middot; Ref ID: {prescriptionId}</p>
-          </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+              <tbody>
+                <tr>
+                  <td style={{ fontSize: 10, color: '#666', textAlign: 'left' }}>
+                    <strong>MediConnect Healthcare Services</strong> &middot; Ref ID: {prescriptionId}
+                  </td>
+                  <td style={{ fontSize: 10, color: '#666', textAlign: 'right' }}>
+                    Confidential Medical Document &middot; Page 1 of 1
+                  </td>
+                </tr>
+                <tr>
+                  <td colSpan={2} style={{ textAlign: 'center', fontSize: 9, color: '#888', paddingTop: 4 }}>
+                    &copy; {new Date().getFullYear()} MediConnect.fit &bull; Digitally verified electronic prescription complying with Telemedicine Practice Guidelines.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
+      </div>
 
         {/* ── Order Status / Actions footer ── */}
         <div className="flex flex-col gap-2 p-3 sm:p-4 border-t border-gray-200 bg-gray-50 shrink-0">
@@ -574,14 +600,14 @@ export default function PrescriptionViewerModal({
                 chemistOrder ? (
                   <button
                     onClick={() => { onClose(); router.push("/website/medicine-order"); }}
-                    className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold transition-colors"
+                    className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold active:scale-95 transition-all shadow-xs hover:shadow cursor-pointer"
                   >
                     View <FaArrowRight className="w-2.5 h-2.5" />
                   </button>
                 ) : (
                   <button
                     onClick={() => setShareTarget("chemist")}
-                    className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold transition-colors"
+                    className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:brightness-105 active:scale-95 text-white text-xs font-bold transition-all shadow-sm hover:shadow cursor-pointer"
                   >
                     <FaPaperPlane className="w-2.5 h-2.5" /> Order
                   </button>
@@ -618,14 +644,14 @@ export default function PrescriptionViewerModal({
                 labOrder ? (
                   <button
                     onClick={() => { onClose(); router.push("/website/dashboard/lab-booking/orders"); }}
-                    className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold transition-colors"
+                    className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold active:scale-95 transition-all shadow-xs hover:shadow cursor-pointer"
                   >
                     View <FaArrowRight className="w-2.5 h-2.5" />
                   </button>
                 ) : (
                   <button
                     onClick={() => setShareTarget("lab")}
-                    className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold transition-colors"
+                    className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:brightness-105 active:scale-95 text-white text-xs font-bold transition-all shadow-sm hover:shadow cursor-pointer"
                   >
                     <FaPaperPlane className="w-2.5 h-2.5" /> Book
                   </button>
@@ -638,7 +664,7 @@ export default function PrescriptionViewerModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-2.5 text-sm font-medium rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+            className="w-full py-2.5 text-xs font-semibold rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 active:scale-98 transition-all cursor-pointer"
           >
             Close
           </button>
@@ -668,13 +694,13 @@ export default function PrescriptionViewerModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md"
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-md"
           >
             <motion.div
               initial={{ scale: 0.95, y: 15 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 15 }}
-              className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 flex flex-col items-center text-center animate-in zoom-in duration-200"
+              className="bg-white rounded-none sm:rounded-3xl p-6 sm:p-8 max-w-md w-full h-[100dvh] sm:h-auto shadow-2xl border-0 sm:border sm:border-slate-100 flex flex-col justify-center items-center text-center animate-in zoom-in duration-200"
             >
               {/* Icon Container */}
               <div className="flex items-center justify-center gap-3 mb-5">

@@ -54,7 +54,7 @@ async function handleDispensingCopy({ order_id, chemist_id, format = "json" }) {
 
     // 2. Fetch Prescription details
     const [prescription] = await sql`
-      SELECT id, appointment_id, doctor_id, medicines, follow_up, created_at, signed_at
+      SELECT id, unid, appointment_id, doctor_id, patient_id, medicines, follow_up, created_at, signed_at
       FROM prescriptions
       WHERE id = ${order.prescription_id}
       LIMIT 1
@@ -72,6 +72,10 @@ async function handleDispensingCopy({ order_id, chemist_id, format = "json" }) {
       LIMIT 1
     ` : [null];
 
+    const [docUser] = prescription.doctor_id ? await sql`
+      SELECT un_id FROM users WHERE id = ${prescription.doctor_id} LIMIT 1
+    ` : [null];
+
     // 4. Fetch Patient details
     const [patientDetails] = await sql`
       SELECT id, full_name, gender, date_of_birth, address, city, state, pincode
@@ -81,11 +85,17 @@ async function handleDispensingCopy({ order_id, chemist_id, format = "json" }) {
     `;
 
     const [patientUser] = await sql`
-      SELECT phone_number
+      SELECT un_id, phone_number
       FROM users
       WHERE id = ${order.patient_id}
       LIMIT 1
     `;
+
+    // Canonical Prescription ID matching patient portal: MED-{doc.un_id}-{pat.un_id}-{rx.unid}
+    const docUnId = docUser?.un_id || "0";
+    const patUnId = patientUser?.un_id || "0";
+    const rxUnId = prescription.unid || prescription.id?.slice(0, 8) || "0";
+    const canonicalPid = `MED-${docUnId}-${patUnId}-${rxUnId}`;
 
     // 5. Evaluate Address Gating (Only released after verified payment)
     const isPaymentVerified = [
@@ -133,8 +143,10 @@ async function handleDispensingCopy({ order_id, chemist_id, format = "json" }) {
       document_type: "PHARMACY_DISPENSING_COPY",
       compliance: "DPDP_ACT_2023_MINIMUM_NECESSARY_DISCLOSURE",
       order_id: order.id,
-      prescription_ref: prescription.id,
-      issued_at: prescription.created_at,
+      prescription_ref: canonicalPid,
+      pid: canonicalPid,
+      formatted_id: canonicalPid,
+      issued_at: prescription.signed_at || prescription.created_at,
       payment_status: isPaymentVerified ? "VERIFIED" : "PENDING_VERIFICATION",
       order_status: order.status,
       prescriber: {
@@ -189,12 +201,14 @@ async function handleDispensingCopy({ order_id, chemist_id, format = "json" }) {
     // Return HTML if format=html requested
     if (format === "html") {
       const htmlPayload = {
-        pid: prescription.id.slice(0, 8).toUpperCase(),
+        pid: canonicalPid,
+        formatted_id: canonicalPid,
         created_at: prescription.created_at,
-        signed_at: prescription.signed_at,
-        doctor_details: doctorDetails,
+        signed_at: prescription.signed_at || prescription.created_at,
+        doctor_details: doctorDetails ? { ...doctorDetails, un_id: docUnId } : null,
         patient_details: {
           ...patientDetails,
+          un_id: patUnId,
           address: deliveryAddress,
         },
         medicines: parsedMedicines,

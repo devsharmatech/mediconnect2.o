@@ -1,6 +1,7 @@
 import { RtcTokenBuilder, RtcRole } from "agora-token";
 import { NextResponse } from "next/server";
 import { corsHeaders } from "@/lib/cors";
+import sql from "@/lib/db";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -15,6 +16,37 @@ export async function POST(req) {
         { status: false, message: "appointment_id is required" },
         { status: 400, headers: corsHeaders }
       );
+    }
+
+    // 15-minute grace period check after completed_at
+    try {
+      const [appt] = await sql`
+        SELECT id, status, completed_at, updated_at
+        FROM appointments
+        WHERE id = ${appointment_id}
+        LIMIT 1
+      `;
+
+      if (appt) {
+        const completionTimestamp = appt.completed_at || (appt.status === "completed" ? appt.updated_at : null);
+        if (completionTimestamp) {
+          const completedTime = new Date(completionTimestamp).getTime();
+          const diffMs = Date.now() - completedTime;
+          const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
+
+          if (diffMs > GRACE_PERIOD_MS) {
+            return NextResponse.json(
+              {
+                status: false,
+                message: "Consultation ended. Rejoining is only allowed within 15 minutes of completion.",
+              },
+              { status: 403, headers: corsHeaders }
+            );
+          }
+        }
+      }
+    } catch (dbErr) {
+      console.warn("[Agora Token] Could not check appointment status:", dbErr.message);
     }
 
     const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID;

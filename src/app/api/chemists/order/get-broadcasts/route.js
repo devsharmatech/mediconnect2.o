@@ -40,7 +40,18 @@ export async function POST(req) {
     if (broadcasts.length > 0) {
       const broadcastIds = broadcasts.map((b) => b.id);
       const quotes = await sql`
-        SELECT broadcast_id, estimated_cost, delivery_time_minutes, final_amount, status
+        SELECT 
+          id,
+          broadcast_id,
+          estimated_cost,
+          medicine_subtotal,
+          delivery_charge,
+          discount,
+          final_amount,
+          delivery_time_minutes,
+          items_breakdown,
+          bid_notes,
+          status
         FROM medicine_order_quotes
         WHERE chemist_id = ${chemist_id} AND broadcast_id = ANY(${broadcastIds})
       `;
@@ -83,9 +94,15 @@ export async function POST(req) {
         created_at: b.created_at,
         expires_at: b.expires_at,
         medicines: parsedMedicines,
-        patient_name: b.patient_name || "Verified Patient",
-        already_quoted: !!quotesMap[b.id],
+        already_quoted: !!quotesMap[b.id] && quotesMap[b.id].status !== "withdrawn",
         submitted_quote: quotesMap[b.id] || null,
+        quote_id: quotesMap[b.id]?.id || null,
+        quote_amount: Number(quotesMap[b.id]?.final_amount || quotesMap[b.id]?.estimated_cost || 0),
+        delivery_time_minutes: quotesMap[b.id]?.delivery_time_minutes || 30,
+        delivery_charge: Number(quotesMap[b.id]?.delivery_charge || 0),
+        discount: Number(quotesMap[b.id]?.discount || 0),
+        medicine_subtotal: Number(quotesMap[b.id]?.medicine_subtotal || 0),
+        items_breakdown: quotesMap[b.id]?.items_breakdown || [],
         seconds_remaining: secondsRemaining,
       };
     });

@@ -9,11 +9,8 @@ import {
   Mail,
   Clock,
   Save,
-  Plus,
-  Trash2,
   Loader2,
   Upload,
-  ImagePlus,
   Briefcase,
   Tag,
   MapPin as LocationIcon,
@@ -52,7 +49,6 @@ export default function LabProfilePage() {
     user: {}
   });
   
-  const [services, setServices] = useState([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -94,7 +90,6 @@ export default function LabProfilePage() {
           ...data,
           user: data.user || {}
         });
-        setServices(data.services || []);
         setPreview(data.user?.profile_picture || '/default-lab.svg');
         
         // Initialize opening hours
@@ -210,64 +205,6 @@ export default function LabProfilePage() {
     } finally {
       setUploading(false);
       fileInputRef.current.value = ""; // Reset file input
-    }
-  };
-
-  // Services management
-  const addService = () => {
-    setServices([...services, { service_name: "", price: "", description: "", category: "" }]);
-  };
-
-  const updateService = (idx, key, value) => {
-    const updated = [...services];
-    updated[idx][key] = key === "price" ? Number(value) || "" : value;
-    setServices(updated);
-  };
-
-  const removeService = (idx) => {
-    if (window.confirm("Are you sure you want to remove this service?")) {
-      setServices(services.filter((_, i) => i !== idx));
-    }
-  };
-
-  const saveServices = async () => {
-    if (!labId) return;
-
-    setSaving(true);
-    try {
-      const validServices = services
-        .filter(s => s.service_name && s.service_name.trim() !== "")
-        .map(s => ({
-          service_name: s.service_name.trim(),
-          price: s.price ? Number(s.price) : null,
-          description: s.description?.trim() || "",
-          category: s.category?.trim() || ""
-        }));
-
-      const res = await fetch("/api/lab/services/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          lab_id: labId, 
-          services: validServices 
-        }),
-      });
-
-      const json = await res.json();
-
-      if (json.status) {
-        toast.success("Services saved successfully");
-        setServices(validServices);
-      } else {
-        toast.error(json.message || "Failed to save services");
-      }
-    } catch (error) {
-      console.error("Services save error:", error);
-      toast.error("Failed to save services");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -410,116 +347,6 @@ export default function LabProfilePage() {
                 Accept Home Collection (Sample collection at patient's home)
               </label>
             </div>
-          </div>
-        );
-
-      case "services":
-        return (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Manage Services</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Add or edit the services your lab offers</p>
-              </div>
-              <button
-                onClick={addService}
-                className="px-4 py-2 bg-[#0067A1] dark:bg-[#004F7C] text-white rounded-lg flex items-center gap-2 hover:bg-[#004F7C] dark:hover:bg-[#0067A1] transition-colors whitespace-nowrap"
-              >
-                <Plus size={18} /> Add Service
-              </button>
-            </div>
-
-            {services.length === 0 ? (
-              <div className="text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-900/50">
-                <div className="w-14 h-14 bg-[#0067A1]/10 dark:bg-[#0067A1]/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <ImagePlus className="w-7 h-7 text-[#0067A1] dark:text-sky-400" />
-                </div>
-                <p className="text-slate-700 dark:text-slate-200 font-semibold text-base mb-1">No services added yet</p>
-                <p className="text-slate-400 dark:text-slate-500 text-sm mb-5">Add the diagnostic services your lab provides</p>
-                <button
-                  onClick={addService}
-                  className="px-5 py-2 bg-[#0067A1] hover:bg-[#005585] text-white rounded-xl text-sm font-semibold transition-colors shadow-xs"
-                >
-                  Add your first service
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {services.map((srv, index) => (
-                  <div key={index} className="bg-slate-50/50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-[#0067A1]/30 dark:hover:border-sky-700/40 transition-colors space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Service #{index + 1}</span>
-                        {(!srv.service_name || srv.service_name.trim() === "") && (
-                          <span className="text-[10px] bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-full font-semibold">Name required</span>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => removeService(index)}
-                        className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors"
-                        title="Remove service"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 block mb-1.5">Service Name *</label>
-                        <input
-                          type="text"
-                          placeholder="e.g., Complete Blood Count"
-                          value={srv.service_name || ""}
-                          onChange={(e) => updateService(index, "service_name", e.target.value)}
-                          className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] outline-none transition-all"
-                          required
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 block mb-1.5">Price (₹)</label>
-                        <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-slate-400 text-sm">₹</span>
-                          <input
-                            type="number"
-                            placeholder="500"
-                            value={srv.price || ""}
-                            onChange={(e) => updateService(index, "price", e.target.value)}
-                            className="w-full px-3.5 py-2.5 pl-8 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] outline-none transition-all"
-                            min="0"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 block mb-1.5">Category</label>
-                        <input
-                          type="text"
-                          placeholder="e.g., Blood Test, Urine Test"
-                          value={srv.category || ""}
-                          onChange={(e) => updateService(index, "category", e.target.value)}
-                          className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] outline-none transition-all"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 block mb-1.5">Description (Optional)</label>
-                      <textarea
-                        placeholder="Brief description of the service, sample requirements, turnaround time..."
-                        value={srv.description || ""}
-                        onChange={(e) => updateService(index, "description", e.target.value)}
-                        className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-xs sm:text-sm focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] outline-none transition-all min-h-[70px] resize-none"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              * Required fields. Services without a name will not be saved.
-            </p>
           </div>
         );
 
@@ -729,7 +556,6 @@ export default function LabProfilePage() {
           <div className="flex overflow-x-auto gap-2">
             {[
               { id: "basic", label: "Basic Information", icon: <Building2 size={16} /> },
-              { id: "services", label: "Services & Pricing", icon: <ImagePlus size={16} /> },
               { id: "hours", label: "Opening Hours", icon: <Clock size={16} /> }
             ].map((tab) => (
               <button
@@ -755,13 +581,11 @@ export default function LabProfilePage() {
           {/* Save Button */}
           <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {activeTab === "services" 
-                ? "Changes to diagnostic tests and pricing are saved immediately across the portal."
-                : "Your laboratory profile is synchronized in real-time with doctor and patient order flows."}
+              Your laboratory profile is synchronized in real-time with doctor and patient order flows.
             </p>
 
             <button
-              onClick={activeTab === "services" ? saveServices : saveProfile}
+              onClick={saveProfile}
               disabled={saving}
               className="px-6 py-2.5 bg-[#0067A1] hover:bg-[#005585] text-white rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
             >

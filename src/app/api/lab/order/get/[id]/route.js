@@ -35,7 +35,7 @@ export async function GET(req, { params }) {
     // Fetch patient info with DPDP privacy safeguards
     let patient = null;
     if (order.patient_id) {
-      const u = await sql`SELECT id, phone_number, profile_picture, role FROM users WHERE id = ${order.patient_id} LIMIT 1`;
+      const u = await sql`SELECT id, un_id, phone_number, profile_picture, role FROM users WHERE id = ${order.patient_id} LIMIT 1`;
       const pd = await sql`SELECT * FROM patient_details WHERE id = ${order.patient_id} LIMIT 1`;
       if (u.length > 0) {
         const rawPhone = u[0].phone_number || pd[0]?.phone || "";
@@ -54,7 +54,11 @@ export async function GET(req, { params }) {
         const maskEmail = (em) => {
           if (!em || !em.includes("@")) return "—";
           const [name, domain] = em.split("@");
-          return `${name[0]}${"*".repeat(Math.max(3, name.length - 1))}@${domain}`;
+          if (name.length <= 2) {
+            return `${name[0]}***@${domain}`;
+          }
+          const maskCount = Math.min(5, Math.max(3, name.length - 2));
+          return `${name[0]}${"*".repeat(maskCount)}${name.slice(-1)}@${domain}`;
         };
 
         let maskedEmergencyContact = null;
@@ -98,7 +102,7 @@ export async function GET(req, { params }) {
 
     if (targetPrescId) {
       const prescRows = await sql`
-        SELECT id, unid, lab_tests, investigations, created_at, doctor_id, appointment_id, file_url, status
+        SELECT id, unid, lab_tests, investigations, created_at, signed_at, doctor_id, patient_id, appointment_id, file_url, status
         FROM prescriptions
         WHERE id = ${targetPrescId}
         LIMIT 1
@@ -107,15 +111,30 @@ export async function GET(req, { params }) {
         const rawPresc = prescRows[0];
         let doctor = null;
         let appointment = null;
+        let doctorUserUnId = null;
 
         if (rawPresc.doctor_id) {
-          const doc = await sql`
-            SELECT full_name, specialization, qualification, clinic_name, clinic_address, signature_url
-            FROM doctor_details
-            WHERE id = ${rawPresc.doctor_id}
-            LIMIT 1
-          `;
-          doctor = doc[0] || null;
+          const [doc, docUser] = await Promise.all([
+            sql`
+              SELECT id, full_name, specialization, qualification, clinic_name, clinic_address, signature_url, license_number, council_name, meta
+              FROM doctor_details
+              WHERE id = ${rawPresc.doctor_id}
+              LIMIT 1
+            `,
+            sql`
+              SELECT un_id FROM users WHERE id = ${rawPresc.doctor_id} LIMIT 1
+            `,
+          ]);
+          if (doc.length > 0) {
+            const d = doc[0];
+            const licNo = d.license_number || d.meta?.license_number || d.meta?.registration_number || null;
+            doctor = {
+              ...d,
+              license_number: licNo,
+              un_id: docUser[0]?.un_id || null,
+            };
+          }
+          doctorUserUnId = docUser[0]?.un_id || null;
         }
 
         if (rawPresc.appointment_id) {
@@ -140,13 +159,22 @@ export async function GET(req, { params }) {
           }
         }
 
+        // Canonical Prescription ID matching patient portal: MED-{doc.un_id}-{pat.un_id}-{rx.unid}
+        const docUnId = doctorUserUnId || "0";
+        const patUnId = patient?.un_id || "0";
+        const rxUnId = rawPresc.unid || rawPresc.id?.slice(0, 8) || "0";
+        const canonicalPid = `MED-${docUnId}-${patUnId}-${rxUnId}`;
+
         // Diagnostic Laboratory View (DPDP Act 2023 Compliant)
         // Strictly includes: Doctor basic info, Patient clinical demographics, and Prescribed Lab Tests only.
         // OMITTED: Medicines, dosages, provisional diagnoses, warning signs.
         prescription = {
           id: rawPresc.id,
           unid: rawPresc.unid,
+          pid: canonicalPid,
+          formatted_id: canonicalPid,
           created_at: rawPresc.created_at,
+          signed_at: rawPresc.signed_at || rawPresc.created_at,
           status: rawPresc.status,
           file_url: rawPresc.file_url || null,
           prescription_file_url: rawPresc.file_url || null,
@@ -161,9 +189,27 @@ export async function GET(req, { params }) {
     }
 
     // Fetch order items
-    const items = await sql`
-      SELECT * FROM lab_test_order_items WHERE order_id = ${cleanId}
+    const rawItems = await sql`
+      SELECT * FROM lab_test_order_items WHERE order_id = ${cleanId} ORDER BY unid ASC
     `;
+
+    // Fetch reports uploaded for this order
+    const reports = await sql`
+      SELECT * FROM lab_reports WHERE order_id = ${cleanId} ORDER BY created_at DESC
+    `;
+
+    const items = rawItems.map((it) => {
+      const itReports = reports.filter((r) =>
+        (r.item_id && r.item_id === it.id) ||
+        (r.test_name && r.test_name.toLowerCase() === it.test_name.toLowerCase()) ||
+        (r.test_type && r.test_type.toLowerCase() === it.test_name.toLowerCase())
+      );
+      return {
+        ...it,
+        reports: itReports,
+        has_report: itReports.length > 0,
+      };
+    });
 
     const itemsSubtotal = items.reduce((sum, item) => sum + parseFloat(item.price || 0), 0);
     const totalOrderAmount = parseFloat(order.total_amount || itemsSubtotal);
@@ -180,6 +226,7 @@ export async function GET(req, { params }) {
           patient,
           prescription,
           items,
+          reports,
           pricing_breakdown: {
             items_subtotal: itemsSubtotal,
             collection_fee: collectionFee,

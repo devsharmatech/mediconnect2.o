@@ -17,24 +17,12 @@ export function calculateLabTestPricing(item) {
 
   let discountPercentage = 0;
 
+  // Only apply discount if explicitly configured on the test item by lab
   if (item.discount_percentage !== undefined && item.discount_percentage !== null && !isNaN(parseFloat(item.discount_percentage))) {
     discountPercentage = parseFloat(item.discount_percentage);
   }
 
-  // Apply core business discount rules if not already configured
-  if (!discountPercentage) {
-    if (dept.includes("CT") || dept.includes("SCAN")) {
-      discountPercentage = 40.0;
-    } else if (dept.includes("ULTRASOUND") || dept.includes("USG")) {
-      discountPercentage = 40.0;
-    } else if (dept.includes("X-RAY") || dept.includes("X RAY")) {
-      discountPercentage = 40.0;
-    } else if (name.includes("ECHO-CARDIOGRAPHY") || name.includes("ECHOCARDIOGRAPHY") || name.includes("STRESS ECHO")) {
-      discountPercentage = 30.0;
-    }
-  }
-
-  const discountAmount = Math.round((mrp * discountPercentage) / 100);
+  const discountAmount = discountPercentage > 0 ? Math.round((mrp * discountPercentage) / 100) : 0;
   const offerPrice = Math.max(0, mrp - discountAmount);
 
   return {

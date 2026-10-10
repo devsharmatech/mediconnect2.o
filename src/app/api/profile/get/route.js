@@ -7,90 +7,102 @@ export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
-export async function POST(req) {
-  try {
-    const { user_id } = await req.json();
-    if (!user_id)
-      return failure("User ID is required.", null, 400, { headers: corsHeaders });
+async function handleFetchProfile(userId, req) {
+  if (!userId) {
+    return failure("User ID is required.", null, 400, { headers: corsHeaders });
+  }
 
-    const caller = await resolveCallerFromRequest(req, user_id);
-    if (!caller) {
-      return failure("Unauthorized - missing or invalid token.", null, 401, { headers: corsHeaders });
-    }
+  // 🧩 Get base user
+  const [user] = await sql`
+    SELECT id, un_id, role, phone_number, profile_picture, is_verified, created_at
+    FROM users
+    WHERE id = ${userId}
+    LIMIT 1
+  `;
 
-    if (caller.id !== user_id && caller.role !== "admin") {
-      return failure("Forbidden - access denied to this profile.", null, 403, { headers: corsHeaders });
-    }
+  if (!user) {
+    return failure("User not found.", null, 404, { headers: corsHeaders });
+  }
 
-    // 🧩 Get base user
-    const [user] = await sql`
-      SELECT id, un_id, role, phone_number, profile_picture, is_verified, created_at
-      FROM users
-      WHERE id = ${user_id}
-      LIMIT 1
-    `;
+  const roleTables = {
+    admin: "admin_details",
+    doctor: "doctor_details",
+    patient: "patient_details",
+    chemist: "chemist_details",
+    pharmacist: "pharmacist_details",
+    lab: "lab_details",
+  };
 
-    if (!user)
-      return failure("User not found.", null, 404, { headers: corsHeaders });
+  const table = roleTables[user.role];
+  if (!table) {
+    return failure("Invalid role or missing role mapping.", null, 400, {
+      headers: corsHeaders,
+    });
+  }
 
-    const roleTables = {
-      admin: "admin_details",
-      doctor: "doctor_details",
-      patient: "patient_details",
-      chemist: "chemist_details",
-      pharmacist: "pharmacist_details",
-      lab: "lab_details",
-    };
+  // 🧩 Fetch role details
+  const [details] = await sql.unsafe(
+    `SELECT * FROM ${table} WHERE id = $1 LIMIT 1`,
+    [user.id]
+  );
 
-    const table = roleTables[user.role];
-    if (!table)
-      return failure("Invalid role or missing role mapping.", null, 400, {
-        headers: corsHeaders,
-      });
+  if (!details) {
+    return failure("Profile details not found.", null, 404, { headers: corsHeaders });
+  }
 
-    // 🧩 Fetch role details
-    const [details] = await sql.unsafe(
-      `SELECT * FROM ${table} WHERE id = $1 LIMIT 1`,
-      [user.id]
-    );
-
-    if (!details)
-      return failure("Profile details not found.", null, 404, { headers: corsHeaders });
-
-    let cleanPic = user.profile_picture;
-    if (cleanPic) {
-      cleanPic = String(cleanPic).replace(/^'+|'+$/g, "").replace(/::text$/i, "").trim();
-      if (!cleanPic.startsWith("http") || cleanPic.includes("::text")) cleanPic = null;
-    }
-    // Check role details for profile picture or passport photo if user table doesn't have it
-    if (!cleanPic && details?.profile_picture) {
-      let dp = String(details.profile_picture).replace(/^'+|'+$/g, "").replace(/::text$/i, "").trim();
-      if (dp.startsWith("http") && !dp.includes("::text")) cleanPic = dp;
-    }
-    if (!cleanPic && details?.passport_photo) {
-      if (Array.isArray(details.passport_photo) && details.passport_photo.length > 0) {
-        cleanPic = details.passport_photo[0];
-      } else if (typeof details.passport_photo === "string") {
-        try {
-          const parsed = JSON.parse(details.passport_photo);
-          if (Array.isArray(parsed) && parsed.length > 0) cleanPic = parsed[0];
-          else if (typeof parsed === "string" && parsed.startsWith("http")) cleanPic = parsed;
-        } catch {
-          if (details.passport_photo.startsWith("http")) cleanPic = details.passport_photo;
-        }
+  let cleanPic = user.profile_picture;
+  if (cleanPic) {
+    cleanPic = String(cleanPic).replace(/^'+|'+$/g, "").replace(/::text$/i, "").trim();
+    if (!cleanPic.startsWith("http") || cleanPic.includes("::text")) cleanPic = null;
+  }
+  // Check role details for profile picture or passport photo if user table doesn't have it
+  if (!cleanPic && details?.profile_picture) {
+    let dp = String(details.profile_picture).replace(/^'+|'+$/g, "").replace(/::text$/i, "").trim();
+    if (dp.startsWith("http") && !dp.includes("::text")) cleanPic = dp;
+  }
+  if (!cleanPic && details?.passport_photo) {
+    if (Array.isArray(details.passport_photo) && details.passport_photo.length > 0) {
+      cleanPic = details.passport_photo[0];
+    } else if (typeof details.passport_photo === "string") {
+      try {
+        const parsed = JSON.parse(details.passport_photo);
+        if (Array.isArray(parsed) && parsed.length > 0) cleanPic = parsed[0];
+        else if (typeof parsed === "string" && parsed.startsWith("http")) cleanPic = parsed;
+      } catch {
+        if (details.passport_photo.startsWith("http")) cleanPic = details.passport_photo;
       }
     }
-    if (!cleanPic) {
-      const name = details?.full_name || details?.owner_name || details?.lab_name || user.role || "User";
-      cleanPic = `https://ui-avatars.com/api/?name=${encodeURIComponent(name.trim())}&background=0067A1&color=fff&bold=true`;
-    }
+  }
+  if (!cleanPic) {
+    const name = details?.full_name || details?.owner_name || details?.lab_name || user.role || "User";
+    cleanPic = `https://ui-avatars.com/api/?name=${encodeURIComponent(name.trim())}&background=0067A1&color=fff&bold=true`;
+  }
 
-    return success(
-      "Profile fetched successfully.",
-      { ...user, profile_picture: cleanPic, details },
-      200,
-      { headers: corsHeaders }
-    );
+  const userPayload = { ...user, profile_picture: cleanPic, ...details, details };
+  return success(
+    "Profile fetched successfully.",
+    { ...userPayload, user: userPayload },
+    200,
+    { headers: corsHeaders }
+  );
+}
+
+export async function GET(req) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get("id") || searchParams.get("user_id");
+    return await handleFetchProfile(userId, req);
+  } catch (error) {
+    console.error("Get Profile Error:", error);
+    return failure("Failed to fetch profile.", error.message, 500, { headers: corsHeaders });
+  }
+}
+
+export async function POST(req) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    const userId = body.user_id || body.id;
+    return await handleFetchProfile(userId, req);
   } catch (error) {
     console.error("Get Profile Error:", error);
     return failure("Failed to fetch profile.", error.message, 500, { headers: corsHeaders });

@@ -10,9 +10,14 @@ import {
   FaClock,
   FaTimes,
   FaFileMedical,
-  FaEye 
+  FaEye,
+  FaLock,
+  FaDownload,
+  FaExternalLinkAlt,
+  FaShieldAlt,
 } from "react-icons/fa";
 import { toast } from "react-hot-toast";
+import Link from "next/link";
 import { LoadingScreen } from "@/components/public-site/ui/LoadingStates";
 
 const STATUS_CONFIG = {
@@ -62,6 +67,49 @@ export default function LabReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [savingToLocker, setSavingToLocker] = useState(null);
+
+  const handleSaveToDigiLocker = async (report, order) => {
+    const patientId =
+      typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+    if (!patientId) {
+      toast.error("Please log in to save documents to your DigiLocker.");
+      return;
+    }
+
+    try {
+      setSavingToLocker(report.id || order.id);
+      const res = await fetch("/api/patients/lab-reports/save-to-digilocker", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_id: patientId,
+          report_id: report.id,
+          order_id: order.id,
+          report_url: report.report_url,
+          document_name: `Lab Report: ${order.unid ? `#${order.unid}` : ""} - ${order.lab_name || "Diagnostic Lab"}`,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(data.message || "Report saved to your MediConnect DigiLocker!");
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === order.id ? { ...o, saved_in_digilocker: true } : o
+          )
+        );
+        if (selectedOrder && selectedOrder.id === order.id) {
+          setSelectedOrder((prev) => ({ ...prev, saved_in_digilocker: true }));
+        }
+      } else {
+        toast.error(data.message || "Failed to save to DigiLocker");
+      }
+    } catch (e) {
+      toast.error("Network error saving to DigiLocker");
+    } finally {
+      setSavingToLocker(null);
+    }
+  };
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -207,6 +255,8 @@ export default function LabReportsPage() {
         <ReportDetailsModal
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
+          onSaveToLocker={handleSaveToDigiLocker}
+          savingToLocker={savingToLocker}
         />
       )}
     </div>
@@ -216,6 +266,8 @@ export default function LabReportsPage() {
 function ReportCard({ order, onView }) {
   const statusInfo = getStatusForOrder(order);
   const tests = order.lab_test_order_items || [];
+  const reports = order.reports || [];
+  const hasReports = reports.length > 0;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-emerald-50 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col">
@@ -231,12 +283,20 @@ function ReportCard({ order, onView }) {
               <p className="text-sm font-semibold text-gray-900">{formatOrderUnid(order.unid)}</p>
             </div>
           </div>
-          <span
-            className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border flex items-center gap-1 ${statusInfo.color}`}
-          >
-            <statusInfo.icon className="w-3 h-3" />
-            <span>{statusInfo.label}</span>
-          </span>
+          <div className="flex flex-col items-end gap-1">
+            <span
+              className={`px-2.5 py-1 rounded-full text-[10px] font-semibold border flex items-center gap-1 ${statusInfo.color}`}
+            >
+              <statusInfo.icon className="w-3 h-3" />
+              <span>{statusInfo.label}</span>
+            </span>
+            {hasReports && (
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                <FaShieldAlt className="w-2.5 h-2.5 text-emerald-600" />
+                Report Ready
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="mb-3 space-y-1">
@@ -254,12 +314,12 @@ function ReportCard({ order, onView }) {
           </div>
           <p className="text-xs text-gray-600">
             {tests.length > 0
-              ? `${tests.length} test${tests.length > 1 ? "s" : ""}`
+              ? `${tests.length} test${tests.length > 1 ? "s" : ""}: ${tests.map((t) => t.test_name).filter(Boolean).slice(0, 2).join(", ")}${tests.length > 2 ? "..." : ""}`
               : "No tests added"}
           </p>
-          {order.lab_notes && (
-            <p className="text-[11px] text-gray-500 line-clamp-2">
-              Lab notes: {order.lab_notes}
+          {order.lab_name && (
+            <p className="text-[11px] text-[#0067A1] font-medium">
+              Lab: {order.lab_name}
             </p>
           )}
         </div>
@@ -268,10 +328,14 @@ function ReportCard({ order, onView }) {
           <button
             type="button"
             onClick={onView}
-            className="flex-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] transition-colors flex items-center justify-center gap-1.5"
+            className={`flex-1 px-3 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+              hasReports
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                : "bg-[#0067A1] hover:bg-[#004F7C] text-white"
+            }`}
           >
             <FaEye className="w-3 h-3" />
-            <span>View Details</span>
+            <span>{hasReports ? "View Report & Details" : "View Details"}</span>
           </button>
         </div>
       </div>
@@ -295,8 +359,9 @@ function getStatusInfo(status) {
   };
 }
 
-function ReportDetailsModal({ order, onClose }) {
+function ReportDetailsModal({ order, onClose, onSaveToLocker, savingToLocker }) {
   const tests = order.lab_test_order_items || [];
+  const reports = order.reports || [];
   const statusInfo = getStatusForOrder(order);
 
   return (
@@ -313,6 +378,7 @@ function ReportDetailsModal({ order, onClose }) {
               Lab Test Order {formatOrderUnid(order.unid)}
             </h2>
             <p className="text-xs text-emerald-100 mt-0.5">
+              {order.lab_name ? `Partner: ${order.lab_name} • ` : ""}
               {order.created_at
                 ? new Date(order.created_at).toLocaleString("en-US", {
                     year: "numeric",
@@ -333,9 +399,103 @@ function ReportDetailsModal({ order, onClose }) {
           </span>
         </div>
 
-        <div className="px-6 py-4 flex-1 overflow-y-auto space-y-4">
+        <div className="px-6 py-4 flex-1 overflow-y-auto space-y-5">
+          {/* Diagnostic Reports Section (if uploaded) */}
+          {reports.length > 0 ? (
+            <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-emerald-900 flex items-center gap-2">
+                  <FaShieldAlt className="w-4 h-4 text-emerald-600" />
+                  Diagnostic Reports Available
+                </h3>
+                <span className="text-[10px] bg-emerald-200/80 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                  Verified Lab Results
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {reports.map((rep, idx) => (
+                  <div
+                    key={rep.id || idx}
+                    className="bg-white border border-emerald-100 rounded-xl p-3.5 shadow-xs space-y-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">
+                          {rep.test_type || "Diagnostic Test Report"}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Issued on: {new Date(rep.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-100 text-[#0067A1]">
+                        {rep.report_url?.toLowerCase().endsWith(".pdf") ? "PDF Document" : "Report Image"}
+                      </span>
+                    </div>
+
+                    {rep.result_summary && (
+                      <p className="text-xs text-gray-700 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                        <strong>Findings:</strong> {rep.result_summary}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <a
+                        href={rep.report_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold rounded-lg shadow-xs transition-colors"
+                      >
+                        <FaExternalLinkAlt className="w-3 h-3" />
+                        <span>View / Download</span>
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={() => onSaveToLocker(rep, order)}
+                        disabled={savingToLocker === (rep.id || order.id)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors border cursor-pointer ${
+                          order.saved_in_digilocker
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                            : "bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                        }`}
+                      >
+                        <FaLock className="w-3 h-3 text-emerald-600" />
+                        <span>
+                          {order.saved_in_digilocker
+                            ? "Saved in DigiLocker ✓"
+                            : savingToLocker === (rep.id || order.id)
+                            ? "Saving..."
+                            : "Save to DigiLocker"}
+                        </span>
+                      </button>
+
+                      <Link
+                        href="/digital-locker"
+                        className="text-[11px] text-[#0067A1] hover:underline font-medium ml-auto flex items-center gap-1"
+                      >
+                        <span>Open DigiLocker</span>
+                        <FaExternalLinkAlt className="w-2.5 h-2.5" />
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-sky-50 border border-sky-100 rounded-xl p-3.5 flex items-center gap-3">
+              <FaClock className="w-5 h-5 text-sky-600 shrink-0" />
+              <div className="text-xs text-sky-900">
+                <p className="font-semibold">Lab report is being prepared</p>
+                <p className="text-sky-700 mt-0.5">
+                  Once MedPlus Labs completes testing and uploads your results, you will receive an instant notification and your report will appear here and in your MediConnect DigiLocker.
+                </p>
+              </div>
+            </div>
+          )}
+
           {order.patient_notes && (
-            <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-xs text-gray-700">
+            <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 text-xs text-gray-700">
               <p className="font-semibold text-gray-900 mb-1">Your notes</p>
               <p>{order.patient_notes}</p>
             </div>
@@ -343,7 +503,7 @@ function ReportDetailsModal({ order, onClose }) {
 
           {order.lab_notes && (
             <div className="bg-sky-50 border border-sky-100 rounded-lg p-3 text-xs text-gray-700">
-              <p className="font-semibold text-gray-900 mb-1">Lab notes</p>
+              <p className="font-semibold text-gray-900 mb-1">Lab instructions</p>
               <p>{order.lab_notes}</p>
             </div>
           )}
@@ -384,11 +544,18 @@ function ReportDetailsModal({ order, onClose }) {
           </div>
         </div>
 
-        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-3">
+        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
+          <Link
+            href="/digital-locker"
+            className="text-xs text-[#0067A1] font-semibold hover:underline flex items-center gap-1"
+          >
+            <FaLock className="w-3 h-3" />
+            <span>Go to MediConnect DigiLocker</span>
+          </Link>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100"
+            className="px-4 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-100 cursor-pointer"
           >
             Close
           </button>

@@ -23,12 +23,16 @@ export default function LabSidebar({
   onCloseMobile,
 }) {
   const [labName, setLabName] = useState("");
+  const [labLogo, setLabLogo] = useState(null);
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
     const user = getLoggedInUser("lab");
     if (user) {
+      const initialLogo = user.profile_picture || user.details?.logo_url || user.details?.profile_picture || null;
+      if (initialLogo) setLabLogo(initialLogo);
+
       (async () => {
         try {
           const nameRes = await fetch("/api/lab/my-name", {
@@ -37,8 +41,9 @@ export default function LabSidebar({
             body: JSON.stringify({ user_id: user.id }),
           });
           const nameData = await nameRes.json();
-          if (nameData.success && nameData.lab_name) {
-            setLabName(nameData.lab_name);
+          if (nameData.success) {
+            if (nameData.lab_name) setLabName(nameData.lab_name);
+            if (nameData.logo_url) setLabLogo(nameData.logo_url);
           } else {
             setLabName(user.details?.lab_name || user.details?.full_name || "Diagnostic Lab");
           }
@@ -122,14 +127,18 @@ export default function LabSidebar({
             onClick={onCloseMobile}
             className="flex items-center gap-3 overflow-hidden group"
           >
-            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/20 shrink-0 group-hover:bg-white/20 transition-all">
-              <Microscope className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 bg-white rounded-lg p-1.5 flex items-center justify-center shadow-md border border-white/20 shrink-0 overflow-hidden group-hover:scale-105 transition-transform">
+              <img
+                src="/real-logo.png"
+                alt="MediConnect"
+                className="w-full h-full object-contain"
+              />
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="text-base font-bold text-white tracking-wide whitespace-nowrap">
+              <span className="text-base font-bold text-white tracking-wide whitespace-nowrap leading-tight">
                 MediConnect
               </span>
-              <span className="text-[11px] font-medium text-sky-300 tracking-wider uppercase">
+              <span className="text-[10px] font-semibold text-sky-300 tracking-wider uppercase">
                 Diagnostic Portal
               </span>
             </div>
@@ -138,7 +147,7 @@ export default function LabSidebar({
           {/* Desktop Minimize/Close Button */}
           <button
             onClick={onToggle}
-            className="hidden lg:flex p-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="hidden lg:flex p-2 rounded-md text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
             title="Minimize sidebar"
             aria-label="Minimize sidebar"
           >
@@ -148,7 +157,7 @@ export default function LabSidebar({
           {/* Mobile Offcanvas Close Button */}
           <button
             onClick={onCloseMobile}
-            className="lg:hidden p-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="lg:hidden p-2 rounded-md text-white/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
             title="Close navigation"
             aria-label="Close navigation"
           >
@@ -167,7 +176,7 @@ export default function LabSidebar({
                 key={item.path}
                 href={item.path}
                 onClick={onCloseMobile}
-                className={`relative w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl transition-all duration-200 group text-sm font-medium ${
+                className={`relative w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-md transition-all duration-200 group text-sm font-medium ${
                   active
                     ? "bg-white text-[#0067A1] shadow-md font-semibold"
                     : "text-white/75 hover:bg-white/10 hover:text-white"
@@ -186,10 +195,21 @@ export default function LabSidebar({
 
         {/* Footer Lab Profile & Sign Out */}
         <div className="p-4 shrink-0 border-t border-white/10 bg-black/10">
-          <div className="flex items-center gap-3 px-3 py-2.5 bg-white/5 rounded-xl border border-white/10 mb-3 overflow-hidden">
-            <div className="w-9 h-9 shrink-0 rounded-full bg-gradient-to-tr from-[#0067A1] to-[#0095E8] flex items-center justify-center text-white font-bold text-xs shadow-md border border-white/10">
-              {getInitials(labName)}
-            </div>
+          <div className="flex items-center gap-3 px-3 py-2.5 bg-white/5 rounded-md border border-white/10 mb-3 overflow-hidden">
+            {labLogo ? (
+              <div className="w-9 h-9 shrink-0 rounded-md overflow-hidden bg-white p-0.5 flex items-center justify-center shadow-md border border-white/10">
+                <img
+                  src={labLogo}
+                  alt={labName || "Lab"}
+                  className="w-full h-full object-contain"
+                  onError={() => setLabLogo(null)}
+                />
+              </div>
+            ) : (
+              <div className="w-9 h-9 shrink-0 rounded-md bg-gradient-to-tr from-[#0067A1] to-[#0095E8] flex items-center justify-center text-white font-bold text-xs shadow-md border border-white/10">
+                {getInitials(labName)}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-white truncate">
                 {labName || "Diagnostic Lab"}
@@ -203,7 +223,7 @@ export default function LabSidebar({
 
           <button
             onClick={handleLogout}
-            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 font-medium border border-transparent hover:border-rose-500/30 cursor-pointer"
+            className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-md text-sm transition-all duration-200 w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 font-medium border border-transparent hover:border-rose-500/30 cursor-pointer"
           >
             <LogOut className="w-4 h-4 flex-shrink-0" />
             <span>Sign Out</span>

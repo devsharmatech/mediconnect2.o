@@ -298,17 +298,27 @@ export default function LabDashboard() {
         <div className="absolute bottom-0 left-1/3 w-48 h-48 bg-white/5 rounded-full -mb-24 pointer-events-none" />
 
         <div className="relative flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/15 backdrop-blur-md rounded-full border border-white/20 text-white text-xs font-medium mb-3">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Diagnostic Portal Active</span>
+          <div className="flex items-start sm:items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-white p-2 flex items-center justify-center shadow-lg border border-white/20 shrink-0 overflow-hidden">
+              <img
+                src={labInfo?.profile_picture || "/real-logo.png"}
+                alt={labInfo?.lab_name || "Lab"}
+                className="w-full h-full object-contain"
+                onError={(e) => { e.currentTarget.src = "/real-logo.png"; }}
+              />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-              {labInfo?.lab_name || "Diagnostic Center"}
-            </h1>
-            <p className="text-white/80 text-sm mt-1.5 max-w-xl">
-              Operational dashboard and diagnostic test order management for {nowFormatted}
-            </p>
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/15 backdrop-blur-md rounded-full border border-white/20 text-white text-xs font-medium mb-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Diagnostic Portal • MediConnect Partner</span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                {labInfo?.lab_name || "Diagnostic Center"}
+              </h1>
+              <p className="text-white/80 text-sm mt-1 max-w-xl">
+                Operational dashboard and diagnostic test order management for {nowFormatted}
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

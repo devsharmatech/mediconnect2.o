@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { Printer, ArrowLeft, Mail } from "lucide-react";
 
 /* ─── Helpers ────────────────────────────────────────────────────── */
 
@@ -22,6 +23,13 @@ function safeStr(val, fallback = "—") {
     const t = val.trim();
     if (t.startsWith("[")) {
       try { const p = JSON.parse(t); if (Array.isArray(p)) return p.filter(Boolean).join(", ") || fallback; } catch {}
+    }
+    if (t.startsWith("{")) {
+      try {
+        const p = JSON.parse(t);
+        const s = p.primary || p.provisional_diagnosis || p.diagnosis || p.name || p.text || p.value;
+        if (s) return String(s);
+      } catch {}
     }
     return t || fallback;
   }
@@ -165,6 +173,38 @@ export default function LegalRecordPage() {
       : (rx?.investigations?.requested || [])).map(inv => typeof inv === "string" ? inv : (inv.name || inv.test_name || ""))
   ].filter(Boolean);
   const vitals = rx?.vital_signs || {};
+
+  const formatVitalKey = (k) => {
+    if (!k) return "";
+    const kl = String(k).toLowerCase().trim();
+    if (kl.includes("spo") || kl.includes("oxygen")) return "SpO₂";
+    if (kl.includes("blood_pressure") || kl === "bp") return "Blood Pressure";
+    if (kl.includes("pulse") || kl.includes("heart_rate")) return "Pulse";
+    if (kl.includes("temp")) return "Temperature";
+    if (kl.includes("weight")) return "Weight";
+    if (kl.includes("height")) return "Height";
+    if (kl.includes("respiratory") || kl === "rr") return "Respiratory Rate";
+    if (kl.includes("sugar") || kl.includes("glucose")) return "Blood Sugar";
+    return String(k).replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+
+  const formatVital = (k, v) => {
+    if (!v && v !== 0) return "—";
+    let val = String(v).trim();
+    if (!val) return "—";
+    if (/[a-zA-Z%°]/.test(val)) return val;
+    const key = String(k || "").toLowerCase().trim();
+    if (key.includes("blood_pressure") || key === "bp") return `${val} mmHg`;
+    if (key.includes("pulse") || key.includes("heart_rate")) return `${val} bpm`;
+    if (key.includes("temp")) return `${val} °F`;
+    if (key.includes("weight")) return `${val} kg`;
+    if (key.includes("height")) return `${val} cm`;
+    if (key.includes("spo") || key.includes("oxygen")) return `${val} %`;
+    if (key.includes("respiratory") || key === "rr") return `${val} /min`;
+    if (key.includes("sugar") || key.includes("glucose")) return `${val} mg/dL`;
+    return val;
+  };
+
   const sigUrl = parseSignatureUrl(doctor?.signature_url);
   const docId = `MED-${doctor?.un_id || "0"}-${patient?.un_id || "0"}-${rx?.unid || rx?.id?.slice(0, 8) || appt?.unid || String(id).slice(0, 8).toUpperCase()}`;
   const age = calcAge(patient?.date_of_birth);
@@ -182,9 +222,15 @@ export default function LegalRecordPage() {
     <>
       {/* Toolbar — hidden on print */}
       <div className="toolbar no-print">
-        <button onClick={() => router.push("/website/appointments")} className="btn-back">← Back to Appointments</button>
+        <button onClick={() => router.push("/website/appointments")} className="btn-back flex items-center gap-1.5">
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Appointments</span>
+        </button>
         <span className="toolbar-brand">MediConnect · Legal Record</span>
-        <button onClick={() => window.print()} className="btn-print">🖨 Print / Save PDF</button>
+        <button onClick={() => window.print()} className="btn-print flex items-center gap-1.5">
+          <Printer className="w-3.5 h-3.5" />
+          <span>Print / Save PDF</span>
+        </button>
       </div>
 
       {/* Page shell */}
@@ -199,7 +245,10 @@ export default function LegalRecordPage() {
             <div className="title-box">
               <h1>MediConnect.fit</h1>
               <p className="tagline">{tagline}</p>
-              <p className="email">📧 hello@mediconnect.fit</p>
+              <p className="email flex items-center justify-center gap-1">
+                <Mail className="w-3 h-3 text-black inline shrink-0" />
+                <span>hello@mediconnect.fit</span>
+              </p>
             </div>
             <div className="cross-icon">
               <div className="medical-cross">
@@ -259,7 +308,7 @@ export default function LegalRecordPage() {
                 <>
                   <h4>VITALS (Self-reported)</h4>
                   {Object.entries(vitals).map(([k, v]) =>
-                    v ? <Field key={k} label={k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())} value={safeStr(v)} /> : null
+                    v ? <Field key={k} label={formatVitalKey(k)} value={formatVital(k, safeStr(v))} /> : null
                   )}
                 </>
               )}
@@ -424,7 +473,8 @@ export default function LegalRecordPage() {
           position: relative;
           overflow: hidden;
         }
-        .logo-box img { width: 90px; height: 90px; border-radius: 50%; background: white; object-fit: contain; }
+        .logo-box { width: 90px; height: 90px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: 8px; box-sizing: border-box; }
+        .logo-box img { width: 70px; height: 70px; object-fit: contain; }
         .title-box { text-align: center; flex-grow: 1; }
         .title-box h1 { color: black; text-shadow: 2px 2px 4px rgba(0,0,0,0.4); margin: 0; font-size: 32px; font-weight: 800; letter-spacing: 0.5px; }
         .tagline { margin: 5px 0 0; font-size: 14px; font-weight: 500; color: black; }

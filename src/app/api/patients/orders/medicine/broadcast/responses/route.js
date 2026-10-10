@@ -99,6 +99,8 @@ export async function GET(req) {
         q.delivery_time_minutes,
         q.status,
         q.created_at,
+        q.items_breakdown,
+        q.bid_notes,
         cd.pharmacy_name,
         cd.pharmacy_name as store_name,
         cd.owner_name,
@@ -117,11 +119,17 @@ export async function GET(req) {
       LIMIT ${pageSize} OFFSET ${offset}
     `;
 
+    const safeNum = (val, fb = 0) => {
+      const n = Number(val);
+      return isNaN(n) ? fb : n;
+    };
+
     const formattedQuotes = quoteRows.map((q) => {
       const pharmacyName = q.pharmacy_name || q.store_name || "Partner Pharmacy";
       const pharmacyAddress = q.address || "Local Partner Pharmacy";
       const ratingVal = (q.rating && Number(q.total_reviews || 0) > 0) ? Number(q.rating) : 4.5;
       const totalReviews = Number(q.total_reviews || 12);
+      const finAmt = safeNum(q.final_amount, safeNum(q.estimated_cost, 0));
 
       return {
         id: q.id,
@@ -133,12 +141,14 @@ export async function GET(req) {
         mobile: q.mobile || "",
         upi_id: q.upi_id || "",
         payment_qr_url: q.payment_qr_url || "",
-        estimated_cost: Number(q.estimated_cost || q.final_amount || 0),
-        medicine_subtotal: Number(q.medicine_subtotal || q.estimated_cost || 0),
-        delivery_charge: Number(q.delivery_charge || 0),
-        discount: Number(q.discount || 0),
-        final_amount: Number(q.final_amount || q.estimated_cost || 0),
-        delivery_time_minutes: Number(q.delivery_time_minutes || 30),
+        estimated_cost: finAmt,
+        medicine_subtotal: safeNum(q.medicine_subtotal, finAmt),
+        delivery_charge: safeNum(q.delivery_charge, 0),
+        discount: safeNum(q.discount, 0),
+        final_amount: finAmt,
+        delivery_time_minutes: safeNum(q.delivery_time_minutes, 30),
+        items_breakdown: q.items_breakdown || [],
+        bid_notes: q.bid_notes || "",
         rating: ratingVal,
         total_reviews: totalReviews,
         status: q.status,

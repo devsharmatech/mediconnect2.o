@@ -47,7 +47,9 @@ export const buildPrescriptionHtml = (rec, options = {}) => {
     return {};
   }
 
-  const createdAt = dayjs(rec.created_at).format("DD MMM YYYY, hh:mm A");
+  const createdAt = (rec.created_at || rec.signed_at)
+    ? dayjs(rec.created_at || rec.signed_at).format("DD MMM YYYY, hh:mm A")
+    : dayjs().format("DD MMM YYYY, hh:mm A");
 
   const appointmentDate = rec.appointments?.appointment_date
     ? dayjs(rec.appointments.appointment_date).format("DD MMM YYYY")
@@ -168,12 +170,43 @@ export const buildPrescriptionHtml = (rec, options = {}) => {
         .join("")
     : `<div class="field">No investigations or lab tests advised</div>`;
 
+  const formatVitalKey = (k) => {
+    if (!k) return "";
+    const kl = String(k).toLowerCase().trim();
+    if (kl.includes("spo") || kl.includes("oxygen")) return "SpO₂";
+    if (kl.includes("blood_pressure") || kl === "bp") return "Blood Pressure";
+    if (kl.includes("pulse") || kl.includes("heart_rate")) return "Pulse";
+    if (kl.includes("temp")) return "Temperature";
+    if (kl.includes("weight")) return "Weight";
+    if (kl.includes("height")) return "Height";
+    if (kl.includes("respiratory") || kl === "rr") return "Respiratory Rate";
+    if (kl.includes("sugar") || kl.includes("glucose")) return "Blood Sugar";
+    return String(k).replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+
+  const formatVital = (k, v) => {
+    if (!v && v !== 0) return "—";
+    let val = String(v).trim();
+    if (!val) return "—";
+    if (/[a-zA-Z%°]/.test(val)) return val;
+    const key = String(k || "").toLowerCase().trim();
+    if (key.includes("blood_pressure") || key === "bp") return `${val} mmHg`;
+    if (key.includes("pulse") || key.includes("heart_rate")) return `${val} bpm`;
+    if (key.includes("temp")) return `${val} °F`;
+    if (key.includes("weight")) return `${val} kg`;
+    if (key.includes("height")) return `${val} cm`;
+    if (key.includes("spo") || key.includes("oxygen")) return `${val} %`;
+    if (key.includes("respiratory") || key === "rr") return `${val} /min`;
+    if (key.includes("sugar") || key.includes("glucose")) return `${val} mg/dL`;
+    return val;
+  };
+
   const safeVitalSigns = parseJsonStr(rec.vital_signs);
   const vitalsHtml = Object.keys(safeVitalSigns).length > 0
     ? Object.entries(safeVitalSigns)
         .map(
           ([k, v]) => `
-<div class="field">${escapeHtml(k.replaceAll("_", " "))}: <span class="value">${escapeHtml(v)}</span></div>`
+<div class="field">${escapeHtml(formatVitalKey(k))}: <span class="value">${escapeHtml(formatVital(k, v))}</span></div>`
         )
         .join("")
     : `<div class="field">Not recorded</div>`;
@@ -186,12 +219,15 @@ export const buildPrescriptionHtml = (rec, options = {}) => {
     ? (Array.isArray(followUpWarningSigns) ? followUpWarningSigns.join(", ") : followUpWarningSigns)
     : "Seek immediate medical attention if you experience high fever, severe breathlessness, chest pain, or sudden weakness.";
     
-  let diagnosisText = rec.diagnosis?.primary || rec.diagnosis?.provisional_diagnosis || rec.diagnosis || "—";
-  if (typeof diagnosisText === 'string' && diagnosisText.startsWith('{')) {
-      try {
-          const p = JSON.parse(diagnosisText);
-          diagnosisText = p.primary || p.provisional_diagnosis || "—";
-      } catch {}
+  let diagnosisText = "—";
+  let rawDiag = rec.diagnosis;
+  if (typeof rawDiag === 'string' && rawDiag.trim().startsWith('{')) {
+    try { rawDiag = JSON.parse(rawDiag); } catch {}
+  }
+  if (typeof rawDiag === 'string') {
+    diagnosisText = rawDiag.trim() || "—";
+  } else if (typeof rawDiag === 'object' && rawDiag !== null) {
+    diagnosisText = rawDiag.primary || rawDiag.provisional_diagnosis || rawDiag.diagnosis || rawDiag.name || rawDiag.text || "—";
   }
 
   // Doctor Signature parsing
@@ -210,12 +246,22 @@ export const buildPrescriptionHtml = (rec, options = {}) => {
   // Patient Details safe fallback
   const pDetails = rec.patient_details || {};
 
+  const displayPid = rec.pid || rec.formatted_id || (() => {
+    const docUnId = rec.doctor_details?.un_id || rec.doc_un_id || null;
+    const patUnId = rec.patient_details?.un_id || rec.pat_un_id || null;
+    const rxUnId = rec.unid || rec.id?.slice(0, 8);
+    if (docUnId || patUnId) {
+      return `MED-${docUnId || "0"}-${patUnId || "0"}-${rxUnId || "0"}`;
+    }
+    return rxUnId ? `MED-${rxUnId}` : "N/A";
+  })();
+
   return `
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Medical Prescription</title>
+<title>${escapeHtml(isLabView ? 'Diagnostic Test Requisition' : (isChemistView ? 'Pharmacy Dispensing Copy' : 'Medical Prescription'))} #${escapeHtml(displayPid)}</title>
 
 <style>
 @page { size: 297mm 420mm; margin: 20mm; }
@@ -293,12 +339,22 @@ h4 {
 
 .warning { color:#c00000; font-weight:700; }
 
+.logo-box {
+  width: 90px;
+  height: 90px;
+  background: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 8px;
+}
 .logo-box img {
-  width:90px;
-  height:90px;
-  border-radius:50%;
-  background:#fff;
-  object-fit:contain;
+  width: 70px;
+  height: 70px;
+  object-fit: contain;
 }
 
 .medical-cross {
@@ -340,7 +396,7 @@ h4 {
   <td width="60%" class="title">
     <h1>MediConnect.fit</h1>
     <p class="tagline">${escapeHtml(tagline)}</p>
-    <p class="email">📧 hello@mediconnect.fit</p>
+    <p class="email"><svg style="display:inline-block;width:12px;height:12px;vertical-align:middle;margin-right:4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>hello@mediconnect.fit</p>
   </td>
   <td width="20%" align="right">
     <div class="medical-cross"><img src="${sanitizeUrl(doctorIcon)}"></div>
@@ -351,7 +407,7 @@ h4 {
 <!-- TOP INFO -->
 <table class="top-info">
 <tr>
-  <td>Prescription ID: <span class="value">${escapeHtml(rec.pid || "N/A")}</span></td>
+  <td>Prescription ID: <span class="value">${escapeHtml(displayPid)}</span></td>
   ${(rec.episode_id || rec.care_episode_id) ? `<td>Episode ID: <span class="value">${escapeHtml(rec.episode_id || ('EP-' + String(rec.care_episode_id).slice(0, 8).toUpperCase()))}</span></td>` : ''}
   <td align="right">Date: <span class="value">${escapeHtml(createdAt)}</span></td>
 </tr>
@@ -367,7 +423,7 @@ h4 {
 <div class="field">Name: <span class="value">${escapeHtml(rec.doctor_details?.full_name || "-")}</span></div>
 <div class="field">Qualification: <span class="value">${escapeHtml(qualification)}</span></div>
 <div class="field">Specialization: <span class="value">${escapeHtml(rec.doctor_details?.specialization || "-")}</span></div>
-<div class="field">License No: <span class="value">${escapeHtml(rec.doctor_details?.license_number || "-")}</span></div>
+<div class="field">License No: <span class="value">${escapeHtml(rec.doctor_details?.license_number || rec.doctor_details?.registration_number || "-")}${rec.doctor_details?.council_name ? ` (${escapeHtml(rec.doctor_details.council_name)})` : ''}</span></div>
 <div class="field">Clinic: ${options.hideClinicDetails ? `<span class="value blur-text">Teleconsultation Clinic, Virtual Online Consultation, Medical Block 404</span>` : `<span class="value">${escapeHtml(rec.doctor_details?.clinic_name || "-")}, ${escapeHtml(rec.doctor_details?.clinic_address || "")}</span>`}</div>
 
 ${(isChemistView || isLabView) ? '' : `
@@ -409,7 +465,7 @@ ${(isChemistView || isLabView) ? '' : `
 <h3>Digital Signature</h3>
 <div class="signature-box"><img src="${sanitizeUrl(signatureUrl)}" alt="Doctor's Signature" /></div>
 <div class="field">Signed by: <span class="value">${escapeHtml(rec.doctor_details?.full_name || "-")}</span></div>
-<div class="field">Signed at: <span class="value">${escapeHtml(rec.signed_at ? dayjs(rec.signed_at).format("DD MMM YYYY, hh:mm A") : "-")}</span></div>
+<div class="field">Signed at: <span class="value">${escapeHtml((rec.signed_at || rec.created_at) ? dayjs(rec.signed_at || rec.created_at).format("DD MMM YYYY, hh:mm A") : "-")}</span></div>
 
 </td>
 

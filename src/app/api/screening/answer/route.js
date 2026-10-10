@@ -36,8 +36,8 @@ PATIENT ANSWER:
 "${answer}"
 
 TASK:
-1. Decide if the answer is appropriate and meaningful for this medical question.
-2. If NOT appropriate, explain politely what kind of answer is expected.
+1. Mark is_valid: true if the answer provides ANY medical information, symptom, timing, severity, feeling, affirmation/denial (yes/no/sometimes/not sure), even if partial or mentioning another symptom.
+2. Only mark is_valid: false if the answer is complete gibberish (e.g. "asdfgh") or completely unrelated non-medical spam (e.g. "tell me a joke").
 3. Do NOT diagnose here.
 
 Return STRICT JSON:
@@ -264,14 +264,42 @@ export async function POST(req) {
       });
     }
 
-    /* -------- AI ANSWER VALIDATION -------- */
+    /* -------- AI ANSWER VALIDATION & ANTI-LOOP SHIELD -------- */
 
-    const aiValidation = await validateAnswerAI({
-      question: lastQuestion,
-      answer: cleanAnswer,
-    });
+    const existingAnswers = screening.answers || [];
+    const lastAnswerEntry = existingAnswers[existingAnswers.length - 1];
+    const hadRecentClarification = lastAnswerEntry?.is_clarification === true;
+
+    let aiValidation = { is_valid: true };
+
+    // ANTI-LOOP: If the user was already asked for clarification, NEVER reject again!
+    if (!hadRecentClarification) {
+      aiValidation = await validateAnswerAI({
+        question: lastQuestion,
+        answer: cleanAnswer,
+      });
+    }
 
     if (!aiValidation.is_valid) {
+      const updatedAnswersWithClarification = [
+        ...existingAnswers,
+        {
+          question_id: `q${stage}_clarification_prompt`,
+          answer: cleanAnswer,
+          clarification_message: aiValidation.message,
+          is_clarification: true,
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      await supabase
+        .from("screening_sessions")
+        .update({
+          answers: updatedAnswersWithClarification,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", screening_id);
+
       return NextResponse.json({
         status: false,
         message: aiValidation.message,
@@ -282,11 +310,15 @@ export async function POST(req) {
 
     /* -------- SAVE ANSWER -------- */
 
+    const combinedAnswer = hadRecentClarification && lastAnswerEntry?.answer
+      ? `${lastAnswerEntry.answer}. Details: ${cleanAnswer}`
+      : cleanAnswer;
+
     const answers = [
-      ...(screening.answers || []),
+      ...existingAnswers.filter((a) => !a.is_clarification),
       {
         question_id: `q${stage}`,
-        answer: cleanAnswer,
+        answer: combinedAnswer,
         timestamp: new Date().toISOString(),
       },
     ];

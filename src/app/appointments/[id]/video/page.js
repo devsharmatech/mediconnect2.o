@@ -28,6 +28,8 @@ import toast from "react-hot-toast";
 import SessionStateTracker from "@/components/doctor/SessionStateTracker";
 import { loadRazorpayScript } from "@/lib/razorpay";
 import SharePrescriptionModal from "@/components/public-site/appointments/SharePrescriptionModal";
+import { exportPrescriptionPdf, printPrescriptionPdf } from "@/lib/prescriptionPdfEngine";
+import { MEDICONNECT_LOGO_BASE64, DOCTOR_CADUCEUS_BASE64 } from "@/lib/prescriptionAssets";
 import {
   Pill,
   Droplets,
@@ -38,6 +40,13 @@ import {
   Scale,
   Sparkles,
   FlaskConical,
+  Calendar,
+  ChevronLeft,
+  Printer,
+  Download,
+  Loader2,
+  ArrowLeftRight,
+  Mail,
 } from "lucide-react";
 
 /* ─── Page Wrapper ──────────────────────────────────── */
@@ -110,6 +119,7 @@ function VideoCall({ appointmentId, userId, role }) {
   const [callDuration, setCallDuration] = useState(0);
   const [hasRemoteUser, setHasRemoteUser] = useState(false);
   const [participantCount, setParticipantCount] = useState(1);
+  const [joinError, setJoinError] = useState(null);
 
   // Prescription (patient only)
   const [isPrescriptionOpen, setIsPrescriptionOpen] = useState(false);
@@ -379,6 +389,7 @@ function VideoCall({ appointmentId, userId, role }) {
   const joinCall = async () => {
     if (loading || joined) return;
     setLoading(true);
+    setJoinError(null);
 
     try {
       if (!navigator.mediaDevices) throw new Error("Browser not supported");
@@ -401,17 +412,22 @@ function VideoCall({ appointmentId, userId, role }) {
         loadAgora(),
       ]);
 
-      if (!tokenRes.ok) {
+      const tokenData = await tokenRes.json().catch(() => null);
+
+      if (!tokenRes.ok || !tokenData?.status) {
         toast.dismiss(loadingToast);
-        throw new Error("Token server error");
+        const errMsg =
+          tokenData?.message ||
+          (tokenRes.status === 403
+            ? "Consultation ended. Rejoining is only allowed within 15 minutes of completion."
+            : "Failed to authorize video session");
+        toast.error(errMsg, { duration: 6000 });
+        setJoinError(errMsg);
+        setLoading(false);
+        return;
       }
 
-      const tokenData = await tokenRes.json();
-      if (!tokenData.status) {
-        toast.dismiss(loadingToast);
-        throw new Error(tokenData.message || "Authentication failed");
-      }
-
+      toast.dismiss(loadingToast);
       const { appId, token } = tokenData;
 
       // Create Agora client
@@ -518,14 +534,15 @@ function VideoCall({ appointmentId, userId, role }) {
 
       setJoined(true);
     } catch (err) {
-      console.error("Join error:", err);
+      console.warn("Join warning:", err);
       const msg =
         err.message?.includes("PERMISSION") || err.name === "NotAllowedError"
           ? "Camera/mic access denied"
           : err.message?.includes("NOT_READABLE")
           ? "Camera in use by another app"
-          : "Failed to join consultation";
-      toast.error(msg);
+          : err.message || "Failed to join consultation";
+      toast.error(msg, { duration: 6000 });
+      setJoinError(msg);
       await leaveCall(false).catch(() => {});
     } finally {
       setLoading(false);
@@ -708,14 +725,30 @@ function VideoCall({ appointmentId, userId, role }) {
 
   /* ── Patient: fetch prescription ─────────────── */
   const fetchPatientPrescription = async () => {
-    if (!joined) return;
-    const patientId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
-    if (!patientId) { toast.error("Not logged in"); return; }
+    let patientId = userId || (typeof window !== "undefined" ? (localStorage.getItem("userId") || localStorage.getItem("user_id")) : null);
 
     setPrescriptionLoading(true);
     const tid = toast.loading("Fetching prescription…");
 
     try {
+      if (!patientId) {
+        try {
+          const apptRes = await fetch(`/api/appointment/web/${appointmentId}`);
+          const apptJson = await apptRes.json();
+          if (apptJson?.success && apptJson?.data?.appointment) {
+            patientId = apptJson.data.appointment.patient?.id || apptJson.data.appointment.patient_id;
+          }
+        } catch (e) {
+          console.warn("Could not load appointment patient id:", e);
+        }
+      }
+
+      if (!patientId) {
+        toast.dismiss(tid);
+        toast.error("Patient session not found. Please log in.");
+        return;
+      }
+
       const res = await fetch("/api/prescriptions/by-patient-appointment", {
         method: "POST",
         headers: {
@@ -731,7 +764,7 @@ function VideoCall({ appointmentId, userId, role }) {
 
       if (!res.ok || !data?.success || !data?.data) {
         setPrescriptionData(null);
-        toast.error("Prescription not created yet.");
+        toast.error(data?.message || "Prescription not created yet.");
         return;
       }
 
@@ -869,8 +902,40 @@ function VideoCall({ appointmentId, userId, role }) {
                 <DeviceIndicator ok={mediaState.hasCamera} label={mediaState.hasCamera ? "Camera ready" : "No camera"} Icon={VideoCameraIcon} />
               </div>
 
-              {mediaState.cameraError && <DeviceWarning text={`📹 ${mediaState.cameraError}`} />}
-              {mediaState.microphoneError && <DeviceWarning text={`🎤 ${mediaState.microphoneError}`} />}
+              {mediaState.cameraError && <DeviceWarning Icon={VideoCameraSlashIcon} text={mediaState.cameraError} />}
+              {mediaState.microphoneError && <DeviceWarning Icon={MicrophoneIcon} text={mediaState.microphoneError} />}
+
+              {joinError && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/35 text-left shadow-lg space-y-2.5 max-w-xs mx-auto"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <ExclamationTriangleIcon className="w-4.5 h-4.5" />
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-[11px] font-bold text-rose-200 uppercase tracking-wider">
+                        Notice
+                      </p>
+                      <p className="text-xs text-rose-300 leading-relaxed font-medium">
+                        {joinError}
+                      </p>
+                    </div>
+                  </div>
+                  {role === "patient" && (
+                    <button
+                      type="button"
+                      onClick={fetchPatientPrescription}
+                      className="w-full py-2 px-3 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-xl text-xs font-bold transition-all border border-white/20 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <DocumentTextSolidIcon className="w-4 h-4 text-emerald-400" />
+                      <span>View Prescription & Records</span>
+                    </button>
+                  )}
+                </motion.div>
+              )}
 
               <motion.button
                 whileHover={{ scale: 1.04 }}
@@ -1149,31 +1214,34 @@ function VideoCall({ appointmentId, userId, role }) {
                 </div>
               </div>
 
-              <div className="mt-6 flex flex-col sm:flex-row gap-2.5 sm:justify-end">
+              <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-2.5">
                 {role === "doctor" ? (
                   <>
                     <button
                       onClick={() => extendSlotTime(5)}
-                      className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-medium text-sm transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                      className="px-2 sm:px-3 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs sm:text-sm transition-colors shadow-sm flex items-center justify-center gap-1 whitespace-nowrap active:scale-95 cursor-pointer"
+                      title="Extend consultation by 5 minutes"
                     >
-                      <PlusIcon className="w-4 h-4" />
-                      Extend 5 Mins
+                      <PlusIcon className="w-3.5 h-3.5 shrink-0" />
+                      <span>+5 Mins</span>
                     </button>
                     <button
                       onClick={() => {
                         setShowSlotConsumedModal(false);
                         openPrescription();
                       }}
-                      className="px-4 py-2.5 rounded-xl bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium text-sm transition-colors shadow-sm"
+                      className="px-2 sm:px-3 py-2.5 rounded-xl bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium text-xs sm:text-sm transition-colors shadow-sm flex items-center justify-center whitespace-nowrap active:scale-95 cursor-pointer"
+                      title="Write prescription"
                     >
-                      Write Prescription
+                      Write Rx
                     </button>
                     <button
                       onClick={() => {
                         setShowSlotConsumedModal(false);
                         leaveCall(true);
                       }}
-                      className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium text-sm transition-colors shadow-sm"
+                      className="px-2 sm:px-3 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium text-xs sm:text-sm transition-colors shadow-sm flex items-center justify-center whitespace-nowrap active:scale-95 cursor-pointer"
+                      title="End consultation call"
                     >
                       End Call
                     </button>
@@ -1181,7 +1249,7 @@ function VideoCall({ appointmentId, userId, role }) {
                 ) : (
                   <button
                     onClick={() => setShowSlotConsumedModal(false)}
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm transition-colors shadow-sm"
+                    className="col-span-3 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs sm:text-sm transition-colors shadow-sm text-center cursor-pointer"
                   >
                     Understood
                   </button>
@@ -1241,10 +1309,11 @@ function DeviceIndicator({ ok, label, Icon }) {
   );
 }
 
-function DeviceWarning({ text }) {
+function DeviceWarning({ Icon, text }) {
   return (
-    <div className="p-2.5 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs text-amber-400">
-      {text}
+    <div className="p-2.5 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs text-amber-400 flex items-center justify-center gap-2">
+      {Icon && <Icon className="w-4 h-4 shrink-0 text-amber-400" />}
+      <span>{text}</span>
     </div>
   );
 }
@@ -1306,6 +1375,31 @@ function formatSpecialMessage(text) {
 
 function PrescriptionModal({ userId, data, chemistOrder, chemistInfo, labOrder, labInfo, onOrdersUpdated, onClose }) {
   const [shareTarget, setShareTarget] = useState(null); // "chemist" | "lab" | null
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    const el = document.getElementById('rx-preview-print-area');
+    if (!el) {
+      toast.error("Prescription area not found");
+      return;
+    }
+    try {
+      setIsDownloading(true);
+      const filename = `Prescription_${prescriptionId || "MediConnect"}.pdf`;
+      await exportPrescriptionPdf(el, filename, true);
+      toast.success("Prescription PDF downloaded & opened");
+    } catch (err) {
+      console.error("Prescription download error:", err);
+      toast.error("Failed to generate prescription PDF");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handlePrint = async () => {
+    await handleDownload();
+  };
 
   if (!data) return null;
 
@@ -1358,16 +1452,27 @@ function PrescriptionModal({ userId, data, chemistOrder, chemistInfo, labOrder, 
   };
 
   const diagnosis = (() => {
-    const raw = data.diagnosis;
+    let raw = data.diagnosis;
     if (!raw) return "";
-    if (typeof raw === "string") return raw;
-    return safeStr(raw.primary || raw.diagnosis || "");
+    if (typeof raw === "string" && raw.trim().startsWith("{")) {
+      try { raw = JSON.parse(raw); } catch {}
+    }
+    if (typeof raw === "string") return raw.trim();
+    if (typeof raw === "object" && raw !== null) {
+      return safeStr(raw.primary || raw.provisional_diagnosis || raw.diagnosis || raw.name || raw.text || "");
+    }
+    return safeStr(raw);
   })();
   const diagnosisNotes = (() => {
-    const raw = data.diagnosis;
-    if (!raw) return safeStr(data.diagnosis_notes);
-    if (typeof raw === "string") return safeStr(data.diagnosis_notes);
-    return safeStr(raw.notes);
+    let raw = data.diagnosis;
+    if (typeof raw === "string" && raw.trim().startsWith("{")) {
+      try { raw = JSON.parse(raw); } catch {}
+    }
+    if (!raw || typeof raw === "string") {
+      const td = typeof data.template_data === "string" ? safeJsonParse(data.template_data, {}) : (data.template_data || {});
+      return safeStr(data.diagnosis_notes || td['PROVISIONAL DIAGNOSIS__clinical_notes']);
+    }
+    return safeStr(raw.notes || raw.clinical_notes || data.diagnosis_notes);
   })();
   const qualification = safeStr(doc.qualification);
   const specialization = (() => {
@@ -1394,6 +1499,37 @@ function PrescriptionModal({ userId, data, chemistOrder, chemistInfo, labOrder, 
   const fmtDate = (d) => {
     if (!d) return "N/A";
     try { return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); } catch { return d; }
+  };
+
+  const formatVitalKey = (k) => {
+    if (!k) return "";
+    const kl = String(k).toLowerCase().trim();
+    if (kl.includes("spo") || kl.includes("oxygen")) return "SpO₂";
+    if (kl.includes("blood_pressure") || kl === "bp") return "Blood Pressure";
+    if (kl.includes("pulse") || kl.includes("heart_rate")) return "Pulse";
+    if (kl.includes("temp")) return "Temperature";
+    if (kl.includes("weight")) return "Weight";
+    if (kl.includes("height")) return "Height";
+    if (kl.includes("respiratory") || kl === "rr") return "Respiratory Rate";
+    if (kl.includes("sugar") || kl.includes("glucose")) return "Blood Sugar";
+    return String(k).replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+
+  const formatVital = (k, v) => {
+    if (!v && v !== 0) return "—";
+    let val = String(v).trim();
+    if (!val) return "—";
+    if (/[a-zA-Z%°]/.test(val)) return val;
+    const key = String(k || "").toLowerCase().trim();
+    if (key.includes("blood_pressure") || key === "bp") return `${val} mmHg`;
+    if (key.includes("pulse") || key.includes("heart_rate")) return `${val} bpm`;
+    if (key.includes("temp")) return `${val} °F`;
+    if (key.includes("weight")) return `${val} kg`;
+    if (key.includes("height")) return `${val} cm`;
+    if (key.includes("spo") || key.includes("oxygen")) return `${val} %`;
+    if (key.includes("respiratory") || key === "rr") return `${val} /min`;
+    if (key.includes("sugar") || key.includes("glucose")) return `${val} mg/dL`;
+    return val;
   };
 
   const followUpObj = (() => {
@@ -1441,406 +1577,586 @@ function PrescriptionModal({ userId, data, chemistOrder, chemistInfo, labOrder, 
         className="relative w-full sm:max-w-4xl bg-white rounded-none sm:rounded-2xl shadow-none sm:shadow-2xl overflow-hidden h-full sm:h-auto sm:max-h-[95vh] flex flex-col"
       >
         {/* ── Close bar ── */}
-        <div className="flex items-center justify-between px-5 py-3 bg-[#0067A1] text-white shrink-0">
-          <h3 className="text-sm font-semibold tracking-wide uppercase">Medical Prescription</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/20 transition-colors">
-            <XMarkIcon className="w-5 h-5" />
-          </button>
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-gradient-to-r from-[#0067A1] to-[#005282] text-white shrink-0 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <h3 className="text-sm sm:text-base font-bold tracking-wide uppercase">Medical Prescription</h3>
+            <span className="hidden sm:inline-block text-[10px] bg-white/20 text-white font-semibold px-2.5 py-0.5 rounded-full tracking-wider border border-white/20">A4 FORMAT</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="px-3.5 sm:px-4 py-1.5 bg-white text-[#0067A1] hover:bg-sky-50 active:scale-95 disabled:opacity-50 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              title="Download Prescription (A4 PDF)"
+            >
+              {isDownloading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span>{isDownloading ? "Generating PDF..." : "Download PDF"}</span>
+            </button>
+            <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-white/20 active:scale-95 transition-all cursor-pointer">
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* ── Scrollable letter body ── */}
-        <div className="flex-1 overflow-y-auto bg-white p-5 sm:p-7 space-y-6">
+        {/* ── Scrollable letter body (2-way scrollable for narrow screens while maintaining pristine A4 layout) ── */}
+        <div className="flex-1 overflow-x-auto overflow-y-auto bg-slate-100/90 p-2 sm:p-6">
+          <div className="min-w-fit flex flex-col items-center">
+
+            {/* ── Mobile Scroll Hint ── */}
+            <div className="block md:hidden text-[11px] text-slate-500 font-medium mb-2 w-[794px] px-2 text-center flex items-center justify-center gap-1.5">
+              <ArrowLeftRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span>Scroll horizontally to view full standard A4 prescription sheet</span>
+            </div>
+
+            {/* ─── A4 Prescription Sheet ─── */}
+            <div 
+              id="rx-preview-print-area"
+              className="bg-white text-gray-900 mx-auto"
+              style={{ width: 794, minWidth: 794, maxWidth: 794, boxSizing: 'border-box', background: '#ffffff', padding: '24px 28px', border: 'none', boxShadow: 'none', borderRadius: '0px' }}
+            >
           
-          {/* ─── Header / Letterhead ─── */}
-          <div 
-            className="p-5 sm:p-7 flex flex-row items-center justify-between gap-4 text-black rounded-xl"
-            style={{ background: 'linear-gradient(135deg, #66baf7 0%, #62bcfb 100%)' }}
-          >
-            <div className="flex items-center justify-start shrink-0">
-              <div className="w-[80px] h-[80px] sm:w-[90px] sm:h-[90px] rounded-full overflow-hidden bg-white flex items-center justify-center">
-                <img
-                  src="/real-logo.png"
-                  alt="Logo"
-                  className="w-full h-full object-contain"
-                />
-              </div>
-            </div>
-            <div className="flex-1 text-center min-w-0">
-              <h1 
-                className="text-2xl sm:text-3xl font-extrabold text-black leading-tight"
-                style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.4)' }}
+              {/* ─── Header / Letterhead ─── */}
+              <table 
+                style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse', 
+                  background: 'linear-gradient(135deg, #66baf7 0%, #62bcfb 100%)', 
+                  borderRadius: '0px',
+                  borderBottom: '2px solid #0067A1',
+                  boxSizing: 'border-box'
+                }}
               >
-                MediConnect.fit
-              </h1>
-              <p className="text-xs sm:text-sm font-semibold text-black mt-1 uppercase tracking-wider">
-                {tagline}
-              </p>
-              <p className="text-[10px] sm:text-xs text-black mt-0.5">
-                📧 hello@mediconnect.fit
-              </p>
-            </div>
-            <div className="flex items-center justify-end shrink-0">
-              <div className="w-[80px] h-[80px] sm:w-[90px] sm:h-[90px] rounded-full bg-white flex items-center justify-center overflow-hidden">
-                <img
-                  src="/md-pdf/dr.png"
-                  alt="Doctor Icon"
-                  className="w-[60px] h-[60px] sm:w-[70px] sm:h-[70px] object-contain"
-                />
-              </div>
-            </div>
-          </div>
+                <tbody>
+                  <tr>
+                    <td style={{ width: '84px', padding: '10px 14px', verticalAlign: 'middle', textAlign: 'center' }}>
+                      <img
+                        src={MEDICONNECT_LOGO_BASE64}
+                        alt="MediConnect Logo"
+                        style={{ width: '60px', height: '60px', maxWidth: '60px', maxHeight: '60px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                        width={60}
+                        height={60}
+                      />
+                    </td>
+                    <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '10px 4px' }}>
+                      <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#000000', textShadow: '1px 1px 2px rgba(0,0,0,0.25)', whiteSpace: 'nowrap' }}>
+                        MediConnect.fit
+                      </h1>
+                      <p style={{ margin: '3px 0 0', fontSize: '12px', fontWeight: 700, color: '#000000', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {tagline}
+                      </p>
+                      <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#000000' }}>
+                        hello@mediconnect.fit
+                      </p>
+                    </td>
+                    <td style={{ width: '84px', padding: '10px 14px', verticalAlign: 'middle', textAlign: 'center' }}>
+                      <img
+                        src={DOCTOR_CADUCEUS_BASE64}
+                        alt="Doctor Icon"
+                        style={{ width: '60px', height: '60px', maxWidth: '60px', maxHeight: '60px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                        width={60}
+                        height={60}
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
 
-          {/* ─── Top Info Bar ─── */}
-          <div className="bg-[#f0f7ff] px-5 py-3 rounded-lg flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm font-semibold text-gray-700">
-            <div>
-              Prescription ID: <span className="text-[#0067A1] font-bold">{prescriptionId}</span>
-            </div>
-            {episodeId && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-sky-200 text-xs">
-                <span className="text-gray-500 font-medium">Episode ID:</span>
-                <span className="font-mono font-bold text-[#0067A1]">{episodeId}</span>
-              </div>
-            )}
-            <div className="text-right">
-              Date: <span className="text-[#0067A1] font-bold">{fmtDate(data.created_at)}</span>
-            </div>
-          </div>
+              {/* ─── Top Info Bar (Clean Letterhead Metadata Strip - No Box) ─── */}
+              <table 
+                style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse', 
+                  background: 'transparent', 
+                  borderTop: '1px solid #e2e8f0',
+                  borderBottom: '1px solid #e2e8f0',
+                  marginTop: '10px',
+                  boxSizing: 'border-box' 
+                }}
+              >
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '8px 4px', fontSize: '12px', fontWeight: 600, color: '#374151', textAlign: 'left', width: '38%' }}>
+                      Prescription ID: <span style={{ color: '#0067A1', fontWeight: 700 }}>{prescriptionId}</span>
+                    </td>
+                    <td style={{ padding: '8px 4px', fontSize: '12px', textAlign: 'center', width: '34%' }}>
+                      {episodeId ? (
+                        <span>
+                          <span style={{ color: '#6b7280' }}>Episode ID: </span>
+                          <span style={{ color: '#0067A1', fontWeight: 700, fontFamily: 'monospace' }}>{episodeId}</span>
+                        </span>
+                      ) : null}
+                    </td>
+                    <td style={{ padding: '8px 4px', fontSize: '12px', fontWeight: 600, color: '#374151', textAlign: 'right', width: '28%' }}>
+                      Date: <span style={{ color: '#0067A1', fontWeight: 700 }}>{fmtDate(data.created_at)}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
 
-          {/* ─── Teleconsultation Notice ─── */}
-          {isTele && (
-            <div className="bg-[#fff8d6] p-3.5 rounded-lg border-l-4 border-amber-500 text-xs text-gray-700 italic">
-              This prescription is based solely on information provided during teleconsultation without physical examination. If symptoms worsen, seek in-person evaluation or emergency care immediately.
-            </div>
-          )}
-
-          {/* ─── Doctor & Patient Info Block ─── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-900">
-            {/* Doctor Details */}
-            <div>
-              <h3 className="text-base font-extrabold border-b-2 border-gray-950 pb-1 uppercase tracking-wide">
-                Doctor Details
-              </h3>
-              <div className="mt-2 divide-y divide-dotted divide-gray-300 text-xs sm:text-sm">
-                <div className="py-2 flex justify-between gap-4">
-                  <span className="font-semibold text-gray-500 shrink-0">Name:</span>
-                  <span className="text-[#0067A1] font-bold text-right">{doc.full_name || "—"}</span>
-                </div>
-                <div className="py-2 flex justify-between gap-4">
-                  <span className="font-semibold text-gray-500 shrink-0">Qualification:</span>
-                  <span className="text-[#0067A1] font-bold text-right">{qualification}</span>
-                </div>
-                <div className="py-2 flex justify-between gap-4">
-                  <span className="font-semibold text-gray-500 shrink-0">Specialization:</span>
-                  <span className="text-[#0067A1] font-bold text-right">{specialization || "—"}</span>
-                </div>
-                <div className="py-2 flex justify-between gap-4">
-                  <span className="font-semibold text-gray-500 shrink-0">License No:</span>
-                  <span className="text-[#0067A1] font-bold text-right">{doc.license_number || "—"}</span>
-                </div>
-                <div className="py-2 flex justify-between gap-4">
-                  <span className="font-semibold text-gray-500 shrink-0">Clinic:</span>
-                  <span className="text-[#0067A1] font-bold text-right">
-                    {[doc.clinic_name, doc.clinic_address].filter(Boolean).join(", ") || "—"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Patient Details */}
-            <div>
-              <h3 className="text-base font-extrabold border-b-2 border-gray-950 pb-1 uppercase tracking-wide">
-                Patient Details
-              </h3>
-              <div className="mt-2 divide-y divide-dotted divide-gray-300 text-xs sm:text-sm">
-                <div className="py-2 flex justify-between gap-4">
-                  <span className="font-semibold text-gray-500 shrink-0">Name:</span>
-                  <span className="text-[#0067A1] font-bold text-right">{pat.full_name || "—"}</span>
-                </div>
-                <div className="py-2 flex justify-between gap-4">
-                  <span className="font-semibold text-gray-500 shrink-0">Gender:</span>
-                  <span className="text-[#0067A1] font-bold text-right">{pat.gender || "—"}</span>
-                </div>
-                <div className="py-2 flex justify-between gap-4">
-                  <span className="font-semibold text-gray-500 shrink-0">Age:</span>
-                  <span className="text-[#0067A1] font-bold text-right">{calculateAge(pat.date_of_birth, pat.age)}</span>
-                </div>
-                <div className="py-2 flex justify-between gap-4">
-                  <span className="font-semibold text-gray-500 shrink-0">Address:</span>
-                  <span className="text-[#0067A1] font-bold text-right">{pat.address || "—"}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Prescription Badge Banner (Full Width Divider) */}
-          <div className="bg-[#6fbdf2] text-black font-extrabold text-center py-2.5 text-sm sm:text-base rounded shadow-sm uppercase tracking-widest my-4">
-            Prescription (Rx)
-          </div>
-
-          {/* ─── Clinical Columns grid ─── */}
-          <div className="md:grid md:grid-cols-2 md:gap-8 space-y-6 md:space-y-0 text-gray-900">
-            
-            {/* ─── Left Column: Diagnosis & Findings ─── */}
-            <div className="space-y-6">
-              {/* Diagnosis */}
-              <div>
-                <h3 className="text-base font-extrabold border-b-2 border-gray-950 pb-1 uppercase tracking-wide">
-                  Diagnosis
-                </h3>
-                <div className="mt-2 border-b border-dotted border-gray-300 py-2 text-xs sm:text-sm">
-                  <div className="text-[#0067A1] font-bold">
-                    {diagnosis || "—"}
-                  </div>
-                  {diagnosisNotes && (
-                    <p className="text-xs text-gray-500 mt-1 italic">{diagnosisNotes}</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Vital Signs */}
-              <div>
-                <h3 className="text-base font-extrabold border-b-2 border-gray-950 pb-1 uppercase tracking-wide">
-                  Vital Signs
-                </h3>
-                <div className="mt-2 divide-y divide-dotted divide-gray-300 text-xs sm:text-sm">
-                  {vitals && Object.entries(vitals).some(([_, val]) => val) ? (
-                    Object.entries(vitals)
-                      .filter(([_, val]) => val)
-                      .map(([k, val]) => (
-                        <div key={k} className="py-2 flex justify-between gap-4">
-                          <span className="font-semibold text-gray-500 shrink-0 capitalize">{k.replaceAll("_", " ")}:</span>
-                          <span className="text-[#0067A1] font-bold">{val}</span>
-                        </div>
-                      ))
-                  ) : (
-                    <div className="py-2 text-gray-500 italic">Not recorded</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Clinical Notes */}
-              {data.special_message && data.special_message.trim() && (
-                <div>
-                  <h3 className="text-base font-extrabold border-b-2 border-gray-950 pb-1 uppercase tracking-wide">
-                    Clinical Notes / Instructions
-                  </h3>
-                  <div className="mt-2 text-gray-800">
-                    {formatSpecialMessage(data.special_message.trim())}
-                  </div>
+              {/* ─── Teleconsultation Notice ─── */}
+              {isTele && (
+                <div 
+                  style={{ 
+                    marginTop: '10px',
+                    background: '#fffbeb', 
+                    padding: '7px 12px', 
+                    borderRadius: '0px', 
+                    borderLeft: '3px solid #f59e0b', 
+                    fontSize: '11px', 
+                    color: '#475569', 
+                    fontStyle: 'italic',
+                    boxSizing: 'border-box' 
+                  }}
+                >
+                  This prescription is based solely on information provided during teleconsultation without physical examination. If symptoms worsen, seek in-person evaluation or emergency care immediately.
                 </div>
               )}
-            </div>
 
-            {/* ─── Right Column: Treatment & Follow-up ─── */}
-            <div className="space-y-6">
-              {/* Medicines */}
-              <div>
-                <h3 className="text-base font-extrabold border-b-2 border-gray-950 pb-1 uppercase tracking-wide">
-                  Medicines
-                </h3>
-                <div className="mt-2 divide-y divide-dotted divide-gray-300 text-xs sm:text-sm">
-                  {medicines.length > 0 ? (
-                    medicines.map((m, i) => (
-                      <div key={i} className="py-2.5 flex flex-col gap-0.5">
-                        <div className="flex justify-between items-start gap-4">
-                          <span className="font-semibold text-gray-500 shrink-0">{i + 1}.</span>
-                          <span className="text-[#0067A1] font-bold text-left flex-1">{m.name || "—"}</span>
-                          <span className="text-gray-600 text-xs shrink-0 text-right">
-                            {[m.dosage || m.dose, m.frequency, m.duration].filter(Boolean).join(" · ")}
+              {/* ─── Doctor & Patient Info Block (Guaranteed 2 Columns Side-by-Side via Table) ─── */}
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '12px', boxSizing: 'border-box' }}>
+                <tbody>
+                  <tr>
+                    {/* Doctor Details */}
+                    <td style={{ width: '48%', verticalAlign: 'top', paddingRight: '12px', boxSizing: 'border-box' }}>
+                      <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                        Doctor Details
+                      </h3>
+                      <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                        <div className="py-1 flex justify-between gap-2">
+                          <span className="font-semibold text-gray-500 shrink-0">Name:</span>
+                          <span className="text-[#0067A1] font-bold text-right">{doc.full_name ? `Dr. ${doc.full_name.replace(/^Dr\.\s*/i, '')}` : "—"}</span>
+                        </div>
+                        <div className="py-1 flex justify-between gap-2">
+                          <span className="font-semibold text-gray-500 shrink-0">Qualification:</span>
+                          <span className="text-[#0067A1] font-bold text-right">{qualification || "—"}</span>
+                        </div>
+                        <div className="py-1 flex justify-between gap-2">
+                          <span className="font-semibold text-gray-500 shrink-0">Specialization:</span>
+                          <span className="text-[#0067A1] font-bold text-right">{specialization || "—"}</span>
+                        </div>
+                        <div className="py-1 flex justify-between gap-2">
+                          <span className="font-semibold text-gray-500 shrink-0">License No:</span>
+                          <span className="text-[#0067A1] font-bold text-right">{doc.license_number || "—"}</span>
+                        </div>
+                        <div className="py-1 flex justify-between gap-2">
+                          <span className="font-semibold text-gray-500 shrink-0">Clinic:</span>
+                          <span className="text-[#0067A1] font-bold text-right">
+                            {[doc.clinic_name, doc.clinic_address].filter(Boolean).join(", ") || "Virtual Consultation"}
                           </span>
                         </div>
-                        {(m.instructions || m.notes) && (
-                          <div className="pl-5 text-xs text-gray-500 italic">
-                            {m.instructions || m.notes}
+                      </div>
+                    </td>
+
+                    <td style={{ width: '4%', borderRight: '1px dashed #cbd5e1' }}></td>
+
+                    {/* Patient Details */}
+                    <td style={{ width: '48%', verticalAlign: 'top', paddingLeft: '12px', boxSizing: 'border-box' }}>
+                      <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                        Patient Details
+                      </h3>
+                      <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                        <div className="py-1 flex justify-between gap-2">
+                          <span className="font-semibold text-gray-500 shrink-0">Name:</span>
+                          <span className="text-[#0067A1] font-bold text-right">{pat.full_name || "—"}</span>
+                        </div>
+                        <div className="py-1 flex justify-between gap-2">
+                          <span className="font-semibold text-gray-500 shrink-0">Gender:</span>
+                          <span className="text-[#0067A1] font-bold text-right">{pat.gender || "—"}</span>
+                        </div>
+                        <div className="py-1 flex justify-between gap-2">
+                          <span className="font-semibold text-gray-500 shrink-0">Age:</span>
+                          <span className="text-[#0067A1] font-bold text-right">{calculateAge(pat.date_of_birth, pat.age)}</span>
+                        </div>
+                        <div className="py-1 flex justify-between gap-2">
+                          <span className="font-semibold text-gray-500 shrink-0">Address:</span>
+                          <span className="text-[#0067A1] font-bold text-right">{pat.address || "—"}</span>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* ─── Prescription (Rx) Medical Divider (Clean Divider - No Bulky Pill Box) ─── */}
+              <table 
+                style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse', 
+                  borderTop: '1px solid #e2e8f0', 
+                  borderBottom: '2px solid #0067A1', 
+                  marginTop: '12px', 
+                  marginBottom: '10px',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '6px 2px', verticalAlign: 'middle', textAlign: 'left' }}>
+                      <span style={{ fontSize: '18px', fontWeight: 900, fontFamily: 'serif', color: '#0067A1', marginRight: '8px', verticalAlign: 'middle', lineHeight: 1 }}>℞</span>
+                      <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#0f172a', verticalAlign: 'middle' }}>
+                        PRESCRIPTION (Rx)
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* ─── Clinical Columns (Guaranteed 2 Columns Side-by-Side via Table) ─── */}
+              <table style={{ width: '100%', borderCollapse: 'collapse', boxSizing: 'border-box' }}>
+                <tbody>
+                  <tr>
+                    {/* Left Column: Diagnosis & Findings */}
+                    <td style={{ width: '48%', verticalAlign: 'top', paddingRight: '12px', boxSizing: 'border-box' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {/* Diagnosis */}
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                            Provisional Diagnosis
+                          </h3>
+                          <div className="mt-1 border-b border-dotted border-gray-300 py-1 text-xs">
+                            <div className="text-[#0067A1] font-bold">
+                              {diagnosis || "—"}
+                            </div>
+                            {diagnosisNotes && (
+                              <p className="text-[11px] text-gray-500 mt-0.5 italic">{diagnosisNotes}</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Vital Signs */}
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                            Vital Signs
+                          </h3>
+                          <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                            {vitals && Object.entries(vitals).some(([_, val]) => val) ? (
+                              Object.entries(vitals)
+                                .filter(([_, val]) => val)
+                                .map(([k, val]) => (
+                                  <div key={k} className="py-1 flex justify-between gap-2">
+                                    <span className="font-semibold text-gray-500 shrink-0">{formatVitalKey(k)}:</span>
+                                    <span className="text-[#0067A1] font-bold">{formatVital(k, val)}</span>
+                                  </div>
+                                ))
+                            ) : (
+                              <div className="py-1 text-gray-500 italic">Not recorded</div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Clinical Notes */}
+                        {data.special_message && data.special_message.trim() && (
+                          <div>
+                            <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                              Clinical Notes / Instructions
+                            </h3>
+                            <div className="mt-1 text-gray-800 text-xs">
+                              {formatSpecialMessage(data.special_message.trim())}
+                            </div>
                           </div>
                         )}
                       </div>
-                    ))
-                  ) : (
-                    <div className="py-2 text-gray-500 italic">No medicines prescribed</div>
-                  )}
-                </div>
-              </div>
+                    </td>
 
-              {/* Investigations / Lab Tests */}
-              <div>
-                <h3 className="text-base font-extrabold border-b-2 border-gray-950 pb-1 uppercase tracking-wide">
-                  Investigations / Lab Tests
-                </h3>
-                <div className="mt-2 divide-y divide-dotted divide-gray-300 text-xs sm:text-sm">
-                  {combinedLabsAndInvestigations.length > 0 ? (
-                    combinedLabsAndInvestigations.map((t, i) => {
-                      const testName = t.name;
-                      const urgency = t.urgency ? ` (${t.urgency})` : "";
-                      const instructions = t.instructions ? ` — ${t.instructions}` : "";
-                      return (
-                        <div key={i} className="py-2 flex flex-col gap-0.5">
-                          <div className="flex justify-between gap-4">
-                            <span className="font-semibold text-gray-500 shrink-0">{i + 1}.</span>
-                            <span className="text-[#0067A1] font-bold text-right flex-1">{testName}{urgency}</span>
+                    <td style={{ width: '4%', borderRight: '1px dashed #cbd5e1' }}></td>
+
+                    {/* Right Column: Treatment & Follow-up */}
+                    <td style={{ width: '48%', verticalAlign: 'top', paddingLeft: '12px', boxSizing: 'border-box' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {/* Medicines */}
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                            Medicines
+                          </h3>
+                          <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                            {medicines.length > 0 ? (
+                              medicines.map((m, i) => (
+                                <div key={i} className="py-1 flex flex-col gap-0.5">
+                                  <div className="flex justify-between items-start gap-2">
+                                    <span className="font-semibold text-gray-500 shrink-0">{i + 1}.</span>
+                                    <span className="text-[#0067A1] font-bold text-left flex-1">{m.name || "—"}</span>
+                                    <span className="text-gray-600 text-[11px] shrink-0 text-right">
+                                      {[m.dosage || m.dose, m.frequency, m.duration].filter(Boolean).join(" · ")}
+                                    </span>
+                                  </div>
+                                  {(m.instructions || m.notes) && (
+                                    <div className="pl-4 text-[11px] text-gray-500 italic">
+                                      {m.instructions || m.notes}
+                                    </div>
+                                  )}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="py-1 text-gray-500 italic">No medicines prescribed</div>
+                            )}
                           </div>
-                          {instructions && (
-                            <div className="pl-5 text-xs text-gray-500 italic">
-                              {instructions}
-                            </div>
-                          )}
                         </div>
-                      );
-                    })
-                  ) : (
-                    <div className="py-2 text-gray-500 italic">No investigations or lab tests advised</div>
-                  )}
-                </div>
-              </div>
 
-              {/* Follow Up */}
-              <div>
-                <h3 className="text-base font-extrabold border-b-2 border-gray-950 pb-1 uppercase tracking-wide">
-                  Follow Up
-                </h3>
-                <div className="mt-2 divide-y divide-dotted divide-gray-300 text-xs sm:text-sm">
-                  {followUpDateVal && (
-                    <div className="py-2 flex justify-between gap-4">
-                      <span className="font-semibold text-gray-500 shrink-0">
-                        {isDateVal ? "Follow-up Date:" : "Return After:"}
-                      </span>
-                      <span className="text-[#0067A1] font-bold">
-                        {isDateVal ? fmtDate(followUpDateVal) : followUpDateVal}
-                      </span>
-                    </div>
-                  )}
-                  {followUpNotesVal && (
-                    <div className="py-2 flex justify-between gap-4">
-                      <span className="font-semibold text-gray-500 shrink-0">Notes:</span>
-                      <span className="text-[#0067A1] font-bold text-right">{followUpNotesVal}</span>
-                    </div>
-                  )}
-                  {(!followUpDateVal && !followUpNotesVal) && (
-                    <div className="py-2 flex justify-between gap-4">
-                      <span className="font-semibold text-gray-500 shrink-0">Return After:</span>
-                      <span className="text-[#0067A1] font-bold">—</span>
-                    </div>
-                  )}
-                  <div className="py-2 flex flex-col gap-1">
-                    <span className="font-semibold text-red-600">Warning Signs:</span>
-                    <span className="text-gray-700 text-xs">
-                      {warningSignsHtml}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                        {/* Investigations / Lab Tests */}
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                            Investigations / Lab Tests
+                          </h3>
+                          <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                            {combinedLabsAndInvestigations.length > 0 ? (
+                              combinedLabsAndInvestigations.map((t, i) => {
+                                const testName = t.name;
+                                const urgency = t.urgency ? ` (${t.urgency})` : "";
+                                const instructions = t.instructions ? ` — ${t.instructions}` : "";
+                                return (
+                                  <div key={i} className="py-1 flex flex-col gap-0.5">
+                                    <div className="flex justify-between gap-2">
+                                      <span className="font-semibold text-gray-500 shrink-0">{i + 1}.</span>
+                                      <span className="text-[#0067A1] font-bold text-right flex-1">{testName}{urgency}</span>
+                                    </div>
+                                    {instructions && (
+                                      <div className="pl-4 text-[11px] text-gray-500 italic">
+                                        {instructions}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <div className="py-1 text-gray-500 italic">No investigations or lab tests advised</div>
+                            )}
+                          </div>
+                        </div>
 
-              {/* Digital Signature */}
-              <div>
-                <h3 className="text-base font-extrabold border-b-2 border-gray-950 pb-1 uppercase tracking-wide">
-                  Digital Signature
-                </h3>
-                <div className="mt-2 flex flex-col items-end text-xs sm:text-sm">
-                  {doc.signature_url && (
-                    <img
-                      src={(() => {
-                        const raw = doc.signature_url;
-                        if (!raw) return null;
-                        if (typeof raw === 'string' && raw.startsWith('[')) {
-                          try { const arr = JSON.parse(raw); return Array.isArray(arr) ? arr[0] : raw; } catch { return raw; }
-                        }
-                        if (Array.isArray(raw)) return raw[0];
-                        return raw;
-                      })()}
-                      alt="Doctor Signature"
-                      className="h-10 border-b border-gray-300 pb-1 mb-1 object-contain"
-                    />
-                  )}
-                  <div className="py-1.5 flex justify-between w-full gap-4 border-b border-dotted border-gray-300">
-                    <span className="font-semibold text-gray-500">Signed by:</span>
-                    <span className="text-[#0067A1] font-bold">{doc.full_name || "—"}</span>
-                  </div>
-                  <div className="py-1.5 flex justify-between w-full gap-4 border-b border-dotted border-gray-300">
-                    <span className="font-semibold text-gray-500">Signed at:</span>
-                    <span className="text-[#0067A1] font-bold text-right">
-                      {data.signed_at ? fmtDate(data.signed_at) : (data.created_at ? fmtDate(data.created_at) : "—")}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                        {/* Follow Up */}
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                            Follow Up
+                          </h3>
+                          <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                            {followUpDateVal && (
+                              <div className="py-1 flex justify-between gap-2">
+                                <span className="font-semibold text-gray-500 shrink-0">
+                                  {isDateVal ? "Follow-up Date:" : "Return After:"}
+                                </span>
+                                <span className="text-[#0067A1] font-bold">
+                                  {isDateVal ? fmtDate(followUpDateVal) : followUpDateVal}
+                                </span>
+                              </div>
+                            )}
+                            {followUpNotesVal && (
+                              <div className="py-1 flex justify-between gap-2">
+                                <span className="font-semibold text-gray-500 shrink-0">Notes:</span>
+                                <span className="text-[#0067A1] font-bold text-right">{followUpNotesVal}</span>
+                              </div>
+                            )}
+                            {(!followUpDateVal && !followUpNotesVal) && (
+                              <div className="py-1 flex justify-between gap-2">
+                                <span className="font-semibold text-gray-500 shrink-0">Return After:</span>
+                                <span className="text-[#0067A1] font-bold">—</span>
+                              </div>
+                            )}
+                            <div className="py-1 flex flex-col gap-0.5">
+                              <span className="font-semibold text-red-600">Warning Signs:</span>
+                              <span className="text-gray-700 text-[11px]">
+                                {warningSignsHtml}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Digital Signature */}
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                            Digital Signature
+                          </h3>
+                          <div className="mt-1 flex flex-col items-end text-xs">
+                            {doc.signature_url && (
+                              <img
+                                src={(() => {
+                                  const raw = doc.signature_url;
+                                  if (!raw) return null;
+                                  if (typeof raw === 'string' && raw.startsWith('[')) {
+                                    try { const arr = JSON.parse(raw); return Array.isArray(arr) ? arr[0] : raw; } catch { return raw; }
+                                  }
+                                  if (Array.isArray(raw)) return raw[0];
+                                  return raw;
+                                })()}
+                                alt="Doctor Signature"
+                                style={{ maxHeight: '36px', height: '36px', objectFit: 'contain' }}
+                                className="h-9 border-b border-gray-300 pb-0.5 mb-0.5 object-contain"
+                              />
+                            )}
+                            <div className="py-1 flex justify-between w-full gap-2 border-b border-dotted border-gray-300">
+                              <span className="font-semibold text-gray-500">Signed by:</span>
+                              <span className="text-[#0067A1] font-bold">{doc.full_name ? `Dr. ${doc.full_name.replace(/^Dr\.\s*/i, '')}` : "—"}</span>
+                            </div>
+                            <div className="py-1 flex justify-between w-full gap-2 border-b border-dotted border-gray-300">
+                              <span className="font-semibold text-gray-500">Signed at:</span>
+                              <span className="text-[#0067A1] font-bold text-right">
+                                {data.signed_at ? fmtDate(data.signed_at) : (data.created_at ? fmtDate(data.created_at) : "—")}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* ─── Footer Line ─── */}
+              <table 
+                style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse', 
+                  borderTop: '2px solid #e2e8f0', 
+                  marginTop: '14px', 
+                  paddingTop: '6px',
+                  boxSizing: 'border-box' 
+                }}
+              >
+                <tbody>
+                  <tr>
+                    <td style={{ fontSize: '11px', color: '#4b5563', padding: '6px 0', textAlign: 'left' }}>
+                      <strong style={{ color: '#1f2937' }}>MediConnect Healthcare Services</strong>
+                      <span style={{ color: '#9ca3af', margin: '0 6px' }}>|</span>
+                      <span>Confidential Medical Document</span>
+                    </td>
+                    <td style={{ fontSize: '11px', color: '#4b5563', padding: '6px 0', textAlign: 'right' }}>
+                      Issued for: <span style={{ color: '#0067A1', fontWeight: 700 }}>{pat.full_name || "—"}</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontSize: '10px', color: '#6b7280', paddingTop: '4px', borderTop: '1px dotted #e5e7eb', textAlign: 'left' }}>
+                      © {new Date().getFullYear()} MediConnect.fit &bull; Digitally verified medical teleconsultation prescription.
+                    </td>
+                    <td style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 600, paddingTop: '4px', borderTop: '1px dotted #e5e7eb', textAlign: 'right' }}>
+                      Page 1 of 1
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
+        </div>
 
-          {/* ─── Footer Line ─── */}
-          <div className="px-5 sm:px-7 border-t border-gray-200 py-4 flex items-center justify-between text-[10px] text-gray-500 bg-gray-50">
-            <div>
-              <p className="font-semibold">MediConnect Healthcare Services</p>
-              <p>&copy; {new Date().getFullYear()} | Confidential Medical Document</p>
-            </div>
-            <div className="text-right">
-              <p>Confidential prescription for patient {pat.full_name || "—"}</p>
-            </div>
-          </div>
-
-          {/* ─── Order Status / Actions ─── */}
-          <div className="px-5 sm:px-7 pb-8 mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-[#0067A1]/15 bg-gradient-to-br from-[#0067A1]/5 to-white p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-xl bg-[#0067A1] text-white flex items-center justify-center">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+        {/* ─── Responsive Action / Order Cards Footer (100% responsive, outside horizontal scroll) ─── */}
+        <div className="bg-white border-t border-slate-200 p-3 sm:p-4 shrink-0 shadow-sm z-10 w-full">
+          <div className="w-full">
+            <div className={`grid grid-cols-1 ${labTests.length > 0 ? "sm:grid-cols-2" : ""} gap-3 w-full`}>
+              {/* Chemist Order Card */}
+              <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-r from-blue-50/40 via-white to-slate-50/60 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-[#0067A1]/40 transition-all">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0067A1] to-[#005282] text-white flex items-center justify-center shadow-xs shrink-0">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500">Chemist Order</p>
-                    <p className="text-sm font-semibold text-gray-900">{chemistOrder ? chemistName : "Not ordered"}</p>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Chemist Order</p>
+                      {chemistOrder && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                          {chemistOrder.status || "Ordered"}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm font-bold text-slate-900 truncate">
+                      {chemistOrder ? chemistName : "Not ordered yet"}
+                    </p>
+                    {chemistOrder && (chemistSub || chemistOrder.unid) && (
+                      <p className="text-[11px] text-slate-500 truncate">
+                        {chemistSub ? chemistSub : ""}{chemistOrder.unid ? ` • #${chemistOrder.unid}` : ""}
+                      </p>
+                    )}
                   </div>
                 </div>
+
                 <button
+                  type="button"
                   onClick={() => setShareTarget("chemist")}
-                  className="text-xs font-semibold text-[#0067A1] hover:underline"
+                  className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-xs hover:shadow ${
+                    chemistOrder
+                      ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300/80"
+                      : "bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:from-[#005a8f] hover:to-[#006ea8] text-white"
+                  }`}
                 >
-                  {chemistOrder ? "Change" : "Order"}
+                  {chemistOrder ? (
+                    <>
+                      <span>Change</span>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                      </svg>
+                      <span>Order</span>
+                    </>
+                  )}
                 </button>
               </div>
-              {chemistOrder && (
-                <div className="mt-2 text-xs text-gray-500">
-                  <div className="truncate text-gray-600">{chemistSub || "Pharmacy selected"}</div>
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-full bg-[#0067A1]/10 text-[#0067A1] font-medium">
-                      {chemistOrder.status || "sent"}
-                    </span>
-                    {chemistOrder.unid && <span>Order #{chemistOrder.unid}</span>}
+
+              {/* Lab Order Card */}
+              {labTests.length > 0 && (
+                <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-r from-teal-50/40 via-white to-slate-50/60 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-teal-600/40 transition-all">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-600 to-teal-800 text-white flex items-center justify-center shadow-xs shrink-0">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Lab Order</p>
+                        {labOrder && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                            {labOrder.status || "Ordered"}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold text-slate-900 truncate">
+                        {labOrder ? labName : "Not ordered yet"}
+                      </p>
+                      {labOrder && (labSub || labOrder.unid) && (
+                        <p className="text-[11px] text-slate-500 truncate">
+                          {labSub ? labSub : ""}{labOrder.unid ? ` • #${labOrder.unid}` : ""}
+                        </p>
+                      )}
+                    </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShareTarget("lab")}
+                    className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-xs hover:shadow ${
+                      labOrder
+                        ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300/80"
+                        : "bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white"
+                    }`}
+                  >
+                    {labOrder ? (
+                      <>
+                        <span>Change</span>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        <span>Book</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               )}
             </div>
-
-            {labTests.length > 0 && (
-              <div className="rounded-2xl border border-[#0067A1]/15 bg-gradient-to-br from-[#0067A1]/5 to-white p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 rounded-xl bg-[#0067A1] text-white flex items-center justify-center">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Lab Order</p>
-                      <p className="text-sm font-semibold text-gray-900">{labOrder ? labName : "Not ordered"}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShareTarget("lab")}
-                    className="text-xs font-semibold text-[#0067A1] hover:underline"
-                  >
-                    {labOrder ? "Change" : "Order"}
-                  </button>
-                </div>
-                {labOrder && (
-                  <div className="mt-2 text-xs text-gray-500">
-                    <div className="truncate text-gray-600">{labSub || "Lab selected"}</div>
-                    <div className="mt-1 flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-full bg-[#0067A1]/10 text-[#0067A1] font-medium">
-                        {labOrder.status || "sent"}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -2158,7 +2474,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
       setDiagnosis("");
       setDiagnosisNotes("");
       setMedicines([{ ...EMPTY_MEDICINE }]);
-      setLabTests([""]);
+      setLabTests([{ test_name: "", instructions: "" }]);
       setVitalSigns({ ...EMPTY_VITALS });
       setExaminationFindings("");
       setFollowUpDate("");
@@ -2691,13 +3007,23 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
       setSelectedTemplateSpec(specList[0] || "");
     }
 
-    const diag = prescription.diagnosis || {};
+    let diag = prescription.diagnosis || {};
+    if (typeof diag === "string" && diag.trim().startsWith("{")) {
+      try { diag = JSON.parse(diag); } catch {}
+    }
     if (typeof diag === "string") {
-      setDiagnosis(diag);
+      setDiagnosis(diag.trim());
       setDiagnosisNotes("");
-    } else {
-      setDiagnosis(diag.primary || diag.diagnosis || "");
-      setDiagnosisNotes(diag.notes || "");
+    } else if (typeof diag === "object" && diag !== null) {
+      setDiagnosis(diag.primary || diag.provisional_diagnosis || diag.diagnosis || diag.name || diag.text || "");
+      setDiagnosisNotes(diag.notes || diag.clinical_notes || "");
+    }
+    if (prescription.template_data && typeof prescription.template_data === "object") {
+      const td = prescription.template_data;
+      const fallbackDiag = td['PROVISIONAL DIAGNOSIS__diagnosis'] || td.diagnosis || td.provisional_diagnosis;
+      if (fallbackDiag) {
+        setDiagnosis((prev) => prev || fallbackDiag);
+      }
     }
 
     if (Array.isArray(prescription.medicines) && prescription.medicines.length > 0) {
@@ -2976,9 +3302,9 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
 
   /* ── styles ── */
   const inputClass =
-    "w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-black font-medium placeholder:text-gray-400 focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1] outline-none transition";
+    "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 font-normal placeholder:text-slate-400 focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1] outline-none transition";
   const sectionTitle =
-    "flex items-center gap-2 text-xs font-bold text-[#0067A1] uppercase tracking-wider mb-3";
+    "flex items-center gap-2 text-xs font-semibold text-[#0067A1] uppercase tracking-wider mb-2.5";
 
   const wrapper = (children) => {
     if (isSidebarPanel) {
@@ -3001,7 +3327,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: "100%", opacity: 0 }}
           transition={{ type: "spring", damping: 25, stiffness: 200 }}
-          className="relative w-full h-full sm:h-auto sm:max-h-[96vh] sm:max-w-4xl sm:rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col"
+          className="relative w-full h-full sm:h-auto sm:max-h-[96vh] sm:max-w-4xl sm:rounded-xl bg-white shadow-2xl overflow-hidden flex flex-col"
         >
           {children}
         </motion.div>
@@ -3015,36 +3341,36 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
         <div className="flex items-center justify-between px-6 py-4 bg-[#0067A1] shrink-0">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-white">
+              <h3 className="text-base font-semibold text-white">
                 {isEditingExisting ? "Edit Prescription" : "Write Prescription"}
               </h3>
               {episodeCode && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-white/20 text-white border border-white/30 tracking-wide" title="Care Episode Tracking ID">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-white/20 text-white border border-white/30 tracking-wide" title="Care Episode Tracking ID">
                   Episode: {episodeCode}
                 </span>
               )}
               {isEditingExisting && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-400/20 text-yellow-200 border border-yellow-400/30">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-yellow-400/20 text-yellow-200 border border-yellow-400/30">
                   {existingPid ? `Rx #${existingPid}` : "Existing"}
                 </span>
               )}
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
               {meta?.patient_name && (
-                <p className="text-xs text-white/70">
-                  <span className="text-white/50">Patient:</span> {meta.patient_name}
+                <p className="text-xs text-white/80">
+                  <span className="text-white/60">Patient:</span> {meta.patient_name}
                   {meta.patient_gender ? `, ${meta.patient_gender}` : ""}
                 </p>
               )}
               {meta?.doctor_name && (
-                <p className="text-xs text-white/70">
-                  <span className="text-white/50">Dr:</span> {meta.doctor_name}
+                <p className="text-xs text-white/80">
+                  <span className="text-white/60">Dr:</span> {meta.doctor_name}
                   {meta.doctor_qualification ? ` (${meta.doctor_qualification})` : ""}
                 </p>
               )}
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors shrink-0 ml-3">
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-white/10 transition-colors shrink-0 ml-3">
             <XMarkIcon className="w-5 h-5 text-white" />
           </button>
         </div>
@@ -3062,36 +3388,36 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                   <div className="grid grid-cols-2 gap-3">
                     {meta?.doctor_name && (
                       <div className="p-3 rounded-lg bg-[#0067A1]/5 border border-[#0067A1]/10">
-                        <p className="text-[10px] font-bold text-[#0067A1] uppercase tracking-wider mb-1">Doctor</p>
-                        <p className="text-xs font-bold text-black">{meta.doctor_name}</p>
-                        {meta.doctor_qualification && <p className="text-[11px] text-black font-semibold">{meta.doctor_qualification}</p>}
-                        {meta.doctor_specialization && <p className="text-[11px] text-[#0067A1] font-bold">{meta.doctor_specialization}</p>}
-                        {meta.doctor_license && <p className="text-[10px] text-black font-medium">Reg: {meta.doctor_license}</p>}
-                        {meta.doctor_clinic && <p className="text-[10px] text-black font-medium">{meta.doctor_clinic}</p>}
+                        <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-1">Doctor</p>
+                        <p className="text-xs font-medium text-slate-800">{meta.doctor_name}</p>
+                        {meta.doctor_qualification && <p className="text-[11px] text-slate-600 font-normal">{meta.doctor_qualification}</p>}
+                        {meta.doctor_specialization && <p className="text-[11px] text-[#0067A1] font-medium">{meta.doctor_specialization}</p>}
+                        {meta.doctor_license && <p className="text-[10px] text-slate-500 font-normal">Reg: {meta.doctor_license}</p>}
+                        {meta.doctor_clinic && <p className="text-[10px] text-slate-500 font-normal">{meta.doctor_clinic}</p>}
                       </div>
                     )}
                     {meta?.patient_name && (
-                      <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
-                        <p className="text-[10px] font-bold text-[#0067A1] uppercase tracking-wider mb-1">Patient</p>
-                        <p className="text-xs font-bold text-black">{meta.patient_name}</p>
-                        {meta.patient_gender && <p className="text-[11px] text-black font-semibold capitalize">{meta.patient_gender}</p>}
-                        {meta.patient_dob && <p className="text-[10px] text-black font-medium">DOB: {new Date(meta.patient_dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
-                        {meta.patient_blood_group && <p className="text-[10px] text-black font-medium">Blood: {meta.patient_blood_group}</p>}
+                      <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-100">
+                        <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-1">Patient</p>
+                        <p className="text-xs font-medium text-slate-800">{meta.patient_name}</p>
+                        {meta.patient_gender && <p className="text-[11px] text-slate-600 font-normal capitalize">{meta.patient_gender}</p>}
+                        {meta.patient_dob && <p className="text-[10px] text-slate-500 font-normal">DOB: {new Date(meta.patient_dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
+                        {meta.patient_blood_group && <p className="text-[10px] text-slate-500 font-normal">Blood: {meta.patient_blood_group}</p>}
                       </div>
                     )}
                   </div>
                   {episodeCode && (
-                    <div className="px-3 py-1.5 rounded-md bg-gray-50 border border-gray-200 flex items-center justify-between text-xs">
-                      <span className="text-[10px] font-bold text-black uppercase tracking-wider">Episode ID</span>
-                      <span className="font-mono font-bold text-[#0067A1]">{episodeCode}</span>
+                    <div className="px-3 py-1.5 rounded-md bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                      <span className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Episode ID</span>
+                      <span className="font-mono font-medium text-[#0067A1]">{episodeCode}</span>
                     </div>
                   )}
                 </div>
               )}
 
               <div className="mb-5">
-                <h4 className="text-sm font-bold text-black">Choose a Prescription Template</h4>
-                <p className="text-xs text-black font-medium mt-1">
+                <h4 className="text-sm font-semibold text-slate-800">Choose a Prescription Template</h4>
+                <p className="text-xs text-slate-600 font-normal mt-1">
                   Select a template to pre-fill your prescription, or start with a blank form.
                 </p>
               </div>
@@ -3101,31 +3427,30 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                   <button
                     key={tpl.id || idx}
                     onClick={() => applyTemplate(tpl)}
-                    className="w-full flex items-start gap-3 p-4 rounded-xl border border-gray-200 hover:border-[#0067A1] hover:bg-[#0067A1]/5 transition-all text-left group"
+                    className="w-full flex items-start gap-3 p-3.5 rounded-lg border border-slate-200 hover:border-[#0067A1] hover:bg-[#0067A1]/5 transition-all text-left group"
                   >
-                    <div className="w-9 h-9 rounded-lg bg-[#0067A1]/10 flex items-center justify-center shrink-0 group-hover:bg-[#0067A1]/20 transition-colors">
-                      <span className="text-[#0067A1] font-bold text-xs">Rx</span>
+                    <div className="w-8 h-8 rounded-md bg-[#0067A1]/10 flex items-center justify-center shrink-0 group-hover:bg-[#0067A1]/20 transition-colors">
+                      <span className="text-[#0067A1] font-semibold text-xs">Rx</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-black truncate">{tpl.name || `Template ${idx + 1}`}</p>
+                      <p className="text-sm font-medium text-slate-800 truncate">{tpl.name || `Template ${idx + 1}`}</p>
                       {tpl.specialization && (
-                        <p className="text-[11px] text-[#0067A1] font-bold capitalize mt-0.5">{tpl.specialization.replace(/_/g, " ")}</p>
+                        <p className="text-[11px] text-[#0067A1] font-medium capitalize mt-0.5">{tpl.specialization.replace(/_/g, " ")}</p>
                       )}
                       {tpl.appointment_type && (
-                        <p className="text-[10px] text-black font-medium mt-0.5 capitalize">{tpl.appointment_type.replace(/_/g, " ")}</p>
+                        <p className="text-[10px] text-slate-500 font-normal mt-0.5 capitalize">{tpl.appointment_type.replace(/_/g, " ")}</p>
                       )}
                     </div>
-                    <svg className="w-4 h-4 text-black group-hover:text-[#0067A1] shrink-0 mt-0.5 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg className="w-4 h-4 text-slate-400 group-hover:text-[#0067A1] shrink-0 mt-1 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                     </svg>
                   </button>
                 ))}
               </div>
 
-
               <button
                 onClick={() => applyTemplate(null)}
-                className="w-full mt-4 py-3 rounded-lg border border-dashed border-gray-400 text-sm text-black hover:border-[#0067A1] hover:text-[#0067A1] hover:bg-gray-50 transition-all font-bold"
+                className="w-full mt-4 py-2.5 rounded-lg border border-dashed border-slate-300 text-sm text-slate-700 hover:border-[#0067A1] hover:text-[#0067A1] hover:bg-slate-50 transition-all font-medium"
               >
                 + Start with Blank Form
               </button>
@@ -3138,21 +3463,21 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
 
           {/* ── Doctor & Patient Info Summary ── */}
           {(meta?.doctor_name || meta?.patient_name) && (
-            <div className="p-3.5 rounded-lg bg-gray-50 border border-gray-200/80 space-y-2.5">
+            <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-2.5">
               <div className="grid grid-cols-2 gap-3">
                 {meta?.doctor_name && (
                   <div>
-                    <p className="text-[10px] font-bold text-[#0067A1] uppercase tracking-wider mb-0.5">Doctor</p>
-                    <p className="text-xs font-bold text-black">{meta.doctor_name}</p>
-                    {meta.doctor_qualification && <p className="text-[11px] text-black font-semibold">{meta.doctor_qualification}</p>}
+                    <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-0.5">Doctor</p>
+                    <p className="text-xs font-medium text-slate-800">{meta.doctor_name}</p>
+                    {meta.doctor_qualification && <p className="text-[11px] text-slate-600 font-normal">{meta.doctor_qualification}</p>}
                     
                     {specList.length > 1 ? (
                       <div className="mt-1">
-                        <label className="text-[10px] text-black font-bold block">Active Specialization</label>
+                        <label className="text-[10px] text-slate-600 font-medium block">Active Specialization</label>
                         <select
                           value={selectedTemplateSpec}
                           onChange={(e) => setSelectedTemplateSpec(e.target.value)}
-                          className="text-xs bg-white border border-gray-300 rounded p-1 text-[#0067A1] font-bold mt-0.5 focus:outline-none focus:ring-1 focus:ring-[#0067A1]"
+                          className="text-xs bg-white border border-slate-300 rounded p-1 text-[#0067A1] font-medium mt-0.5 focus:outline-none focus:ring-1 focus:ring-[#0067A1]"
                         >
                           {specList.map((spec) => (
                             <option key={spec} value={spec}>
@@ -3162,36 +3487,36 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                         </select>
                       </div>
                     ) : (
-                      selectedTemplateSpec && <p className="text-[11px] text-[#0067A1] font-bold">{selectedTemplateSpec}</p>
+                      selectedTemplateSpec && <p className="text-[11px] text-[#0067A1] font-medium">{selectedTemplateSpec}</p>
                     )}
 
-                    {meta.doctor_license && <p className="text-[10px] text-black font-medium">Reg: {meta.doctor_license}</p>}
-                    {meta.doctor_clinic && <p className="text-[10px] text-black font-medium">{meta.doctor_clinic}</p>}
+                    {meta.doctor_license && <p className="text-[10px] text-slate-500 font-normal">Reg: {meta.doctor_license}</p>}
+                    {meta.doctor_clinic && <p className="text-[10px] text-slate-500 font-normal">{meta.doctor_clinic}</p>}
                   </div>
                 )}
                 {meta?.patient_name && (
                   <div>
-                    <p className="text-[10px] font-bold text-[#0067A1] uppercase tracking-wider mb-0.5">Patient</p>
-                    <p className="text-xs font-bold text-black">{meta.patient_name}</p>
-                    {meta.patient_gender && <p className="text-[11px] text-black font-semibold capitalize">{meta.patient_gender}</p>}
-                    {meta.patient_dob && <p className="text-[10px] text-black font-medium">DOB: {new Date(meta.patient_dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
-                    {meta.patient_blood_group && <p className="text-[10px] text-black font-medium">Blood: {meta.patient_blood_group}</p>}
-                    {meta.patient_address && <p className="text-[10px] text-black font-medium truncate">{meta.patient_address}</p>}
+                    <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-0.5">Patient</p>
+                    <p className="text-xs font-medium text-slate-800">{meta.patient_name}</p>
+                    {meta.patient_gender && <p className="text-[11px] text-slate-600 font-normal capitalize">{meta.patient_gender}</p>}
+                    {meta.patient_dob && <p className="text-[10px] text-slate-500 font-normal">DOB: {new Date(meta.patient_dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
+                    {meta.patient_blood_group && <p className="text-[10px] text-slate-500 font-normal">Blood: {meta.patient_blood_group}</p>}
+                    {meta.patient_address && <p className="text-[10px] text-slate-500 font-normal truncate">{meta.patient_address}</p>}
                   </div>
                 )}
               </div>
 
               {/* ── Journey & Episode Tracking Strip ── */}
-              <div className="pt-2 border-t border-gray-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="pt-2 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold text-black uppercase tracking-wider">Episode ID:</span>
-                  <span className="font-mono font-bold text-[#0067A1] bg-white px-2 py-0.5 rounded border border-gray-300 text-[11px]">
+                  <span className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Episode ID:</span>
+                  <span className="font-mono font-medium text-[#0067A1] bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px]">
                     {episodeCode || "EP-CONSULTATION"}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[11px] text-black">
-                  <span className="font-medium">Prescription:</span>
-                  <span className="font-bold text-black">
+                <div className="flex items-center gap-1.5 text-[11px] text-slate-700">
+                  <span className="font-normal text-slate-500">Prescription:</span>
+                  <span className="font-medium text-slate-800">
                     {isEditingExisting ? (existingPid ? `Rx #${existingPid}` : "Saved Draft") : "New Rx (Draft)"}
                   </span>
                 </div>
@@ -3200,11 +3525,11 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
           )}
           {/* ── Existing Prescription Notice ── */}
           {isEditingExisting && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
               <svg className="w-4 h-4 shrink-0 text-amber-800" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
-              <p className="text-xs font-semibold text-black">
+              <p className="text-xs font-medium text-amber-900">
                 You&apos;ve already written a prescription for this appointment. You can review and update it below.
               </p>
             </div>
@@ -3214,7 +3539,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
           <section>
             <div className="flex items-center justify-between mb-3">
               <div className={`${sectionTitle} mb-0`}>
-                <span className="w-6 h-6 rounded-full bg-[#0067A1]/10 flex items-center justify-center text-[10px] font-bold text-[#0067A1]">
+                <span className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[11px] font-medium text-[#0067A1]">
                   <Sparkles className="w-3.5 h-3.5 text-[#0067A1]" />
                 </span>
                 Presenting Complaints
@@ -3222,34 +3547,34 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
               <button
                 type="button"
                 onClick={addComplaint}
-                className="inline-flex items-center gap-1 text-xs text-[#0067A1] hover:text-[#004F7C] font-semibold bg-[#0067A1]/5 hover:bg-[#0067A1]/10 px-2.5 py-1.5 rounded-lg transition-colors"
+                className="inline-flex items-center gap-1 text-xs text-[#0067A1] hover:text-[#004F7C] font-medium bg-[#0067A1]/5 hover:bg-[#0067A1]/10 px-2.5 py-1.5 rounded-md transition-colors"
               >
                 <PlusIcon className="w-3.5 h-3.5" /> Add Row
               </button>
             </div>
             <div className="space-y-3">
               {presentingComplaints.map((comp, idx) => (
-                <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 rounded-xl bg-gray-50 border border-gray-100">
-                  <span className="text-xs font-bold text-black shrink-0 w-5">#{idx + 1}</span>
+                <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                  <span className="text-xs font-medium text-slate-500 shrink-0 w-5">#{idx + 1}</span>
                   <Autocomplete
                     value={comp.complaint}
                     onChange={(val) => updateComplaint(idx, "complaint", val)}
                     onSelect={(opt) => updateComplaint(idx, "complaint", opt.name)}
                     options={complaintSuggestions.map(s => ({ name: s }))}
                     placeholder="Symptom / Complaint *"
-                    className={`${inputClass} flex-1 font-medium bg-white`}
+                    className={`${inputClass} flex-1 font-normal bg-white`}
                   />
                   <input
                     type="text"
                     placeholder="Details (e.g. since 3 days, mild/severe)"
                     value={comp.details}
                     onChange={(e) => updateComplaint(idx, "details", e.target.value)}
-                    className={`${inputClass} flex-1 bg-white`}
+                    className={`${inputClass} flex-1 font-normal bg-white`}
                   />
                   {presentingComplaints.length > 1 && (
                     <button
                       onClick={() => removeComplaint(idx)}
-                      className="p-2 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
                     >
                       <TrashIcon className="w-4 h-4" />
                     </button>
@@ -3271,7 +3596,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
               return (
                 <section key={secIdx}>
                   <div className={sectionTitle}>
-                    <span className="w-6 h-6 rounded-full bg-[#0067A1]/10 flex items-center justify-center text-[10px] font-bold text-[#0067A1]">{displayIndex}</span>
+                    <span className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[11px] font-medium text-[#0067A1]">{displayIndex}</span>
                     {sec.section || "Symptoms"}
                   </div>
                   <Autocomplete
@@ -3301,7 +3626,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     }}
                     options={symptomMaster}
                     placeholder="Search symptoms (e.g. fever, headache)"
-                    className={`${inputClass} font-bold text-[#0067A1]`}
+                    className={`${inputClass} font-normal text-slate-800`}
                   />
                 </section>
               );
@@ -3311,7 +3636,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
               return (
                 <section key={secIdx}>
                   <div className={sectionTitle}>
-                    <span className="w-6 h-6 rounded-full bg-[#0067A1]/10 flex items-center justify-center text-[10px] font-bold text-[#0067A1]">{displayIndex}</span>
+                    <span className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[11px] font-medium text-[#0067A1]">{displayIndex}</span>
                     {sec.section || "Conditions"}
                   </div>
                   <Autocomplete
@@ -3341,7 +3666,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     }}
                     options={conditionMaster}
                     placeholder="Search clinical conditions"
-                    className={`${inputClass} font-bold text-[#0067A1]`}
+                    className={`${inputClass} font-normal text-slate-800`}
                   />
                 </section>
               );
@@ -3351,7 +3676,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
               return (
                 <section key={secIdx}>
                   <div className={sectionTitle}>
-                    <span className="w-6 h-6 rounded-full bg-[#0067A1]/10 flex items-center justify-center text-[10px] font-bold text-[#0067A1]">{displayIndex}</span>
+                    <span className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[11px] font-medium text-[#0067A1]">{displayIndex}</span>
                     {sec.section || "Diagnosis"} *
                   </div>
                   <Autocomplete
@@ -3365,13 +3690,13 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     }}
                     options={diagnosisMaster}
                     placeholder="Primary diagnosis (e.g. Essential Hypertension, Type 2 Diabetes)"
-                    className={`${inputClass} font-bold text-[#0067A1]`}
+                    className={`${inputClass} font-normal text-slate-800`}
                     renderOption={(opt) => (
                       <div className="flex flex-col">
-                        <span className="text-sm font-bold text-black dark:text-white">{opt.name}</span>
+                        <span className="text-sm font-medium text-slate-800 dark:text-white">{opt.name}</span>
                         <div className="flex items-center gap-2 mt-0.5">
-                          {opt.icd_code && <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded-md font-bold">{opt.icd_code}</span>}
-                          {opt.description && <span className="text-xs text-black font-medium line-clamp-1">{opt.description}</span>}
+                          {opt.icd_code && <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded font-medium">{opt.icd_code}</span>}
+                          {opt.description && <span className="text-xs text-slate-500 font-normal line-clamp-1">{opt.description}</span>}
                         </div>
                       </div>
                     )}
@@ -3381,7 +3706,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     value={diagnosisNotes}
                     onChange={(e) => setDiagnosisNotes(e.target.value)}
                     rows={2}
-                    className={`${inputClass} mt-2 resize-none`}
+                    className={`${inputClass} mt-2 resize-none font-normal`}
                   />
                 </section>
               );
@@ -3461,7 +3786,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                   blue: "bg-blue-50 text-blue-700 border-blue-200",
                 };
                 return (
-                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border shrink-0 ${colors[status.color] || colors.emerald}`}>
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded border shrink-0 whitespace-nowrap leading-none ${colors[status.color] || colors.emerald}`}>
                     {status.text}
                   </span>
                 );
@@ -3489,27 +3814,27 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
               const weightVal = vitalSigns.weight !== "" && vitalSigns.weight !== undefined ? vitalSigns.weight : "70";
 
               return (
-                <section key={secIdx} className="space-y-2.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-1.5">
+                <section key={secIdx} className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2">
                     <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-[#0067A1]/10 flex items-center justify-center text-[10px] font-bold text-[#0067A1]">
+                      <span className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[11px] font-medium text-[#0067A1]">
                         {displayIndex}
                       </span>
-                      <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">{sec.section || "Vitals"}</h4>
+                      <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider">{sec.section || "Vitals"}</h4>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={handleSetAllNormal}
-                        className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 transition-colors flex items-center gap-1 shadow-none active:scale-95 cursor-pointer"
+                        className="px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors flex items-center gap-1.5 active:scale-95 cursor-pointer"
                         title="Click to set standard healthy normal vitals"
                       >
-                        <Sparkles className="w-3 h-3 text-emerald-700" /> Set Normal
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Set Normal
                       </button>
                       <button
                         type="button"
                         onClick={handleClearVitals}
-                        className="px-1.5 py-0.5 text-[11px] font-bold text-black hover:text-[#0067A1] transition-colors cursor-pointer"
+                        className="px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                         title="Clear vitals"
                       >
                         Clear
@@ -3517,28 +3842,28 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  <div className={`grid grid-cols-1 ${isSidebarPanel ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3"} gap-3`}>
                     {/* 1. Blood Pressure Card */}
-                    <div className="bg-white border border-gray-200 rounded-lg p-2.5 hover:border-[#0067A1]/40 transition-all flex flex-col justify-between">
-                      <div className="flex items-center justify-between gap-1 mb-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <Activity className="w-3.5 h-3.5 text-[#0067A1] shrink-0" />
-                          <span className="text-xs font-bold text-black">BP</span>
+                    <div className="bg-white border border-slate-200/90 rounded-xl p-3 hover:border-[#0067A1]/50 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between gap-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                          <Activity className="w-4 h-4 text-[#0067A1] shrink-0" />
+                          <span className="text-xs font-semibold text-slate-800">BP</span>
                           {renderStatusPill(getBPStatus())}
                         </div>
-                        <div className="flex items-center gap-0.5 text-xs font-bold text-[#0067A1] bg-[#0067A1]/5 border border-[#0067A1]/15 px-1.5 py-0.5 rounded">
+                        <div className="shrink-0 flex items-center gap-0.5 text-xs font-semibold text-[#0067A1] bg-[#0067A1]/8 border border-[#0067A1]/20 px-2 py-0.5 rounded-md">
                           <span>{bpValues.sys}</span>
-                          <span className="text-gray-400">/</span>
+                          <span className="text-slate-400">/</span>
                           <span>{bpValues.dia}</span>
-                          <span className="text-[10px] font-bold text-black ml-0.5">mmHg</span>
+                          <span className="text-[10px] text-slate-500 font-normal ml-0.5">mmHg</span>
                         </div>
                       </div>
 
-                      <div className="space-y-1.5 my-1">
+                      <div className="space-y-2 py-0.5">
                         <div>
-                          <div className="flex justify-between text-[10px] text-black font-semibold leading-none mb-1">
-                            <span>Upper</span>
-                            <span className="font-bold text-[#0067A1]">{bpValues.sys}</span>
+                          <div className="flex justify-between text-[11px] text-slate-600 font-medium mb-1">
+                            <span>Upper (Systolic)</span>
+                            <span className="font-semibold text-[#0067A1]">{bpValues.sys}</span>
                           </div>
                           <input
                             type="range"
@@ -3547,16 +3872,16 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                             step={1}
                             value={bpValues.sys}
                             onChange={(e) => updateVital("blood_pressure", `${e.target.value}/${bpValues.dia}`)}
-                            className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
                             style={{
                               background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(bpValues.sys, 70, 200, 120)}%, #E2E8F0 ${calcPct(bpValues.sys, 70, 200, 120)}%, #E2E8F0 100%)`
                             }}
                           />
                         </div>
                         <div>
-                          <div className="flex justify-between text-[10px] text-black font-semibold leading-none mb-1">
-                            <span>Lower</span>
-                            <span className="font-bold text-[#0067A1]">{bpValues.dia}</span>
+                          <div className="flex justify-between text-[11px] text-slate-600 font-medium mb-1">
+                            <span>Lower (Diastolic)</span>
+                            <span className="font-semibold text-[#0067A1]">{bpValues.dia}</span>
                           </div>
                           <input
                             type="range"
@@ -3565,7 +3890,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                             step={1}
                             value={bpValues.dia}
                             onChange={(e) => updateVital("blood_pressure", `${bpValues.sys}/${e.target.value}`)}
-                            className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
                             style={{
                               background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(bpValues.dia, 40, 130, 80)}%, #E2E8F0 ${calcPct(bpValues.dia, 40, 130, 80)}%, #E2E8F0 100%)`
                             }}
@@ -3573,15 +3898,15 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-[10px] text-black font-medium pt-1 mt-1 border-t border-gray-200">
-                        <span className="font-semibold text-black">Norm: 90–120 / 60–80</span>
-                        <div className="flex gap-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] pt-1.5 border-t border-slate-100">
+                        <span className="text-slate-500 font-medium">Norm: 90–120 / 60–80</span>
+                        <div className="flex items-center gap-1.5">
                           {["120/80", "130/85"].map((c) => (
                             <button
                               key={c}
                               type="button"
                               onClick={() => updateVital("blood_pressure", c)}
-                              className="text-black hover:text-[#0067A1] font-bold cursor-pointer"
+                              className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
                             >
                               {c}
                             </button>
@@ -3591,19 +3916,20 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     </div>
 
                     {/* 2. Pulse / Heart Rate Card */}
-                    <div className="bg-white border border-gray-200 rounded-lg p-2.5 hover:border-[#0067A1]/40 transition-all flex flex-col justify-between">
-                      <div className="flex items-center justify-between gap-1 mb-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <Heart className="w-3.5 h-3.5 text-rose-600 fill-rose-50 shrink-0" />
-                          <span className="text-xs font-bold text-black">Pulse</span>
+                    <div className="bg-white border border-slate-200/90 rounded-xl p-3 hover:border-[#0067A1]/50 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between gap-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                          <Heart className="w-4 h-4 text-rose-500 fill-rose-50 shrink-0" />
+                          <span className="text-xs font-semibold text-slate-800">Pulse</span>
                           {renderStatusPill(getPulseStatus())}
                         </div>
-                        <div className="text-xs font-bold text-[#0067A1] bg-[#0067A1]/5 border border-[#0067A1]/15 px-1.5 py-0.5 rounded">
-                          {pulseVal} <span className="text-[10px] font-bold text-black">bpm</span>
+                        <div className="shrink-0 flex items-center gap-0.5 text-xs font-semibold text-[#0067A1] bg-[#0067A1]/8 border border-[#0067A1]/20 px-2 py-0.5 rounded-md">
+                          <span>{pulseVal}</span>
+                          <span className="text-[10px] text-slate-500 font-normal ml-0.5">bpm</span>
                         </div>
                       </div>
 
-                      <div className="my-auto py-1">
+                      <div className="my-auto py-1 space-y-1.5">
                         <input
                           type="range"
                           min={40}
@@ -3611,27 +3937,27 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           step={1}
                           value={pulseVal}
                           onChange={(e) => updateVital("pulse", e.target.value)}
-                          className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
                           style={{
                             background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(pulseVal, 40, 180, 72)}%, #E2E8F0 ${calcPct(pulseVal, 40, 180, 72)}%, #E2E8F0 100%)`
                           }}
                         />
-                        <div className="flex justify-between text-[9px] text-black font-semibold mt-1">
+                        <div className="flex justify-between text-[10px] text-slate-400">
                           <span>40</span>
-                          <span className="text-black font-bold">Norm: 60–100</span>
+                          <span className="text-slate-600 font-medium">Norm: 60–100</span>
                           <span>180</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-[10px] text-black font-medium pt-1 mt-1 border-t border-gray-200">
-                        <span className="font-semibold text-black">Resting: 72</span>
-                        <div className="flex gap-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] pt-1.5 border-t border-slate-100">
+                        <span className="text-slate-500 font-medium">Resting: 72</span>
+                        <div className="flex items-center gap-1.5">
                           {["68", "72", "80"].map((c) => (
                             <button
                               key={c}
                               type="button"
                               onClick={() => updateVital("pulse", c)}
-                              className="text-black hover:text-[#0067A1] font-bold cursor-pointer"
+                              className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
                             >
                               {c}
                             </button>
@@ -3641,19 +3967,20 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     </div>
 
                     {/* 3. Temperature Card */}
-                    <div className="bg-white border border-gray-200 rounded-lg p-2.5 hover:border-[#0067A1]/40 transition-all flex flex-col justify-between">
-                      <div className="flex items-center justify-between gap-1 mb-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <Thermometer className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                          <span className="text-xs font-bold text-black">Body Temp</span>
+                    <div className="bg-white border border-slate-200/90 rounded-xl p-3 hover:border-[#0067A1]/50 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between gap-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                          <Thermometer className="w-4 h-4 text-amber-500 shrink-0" />
+                          <span className="text-xs font-semibold text-slate-800">Body Temp</span>
                           {renderStatusPill(getTempStatus())}
                         </div>
-                        <div className="text-xs font-bold text-[#0067A1] bg-[#0067A1]/5 border border-[#0067A1]/15 px-1.5 py-0.5 rounded">
-                          {tempVal} <span className="text-[10px] font-bold text-black">°F</span>
+                        <div className="shrink-0 flex items-center gap-0.5 text-xs font-semibold text-[#0067A1] bg-[#0067A1]/8 border border-[#0067A1]/20 px-2 py-0.5 rounded-md">
+                          <span>{tempVal}</span>
+                          <span className="text-[10px] text-slate-500 font-normal ml-0.5">°F</span>
                         </div>
                       </div>
 
-                      <div className="my-auto py-1">
+                      <div className="my-auto py-1 space-y-1.5">
                         <input
                           type="range"
                           min={95.0}
@@ -3661,27 +3988,27 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           step={0.1}
                           value={tempVal}
                           onChange={(e) => updateVital("temperature", e.target.value)}
-                          className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
                           style={{
                             background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(tempVal, 95.0, 105.0, 98.6)}%, #E2E8F0 ${calcPct(tempVal, 95.0, 105.0, 98.6)}%, #E2E8F0 100%)`
                           }}
                         />
-                        <div className="flex justify-between text-[9px] text-black font-semibold mt-1">
+                        <div className="flex justify-between text-[10px] text-slate-400">
                           <span>95°</span>
-                          <span className="text-black font-bold">Norm: 97.8–99.1°</span>
+                          <span className="text-slate-600 font-medium">Norm: 97.8–99.1°</span>
                           <span>105°</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-[10px] text-black font-medium pt-1 mt-1 border-t border-gray-200">
-                        <span className="font-semibold text-black">Baseline: 98.6°</span>
-                        <div className="flex gap-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] pt-1.5 border-t border-slate-100">
+                        <span className="text-slate-500 font-medium">Baseline: 98.6°</span>
+                        <div className="flex items-center gap-1.5">
                           {["98.4", "98.6", "100.4"].map((c) => (
                             <button
                               key={c}
                               type="button"
                               onClick={() => updateVital("temperature", c)}
-                              className="text-black hover:text-[#0067A1] font-bold cursor-pointer"
+                              className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
                             >
                               {c}°
                             </button>
@@ -3691,19 +4018,20 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     </div>
 
                     {/* 4. Oxygen Saturation (SpO2) Card */}
-                    <div className="bg-white border border-gray-200 rounded-lg p-2.5 hover:border-[#0067A1]/40 transition-all flex flex-col justify-between">
-                      <div className="flex items-center justify-between gap-1 mb-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <Droplets className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                          <span className="text-xs font-bold text-black">SpO₂</span>
+                    <div className="bg-white border border-slate-200/90 rounded-xl p-3 hover:border-[#0067A1]/50 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between gap-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                          <Droplets className="w-4 h-4 text-sky-500 shrink-0" />
+                          <span className="text-xs font-semibold text-slate-800">SpO₂</span>
                           {renderStatusPill(getSpo2Status())}
                         </div>
-                        <div className="text-xs font-bold text-[#0067A1] bg-[#0067A1]/5 border border-[#0067A1]/15 px-1.5 py-0.5 rounded">
-                          {spo2Val} <span className="text-[10px] font-bold text-black">%</span>
+                        <div className="shrink-0 flex items-center gap-0.5 text-xs font-semibold text-[#0067A1] bg-[#0067A1]/8 border border-[#0067A1]/20 px-2 py-0.5 rounded-md">
+                          <span>{spo2Val}</span>
+                          <span className="text-[10px] text-slate-500 font-normal ml-0.5">%</span>
                         </div>
                       </div>
 
-                      <div className="my-auto py-1">
+                      <div className="my-auto py-1 space-y-1.5">
                         <input
                           type="range"
                           min={70}
@@ -3711,27 +4039,27 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           step={1}
                           value={spo2Val}
                           onChange={(e) => updateVital("spo2", e.target.value)}
-                          className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
                           style={{
                             background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(spo2Val, 70, 100, 98)}%, #E2E8F0 ${calcPct(spo2Val, 70, 100, 98)}%, #E2E8F0 100%)`
                           }}
                         />
-                        <div className="flex justify-between text-[9px] text-black font-semibold mt-1">
+                        <div className="flex justify-between text-[10px] text-slate-400">
                           <span>70%</span>
-                          <span className="text-black font-bold">Norm: 95–100%</span>
+                          <span className="text-slate-600 font-medium">Norm: 95–100%</span>
                           <span>100%</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-[10px] text-black font-medium pt-1 mt-1 border-t border-gray-200">
-                        <span className="font-semibold text-black">Target: ≥95%</span>
-                        <div className="flex gap-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] pt-1.5 border-t border-slate-100">
+                        <span className="text-slate-500 font-medium">Target: ≥95%</span>
+                        <div className="flex items-center gap-1.5">
                           {["98", "96", "94"].map((c) => (
                             <button
                               key={c}
                               type="button"
                               onClick={() => updateVital("spo2", c)}
-                              className="text-black hover:text-[#0067A1] font-bold cursor-pointer"
+                              className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
                             >
                               {c}%
                             </button>
@@ -3741,19 +4069,20 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     </div>
 
                     {/* 5. Respiratory Rate Card */}
-                    <div className="bg-white border border-gray-200 rounded-lg p-2.5 hover:border-[#0067A1]/40 transition-all flex flex-col justify-between">
-                      <div className="flex items-center justify-between gap-1 mb-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <Wind className="w-3.5 h-3.5 text-teal-600 shrink-0" />
-                          <span className="text-xs font-bold text-black">Resp Rate</span>
+                    <div className="bg-white border border-slate-200/90 rounded-xl p-3 hover:border-[#0067A1]/50 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between gap-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                          <Wind className="w-4 h-4 text-teal-500 shrink-0" />
+                          <span className="text-xs font-semibold text-slate-800">Resp Rate</span>
                           {renderStatusPill(getRRStatus())}
                         </div>
-                        <div className="text-xs font-bold text-[#0067A1] bg-[#0067A1]/5 border border-[#0067A1]/15 px-1.5 py-0.5 rounded">
-                          {rrVal} <span className="text-[10px] font-bold text-black">/min</span>
+                        <div className="shrink-0 flex items-center gap-0.5 text-xs font-semibold text-[#0067A1] bg-[#0067A1]/8 border border-[#0067A1]/20 px-2 py-0.5 rounded-md">
+                          <span>{rrVal}</span>
+                          <span className="text-[10px] text-slate-500 font-normal ml-0.5">/min</span>
                         </div>
                       </div>
 
-                      <div className="my-auto py-1">
+                      <div className="my-auto py-1 space-y-1.5">
                         <input
                           type="range"
                           min={8}
@@ -3761,27 +4090,27 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           step={1}
                           value={rrVal}
                           onChange={(e) => updateVital("respiratory_rate", e.target.value)}
-                          className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
                           style={{
                             background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(rrVal, 8, 40, 16)}%, #E2E8F0 ${calcPct(rrVal, 8, 40, 16)}%, #E2E8F0 100%)`
                           }}
                         />
-                        <div className="flex justify-between text-[9px] text-black font-semibold mt-1">
+                        <div className="flex justify-between text-[10px] text-slate-400">
                           <span>8</span>
-                          <span className="text-black font-bold">Norm: 12–20</span>
+                          <span className="text-slate-600 font-medium">Norm: 12–20</span>
                           <span>40</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-[10px] text-black font-medium pt-1 mt-1 border-t border-gray-200">
-                        <span className="font-semibold text-black">Resting: 16</span>
-                        <div className="flex gap-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] pt-1.5 border-t border-slate-100">
+                        <span className="text-slate-500 font-medium">Resting: 16</span>
+                        <div className="flex items-center gap-1.5">
                           {["14", "16", "20"].map((c) => (
                             <button
                               key={c}
                               type="button"
                               onClick={() => updateVital("respiratory_rate", c)}
-                              className="text-black hover:text-[#0067A1] font-bold cursor-pointer"
+                              className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
                             >
                               {c}
                             </button>
@@ -3791,19 +4120,20 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     </div>
 
                     {/* 6. Body Weight Card */}
-                    <div className="bg-white border border-gray-200 rounded-lg p-2.5 hover:border-[#0067A1]/40 transition-all flex flex-col justify-between">
-                      <div className="flex items-center justify-between gap-1 mb-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <Scale className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                          <span className="text-xs font-bold text-black">Weight</span>
-                          <span className="text-[9px] font-bold text-black bg-gray-200 px-1 py-0.2 rounded">Std</span>
+                    <div className="bg-white border border-slate-200/90 rounded-xl p-3 hover:border-[#0067A1]/50 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between gap-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                          <Scale className="w-4 h-4 text-indigo-500 shrink-0" />
+                          <span className="text-xs font-semibold text-slate-800">Weight</span>
+                          <span className="text-[10px] font-medium text-slate-600 bg-slate-100 border border-slate-200/80 px-1.5 py-0.5 rounded-full">Std</span>
                         </div>
-                        <div className="text-xs font-bold text-[#0067A1] bg-[#0067A1]/5 border border-[#0067A1]/15 px-1.5 py-0.5 rounded">
-                          {weightVal} <span className="text-[10px] font-bold text-black">kg</span>
+                        <div className="shrink-0 flex items-center gap-0.5 text-xs font-semibold text-[#0067A1] bg-[#0067A1]/8 border border-[#0067A1]/20 px-2 py-0.5 rounded-md">
+                          <span>{weightVal}</span>
+                          <span className="text-[10px] text-slate-500 font-normal ml-0.5">kg</span>
                         </div>
                       </div>
 
-                      <div className="my-auto py-1">
+                      <div className="my-auto py-1 space-y-1.5">
                         <input
                           type="range"
                           min={20}
@@ -3811,27 +4141,27 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           step={0.5}
                           value={weightVal}
                           onChange={(e) => updateVital("weight", e.target.value)}
-                          className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
                           style={{
                             background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(weightVal, 20, 180, 70)}%, #E2E8F0 ${calcPct(weightVal, 20, 180, 70)}%, #E2E8F0 100%)`
                           }}
                         />
-                        <div className="flex justify-between text-[9px] text-black font-semibold mt-1">
+                        <div className="flex justify-between text-[10px] text-slate-400">
                           <span>20 kg</span>
-                          <span className="text-black font-bold">Baseline: 70 kg</span>
+                          <span className="text-slate-600 font-medium">Baseline: 70 kg</span>
                           <span>180 kg</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-[10px] text-black font-medium pt-1 mt-1 border-t border-gray-200">
-                        <span className="font-semibold text-black">Adult</span>
-                        <div className="flex gap-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] pt-1.5 border-t border-slate-100">
+                        <span className="text-slate-500 font-medium">Adult</span>
+                        <div className="flex items-center gap-1.5">
                           {["60", "70", "80"].map((c) => (
                             <button
                               key={c}
                               type="button"
                               onClick={() => updateVital("weight", c)}
-                              className="text-black hover:text-[#0067A1] font-bold cursor-pointer"
+                              className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
                             >
                               {c} kg
                             </button>
@@ -3849,13 +4179,13 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                 <section key={secIdx}>
                   <div className="flex items-center justify-between mb-3">
                     <div className={`${sectionTitle} mb-0`}>
-                      <span className="w-6 h-6 rounded-full bg-[#0067A1]/10 flex items-center justify-center text-[10px] font-bold text-[#0067A1]">{displayIndex}</span>
+                      <span className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[11px] font-medium text-[#0067A1]">{displayIndex}</span>
                       {sec.section || "Medicines"} *
                     </div>
                     <button
                       type="button"
                       onClick={addMedicine}
-                      className="inline-flex items-center gap-1 text-xs text-[#0067A1] hover:text-[#004F7C] font-semibold bg-[#0067A1]/5 hover:bg-[#0067A1]/10 px-2.5 py-1.5 rounded-lg transition-colors"
+                      className="inline-flex items-center gap-1 text-xs text-[#0067A1] hover:text-[#004F7C] font-medium bg-[#0067A1]/5 hover:bg-[#0067A1]/10 px-2.5 py-1.5 rounded-md transition-colors"
                     >
                       <PlusIcon className="w-3.5 h-3.5" /> Add Medicine
                     </button>
@@ -3888,10 +4218,10 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           : ["After food", "Before food", "With food", "Empty stomach", "At bedtime"];
 
                       return (
-                        <div key={idx} className="p-4 rounded-xl bg-[#0067A1]/[0.03] border border-[#0067A1]/10 space-y-3">
+                        <div key={idx} className="p-3.5 sm:p-4 rounded-lg bg-white border border-slate-200/90 shadow-xs space-y-3">
                           {/* Medicine Name Autocomplete */}
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-[#0067A1]/60 shrink-0 w-5">#{idx + 1}</span>
+                            <span className="text-xs font-medium text-slate-500 shrink-0 w-5">#{idx + 1}</span>
                             <div className="flex-1 relative">
                               <Autocomplete
                                 value={med.name}
@@ -3902,13 +4232,13 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                                 searchEndpoint="/api/admin/medicines"
                                 emptyActionLabel={`Use "${med.name}" as prescribed medicine`}
                                 placeholder="Search medicine (e.g. Paracetamol, Volini Gel, Ascoril Syrup)..."
-                                className={`${inputClass} w-full font-medium`}
+                                className={`${inputClass} w-full font-medium text-slate-800`}
                                 renderOption={(opt) => (
                                   <div className="flex flex-col py-0.5">
                                     <div className="flex items-center justify-between gap-2">
-                                      <span className="text-sm font-bold text-black dark:text-white">{opt.name}</span>
+                                      <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{opt.name}</span>
                                       {opt.category && (
-                                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold uppercase shrink-0 ${
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase shrink-0 ${
                                           opt.category.toLowerCase() === "syrup" ? "bg-amber-50 text-amber-700 border border-amber-200" :
                                           opt.category.toLowerCase() === "gel" || opt.category.toLowerCase() === "ointment" ? "bg-purple-50 text-purple-700 border border-purple-200" :
                                           opt.category.toLowerCase() === "drops" ? "bg-cyan-50 text-cyan-700 border border-cyan-200" :
@@ -3919,9 +4249,9 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                                         </span>
                                       )}
                                     </div>
-                                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                                      {opt.salt && <span className="text-xs text-black font-medium truncate max-w-[240px]">{opt.salt}</span>}
-                                      {opt.power && <span className="text-xs font-bold text-black bg-gray-100 px-1.5 rounded-md">{opt.power}</span>}
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                      {opt.salt && <span className="text-xs text-slate-500 truncate max-w-[240px]">{opt.salt}</span>}
+                                      {opt.power && <span className="text-[11px] font-medium text-slate-600 bg-slate-100 px-1.5 rounded">{opt.power}</span>}
                                     </div>
                                   </div>
                                 )}
@@ -3930,7 +4260,8 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                             {medicines.length > 1 && (
                               <button
                                 onClick={() => removeMedicine(idx)}
-                                className="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                                title="Remove medicine"
                               >
                                 <TrashIcon className="w-4 h-4" />
                               </button>
@@ -3938,8 +4269,8 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           </div>
 
                           {/* Form Switcher Buttons */}
-                          <div className="pl-7 flex flex-wrap items-center gap-1.5">
-                            <span className="text-xs font-bold text-black mr-0.5">Form:</span>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-xs font-medium text-slate-600 mr-1">Form:</span>
                             {[
                               { id: "tablet", label: "Tablet / Cap" },
                               { id: "syrup", label: "Syrup / Susp" },
@@ -3953,10 +4284,10 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                                   key={f.id}
                                   type="button"
                                   onClick={() => setMedicineForm(idx, f.id)}
-                                  className={`px-2.5 py-1 text-xs font-bold rounded-md border transition-all ${
+                                  className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-all ${
                                     isActive
                                       ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
-                                      : "bg-white dark:bg-gray-800 text-black dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:border-[#0067A1] hover:text-[#0067A1] hover:bg-[#0067A1]/5"
+                                      : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                                   }`}
                                 >
                                   {f.label}
@@ -3966,9 +4297,9 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           </div>
 
                           {/* Dosage, Frequency, Duration, Quantity */}
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pl-7">
-                            <div>
-                              <label className="text-[10px] font-bold text-black uppercase tracking-wider block mb-1">
+                          <div className="grid grid-cols-2 sm:grid-cols-12 gap-2.5">
+                            <div className="col-span-2 sm:col-span-4">
+                              <label className="text-xs font-medium text-slate-700 block mb-1">
                                 Dosage {detectedForm !== "tablet" ? `(${detectedForm})` : ""}
                               </label>
                               <input
@@ -3985,18 +4316,18 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                                 className={inputClass}
                               />
                             </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-black uppercase tracking-wider block mb-1">Frequency</label>
+                            <div className="col-span-1 sm:col-span-3">
+                              <label className="text-xs font-medium text-slate-700 block mb-1">Frequency</label>
                               <input
                                 type="text"
-                                placeholder="e.g. 1-0-1, 1-0-0"
+                                placeholder="e.g. 1-0-1"
                                 value={med.frequency}
                                 onChange={(e) => updateMedicine(idx, "frequency", e.target.value)}
                                 className={inputClass}
                               />
                             </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-black uppercase tracking-wider block mb-1">Duration</label>
+                            <div className="col-span-1 sm:col-span-3">
+                              <label className="text-xs font-medium text-slate-700 block mb-1">Duration</label>
                               <input
                                 type="text"
                                 placeholder="e.g. 5 days, 1 week"
@@ -4005,11 +4336,11 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                                 className={inputClass}
                               />
                             </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-black uppercase tracking-wider block mb-1">Quantity</label>
+                            <div className="col-span-2 sm:col-span-2">
+                              <label className="text-xs font-medium text-slate-700 block mb-1">Quantity</label>
                               <input
                                 type="text"
-                                placeholder={detectedForm === "gel" ? "1 tube" : detectedForm === "syrup" ? "1 bottle" : "Auto / Total"}
+                                placeholder={detectedForm === "gel" ? "1 tube" : detectedForm === "syrup" ? "1 bottle" : "Total"}
                                 value={med.quantity || ""}
                                 onChange={(e) => updateMedicine(idx, "quantity", e.target.value)}
                                 className={inputClass}
@@ -4017,56 +4348,63 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                             </div>
                           </div>
 
-                          {/* Quick Dosage Presets */}
-                          <div className="pl-7 flex flex-wrap items-center gap-1.5">
-                            <span className="text-[11px] font-bold text-black mr-0.5">Quick Dose:</span>
-                            {dosagePresets.map((d) => (
-                              <button
-                                key={d}
-                                type="button"
-                                onClick={() => updateMedicine(idx, "dosage", d)}
-                                className="px-2 py-0.5 text-[11px] font-bold rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-black dark:text-gray-100 hover:border-[#0067A1] hover:text-[#0067A1] transition-all"
-                              >
-                                {d}
-                              </button>
-                            ))}
-                          </div>
+                          {/* Quick Dosage and Quick Frequency suggestions */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                            {/* Quick Frequency */}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-xs font-medium text-slate-600 mr-0.5">Quick Freq:</span>
+                              {[
+                                { label: "1-0-1", tip: "Twice daily (Morning & Night)" },
+                                { label: "1-0-0", tip: "Once daily (Morning only)" },
+                                { label: "0-0-1", tip: "Once daily (Bedtime/Night)" },
+                                { label: "1-1-1", tip: "Thrice daily (Morning, Noon & Night)" },
+                                { label: "0-1-0", tip: "Once daily (Afternoon)" },
+                                { label: "SOS", tip: "As needed / In pain" },
+                              ].map((freq) => {
+                                const isSelected = (med.frequency || "").trim() === freq.label;
+                                return (
+                                  <button
+                                    key={freq.label}
+                                    type="button"
+                                    title={freq.tip}
+                                    onClick={() => updateMedicine(idx, "frequency", freq.label)}
+                                    className={`px-2 py-0.5 text-xs font-medium rounded border transition-colors ${
+                                      isSelected
+                                        ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
+                                        : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    {freq.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
 
-                          {/* Quick Frequency Selector Chips */}
-                          <div className="pl-7 flex flex-wrap items-center gap-1.5 pt-0.5">
-                            <span className="text-[11px] font-bold text-black mr-0.5">Quick Frequency:</span>
-                            {[
-                              { label: "1-0-1", tip: "Twice daily (Morning & Night)" },
-                              { label: "1-0-0", tip: "Once daily (Morning only)" },
-                              { label: "0-0-1", tip: "Once daily (Bedtime/Night)" },
-                              { label: "1-1-1", tip: "Thrice daily (Morning, Noon & Night)" },
-                              { label: "0-1-0", tip: "Once daily (Afternoon)" },
-                              { label: "SOS", tip: "As needed / In pain" },
-                            ].map((freq) => {
-                              const isSelected = (med.frequency || "").trim() === freq.label;
-                              return (
+                            {/* Quick Dose */}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-xs font-medium text-slate-600 mr-0.5">Quick Dose:</span>
+                              {dosagePresets.map((d) => (
                                 <button
-                                  key={freq.label}
+                                  key={d}
                                   type="button"
-                                  title={freq.tip}
-                                  onClick={() => updateMedicine(idx, "frequency", freq.label)}
-                                  className={`px-2 py-0.5 text-xs font-bold rounded-md border transition-all ${
-                                    isSelected
-                                      ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
-                                      : "bg-white dark:bg-gray-800 text-black dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:border-[#0067A1] hover:bg-[#0067A1]/5"
+                                  onClick={() => updateMedicine(idx, "dosage", d)}
+                                  className={`px-2 py-0.5 text-xs rounded border transition-colors ${
+                                    (med.dosage || "").trim() === d
+                                      ? "bg-[#0067A1]/10 text-[#0067A1] border-[#0067A1]/30 font-medium"
+                                      : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50 font-normal"
                                   }`}
                                 >
-                                  {freq.label}
+                                  {d}
                                 </button>
-                              );
-                            })}
+                              ))}
+                            </div>
                           </div>
 
                           {/* Instructions & Timing Chips adapted to Form */}
-                          <div className="pl-7 space-y-1.5">
+                          <div className="space-y-1.5 pt-1 border-t border-slate-100">
                             <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-[11px] font-bold text-black mr-0.5">
-                                {detectedForm === "gel" ? "Application:" : "Timing / Instructions:"}
+                              <span className="text-xs font-medium text-slate-600 mr-0.5">
+                                {detectedForm === "gel" ? "Application Tips:" : "Instructions / Timing:"}
                               </span>
                               {timingPresets.map((timing) => (
                                 <button
@@ -4080,7 +4418,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                                       updateMedicine(idx, "instructions", `${current}, ${timing}`);
                                     }
                                   }}
-                                  className="px-2 py-0.5 text-[11px] font-bold rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-black dark:text-gray-100 hover:border-[#0067A1] hover:text-[#0067A1] transition-all"
+                                  className="px-2 py-0.5 text-xs font-normal rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
                                 >
                                   + {timing}
                                 </button>
@@ -4090,10 +4428,10 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                               type="text"
                               placeholder={
                                 detectedForm === "gel"
-                                  ? "Instructions (e.g. Apply gently on affected area twice daily)"
+                                  ? "e.g. Apply gently on affected area twice daily. For external use only."
                                   : detectedForm === "syrup"
-                                  ? "Instructions (e.g. Take with measuring cup after food. Shake well.)"
-                                  : "Instructions (e.g. Take after food with water)"
+                                  ? "e.g. Take with measuring cup after meals. Shake well before use."
+                                  : "e.g. Take 1 tablet after meals with water at bedtime"
                               }
                               value={med.instructions}
                               onChange={(e) => updateMedicine(idx, "instructions", e.target.value)}
@@ -4113,20 +4451,20 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                 <section key={secIdx}>
                   <div className="flex items-center justify-between mb-3">
                     <div className={`${sectionTitle} mb-0`}>
-                      <span className="w-6 h-6 rounded-full bg-[#0067A1]/10 flex items-center justify-center text-[10px] font-bold text-[#0067A1]">{displayIndex}</span>
+                      <span className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[11px] font-medium text-[#0067A1]">{displayIndex}</span>
                       {sec.section || "Lab Tests"}
                     </div>
                     <button
                       type="button"
                       onClick={addLabTest}
-                      className="inline-flex items-center gap-1 text-xs text-[#0067A1] hover:text-[#004F7C] font-semibold bg-[#0067A1]/5 hover:bg-[#0067A1]/10 px-2.5 py-1.5 rounded-lg transition-colors"
+                      className="inline-flex items-center gap-1 text-xs text-[#0067A1] hover:text-[#004F7C] font-medium bg-[#0067A1]/5 hover:bg-[#0067A1]/10 px-2.5 py-1.5 rounded-md transition-colors"
                     >
                       <PlusIcon className="w-3.5 h-3.5" /> Add Test
                     </button>
                   </div>
                   <div className="space-y-2">
                     {labTests.map((test, idx) => (
-                      <div key={idx} className="flex flex-col gap-2 p-2.5 rounded-xl border border-gray-100 dark:border-gray-800 relative group bg-white dark:bg-gray-900 shadow-sm">
+                      <div key={idx} className="flex flex-col gap-2 p-2.5 rounded-lg border border-slate-200 relative group bg-white shadow-xs">
                         <div className="flex items-center gap-2">
                            <Autocomplete
                             value={typeof test === "string" ? test : (test?.test_name || "")}
@@ -4134,17 +4472,17 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                             onSelect={(opt) => selectLabTest(idx, opt)}
                             options={labMaster}
                             placeholder="Search investigation or test (e.g. CBC, Ultrasound, X-Ray)..."
-                            className={`${inputClass} w-full font-bold text-[#0067A1] dark:text-[#0dc2b6]`}
+                            className={`${inputClass} w-full font-medium text-slate-800`}
                             renderOption={(opt) => (
                               <div className="flex flex-col py-1">
                                 <div className="flex items-center justify-between gap-2">
-                                  <span className="text-sm font-bold text-black dark:text-white">
+                                  <span className="text-sm font-medium text-slate-800 dark:text-white">
                                     {opt.test_name} {opt.test_code ? `(${opt.test_code})` : ""}
                                   </span>
                                 </div>
                                 {(opt.sample_type || opt.container || opt.remarks) && (
-                                  <div className="text-xs text-black font-medium mt-0.5 truncate">
-                                    {opt.sample_type && <span className="mr-2 font-bold">Sample: {opt.sample_type}</span>}
+                                  <div className="text-xs text-slate-500 font-normal mt-0.5 truncate">
+                                    {opt.sample_type && <span className="mr-2 font-medium text-slate-600">Sample: {opt.sample_type}</span>}
                                     {opt.container && <span className="mr-2">Container: {opt.container}</span>}
                                     {opt.remarks && <span className="italic">{opt.remarks}</span>}
                                   </div>
@@ -4155,7 +4493,8 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           {labTests.length > 1 && (
                             <button
                               onClick={() => removeLabTest(idx)}
-                              className="p-2 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              title="Remove test"
                             >
                               <TrashIcon className="w-4 h-4" />
                             </button>
@@ -4187,79 +4526,110 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                 return `${yyyy}-${mm}-${dd}`;
               };
 
+              const formattedFollowUpDate = followUpDate
+                ? (() => {
+                    try {
+                      return new Date(followUpDate + "T00:00:00").toLocaleDateString("en-GB", {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      });
+                    } catch (e) {
+                      return followUpDate;
+                    }
+                  })()
+                : null;
+
               return (
                 <section key={secIdx} className="space-y-3">
                   <div className={sectionTitle}>
-                    <span className="w-6 h-6 rounded-full bg-[#0067A1]/10 flex items-center justify-center text-[10px] font-bold text-[#0067A1]">{displayIndex}</span>
-                    {sec.section || "Follow-Up"}
+                    <span className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[11px] font-medium text-[#0067A1]">{displayIndex}</span>
+                    {sec.section || "Follow-Up Consultation"}
                   </div>
 
-                  {/* Quick Preset Chips */}
-                  <div className="flex flex-wrap items-center gap-1.5 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800">
-                    <span className="text-[11px] font-bold text-black uppercase tracking-wider mr-1">Quick Select:</span>
-                    {[
-                      { label: "Tomorrow", days: 1 },
-                      { label: "After 3 Days", days: 3 },
-                      { label: "After 5 Days", days: 5 },
-                      { label: "After 7 Days (1 Wk)", days: 7 },
-                      { label: "After 14 Days (2 Wks)", days: 14 },
-                      { label: "After 1 Month", days: 30 },
-                      { label: "SOS / As Needed", days: 0 },
-                    ].map((preset) => {
-                      const isMatch = preset.days === 0
-                        ? (!followUpDate && (followUpNotes || "").includes("SOS"))
-                        : followUpDate === getPresetDate(preset.days);
-                      return (
-                        <button
-                          key={preset.label}
-                          type="button"
-                          onClick={() => setQuickFollowUp(preset.days)}
-                          className={`px-2.5 py-1 text-xs font-semibold rounded-md border transition-all ${
-                            isMatch
-                              ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs font-bold"
-                              : "bg-white dark:bg-gray-800 text-black dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-[#0067A1]/40 hover:bg-[#0067A1]/5"
-                          }`}
-                        >
-                          {preset.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Calendar Date Input & Notes */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="bg-slate-50/70 border border-slate-200 rounded-lg p-3.5 space-y-3">
+                    {/* Timing Selector Header & Chips */}
                     <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-[11px] font-bold text-black dark:text-white">
-                          Follow-up Date (Pick from Calendar)
-                        </label>
-                        {followUpDate && (
-                          <button
-                            type="button"
-                            onClick={() => setFollowUpDate("")}
-                            className="text-[10px] text-red-500 hover:text-red-700 font-semibold"
-                          >
-                            ✕ Clear Date
-                          </button>
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <span className="text-xs font-medium text-slate-700 flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                          Next Visit Timing:
+                        </span>
+                        {formattedFollowUpDate && (
+                          <span className="text-[11px] font-medium text-[#0067A1] bg-[#0067A1]/10 border border-[#0067A1]/20 px-2 py-0.5 rounded">
+                            {formattedFollowUpDate}
+                          </span>
                         )}
                       </div>
-                      <input
-                        type="date"
-                        value={followUpDate}
-                        onChange={(e) => setFollowUpDate(e.target.value)}
-                        className={`${inputClass} font-medium`}
-                      />
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { label: "Tomorrow", days: 1 },
+                          { label: "3 Days", days: 3 },
+                          { label: "5 Days", days: 5 },
+                          { label: "1 Week", days: 7 },
+                          { label: "2 Weeks", days: 14 },
+                          { label: "1 Month", days: 30 },
+                          { label: "SOS / As Needed", days: 0 },
+                        ].map((preset) => {
+                          const isMatch = preset.days === 0
+                            ? (!followUpDate && (followUpNotes || "").includes("SOS"))
+                            : followUpDate === getPresetDate(preset.days);
+                          return (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => setQuickFollowUp(preset.days)}
+                              className={`px-3 py-1.5 text-xs rounded-md border transition-all ${
+                                isMatch
+                                  ? "bg-[#0067A1] text-white border-[#0067A1] font-medium shadow-xs"
+                                  : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-100/70 font-normal"
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-black dark:text-white mb-1">
+
+                    {/* Specific Date Row */}
+                    <div className="pt-2.5 border-t border-slate-200/80">
+                      <div className="max-w-xs">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-medium text-slate-700">
+                            Specific Date
+                          </label>
+                          {followUpDate && (
+                            <button
+                              type="button"
+                              onClick={() => setFollowUpDate("")}
+                              className="text-xs text-red-500 hover:text-red-700 font-normal hover:underline"
+                            >
+                              ✕ Clear
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="date"
+                          value={followUpDate}
+                          onChange={(e) => setFollowUpDate(e.target.value)}
+                          className={`${inputClass} font-normal`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Follow-up Notes / Warning Signs in New Row */}
+                    <div className="pt-2.5 border-t border-slate-200/80">
+                      <label className="block text-xs font-medium text-slate-700 mb-1.5">
                         Follow-up Notes / Warning Signs
                       </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Review after 7 days with CBC report"
+                      <textarea
+                        rows={2}
+                        placeholder="e.g. Review after 3 days. Seek immediate medical attention if you experience high fever, severe breathlessness, or persistent pain."
                         value={followUpNotes}
                         onChange={(e) => setFollowUpNotes(e.target.value)}
-                        className={inputClass}
+                        className={`${inputClass} font-normal resize-none py-2`}
                       />
                     </div>
                   </div>
@@ -4271,7 +4641,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
               return (
                 <section key={secIdx}>
                   <div className={sectionTitle}>
-                    <span className="w-6 h-6 rounded-full bg-[#0067A1]/10 flex items-center justify-center text-[10px] font-bold text-[#0067A1]">{displayIndex}</span>
+                    <span className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[11px] font-medium text-[#0067A1]">{displayIndex}</span>
                     {sec.section || "Special Instructions / Advice"}
                   </div>
                   <textarea
@@ -4289,7 +4659,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
             return (
               <section key={secIdx}>
                 <div className={sectionTitle}>
-                  <span className="w-6 h-6 rounded-full bg-[#0067A1]/10 flex items-center justify-center text-[10px] font-bold text-[#0067A1]">{displayIndex}</span>
+                  <span className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[11px] font-medium text-[#0067A1]">{displayIndex}</span>
                   {sec.section}
                 </div>
                 <div className="space-y-3">
@@ -4298,7 +4668,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     const isTextarea = field.type === "textarea";
                     return (
                       <div key={fieldIdx}>
-                        <label className="block text-[11px] font-bold text-black mb-1">
+                        <label className="block text-xs font-medium text-slate-700 mb-1">
                           {field.label} {field.required && <span className="text-red-500">*</span>}
                         </label>
                         {isTextarea ? (
@@ -4331,37 +4701,37 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
 
         {/* ── Footer ── */}
         {templateStep === "write" && (
-          <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50 shrink-0">
+          <div className="flex items-center justify-between gap-3 px-6 py-3.5 border-t border-slate-200 bg-white shrink-0 shadow-xs">
             <div>
               {templates.length > 0 && (
                 <button
                   onClick={() => setTemplateStep("select")}
-                  className="text-xs text-black hover:text-[#0067A1] font-bold flex items-center gap-1 transition-colors"
+                  className="text-xs text-slate-600 hover:text-[#0067A1] font-medium inline-flex items-center gap-1 transition-colors"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                  <ChevronLeft className="w-4 h-4" />
                   Back to Templates
                 </button>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <button
                 onClick={onClose}
                 disabled={saving}
-                className="px-4 py-2.5 rounded-lg text-sm font-bold text-black hover:bg-gray-200 transition-colors disabled:opacity-50"
+                className="px-4 py-2 rounded-md text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-xs disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleSubmit("save")}
                 disabled={saving}
-                className="px-4 py-2.5 rounded-lg text-sm font-bold border border-[#0067A1]/30 text-[#0067A1] bg-white hover:bg-[#0067A1]/5 transition-colors disabled:opacity-50"
+                className="px-4 py-2 rounded-md text-sm font-medium border border-[#0067A1]/40 text-[#0067A1] bg-white hover:bg-[#0067A1]/5 transition-colors shadow-xs disabled:opacity-50"
               >
                 {saving ? "Saving…" : "Save Draft"}
               </button>
               <button
                 onClick={() => handleSubmit("sign")}
                 disabled={saving}
-                className="px-5 py-2.5 rounded-lg text-sm font-bold bg-[#0067A1] text-white hover:bg-[#004F7C] transition-colors disabled:opacity-50 shadow-sm flex items-center gap-2"
+                className="px-5 py-2 rounded-md text-sm font-medium bg-[#0067A1] text-white hover:bg-[#005282] transition-colors shadow-xs flex items-center gap-1.5 disabled:opacity-50"
               >
                 {saving ? <><Spinner size="w-4 h-4" />Processing…</> : "Sign & Complete"}
               </button>

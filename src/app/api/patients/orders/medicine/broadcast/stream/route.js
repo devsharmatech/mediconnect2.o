@@ -36,6 +36,8 @@ export async function GET(req) {
           q.delivery_time_minutes,
           q.status,
           q.created_at,
+          q.items_breakdown,
+          q.bid_notes,
           cd.pharmacy_name,
           cd.pharmacy_name as store_name,
           cd.address,
@@ -44,24 +46,32 @@ export async function GET(req) {
           cd.total_reviews
         FROM medicine_order_quotes q
         LEFT JOIN chemist_details cd ON cd.id = q.chemist_id
-        WHERE q.broadcast_id = ${broadcast_id}
+        WHERE q.broadcast_id = ${broadcast_id} AND q.status != 'withdrawn'
         ORDER BY q.created_at DESC
       `;
+
+      const safeNum = (val, fb = 0) => {
+        const n = Number(val);
+        return isNaN(n) ? fb : n;
+      };
 
       initialQuotes = quoteRows.map((q) => {
         const pharmacyName = q.pharmacy_name || q.store_name || "Partner Pharmacy";
         const pharmacyAddress = q.address || "Local Partner Pharmacy";
         const ratingVal = (q.rating && Number(q.total_reviews || 0) > 0) ? Number(q.rating) : null;
+        const finAmt = safeNum(q.final_amount, safeNum(q.estimated_cost, 0));
         return {
           id: q.id,
           broadcast_id: q.broadcast_id,
           chemist_id: q.chemist_id,
-          estimated_cost: Number(q.estimated_cost || q.final_amount || 0),
-          medicine_subtotal: Number(q.medicine_subtotal || q.estimated_cost || 0),
-          delivery_charge: Number(q.delivery_charge || 0),
-          discount: Number(q.discount || 0),
-          final_amount: Number(q.final_amount || q.estimated_cost || 0),
-          delivery_time_minutes: Number(q.delivery_time_minutes || 30),
+          estimated_cost: finAmt,
+          medicine_subtotal: safeNum(q.medicine_subtotal, finAmt),
+          delivery_charge: safeNum(q.delivery_charge, 0),
+          discount: safeNum(q.discount, 0),
+          final_amount: finAmt,
+          delivery_time_minutes: safeNum(q.delivery_time_minutes, 30),
+          items_breakdown: q.items_breakdown || [],
+          bid_notes: q.bid_notes || "",
           status: q.status,
           created_at: q.created_at,
           pharmacy_name: pharmacyName,
@@ -113,14 +123,22 @@ export async function GET(req) {
         quotes: initialQuotes || []
       });
 
-      // Track seen quote IDs to prevent duplicates
-      const seenQuoteIds = new Set((initialQuotes || []).map(q => q.id));
+      // Track seen quote versions to send updates when edited or newly created
+      const safeNum = (val, fb = 0) => {
+        const n = Number(val);
+        return isNaN(n) ? fb : n;
+      };
+
+      const seenQuoteVersions = new Map();
+      (initialQuotes || []).forEach(q => {
+        seenQuoteVersions.set(q.id, `${q.final_amount}_${q.status}_${q.medicine_subtotal}_${q.delivery_time_minutes}`);
+      });
 
       // Listener for real-time quotes pushed by chemists
       const quoteListener = (newQuote) => {
         if (newQuote?.id) {
-          if (seenQuoteIds.has(newQuote.id)) return;
-          seenQuoteIds.add(newQuote.id);
+          const versionKey = `${newQuote.final_amount}_${newQuote.status}_${newQuote.medicine_subtotal}_${newQuote.delivery_time_minutes}`;
+          seenQuoteVersions.set(newQuote.id, versionKey);
         }
         sendEvent({
           type: "NEW_QUOTE",
@@ -129,10 +147,10 @@ export async function GET(req) {
         });
       };
 
-      // Listener for broadcast status updates (e.g. completed, expired)
+      // Listener for broadcast status updates (e.g. completed, expired, withdrawn)
       const statusListener = (statusUpdate) => {
         sendEvent({
-          type: "BROADCAST_STATUS",
+          type: statusUpdate?.type || "BROADCAST_STATUS",
           broadcast_id,
           ...statusUpdate
         });
@@ -158,6 +176,8 @@ export async function GET(req) {
               q.delivery_time_minutes,
               q.status,
               q.created_at,
+              q.items_breakdown,
+              q.bid_notes,
               cd.pharmacy_name,
               cd.pharmacy_name as store_name,
               cd.address,
@@ -166,14 +186,17 @@ export async function GET(req) {
               cd.total_reviews
             FROM medicine_order_quotes q
             LEFT JOIN chemist_details cd ON cd.id = q.chemist_id
-            WHERE q.broadcast_id = ${broadcast_id}
+            WHERE q.broadcast_id = ${broadcast_id} AND q.status != 'withdrawn'
             ORDER BY q.created_at DESC
           `;
 
           if (latestQuoteRows && latestQuoteRows.length > 0) {
             for (const q of latestQuoteRows) {
-              if (!seenQuoteIds.has(q.id)) {
-                seenQuoteIds.add(q.id);
+              const finAmt = safeNum(q.final_amount, safeNum(q.estimated_cost, 0));
+              const versionKey = `${finAmt}_${q.status}_${safeNum(q.medicine_subtotal, finAmt)}_${safeNum(q.delivery_time_minutes, 30)}`;
+              
+              if (seenQuoteVersions.get(q.id) !== versionKey) {
+                seenQuoteVersions.set(q.id, versionKey);
                 const pharmacyName = q.pharmacy_name || q.store_name || "Partner Pharmacy";
                 const pharmacyAddress = q.address || "Local Partner Pharmacy";
                 const ratingVal = (q.rating && Number(q.total_reviews || 0) > 0) ? Number(q.rating) : null;
@@ -181,12 +204,14 @@ export async function GET(req) {
                   id: q.id,
                   broadcast_id: q.broadcast_id,
                   chemist_id: q.chemist_id,
-                  estimated_cost: Number(q.estimated_cost || q.final_amount || 0),
-                  medicine_subtotal: Number(q.medicine_subtotal || q.estimated_cost || 0),
-                  delivery_charge: Number(q.delivery_charge || 0),
-                  discount: Number(q.discount || 0),
-                  final_amount: Number(q.final_amount || q.estimated_cost || 0),
-                  delivery_time_minutes: Number(q.delivery_time_minutes || 30),
+                  estimated_cost: finAmt,
+                  medicine_subtotal: safeNum(q.medicine_subtotal, finAmt),
+                  delivery_charge: safeNum(q.delivery_charge, 0),
+                  discount: safeNum(q.discount, 0),
+                  final_amount: finAmt,
+                  delivery_time_minutes: safeNum(q.delivery_time_minutes, 30),
+                  items_breakdown: q.items_breakdown || [],
+                  bid_notes: q.bid_notes || "",
                   status: q.status,
                   created_at: q.created_at,
                   pharmacy_name: pharmacyName,

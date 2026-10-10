@@ -1088,7 +1088,7 @@ export default function OrderDetailsPage() {
  Prescription ID
  </span>
  <span className="font-semibold text-gray-800 dark:text-white">
- {order.prescription_id.slice(0, 8)}...
+ {order.prescription?.pid || order.prescription?.formatted_id || `${order.prescription_id.slice(0, 8)}...`}
  </span>
  </div>
 
@@ -1292,6 +1292,7 @@ export default function OrderDetailsPage() {
  <div className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded-full text-sm">
  Rx#
  {order.prescription?.pid ||
+ order.prescription?.formatted_id ||
  order.prescription?.id?.slice(0, 8) ||
  "PRESCRIPTION"}
  </div>
@@ -1307,9 +1308,11 @@ export default function OrderDetailsPage() {
  // Ensure all required fields are present
  pid:
  order.prescription.pid ||
+ order.prescription.formatted_id ||
  order.prescription.id?.slice(0, 8) ||
  "N/A",
  created_at: order.prescription.created_at,
+ signed_at: order.prescription.signed_at || order.prescription.created_at,
  // Transform medicines structure if needed
  medicines: Array.isArray(order.prescription.medicines)
  ? order.prescription.medicines.map((med) => ({
@@ -1348,9 +1351,11 @@ export default function OrderDetailsPage() {
  ...order.prescription,
  pid:
  order.prescription.pid ||
+ order.prescription.formatted_id ||
  order.prescription.id?.slice(0, 8) ||
  "N/A",
  created_at: order.prescription.created_at,
+ signed_at: order.prescription.signed_at || order.prescription.created_at,
  medicines: Array.isArray(order.prescription.medicines)
  ? order.prescription.medicines.map((med) => ({
  name: med.name || med.medicine_name || "-",
@@ -1410,9 +1415,11 @@ export default function OrderDetailsPage() {
  ...order.prescription,
  pid:
  order.prescription.pid ||
+ order.prescription.formatted_id ||
  order.prescription.id?.slice(0, 8) ||
  "N/A",
  created_at: order.prescription.created_at,
+ signed_at: order.prescription.signed_at || order.prescription.created_at,
  medicines: Array.isArray(order.prescription.medicines)
  ? order.prescription.medicines.map((med) => ({
  name: med.name || med.medicine_name || "-",

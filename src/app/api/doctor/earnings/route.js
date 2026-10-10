@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -15,72 +15,130 @@ export async function GET(req) {
       return failure("doctor_id is required", null, 400, { headers: corsHeaders });
     }
 
-    // Fetch doctor fee
-    let fee = 500;
+    // 1. Fetch doctor fees and bank account details from AWS RDS PostgreSQL
+    let doctor = null;
     try {
-      const { data: doctor, error: docError } = await supabase
-        .from("doctor_details")
-        .select("video_consultation_fee, clinic_consultation_fee")
-        .eq("id", doctor_id)
-        .maybeSingle();
-
-      if (!docError && doctor) {
-        fee = doctor.video_consultation_fee || doctor.clinic_consultation_fee || 500;
+      const doctorRows = await sql`
+        SELECT 
+          id,
+          video_consultation_fee,
+          clinic_consultation_fee,
+          home_visit_fee,
+          consultation_fee,
+          bank_account_details
+        FROM doctor_details
+        WHERE id = ${doctor_id}
+        LIMIT 1
+      `;
+      if (doctorRows.length > 0) {
+        doctor = doctorRows[0];
       }
     } catch (e) {
-      console.warn("Could not fetch doctor fee, using default:", e);
+      console.warn("[Doctor Earnings] Could not fetch doctor details:", e.message);
     }
 
-    // Fetch appointments
+    const videoFee = Number(doctor?.video_consultation_fee) || Number(doctor?.consultation_fee) || 500;
+    const clinicFee = Number(doctor?.clinic_consultation_fee) || Number(doctor?.consultation_fee) || 800;
+    const homeFee = Number(doctor?.home_visit_fee) || 1000;
+    const defaultFee = Number(doctor?.consultation_fee) || videoFee || 500;
+
+    // Parse bank details
+    let rawBank = doctor?.bank_account_details;
+    if (typeof rawBank === "string") {
+      try {
+        rawBank = JSON.parse(rawBank);
+      } catch {
+        rawBank = {};
+      }
+    }
+    const bank = (rawBank && typeof rawBank === "object") ? rawBank : {};
+    const bankDetails = {
+      account_name: bank.account_name || "",
+      account_number: bank.account_number || bank.account_no || "",
+      bank_name: bank.bank_name || "",
+      ifsc: bank.ifsc || bank.ifsc_code || "",
+      branch: bank.branch || ""
+    };
+
+    // 2. Fetch appointments from AWS RDS PostgreSQL
     let appointments = [];
     try {
-      const { data: appts, error: apptError } = await supabase
-        .from("appointments")
-        .select("id, appointment_type, created_at, status")
-        .eq("doctor_id", doctor_id)
-        .in("status", ["completed", "done", "scheduled"]);
-
-      if (!apptError && appts) {
-        appointments = appts;
-      }
+      appointments = await sql`
+        SELECT 
+          id,
+          appointment_type,
+          created_at,
+          appointment_date,
+          status
+        FROM appointments
+        WHERE doctor_id = ${doctor_id}
+          AND status IN ('completed', 'done', 'scheduled', 'approved', 'booked')
+        ORDER BY created_at DESC
+      `;
     } catch (e) {
-      console.warn("Could not fetch appointments for earnings:", e);
+      console.warn("[Doctor Earnings] Could not fetch appointments:", e.message);
     }
 
     let totalEarnings = 0;
     let thisMonthEarnings = 0;
+    let pendingPayout = 0;
+
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     const recentTransactions = [];
 
-    appointments.forEach(appt => {
-      totalEarnings += fee;
-      const apptDate = new Date(appt.created_at);
-      if (apptDate.getMonth() === currentMonth && apptDate.getFullYear() === currentYear) {
-        thisMonthEarnings += fee;
+    appointments.forEach((appt) => {
+      const type = (appt.appointment_type || "").toLowerCase();
+      let apptFee = defaultFee;
+      if (type.includes("video") || type.includes("instant") || type === "consultation") {
+        apptFee = videoFee;
+      } else if (type.includes("clinic") || type.includes("person")) {
+        apptFee = clinicFee;
+      } else if (type.includes("home")) {
+        apptFee = homeFee;
       }
-      recentTransactions.push({
-        id: appt.id,
-        type: appt.appointment_type || "Consultation",
-        amount: fee,
-        date: appt.created_at.split('T')[0]
-      });
-    });
 
-    // Sort recent descending
-    recentTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const status = (appt.status || "").toLowerCase();
+
+      // Only count completed appointments towards totalEarnings
+      if (status === "completed" || status === "done") {
+        totalEarnings += apptFee;
+
+        const apptDate = appt.created_at ? new Date(appt.created_at) : (appt.appointment_date ? new Date(appt.appointment_date) : null);
+        if (apptDate && apptDate.getMonth() === currentMonth && apptDate.getFullYear() === currentYear) {
+          thisMonthEarnings += apptFee;
+        }
+
+        recentTransactions.push({
+          id: appt.id,
+          type: appt.appointment_type || "Consultation",
+          status: appt.status,
+          amount: apptFee,
+          date: appt.created_at ? new Date(appt.created_at).toISOString().split("T")[0] : String(appt.appointment_date || "")
+        });
+      } else if (["scheduled", "approved", "booked"].includes(status)) {
+        // Pending payout calculation
+        pendingPayout += apptFee;
+      }
+    });
 
     const earningsData = {
       totalEarnings,
       thisMonth: thisMonthEarnings,
-      pendingPayout: 0,
-      recentTransactions: recentTransactions.slice(0, 10)
+      pendingPayout,
+      bankDetails,
+      account_name: bankDetails.account_name,
+      account_number: bankDetails.account_number,
+      bank_name: bankDetails.bank_name,
+      ifsc: bankDetails.ifsc,
+      branch: bankDetails.branch,
+      recentTransactions: recentTransactions.slice(0, 15)
     };
 
     return success("Earnings fetched successfully", earningsData, 200, { headers: corsHeaders });
   } catch (error) {
-    console.error("Earnings API Error:", error);
+    console.error("Doctor Earnings API Error:", error);
     return failure("Internal Error", error.message, 500, { headers: corsHeaders });
   }
 }

@@ -45,9 +45,11 @@ import {
   FileCheck,
   Eye,
   SlidersHorizontal,
-  Lock
+  Lock,
+  CreditCard
 } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
+import { loadRazorpayScript } from "@/lib/razorpay";
 
 // Common OTC & prescription medicines for autocomplete assistance
 const POPULAR_MEDICINES = [
@@ -125,6 +127,8 @@ export default function MedicineOrderPage() {
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [previewProofModal, setPreviewProofModal] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [payingOrderId, setPayingOrderId] = useState(null);
+  const [showDirectUpiSection, setShowDirectUpiSection] = useState(false);
 
   // Live Camera capture state
   const [showCameraModal, setShowCameraModal] = useState(false);
@@ -158,21 +162,67 @@ export default function MedicineOrderPage() {
 
   // Fetch all orders for this patient
   const fetchOrders = async (silent = false) => {
-    if (!patientId) return;
+    const rxIdParam = searchParams?.get("prescription_id");
+    const ordIdParam = searchParams?.get("order_id");
+    const pId = patientId || (typeof window !== "undefined" ? (localStorage.getItem("userId") || localStorage.getItem("user_id")) : null);
+
+    if (!pId && !rxIdParam && !ordIdParam) return;
+
     try {
       if (!silent) setOrdersLoading(true);
-      const res = await fetch(`/api/patients/orders/medicine/get?patient_id=${patientId}`);
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setOrders(data.data);
-        if (data.data.length > 0) {
-          if (!selectedOrder) {
-            setSelectedOrder(data.data[0]);
-          } else {
-            const updated = data.data.find((o) => o.id === selectedOrder.id);
-            if (updated) setSelectedOrder(updated);
+      let list = [];
+
+      // 1. If prescription_id or order_id is in URL, fetch it specifically
+      if (rxIdParam) {
+        try {
+          const rxRes = await fetch(`/api/patients/orders/medicine/get?prescription_id=${encodeURIComponent(rxIdParam)}`);
+          const rxData = await rxRes.json();
+          if (rxData.success && Array.isArray(rxData.data)) {
+            list = [...rxData.data];
           }
+        } catch (_) {}
+      } else if (ordIdParam) {
+        try {
+          const ordRes = await fetch(`/api/patients/orders/medicine/get?order_id=${encodeURIComponent(ordIdParam)}`);
+          const ordData = await ordRes.json();
+          if (ordData.success && Array.isArray(ordData.data)) {
+            list = [...ordData.data];
+          }
+        } catch (_) {}
+      }
+
+      // 2. If patientId is present, fetch and merge patient orders
+      if (pId) {
+        try {
+          const pRes = await fetch(`/api/patients/orders/medicine/get?patient_id=${encodeURIComponent(pId)}`);
+          const pData = await pRes.json();
+          if (pData.success && Array.isArray(pData.data)) {
+            const existingIds = new Set(list.map((o) => o.id));
+            for (const item of pData.data) {
+              if (!existingIds.has(item.id)) {
+                list.push(item);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (list.length > 0) {
+        setOrders(list);
+        const target = (rxIdParam || ordIdParam)
+          ? list.find((o) => (rxIdParam && o.prescription_id === rxIdParam) || (ordIdParam && o.id === ordIdParam))
+          : null;
+
+        if (target) {
+          setSelectedOrder(target);
+        } else if (!selectedOrder) {
+          setSelectedOrder(list[0]);
+        } else {
+          const updated = list.find((o) => o.id === selectedOrder.id);
+          if (updated) setSelectedOrder(updated);
         }
+      } else {
+        setOrders([]);
       }
     } catch (err) {
       if (!silent) console.error("Error fetching orders:", err);
@@ -182,11 +232,10 @@ export default function MedicineOrderPage() {
   };
 
   useEffect(() => {
-    if (!patientId) return;
     fetchOrders();
     const interval = setInterval(() => fetchOrders(true), 4000);
     return () => clearInterval(interval);
-  }, [patientId]);
+  }, [patientId, searchParams]);
 
   // Autocomplete medicine filter querying live AWS RDS clinical repository
   useEffect(() => {
@@ -416,6 +465,105 @@ export default function MedicineOrderPage() {
     }
   };
 
+  // Online Gateway Payment via Razorpay
+  const handlePayOnlineWithRazorpay = async (order) => {
+    if (!order?.id) return;
+    setPayingOrderId(order.id);
+    const tid = toast.loading("Launching secure payment gateway...");
+    try {
+      let rzOrderId = order.razorpay_order_id;
+      let rzKey = order.razorpay_key;
+      let amount = order.total_amount;
+      let pharmacyName = order.pharmacy_name || order.chemist_details?.pharmacy_name || "Partner Pharmacy";
+
+      if (!rzOrderId || !rzKey) {
+        const initRes = await fetch("/api/patients/orders/medicine/initiate-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order_id: order.id }),
+        });
+        const initData = await initRes.json();
+        if (!initRes.ok || !initData?.success) {
+          throw new Error(initData?.message || "Failed to initiate online payment");
+        }
+        rzOrderId = initData.data.razorpay_order_id;
+        rzKey = initData.data.razorpay_key;
+        amount = initData.data.amount || amount;
+        pharmacyName = initData.data.pharmacy_name || pharmacyName;
+      }
+
+      await loadRazorpayScript();
+      toast.dismiss(tid);
+
+      if (typeof window === "undefined" || !window.Razorpay) {
+        throw new Error("Razorpay payment gateway failed to load. Please check your internet connection.");
+      }
+
+      const options = {
+        key: rzKey,
+        amount: Math.round(Number(amount) * 100),
+        currency: "INR",
+        name: "MediConnect Pharmacy",
+        description: `Order #${order.unid || order.id.slice(0, 8)} - ${pharmacyName}`,
+        order_id: rzOrderId,
+        handler: async function (paymentResponse) {
+          const verifyTid = toast.loading("Verifying payment transaction…");
+          try {
+            const verifyRes = await fetch("/api/patients/orders/medicine/verify-payment", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                order_id: order.id,
+                razorpay_order_id: paymentResponse.razorpay_order_id,
+                razorpay_payment_id: paymentResponse.razorpay_payment_id,
+                razorpay_signature: paymentResponse.razorpay_signature,
+              }),
+            });
+
+            const verifyData = await verifyRes.json().catch(() => null);
+            toast.dismiss(verifyTid);
+
+            if (verifyRes.ok && verifyData?.success) {
+              toast.success("Payment verified successfully! 🎉 Chemist notified to pack medicines.");
+              await fetchOrders();
+            } else {
+              toast.error(verifyData?.message || "Payment signature verification failed");
+            }
+          } catch (vErr) {
+            toast.dismiss(verifyTid);
+            toast.error("Payment verification failed. Your funds are safe — contact support.");
+          } finally {
+            setPayingOrderId(null);
+          }
+        },
+        image: `${typeof window !== "undefined" ? window.location.origin : ""}/real-logo.png`,
+        prefill: {
+          name: typeof window !== "undefined" ? (localStorage.getItem("userName") || "") : "",
+          contact: contactPhone || "",
+          email: typeof window !== "undefined" ? (localStorage.getItem("userEmail") || "") : "",
+        },
+        theme: { color: "#0067A1" },
+        modal: {
+          ondismiss: () => {
+            setPayingOrderId(null);
+            toast("Payment not completed. You can pay anytime from the orders tracker.", { icon: "ℹ️" });
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", (response) => {
+        setPayingOrderId(null);
+        toast.error("Payment failed: " + (response.error?.description || "Transaction declined"));
+      });
+      rzp.open();
+    } catch (err) {
+      toast.dismiss(tid);
+      toast.error(err.message || "Failed to launch payment checkout");
+      setPayingOrderId(null);
+    }
+  };
+
   // Select Chemist & Lock Order
   const handleSelectChemistBid = async () => {
     if (!bidToSelect || !activeBroadcastId) return;
@@ -438,12 +586,25 @@ export default function MedicineOrderPage() {
 
       const data = await res.json();
       if (data.success && data.data?.order) {
-        toast.success("Chemist Selected! Order Created. Proceed with UPI Payment.");
+        const order = data.data.order;
+        const razorpay_order_id = data.data.razorpay_order_id;
+        const razorpay_key = data.data.razorpay_key;
+        const amount = data.data.amount || order.total_amount;
+        const pharmacy_name = data.data.pharmacy_name || bidToSelect.pharmacy_name;
+
         setBidToSelect(null);
         setActiveBroadcastId(null);
         setActiveTab("orders");
         await fetchOrders();
-        setSelectedOrder(data.data.order);
+        setSelectedOrder(order);
+
+        // If Razorpay gateway credentials exist, launch immediate checkout
+        if (razorpay_order_id && razorpay_key) {
+          toast.success("Quote Selected! Opening secure payment gateway...");
+          await handlePayOnlineWithRazorpay({ ...order, razorpay_order_id, razorpay_key, amount, pharmacy_name });
+        } else {
+          toast.success("Chemist Selected! Order Created. Proceed with payment.");
+        }
       } else {
         toast.error(data.message || "Failed to select chemist");
       }
@@ -624,69 +785,119 @@ export default function MedicineOrderPage() {
     }
   };
 
+  // Helper to accurately determine if an order is paid
+  const isOrderPaid = (order) => {
+    if (!order) return false;
+    if (order.payment_status === "paid" || order.payment_status === "completed") return true;
+    if (order.payment_verified_at) return true;
+    if (["approved", "preparing", "packing", "ready_for_dispatch", "out_for_delivery", "delivered", "completed"].includes(order.status)) return true;
+    return false;
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50/70 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50/70 py-2.5 sm:py-5 px-2.5 sm:px-6 lg:px-8 pb-36 sm:pb-24">
       <Toaster position="top-right" />
 
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header Banner */}
-        <div className="bg-white rounded-lg p-6 sm:p-7 border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5">
+      <div className="max-w-7xl mx-auto space-y-3.5 sm:space-y-4">
+        {/* Header Banner - Compact & Professional */}
+        <div className="bg-white rounded-xl p-3 sm:p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#0067A1]/10 text-[#0067A1] text-xs font-medium mb-2.5">
-              <Pill className="w-3.5 h-3.5" />
-              <span>Patient Medicine Ordering & Quotes</span>
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#0067A1]/10 text-[#0067A1] text-[11px] font-semibold">
+                <Pill className="w-3 h-3" />
+                <span>Pharmacy Care</span>
+              </span>
+              {selectedOrder && (
+                <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+                  &bull; Order #{selectedOrder.unid || selectedOrder.id.slice(0, 6).toUpperCase()}
+                </span>
+              )}
             </div>
-            <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
-              Medicine Orders & Pharmacy Quotes
+            <h1 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight">
+              Medicine Orders & Quotes
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl font-normal">
-              Broadcast your medicine order to licensed pharmacies, compare quotes with transparent pricing and delivery SLAs, pay via UPI, and track order fulfillment.
+            <p className="hidden sm:block text-xs text-slate-500 mt-0.5 font-normal">
+              Compare pharmacy bids, complete instant payments, and track doorstep medicine fulfillment.
             </p>
           </div>
 
-          {/* Tab Navigation Controls */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-md shrink-0 self-start md:self-auto border border-slate-200">
+          {/* Segmented Tab Controls */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-lg shrink-0 border border-slate-200/80 w-full sm:w-auto">
             <button
               onClick={() => setActiveTab("orders")}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === "orders"
                   ? "bg-[#0067A1] text-white shadow-xs"
                   : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
               }`}
             >
               <ShoppingBag className="w-3.5 h-3.5" />
-              <span>Active Orders & Tracking</span>
+              <span>Active Orders</span>
               {orders.length > 0 && (
-                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${activeTab === "orders" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"}`}>
+                <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${activeTab === "orders" ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"}`}>
                   {orders.length}
                 </span>
               )}
             </button>
             <button
               onClick={() => setActiveTab("new_request")}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                 activeTab === "new_request"
                   ? "bg-[#0067A1] text-white shadow-xs"
                   : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
               }`}
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Create New Medicine Request</span>
+              <span>New Request</span>
             </button>
           </div>
         </div>
+
+        {/* Mobile Horizontal Order Switcher (Visible when multiple orders exist) */}
+        {activeTab === "orders" && orders.length > 1 && (
+          <div className="lg:hidden flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {orders.map((o) => {
+              const isSel = selectedOrder?.id === o.id;
+              const isPaid = isOrderPaid(o);
+              return (
+                <button
+                  key={o.id}
+                  onClick={() => setSelectedOrder(o)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 border transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isSel
+                      ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
+                      : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <span>#{o.unid || o.id.slice(0, 6).toUpperCase()}</span>
+                  <span className={isSel ? "text-white/60" : "text-slate-400"}>&bull;</span>
+                  <span>₹{o.total_amount}</span>
+                  {isPaid ? (
+                    <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${isSel ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"}`}>
+                      Paid
+                    </span>
+                  ) : (
+                    <span className={`px-1 py-0.2 rounded text-[9px] font-bold ${isSel ? "bg-amber-300 text-amber-950" : "bg-amber-100 text-amber-800"}`}>
+                      Pay Now
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* ========================================================================= */}
         {/* VIEW 1: ACTIVE ORDERS & TRACKING + PAYMENT SCREEN                        */}
         {/* ========================================================================= */}
         {activeTab === "orders" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left: Orders List Sidebar */}
-            <div className="lg:col-span-4 bg-white rounded-lg p-5 border border-slate-200/80 shadow-xs space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-5 items-start">
+            {/* Desktop Left: Orders List Sidebar */}
+            <div className="hidden lg:block lg:col-span-4 bg-white rounded-xl p-4 border border-slate-200/80 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                <div className="flex items-center gap-1.5">
                   <History className="w-4 h-4 text-slate-400" />
-                  <span className="font-semibold text-slate-800 text-sm">Your Orders</span>
+                  <span className="font-bold text-slate-800 text-xs">Your Orders</span>
                 </div>
                 <button
                   onClick={() => fetchOrders()}
@@ -698,65 +909,83 @@ export default function MedicineOrderPage() {
               </div>
 
               {ordersLoading && orders.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 space-y-2">
-                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-[#0067A1]" />
-                  <p className="text-xs">Loading medicine orders...</p>
+                <div className="py-10 text-center text-slate-400 space-y-2">
+                  <RefreshCw className="w-5 h-5 animate-spin mx-auto text-[#0067A1]" />
+                  <p className="text-xs">Loading orders...</p>
                 </div>
               ) : orders.length === 0 ? (
-                <div className="py-12 px-4 text-center space-y-3">
-                  <div className="w-12 h-12 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                    <Pill className="w-6 h-6" />
+                <div className="py-8 px-3 text-center space-y-2.5">
+                  <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                    <Pill className="w-5 h-5" />
                   </div>
-                  <h4 className="text-sm font-semibold text-slate-800">No active medicine orders</h4>
-                  <p className="text-xs text-slate-500 font-normal">
-                    You haven&apos;t placed any medicine orders yet. Create a request to get competitive bids from pharmacies!
+                  <h4 className="text-xs font-bold text-slate-800">No active medicine orders</h4>
+                  <p className="text-[11px] text-slate-500 font-normal">
+                    You haven&apos;t placed any medicine orders yet.
                   </p>
                   <button
                     onClick={() => setActiveTab("new_request")}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#0067A1] text-white rounded-md text-xs font-medium hover:bg-[#004F7C] transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0067A1] text-white rounded-md text-xs font-semibold hover:bg-[#004F7C] transition-colors cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Create Request</span>
                   </button>
                 </div>
               ) : (
-                <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-[620px] overflow-y-auto pr-0.5">
                   {orders.map((order) => {
                     const isSelected = selectedOrder?.id === order.id;
                     const badge = getStatusBadge(order.status);
                     const StatusIcon = badge.icon;
+                    const isPaid = isOrderPaid(order);
+
                     return (
                       <div
                         key={order.id}
                         onClick={() => setSelectedOrder(order)}
-                        className={`p-3.5 rounded-lg border transition-all cursor-pointer ${
+                        className={`p-3 rounded-lg border transition-all cursor-pointer ${
                           isSelected
                             ? "border-[#0067A1] bg-[#0067A1]/5 shadow-xs"
                             : "border-slate-200/80 bg-white hover:border-slate-300"
                         }`}
                       >
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <span className="font-semibold text-xs text-slate-900">
-                            #{order.unid || order.id.slice(0, 8).toUpperCase()}
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <span className="font-bold text-xs text-slate-900">
+                            #{order.unid || order.id.slice(0, 6).toUpperCase()}
                           </span>
-                          <span className="text-[11px] font-semibold text-slate-900">
+                          <span className="text-xs font-bold text-slate-900">
                             ₹{order.total_amount || 0}
                           </span>
                         </div>
 
-                        <p className="text-xs font-medium text-slate-700 truncate mb-1">
-                          {order.chemist_details?.pharmacy_name || "Assigned Pharmacy Partner"}
+                        <p className="text-xs font-medium text-slate-600 truncate mb-2">
+                          {order.chemist_details?.pharmacy_name || order.pharmacy_name || "Assigned Pharmacy Partner"}
                         </p>
 
-                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-[11px]">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-medium ${badge.className}`}>
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-semibold ${badge.className}`}>
                             <StatusIcon className="w-2.5 h-2.5 shrink-0" />
                             <span className="truncate max-w-[130px]">{badge.label}</span>
                           </span>
-                          <span className="text-slate-400">
+                          <span className="text-slate-400 text-[10px]">
                             {new Date(order.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
                           </span>
                         </div>
+
+                        {/* Direct Pay button in list item for quick 1-click access */}
+                        {!isPaid && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePayOnlineWithRazorpay(order);
+                            }}
+                            disabled={payingOrderId === order.id}
+                            className="mt-2 w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-md text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-xs"
+                          >
+                            <CreditCard className="w-3 h-3" />
+                            <span>Pay ₹{order.total_amount} Now</span>
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -764,510 +993,581 @@ export default function MedicineOrderPage() {
               )}
             </div>
 
-            {/* Right: Selected Order Detail & Interactive Workflows */}
-            <div className="lg:col-span-8 space-y-6">
+            {/* Right / Main: Selected Order Detail & Workflows */}
+            <div className="lg:col-span-8 space-y-3.5 sm:space-y-4">
               {!selectedOrder ? (
-                <div className="bg-white rounded-lg p-12 text-center border border-slate-200/80 shadow-xs text-slate-400 space-y-3">
+                <div className="bg-white rounded-xl p-8 sm:p-12 text-center border border-slate-200/80 shadow-xs text-slate-400 space-y-3">
                   <ShoppingBag className="w-10 h-10 mx-auto text-slate-300" />
-                  <p className="text-sm font-normal text-slate-600">Select an order from the list to view tracking, payment details, and verification status.</p>
+                  <p className="text-xs sm:text-sm font-normal text-slate-600">
+                    Select an order from the list or create a new request to track medicine fulfillment.
+                  </p>
                 </div>
               ) : (
-                <>
-                  {/* Order Overview Card */}
-                  <div className="bg-white rounded-lg p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-6">
-                    {/* Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
-                      <div>
-                        <div className="flex items-center gap-3">
-                          <h2 className="text-lg font-semibold text-slate-900">
-                            Order #{selectedOrder.unid || selectedOrder.id.slice(0, 8).toUpperCase()}
-                          </h2>
-                          {(() => {
-                            const badge = getStatusBadge(selectedOrder.status);
-                            const StatusIcon = badge.icon;
-                            return (
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md border text-xs font-medium ${badge.className}`}>
-                                <StatusIcon className="w-3.5 h-3.5" />
+                (() => {
+                  const orderPaid = isOrderPaid(selectedOrder);
+                  const badge = getStatusBadge(selectedOrder.status);
+                  const StatusIcon = badge.icon;
+
+                  return (
+                    <>
+                      {/* Order Overview Card */}
+                      <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs space-y-3.5 sm:space-y-4">
+                        {/* Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h2 className="text-sm sm:text-base font-bold text-slate-900">
+                                Order #{selectedOrder.unid || selectedOrder.id.slice(0, 8).toUpperCase()}
+                              </h2>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-semibold ${badge.className}`}>
+                                <StatusIcon className="w-3 h-3" />
                                 <span>{badge.label}</span>
                               </span>
-                            );
-                          })()}
-                        </div>
-                        <p className="text-xs text-slate-400 mt-1 font-normal">
-                          Placed on {new Date(selectedOrder.created_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <div className="text-right">
-                          <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Total Payable</p>
-                          <p className="text-xl font-semibold text-[#0067A1]">₹{selectedOrder.total_amount || 0}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Progress Timeline */}
-                    <div className="bg-slate-50 rounded-lg p-5 border border-slate-200/60">
-                      <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-4">
-                        Order & Fulfillment Lifecycle
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                        {/* Step 1: Selected */}
-                        <div className="flex flex-col items-center">
-                          <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center mb-1.5 shadow-xs">
-                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                          </div>
-                          <span className="text-xs font-medium text-slate-800">Chemist Selected</span>
-                          <span className="text-[10px] text-slate-400">Offer Locked</span>
-                        </div>
-
-                        {/* Step 2: Payment */}
-                        <div className="flex flex-col items-center">
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center mb-1.5 shadow-xs ${
-                            selectedOrder.payment_verified_at || ["approved", "preparing", "ready_for_dispatch", "out_for_delivery", "delivered", "completed"].includes(selectedOrder.status)
-                              ? "bg-emerald-500 text-white"
-                              : selectedOrder.payment_declaration_by_patient || selectedOrder.status === "payment_submitted"
-                              ? "bg-blue-500 text-white animate-pulse"
-                              : selectedOrder.status === "payment_declined"
-                              ? "bg-red-500 text-white"
-                              : "bg-amber-500 text-white"
-                          }`}>
-                            {selectedOrder.payment_verified_at || ["approved", "preparing", "ready_for_dispatch", "out_for_delivery", "delivered", "completed"].includes(selectedOrder.status) ? (
-                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                            ) : selectedOrder.status === "payment_declined" ? (
-                              <X className="w-3.5 h-3.5 stroke-[2.5]" />
-                            ) : (
-                              <QrCode className="w-3.5 h-3.5" />
-                            )}
-                          </div>
-                          <span className="text-xs font-medium text-slate-800">Payment & UTR</span>
-                          <span className="text-[10px] text-slate-400">
-                            {selectedOrder.payment_verified_at ? "Verified by Chemist" : selectedOrder.payment_declaration_by_patient ? "Verification Pending" : "Awaiting Payment"}
-                          </span>
-                        </div>
-
-                        {/* Step 3: Preparation */}
-                        <div className="flex flex-col items-center">
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center mb-1.5 shadow-xs ${
-                            ["ready_for_dispatch", "out_for_delivery", "delivered", "completed"].includes(selectedOrder.status)
-                              ? "bg-emerald-500 text-white"
-                              : ["approved", "preparing", "packing"].includes(selectedOrder.status)
-                              ? "bg-indigo-600 text-white animate-pulse"
-                              : "bg-slate-200 text-slate-400"
-                          }`}>
-                            <Package className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-xs font-medium text-slate-800">Preparation</span>
-                          <span className="text-[10px] text-slate-400">Pack & Label</span>
-                        </div>
-
-                        {/* Step 4: Delivery */}
-                        <div className="flex flex-col items-center">
-                          <div className={`w-7 h-7 rounded-full flex items-center justify-center mb-1.5 shadow-xs ${
-                            ["delivered", "completed"].includes(selectedOrder.status)
-                              ? "bg-emerald-500 text-white"
-                              : ["out_for_delivery"].includes(selectedOrder.status)
-                              ? "bg-purple-600 text-white animate-bounce"
-                              : "bg-slate-200 text-slate-400"
-                          }`}>
-                            <Truck className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="text-xs font-medium text-slate-800">Delivery</span>
-                          <span className="text-[10px] text-slate-400">
-                            {["delivered", "completed"].includes(selectedOrder.status) ? "Delivered" : "To Your Door"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Assigned Pharmacy Profile Card */}
-                    <div className="p-4 rounded-lg bg-[#0067A1]/5 border border-[#0067A1]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex items-start gap-3.5">
-                        <div className="w-10 h-10 rounded-md bg-white border border-[#0067A1]/20 flex items-center justify-center text-[#0067A1] shrink-0 shadow-xs">
-                          <ShieldCheck className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-slate-900 text-sm">
-                              {selectedOrder.chemist_details?.pharmacy_name || "Apex Healthcare & Medicos"}
-                            </h3>
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-medium">
-                              <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500" />
-                              <span>{selectedOrder.chemist_details?.rating || 4.8}</span>
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
-                            <span>{selectedOrder.chemist_details?.address || "Licensed Pharmacy Partner"}</span>
-                          </p>
-                          {selectedOrder.chemist_details?.mobile && (
-                            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                              <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span>{selectedOrder.chemist_details?.mobile}</span>
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="text-left sm:text-right shrink-0">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-medium">
-                          <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
-                          <span>Verified Chemist</span>
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Medicines Breakdown */}
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-                        Prescribed Medicines & Quantities
-                      </h4>
-                      <div className="divide-y divide-slate-100 border border-slate-200/80 rounded-lg overflow-hidden bg-white">
-                        {(selectedOrder.medicine_order_items && selectedOrder.medicine_order_items.length > 0) ? (
-                          selectedOrder.medicine_order_items.map((item, idx) => (
-                            <div key={idx} className="p-3.5 flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-[10px]">
-                                  {idx + 1}
-                                </div>
-                                <div>
-                                  <p className="font-bold text-slate-800">{item.medicine_name}</p>
-                                  <p className="text-[11px] text-slate-400">{item.dosage || "Standard Dose"}</p>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <span className="font-bold text-slate-700">Qty: {item.quantity}</span>
-                                {item.price > 0 && (
-                                  <p className="text-[11px] text-slate-500 font-semibold">₹{Number(item.price).toFixed(2)}</p>
-                                )}
-                              </div>
                             </div>
-                          ))
-                        ) : (
-                          <div className="p-4 text-xs text-slate-500 italic">
-                            Order items registered per prescription record.
+                            <p className="text-[11px] text-slate-400 mt-0.5 font-normal">
+                              Placed on {new Date(selectedOrder.created_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                            </p>
                           </div>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Financial Summary */}
-                    <div className="bg-slate-50 rounded-lg p-4 border border-slate-200/80 space-y-2 text-xs">
-                      <div className="flex justify-between text-slate-600">
-                        <span>Medicine Subtotal:</span>
-                        <span className="font-semibold text-slate-800">
-                          ₹{Number(selectedOrder.medicine_subtotal || selectedOrder.total_amount).toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-slate-600">
-                        <span>Delivery & Handling:</span>
-                        <span className="font-semibold text-slate-800">
-                          ₹{Number(selectedOrder.delivery_charge || 0).toFixed(2)}
-                        </span>
-                      </div>
-                      {Number(selectedOrder.discount || 0) > 0 && (
-                        <div className="flex justify-between text-emerald-600 font-semibold">
-                          <span>Special Discount:</span>
-                          <span>-₹{Number(selectedOrder.discount).toFixed(2)}</span>
-                        </div>
-                      )}
-                      <div className="pt-2 border-t border-slate-200 flex justify-between text-sm font-bold text-slate-900">
-                        <span>Net Payable Amount:</span>
-                        <span className="text-[#0067A1]">₹{Number(selectedOrder.total_amount).toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </div>
+                          <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-50">
+                            <div className="text-left sm:text-right">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                {orderPaid ? "Total Paid" : "Amount Payable"}
+                              </p>
+                              <p className={`text-base sm:text-lg font-bold ${orderPaid ? "text-emerald-700" : "text-[#0067A1]"}`}>
+                                ₹{selectedOrder.total_amount || 0}
+                              </p>
+                            </div>
 
-                  {/* Payment Rejection Alert if applicable */}
-                  {selectedOrder.status === "payment_declined" && (
-                    <div className="bg-red-50 border-2 border-red-200 rounded-xl p-5 text-red-900 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
-                        <h4 className="font-bold text-sm">Payment Verification Issue Raised by Chemist</h4>
-                      </div>
-                      <p className="text-xs text-red-800 leading-relaxed">
-                        Reason: &ldquo;{selectedOrder.payment_failed_reason || "Transaction not found or screenshot unreadable"}&rdquo;.
-                        Please re-verify your 12-digit UTR number or upload a fresh screenshot below.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* ================================================================= */}
-                  {/* SELECTED CHEMIST UPI & DYNAMIC QR PAYMENT SECTION                */}
-                  {/* ================================================================= */}
-                  {["payment_pending", "waiting_for_payment", "awaiting_payment", "payment_declined", "payment_submitted"].includes(selectedOrder.status) && (
-                    <div className="bg-white rounded-xl p-6 sm:p-7 border border-slate-200/80 shadow-sm space-y-6">
-                      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                        <div>
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-xs font-bold mb-1">
-                            <QrCode className="w-3.5 h-3.5" />
-                            <span>Direct Chemist UPI Payment</span>
-                          </div>
-                          <h3 className="text-lg font-bold text-slate-900">Pay Selected Chemist via UPI / QR</h3>
-                          <p className="text-xs text-slate-500">
-                            Scan the chemist&apos;s dynamic QR or transfer directly to their registered UPI ID.
-                          </p>
-                        </div>
-                        <span className="text-xl font-black text-[#0067A1]">
-                          ₹{selectedOrder.total_amount}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                        {/* QR Code Card */}
-                        <div className="md:col-span-5 flex flex-col items-center justify-center p-6 bg-slate-50 rounded-lg border border-slate-200/80 text-center">
-                          {(() => {
-                            const chemistUpi = selectedOrder.chemist_details?.upi_id || "pay@mediconnect.fit";
-                            const pharmacyName = selectedOrder.chemist_details?.pharmacy_name || "Partner Pharmacy";
-                            const amount = selectedOrder.total_amount || 0;
-                            const upiLink = `upi://pay?pa=${encodeURIComponent(chemistUpi)}&pn=${encodeURIComponent(pharmacyName)}&am=${amount}&cu=INR&tn=Order-${selectedOrder.unid || selectedOrder.id.slice(0, 8)}`;
-                            const qrUrl = selectedOrder.chemist_details?.payment_qr_url || `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(upiLink)}`;
-
-                            return (
-                              <>
-                                <div className="p-3 bg-white rounded-lg shadow-sm border border-slate-200 mb-3">
-                                  <img
-                                    src={qrUrl}
-                                    alt="Chemist UPI QR Code"
-                                    className="w-48 h-48 object-contain rounded-xl"
-                                  />
-                                </div>
-                                <span className="text-[11px] font-bold text-slate-500">
-                                  Scan using GPay, PhonePe, Paytm, or BHIM
-                                </span>
-                              </>
-                            );
-                          })()}
-                        </div>
-
-                        {/* Chemist UPI Details & Copy */}
-                        <div className="md:col-span-7 space-y-4">
-                          <div>
-                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                              Chemist Registered UPI ID
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-mono font-bold text-slate-800 truncate">
-                                {selectedOrder.chemist_details?.upi_id || "apexmedicos@upi"}
-                              </div>
+                            {/* Prominent Payment Button in Header if not paid */}
+                            {!orderPaid ? (
                               <button
                                 type="button"
-                                onClick={() => handleCopyUpi(selectedOrder.chemist_details?.upi_id || "apexmedicos@upi")}
-                                className="px-4 py-2.5 bg-[#0067A1] text-white rounded-xl text-xs font-bold hover:bg-[#004F7C] transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer"
+                                disabled={payingOrderId === selectedOrder.id}
+                                onClick={() => handlePayOnlineWithRazorpay(selectedOrder)}
+                                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all shrink-0"
                               >
-                                {copiedUpi ? (
+                                {payingOrderId === selectedOrder.id ? (
                                   <>
-                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                                    <span>Copied!</span>
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Opening...</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Copy className="w-3.5 h-3.5" />
-                                    <span>Copy UPI</span>
+                                    <CreditCard className="w-3.5 h-3.5" />
+                                    <span>Pay ₹{selectedOrder.total_amount} Now</span>
                                   </>
                                 )}
                               </button>
-                            </div>
-                          </div>
-
-                          {/* Quick 1-Tap UPI Launch Buttons (Mobile friendly) */}
-                          <div>
-                            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                              1-Tap Open in App
-                            </label>
-                            <div className="grid grid-cols-2 gap-2">
-                              {(() => {
-                                const chemistUpi = selectedOrder.chemist_details?.upi_id || "apexmedicos@upi";
-                                const pharmacyName = selectedOrder.chemist_details?.pharmacy_name || "Partner Pharmacy";
-                                const amount = selectedOrder.total_amount || 0;
-                                const upiLink = `upi://pay?pa=${encodeURIComponent(chemistUpi)}&pn=${encodeURIComponent(pharmacyName)}&am=${amount}&cu=INR&tn=Order-${selectedOrder.unid || selectedOrder.id.slice(0, 8)}`;
-                                return (
-                                  <>
-                                    <a
-                                      href={upiLink}
-                                      className="py-2 px-3 text-center bg-white border border-slate-300 hover:border-[#0067A1] hover:text-[#0067A1] text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                                    >
-                                      <span>Google Pay</span>
-                                      <ExternalLink className="w-3 h-3" />
-                                    </a>
-                                    <a
-                                      href={upiLink}
-                                      className="py-2 px-3 text-center bg-white border border-slate-300 hover:border-[#0067A1] hover:text-[#0067A1] text-slate-700 font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                                    >
-                                      <span>PhonePe / Paytm</span>
-                                      <ExternalLink className="w-3 h-3" />
-                                    </a>
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          </div>
-
-                          {/* Mandatory Service Disclosure */}
-                          <div className="p-3.5 rounded-lg bg-amber-50/70 border border-amber-200/80 text-amber-900 space-y-1">
-                            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
-                              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                              <span>Important Payment Notice:</span>
-                            </div>
-                            <p className="text-[11px] text-amber-800/90 leading-relaxed">
-                              UPI QR codes do not independently confirm receipt of funds. After transferring, please enter your 12-digit UTR reference number and upload the payment screenshot below so the chemist can manually verify the bank credit and release your medicines.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* ============================================================= */}
-                      {/* PAYMENT PROOF & UTR SUBMISSION FORM                          */}
-                      {/* ============================================================= */}
-                      <div className="pt-6 border-t border-slate-100 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-bold text-slate-900 text-sm">Step 2: Submit Payment Proof</h4>
-                            <p className="text-xs text-slate-500">Enter the UTR reference number and attach your payment receipt screenshot.</p>
-                          </div>
-                          {selectedOrder.status === "payment_submitted" && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-100 text-[#0067A1] text-xs font-bold">
-                              <RefreshCw className="w-3 h-3 animate-spin" />
-                              <span>Proof Under Verification</span>
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          {/* UTR Input */}
-                          <div>
-                            <label className="text-xs font-bold text-slate-700 block mb-1">
-                              12-Digit UTR / Transaction Reference No. <span className="text-rose-500">*</span>
-                            </label>
-                            <input
-                              type="text"
-                              maxLength={22}
-                              value={utrNumber}
-                              onChange={(e) => setUtrNumber(e.target.value.replace(/[^a-zA-Z0-9]/g, ""))}
-                              placeholder="e.g. 427819203847"
-                              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent bg-slate-50/50"
-                            />
-                            <p className="text-[10px] text-slate-400 mt-1">
-                              Found in your UPI payment app receipt (e.g. UPI Ref / UTR / Transaction ID).
-                            </p>
-                          </div>
-
-                          {/* Screenshot Upload Options */}
-                          <div>
-                            <label className="text-xs font-bold text-slate-700 block mb-1">
-                              Payment Screenshot / Receipt <span className="text-rose-500">*</span>
-                            </label>
-
-                            <div className="flex items-center gap-2">
-                              {/* File picker */}
-                              <label className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border border-dashed border-slate-300 hover:border-[#0067A1] bg-slate-50/50 text-slate-700 hover:text-[#0067A1] text-xs font-bold cursor-pointer transition-colors">
-                                <Upload className="w-3.5 h-3.5" />
-                                <span>Upload File</span>
-                                <input
-                                  type="file"
-                                  accept="image/*,.pdf"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                      setProofFile(file);
-                                      setProofPreview(URL.createObjectURL(file));
-                                    }
-                                  }}
-                                />
-                              </label>
-
-                              {/* Live Device Camera button */}
-                              <button
-                                type="button"
-                                onClick={startCamera}
-                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border border-slate-300 hover:border-[#0067A1] bg-white text-slate-700 hover:text-[#0067A1] text-xs font-bold cursor-pointer transition-colors shadow-sm"
-                              >
-                                <Camera className="w-3.5 h-3.5" />
-                                <span>Take Photo</span>
-                              </button>
-                            </div>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center gap-1 shrink-0">
+                                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                                <span>Paid & Confirmed</span>
+                              </span>
+                            )}
                           </div>
                         </div>
 
-                        {/* Screenshot Preview */}
-                        {proofPreview && (
-                          <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <img
-                                src={proofPreview}
-                                alt="Proof Preview"
-                                className="w-14 h-14 object-cover rounded-xl border border-slate-200"
-                              />
+                        {/* Top Payment Pending Action Box (If Not Paid) */}
+                        {!orderPaid && (
+                          <div className="p-3 sm:p-4 rounded-xl bg-gradient-to-r from-amber-50 via-emerald-50/60 to-sky-50 border border-amber-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                            <div className="flex items-start gap-2.5">
+                              <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                <CreditCard className="w-4 h-4" />
+                              </div>
                               <div>
-                                <p className="text-xs font-bold text-slate-800 truncate max-w-xs">{proofFile?.name || "Payment_Screenshot.jpg"}</p>
-                                <p className="text-[10px] text-slate-400">{(proofFile?.size ? (proofFile.size / 1024).toFixed(1) : 120)} KB &bull; Ready to verify</p>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                                    Payment Pending: ₹{selectedOrder.total_amount}
+                                  </h4>
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                    Action Required
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-600 mt-0.5">
+                                  Pay securely via UPI (GPay, PhonePe, Paytm), Cards, or NetBanking to initiate medicine packaging and dispatch.
+                                </p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setPreviewProofModal(proofPreview)}
-                                className="p-2 text-slate-500 hover:text-[#0067A1] hover:bg-white rounded-lg transition-colors cursor-pointer"
-                                title="Zoom Preview"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setProofFile(null);
-                                  setProofPreview(null);
-                                }}
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
-                                title="Remove File"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+
+                            <button
+                              type="button"
+                              disabled={payingOrderId === selectedOrder.id}
+                              onClick={() => handlePayOnlineWithRazorpay(selectedOrder)}
+                              className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all shrink-0"
+                            >
+                              {payingOrderId === selectedOrder.id ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Opening Gateway...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CreditCard className="w-3.5 h-3.5" />
+                                  <span>Pay ₹{selectedOrder.total_amount} Online Now</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Payment Verified Reassurance Box (If Paid) */}
+                        {orderPaid && (
+                          <div className="p-3 sm:p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200 text-emerald-900 flex items-center justify-between gap-3 shadow-xs">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                <Check className="w-4 h-4 stroke-[2.5]" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-bold text-xs sm:text-sm text-emerald-900">
+                                    Payment Received & Verified (₹{selectedOrder.total_amount})
+                                  </h4>
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    {selectedOrder.razorpay_payment_id ? "Razorpay Gateway" : "Chemist Verified"}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-emerald-800 font-normal">
+                                  {selectedOrder.razorpay_payment_id || selectedOrder.utr_number ? `Ref: ${selectedOrder.razorpay_payment_id || selectedOrder.utr_number} • ` : ""}
+                                  Chemist partner has been notified to pack and dispatch your medicines.
+                                </p>
+                              </div>
                             </div>
                           </div>
                         )}
 
-                        {/* Submit Action */}
-                        <div className="pt-2">
-                          <button
-                            type="button"
-                            disabled={submittingProof || !utrNumber.trim() || !proofFile}
-                            onClick={handleSubmitPaymentProof}
-                            className="w-full py-2.5 bg-[#0067A1] hover:bg-[#004F7C] disabled:bg-slate-300 text-white rounded-md text-xs font-medium transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
-                          >
-                            {submittingProof ? (
-                              <>
-                                <RefreshCw className="w-4 h-4 animate-spin" />
-                                <span>Submitting Proof to Chemist...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Send className="w-4 h-4" />
-                                <span>Submit Payment Proof for Verification</span>
-                              </>
+                        {/* Lifecycle Progress Timeline - Compact 4 Step Bar */}
+                        <div className="bg-slate-50/80 rounded-xl p-3 sm:p-3.5 border border-slate-200/60">
+                          <div className="flex items-center justify-between mb-2.5">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                              Order Lifecycle
+                            </p>
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              {orderPaid ? "Payment Verified • Processing" : "Awaiting Online Payment"}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-1.5 sm:gap-3 text-center">
+                            {/* Step 1: Offer Locked */}
+                            <div className="flex flex-col items-center">
+                              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center mb-1 shadow-xs">
+                                <Check className="w-3 h-3 stroke-[2.5]" />
+                              </div>
+                              <span className="text-[11px] font-semibold text-slate-800">Confirmed</span>
+                              <span className="text-[9px] text-slate-400 hidden sm:inline">Offer Locked</span>
+                            </div>
+
+                            {/* Step 2: Payment */}
+                            <div className="flex flex-col items-center">
+                              <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center mb-1 shadow-xs ${
+                                orderPaid
+                                  ? "bg-emerald-500 text-white"
+                                  : selectedOrder.payment_declaration_by_patient || selectedOrder.status === "payment_submitted"
+                                  ? "bg-blue-500 text-white animate-pulse"
+                                  : selectedOrder.status === "payment_declined"
+                                  ? "bg-red-500 text-white"
+                                  : "bg-amber-500 text-white"
+                              }`}>
+                                {orderPaid ? (
+                                  <Check className="w-3 h-3 stroke-[2.5]" />
+                                ) : selectedOrder.status === "payment_declined" ? (
+                                  <X className="w-3 h-3 stroke-[2.5]" />
+                                ) : (
+                                  <CreditCard className="w-3 h-3" />
+                                )}
+                              </div>
+                              <span className="text-[11px] font-semibold text-slate-800">Payment</span>
+                              <span className="text-[9px] text-slate-400 hidden sm:inline">
+                                {orderPaid ? "Verified" : "Pending"}
+                              </span>
+                            </div>
+
+                            {/* Step 3: Preparation */}
+                            <div className="flex flex-col items-center">
+                              <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center mb-1 shadow-xs ${
+                                ["ready_for_dispatch", "out_for_delivery", "delivered", "completed"].includes(selectedOrder.status)
+                                  ? "bg-emerald-500 text-white"
+                                  : ["approved", "preparing", "packing"].includes(selectedOrder.status)
+                                  ? "bg-indigo-600 text-white animate-pulse"
+                                  : "bg-slate-200 text-slate-400"
+                              }`}>
+                                <Package className="w-3 h-3" />
+                              </div>
+                              <span className="text-[11px] font-semibold text-slate-800">Packing</span>
+                              <span className="text-[9px] text-slate-400 hidden sm:inline">Preparing</span>
+                            </div>
+
+                            {/* Step 4: Delivery */}
+                            <div className="flex flex-col items-center">
+                              <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center mb-1 shadow-xs ${
+                                ["delivered", "completed"].includes(selectedOrder.status)
+                                  ? "bg-emerald-500 text-white"
+                                  : ["out_for_delivery"].includes(selectedOrder.status)
+                                  ? "bg-purple-600 text-white animate-bounce"
+                                  : "bg-slate-200 text-slate-400"
+                              }`}>
+                                <Truck className="w-3 h-3" />
+                              </div>
+                              <span className="text-[11px] font-semibold text-slate-800">Delivery</span>
+                              <span className="text-[9px] text-slate-400 hidden sm:inline">
+                                {["delivered", "completed"].includes(selectedOrder.status) ? "Delivered" : "To Door"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Assigned Pharmacy Profile Card */}
+                        <div className="p-3 sm:p-3.5 rounded-xl bg-sky-50/40 border border-sky-100/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-9 h-9 rounded-lg bg-white border border-sky-200 flex items-center justify-center text-[#0067A1] shrink-0 shadow-xs">
+                              <ShieldCheck className="w-4.5 h-4.5" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-bold text-slate-900 text-xs sm:text-sm">
+                                  {selectedOrder.chemist_details?.pharmacy_name || selectedOrder.pharmacy_name || "Apex Healthcare & Chemists"}
+                                </h3>
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[10px] font-semibold">
+                                  <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500" />
+                                  <span>{selectedOrder.chemist_details?.rating || selectedOrder.chemist_rating || 4.8}</span>
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                                <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
+                                <span className="truncate max-w-xs">{selectedOrder.chemist_details?.address || selectedOrder.chemist_address || "Licensed Pharmacy Partner"}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                            {(selectedOrder.chemist_details?.mobile || selectedOrder.chemist_mobile) && (
+                              <a
+                                href={`tel:${selectedOrder.chemist_details?.mobile || selectedOrder.chemist_mobile}`}
+                                className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-md text-[11px] font-semibold flex items-center gap-1 transition-colors"
+                              >
+                                <Phone className="w-3 h-3 text-emerald-600" />
+                                <span>Call Chemist</span>
+                              </a>
                             )}
-                          </button>
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-semibold">
+                              <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                              <span>Verified</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Prescribed Medicines Breakdown */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                              Prescribed Medicines & Quantities
+                            </h4>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {selectedOrder.medicine_order_items?.length || 0} items
+                            </span>
+                          </div>
+
+                          <div className="divide-y divide-slate-100 border border-slate-200/80 rounded-xl overflow-hidden bg-white">
+                            {(selectedOrder.medicine_order_items && selectedOrder.medicine_order_items.length > 0) ? (
+                              selectedOrder.medicine_order_items.map((item, idx) => (
+                                <div key={idx} className="p-2.5 sm:p-3 flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-md bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-[10px] shrink-0">
+                                      {idx + 1}
+                                    </div>
+                                    <div>
+                                      <p className="font-semibold text-slate-800 text-xs">{item.medicine_name}</p>
+                                      <p className="text-[10px] text-slate-400">{item.dosage || "Standard Dose"}</p>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="font-semibold text-slate-700 text-xs">Qty: {item.quantity}</span>
+                                    {Number(item.price) > 0 && (
+                                      <p className="text-[11px] text-slate-500 font-semibold">₹{Number(item.price).toFixed(2)}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="p-3 text-xs text-slate-500 italic">
+                                Order items registered according to prescription record.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Financial Summary */}
+                        <div className="bg-slate-50/80 rounded-xl p-3 sm:p-3.5 border border-slate-200/80 space-y-1.5 text-xs">
+                          <div className="flex justify-between text-slate-600 text-[11px]">
+                            <span>Medicine Subtotal:</span>
+                            <span className="font-semibold text-slate-800">
+                              ₹{Number(selectedOrder.medicine_subtotal || selectedOrder.total_amount).toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-slate-600 text-[11px]">
+                            <span>Delivery & Handling:</span>
+                            <span className="font-semibold text-slate-800">
+                              ₹{Number(selectedOrder.delivery_charge || 0).toFixed(2)}
+                            </span>
+                          </div>
+                          {Number(selectedOrder.discount || 0) > 0 && (
+                            <div className="flex justify-between text-emerald-600 font-semibold text-[11px]">
+                              <span>Special Discount:</span>
+                              <span>-₹{Number(selectedOrder.discount).toFixed(2)}</span>
+                            </div>
+                          )}
+                          <div className="pt-2 border-t border-slate-200 flex justify-between text-xs sm:text-sm font-bold text-slate-900">
+                            <span>Total Payable:</span>
+                            <span className={orderPaid ? "text-emerald-700" : "text-[#0067A1]"}>
+                              ₹{Number(selectedOrder.total_amount).toFixed(2)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
 
-                  {/* Payment Verified Banner */}
-                  {selectedOrder.payment_verified_at && (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-5 text-emerald-900 flex items-center gap-3.5">
-                      <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                        <Check className="w-4 h-4 stroke-[2.5]" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-sm">Payment Verified by Pharmacy</h4>
-                        <p className="text-xs text-emerald-800 font-normal">
-                          Your payment of ₹{selectedOrder.total_amount} (UTR: {selectedOrder.utr_number || "Verified"}) has been credited. The pharmacy has prepared your medicine package for delivery.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </>
+                      {/* Payment Rejection Alert if applicable */}
+                      {selectedOrder.status === "payment_declined" && (
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-3.5 sm:p-4 text-red-900 space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                            <h4 className="font-bold text-xs sm:text-sm">Payment Issue Raised by Chemist</h4>
+                          </div>
+                          <p className="text-xs text-red-800 leading-relaxed">
+                            Reason: &ldquo;{selectedOrder.payment_failed_reason || "Transaction not found or screenshot unreadable"}&rdquo;.
+                            Please pay online via Razorpay or re-verify your 12-digit UTR below.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Direct Chemist UPI & Manual Proof (Collapsible Alternative when Unpaid) */}
+                      {!orderPaid && (
+                        <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => setShowDirectUpiSection((prev) => !prev)}
+                            className="w-full p-3 sm:p-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <QrCode className="w-4 h-4 text-slate-500" />
+                              <div>
+                                <span className="font-semibold text-xs sm:text-sm text-slate-800">
+                                  Prefer Direct Chemist UPI Transfer?
+                                </span>
+                                <p className="text-[11px] text-slate-500">
+                                  Scan chemist QR code or upload manual UTR payment screenshot.
+                                </p>
+                              </div>
+                            </div>
+                            <span className="text-xs font-semibold text-[#0067A1]">
+                              {showDirectUpiSection ? "Hide QR ▴" : "Show QR ▾"}
+                            </span>
+                          </button>
+
+                          {showDirectUpiSection && (
+                            <div className="p-3.5 sm:p-5 border-t border-slate-100 space-y-4 bg-slate-50/40">
+                              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                                {/* QR Code */}
+                                <div className="md:col-span-5 flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-slate-200 text-center">
+                                  {(() => {
+                                    const chemistUpi = selectedOrder.chemist_details?.upi_id || selectedOrder.chemist_upi_id || "apexmedicos@upi";
+                                    const pharmacyName = selectedOrder.chemist_details?.pharmacy_name || selectedOrder.pharmacy_name || "Partner Pharmacy";
+                                    const amount = selectedOrder.total_amount || 0;
+                                    const upiLink = `upi://pay?pa=${encodeURIComponent(chemistUpi)}&pn=${encodeURIComponent(pharmacyName)}&am=${amount}&cu=INR&tn=Order-${selectedOrder.unid || selectedOrder.id.slice(0, 8)}`;
+                                    const qrUrl = selectedOrder.chemist_details?.payment_qr_url || selectedOrder.chemist_payment_qr_url || `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiLink)}`;
+
+                                    return (
+                                      <>
+                                        <img
+                                          src={qrUrl}
+                                          alt="Chemist UPI QR Code"
+                                          className="w-36 h-36 object-contain rounded-lg mb-2"
+                                        />
+                                        <span className="text-[10px] font-semibold text-slate-500">
+                                          Scan via GPay, PhonePe, Paytm, or BHIM
+                                        </span>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+
+                                {/* Chemist UPI ID & Quick App Links */}
+                                <div className="md:col-span-7 space-y-3">
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                      Chemist UPI ID
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex-1 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-mono font-bold text-slate-800 truncate">
+                                        {selectedOrder.chemist_details?.upi_id || selectedOrder.chemist_upi_id || "apexmedicos@upi"}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCopyUpi(selectedOrder.chemist_details?.upi_id || selectedOrder.chemist_upi_id || "apexmedicos@upi")}
+                                        className="px-3 py-1.5 bg-[#0067A1] text-white rounded-lg text-xs font-semibold hover:bg-[#004F7C] transition-colors flex items-center gap-1 shrink-0 cursor-pointer"
+                                      >
+                                        {copiedUpi ? (
+                                          <>
+                                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                                            <span>Copied!</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy className="w-3.5 h-3.5" />
+                                            <span>Copy UPI</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Quick 1-Tap App Links */}
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                      1-Tap UPI Launch
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {(() => {
+                                        const chemistUpi = selectedOrder.chemist_details?.upi_id || selectedOrder.chemist_upi_id || "apexmedicos@upi";
+                                        const pharmacyName = selectedOrder.chemist_details?.pharmacy_name || selectedOrder.pharmacy_name || "Partner Pharmacy";
+                                        const amount = selectedOrder.total_amount || 0;
+                                        const upiLink = `upi://pay?pa=${encodeURIComponent(chemistUpi)}&pn=${encodeURIComponent(pharmacyName)}&am=${amount}&cu=INR&tn=Order-${selectedOrder.unid || selectedOrder.id.slice(0, 8)}`;
+                                        return (
+                                          <>
+                                            <a
+                                              href={upiLink}
+                                              className="py-1.5 px-2.5 text-center bg-white border border-slate-200 hover:border-[#0067A1] text-slate-700 font-semibold rounded-lg text-[11px] transition-colors flex items-center justify-center gap-1 shadow-xs"
+                                            >
+                                              <span>Google Pay</span>
+                                              <ExternalLink className="w-3 h-3" />
+                                            </a>
+                                            <a
+                                              href={upiLink}
+                                              className="py-1.5 px-2.5 text-center bg-white border border-slate-200 hover:border-[#0067A1] text-slate-700 font-semibold rounded-lg text-[11px] transition-colors flex items-center justify-center gap-1 shadow-xs"
+                                            >
+                                              <span>PhonePe / Paytm</span>
+                                              <ExternalLink className="w-3 h-3" />
+                                            </a>
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Manual UTR Proof Submission Form */}
+                              <div className="pt-3 border-t border-slate-200/80 space-y-3">
+                                <div>
+                                  <h4 className="font-bold text-slate-800 text-xs">Submit Manual UTR Proof</h4>
+                                  <p className="text-[11px] text-slate-500">Attach screenshot and 12-digit UTR if paying outside Razorpay.</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                                      12-Digit UTR Number <span className="text-rose-500">*</span>
+                                    </label>
+                                    <input
+                                      type="text"
+                                      maxLength={22}
+                                      value={utrNumber}
+                                      onChange={(e) => setUtrNumber(e.target.value.replace(/[^a-zA-Z0-9]/g, ""))}
+                                      placeholder="e.g. 427819203847"
+                                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono font-semibold text-slate-900 bg-white"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                                      Receipt Screenshot <span className="text-rose-500">*</span>
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                      <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border border-dashed border-slate-300 hover:border-[#0067A1] bg-white text-slate-700 text-xs font-semibold cursor-pointer transition-colors">
+                                        <Upload className="w-3.5 h-3.5" />
+                                        <span>Upload File</span>
+                                        <input
+                                          type="file"
+                                          accept="image/*,.pdf"
+                                          className="hidden"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              setProofFile(file);
+                                              setProofPreview(URL.createObjectURL(file));
+                                            }
+                                          }}
+                                        />
+                                      </label>
+                                      <button
+                                        type="button"
+                                        onClick={startCamera}
+                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
+                                      >
+                                        <Camera className="w-3.5 h-3.5" />
+                                        <span>Take Photo</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {proofPreview && (
+                                  <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <img
+                                        src={proofPreview}
+                                        alt="Proof Preview"
+                                        className="w-10 h-10 object-cover rounded-md border"
+                                      />
+                                      <span className="text-xs font-semibold text-slate-800 truncate max-w-xs">{proofFile?.name || "Payment_Proof.jpg"}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => setPreviewProofModal(proofPreview)}
+                                        className="p-1 text-slate-500 hover:text-[#0067A1]"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setProofFile(null);
+                                          setProofPreview(null);
+                                        }}
+                                        className="p-1 text-slate-400 hover:text-red-500"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <button
+                                  type="button"
+                                  disabled={submittingProof || !utrNumber.trim() || !proofFile}
+                                  onClick={handleSubmitPaymentProof}
+                                  className="w-full py-2 bg-[#0067A1] hover:bg-[#004F7C] disabled:bg-slate-300 text-white rounded-lg text-xs font-semibold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
+                                >
+                                  {submittingProof ? (
+                                    <>
+                                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Submitting Proof...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Send className="w-3.5 h-3.5" />
+                                      <span>Submit Proof for Chemist Verification</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()
               )}
             </div>
           </div>
@@ -1277,14 +1577,14 @@ export default function MedicineOrderPage() {
         {/* VIEW 2: NEW MEDICINE REQUEST & LIVE BIDDING STREAM                        */}
         {/* ========================================================================= */}
         {activeTab === "new_request" && (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-5">
             {!activeBroadcastId ? (
               /* Step 1: Create Request Form */
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-5 items-start">
                 {/* Left: Medicine Search & Cart (7 cols) */}
-                <div className="lg:col-span-7 bg-white rounded-lg p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-6">
+                <div className="lg:col-span-7 bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs space-y-4">
                   <div>
-                    <h2 className="text-base font-semibold text-slate-900">1. Add Prescribed Medicines</h2>
+                    <h2 className="text-sm sm:text-base font-bold text-slate-900">1. Add Prescribed Medicines</h2>
                     <p className="text-xs text-slate-500 font-normal">
                       Search medicines or type custom items with dosage and required quantities.
                     </p>
@@ -1540,7 +1840,7 @@ export default function MedicineOrderPage() {
                 </div>
 
                 {/* Right: Delivery Address & Submit Request (5 cols) */}
-                <div className="lg:col-span-5 bg-white rounded-xl p-5 sm:p-6 border border-slate-200/80 shadow-sm space-y-4">
+                <div className="lg:col-span-5 bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs space-y-3.5">
                   <div className="flex items-center justify-between pb-1 border-b border-slate-100">
                     <div>
                       <h2 className="text-base font-semibold text-slate-900">3. Delivery Details</h2>
@@ -1671,7 +1971,7 @@ export default function MedicineOrderPage() {
               /* Step 2: Live Bids Stream & Dynamic Comparison Interface */
               <div className="space-y-6">
                 {/* Live Pool Status Banner */}
-                <div className="bg-white rounded-xl p-6 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="bg-white rounded-xl p-3.5 sm:p-5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3.5">
                     <div className="w-12 h-12 rounded-md bg-red-50 text-red-500 flex items-center justify-center shrink-0 border border-red-100">
                       <Radio className="w-6 h-6 animate-pulse" />

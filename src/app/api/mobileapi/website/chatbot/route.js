@@ -122,7 +122,7 @@ MEDICONNECT KNOWLEDGE BASE:
 • Doctor fees are displayed upfront on each profile.
 • All doctors on MediConnect are verified with valid medical registrations.
 • To book: Visit mediconnect.fit/website/doctors
-• Specialities include: Cardiology, Dermatology, Orthopedics, Neurology, Pediatrics, Gynecology, ENT, Ophthalmology, Psychiatry, General Medicine, and more (15+ total).
+• Specialities include: Dentistry (Dentists), Cardiology, Dermatology, Orthopedics, Neurology, Pediatrics, Gynecology, ENT, Ophthalmology, Psychiatry, Pulmonology, Urology, General Medicine, and more (15+ total).
 
 --- ABHA (Ayushman Bharat Health Account) ---
 • ABHA is a free, unique 14-digit digital health ID issued by the Government of India.

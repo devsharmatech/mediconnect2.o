@@ -61,6 +61,28 @@ export async function GET(req, { params }) {
             ORDER BY unid ASC
         `;
 
+        // Fetch diagnostic reports uploaded for this order
+        const reports = await sql`
+            SELECT id, unid, order_id, lab_id, report_url, test_type, notes, result_summary, item_id, test_name, created_at
+            FROM lab_reports
+            WHERE order_id = ${id}
+            ORDER BY unid ASC
+        `;
+
+        // Attach reports per item
+        const itemsWithReports = items.map((it) => {
+            const itReports = reports.filter(
+                (r) => (r.item_id && r.item_id === it.id) || 
+                       (r.test_type && it.test_name && r.test_type.toLowerCase() === it.test_name.toLowerCase()) ||
+                       (r.test_name && it.test_name && r.test_name.toLowerCase() === it.test_name.toLowerCase())
+            );
+            return {
+                ...it,
+                reports: itReports,
+                has_report: itReports.length > 0
+            };
+        });
+
         // Fetch consents
         const consents = await sql`
             SELECT * FROM lab_order_consents
@@ -71,7 +93,8 @@ export async function GET(req, { params }) {
         const result = {
             ...order,
             order,
-            items,
+            items: itemsWithReports,
+            reports,
             consent: consents[0] || null,
         };
 

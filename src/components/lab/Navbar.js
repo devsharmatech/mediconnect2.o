@@ -55,6 +55,7 @@ const formatMessageText = (message) => {
 
 export default function LabNavbar({ onMenuClick, sidebarOpen }) {
   const [labName, setLabName] = useState("");
+  const [labLogo, setLabLogo] = useState(null);
   const [labId, setLabId] = useState(null);
   const [theme, setTheme] = useState("light");
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -202,6 +203,9 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
     const user = getLoggedInUser("lab");
     if (user) {
       setLabId(user.id);
+      const initialLogo = user.profile_picture || user.details?.logo_url || user.details?.profile_picture || null;
+      if (initialLogo) setLabLogo(initialLogo);
+
       (async () => {
         try {
           const nameRes = await fetch("/api/lab/my-name", {
@@ -210,8 +214,9 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
             body: JSON.stringify({ user_id: user.id }),
           });
           const nameData = await nameRes.json();
-          if (nameData.success && nameData.lab_name) {
-            setLabName(nameData.lab_name);
+          if (nameData.success) {
+            if (nameData.lab_name) setLabName(nameData.lab_name);
+            if (nameData.logo_url) setLabLogo(nameData.logo_url);
           } else {
             setLabName(user.details?.lab_name || user.details?.full_name || "Diagnostic Lab");
           }
@@ -298,6 +303,28 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
         >
           <Menu className="w-5 h-5" />
         </button>
+
+        <Link
+          href="/lab/dashboard"
+          className={`flex items-center gap-2.5 transition-opacity ${
+            sidebarOpen ? "lg:hidden" : "flex"
+          }`}
+        >
+          <div className="w-9 h-9 rounded-xl bg-white p-1 border border-slate-200 dark:border-slate-700 shadow-xs shrink-0 flex items-center justify-center overflow-hidden">
+            <img
+              src="/real-logo.png"
+              alt="MediConnect"
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <span className="font-bold text-sm text-[#0067A1] dark:text-sky-400 hidden sm:inline">
+            MediConnect
+          </span>
+        </Link>
+
+        {!sidebarOpen && (
+          <div className="hidden lg:block w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1" />
+        )}
 
         <div className="flex items-center gap-2">
           <h1 className="text-base sm:text-lg font-bold text-slate-800 dark:text-white tracking-tight">
@@ -429,15 +456,26 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
           )}
         </div>
 
-        {/* Profile Dropdown (Clean, No "Patient Mode") */}
+        {/* Profile Dropdown */}
         <div className="relative" ref={profileRef}>
           <button
             onClick={() => setProfileOpen(!profileOpen)}
-            className="flex items-center gap-2.5 p-1.5 sm:px-3 sm:py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 transition-all cursor-pointer shadow-xs"
+            className="flex items-center gap-2.5 p-1.5 sm:px-3 sm:py-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 transition-all cursor-pointer shadow-xs"
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#0067A1] to-[#0095E8] text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0">
-              {getInitials(labName)}
-            </div>
+            {labLogo ? (
+              <div className="w-8 h-8 rounded-md overflow-hidden bg-white border border-slate-200 dark:border-slate-700 shadow-xs shrink-0 p-0.5 flex items-center justify-center">
+                <img
+                  src={labLogo}
+                  alt={labName || "Lab"}
+                  className="w-full h-full object-contain"
+                  onError={() => setLabLogo(null)}
+                />
+              </div>
+            ) : (
+              <div className="w-8 h-8 rounded-md bg-gradient-to-tr from-[#0067A1] to-[#0095E8] text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0">
+                {getInitials(labName)}
+              </div>
+            )}
             <div className="hidden md:block text-left max-w-[130px] lg:max-w-[170px]">
               <p className="text-xs font-bold text-slate-800 dark:text-white truncate leading-tight">
                 {labName || "Diagnostic Lab"}
@@ -450,21 +488,36 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
           </button>
 
           {profileOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div className="p-3.5 border-b border-slate-100 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/50">
-                <p className="text-xs font-bold text-slate-800 dark:text-white truncate">
-                  {labName || "Diagnostic Lab"}
-                </p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  Laboratory Diagnostic Portal
-                </p>
+            <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="p-3.5 border-b border-slate-100 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/50 flex items-center gap-2.5">
+                {labLogo ? (
+                  <div className="w-9 h-9 rounded-md overflow-hidden bg-white border border-slate-200 dark:border-slate-700 shrink-0 p-0.5 flex items-center justify-center">
+                    <img
+                      src={labLogo}
+                      alt={labName || "Lab"}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-9 h-9 rounded-md bg-gradient-to-tr from-[#0067A1] to-[#0095E8] text-white font-bold text-xs flex items-center justify-center shrink-0">
+                    {getInitials(labName)}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-slate-800 dark:text-white truncate">
+                    {labName || "Diagnostic Lab"}
+                  </p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Laboratory Diagnostic Portal
+                  </p>
+                </div>
               </div>
 
               <div className="p-1.5 space-y-0.5">
                 <Link
                   href="/lab/profile"
                   onClick={() => setProfileOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
                 >
                   <Building2 size={16} className="text-[#0067A1]" />
                   <span>Lab Profile & Settings</span>
@@ -474,7 +527,7 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
 
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors w-full text-left cursor-pointer"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors w-full text-left cursor-pointer"
                 >
                   <LogOut size={16} className="text-rose-500" />
                   <span>Sign Out</span>

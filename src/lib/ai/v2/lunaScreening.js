@@ -61,7 +61,7 @@ export async function classifyMedical(text) {
 /** Ask ONE short follow-up question. */
 export async function firstQuestion(initialSymptoms) {
     const r = await run(
-        "Ask ONE short, clear, medically relevant follow-up question to understand the symptoms better. Do not diagnose or suggest medicines.",
+        "Ask strictly ONE short, simple follow-up question to understand the symptoms better. CRITICAL: Ask only ONE single direct question. NEVER combine multiple questions using 'and', 'or', 'also'. Do not ask compound questions. Do not diagnose or suggest medicines.",
         initialSymptoms, QUESTION_SCHEMA, CEIL.SYMPTOM_SCREENING
     );
     return guardQuestion(r);
@@ -75,7 +75,11 @@ export async function nextQuestion({ initialSymptoms, questions = [], answers = 
         ...answers.map((a, i) => `A${i + 1}: ${a.answer}`),
     ].join("\n");
     const r = await run(
-        "Ask ONE new short follow-up question. The patient may deny symptoms in any language (no, naa, nahi, kuch nahi, not really...). If a symptom was denied, do NOT repeat or rephrase it; move to a different symptom or medical factor. Do not diagnose or suggest medicines.",
+        "Ask strictly ONE new, short follow-up question. RULES:\n" +
+        "- Ask only ONE single direct question at a time. Never ask compound or multi-part questions (do not join questions with 'and', 'or', 'also').\n" +
+        "- Never repeat, rephrase, or re-ask questions or topics that were already asked or answered.\n" +
+        "- The patient may deny symptoms in any language (no, naa, nahi, kuch nahi, not really...). If a symptom was denied, do NOT repeat or rephrase it; move to a different symptom or medical factor.\n" +
+        "- Do not diagnose or suggest medicines.",
         convo, QUESTION_SCHEMA, CEIL.SYMPTOM_SCREENING
     );
     return guardQuestion(r);
@@ -93,7 +97,12 @@ function guardQuestion(r) {
 /** Is the answer meaningful for the question asked? */
 export async function validateAnswer({ question, answer }) {
     const r = await run(
-        "Decide whether the patient's answer is appropriate and meaningful for the medical question. If not, politely explain what kind of answer is expected in `message`. Do not diagnose.",
+        `Evaluate the patient's answer in a clinical intake / symptom screening context.
+RULES:
+1. Mark is_valid: true if the answer provides ANY useful symptom information, onset/duration, severity, feelings, affirmation/denial (yes, no, haa, nahi, sometimes, not really), uncertainty ("not sure", "don't know"), or mentions a new/related symptom. Even if it only answers part of a question or redirects to how they feel, mark is_valid: true.
+2. Mark is_valid: false ONLY if the message is complete nonsensical gibberish (e.g. keyboard smash "asdfghjkl", "purple monkey dishwasher") or purely unrelated spam (e.g. jokes, crypto, politics).
+3. If is_valid is false, politely ask for clarification in 1 short sentence in message.
+4. Do not diagnose.`,
         `QUESTION: ${question}\nANSWER: ${answer}`, VALIDATION_SCHEMA, 200
     );
     if (!r.ok) return r;

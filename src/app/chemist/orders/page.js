@@ -165,6 +165,7 @@ export default function ChemistOrdersPage() {
 
   // Withdrawal state
   const [withdrawingQuoteId, setWithdrawingQuoteId] = useState(null);
+  const [withdrawConfirmItem, setWithdrawConfirmItem] = useState(null);
 
   // Auth
   useEffect(() => {
@@ -248,6 +249,13 @@ export default function ChemistOrdersPage() {
   );
   const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
 
+  // ─── Safe Number Sanitizer ──────────────────────────────────────
+  const sanitizeNumber = (val, fallback = 0) => {
+    if (val === null || val === undefined || val === "") return fallback;
+    const num = Number(val);
+    return isNaN(num) ? fallback : num;
+  };
+
   // ─── Open Quote Creator Modal ───────────────────────────────────
   const handleOpenQuoteModal = (b) => {
     setQuoteModalBroadcast(b);
@@ -258,35 +266,87 @@ export default function ChemistOrdersPage() {
       items = [];
     }
 
-    if (items.length === 0) {
-      items = [{ name: "Prescribed Medications Pack", quantity: 1, dosage: "Complete Rx", price: 350, available: "yes" }];
-    } else {
-      items = items.map((m) => ({
-        name: typeof m === "string" ? m : (m.name || m.medicine_name || "Medicine"),
-        quantity: m.quantity || 1,
-        dosage: m.dosage || "",
-        price: m.price || 120,
+    // Check if chemist already submitted a quote for this broadcast
+    const prevQuote = b.submitted_quote || null;
+    let prevItems = [];
+    if (prevQuote?.items_breakdown) {
+      try {
+        prevItems = typeof prevQuote.items_breakdown === "string"
+          ? JSON.parse(prevQuote.items_breakdown)
+          : prevQuote.items_breakdown;
+      } catch {
+        prevItems = [];
+      }
+    } else if (b.items_breakdown) {
+      try {
+        prevItems = typeof b.items_breakdown === "string"
+          ? JSON.parse(b.items_breakdown)
+          : b.items_breakdown;
+      } catch {
+        prevItems = [];
+      }
+    }
+
+    if (items.length === 0 && (!prevItems || prevItems.length === 0)) {
+      const prevSub = prevQuote ? sanitizeNumber(prevQuote.medicine_subtotal || prevQuote.final_amount, 0) : 0;
+      items = [{
+        name: "Prescribed Medications Pack",
+        quantity: 1,
+        dosage: "Complete Rx",
+        price: prevSub > 0 ? prevSub : "",
         available: "yes",
-      }));
+      }];
+    } else {
+      items = items.map((m, idx) => {
+        const name = typeof m === "string" ? m : (m.name || m.medicine_name || "Medicine");
+        const prevMatch = Array.isArray(prevItems)
+          ? prevItems.find((p) => p.name === name) || prevItems[idx]
+          : null;
+
+        let priceVal = "";
+        if (prevMatch && prevMatch.price !== undefined && prevMatch.price !== null && !isNaN(Number(prevMatch.price))) {
+          priceVal = Number(prevMatch.price);
+        } else if (m.price !== undefined && m.price !== null && !isNaN(Number(m.price))) {
+          priceVal = Number(m.price);
+        }
+
+        return {
+          name,
+          quantity: m.quantity || 1,
+          dosage: m.dosage || "",
+          price: priceVal !== "" && Number(priceVal) > 0 ? Number(priceVal) : "",
+          available: "yes",
+        };
+      });
     }
 
     setQuoteMeds(items);
-    setQuoteDeliveryFee(0);
-    setQuoteDiscount(0);
-    setQuoteEta(25);
-    setQuoteNotes("");
+    setQuoteDeliveryFee(prevQuote ? sanitizeNumber(prevQuote.delivery_charge, 0) : 0);
+    setQuoteDiscount(prevQuote ? sanitizeNumber(prevQuote.discount, 0) : 0);
+    setQuoteEta(prevQuote ? (parseInt(prevQuote.delivery_time_minutes, 10) || 25) : (b.delivery_time_minutes || 25));
+    setQuoteNotes(prevQuote?.bid_notes || b.bid_notes || "");
   };
 
-  // Calculate quote totals
-  const subtotal = quoteMeds.reduce((acc, item) => acc + (Number(item.price || 0) * (item.quantity || 1)), 0);
-  const netAmount = Math.max(0, subtotal + Number(quoteDeliveryFee || 0) - Number(quoteDiscount || 0));
+  // Calculate quote totals with full safety against NaN
+  const subtotal = quoteMeds.reduce((acc, item) => acc + sanitizeNumber(item.price, 0), 0);
+  const netAmount = Math.max(0, subtotal + sanitizeNumber(quoteDeliveryFee, 0) - sanitizeNumber(quoteDiscount, 0));
 
   // ─── Submit Detailed Quote ───────────────────────────────────────
   const handleSubmitDetailedQuote = async () => {
     if (!quoteModalBroadcast || !chemist?.id) return;
 
+    if (netAmount <= 0) {
+      toast.error("Please enter item prices before submitting quotation");
+      return;
+    }
+
     try {
       setSubmittingQuote(true);
+      const cleanedMeds = quoteMeds.map((item) => ({
+        ...item,
+        price: sanitizeNumber(item.price, 0),
+      }));
+
       const res = await fetch("/api/chemists/order/submit-quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -295,18 +355,18 @@ export default function ChemistOrdersPage() {
           chemist_id: chemist.id,
           estimated_cost: netAmount,
           medicine_subtotal: subtotal,
-          delivery_charge: Number(quoteDeliveryFee || 0),
-          discount: Number(quoteDiscount || 0),
+          delivery_charge: sanitizeNumber(quoteDeliveryFee, 0),
+          discount: sanitizeNumber(quoteDiscount, 0),
           final_amount: netAmount,
-          delivery_time_minutes: parseInt(quoteEta || 30, 10),
-          items_breakdown: quoteMeds,
+          delivery_time_minutes: parseInt(quoteEta || 25, 10),
+          items_breakdown: cleanedMeds,
           bid_notes: quoteNotes.trim() || undefined,
         }),
       });
 
       const data = await res.json();
       if (data.success) {
-        toast.success(`Quotation of ₹${netAmount} submitted to patient!`);
+        toast.success(`Quotation of ₹${netAmount.toFixed(2)} submitted to patient!`);
         setQuoteModalBroadcast(null);
         await fetchBroadcasts();
       } else {
@@ -319,12 +379,12 @@ export default function ChemistOrdersPage() {
     }
   };
 
+
   // ─── Withdraw Submitted Quote ────────────────────────────────────
   const handleWithdrawQuote = async (broadcastId, quoteId) => {
-    if (!confirm("Are you sure you want to withdraw your quotation for this order?")) return;
-
     try {
       setWithdrawingQuoteId(broadcastId);
+      const tid = toast.loading("Withdrawing quotation from pool...");
       const res = await fetch("/api/chemists/order/withdraw-quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -335,6 +395,7 @@ export default function ChemistOrdersPage() {
         }),
       });
       const data = await res.json();
+      toast.dismiss(tid);
       if (data.success) {
         toast.success("Quotation withdrawn from the pool");
         await fetchBroadcasts();
@@ -435,60 +496,61 @@ export default function ChemistOrdersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/70 p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="space-y-6">
       <Toaster position="top-right" />
 
-      {/* Header Banner */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-xs font-bold mb-3">
-            <ClipboardList className="w-3.5 h-3.5" />
-            <span>Pharmacy Bidding & Order Management Portal</span>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-slate-200/80">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-lg bg-[#0067A1] text-white shrink-0 shadow-xs">
+            <ClipboardList className="w-5 h-5" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Chemist Bidding & Fulfillment Hub
-          </h1>
-          <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Quote for incoming patient orders, verify UPI payments with proof scrutiny, and manage step-by-step medicine fulfillment.
-          </p>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">
+              Medicine Orders
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+              Review live patient requests, quote prices, verify UPI proofs, and fulfill orders.
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto">
           <button
             onClick={() => {
               fetchBroadcasts();
               fetchOrders(pagination.currentPage);
             }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] transition-all text-xs font-bold shadow-sm cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium shadow-xs transition-colors cursor-pointer"
           >
-            <RefreshCw className="w-4 h-4" />
-            <span>Refresh Dashboard</span>
+            <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+            <span>Refresh</span>
           </button>
         </div>
       </div>
 
       {/* KPI Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Stat 1: Live Pool Requests */}
         <div
           onClick={() => setActiveTab("pool")}
-          className={`p-5 rounded-3xl border transition-all cursor-pointer ${
+          className={`p-4 sm:p-5 rounded-xl border bg-white transition-all cursor-pointer shadow-xs ${
             activeTab === "pool"
-              ? "bg-red-50/60 border-red-200 shadow-sm"
-              : "bg-white border-slate-200/80 hover:border-slate-300"
+              ? "border-[#0067A1] ring-1 ring-[#0067A1]/20"
+              : "border-slate-200/80 hover:border-slate-300"
           }`}
         >
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Live Pool Requests</p>
-              <p className="text-2xl font-black text-slate-900 mt-1">{broadcasts.length}</p>
-              <p className="text-[11px] text-red-500 font-bold mt-0.5 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+              <p className="text-xs font-medium text-slate-500">Live Pool Requests</p>
+              <p className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{broadcasts.length}</p>
+              <p className="text-xs text-rose-600 font-medium mt-1 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
                 Active Bidding Window
               </p>
             </div>
-            <div className="p-3 rounded-2xl bg-red-100 text-red-600">
-              <Radio className="w-5 h-5" />
+            <div className="p-2.5 rounded-lg bg-rose-50 text-rose-600 shrink-0">
+              <Radio className="w-4 h-4" />
             </div>
           </div>
         </div>
@@ -496,24 +558,24 @@ export default function ChemistOrdersPage() {
         {/* Stat 2: Payment Verification Queue */}
         <div
           onClick={() => setActiveTab("verification")}
-          className={`p-5 rounded-3xl border transition-all cursor-pointer ${
+          className={`p-4 sm:p-5 rounded-xl border bg-white transition-all cursor-pointer shadow-xs ${
             activeTab === "verification"
-              ? "bg-blue-50/60 border-blue-200 shadow-sm"
-              : "bg-white border-slate-200/80 hover:border-slate-300"
+              ? "border-[#0067A1] ring-1 ring-[#0067A1]/20"
+              : "border-slate-200/80 hover:border-slate-300"
           }`}
         >
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Payment Verification</p>
-              <p className="text-2xl font-black text-slate-900 mt-1">{verificationQueueOrders.length}</p>
-              <p className="text-[11px] text-blue-600 font-bold mt-0.5">
-                {verificationQueueOrders.length > 0 ? "Requires Bank UTR Check" : "Queue Clear"}
+              <p className="text-xs font-medium text-slate-500">Payment Verification</p>
+              <p className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{verificationQueueOrders.length}</p>
+              <p className="text-xs text-[#0067A1] font-medium mt-1">
+                {verificationQueueOrders.length > 0 ? "Requires UTR Check" : "Queue Clear"}
               </p>
             </div>
-            <div className="p-3 rounded-2xl bg-blue-100 text-blue-600 relative">
-              <CreditCard className="w-5 h-5" />
+            <div className="p-2.5 rounded-lg bg-blue-50 text-[#0067A1] shrink-0 relative">
+              <CreditCard className="w-4 h-4" />
               {verificationQueueOrders.length > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center animate-bounce">
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0067A1] text-white text-[9px] font-semibold flex items-center justify-center">
                   {verificationQueueOrders.length}
                 </span>
               )}
@@ -524,20 +586,20 @@ export default function ChemistOrdersPage() {
         {/* Stat 3: Active Orders */}
         <div
           onClick={() => setActiveTab("active")}
-          className={`p-5 rounded-3xl border transition-all cursor-pointer ${
+          className={`p-4 sm:p-5 rounded-xl border bg-white transition-all cursor-pointer shadow-xs ${
             activeTab === "active"
-              ? "bg-indigo-50/60 border-indigo-200 shadow-sm"
-              : "bg-white border-slate-200/80 hover:border-slate-300"
+              ? "border-[#0067A1] ring-1 ring-[#0067A1]/20"
+              : "border-slate-200/80 hover:border-slate-300"
           }`}
         >
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Fulfillment</p>
-              <p className="text-2xl font-black text-slate-900 mt-1">{activeProcessingOrders.length}</p>
-              <p className="text-[11px] text-indigo-600 font-bold mt-0.5">Packing & Dispatch</p>
+              <p className="text-xs font-medium text-slate-500">Active Fulfillment</p>
+              <p className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">{activeProcessingOrders.length}</p>
+              <p className="text-xs text-indigo-600 font-medium mt-1">Packing & Dispatch</p>
             </div>
-            <div className="p-3 rounded-2xl bg-indigo-100 text-indigo-600">
-              <PackageCheck className="w-5 h-5" />
+            <div className="p-2.5 rounded-lg bg-indigo-50 text-indigo-600 shrink-0">
+              <PackageCheck className="w-4 h-4" />
             </div>
           </div>
         </div>
@@ -545,89 +607,93 @@ export default function ChemistOrdersPage() {
         {/* Stat 4: Revenue */}
         <div
           onClick={() => setActiveTab("all")}
-          className={`p-5 rounded-3xl border transition-all cursor-pointer ${
+          className={`p-4 sm:p-5 rounded-xl border bg-white transition-all cursor-pointer shadow-xs ${
             activeTab === "all"
-              ? "bg-emerald-50/60 border-emerald-200 shadow-sm"
-              : "bg-white border-slate-200/80 hover:border-slate-300"
+              ? "border-[#0067A1] ring-1 ring-[#0067A1]/20"
+              : "border-slate-200/80 hover:border-slate-300"
           }`}
         >
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Completed Orders</p>
-              <p className="text-2xl font-black text-slate-900 mt-1">₹{totalRevenue.toLocaleString()}</p>
-              <p className="text-[11px] text-emerald-600 font-bold mt-0.5">{completedOrders.length} Delivered</p>
+              <p className="text-xs font-medium text-slate-500">Completed Orders</p>
+              <p className="text-xl sm:text-2xl font-semibold text-slate-900 mt-1">₹{totalRevenue.toLocaleString("en-IN")}</p>
+              <p className="text-xs text-emerald-600 font-medium mt-1">{completedOrders.length} Delivered</p>
             </div>
-            <div className="p-3 rounded-2xl bg-emerald-100 text-emerald-600">
-              <IndianRupee className="w-5 h-5" />
+            <div className="p-2.5 rounded-lg bg-emerald-50 text-emerald-600 shrink-0">
+              <IndianRupee className="w-4 h-4" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Tab Navigation Buttons */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab("pool")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === "pool"
-              ? "bg-[#0067A1] text-white shadow-sm"
-              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
-          }`}
-        >
-          <Radio className="w-3.5 h-3.5" />
-          <span>Live Bidding Pool</span>
-          {broadcasts.length > 0 && (
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${activeTab === "pool" ? "bg-white/20 text-white" : "bg-red-100 text-red-700"}`}>
-              {broadcasts.length}
-            </span>
-          )}
-        </button>
+      {/* Tab Navigation */}
+      <div className="border-b border-slate-200">
+        <nav className="flex items-center gap-6 overflow-x-auto scrollbar-none" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab("pool")}
+            className={`flex items-center gap-2 py-3 border-b-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
+              activeTab === "pool"
+                ? "border-[#0067A1] text-[#0067A1] font-semibold"
+                : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+            }`}
+          >
+            <Radio className="w-3.5 h-3.5" />
+            <span>Live Bidding Pool</span>
+            {broadcasts.length > 0 && (
+              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                activeTab === "pool" ? "bg-[#0067A1]/10 text-[#0067A1]" : "bg-rose-50 text-rose-600"
+              }`}>
+                {broadcasts.length}
+              </span>
+            )}
+          </button>
 
-        <button
-          onClick={() => setActiveTab("verification")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === "verification"
-              ? "bg-[#0067A1] text-white shadow-sm"
-              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
-          }`}
-        >
-          <CreditCard className="w-3.5 h-3.5" />
-          <span>Payment Verification Queue</span>
-          {verificationQueueOrders.length > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full bg-blue-500 text-white text-[10px] font-bold">
-              {verificationQueueOrders.length}
-            </span>
-          )}
-        </button>
+          <button
+            onClick={() => setActiveTab("verification")}
+            className={`flex items-center gap-2 py-3 border-b-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
+              activeTab === "verification"
+                ? "border-[#0067A1] text-[#0067A1] font-semibold"
+                : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+            }`}
+          >
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>Payment Verification</span>
+            {verificationQueueOrders.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-blue-100 text-[#0067A1] text-xs font-medium">
+                {verificationQueueOrders.length}
+              </span>
+            )}
+          </button>
 
-        <button
-          onClick={() => setActiveTab("active")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === "active"
-              ? "bg-[#0067A1] text-white shadow-sm"
-              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
-          }`}
-        >
-          <PackageCheck className="w-3.5 h-3.5" />
-          <span>Active Orders & Dispatch</span>
-          {activeProcessingOrders.length > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold">
-              {activeProcessingOrders.length}
-            </span>
-          )}
-        </button>
+          <button
+            onClick={() => setActiveTab("active")}
+            className={`flex items-center gap-2 py-3 border-b-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
+              activeTab === "active"
+                ? "border-[#0067A1] text-[#0067A1] font-semibold"
+                : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+            }`}
+          >
+            <PackageCheck className="w-3.5 h-3.5" />
+            <span>Active Orders</span>
+            {activeProcessingOrders.length > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-medium">
+                {activeProcessingOrders.length}
+              </span>
+            )}
+          </button>
 
-        <button
-          onClick={() => setActiveTab("all")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === "all"
-              ? "bg-[#0067A1] text-white shadow-sm"
-              : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
-          }`}
-        >
-          <ClipboardList className="w-3.5 h-3.5" />
-          <span>All Orders & History</span>
-        </button>
+          <button
+            onClick={() => setActiveTab("all")}
+            className={`flex items-center gap-2 py-3 border-b-2 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
+              activeTab === "all"
+                ? "border-[#0067A1] text-[#0067A1] font-semibold"
+                : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+            }`}
+          >
+            <ClipboardList className="w-3.5 h-3.5" />
+            <span>All Orders & History</span>
+          </button>
+        </nav>
       </div>
 
       {/* ========================================================================= */}
@@ -637,32 +703,32 @@ export default function ChemistOrdersPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Active Patient Medicine Requests</h2>
-              <p className="text-xs text-slate-500">
-                Review prescribed items, check inventory, and submit competitive price quotes with delivery SLA.
+              <h2 className="text-sm font-semibold text-slate-900">Active Patient Medicine Requests</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Review prescribed items, check stock, and submit price quotes with delivery SLA.
               </p>
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-400">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Real-time polling active</span>
+              <span>Live polling</span>
             </div>
           </div>
 
           {broadcastsLoading && broadcasts.length === 0 ? (
-            <div className="bg-white rounded-3xl p-16 text-center border border-slate-200 shadow-sm space-y-3">
-              <Loader2 className="w-8 h-8 text-[#0067A1] animate-spin mx-auto" />
-              <p className="text-xs text-slate-500">Listening for patient medicine requests in your delivery zone...</p>
+            <div className="bg-white rounded-xl p-12 text-center border border-slate-200 shadow-xs space-y-3">
+              <Loader2 className="w-6 h-6 text-[#0067A1] animate-spin mx-auto" />
+              <p className="text-xs text-slate-500">Checking for patient medicine requests in your area...</p>
             </div>
           ) : broadcasts.length === 0 ? (
-            <div className="bg-white rounded-3xl p-16 text-center border border-dashed border-slate-200 shadow-sm space-y-3">
-              <Radio className="w-10 h-10 text-slate-300 mx-auto" />
-              <h3 className="text-sm font-bold text-slate-800">No Patient Requests in Pool</h3>
+            <div className="bg-white rounded-xl p-12 text-center border border-dashed border-slate-200 shadow-xs space-y-2">
+              <Radio className="w-8 h-8 text-slate-300 mx-auto" />
+              <h3 className="text-sm font-semibold text-slate-800">No Patient Requests in Pool</h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                When patients in your locality broadcast a medicine order request, it will appear here instantly.
+                When patients in your locality request medicines, they will appear here in real time.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {broadcasts.map((b) => {
                 let parsedMeds = [];
                 try {
@@ -674,26 +740,26 @@ export default function ChemistOrdersPage() {
                 return (
                   <div
                     key={b.id}
-                    className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm hover:border-[#0067A1]/40 transition-all flex flex-col justify-between"
+                    className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between"
                   >
                     <div>
                       {/* Header with Urgency Timer */}
                       <div className="flex items-start justify-between gap-2 mb-3">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-black uppercase tracking-wider">
-                          <Radio className="w-3 h-3 animate-ping" />
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-xs font-medium border border-rose-100">
+                          <Radio className="w-3 h-3 text-rose-500 animate-pulse" />
                           <span>Live Request</span>
                         </span>
 
-                        <span className="inline-flex items-center gap-1 text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg">
+                        <span className="inline-flex items-center gap-1 text-xs font-mono font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
                           <Clock className="w-3 h-3 text-slate-400" />
                           <span>{b.seconds_remaining ? `${Math.floor(b.seconds_remaining / 60)}m ${b.seconds_remaining % 60}s` : "Open"}</span>
                         </span>
                       </div>
 
                       {/* Locality (DPDP Shielded) */}
-                      <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 mb-3 space-y-1">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Delivery Zone</p>
-                        <p className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100 mb-3 space-y-1">
+                        <p className="text-[11px] font-medium text-slate-500">Delivery Zone</p>
+                        <p className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                           <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
                           <span className="truncate">{b.delivery_address || "Local Delivery Area"}</span>
                         </p>
@@ -701,17 +767,17 @@ export default function ChemistOrdersPage() {
 
                       {/* Prescribed Items List */}
                       <div className="space-y-1.5 mb-4">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        <p className="text-[11px] font-medium text-slate-500">
                           Prescribed Medicines ({parsedMeds.length || 1})
                         </p>
-                        <div className="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden max-h-36 overflow-y-auto">
+                        <div className="divide-y divide-slate-100 border border-slate-200/80 rounded-lg overflow-hidden max-h-36 overflow-y-auto">
                           {parsedMeds.length > 0 ? (
                             parsedMeds.map((med, idx) => (
                               <div key={idx} className="p-2 text-xs flex items-center justify-between bg-white">
-                                <span className="font-semibold text-slate-800 truncate max-w-[160px]">
+                                <span className="font-medium text-slate-800 truncate max-w-[160px]">
                                   {typeof med === "string" ? med : med.name}
                                 </span>
-                                <span className="text-[11px] text-slate-500 font-bold">
+                                <span className="text-xs text-slate-500 font-medium">
                                   Qty: {med.quantity || 1}
                                 </span>
                               </div>
@@ -727,12 +793,12 @@ export default function ChemistOrdersPage() {
                     <div className="pt-3 border-t border-slate-100">
                       {b.already_quoted ? (
                         <div className="space-y-2">
-                          <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-center">
-                            <span className="text-xs font-bold text-emerald-800 flex items-center justify-center gap-1">
-                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-center">
+                            <span className="text-xs font-semibold text-emerald-800 flex items-center justify-center gap-1">
+                              <Check className="w-3.5 h-3.5" />
                               <span>Quote Submitted: ₹{b.quote_amount}</span>
                             </span>
-                            <span className="text-[10px] text-emerald-600 block mt-0.5">
+                            <span className="text-[11px] text-emerald-600 block mt-0.5">
                               ETA: {b.delivery_time_minutes || 30} mins &bull; Awaiting Patient Selection
                             </span>
                           </div>
@@ -741,15 +807,15 @@ export default function ChemistOrdersPage() {
                             <button
                               type="button"
                               onClick={() => handleOpenQuoteModal(b)}
-                              className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                              className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
                             >
                               Edit Offer
                             </button>
                             <button
                               type="button"
                               disabled={withdrawingQuoteId === b.id}
-                              onClick={() => handleWithdrawQuote(b.id, b.quote_id)}
-                              className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                              onClick={() => setWithdrawConfirmItem(b)}
+                              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-medium rounded-lg text-xs transition-colors cursor-pointer"
                               title="Withdraw Quote"
                             >
                               Withdraw
@@ -760,7 +826,7 @@ export default function ChemistOrdersPage() {
                         <button
                           type="button"
                           onClick={() => handleOpenQuoteModal(b)}
-                          className="w-full py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="w-full py-2.5 bg-[#0067A1] hover:bg-[#005485] text-white rounded-lg text-xs font-medium transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Pill className="w-3.5 h-3.5" />
                           <span>Create & Submit Quotation</span>
@@ -782,48 +848,48 @@ export default function ChemistOrdersPage() {
       {activeTab === "verification" && (
         <div className="space-y-4">
           <div>
-            <h2 className="text-base font-bold text-slate-900">Payment Verification Queue</h2>
-            <p className="text-xs text-slate-500">
-              Patients have declared UPI payments and uploaded receipts. Scrutinize UTR numbers against your bank credit before approving.
+            <h2 className="text-sm font-semibold text-slate-900">Payment Verification Queue</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Verify UTR numbers and receipt uploads against your bank statement before approving fulfillment.
             </p>
           </div>
 
           {verificationQueueOrders.length === 0 ? (
-            <div className="bg-white rounded-3xl p-16 text-center border border-dashed border-slate-200 shadow-sm space-y-3">
-              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto" />
-              <h3 className="text-sm font-bold text-slate-800">Verification Queue is Clear</h3>
+            <div className="bg-white rounded-xl p-12 text-center border border-dashed border-slate-200 shadow-xs space-y-2">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+              <h3 className="text-sm font-semibold text-slate-800">Verification Queue is Clear</h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                No orders currently waiting for payment proof review. When patients submit UTR details, they will appear here.
+                No orders currently waiting for payment verification. New submissions will appear here.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {verificationQueueOrders.map((order) => (
                 <div
                   key={order.id}
-                  className="bg-white rounded-3xl p-5 border-2 border-blue-200 shadow-sm flex flex-col justify-between space-y-4"
+                  className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col justify-between space-y-4"
                 >
                   <div className="space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
-                        <span className="font-extrabold text-sm text-slate-900">
+                        <span className="font-semibold text-sm text-slate-900">
                           #{order.unid || order.id.slice(0, 8).toUpperCase()}
                         </span>
-                        <p className="text-xs font-semibold text-slate-600 mt-0.5">
+                        <p className="text-xs text-slate-500 mt-0.5">
                           {order.patient_name || "Patient"}
                         </p>
                       </div>
-                      <span className="text-base font-black text-[#0067A1]">
+                      <span className="text-sm font-semibold text-[#0067A1]">
                         ₹{order.total_amount}
                       </span>
                     </div>
 
-                    {/* UTR Pill */}
-                    <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-200/80 space-y-1">
-                      <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">
+                    {/* UTR Box */}
+                    <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100 space-y-1">
+                      <p className="text-[11px] font-medium text-blue-700">
                         Patient Submitted UTR / Ref No.
                       </p>
-                      <p className="text-sm font-mono font-black text-blue-900 select-all">
+                      <p className="text-xs font-mono font-semibold text-blue-900 select-all">
                         {order.utr_number || "Not provided"}
                       </p>
                     </div>
@@ -835,20 +901,20 @@ export default function ChemistOrdersPage() {
                           setProofModalOrder(order);
                           setZoomLevel(1);
                         }}
-                        className="relative rounded-2xl overflow-hidden border border-slate-200 aspect-video bg-slate-100 group cursor-pointer"
+                        className="relative rounded-lg overflow-hidden border border-slate-200 aspect-video bg-slate-100 group cursor-pointer"
                       >
                         <img
                           src={order.payment_proof_url}
                           alt="Payment Receipt"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                         />
-                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1.5">
+                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-medium gap-1.5">
                           <Eye className="w-4 h-4" />
                           <span>Inspect Full Screenshot</span>
                         </div>
                       </div>
                     ) : (
-                      <div className="p-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center text-xs text-slate-400">
+                      <div className="p-4 bg-slate-50 rounded-lg border border-dashed border-slate-200 text-center text-xs text-slate-400">
                         No screenshot image attached
                       </div>
                     )}
@@ -859,7 +925,7 @@ export default function ChemistOrdersPage() {
                     <button
                       type="button"
                       onClick={() => setRejectModalOrder(order)}
-                      className="flex-1 py-2.5 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                      className="flex-1 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
                     >
                       Reject Proof
                     </button>
@@ -867,9 +933,9 @@ export default function ChemistOrdersPage() {
                       type="button"
                       disabled={verifyingPayment}
                       onClick={() => handleApprovePayment(order.id)}
-                      className="flex-[1.5] py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer disabled:bg-slate-300"
+                      className="flex-[1.5] py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-xs transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:bg-slate-300"
                     >
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      <Check className="w-3.5 h-3.5" />
                       <span>Verify & Release</span>
                     </button>
                   </div>
@@ -884,142 +950,192 @@ export default function ChemistOrdersPage() {
       {/* TAB 3 & 4: ACTIVE & ALL ORDERS TABLE                                      */}
       {/* ========================================================================= */}
       {["active", "all"].includes(activeTab) && (
-        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden space-y-0">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
           {/* Search & Filter Bar */}
-          <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
-            <div className="relative flex-1 max-w-md w-full">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <div className="p-3.5 sm:p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search order ID, patient name..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0067A1]"
+                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50/80 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all"
               />
             </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1]"
+              >
+                <option value="all">All Statuses</option>
+                <option value="approved">Confirmed</option>
+                <option value="packing">Packing</option>
+                <option value="ready_for_dispatch">Ready for Dispatch</option>
+                <option value="out_for_delivery">Out for Delivery</option>
+                <option value="delivered">Delivered</option>
+              </select>
+            </div>
           </div>
 
-          {/* Table Header */}
-          <div className="px-5 py-3 bg-slate-50/70 grid grid-cols-[1.5fr_1.5fr_1fr_1.5fr_1fr_auto] gap-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-            <span>Order ID</span>
-            <span>Patient & Address</span>
-            <span>Items</span>
-            <span>Status</span>
-            <span>Total</span>
-            <span>Fulfillment Action</span>
+          {/* Semantic Responsive Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[760px]">
+              <thead className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <tr>
+                  <th className="py-3 px-4">Order ID</th>
+                  <th className="py-3 px-4">Patient & Delivery Area</th>
+                  <th className="py-3 px-4">Items</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Total</th>
+                  <th className="py-3 px-4 text-right">Fulfillment Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs">
+                {loadingOrders && orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <Loader2 className="w-6 h-6 text-[#0067A1] animate-spin mx-auto mb-2" />
+                      <p className="text-xs">Loading orders...</p>
+                    </td>
+                  </tr>
+                ) : orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-slate-400 space-y-1">
+                      <ClipboardList className="w-6 h-6 text-slate-300 mx-auto" />
+                      <p className="text-xs font-medium text-slate-600">No orders match this filter</p>
+                    </td>
+                  </tr>
+                ) : (
+                  orders
+                    .filter((o) => {
+                      if (activeTab === "active") {
+                        return ["approved", "packing", "ready_for_dispatch", "out_for_delivery"].includes(o.status);
+                      }
+                      return true;
+                    })
+                    .map((order) => (
+                      <tr key={order.id} className="hover:bg-slate-50/60 transition-colors">
+                        {/* Order ID */}
+                        <td className="py-3.5 px-4 align-middle">
+                          <p className="font-semibold text-slate-900">
+                            #{order.unid || order.id.slice(0, 8).toUpperCase()}
+                          </p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {new Date(order.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
+                          </p>
+                        </td>
+
+                        {/* Patient & Address */}
+                        <td className="py-3.5 px-4 align-middle">
+                          <p className="font-medium text-slate-800">
+                            {order.patient_name || "Patient"}
+                          </p>
+                          <p className="text-[11px] text-slate-500 truncate max-w-xs mt-0.5">
+                            {order.display_delivery_address || order.raw_patient_address || "Shielded locality"}
+                          </p>
+                        </td>
+
+                        {/* Items */}
+                        <td className="py-3.5 px-4 align-middle">
+                          <div className="font-medium text-slate-700 flex items-center gap-1.5">
+                            <Pill className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                            <span>{order.medicine_order_items?.length || 1} items</span>
+                          </div>
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3.5 px-4 align-middle">
+                          <StatusBadge status={order.status} />
+                        </td>
+
+                        {/* Amount */}
+                        <td className="py-3.5 px-4 align-middle font-semibold text-slate-900">
+                          ₹{order.total_amount || 0}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="py-3.5 px-4 align-middle text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {order.status === "approved" && (
+                              <button
+                                type="button"
+                                onClick={() => handleAdvanceOrderStatus(order, "packing")}
+                                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
+                              >
+                                Start Packing
+                              </button>
+                            )}
+                            {order.status === "packing" && (
+                              <button
+                                type="button"
+                                onClick={() => handleAdvanceOrderStatus(order, "ready_for_dispatch")}
+                                className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
+                              >
+                                Ready to Dispatch
+                              </button>
+                            )}
+                            {order.status === "ready_for_dispatch" && (
+                              <button
+                                type="button"
+                                onClick={() => handleAdvanceOrderStatus(order, "out_for_delivery")}
+                                className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
+                              >
+                                Out for Delivery
+                              </button>
+                            )}
+                            {order.status === "out_for_delivery" && (
+                              <button
+                                type="button"
+                                onClick={() => handleAdvanceOrderStatus(order, "delivered")}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-xs transition-colors shadow-xs cursor-pointer"
+                              >
+                                Mark Delivered
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/chemist/orders/${order.id}`)}
+                              className="p-1.5 text-slate-400 hover:text-[#0067A1] hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                              title="View Full Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
           </div>
 
-          {/* Orders Rows */}
-          {loadingOrders && orders.length === 0 ? (
-            <div className="py-16 text-center text-slate-400">
-              <Loader2 className="w-8 h-8 text-[#0067A1] animate-spin mx-auto mb-2" />
-              <p className="text-xs">Loading orders...</p>
-            </div>
-          ) : orders.length === 0 ? (
-            <div className="py-16 text-center text-slate-400 space-y-1">
-              <ClipboardList className="w-8 h-8 text-slate-300 mx-auto" />
-              <p className="text-xs font-bold text-slate-700">No orders match this filter</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {orders
-                .filter((o) => {
-                  if (activeTab === "active") {
-                    return ["approved", "packing", "ready_for_dispatch", "out_for_delivery"].includes(o.status);
-                  }
-                  return true;
-                })
-                .map((order) => (
-                  <div
-                    key={order.id}
-                    className="px-5 py-4 grid grid-cols-[1.5fr_1.5fr_1fr_1.5fr_1fr_auto] gap-4 items-center hover:bg-slate-50/60 transition-colors"
-                  >
-                    {/* Order ID */}
-                    <div>
-                      <p className="text-xs font-extrabold text-slate-900">
-                        #{order.unid || order.id.slice(0, 8).toUpperCase()}
-                      </p>
-                      <p className="text-[10px] text-slate-400">
-                        {new Date(order.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
-                      </p>
-                    </div>
-
-                    {/* Patient & Address */}
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">
-                        {order.patient_name || "Patient"}
-                      </p>
-                      <p className="text-[11px] text-slate-500 truncate max-w-xs">
-                        {order.display_delivery_address || order.raw_patient_address || "Shielded locality"}
-                      </p>
-                    </div>
-
-                    {/* Items */}
-                    <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                      <Pill className="w-3.5 h-3.5 text-purple-600" />
-                      <span>{order.medicine_order_items?.length || 1} items</span>
-                    </div>
-
-                    {/* Status */}
-                    <div>
-                      <StatusBadge status={order.status} />
-                    </div>
-
-                    {/* Amount */}
-                    <div className="text-xs font-black text-slate-900">
-                      ₹{order.total_amount || 0}
-                    </div>
-
-                    {/* Quick Step Buttons */}
-                    <div className="flex items-center gap-2">
-                      {order.status === "approved" && (
-                        <button
-                          type="button"
-                          onClick={() => handleAdvanceOrderStatus(order, "packing")}
-                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
-                        >
-                          Start Packing
-                        </button>
-                      )}
-                      {order.status === "packing" && (
-                        <button
-                          type="button"
-                          onClick={() => handleAdvanceOrderStatus(order, "ready_for_dispatch")}
-                          className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
-                        >
-                          Ready to Dispatch
-                        </button>
-                      )}
-                      {order.status === "ready_for_dispatch" && (
-                        <button
-                          type="button"
-                          onClick={() => handleAdvanceOrderStatus(order, "out_for_delivery")}
-                          className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
-                        >
-                          Out for Delivery
-                        </button>
-                      )}
-                      {order.status === "out_for_delivery" && (
-                        <button
-                          type="button"
-                          onClick={() => handleAdvanceOrderStatus(order, "delivered")}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm cursor-pointer"
-                        >
-                          Mark Delivered
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/chemist/orders/${order.id}`)}
-                        className="p-2 text-slate-400 hover:text-[#0067A1] hover:bg-white rounded-xl transition-colors cursor-pointer"
-                        title="View Full Details"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+          {/* Table Footer with Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="p-3.5 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs text-slate-500">
+              <span>
+                Page {pagination.currentPage} of {pagination.totalPages} ({pagination.totalItems} orders)
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={!pagination.hasPrevPage}
+                  onClick={() => fetchOrders(pagination.currentPage - 1)}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 font-medium cursor-pointer"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={!pagination.hasNextPage}
+                  onClick={() => fetchOrders(pagination.currentPage + 1)}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 font-medium cursor-pointer"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -1029,109 +1145,150 @@ export default function ChemistOrdersPage() {
       {/* MODAL 1: DETAILED QUOTATION CREATOR MODAL                                */}
       {/* ========================================================================= */}
       {quoteModalBroadcast && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-xl w-full border border-slate-200 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 className="font-bold text-slate-900 text-base">Submit Pharmacy Quotation</h3>
-                <p className="text-xs text-slate-500">Provide item-wise prices and delivery turnaround SLA.</p>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full h-[100dvh] sm:h-auto sm:max-h-[92vh] sm:max-w-xl sm:rounded-2xl border-0 sm:border border-slate-200 shadow-2xl flex flex-col overflow-hidden animate-in fade-in duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0 bg-white">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-[#0067A1]/10 text-[#0067A1] flex items-center justify-center shrink-0">
+                  <Pill className="w-5 h-5 -rotate-45" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base">Submit Pharmacy Quotation</h3>
+                  <p className="text-xs text-slate-500">Provide item-wise prices and delivery turnaround SLA.</p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setQuoteModalBroadcast(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg"
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Medicines Pricing List */}
-            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Item Availability & Price</p>
-              {quoteMeds.map((med, idx) => (
-                <div key={idx} className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3 text-xs">
-                  <div className="flex-1">
-                    <p className="font-bold text-slate-800">{med.name}</p>
-                    <span className="text-[10px] text-slate-400">Qty: {med.quantity} &bull; {med.dosage || "Standard"}</span>
-                  </div>
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5">
+              {/* Medicines Pricing List */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Item Availability & Price</p>
+                  <span className="text-[11px] text-slate-400">{quoteMeds.length} items</span>
+                </div>
+                <div className="space-y-2">
+                  {quoteMeds.map((med, idx) => (
+                    <div key={idx} className="p-3 sm:p-3.5 bg-slate-50/70 hover:bg-slate-50 rounded-xl border border-slate-200/70 flex items-center justify-between gap-3 text-xs transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-800 truncate">{med.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5 text-slate-500">
+                          <span className="inline-block px-1.5 py-0.5 rounded bg-slate-200/60 text-[10px] font-semibold text-slate-700">
+                            Qty: {med.quantity}
+                          </span>
+                          {med.dosage && (
+                            <span className="text-[11px] text-slate-500 truncate">• {med.dosage}</span>
+                          )}
+                        </div>
+                      </div>
 
-                  <div className="flex items-center gap-2">
-                    <div className="relative w-24">
-                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={med.price}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
-                          setQuoteMeds((prev) =>
-                            prev.map((item, i) => (i === idx ? { ...item, price: val } : item))
-                          );
-                        }}
-                        className="w-full pl-6 pr-2 py-1.5 text-xs font-bold bg-white border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0067A1]"
-                      />
+                      <div className="relative w-28 shrink-0">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-xs">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="0"
+                          value={med.price ?? ""}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            setQuoteMeds((prev) =>
+                              prev.map((item, i) => (i === idx ? { ...item, price: raw === "" ? "" : (parseFloat(raw) || 0) } : item))
+                            );
+                          }}
+                          className="w-full pl-6 pr-2.5 py-1.5 text-xs sm:text-sm font-semibold bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] transition-all"
+                        />
+                      </div>
                     </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Charges and ETA */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-200/70">
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-1">Delivery Fee (₹)</label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-xs">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={quoteDeliveryFee ?? ""}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setQuoteDeliveryFee(raw === "" ? "" : (parseFloat(raw) || 0));
+                      }}
+                      className="w-full pl-6 pr-2.5 py-1.5 text-xs sm:text-sm font-semibold rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] transition-all"
+                    />
                   </div>
                 </div>
-              ))}
-            </div>
 
-            {/* Charges and ETA */}
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">Delivery Charge</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={quoteDeliveryFee}
-                  onChange={(e) => setQuoteDeliveryFee(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 bg-slate-50 text-slate-800"
-                />
+                <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-200/70">
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-1">Discount (₹)</label>
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-xs">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={quoteDiscount ?? ""}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setQuoteDiscount(raw === "" ? "" : (parseFloat(raw) || 0));
+                      }}
+                      className="w-full pl-6 pr-2.5 py-1.5 text-xs sm:text-sm font-semibold rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-200/70">
+                  <label className="text-[11px] font-semibold text-slate-600 block mb-1">Delivery ETA (Mins)</label>
+                  <input
+                    type="number"
+                    min="5"
+                    value={quoteEta}
+                    onChange={(e) => setQuoteEta(parseInt(e.target.value, 10) || 25)}
+                    className="w-full px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] transition-all"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">Discount (₹)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={quoteDiscount}
-                  onChange={(e) => setQuoteDiscount(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 bg-slate-50 text-slate-800"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-slate-600 block mb-1">ETA (Mins)</label>
-                <input
-                  type="number"
-                  min="5"
-                  value={quoteEta}
-                  onChange={(e) => setQuoteEta(parseInt(e.target.value, 10) || 30)}
-                  className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 bg-slate-50 text-slate-800"
-                />
+              {/* Total Net Calculation */}
+              <div className="p-3.5 sm:p-4 bg-gradient-to-r from-sky-50/80 via-slate-50/70 to-blue-50/80 rounded-xl border border-sky-100 flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 block">Total Net Amount to Patient:</span>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    Subtotal: ₹{subtotal.toFixed(2)} + Delivery: ₹{sanitizeNumber(quoteDeliveryFee, 0).toFixed(2)} - Discount: ₹{sanitizeNumber(quoteDiscount, 0).toFixed(2)}
+                  </span>
+                </div>
+                <span className="text-base sm:text-lg font-extrabold text-[#0067A1]">
+                  ₹{netAmount.toFixed(2)}
+                </span>
               </div>
             </div>
 
-            {/* Total Net Calculation */}
-            <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-200 flex items-center justify-between text-xs">
-              <span className="font-bold text-slate-700">Total Net Amount to Patient:</span>
-              <span className="text-base font-black text-[#0067A1]">₹{netAmount.toFixed(2)}</span>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3 pt-2">
+            {/* Action Buttons Sticky Footer */}
+            <div className="p-3.5 sm:p-4 border-t border-slate-100 bg-slate-50/80 shrink-0 flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setQuoteModalBroadcast(null)}
-                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                className="flex-1 py-2.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold rounded-lg text-xs sm:text-sm transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={submittingQuote}
+                disabled={submittingQuote || netAmount <= 0}
                 onClick={handleSubmitDetailedQuote}
-                className="flex-[1.5] py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:bg-slate-300"
+                className="flex-[1.5] py-2.5 bg-[#0067A1] hover:bg-[#005485] text-white font-semibold rounded-lg text-xs sm:text-sm transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:bg-slate-300 disabled:cursor-not-allowed"
               >
                 {submittingQuote ? (
                   <>
@@ -1141,7 +1298,7 @@ export default function ChemistOrdersPage() {
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    <span>Send Quote to Patient (₹{netAmount.toFixed(2)})</span>
+                    <span>Send Quote (₹{netAmount.toFixed(2)})</span>
                   </>
                 )}
               </button>
@@ -1154,21 +1311,21 @@ export default function ChemistOrdersPage() {
       {/* MODAL 2: HIGH-RESOLUTION ZOOMABLE PAYMENT PROOF VIEWER                   */}
       {/* ========================================================================= */}
       {proofModalOrder && (
-        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full border border-slate-200 shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-slate-900 text-sm">
-                  Scrutinize Payment Proof &bull; Order #{proofModalOrder.unid || proofModalOrder.id.slice(0, 8).toUpperCase()}
+                <h3 className="font-semibold text-slate-900 text-sm">
+                  Payment Proof &bull; Order #{proofModalOrder.unid || proofModalOrder.id.slice(0, 8).toUpperCase()}
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Amount: <strong className="text-slate-800">₹{proofModalOrder.total_amount}</strong> &bull; UTR: <strong className="text-[#0067A1] font-mono">{proofModalOrder.utr_number}</strong>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Amount: <strong className="text-slate-800 font-semibold">₹{proofModalOrder.total_amount}</strong> &bull; UTR: <strong className="text-[#0067A1] font-mono">{proofModalOrder.utr_number}</strong>
                 </p>
               </div>
 
               {/* Zoom Controls */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setZoomLevel((z) => Math.min(3, z + 0.25))}
@@ -1207,18 +1364,18 @@ export default function ChemistOrdersPage() {
             <div className="flex-1 overflow-auto bg-slate-900 p-4 flex items-center justify-center min-h-[350px]">
               <img
                 src={proofModalOrder.payment_proof_url}
-                alt="Enlarged Payment Proof"
+                alt="Payment Proof"
                 style={{ transform: `scale(${zoomLevel})`, transformOrigin: "center center" }}
                 className="max-h-[60vh] object-contain transition-transform duration-150 rounded-lg"
               />
             </div>
 
             {/* Decision Footer */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+            <div className="p-3.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => setRejectModalOrder(proofModalOrder)}
-                className="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
               >
                 Reject Proof
               </button>
@@ -1227,7 +1384,7 @@ export default function ChemistOrdersPage() {
                 <button
                   type="button"
                   onClick={() => setProofModalOrder(null)}
-                  className="px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                  className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
                 >
                   Close
                 </button>
@@ -1235,10 +1392,10 @@ export default function ChemistOrdersPage() {
                   type="button"
                   disabled={verifyingPayment}
                   onClick={() => handleApprovePayment(proofModalOrder.id)}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer disabled:bg-slate-300"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-xs transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer disabled:bg-slate-300"
                 >
-                  <Check className="w-4 h-4 stroke-[3]" />
-                  <span>Verify Payment & Release Fulfillment</span>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Verify Payment & Release</span>
                 </button>
               </div>
             </div>
@@ -1250,11 +1407,11 @@ export default function ChemistOrdersPage() {
       {/* MODAL 3: PAYMENT PROOF REJECTION DIALOG                                  */}
       {/* ========================================================================= */}
       {rejectModalOrder && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-5 sm:p-6 max-w-md w-full border border-slate-200 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="font-bold text-slate-900 text-sm">Reject Payment Proof</h3>
-              <button type="button" onClick={() => setRejectModalOrder(null)} className="p-1 text-slate-400 hover:text-slate-700">
+              <h3 className="font-semibold text-slate-900 text-sm">Reject Payment Proof</h3>
+              <button type="button" onClick={() => setRejectModalOrder(null)} className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1273,7 +1430,7 @@ export default function ChemistOrdersPage() {
               ].map((reason) => (
                 <label
                   key={reason}
-                  className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-semibold cursor-pointer transition-colors ${
+                  className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
                     rejectReason === reason
                       ? "border-[#0067A1] bg-[#0067A1]/5 text-[#0067A1]"
                       : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
@@ -1296,7 +1453,7 @@ export default function ChemistOrdersPage() {
                   value={customRejectReason}
                   onChange={(e) => setCustomRejectReason(e.target.value)}
                   placeholder="Specify reason for patient..."
-                  className="w-full p-2.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0067A1]"
+                  className="w-full p-2.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0067A1]"
                 />
               )}
             </div>
@@ -1305,7 +1462,7 @@ export default function ChemistOrdersPage() {
               <button
                 type="button"
                 onClick={() => setRejectModalOrder(null)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer"
+                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg text-xs cursor-pointer"
               >
                 Cancel
               </button>
@@ -1313,9 +1470,63 @@ export default function ChemistOrdersPage() {
                 type="button"
                 disabled={rejectingPayment}
                 onClick={handleRejectPayment}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition-colors shadow-sm cursor-pointer disabled:bg-slate-300"
+                className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-lg text-xs transition-colors shadow-xs cursor-pointer disabled:bg-slate-300"
               >
                 {rejectingPayment ? "Rejecting..." : "Confirm Rejection"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* CUSTOM POPUP CONFIRM: WITHDRAW QUOTATION MODAL                             */}
+      {/* ========================================================================= */}
+      {withdrawConfirmItem && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm sm:max-w-md w-full p-5 sm:p-6 border border-slate-200 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-xs">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h4 className="text-base font-bold text-slate-900">Withdraw Quotation?</h4>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Are you sure you want to withdraw your quotation of{" "}
+                <span className="font-semibold text-slate-800">
+                  ₹{withdrawConfirmItem.quote_amount || withdrawConfirmItem.submitted_quote?.final_amount || "0"}
+                </span>{" "}
+                for this order? This will remove your offer from the patient&apos;s active bidding pool.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setWithdrawConfirmItem(null)}
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={withdrawingQuoteId === withdrawConfirmItem.id}
+                onClick={async () => {
+                  const bId = withdrawConfirmItem.id;
+                  const qId = withdrawConfirmItem.quote_id;
+                  setWithdrawConfirmItem(null);
+                  await handleWithdrawQuote(bId, qId);
+                }}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg text-xs transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:bg-rose-300"
+              >
+                {withdrawingQuoteId === withdrawConfirmItem.id ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Withdrawing...</span>
+                  </>
+                ) : (
+                  <span>Yes, Withdraw</span>
+                )}
               </button>
             </div>
           </div>

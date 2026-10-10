@@ -5,6 +5,57 @@ import { randomUUID } from "crypto";
 
 import sql from "@/lib/db";
 
+function parseAppointmentDateTime(rawDate, rawTime) {
+  if (!rawDate) return null;
+  let year = NaN, month = NaN, day = NaN;
+
+  if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
+    year = rawDate.getFullYear();
+    month = rawDate.getMonth() + 1;
+    day = rawDate.getDate();
+  } else if (typeof rawDate === "string") {
+    const cleanDate = rawDate.trim().split("T")[0];
+    const parts = cleanDate.split(/[-/]/).map(Number);
+    if (parts.length === 3) {
+      if (parts[0] > 1000) {
+        [year, month, day] = parts;
+      } else if (parts[2] > 1000) {
+        [day, month, year] = parts;
+      }
+    }
+  }
+
+  if (isNaN(year) || isNaN(month) || isNaN(day)) {
+    const parsed = new Date(rawDate);
+    if (!isNaN(parsed.getTime())) {
+      year = parsed.getFullYear();
+      month = parsed.getMonth() + 1;
+      day = parsed.getDate();
+    } else {
+      return null;
+    }
+  }
+
+  let hours = 23, minutes = 59;
+  if (rawTime && typeof rawTime === "string") {
+    const timeMatch = rawTime.trim().match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?$/i);
+    if (timeMatch) {
+      let h = parseInt(timeMatch[1], 10);
+      const m = parseInt(timeMatch[2], 10);
+      const modifier = timeMatch[3] ? timeMatch[3].toUpperCase() : null;
+
+      if (modifier === "PM" && h < 12) h += 12;
+      if (modifier === "AM" && h === 12) h = 0;
+
+      hours = h;
+      minutes = m;
+    }
+  }
+
+  const dt = new Date(year, month - 1, day, hours, minutes, 0);
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
@@ -28,17 +79,8 @@ export async function POST(req) {
       `;
 
       if (apt?.appointment_date) {
-        const timeStr = String(apt.appointment_time || "23:59").slice(0, 5);
-        const dateStr = typeof apt.appointment_date === "string" 
-          ? apt.appointment_date 
-          : apt.appointment_date instanceof Date 
-          ? apt.appointment_date.toISOString().split("T")[0]
-          : String(apt.appointment_date || "");
-        const dateOnly = dateStr.split("T")[0];
-        const [year, month, day] = dateOnly.split("-").map(Number);
-        const [hours, minutes] = timeStr.split(":").map(Number);
-        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
-          const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
+        const aptDateTime = parseAppointmentDateTime(apt.appointment_date, apt.appointment_time);
+        if (aptDateTime) {
           const now = new Date();
           if (now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000) {
             return failure("This appointment slot has expired and can no longer be approved.", null, 400, { headers: corsHeaders });

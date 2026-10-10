@@ -5,6 +5,7 @@ import { syncClinicalData } from "@/lib/layer1/consultationSync";
 import { logAudit } from "@/lib/layer1/auditLogger";
 import { logActivity } from "@/lib/layer1/activityLogger";
 import crypto from "crypto";
+import sql from "@/lib/db";
 
 // Helper: treat zero-UUID as missing
 const isValidUUID = (id) => id && id !== '00000000-0000-0000-0000-000000000000';
@@ -139,13 +140,30 @@ export async function POST(req) {
     ---------------------------------- */
     const now = new Date().toISOString();
 
+    let normalizedLabTests = lab_tests !== undefined ? lab_tests : prescription.lab_tests;
+    if (Array.isArray(normalizedLabTests)) {
+      normalizedLabTests = normalizedLabTests.map((item) => {
+        if (typeof item === "string") {
+          return { test_name: item.trim(), instructions: "" };
+        }
+        if (item && typeof item === "object") {
+          return {
+            test_name: (item.test_name || item.name || "").trim(),
+            instructions: (item.instructions || "").trim(),
+            urgency: (item.urgency || "").trim() || undefined,
+          };
+        }
+        return null;
+      }).filter(Boolean);
+    }
+
     const updateData = {
       appointment_type,
       specialization,
 
       diagnosis,
       medicines,
-      lab_tests,
+      lab_tests: normalizedLabTests,
       investigations,
       vital_signs,
       examination_findings,
@@ -212,9 +230,20 @@ export async function POST(req) {
         .from("appointments")
         .update({
           status: "completed",
+          completed_at: now,
           updated_at: now
         })
         .eq("id", appointment_id);
+
+      try {
+        await sql`
+          UPDATE appointments
+          SET status = 'completed', completed_at = ${now}, updated_at = ${now}
+          WHERE id = ${appointment_id}
+        `;
+      } catch (sqlErr) {
+        console.warn("[Prescription Update] RDS direct appointment update warning:", sqlErr.message);
+      }
 
       await supabase
         .from("consultations")

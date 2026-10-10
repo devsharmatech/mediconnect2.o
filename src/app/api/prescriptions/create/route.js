@@ -5,6 +5,7 @@ import { logActivity } from "@/lib/layer1/activityLogger";
 import { logAudit } from "@/lib/layer1/auditLogger";
 import { syncClinicalData } from "@/lib/layer1/consultationSync";
 import crypto from "crypto";
+import sql from "@/lib/db";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -301,6 +302,23 @@ export async function POST(req) {
       normalizedDiagnosis = diagnosis.primary || diagnosis.name || diagnosis.diagnosis || diagnosis.diagnosis_id || Object.values(diagnosis).filter(v => typeof v === 'string').join(", ") || "";
     }
 
+    let normalizedLabTests = [];
+    if (Array.isArray(lab_tests)) {
+      normalizedLabTests = lab_tests.map((item) => {
+        if (typeof item === "string") {
+          return { test_name: item.trim(), instructions: "" };
+        }
+        if (item && typeof item === "object") {
+          return {
+            test_name: (item.test_name || item.name || "").trim(),
+            instructions: (item.instructions || "").trim(),
+            urgency: (item.urgency || "").trim() || undefined,
+          };
+        }
+        return null;
+      }).filter(Boolean);
+    }
+
     const prescriptionData = {
       doctor_id,
       patient_id,
@@ -310,7 +328,7 @@ export async function POST(req) {
 
       diagnosis: normalizedDiagnosis || "General Medical Consultation",
       medicines,
-      lab_tests,
+      lab_tests: normalizedLabTests,
       investigations,
       vital_signs,
       examination_findings,
@@ -384,9 +402,20 @@ export async function POST(req) {
         .from("appointments")
         .update({
           status: "completed",
+          completed_at: now,
           updated_at: now
         })
         .eq("id", appointment_id);
+
+      try {
+        await sql`
+          UPDATE appointments
+          SET status = 'completed', completed_at = ${now}, updated_at = ${now}
+          WHERE id = ${appointment_id}
+        `;
+      } catch (sqlErr) {
+        console.warn("[Prescription Create] RDS direct appointment update warning:", sqlErr.message);
+      }
 
       await supabase
         .from("consultations")

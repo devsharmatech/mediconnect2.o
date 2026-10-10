@@ -1,4 +1,5 @@
 import sql from "@/lib/db";
+import Razorpay from "razorpay";
 import { broadcastEmitter } from "@/lib/broadcastEmitter";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
@@ -183,7 +184,44 @@ export async function POST(req) {
       }
     }
 
-    // 8. Notifications
+    // 8. Generate Razorpay Checkout Order
+    const razorpayKeyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    const razorpaySecret = process.env.RAZORPAY_KEY_SECRET;
+    let razorpayOrder = null;
+
+    if (razorpayKeyId && razorpaySecret && finalAmount > 0) {
+      try {
+        const razorpay = new Razorpay({
+          key_id: razorpayKeyId,
+          key_secret: razorpaySecret,
+        });
+
+        razorpayOrder = await razorpay.orders.create({
+          amount: Math.round(finalAmount * 100), // convert to paise
+          currency: "INR",
+          receipt: `med_ord_${order.unid || Date.now().toString().slice(-6)}`,
+          notes: {
+            order_id: String(order.id),
+            unid: String(order.unid || nextUnid),
+            patient_id: String(broadcast.patient_id),
+            chemist_id: String(quote.chemist_id),
+            pharmacy_name: quote.pharmacy_name || "Partner Pharmacy",
+          },
+        });
+
+        if (razorpayOrder?.id) {
+          await sql`
+            UPDATE medicine_orders 
+            SET razorpay_order_id = ${razorpayOrder.id}
+            WHERE id = ${order.id}
+          `;
+        }
+      } catch (rzErr) {
+        console.warn("Could not create Razorpay order for medicine order:", rzErr.message);
+      }
+    }
+
+    // 9. Notifications
     try {
       await sendPushAndInAppNotification({
         userId: quote.chemist_id,
@@ -196,7 +234,13 @@ export async function POST(req) {
       console.warn("Chemist notification warning:", notifErr.message);
     }
 
-    return success("Offer selected and order confirmed", { order }, 200, { headers: corsHeaders });
+    return success("Offer selected and payment initiated", {
+      order,
+      razorpay_order_id: razorpayOrder?.id || null,
+      razorpay_key: razorpayKeyId || null,
+      amount: finalAmount,
+      pharmacy_name: quote.pharmacy_name || "Partner Pharmacy",
+    }, 200, { headers: corsHeaders });
   } catch (err) {
     console.error("Error in select-quote route:", err);
     return failure("Failed to select quote", err.message, 500, { headers: corsHeaders });
