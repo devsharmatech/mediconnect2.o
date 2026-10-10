@@ -175,16 +175,15 @@ export async function POST(req) {
     let lockerDoc = null;
     if (save_to_digilocker && order.patient_id) {
       try {
-        const docTitle = test_name
-          ? `Lab Report: ${test_name} (${labNameStr})`
-          : `Diagnostic Report #${order.unid || ""} - ${labNameStr}`;
         const orderItems = await sql`
           SELECT test_name FROM lab_test_order_items WHERE order_id = ${cleanOrderId}
         `;
         const testNamesList = orderItems.map((i) => i.test_name).filter(Boolean).join(", ");
         const docTitle = testNamesList
           ? `Lab Report: ${testNamesList} (${labNameStr})`
-          : `Lab Report #${order.unid || ""} - ${labNameStr}`;
+          : (test_name
+            ? `Lab Report: ${test_name} (${labNameStr})`
+            : `Lab Report #${order.unid || ""} - ${labNameStr}`);
 
         const isPdf = report_url.toLowerCase().endsWith(".pdf") || mimeType.includes("pdf");
 
