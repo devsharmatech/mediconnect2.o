@@ -18,6 +18,8 @@ import {
   Check,
   Trash2,
   CheckCircle2,
+  X,
+  Heart,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -366,8 +368,8 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
           </button>
 
           {notificationsOpen && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-              <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+            <div className="fixed inset-0 w-full h-[100dvh] max-w-none max-h-none rounded-none border-none z-[100] bg-white dark:bg-slate-800 flex flex-col sm:absolute sm:inset-auto sm:right-0 sm:mt-2 sm:w-96 sm:max-w-md sm:h-auto sm:rounded-2xl sm:shadow-2xl sm:border sm:border-slate-200 dark:sm:border-slate-700 sm:z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+              <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between shrink-0">
                 <div>
                   <h3 className="text-sm font-bold text-slate-800 dark:text-white">
                     Notifications
@@ -376,18 +378,29 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
                     Recent lab order alerts and test updates
                   </p>
                 </div>
-                {unreadCount > 0 && (
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllAsRead}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#0067A1] dark:text-sky-300 bg-blue-50 dark:bg-sky-950/40 rounded-full hover:bg-blue-100 transition-colors cursor-pointer"
+                    >
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span className="hidden sm:inline">Mark all read</span>
+                    </button>
+                  )}
+                  {/* Close button for mobile full-screen */}
                   <button
-                    onClick={markAllAsRead}
-                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#0067A1] dark:text-sky-300 bg-blue-50 dark:bg-sky-950/40 rounded-full hover:bg-blue-100 transition-colors"
+                    onClick={() => setNotificationsOpen(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                    title="Close notifications"
+                    aria-label="Close notifications"
                   >
-                    <CheckCircle2 className="w-3 h-3" />
-                    Mark all read
+                    <X className="w-4 h-4" />
                   </button>
-                )}
+                </div>
               </div>
 
-              <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700/60">
+              <div className="flex-1 sm:max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700/60 pb-safe">
                 {notificationsLoading ? (
                   <div className="p-6 text-center text-xs text-slate-500">
                     Loading notifications...
@@ -522,6 +535,25 @@ export default function LabNavbar({ onMenuClick, sidebarOpen }) {
                   <Building2 size={16} className="text-[#0067A1]" />
                   <span>Lab Profile & Settings</span>
                 </Link>
+
+                <button
+                  onClick={() => {
+                    setProfileOpen(false);
+                    const user = getLoggedInUser("lab");
+                    if (user?.id) {
+                      localStorage.setItem("userId", String(user.id));
+                      localStorage.setItem("labUser", JSON.stringify(user));
+                      localStorage.setItem("userData", JSON.stringify(user));
+                      window.location.href = "/dashboard";
+                    } else {
+                      window.location.href = "/";
+                    }
+                  }}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors w-full text-left cursor-pointer"
+                >
+                  <Heart size={16} className="text-pink-500" />
+                  <span>Patient View</span>
+                </button>
 
                 <div className="border-t border-slate-100 dark:border-slate-700 my-1"></div>
 

@@ -81,11 +81,11 @@ export default function DpdpConsentModal({ role, userId, onAccept }) {
 
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/80 backdrop-blur-md px-3 sm:px-4 py-4 sm:py-6 overflow-y-auto">
-      <div className="w-full max-w-xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex flex-col my-auto max-h-[92vh] sm:max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-200 dark:border-gray-700">
+      <div className="w-full max-w-xl bg-white dark:bg-gray-800 rounded-lg flex flex-col my-auto max-h-[92vh] sm:max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-200 dark:border-gray-700">
         
         {/* Header */}
         <div className="bg-[#003358] px-4 sm:px-5 py-3.5 sm:py-4 flex items-center gap-3 flex-shrink-0">
-          <div className="p-2 sm:p-2.5 bg-white/15 rounded-xl shrink-0">
+          <div className="p-2 sm:p-2.5 bg-white/15 rounded-md shrink-0">
             <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
           </div>
           <div>
@@ -96,14 +96,14 @@ export default function DpdpConsentModal({ role, userId, onAccept }) {
 
         {/* Scrollable Content */}
         <div className="px-4 sm:px-5 py-4 space-y-3.5 sm:space-y-4 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
-          <div className="flex items-start gap-2.5 sm:gap-3 bg-amber-50 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200 p-3 sm:p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/50 text-xs sm:text-sm leading-relaxed">
+          <div className="flex items-start gap-2.5 sm:gap-3 bg-amber-50 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200 p-3 sm:p-3.5 rounded-lg border border-amber-200 dark:border-amber-900/50 text-xs sm:text-sm leading-relaxed">
             <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
             <p>
               As a registered health service partner, you will be processing sensitive patient health data. Under the <strong className="font-semibold text-amber-950 dark:text-amber-100">DPDP Act 2023 of India</strong>, you must explicitly reaffirm your data protection commitments daily before accessing the portal.
             </p>
           </div>
 
-          <div className="border border-slate-200 dark:border-gray-700 rounded-xl p-3.5 sm:p-4 bg-slate-50 dark:bg-gray-900/50 text-slate-700 dark:text-gray-300 text-xs sm:text-sm space-y-3.5">
+          <div className="border border-slate-200 dark:border-gray-700 rounded-lg p-3.5 sm:p-4 bg-slate-50 dark:bg-gray-900/50 text-slate-700 dark:text-gray-300 text-xs sm:text-sm space-y-3.5">
             <h4 className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 text-xs sm:text-sm">
               <FileText className="w-4 h-4 text-[#0067A1] dark:text-teal-400 shrink-0" /> Reaffirmation of Legal Commitments
             </h4>
@@ -140,7 +140,7 @@ export default function DpdpConsentModal({ role, userId, onAccept }) {
           </div>
 
           {/* Interactive Checkbox */}
-          <label className="flex items-start gap-3 cursor-pointer group p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-gray-900/30 transition-colors border border-transparent hover:border-slate-200">
+          <label className="flex items-start gap-3 cursor-pointer group p-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-gray-900/30 transition-colors border border-transparent hover:border-slate-200">
             <div className="relative flex items-center justify-center mt-0.5 flex-shrink-0">
               <input 
                 type="checkbox" 
@@ -161,9 +161,9 @@ export default function DpdpConsentModal({ role, userId, onAccept }) {
           <button
             onClick={handleAccept}
             disabled={!agreed || submitting}
-            className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`w-full sm:w-auto px-6 py-2.5 rounded-md font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
               agreed && !submitting
-                ? "bg-[#003358] hover:bg-[#004F7C] text-white shadow-lg shadow-[#003358]/20"
+                ? "bg-[#003358] hover:bg-[#004F7C] text-white"
                 : "bg-slate-200 dark:bg-gray-700 text-slate-400 dark:text-gray-500 cursor-not-allowed"
             }`}
           >

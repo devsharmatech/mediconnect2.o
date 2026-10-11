@@ -1,36 +1,23 @@
 /**
- * Lab Pricing & Discount Calculation Engine
- * Business Rules:
- * - CT Scan (all types): 40% discount on MRP
- * - Ultrasound / USG (all types): 40% discount on MRP
- * - X-Ray (all types): 40% discount on MRP
- * - Echocardiography / Stress Echo: 30% discount on MRP
- * - Others: Standard MRP / Lab specified discount
+ * Lab Pricing Engine
+ * 
+ * NOTE: Category percentages (e.g., 40% for Ultrasound, CT Scan, X-Ray) are strictly 
+ * internal admin/system commission rates used for auditing and lab payouts (see labCommissionHelper.js).
+ * They are NOT patient discounts or offer prices.
+ * Patients pay the standard test catalog price / MRP.
  */
 
 export function calculateLabTestPricing(item) {
   if (!item) return { mrp: 0, discountPercentage: 0, discountAmount: 0, offerPrice: 0, finalPrice: 0 };
 
-  const mrp = parseFloat(item.mrp || item.price || 0) || 0;
-  const dept = (item.department || item.category || "").toUpperCase();
-  const name = (item.test_name || item.name || item.package_name || "").toUpperCase();
-
-  let discountPercentage = 0;
-
-  // Only apply discount if explicitly configured on the test item by lab
-  if (item.discount_percentage !== undefined && item.discount_percentage !== null && !isNaN(parseFloat(item.discount_percentage))) {
-    discountPercentage = parseFloat(item.discount_percentage);
-  }
-
-  const discountAmount = discountPercentage > 0 ? Math.round((mrp * discountPercentage) / 100) : 0;
-  const offerPrice = Math.max(0, mrp - discountAmount);
+  const mrp = parseFloat(item.price || item.mrp || 0) || 0;
 
   return {
     mrp,
-    discountPercentage,
-    discountAmount,
-    offerPrice,
-    finalPrice: offerPrice,
+    discountPercentage: 0,
+    discountAmount: 0,
+    offerPrice: mrp,
+    finalPrice: mrp,
   };
 }
 
@@ -57,3 +44,4 @@ export function calculateOrderTotals(items = []) {
     finalAmount,
   };
 }
+

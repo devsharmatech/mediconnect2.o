@@ -3,6 +3,7 @@ import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { sendOTPViaGateway } from "@/lib/sms";
 import { sendEmailOTP, generateNumericOTP } from "@/lib/emailOtp";
+import { rateLimit } from "@/lib/rateLimit";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -14,6 +15,22 @@ export async function POST(req) {
     
     if (!phone_number && !email) {
       return failure("Phone number or email is required.", null, 400, { headers: corsHeaders });
+    }
+
+    const rateLimitKey = phone_number || (email ? String(email).trim().toLowerCase() : "unknown");
+    const isDummyNumber = Boolean(
+      phone_number && (
+        String(phone_number).endsWith("9999999991") ||
+        String(phone_number).endsWith("9999999992") ||
+        String(phone_number).endsWith("9999999993")
+      )
+    );
+
+    if (!isDummyNumber) {
+      const limitResult = rateLimit(`otp-send:${rateLimitKey}`, 3, 120000); // 3 requests per 2 minutes
+      if (!limitResult.allowed) {
+        return failure("Too many OTP requests. Please wait 2 minutes before requesting a new OTP.", null, 429, { headers: corsHeaders });
+      }
     }
 
     let user = null;
@@ -40,6 +57,9 @@ export async function POST(req) {
       user = users[0];
     } else if (email) {
       const cleanEmail = String(email).trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        return failure("Please enter a valid email address.", null, 400, { headers: corsHeaders });
+      }
       
       // 1. Check patient_details
       const pts = await sql`

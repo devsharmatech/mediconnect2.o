@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { FaCalendarAlt, FaClock, FaMapMarkerAlt, FaTimes, FaUserMd, FaIdCard, FaUser, FaMoneyBillWave, FaFileInvoiceDollar, FaBuilding } from "react-icons/fa";
+import { FaCalendarAlt, FaClock, FaMapMarkerAlt, FaTimes, FaUserMd, FaIdCard, FaUser, FaMoneyBillWave, FaFileInvoiceDollar, FaBuilding, FaFileMedical, FaEye, FaDownload, FaShareAlt, FaLock, FaCheck, FaPills, FaFlask } from "react-icons/fa";
 
 const normalizeStatus = (status) => {
   if (!status) return "pending";
@@ -107,7 +107,17 @@ const calculateAge = (dobString) => {
   return Math.abs(ageDate.getUTCFullYear() - 1970) + " yrs";
 };
 
-const AppointmentDetailsModal = ({ isOpen, onClose, appointment }) => {
+const AppointmentDetailsModal = ({
+  isOpen,
+  onClose,
+  appointment,
+  onViewPrescription,
+  onDownloadPrescription,
+  onSharePrescription,
+  onSaveToDigiLocker,
+  onSendToChemist,
+  onSendToLab,
+}) => {
   if (!isOpen || !appointment) return null;
 
   const status = normalizeStatus(appointment.status);
@@ -321,6 +331,124 @@ const AppointmentDetailsModal = ({ isOpen, onClose, appointment }) => {
               </div>
             </div>
           </div>
+
+          {/* Medical Prescription Section */}
+          {(appointment.has_prescription || appointment.prescription || status === "completed") && (
+            <div className="border border-emerald-500/40 bg-gradient-to-b from-emerald-50/40 to-white rounded-xl overflow-hidden shadow-sm">
+              <div className="bg-gradient-to-r from-emerald-700 to-teal-800 px-4 py-3 text-white flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FaFileMedical className="w-4 h-4 text-emerald-200" />
+                  <h3 className="font-bold text-sm">Medical e-Prescription</h3>
+                </div>
+                <span className="inline-flex items-center gap-1 bg-white/20 backdrop-blur-xs px-2.5 py-0.5 rounded-full text-[11px] font-semibold text-white">
+                  ✓ Doctor Signed & Verified
+                </span>
+              </div>
+              <div className="p-4 space-y-3">
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  Your consultation prescription has been generated and digitally signed by Dr. {doctorName}. You can view the full clinical details, download the A4 PDF, share with pharmacies/labs/WhatsApp, and archive it directly into your DigiLocker.
+                </p>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
+                  {/* View */}
+                  <button
+                    onClick={() => {
+                      onClose();
+                      if (onViewPrescription) onViewPrescription(appointment);
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-medium transition cursor-pointer shadow-xs"
+                    title="View prescription"
+                  >
+                    <FaEye className="w-3.5 h-3.5" />
+                    <span>View</span>
+                  </button>
+
+                  {/* Download */}
+                  <button
+                    onClick={() => {
+                      if (onDownloadPrescription) onDownloadPrescription(appointment);
+                      else if (onViewPrescription) {
+                        onClose();
+                        onViewPrescription(appointment);
+                      }
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition cursor-pointer shadow-xs"
+                    title="Download A4 PDF"
+                  >
+                    <FaDownload className="w-3.5 h-3.5" />
+                    <span>Download</span>
+                  </button>
+
+                  {/* Chemist */}
+                  <button
+                    onClick={() => {
+                      onClose();
+                      if (onSendToChemist) onSendToChemist(appointment);
+                      else if (onViewPrescription) onViewPrescription(appointment);
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-medium transition cursor-pointer shadow-xs"
+                    title="Order medicines from pharmacy"
+                  >
+                    <FaPills className="w-3.5 h-3.5" />
+                    <span>Chemist</span>
+                  </button>
+
+                  {/* Lab */}
+                  <button
+                    onClick={() => {
+                      onClose();
+                      if (onSendToLab) onSendToLab(appointment);
+                      else if (onViewPrescription) onViewPrescription(appointment);
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-medium transition cursor-pointer shadow-xs"
+                    title="Book prescribed lab tests"
+                  >
+                    <FaFlask className="w-3.5 h-3.5" />
+                    <span>Lab</span>
+                  </button>
+
+                  {/* DigiLocker */}
+                  <button
+                    onClick={() => {
+                      onClose();
+                      if (onSaveToDigiLocker) onSaveToDigiLocker(appointment);
+                    }}
+                    className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs font-medium transition cursor-pointer shadow-xs ${
+                      appointment.prescription_saved_in_digilocker || appointment.prescription?.is_saved_in_digilocker
+                        ? "bg-emerald-100 text-emerald-800 border border-emerald-300 cursor-default"
+                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
+                    }`}
+                    title="Save to MediConnect DigiLocker"
+                  >
+                    {appointment.prescription_saved_in_digilocker || appointment.prescription?.is_saved_in_digilocker ? (
+                      <FaCheck className="w-3 h-3 text-emerald-700" />
+                    ) : (
+                      <FaLock className="w-3 h-3 text-white" />
+                    )}
+                    <span className="truncate">
+                      {appointment.prescription_saved_in_digilocker || appointment.prescription?.is_saved_in_digilocker ? "In Locker" : "DigiLocker"}
+                    </span>
+                  </button>
+
+                  {/* Share */}
+                  <button
+                    onClick={() => {
+                      if (onSharePrescription) onSharePrescription(appointment);
+                      else if (onViewPrescription) {
+                        onClose();
+                        onViewPrescription(appointment);
+                      }
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition cursor-pointer shadow-xs"
+                    title="Share prescription"
+                  >
+                    <FaShareAlt className="w-3.5 h-3.5" />
+                    <span>Share</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Screening Information */}
           {diseaseInfo && (diseaseInfo.summary || diseaseInfo.urgency || diseaseInfo.probable_diagnoses) && (

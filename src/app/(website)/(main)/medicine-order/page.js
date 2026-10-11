@@ -81,6 +81,20 @@ function MedicineOrderContent() {
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const userSelectedIdRef = useRef(null);
+
+  const handleSelectOrder = (order) => {
+    if (!order) return;
+    userSelectedIdRef.current = order.id;
+    setSelectedOrder(order);
+    if (typeof window !== "undefined") {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set("order_id", order.id);
+        window.history.replaceState({}, "", url.toString());
+      } catch (_) {}
+    }
+  };
 
   // --- Step 1: New Order Creation state ---
   const [medQuery, setMedQuery] = useState("");
@@ -209,17 +223,34 @@ function MedicineOrderContent() {
 
       if (list.length > 0) {
         setOrders(list);
+
+        // Priority 1: User explicitly selected an order during this session
+        const currentActiveId = userSelectedIdRef.current;
+        if (currentActiveId) {
+          const matched = list.find((o) => o.id === currentActiveId || String(o.unid) === String(currentActiveId));
+          if (matched) {
+            setSelectedOrder(matched);
+            return;
+          }
+        }
+
+        // Priority 2: Initial URL query param target (prescription_id or order_id)
         const target = (rxIdParam || ordIdParam)
-          ? list.find((o) => (rxIdParam && o.prescription_id === rxIdParam) || (ordIdParam && o.id === ordIdParam))
+          ? list.find((o) => (rxIdParam && o.prescription_id === rxIdParam) || (ordIdParam && (o.id === ordIdParam || String(o.unid) === String(ordIdParam))))
           : null;
 
         if (target) {
           setSelectedOrder(target);
-        } else if (!selectedOrder) {
-          setSelectedOrder(list[0]);
+          userSelectedIdRef.current = target.id;
         } else {
-          const updated = list.find((o) => o.id === selectedOrder.id);
-          if (updated) setSelectedOrder(updated);
+          setSelectedOrder((prev) => {
+            if (prev) {
+              const stillExists = list.find((o) => o.id === prev.id || String(o.unid) === String(prev.unid));
+              if (stillExists) return stillExists;
+            }
+            userSelectedIdRef.current = list[0]?.id;
+            return list[0];
+          });
         }
       } else {
         setOrders([]);
@@ -862,7 +893,7 @@ function MedicineOrderContent() {
               return (
                 <button
                   key={o.id}
-                  onClick={() => setSelectedOrder(o)}
+                  onClick={() => handleSelectOrder(o)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 border transition-all flex items-center gap-1.5 cursor-pointer ${
                     isSel
                       ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
@@ -941,7 +972,7 @@ function MedicineOrderContent() {
                     return (
                       <div
                         key={order.id}
-                        onClick={() => setSelectedOrder(order)}
+                        onClick={() => handleSelectOrder(order)}
                         className={`p-3 rounded-lg border transition-all cursor-pointer ${
                           isSelected
                             ? "border-[#0067A1] bg-[#0067A1]/5 shadow-xs"

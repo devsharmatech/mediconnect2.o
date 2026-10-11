@@ -133,6 +133,7 @@ export async function POST(req) {
     const report = insertedReports[0];
 
     // 2. Update item & order completion status
+    let updatedOrders = [];
     if (cleanItemId) {
       await sql`
         UPDATE lab_test_order_items
@@ -146,23 +147,26 @@ export async function POST(req) {
       `;
 
       if (remainingPending.length === 0) {
-        await sql`
+        updatedOrders = await sql`
           UPDATE lab_test_orders
           SET status = 'completed', delivered_at = NOW(), updated_at = NOW()
           WHERE id = ${cleanOrderId}
+          RETURNING *
         `;
       } else {
-        await sql`
+        updatedOrders = await sql`
           UPDATE lab_test_orders
           SET status = 'in_progress', updated_at = NOW()
           WHERE id = ${cleanOrderId} AND status NOT IN ('completed', 'cancelled')
+          RETURNING *
         `;
       }
     } else {
-      await sql`
+      updatedOrders = await sql`
         UPDATE lab_test_orders
         SET status = 'completed', delivered_at = NOW(), updated_at = NOW()
         WHERE id = ${cleanOrderId}
+        RETURNING *
       `;
       await sql`
         UPDATE lab_test_order_items
@@ -259,7 +263,7 @@ export async function POST(req) {
     }
 
     return success("Report uploaded, order completed, and saved to DigiLocker successfully.", {
-      order: updatedOrders[0],
+      order: updatedOrders[0] || order,
       report,
       locker_document: lockerDoc,
       saved_to_digilocker: Boolean(lockerDoc),

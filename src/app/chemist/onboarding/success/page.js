@@ -11,7 +11,7 @@ export default function ChemistOnboardingSuccess() {
         initial={{ opacity: 0, y: 40, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.7, ease: "easeOut" }}
-        className="relative max-w-xl w-full bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden"
+        className="relative max-w-xl w-full bg-white rounded-3xl border border-gray-100 overflow-hidden"
       >
         {/* Floating glow */}
         <motion.div
@@ -37,7 +37,7 @@ export default function ChemistOnboardingSuccess() {
                   initial={{ opacity: 0, scale: 0.8, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
-                  className="absolute -bottom-3 -right-3 bg-white rounded-full p-2 shadow-lg"
+                  className="absolute -bottom-3 -right-3 bg-white rounded-full p-2"
                 >
                   <Store className="w-5 h-5 text-[#0067A1]" />
                 </motion.div>
@@ -113,7 +113,7 @@ export default function ChemistOnboardingSuccess() {
             >
               <Link
                 href="/"
-                className="inline-flex justify-center items-center px-5 py-2.5 rounded-full bg-[#0067A1] text-white font-medium shadow-lg hover:shadow-xl hover:bg-[#004F7C] transition-all text-sm md:text-base"
+                className="inline-flex justify-center items-center px-5 py-2.5 rounded-full bg-[#0067A1] text-white font-medium hover:shadow-xl hover:bg-[#004F7C] transition-all text-sm md:text-base"
               >
                 Go to Home
               </Link>

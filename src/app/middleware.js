@@ -50,6 +50,14 @@ export async function middleware(req) {
     }
 
     // Admin routes
+    if (pathname === "/admin" || pathname === "/admin/") {
+        if (verifiedRole === "admin") {
+            return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+        } else {
+            return NextResponse.redirect(new URL("/admin/login", req.url));
+        }
+    }
+
     if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
         if (verifiedRole !== "admin") {
             console.log(`[Middleware] Redirecting unauthorized access to ${pathname} (Role: ${verifiedRole})`);

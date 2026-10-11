@@ -121,20 +121,20 @@ export default function ConsentGate({ isOpen, onConsentGranted, onClose, actionL
     const grantedCount = Object.values(checked).filter(Boolean).length;
 
     const modalMarkup = (
-        <div className="fixed inset-0 z-[999999] bg-white flex flex-col h-[100dvh] w-screen overflow-hidden">
+        <div className="fixed inset-0 z-[999999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 md:p-6 overflow-hidden">
+            <div className="w-full h-[100dvh] sm:h-auto sm:max-h-[88vh] sm:max-w-xl md:max-w-2xl bg-white rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 border-0 sm:border sm:border-slate-200">
 
-            {/* ── Header ── */}
-            <div className="flex-shrink-0 bg-[#0067A1] text-white shadow-md z-10">
-                <div className="max-w-2xl mx-auto px-5 py-4 flex items-center justify-between">
+                {/* ── Header ── */}
+                <div className="flex-shrink-0 bg-[#0067A1] text-white shadow-md z-10 px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-white/20">
+                        <div className="p-2 bg-white/20 rounded-lg">
                             <ShieldCheck className="w-5 h-5 text-white" />
                         </div>
                         <div>
                             <h2 className="text-base sm:text-lg font-semibold text-white leading-tight">
                                 Patient Consent Required
                             </h2>
-                            <p className="text-[11px] text-white/75 mt-0.5 font-normal">
+                            <p className="text-[11px] text-white/80 mt-0.5 font-normal">
                                 DPDP Act 2023 — Mandatory before consultation
                             </p>
                         </div>
@@ -143,21 +143,19 @@ export default function ConsentGate({ isOpen, onConsentGranted, onClose, actionL
                         <button
                             type="button"
                             onClick={onClose}
-                            className="p-2 hover:bg-white/20 transition-colors text-white/80 hover:text-white cursor-pointer"
+                            className="p-1.5 hover:bg-white/20 rounded-lg transition-colors text-white/80 hover:text-white cursor-pointer"
                             title="Close"
                         >
                             <X className="w-5 h-5" />
                         </button>
                     )}
                 </div>
-            </div>
 
-            {/* ── Scrollable Body ── */}
-            <div className="flex-1 overflow-y-auto bg-gray-50">
-                <div className="max-w-2xl mx-auto px-4 sm:px-6 py-5 space-y-4">
+                {/* ── Scrollable Body ── */}
+                <div className="flex-1 overflow-y-auto bg-slate-50/50 p-4 sm:px-6 py-5 space-y-4">
 
                     {/* Notice banner */}
-                    <div className="bg-amber-50 border border-amber-200 p-3.5 flex gap-3">
+                    <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3.5 flex gap-3">
                         <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                         <p className="text-xs text-amber-800 leading-relaxed font-normal">
                             All 4 consents are mandatory under Indian telemedicine regulations and the DPDP Act 2023.
@@ -173,28 +171,28 @@ export default function ConsentGate({ isOpen, onConsentGranted, onClose, actionL
                                 <div
                                     key={item.type}
                                     onClick={() => toggleConsent(item.type)}
-                                    className={`flex items-start gap-4 p-4 border cursor-pointer transition-colors select-none ${
+                                    className={`flex items-start gap-3.5 p-3.5 sm:p-4 rounded-xl border cursor-pointer transition-all duration-150 select-none ${
                                         isChecked
-                                            ? "border-[#0067A1] bg-[#0067A1]/5"
-                                            : "border-gray-200 bg-white hover:border-[#0067A1]/50 hover:bg-blue-50/30"
+                                            ? "border-[#0067A1] bg-[#0067A1]/5 shadow-xs"
+                                            : "border-slate-200 bg-white hover:border-[#0067A1]/40 hover:bg-slate-50/70"
                                     }`}
                                 >
-                                    {/* Square checkbox */}
-                                    <div className={`w-5 h-5 flex items-center justify-center flex-shrink-0 mt-0.5 border-2 transition-colors ${
+                                    {/* Square checkbox with subtle rounding */}
+                                    <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 mt-0.5 border-2 transition-colors ${
                                         isChecked
                                             ? "bg-[#0067A1] border-[#0067A1]"
-                                            : "border-gray-300 bg-white"
+                                            : "border-slate-300 bg-white"
                                     }`}>
-                                        {isChecked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                                        {isChecked && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
                                     </div>
 
                                     {/* Text */}
-                                    <div className="flex-1">
-                                        <p className="text-sm font-medium text-gray-900">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs sm:text-sm font-semibold text-slate-800">
                                             {item.title}
-                                            <span className="ml-1 text-red-500 text-xs font-normal">*</span>
+                                            <span className="ml-1 text-rose-500 text-xs font-normal">*</span>
                                         </p>
-                                        <p className="text-xs text-gray-500 mt-1 leading-relaxed font-normal">
+                                        <p className="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed font-normal">
                                             {item.description}
                                         </p>
                                     </div>
@@ -203,42 +201,40 @@ export default function ConsentGate({ isOpen, onConsentGranted, onClose, actionL
                         })}
                     </div>
                 </div>
-            </div>
 
-            {/* ── Sticky Footer ── */}
-            <div className="flex-shrink-0 bg-white border-t border-gray-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-10">
-                <div className="max-w-2xl mx-auto px-4 sm:px-6 py-4 space-y-3">
+                {/* ── Sticky Footer ── */}
+                <div className="flex-shrink-0 bg-white border-t border-slate-200 px-4 sm:px-6 py-4 space-y-3 z-10">
 
                     {/* Select all + counter */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between text-xs">
                         <button
                             type="button"
                             onClick={handleSelectAll}
-                            className="text-xs text-[#0067A1] font-medium hover:underline cursor-pointer"
+                            className="text-[#0067A1] font-semibold hover:underline cursor-pointer"
                         >
                             Select All Consents
                         </button>
-                        <span className="text-xs text-gray-400 font-normal">
+                        <span className="text-slate-400 font-medium">
                             {grantedCount} / {CONSENT_ITEMS.length} granted
                         </span>
                     </div>
 
-                    {/* Primary CTA — no rounded, prominent shadow */}
+                    {/* Primary CTA — concise button text per AGENTS.md, slight round + shadow */}
                     <button
                         type="button"
                         onClick={handleSubmit}
                         disabled={!allChecked || submitting}
-                        className="w-full py-3 px-4 bg-[#0067A1] hover:bg-[#004F7C] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer shadow-[0_4px_14px_rgba(0,103,161,0.35)] hover:shadow-[0_6px_20px_rgba(0,103,161,0.45)]"
+                        className="w-full py-2.5 sm:py-3 px-4 rounded-xl bg-[#0067A1] hover:bg-[#004F7C] active:scale-[0.99] text-white text-xs sm:text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-[#0067A1]/20 hover:shadow-lg hover:shadow-[#0067A1]/30"
                     >
                         {submitting ? (
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         ) : (
                             <ShieldCheck className="w-4 h-4" />
                         )}
-                        <span>{submitting ? "Recording Consents..." : (actionLabel || "I Agree — Proceed to Booking")}</span>
+                        <span>{submitting ? "Saving..." : (actionLabel || "Agree & Continue")}</span>
                     </button>
 
-                    <p className="text-center text-[11px] text-gray-400 font-normal">
+                    <p className="text-center text-[10px] sm:text-[11px] text-slate-400 font-normal">
                         You can withdraw consent anytime from Settings → Privacy.
                     </p>
                 </div>

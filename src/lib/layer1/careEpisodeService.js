@@ -1,11 +1,12 @@
 /**
- * LAYER-1: Care Episode Service
+ * LAYER-1: Care Episode Service (AWS RDS PostgreSQL)
  *
  * All patient interactions must attach to a care_episode.
  * This service handles creation, closure, and retrieval of care episodes.
+ * 100% Direct AWS RDS PostgreSQL.
  */
 
-import { supabase } from "../supabaseAdmin";
+import sql from "@/lib/db";
 import { logActivity } from "./activityLogger";
 import { logAudit } from "./auditLogger";
 
@@ -39,23 +40,42 @@ export async function createCareEpisode(
       };
     }
 
-    const { data, error } = await supabase
-      .from("care_episodes")
-      .insert({
+    const rows = await sql`
+      INSERT INTO care_episodes (
         patient_id,
         episode_type,
-        status: "active",
-      })
-      .select()
-      .single();
+        status,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${patient_id},
+        ${episode_type},
+        'active',
+        NOW(),
+        NOW()
+      )
+      RETURNING *
+    `;
 
-    if (error) throw error;
+    const data = rows[0];
 
     // Automatically initialize care_episode_summary
-    await supabase.from("care_episode_summary").insert({
-      care_episode_id: data.id,
-      latest_status: "CREATED",
-    });
+    try {
+      await sql`
+        INSERT INTO care_episode_summary (
+          care_episode_id,
+          latest_status,
+          updated_at
+        ) VALUES (
+          ${data.id},
+          'CREATED',
+          NOW()
+        )
+        ON CONFLICT (care_episode_id) DO NOTHING
+      `;
+    } catch (e) {
+      // Non-fatal summary note
+    }
 
     // Log activity
     await logActivity({
@@ -87,28 +107,24 @@ export async function closeCareEpisode(episode_id, closed_by = null) {
     }
 
     // Fetch current state
-    const { data: current, error: fetchErr } = await supabase
-      .from("care_episodes")
-      .select("*")
-      .eq("id", episode_id)
-      .single();
+    const currentRows = await sql`
+      SELECT * FROM care_episodes WHERE id = ${episode_id} LIMIT 1
+    `;
+    const current = currentRows[0];
 
-    if (fetchErr) throw fetchErr;
     if (!current) return { success: false, error: "Care episode not found" };
     if (current.status === "closed")
       return { success: false, error: "Care episode already closed" };
 
-    const { data, error } = await supabase
-      .from("care_episodes")
-      .update({
-        status: "closed",
-        closed_at: new Date().toISOString(),
-      })
-      .eq("id", episode_id)
-      .select()
-      .single();
-
-    if (error) throw error;
+    const updatedRows = await sql`
+      UPDATE care_episodes
+      SET status = 'closed',
+          closed_at = NOW(),
+          updated_at = NOW()
+      WHERE id = ${episode_id}
+      RETURNING *
+    `;
+    const data = updatedRows[0];
 
     // Audit log
     await logAudit({
@@ -128,26 +144,26 @@ export async function closeCareEpisode(episode_id, closed_by = null) {
 }
 
 /**
- * Get a care episode by ID with all linked entities
+ * Get a care episode by ID with linked entities
  * @param {string} episode_id
  * @returns {object} { success, data, error }
  */
 export async function getCareEpisode(episode_id) {
   try {
-    const { data, error } = await supabase
-      .from("care_episodes")
-      .select(
-        `
-                *,
-                consultations (*),
-                patient:users!care_episodes_patient_id_fkey (id, phone_number, details)
-            `,
-      )
-      .eq("id", episode_id)
-      .single();
+    const rows = await sql`
+      SELECT ce.*,
+             COALESCE(
+               (SELECT json_agg(c.*) FROM consultations c WHERE c.care_episode_id = ce.id),
+               '[]'::json
+             ) as consultations,
+             (SELECT json_build_object('id', u.id, 'phone_number', u.phone_number) FROM users u WHERE u.id = ce.patient_id) as patient
+      FROM care_episodes ce
+      WHERE ce.id = ${episode_id}
+      LIMIT 1
+    `;
 
-    if (error) throw error;
-    return { success: true, data };
+    if (rows.length === 0) return { success: false, error: "Care episode not found" };
+    return { success: true, data: rows[0] };
   } catch (err) {
     console.error("getCareEpisode error:", err);
     return { success: false, error: err.message };
@@ -165,27 +181,32 @@ export async function listCareEpisodes(patient_id, options = {}) {
     const { status, episode_type, page = 1, limit = 20 } = options;
     const offset = (page - 1) * limit;
 
-    let query = supabase
-      .from("care_episodes")
-      .select("*", { count: "exact" })
-      .eq("patient_id", patient_id)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+    let query = sql`
+      SELECT *, COUNT(*) OVER()::int as total_count
+      FROM care_episodes
+      WHERE patient_id = ${patient_id}
+    `;
 
-    if (status) query = query.eq("status", status);
-    if (episode_type) query = query.eq("episode_type", episode_type);
+    if (status) {
+      query = sql`${query} AND status = ${status}`;
+    }
+    if (episode_type) {
+      query = sql`${query} AND episode_type = ${episode_type}`;
+    }
 
-    const { data, count, error } = await query;
-    if (error) throw error;
+    query = sql`${query} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
+
+    const rows = await query;
+    const total = rows.length > 0 ? rows[0].total_count : 0;
 
     return {
       success: true,
-      data,
+      data: rows,
       pagination: {
         page,
         limit,
-        total: count,
-        totalPages: Math.ceil(count / limit),
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (err) {

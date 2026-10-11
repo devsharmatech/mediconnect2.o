@@ -147,7 +147,7 @@ export default function LogsPage() {
  {/* HEADER */}
  <div className="flex justify-between items-center mb-8">
  <div className="flex items-center gap-4">
- <div className="w-12 h-12 bg-[#0067A1] text-white rounded-xl flex items-center justify-center shadow-xl">
+ <div className="w-12 h-12 bg-[#0067A1] text-white rounded-lg flex items-center justify-center">
  <ClipboardList size={24} />
  </div>
  <div>
@@ -162,7 +162,7 @@ export default function LogsPage() {
 
  <button
  onClick={() => fetchLogs(pagination.page)}
- className="px-4 py-2 bg-[#0067A1] text-white rounded-xl flex items-center gap-2 shadow-lg"
+ className="px-4 py-2 bg-[#0067A1] text-white rounded-lg flex items-center gap-2"
  >
  <RefreshCw className="w-4 h-4" />
  Refresh
@@ -170,7 +170,7 @@ export default function LogsPage() {
  </div>
 
  {/* FILTERS BOX */}
- <div className="bg-white dark:bg-gray-800 border border-[#0067A1]/10 dark:border-gray-700 rounded-xl p-6 shadow mb-8">
+ <div className="bg-white dark:bg-gray-800 border border-[#0067A1]/10 dark:border-gray-700 rounded-lg p-6 shadow mb-8">
  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
  {/* Search */}
  <div className="relative col-span-1">
@@ -178,7 +178,7 @@ export default function LogsPage() {
  <input
  type="text"
  placeholder="Search medicine, batch..."
- className="w-full pl-12 pr-4 py-3 bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 rounded-xl"
+ className="w-full pl-12 pr-4 py-3 bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 rounded-lg"
  value={search}
  onChange={(e) => setSearch(e.target.value)}
  />
@@ -188,7 +188,7 @@ export default function LogsPage() {
  <select
  value={typeFilter}
  onChange={(e) => setTypeFilter(e.target.value)}
- className="px-4 py-3 bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 rounded-xl"
+ className="px-4 py-3 bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 rounded-lg"
  >
  <option value="all">All Types</option>
  {Object.keys(typeConfig).map((t) => (
@@ -205,7 +205,7 @@ export default function LogsPage() {
  type="date"
  value={fromDate}
  onChange={(e) => setFromDate(e.target.value)}
- className="flex-1 px-3 py-2 bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 rounded-xl"
+ className="flex-1 px-3 py-2 bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 rounded-lg"
  />
  </div>
 
@@ -216,7 +216,7 @@ export default function LogsPage() {
  type="date"
  value={toDate}
  onChange={(e) => setToDate(e.target.value)}
- className="flex-1 px-3 py-2 bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 rounded-xl"
+ className="flex-1 px-3 py-2 bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 rounded-lg"
  />
  </div>
  </div>
@@ -232,7 +232,7 @@ export default function LogsPage() {
 
  {/* NO DATA */}
  {!loading && logs.length === 0 && (
- <div className="bg-white dark:bg-gray-800 p-10 rounded-xl border border-[#0067A1]/10 dark:border-gray-700 text-center shadow">
+ <div className="bg-white dark:bg-gray-800 p-10 rounded-lg border border-[#0067A1]/10 dark:border-gray-700 text-center shadow">
  <Info className="w-12 h-12 text-teal-500 mx-auto mb-4" />
  <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
  No logs found
@@ -245,7 +245,7 @@ export default function LogsPage() {
 
  {/* TABLE */}
  {!loading && logs.length > 0 && (
- <div className="bg-white dark:bg-gray-900 rounded-xl border border-[#0067A1]/10 dark:border-gray-700 shadow overflow-hidden">
+ <div className="bg-white dark:bg-gray-900 rounded-lg border border-[#0067A1]/10 dark:border-gray-700 shadow overflow-hidden">
  <table className="w-full">
  <thead className="bg-[#0067A1]/5 dark:bg-gray-800 border-b dark:border-gray-700">
  <tr>

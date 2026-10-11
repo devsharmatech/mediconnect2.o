@@ -19,11 +19,20 @@ import {
   FaExclamationTriangle,
   FaFilePdf,
   FaUserMd,
+  FaDownload,
+  FaShareAlt,
+  FaLock,
+  FaCheck,
+  FaRupeeSign,
+  FaPills,
+  FaFlask,
 } from "react-icons/fa";
+import { loadRazorpayScript } from "@/lib/razorpay";
 import AppointmentDetailsModal from "@/components/public-site/appointments/AppointmentDetailsModal";
 import OutcomeTrackerModal from "@/components/public-site/appointments/OutcomeTrackerModal";
 import ServiceRecommendationModal from "@/components/public-site/appointments/ServiceRecommendationModal";
 import PrescriptionViewerModal from "@/components/public-site/appointments/PrescriptionViewerModal";
+import SharePrescriptionMenuModal from "@/components/public-site/appointments/SharePrescriptionMenuModal";
 import { toast } from "react-hot-toast";
 import { LoadingScreen } from "@/components/public-site/ui/LoadingStates";
 import { Activity, ShieldAlert, ClipboardList, Stethoscope, CalendarPlus, CheckCircle2, AlertCircle, Clock } from "lucide-react";
@@ -289,6 +298,13 @@ export default function AppointmentsPage() {
   const [rescheduleSlotsLoading, setRescheduleSlotsLoading] = useState(false);
   const [selectedRescheduleSlot, setSelectedRescheduleSlot] = useState(null);
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [rescheduleQuote, setRescheduleQuote] = useState({
+    loading: false,
+    needs_payment: false,
+    amount: 0,
+    reason: "",
+    error: null,
+  });
 
   // Cancel modal state
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
@@ -297,6 +313,7 @@ export default function AppointmentsPage() {
 
   // Prescription modal state
   const [isPrescriptionModalOpen, setIsPrescriptionModalOpen] = useState(false);
+  const [autoSaveDigiLockerModal, setAutoSaveDigiLockerModal] = useState(false);
   const [prescriptionData, setPrescriptionData] = useState(null);
   const [prescriptionLoading, setPrescriptionLoading] = useState(false);
 
@@ -320,6 +337,10 @@ export default function AppointmentsPage() {
   // Service Recommendations Modal state
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [appointmentForService, setAppointmentForService] = useState(null);
+
+  // Share Prescription Menu Modal state
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [selectedAppointmentForShare, setSelectedAppointmentForShare] = useState(null);
 
   // FOLLOW_UP_PENDING — pending recovery actions from /api/patient/followup-actions
   const [pendingFollowUps, setPendingFollowUps] = useState([]);
@@ -556,6 +577,40 @@ export default function AppointmentsPage() {
     fetchSlots();
   }, [isRescheduleModalOpen, appointmentToReschedule, rescheduleDate]);
 
+  // Evaluate reschedule fee requirement whenever modal opens or rescheduleType changes
+  useEffect(() => {
+    if (!isRescheduleModalOpen || !appointmentToReschedule) {
+      setRescheduleQuote({ loading: false, needs_payment: false, amount: 0, reason: "", error: null });
+      return;
+    }
+
+    const checkFee = async () => {
+      try {
+        setRescheduleQuote((prev) => ({ ...prev, loading: true, error: null }));
+        const res = await fetch(
+          `/api/appointment/reschedule?appointment_id=${appointmentToReschedule.id}&new_type=${rescheduleType}`
+        );
+        const json = await res.json();
+        if (json.success && json.data) {
+          setRescheduleQuote({
+            loading: false,
+            needs_payment: !!json.data.needs_payment,
+            amount: Number(json.data.amount || 0),
+            reason: json.data.reason || "",
+            error: null,
+          });
+        } else {
+          setRescheduleQuote((prev) => ({ ...prev, loading: false }));
+        }
+      } catch (err) {
+        console.warn("Fee quote evaluation error:", err);
+        setRescheduleQuote((prev) => ({ ...prev, loading: false, error: err.message }));
+      }
+    };
+
+    checkFee();
+  }, [isRescheduleModalOpen, appointmentToReschedule, rescheduleType]);
+
   const getFilteredAppointments = () => {
     const now = currentTime;
     const todayStr = getLocalTodayString();
@@ -710,6 +765,118 @@ export default function AppointmentsPage() {
       }
 
       const cleanTime = selectedRescheduleSlot.slice(0, 5);
+
+      // Check if payment is required
+      if (rescheduleQuote.needs_payment && rescheduleQuote.amount > 0) {
+        // 1. Ensure Razorpay SDK is loaded
+        const isLoaded = await loadRazorpayScript();
+        if (!isLoaded) {
+          toast.error("Failed to load Razorpay payment gateway.");
+          setRescheduleLoading(false);
+          return;
+        }
+
+        // 2. Create Razorpay order
+        const idempotencyKey = `reschedule-order-${appointmentToReschedule.id}-${Date.now()}`;
+        const orderRes = await fetch("/api/payment/create-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: rescheduleQuote.amount,
+            currency: "INR",
+            patient_id: userId,
+            doctor_id: appointmentToReschedule.doctor_id,
+            appointment_type: rescheduleType,
+            care_episode_id: appointmentToReschedule.care_episode_id,
+            idempotency_key: idempotencyKey,
+          }),
+        });
+
+        const orderJson = await orderRes.json();
+        if (!orderRes.ok || !orderJson.success) {
+          throw new Error(orderJson.message || orderJson.error || "Failed to initialize payment.");
+        }
+
+        const orderData = orderJson.data?.order || orderJson.order;
+        const razorpayKey = orderJson.data?.razorpay_key || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+
+        // 3. Open Razorpay checkout
+        const options = {
+          key: razorpayKey,
+          amount: orderData.amount,
+          currency: orderData.currency || "INR",
+          name: "MediConnect",
+          description: `Consultation Fee for Dr. ${appointmentToReschedule.doctor?.full_name || appointmentToReschedule.doctor_full_name || "Doctor"}`,
+          image: `${window.location.origin}/real-logo.png`,
+          order_id: orderData.id,
+          handler: async function (response) {
+            try {
+              // 4. Confirm reschedule with verified payment_id
+              const confirmRes = await fetch("/api/appointment/reschedule", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  appointment_id: appointmentToReschedule.id,
+                  new_date: rescheduleDate,
+                  new_time: cleanTime,
+                  new_type: rescheduleType,
+                  user_id: userId,
+                  payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                }),
+              });
+
+              const confirmJson = await confirmRes.json();
+              if (!confirmJson.success) {
+                throw new Error(confirmJson.message || "Failed to reschedule appointment.");
+              }
+
+              toast.success("Payment completed & appointment rescheduled!");
+              setAppointments((prev) =>
+                prev.map((apt) =>
+                  apt.id === appointmentToReschedule.id
+                    ? {
+                        ...apt,
+                        appointment_date: rescheduleDate,
+                        appointment_time: `${cleanTime}:00`,
+                        appointment_type: rescheduleType,
+                        payment_status: "paid",
+                        status: "booked",
+                      }
+                    : apt
+                )
+              );
+              setIsRescheduleModalOpen(false);
+              setAppointmentToReschedule(null);
+            } catch (payConfirmErr) {
+              console.error("Reschedule payment confirmation error:", payConfirmErr);
+              toast.error(payConfirmErr.message || "Error finalizing reschedule after payment.");
+            } finally {
+              setRescheduleLoading(false);
+            }
+          },
+          modal: {
+            ondismiss: function () {
+              setRescheduleLoading(false);
+              toast.error("Payment cancelled. Appointment was not rescheduled.");
+            },
+          },
+          prefill: {
+            name: "",
+            email: "",
+            contact: "",
+          },
+          theme: {
+            color: "#0067A1",
+          },
+        };
+
+        const razorpayObj = new window.Razorpay(options);
+        razorpayObj.open();
+        return;
+      }
+
+      // ── Free / Already paid reschedule flow ──
       const res = await fetch("/api/appointment/reschedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -798,14 +965,54 @@ export default function AppointmentsPage() {
   };
 
   const handleSendToLab = async () => {
-    if (!prescriptionData) return;
-    toast.success("Prescription sent to lab partner for test booking.");
     setIsPrescriptionModalOpen(false);
+    const consultId = prescriptionData?.appointment_id || selectedAppointment?.id;
+    if (consultId) {
+      router.push(`/dashboard/lab-booking/prescription?consultation_id=${consultId}`);
+    } else {
+      router.push("/dashboard/lab-booking");
+    }
   };
 
   const handleSendToChemist = async () => {
-    if (!prescriptionData) return;
-    router.push(`/website/medicine-order?prescription_id=${prescriptionData.id}`);
+    setIsPrescriptionModalOpen(false);
+    const rxId = prescriptionData?.id || selectedAppointment?.prescription_id;
+    if (rxId) {
+      router.push(`/medicine-order?prescription_id=${rxId}`);
+    } else {
+      router.push("/medicine-order");
+    }
+  };
+
+  const handleCardSendToChemist = (appointment) => {
+    const rxId = appointment?.prescription?.id || appointment?.prescription_id;
+    if (rxId) {
+      router.push(`/medicine-order?prescription_id=${rxId}`);
+    } else {
+      handleViewPrescription(appointment);
+    }
+  };
+
+  const handleCardSendToLab = (appointment) => {
+    if (appointment?.id) {
+      router.push(`/dashboard/lab-booking/prescription?consultation_id=${appointment.id}`);
+    } else {
+      router.push("/dashboard/lab-booking");
+    }
+  };
+
+  const handleSharePrescription = (appointment) => {
+    setSelectedAppointmentForShare(appointment);
+    setIsShareModalOpen(true);
+  };
+
+  const handleDownloadPrescription = (appointment) => {
+    handleViewPrescription(appointment);
+  };
+
+  const handleSaveToDigiLocker = (appointment) => {
+    setAutoSaveDigiLockerModal(true);
+    handleViewPrescription(appointment);
   };
 
   const handleOutcomeClick = (appointment) => {
@@ -898,6 +1105,12 @@ export default function AppointmentsPage() {
         isOpen={isDetailsModalOpen}
         onClose={() => setIsDetailsModalOpen(false)}
         appointment={selectedAppointment}
+        onViewPrescription={handleViewPrescription}
+        onDownloadPrescription={handleDownloadPrescription}
+        onSharePrescription={handleSharePrescription}
+        onSaveToDigiLocker={handleSaveToDigiLocker}
+        onSendToChemist={handleCardSendToChemist}
+        onSendToLab={handleCardSendToLab}
       />
 
       {/* Reschedule Modal */}
@@ -946,6 +1159,38 @@ export default function AppointmentsPage() {
                   })}
                 </div>
               </div>
+
+              {/* Payment / Fee Status Notice */}
+              {rescheduleQuote.loading ? (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-500">
+                  <div className="w-3.5 h-3.5 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin" />
+                  <span>Checking consultation fee...</span>
+                </div>
+              ) : rescheduleQuote.needs_payment && rescheduleQuote.amount > 0 ? (
+                <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-900 shadow-2xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 rounded-md bg-amber-100 text-amber-700">
+                      <FaRupeeSign className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-amber-900">Payment Required</p>
+                      <p className="text-[11px] text-amber-700">{rescheduleQuote.reason || "Consultation fee required"}</p>
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-amber-900 px-2 py-0.5 rounded bg-amber-100">
+                    ₹{rescheduleQuote.amount}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900 shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="font-medium">Free Reschedule</span>
+                    <span className="text-[11px] text-emerald-700">({rescheduleQuote.reason || "Already paid"})</span>
+                  </div>
+                  <span className="text-xs font-semibold text-emerald-700">₹0 Fee</span>
+                </div>
+              )}
 
               {/* Date Picker */}
               <div className="space-y-2">
@@ -1017,11 +1262,15 @@ export default function AppointmentsPage() {
               </button>
               <button
                 type="button"
-                disabled={rescheduleLoading || !selectedRescheduleSlot}
+                disabled={rescheduleLoading || !selectedRescheduleSlot || rescheduleQuote.loading}
                 onClick={handleConfirmReschedule}
-                className="px-5 py-2 text-sm font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] disabled:opacity-60 disabled:cursor-not-allowed"
+                className="px-5 py-2 text-sm font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               >
-                {rescheduleLoading ? "Rescheduling..." : "Confirm Reschedule"}
+                {rescheduleLoading
+                  ? "Processing..."
+                  : rescheduleQuote.needs_payment && rescheduleQuote.amount > 0
+                    ? `Pay ₹${rescheduleQuote.amount}`
+                    : "Reschedule"}
               </button>
             </div>
           </div>
@@ -1103,7 +1352,11 @@ export default function AppointmentsPage() {
         <PrescriptionViewerModal
           data={prescriptionData}
           combinedLabs={combinedLabs}
-          onClose={() => setIsPrescriptionModalOpen(false)}
+          autoSaveDigiLocker={autoSaveDigiLockerModal}
+          onClose={() => {
+            setIsPrescriptionModalOpen(false);
+            setAutoSaveDigiLockerModal(false);
+          }}
           onSendToLab={combinedLabs.length > 0 ? handleSendToLab : undefined}
           onSendToChemist={(prescriptionData?.medicines && prescriptionData.medicines.length > 0) ? handleSendToChemist : undefined}
         />
@@ -1291,12 +1544,17 @@ export default function AppointmentsPage() {
                   appointment={appointment}
                   currentTime={currentTime}
                   isActiveCall={appointment.id === activeCallIdToShow}
-                  hasPrescription={!!prescriptionExistsMap[appointment.id]}
+                  hasPrescription={appointment.has_prescription || !!prescriptionExistsMap[appointment.id]}
                   onViewDetails={handleViewDetails}
                   onCancel={handleCancelClick}
                   onReschedule={handleRescheduleClick}
                   onJoinCall={handleJoinVideoCall}
                   onViewPrescription={handleViewPrescription}
+                  onDownloadPrescription={handleDownloadPrescription}
+                  onSharePrescription={handleSharePrescription}
+                  onSaveToDigiLocker={handleSaveToDigiLocker}
+                  onSendToChemist={handleCardSendToChemist}
+                  onSendToLab={handleCardSendToLab}
                   onOutcomeTracker={handleOutcomeClick}
                   onServiceRecommendations={handleServiceClick}
                 />
@@ -1312,6 +1570,29 @@ export default function AppointmentsPage() {
             appointment={appointmentForOutcome}
             onSuccess={handleOutcomeSuccess}
           />
+          {/* Share Prescription Menu Modal */}
+          {isShareModalOpen && selectedAppointmentForShare && (
+            <SharePrescriptionMenuModal
+              isOpen={isShareModalOpen}
+              onClose={() => {
+                setIsShareModalOpen(false);
+                setSelectedAppointmentForShare(null);
+              }}
+              prescription={selectedAppointmentForShare.prescription || { id: selectedAppointmentForShare.prescription_id }}
+              doctorName={selectedAppointmentForShare.doctor?.full_name || selectedAppointmentForShare.doctor?.name}
+              diagnosis={selectedAppointmentForShare.disease_info?.summary || selectedAppointmentForShare.diagnosis}
+              date={getDateTime(selectedAppointmentForShare).dateObj?.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+              onOpenChemistShare={() => {
+                handleViewPrescription(selectedAppointmentForShare);
+              }}
+              onOpenLabShare={() => {
+                handleViewPrescription(selectedAppointmentForShare);
+              }}
+              onSaveToDigiLocker={() => handleSaveToDigiLocker(selectedAppointmentForShare)}
+              isSavedInDigiLocker={selectedAppointmentForShare.prescription_saved_in_digilocker || selectedAppointmentForShare.prescription?.is_saved_in_digilocker}
+            />
+          )}
+
           {/* Service Recommendations Modal */}
           <ServiceRecommendationModal
             isOpen={isServiceModalOpen}
@@ -1325,7 +1606,24 @@ export default function AppointmentsPage() {
 }
 
 // Appointment Card Component
-const AppointmentCard = ({ appointment, currentTime = new Date(), isActiveCall, hasPrescription, onViewDetails, onCancel, onReschedule, onJoinCall, onViewPrescription, onOutcomeTracker, onServiceRecommendations }) => {
+const AppointmentCard = ({
+  appointment,
+  currentTime = new Date(),
+  isActiveCall,
+  hasPrescription,
+  onViewDetails,
+  onCancel,
+  onReschedule,
+  onJoinCall,
+  onViewPrescription,
+  onDownloadPrescription,
+  onSharePrescription,
+  onSaveToDigiLocker,
+  onSendToChemist,
+  onSendToLab,
+  onOutcomeTracker,
+  onServiceRecommendations,
+}) => {
   const [orchestrator, setOrchestrator] = useState({ loading: false, data: null });
   const [imgError, setImgError] = useState(false);
 
@@ -1367,10 +1665,13 @@ const AppointmentCard = ({ appointment, currentTime = new Date(), isActiveCall, 
   const statusCfg         = getStatusConfig(effectiveStatus);
   const canModify         = canModifyAppointment(appointment);
   const timing            = getVideoCallTiming(appointment, currentTime);
-  const showVideoButton   = timing.isVideo;
   const appointmentTypeKey = getAppointmentTypeKey(appointment);
   const TypeIcon          = APPOINTMENT_TYPE_ICONS[appointmentTypeKey] || FaHospital;
   const isPast            = effectiveStatus === "completed" || effectiveStatus === "expired";
+  const isCompleted       = effectiveStatus === "completed" || normalizeStatus(appointment.status) === "completed";
+  const hasRx             = hasPrescription || appointment.has_prescription || !!appointment.prescription_id || isCompleted;
+  const isDigiLockerSaved = !!(appointment.prescription_saved_in_digilocker || appointment.prescription?.is_saved_in_digilocker);
+  const showVideoButton   = timing.isVideo && !isCompleted && !isPast;
 
   // Doctor image resolution
   const doctorImageUrl = (() => {
@@ -1431,175 +1732,218 @@ const AppointmentCard = ({ appointment, currentTime = new Date(), isActiveCall, 
         : "bg-teal-50 text-teal-700 border-teal-100";
 
   return (
-    <div className={`bg-white border rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md ${
-      isActiveCall
-        ? "border-emerald-400 shadow-md shadow-emerald-100"
-        : "border-gray-200 shadow-sm"
-    }`}>
-
-      {/* Active call banner */}
+    <div
+      className={`bg-white border rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-lg flex flex-col justify-between ${
+        isActiveCall
+          ? "border-emerald-400 shadow-md shadow-emerald-100/50 ring-1 ring-emerald-300"
+          : "border-slate-200 shadow-xs hover:border-slate-300"
+      }`}
+    >
+      {/* Active Call Alert Banner */}
       {isActiveCall && (
-        <div className="bg-emerald-500 text-white px-3 py-1.5 text-[11px] font-semibold text-center flex items-center justify-center gap-1.5 animate-pulse">
-          <span className="relative flex h-1.5 w-1.5">
+        <div className="bg-emerald-600 text-white px-3.5 py-1.5 text-xs font-semibold text-center flex items-center justify-center gap-2 animate-pulse">
+          <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
           </span>
-          ACTIVE — Doctor is waiting
+          Doctor is waiting in video consultation
         </div>
       )}
 
-      <div className="p-3.5">
-        {/* Top row — type badge + status badge */}
-        <div className="flex items-center justify-between mb-3">
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium border rounded ${typeColorCls}`}>
-            <TypeIcon className="w-3 h-3" />
-            {getAppointmentTypeLabel(appointment)}
-          </span>
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium border rounded ${statusCfg.cls}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
-            {statusCfg.label}
-          </span>
-        </div>
-
-        {/* Doctor info row */}
-        <div className="flex items-center gap-3 mb-3">
-          {/* Profile image with fallback */}
-          <div className="w-10 h-10 rounded-full bg-[#0067A1]/10 border border-[#0067A1]/20 flex items-center justify-center shrink-0 overflow-hidden">
-            {doctorImageUrl && !imgError ? (
-              <img
-                src={doctorImageUrl}
-                alt={doctorName}
-                className="w-full h-full object-cover"
-                onError={() => setImgError(true)}
-              />
-            ) : (
-              <FaUserMd className="w-5 h-5 text-[#0067A1]" />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="text-sm font-semibold text-gray-900 truncate leading-tight">
-              {doctorName}
-            </h3>
-            {specialty && (
-              <p className="text-xs text-gray-500 truncate mt-0.5">{specialty}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Date / Time / Location */}
-        <div className="bg-gray-50 border border-gray-100 rounded-md p-2.5 space-y-1.5 mb-3">
-          <div className="flex items-center gap-2 text-[11px] text-gray-600">
-            <FaCalendarAlt className="w-3 h-3 text-[#0067A1] shrink-0" />
-            <span>
-              {getDateTime(appointment).dateObj?.toLocaleDateString("en-US", {
-                weekday: "short",
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              }) || "—"}
+      <div className="p-4 flex flex-col flex-1 justify-between gap-3.5">
+        <div>
+          {/* Top Row — Consultation Type & Status Badges */}
+          <div className="flex items-center justify-between mb-3">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-semibold border rounded-full ${typeColorCls}`}>
+              <TypeIcon className="w-3 h-3" />
+              {getAppointmentTypeLabel(appointment)}
+            </span>
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-semibold border rounded-full ${statusCfg.cls}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+              {statusCfg.label}
             </span>
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-gray-600">
-            <FaClock className="w-3 h-3 text-[#0067A1] shrink-0" />
-            <span>{formatTimeTo12Hour(getDateTime(appointment).timeStr) || "—"}</span>
+
+          {/* Doctor Info Row */}
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-11 h-11 rounded-full bg-slate-100 border border-slate-200 ring-2 ring-slate-100/80 flex items-center justify-center shrink-0 overflow-hidden">
+              {doctorImageUrl && !imgError ? (
+                <img
+                  src={doctorImageUrl}
+                  alt={doctorName}
+                  className="w-full h-full object-cover"
+                  onError={() => setImgError(true)}
+                />
+              ) : (
+                <FaUserMd className="w-5 h-5 text-[#0067A1]" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-semibold text-slate-900 truncate leading-snug">
+                {doctorName}
+              </h3>
+              {specialty && (
+                <p className="text-xs text-[#0067A1] font-medium truncate mt-0.5">{specialty}</p>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-gray-600">
-            <FaMapMarkerAlt className="w-3 h-3 text-[#0067A1] shrink-0" />
-            <span className="truncate">
-              {appointment.location || appointment.doctor?.clinic_name || "Online consultation"}
-            </span>
+
+          {/* Date / Time / Location Block */}
+          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-2.5 space-y-1.5">
+            <div className="flex items-center gap-2 text-xs text-slate-700">
+              <FaCalendarAlt className="w-3.5 h-3.5 text-[#0067A1] shrink-0" />
+              <span className="font-medium">
+                {getDateTime(appointment).dateObj?.toLocaleDateString("en-IN", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                }) || "—"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-700">
+              <FaClock className="w-3.5 h-3.5 text-[#0067A1] shrink-0" />
+              <span className="font-medium">{formatTimeTo12Hour(getDateTime(appointment).timeStr) || "—"}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <FaMapMarkerAlt className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="truncate">
+                {appointment.location || appointment.doctor?.clinic_name || "Online consultation"}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="space-y-2">
-          {/* Primary row */}
-          <div className={`grid gap-2 ${showVideoButton || (isPast && hasPrescription) ? "grid-cols-2" : "grid-cols-1"}`}>
+        {/* Action Buttons Section */}
+        <div className="space-y-2 pt-1 border-t border-slate-100">
+          {/* Primary Action Row */}
+          <div className={`grid gap-2 ${showVideoButton || hasRx ? "grid-cols-2" : "grid-cols-1"}`}>
             <button
+              type="button"
               onClick={() => onViewDetails(appointment)}
-              className="h-8 w-full flex items-center justify-center gap-1.5 px-3 rounded-md bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-medium transition-colors"
+              className="h-9 w-full flex items-center justify-center gap-1.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 text-xs font-semibold border border-slate-200/80 transition-all cursor-pointer"
             >
-              <FaEye className="h-3 w-3 shrink-0" />
+              <FaEye className="h-3.5 w-3.5 text-slate-600 shrink-0" />
               Details
             </button>
 
+            {/* Video Call Button */}
             {showVideoButton && (
               <button
+                type="button"
                 onClick={() => timing.canJoin && onJoinCall(appointment)}
                 disabled={!timing.canJoin}
                 title={timing.tooltip || (timing.canJoin ? "Join video consultation" : "Call unavailable")}
-                className={`h-8 w-full flex items-center justify-center gap-1.5 px-3 rounded-md text-xs font-medium transition-all ${
+                className={`h-9 w-full flex items-center justify-center gap-1.5 px-3 rounded-xl text-xs font-semibold transition-all ${
                   timing.canJoin
                     ? isActiveCall
-                      ? "bg-emerald-500 hover:bg-emerald-600 animate-pulse text-white shadow-sm shadow-emerald-200 cursor-pointer"
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm ring-2 ring-emerald-400/50 cursor-pointer animate-pulse"
                       : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm cursor-pointer"
                     : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none"
                 }`}
               >
-                <FaVideo className={`h-3 w-3 shrink-0 ${!timing.canJoin ? "opacity-40" : "text-white"}`} />
+                <FaVideo className={`h-3.5 w-3.5 shrink-0 ${!timing.canJoin ? "opacity-40" : "text-white"}`} />
                 {isActiveCall && timing.canJoin ? "Join Active" : timing.label}
               </button>
             )}
 
-            {isPast && hasPrescription && !showVideoButton && (
+            {/* Prescription Primary View Button */}
+            {hasRx && (
               <button
+                type="button"
                 onClick={() => onViewPrescription(appointment)}
-                className="h-8 w-full flex items-center justify-center gap-1.5 px-3 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-medium transition-colors"
+                className="h-9 w-full flex items-center justify-center gap-1.5 px-3 rounded-xl bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold shadow-xs hover:shadow transition-all cursor-pointer"
+                title="View digitally signed medical prescription"
               >
-                <FaFileMedical className="h-3 w-3 shrink-0" />
-                Rx
+                <FaFileMedical className="h-3.5 w-3.5 shrink-0" />
+                Prescription
               </button>
             )}
           </div>
 
-          {/* Secondary row — reschedule / cancel */}
-          {canModify && (
-            <div className="grid grid-cols-2 gap-2">
+          {/* Save DigiLocker Quick Action */}
+          {hasRx && (
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
               <button
-                onClick={() => onReschedule(appointment)}
-                className="h-7 flex items-center justify-center rounded-md text-[11px] font-medium text-[#0067A1] bg-gray-50 hover:bg-blue-50 border border-gray-200 transition-colors"
+                type="button"
+                onClick={() => onSaveToDigiLocker ? onSaveToDigiLocker(appointment) : null}
+                title={isDigiLockerSaved ? "Saved in DigiLocker" : "Save to DigiLocker"}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                  isDigiLockerSaved
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-sky-50 text-[#0067A1] hover:bg-sky-100 border-sky-200/80"
+                }`}
               >
-                Reschedule
-              </button>
-              <button
-                onClick={() => onCancel(appointment)}
-                className="h-7 flex items-center justify-center rounded-md text-[11px] font-medium text-red-600 bg-red-50/30 hover:bg-red-50 border border-red-200/60 transition-colors"
-              >
-                Cancel
+                {isDigiLockerSaved ? (
+                  <>
+                    <FaCheck className="w-3 h-3 text-emerald-600" />
+                    <span>In DigiLocker</span>
+                  </>
+                ) : (
+                  <>
+                    <FaLock className="w-3 h-3 text-[#0067A1]" />
+                    <span>Save DigiLocker</span>
+                  </>
+                )}
               </button>
             </div>
           )}
 
-          {/* Orchestrator actions */}
+          {/* Reschedule & Cancel Row */}
+          {canModify && (
+            <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => onReschedule(appointment)}
+                className="flex-1 h-8.5 px-3 rounded-xl text-xs font-semibold text-[#0067A1] bg-sky-50 hover:bg-sky-100 border border-sky-200/80 transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:shadow-xs"
+                title="Reschedule appointment date or time"
+              >
+                <FaCalendarAlt className="w-3 h-3 text-[#0067A1]" />
+                <span>Reschedule</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onCancel(appointment)}
+                className="h-8.5 px-3.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:shadow-xs"
+                title="Cancel appointment"
+              >
+                <FaTimes className="w-3 h-3 text-rose-500" />
+                <span>Cancel</span>
+              </button>
+            </div>
+          )}
+
+          {/* Orchestrator Next Steps */}
           {orchestrator.loading ? (
-            <div className="flex justify-center items-center py-1.5 bg-gray-50 border border-gray-100 rounded-md">
+            <div className="flex justify-center items-center py-2 bg-slate-50 border border-slate-100 rounded-xl">
               <div className="w-3 h-3 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin" />
-              <span className="ml-2 text-[10px] text-gray-500">Checking actions...</span>
+              <span className="ml-2 text-[11px] text-slate-500 font-medium">Checking actions...</span>
             </div>
           ) : orchestrator.data?.type === "ACTION" && orchestrator.data.actions.length > 0 ? (
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5 pt-1 border-t border-slate-100">
               {orchestrator.data.actions.map((action, idx) => (
                 <button
                   key={idx}
+                  type="button"
                   onClick={() => {
                     if (action.action_id === "SUBMIT_OUTCOME") onOutcomeTracker(appointment);
                     else if (action.action_id === "BOOK_FOLLOWUP" || action.action_id === "CONFIRM_FOLLOWUP") onReschedule(appointment);
                     else if (action.action_id?.startsWith("ORDER_")) onServiceRecommendations(appointment);
                   }}
-                  className={`h-8 w-full flex items-center justify-center gap-1.5 text-xs font-medium border rounded-md transition-colors ${
+                  className={`h-8.5 w-full flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
                     action.priority === 1
-                      ? "bg-[#0067A1] hover:bg-[#004F7C] text-white border-[#0067A1]"
-                      : "bg-blue-50 hover:bg-blue-100 text-[#004F7C] border-blue-200"
+                      ? "bg-[#0067A1] hover:bg-[#004F7C] text-white shadow-xs"
+                      : "bg-sky-50 hover:bg-sky-100 text-[#004F7C] border border-sky-200"
                   }`}
                   title={action.description}
                 >
-                  {action.action_id === "SUBMIT_OUTCOME" ? <Activity className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
+                  {action.action_id === "SUBMIT_OUTCOME" ? <Activity className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
                   {action.label}
                 </button>
               ))}
             </div>
           ) : orchestrator.data?.type === "MONITOR" ? (
-            <div className="w-full bg-gray-50 border border-gray-200 text-gray-500 py-1.5 text-center text-[10px] font-medium tracking-wide rounded-md">
+            <div className="w-full bg-slate-50 border border-slate-200 text-slate-500 py-1.5 text-center text-[10px] font-medium tracking-wide rounded-xl">
               Monitoring — Awaiting Doctor Action
             </div>
           ) : null}

@@ -65,16 +65,27 @@ const Dashboard = () => {
         console.error("Failed to parse user data:", e);
       }
     }
-    if (!parsed) {
-      const docData = localStorage.getItem("doctorUser");
-      if (docData) {
-        try { parsed = JSON.parse(docData); } catch (e) {}
+    if (!parsed && localStorage.getItem("userId")) {
+      const activeRole = localStorage.getItem("userRole");
+      if (activeRole) {
+        const rawRoleUser = localStorage.getItem(`${activeRole}User`);
+        if (rawRoleUser) {
+          try {
+            parsed = JSON.parse(rawRoleUser);
+          } catch (e) {}
+        }
+      }
+      if (!parsed) {
+        parsed = { id: localStorage.getItem("userId") };
       }
     }
-    if (!parsed && localStorage.getItem("userId")) {
-      parsed = { id: localStorage.getItem("userId") };
+    if (parsed) {
+      setUser(parsed);
+      const uid = parsed.id || parsed.user_id || parsed.user?.id;
+      if (uid && !localStorage.getItem("userId")) {
+        localStorage.setItem("userId", String(uid));
+      }
     }
-    if (parsed) setUser(parsed);
   }, []);
 
   useEffect(() => {
@@ -221,7 +232,7 @@ const Dashboard = () => {
       </div>
 
       {/* Main Content */}
-      <div className="w-full mx-auto space-y-8 pb-12">
+      <div className="w-full mx-auto space-y-8 pb-28 sm:pb-16">
         {/* Engagement CTA Banner */}
         {nextActionData && nextActionData.decision !== "SUPPRESS" && (
           <section>
@@ -405,20 +416,20 @@ const Dashboard = () => {
             <motion.div
               whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.08)" }}
               transition={{ duration: 0.2 }}
-              className="relative overflow-hidden bg-white rounded-[5px] p-6 border border-slate-200 shadow-sm flex flex-col justify-between min-h-[210px]"
+              className="relative overflow-hidden bg-white rounded-[5px] p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-col justify-between min-h-[210px]"
             >
               <div>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-[#0067A1] rounded-[5px] flex items-center justify-center shrink-0 shadow-md">
-                      <TbLungsFilled className="w-7 h-7 text-white" />
+                <div className="flex items-start justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#0067A1] rounded-[5px] flex items-center justify-center shrink-0 shadow-md">
+                      <TbLungsFilled className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-extrabold text-gray-900">LungConnect</h3>
-                      <p className="text-xs text-[#0067A1] font-semibold mt-0.5">Respiratory Wellness & Activity Hub (Open Access)</p>
+                    <div className="min-w-0">
+                      <h3 className="text-base sm:text-lg font-extrabold text-gray-900 leading-tight">LungConnect</h3>
+                      <p className="text-xs text-[#0067A1] font-semibold mt-0.5 leading-snug">Respiratory Wellness & Activity Hub</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-[5px] uppercase tracking-wider">No Prerequisite</span>
+                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 sm:px-2.5 py-1 rounded-[5px] uppercase tracking-wider shrink-0 whitespace-nowrap">No Prerequisite</span>
                 </div>
 
                 <p className="text-sm text-gray-950 mt-4 leading-relaxed">
@@ -426,7 +437,7 @@ const Dashboard = () => {
                 </p>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+              <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 {(() => {
                   const la = assessments.filter((a) => a.assessment_type === "lung");
                   return la.length > 0 ? (
@@ -439,31 +450,33 @@ const Dashboard = () => {
                   );
                 })()}
 
-                <div className="flex items-center gap-2 grow sm:grow-0">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => router.push("/website/lung-connect")}
-                    className="px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-bold rounded-[5px] shadow-sm transition-colors grow text-center whitespace-nowrap"
+                    className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-bold rounded-[5px] shadow-sm transition-colors text-center whitespace-nowrap"
                   >
                     Enter Hub
                   </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/lung-connect?action=move")}
-                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[5px] text-xs font-bold transition-colors shadow-2xs text-center whitespace-nowrap"
-                  >
-                    Launch Move
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/lung-connect?action=breathing")}
-                    className="px-3.5 py-2 bg-white hover:bg-slate-50 text-[#003358] rounded-[5px] text-xs font-bold transition-colors border border-slate-200 shadow-2xs text-center whitespace-nowrap"
-                  >
-                    Breathing Studio
-                  </motion.button>
+                  <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => router.push("/lung-connect?action=move")}
+                      className="w-full sm:w-auto px-2 sm:px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[5px] text-[11px] sm:text-xs font-bold transition-colors shadow-2xs text-center truncate"
+                    >
+                      Move
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => router.push("/lung-connect?action=breathing")}
+                      className="w-full sm:w-auto px-2 sm:px-3.5 py-2 bg-white hover:bg-slate-50 text-[#003358] rounded-[5px] text-[11px] sm:text-xs font-bold transition-colors border border-slate-200 shadow-2xs text-center truncate"
+                    >
+                      Breathing
+                    </motion.button>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -472,20 +485,20 @@ const Dashboard = () => {
             <motion.div
               whileHover={{ y: -4, boxShadow: "0 10px 25px -5px rgba(0,0,0,0.08)" }}
               transition={{ duration: 0.2 }}
-              className="relative overflow-hidden bg-white rounded-[5px] p-6 border border-slate-200 shadow-sm flex flex-col justify-between min-h-[210px]"
+              className="relative overflow-hidden bg-white rounded-[5px] p-4 sm:p-6 border border-slate-200 shadow-sm flex flex-col justify-between min-h-[210px]"
             >
               <div>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-[#003358] rounded-[5px] flex items-center justify-center shrink-0 shadow-md">
-                      <FaHeartbeat className="w-7 h-7 text-white" />
+                <div className="flex items-start justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 bg-[#003358] rounded-[5px] flex items-center justify-center shrink-0 shadow-md">
+                      <FaHeartbeat className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-extrabold text-gray-900">CardioConnect</h3>
-                      <p className="text-xs text-[#003358] font-semibold mt-0.5">Heart Wellness & Training Hub (Open Access)</p>
+                    <div className="min-w-0">
+                      <h3 className="text-base sm:text-lg font-extrabold text-gray-900 leading-tight">CardioConnect</h3>
+                      <p className="text-xs text-[#003358] font-semibold mt-0.5 leading-snug">Heart Wellness & Training Hub</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-[5px] uppercase tracking-wider">No Prerequisite</span>
+                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 sm:px-2.5 py-1 rounded-[5px] uppercase tracking-wider shrink-0 whitespace-nowrap">No Prerequisite</span>
                 </div>
 
                 <p className="text-sm text-gray-950 mt-4 leading-relaxed">
@@ -493,7 +506,7 @@ const Dashboard = () => {
                 </p>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+              <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 {(() => {
                   const ha = assessments.filter((a) => a.assessment_type === "heart");
                   return ha.length > 0 ? (
@@ -506,31 +519,33 @@ const Dashboard = () => {
                   );
                 })()}
 
-                <div className="flex items-center gap-2 grow sm:grow-0">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => router.push("/website/cardio-connect")}
-                    className="px-4 py-2 bg-[#003358] hover:bg-[#00223d] text-white text-xs font-bold rounded-[5px] shadow-sm transition-colors grow text-center whitespace-nowrap"
+                    className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-[#003358] hover:bg-[#00223d] text-white text-xs font-bold rounded-[5px] shadow-sm transition-colors text-center whitespace-nowrap"
                   >
-                    Enter CardioConnect
+                    Enter Hub
                   </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/website/cardio-connect?action=training")}
-                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[5px] text-xs font-bold transition-colors shadow-2xs text-center whitespace-nowrap"
-                  >
-                    Heart Training
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push("/website/cardio-connect?action=walking")}
-                    className="px-3.5 py-2 bg-white hover:bg-slate-50 text-[#003358] rounded-[5px] text-xs font-bold transition-colors border border-slate-200 shadow-2xs text-center whitespace-nowrap"
-                  >
-                    Walking Test
-                  </motion.button>
+                  <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => router.push("/website/cardio-connect?action=training")}
+                      className="w-full sm:w-auto px-2 sm:px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[5px] text-[11px] sm:text-xs font-bold transition-colors shadow-2xs text-center truncate"
+                    >
+                      Training
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => router.push("/website/cardio-connect?action=walking")}
+                      className="w-full sm:w-auto px-2 sm:px-3.5 py-2 bg-white hover:bg-slate-50 text-[#003358] rounded-[5px] text-[11px] sm:text-xs font-bold transition-colors border border-slate-200 shadow-2xs text-center truncate"
+                    >
+                      Walk Test
+                    </motion.button>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -579,7 +594,7 @@ const Dashboard = () => {
                     <p className="text-white/70 text-sm mt-0.5">Request trained caregivers for home visits, elderly care & post-operative support</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 bg-white/20 backdrop-blur-sm px-5 py-3 rounded-[5px] group-hover:bg-white/30 transition-colors self-start sm:self-auto border border-white/10">
+                <div className="flex items-center justify-center sm:justify-start gap-2 bg-white/20 backdrop-blur-sm px-5 py-3 rounded-[5px] group-hover:bg-white/30 transition-colors w-full sm:w-auto border border-white/10">
                   <span className="text-sm font-semibold text-white whitespace-nowrap">Request Now</span>
                   <motion.span
                     className="text-white text-lg"

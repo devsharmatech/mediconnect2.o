@@ -1,5 +1,5 @@
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { corsHeaders } from "@/lib/cors";
 import { executeOrchestration } from "@/lib/layer1/controlLayer";
 import { randomUUID } from "crypto";
@@ -22,13 +22,12 @@ export async function POST(req, { params }) {
     let actorId = body.user_id || body.actorId;
 
     if (!actorId) {
-      const { data: appt } = await supabase
-        .from("appointments")
-        .select("patient_id, doctor_id")
-        .eq("id", id)
-        .maybeSingle();
-
-      actorId = appt?.patient_id || appt?.doctor_id;
+      const appts = await sql`
+        SELECT patient_id, doctor_id FROM appointments WHERE id = ${id} LIMIT 1
+      `;
+      if (appts.length > 0) {
+        actorId = appts[0].patient_id || appts[0].doctor_id;
+      }
     }
 
     if (!actorId) {
@@ -58,4 +57,3 @@ export async function POST(req, { params }) {
     return failure("Internal Server Error", error.message, 500, { headers: corsHeaders });
   }
 }
-

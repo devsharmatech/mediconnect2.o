@@ -63,10 +63,10 @@ export async function GET(req, { params }) {
 
         // Fetch diagnostic reports uploaded for this order
         const reports = await sql`
-            SELECT id, unid, order_id, lab_id, report_url, test_type, notes, result_summary, item_id, test_name, created_at
+            SELECT id, order_id, patient_id, lab_id, report_url, test_type, result_summary, structured_results, item_id, test_name, created_at
             FROM lab_reports
             WHERE order_id = ${id}
-            ORDER BY unid ASC
+            ORDER BY created_at ASC
         `;
 
         // Attach reports per item

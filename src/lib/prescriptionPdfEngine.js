@@ -32,6 +32,28 @@ async function toBase64DataUrl(src) {
     return DOCTOR_CADUCEUS_BASE64;
   }
 
+  // 1. Try fetching via proxy or direct to convert cleanly to Data URL (bypassing CORS canvas tainting)
+  try {
+    const fetchUrl = src.startsWith("http")
+      ? `/api/common/image-proxy?url=${encodeURIComponent(src)}`
+      : src;
+    const res = await fetch(fetchUrl);
+    if (res.ok) {
+      const blob = await res.blob();
+      const dataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+      if (dataUrl && typeof dataUrl === "string" && dataUrl.startsWith("data:")) {
+        return dataUrl;
+      }
+    }
+  } catch {
+    // Continue to canvas fallback
+  }
+
   return new Promise((resolve) => {
     try {
       const img = new Image();

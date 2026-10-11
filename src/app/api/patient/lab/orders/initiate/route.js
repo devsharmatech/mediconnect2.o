@@ -79,7 +79,7 @@ export async function POST(req) {
             dbTests.forEach(t => { priceMap[t.id] = t; });
         }
 
-        // Build verified items with server-side prices and discount rules (40% on CT/USG/X-Ray, 30% Echo)
+        // Build verified items with standard server-side catalog test prices (no customer discounts; commission is handled internally by admin auditing)
         const verifiedItems = tests.map(t => {
             const dbTest = priceMap[t.test_id];
             const itemToPrice = dbTest || t;

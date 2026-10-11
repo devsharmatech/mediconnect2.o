@@ -1,214 +1,428 @@
 "use client";
 
 import { useState } from "react";
-import {
-  FaHeartbeat,
-  FaArrowLeft,
-  FaStethoscope,
-  FaUserMd,
-  FaShieldAlt,
-  FaNotesMedical,
-  FaClock,
-  FaCheckCircle,
-  FaComments,
-  FaExclamationTriangle,
-  FaArrowRight,
-} from "react-icons/fa";
 import Link from "next/link";
+import {
+  HeartPulse,
+  ArrowLeft,
+  Stethoscope,
+  UserRound,
+  Shield,
+  ClipboardList,
+  MessageSquare,
+  AlertTriangle,
+  ArrowRight,
+  Phone,
+  FileText,
+  BadgeCheck,
+  Lock,
+  Info,
+  ChevronRight,
+  Activity,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
 
+/* ─────────────────────────────────────────────────────────
+   Data
+───────────────────────────────────────────────────────── */
+const steps = [
+  {
+    num: "01",
+    title: "Describe Your Symptoms",
+    body: "Tell us what you feel — pain, discomfort, fever, duration, and any triggers — in plain Hindi or English. No medical knowledge required.",
+    icon: MessageSquare,
+  },
+  {
+    num: "02",
+    title: "Structured Clinical Triage",
+    body: "Our triage assistant asks targeted follow-up questions on symptom severity, history, and associated complaints — aligned with NMC Telemedicine Practice Guidelines 2020.",
+    icon: Activity,
+  },
+  {
+    num: "03",
+    title: "Doctor-Ready Summary",
+    body: "A SOAP-format clinical summary (Subjective · Objective · Assessment · Plan) is automatically generated for your consulting doctor — no repetitive narration needed.",
+    icon: ClipboardList,
+  },
+  {
+    num: "04",
+    title: "Specialist Matching",
+    body: "Receive evidence-based specialty recommendations and book an instant or scheduled video consultation with a verified, NMC-registered doctor.",
+    icon: UserRound,
+  },
+];
+
+const benefits = [
+  {
+    icon: ClipboardList,
+    title: "Saves Consultation Time",
+    body: "Your complete symptom history is shared before the call, so the doctor focuses on diagnosis — not history collection.",
+  },
+  {
+    icon: AlertTriangle,
+    title: "Emergency Red-Flag Alerts",
+    body: "Critical signs (chest pain, stroke symptoms, breathlessness) are automatically flagged with a prompt to call 108 / 112 immediately.",
+  },
+  {
+    icon: MessageSquare,
+    title: "No Medical Jargon Needed",
+    body: "Speak naturally in Hindi or English. The system translates your words into structured clinical terminology.",
+  },
+  {
+    icon: Lock,
+    title: "ABDM & DPDP Compliant",
+    body: "All data is encrypted and stored per the Ayushman Bharat Digital Mission and Digital Personal Data Protection Act, 2023.",
+  },
+  {
+    icon: BadgeCheck,
+    title: "NMC-Verified Doctors Only",
+    body: "Every doctor on MediConnect holds a valid NMC or State Medical Council registration — verified before onboarding.",
+  },
+  {
+    icon: FileText,
+    title: "Secure Clinical Records",
+    body: "Symptom summaries are stored in your ABHA-linked health locker — accessible only to authorised treating physicians.",
+  },
+];
+
+const notServices = [
+  "A medical diagnosis or clinical opinion",
+  "A substitute for in-person physical examination",
+  "A prescription service for any drug schedule",
+  "An emergency service — dial 108 / 112 immediately for emergencies",
+  "A provider of surgical or procedural consultations without in-person review",
+];
+
+const complianceItems = [
+  "NMC Telemedicine Practice Guidelines 2020",
+  "Ayushman Bharat Digital Mission (ABDM)",
+  "Digital Personal Data Protection Act, 2023",
+  "Drugs & Cosmetics Act, 1940",
+  "Information Technology Act, 2000",
+  "Indian Medical Council (Professional Conduct) Regulations",
+];
+
+/* ─────────────────────────────────────────────────────────
+   Component
+───────────────────────────────────────────────────────── */
 export default function GuidedSymptomCheckPage() {
-  const [activeStep, setActiveStep] = useState(0);
-
-  const steps = [
-    {
-      step: "01",
-      title: "Describe Your Symptoms",
-      desc: "Type or speak your symptoms in everyday language. Describe what you feel, how long it has persisted, and any trigger factors.",
-      icon: FaComments,
-    },
-    {
-      step: "02",
-      title: "Interactive Clinical Triage",
-      desc: "Our intelligent triage assistant asks relevant follow-up questions regarding severity, associated symptoms, and medical history.",
-      icon: FaStethoscope,
-    },
-    {
-      step: "03",
-      title: "Doctor-Ready Health Summary",
-      desc: "A structured, chronological summary is compiled so your consulting doctor understands your case immediately without redundant questions.",
-      icon: FaNotesMedical,
-    },
-    {
-      step: "04",
-      title: "Match with the Right Specialist",
-      desc: "Receive evidence-based specialty recommendations (e.g. ENT, Gastroenterology, Cardiology) and book an instant or scheduled video consult.",
-      icon: FaUserMd,
-    },
-  ];
-
-  const benefits = [
-    {
-      title: "Streamlined Consultations",
-      desc: "Share your complete symptom timeline before joining, allowing the doctor to focus directly on clinical diagnosis and treatment.",
-    },
-    {
-      title: "Red-Flag & Emergency Warnings",
-      desc: "Automatic detection of critical vital alerts (e.g. severe chest pain, sudden numbness) prompting immediate emergency care.",
-    },
-    {
-      title: "Zero Medical Jargon Required",
-      desc: "Express yourself comfortably in plain conversational language. The system organizes terms into clinical categories.",
-    },
-    {
-      title: "Private & ABDM Compliant",
-      desc: "Your symptom assessments are securely protected under Indian data privacy and Ayushman Bharat Digital Mission guidelines.",
-    },
-  ];
+  const [disclaimerOpen, setDisclaimerOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#F6F8FA] pb-16">
-      {/* Hero Banner */}
-      <div className="bg-gradient-to-r from-[#0067A1] to-[#0080C6] px-6 py-12 md:px-10 md:py-16 text-center text-white">
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-xs shadow-inner">
-            <FaHeartbeat className="h-8 w-8 text-white" />
-          </div>
-          <span className="inline-block px-3 py-1 bg-white/20 rounded-full text-xs font-semibold uppercase tracking-wider mb-3">
-            Supportive Clinical Tools
-          </span>
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4">
-            Guided Symptom Check
-          </h1>
-          <p className="text-base md:text-lg text-white/90 max-w-2xl mx-auto leading-relaxed">
-            Prepare for your doctor visit in minutes. Structure your symptoms, identify relevant medical specialties, and ensure your doctor has full context before your consultation starts.
-          </p>
+    <div className="min-h-screen bg-[#F4F6F8]">
 
-          <div className="mt-8 flex flex-wrap gap-4 justify-center">
-            <Link
-              href="/website/doctors"
-              className="inline-flex items-center gap-2 px-6 py-3.5 bg-white text-[#0067A1] font-bold text-sm rounded-xl shadow-md hover:bg-slate-50 transition-all cursor-pointer"
-            >
-              <FaUserMd className="w-4 h-4" />
-              Find Doctors for Your Symptoms
-            </Link>
-            <Link
-              href="/website/services"
-              className="inline-flex items-center gap-2 px-6 py-3.5 bg-white/15 hover:bg-white/25 text-white font-semibold text-sm rounded-xl backdrop-blur-xs transition-all border border-white/30"
-            >
-              Explore All Services
-            </Link>
+      {/* ══════════════════════════════════════════
+          HERO — clean, no eyebrow badge
+      ══════════════════════════════════════════ */}
+      <section className="bg-[#0067A1] text-white">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-18">
+          <div className="max-w-2xl">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight tracking-tight mb-4">
+              Guided Symptom Check
+            </h1>
+            <p className="text-white/80 text-base sm:text-lg leading-relaxed mb-8">
+              Structure your symptoms before a consultation. Get matched with the right specialist and ensure your doctor has complete clinical context — before the call begins.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/website/doctors"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-[#0067A1] font-semibold text-sm rounded-md hover:bg-slate-50 transition-colors"
+              >
+                <UserRound className="w-4 h-4" />
+                Find Doctors
+              </Link>
+              <Link
+                href="/website/services"
+                className="inline-flex items-center gap-2 px-5 py-2.5 border border-white/40 text-white font-semibold text-sm rounded-md hover:bg-white/10 transition-colors"
+              >
+                All Services
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Main Container */}
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-10 max-w-5xl">
-        {/* Navigation Breadcrumb */}
+      {/* ══════════════════════════════════════════
+          MAIN CONTENT
+      ══════════════════════════════════════════ */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+
+        {/* Back link */}
         <Link
           href="/website/services"
-          className="inline-flex items-center text-sm font-medium text-[#0067A1] hover:underline mb-8"
+          className="inline-flex items-center gap-1.5 text-sm text-[#0067A1] font-medium hover:underline"
         >
-          <FaArrowLeft className="mr-2 h-3.5 w-3.5" />
+          <ArrowLeft className="w-3.5 h-3.5" />
           Back to Healthcare Services
         </Link>
 
-        {/* Emergency Alert Banner */}
-        <div className="mb-10 bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-4 shadow-xs">
-          <FaExclamationTriangle className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-sm text-amber-900 leading-relaxed">
-            <p className="font-bold text-amber-950">Important Clinical Disclaimer</p>
-            <p className="mt-1 text-amber-800">
-              The Guided Symptom Check is a supportive educational and triage tool designed to assist patient-doctor communication. It does <strong>not</strong> provide a final medical diagnosis or substitute professional clinical examination. If you are experiencing emergency symptoms (such as acute shortness of breath, severe chest pressure, or loss of consciousness), please dial <strong>108 / 112</strong> or proceed to the nearest emergency room immediately.
-            </p>
+        {/* ── Emergency strip ─────────────────── */}
+        <div className="bg-red-700 text-white rounded-md px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
+            <AlertTriangle className="w-4 h-4" />
+            <span className="font-bold text-sm">Medical Emergency?</span>
+          </div>
+          <p className="text-sm text-white/90 flex-1">
+            Do not use this tool. Call <strong>108</strong> (Ambulance) or <strong>112</strong> (National Emergency) immediately, or go to the nearest Government Hospital Emergency.
+          </p>
+          <div className="flex gap-2 shrink-0">
+            <a href="tel:108" className="px-4 py-1.5 bg-white text-red-700 rounded font-bold text-sm hover:bg-red-50 transition-colors">
+              Call 108
+            </a>
+            <a href="tel:112" className="px-4 py-1.5 bg-white/10 border border-white/30 text-white rounded font-semibold text-sm hover:bg-white/20 transition-colors">
+              Call 112
+            </a>
           </div>
         </div>
 
-        {/* How It Works Section */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 md:p-10 shadow-xs mb-10">
-          <div className="text-center max-w-2xl mx-auto mb-10">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">
-              How Guided Symptom Check Works
-            </h2>
-            <p className="text-gray-600 text-sm mt-2">
-              A four-step streamlined pathway to connect your health concerns with verified medical care.
+        {/* ── Clinical Disclaimer ─────────────── */}
+        <div className="bg-white border border-amber-200 rounded-md overflow-hidden">
+          <button
+            onClick={() => setDisclaimerOpen((p) => !p)}
+            className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-amber-50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-4.5 h-4.5 text-amber-600 shrink-0" />
+              <div>
+                <p className="font-semibold text-slate-900 text-sm">Mandatory Clinical Disclaimer</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  This is a pre-consultation support tool — not a diagnosis or prescription service.
+                </p>
+              </div>
+            </div>
+            <ChevronRight
+              className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${disclaimerOpen ? "rotate-90" : ""}`}
+            />
+          </button>
+
+          {disclaimerOpen && (
+            <div className="px-5 pb-5 border-t border-amber-100 pt-4 space-y-3 text-sm text-slate-700 leading-relaxed">
+              <p>
+                The Guided Symptom Check is an educational pre-consultation tool. It does <strong>not</strong> provide a medical diagnosis, clinical opinion, or prescription — and does not substitute a physical examination by a registered medical practitioner.
+              </p>
+              <div>
+                <p className="font-semibold text-slate-900 mb-1.5">Do NOT use this tool if you have any of the following emergency symptoms:</p>
+                <ul className="space-y-1 text-sm text-red-700 list-none">
+                  {[
+                    "Severe chest pain, tightness, or pressure radiating to the jaw / arm",
+                    "Sudden difficulty breathing or choking",
+                    "Sudden severe headache, facial drooping, arm weakness, or slurred speech (possible stroke)",
+                    "Loss of consciousness or unresponsiveness",
+                    "Uncontrolled bleeding or traumatic injury",
+                    "High fever with stiff neck, rash, or confusion (possible meningitis / sepsis)",
+                    "Suspected poisoning, drug overdose, or snake bite",
+                  ].map((s, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="text-red-500 font-bold shrink-0">→</span>
+                      {s}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-sm font-semibold text-red-700">
+                  For any of the above: Call 108 / 112 immediately or proceed to the nearest Government Hospital Emergency.
+                </p>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 rounded p-3 text-xs text-slate-600 space-y-1">
+                <p className="font-semibold text-slate-700">Regulatory Basis:</p>
+                <p>This service is governed by the <em>NMC Telemedicine Practice Guidelines, 2020</em>, the <em>Ayushman Bharat Digital Mission (ABDM) Framework</em>, the <em>Digital Personal Data Protection Act, 2023</em>, and the <em>Information Technology Act, 2000</em>. Prescription drugs (Schedule H, H1, X) are only issued by NMC-registered doctors after proper clinical evaluation, as per the Drugs &amp; Cosmetics Act, 1940.</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── How It Works ────────────────────── */}
+        <div className="bg-white border border-slate-200 rounded-md p-5 sm:p-8">
+          <div className="mb-7">
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900">How It Works</h2>
+            <p className="text-slate-500 text-sm mt-1">
+              A four-step, NMC-compliant pathway from symptoms to verified medical care.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {steps.map((item, idx) => {
-              const Icon = item.icon;
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {steps.map((s) => {
+              const Icon = s.icon;
               return (
-                <div
-                  key={item.step}
-                  className="bg-slate-50 border border-slate-100 rounded-xl p-6 flex flex-col hover:border-[#0067A1]/30 hover:bg-[#0067A1]/5 transition-all group"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-xs font-extrabold text-[#0067A1] bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
-                      STEP {item.step}
+                <div key={s.num} className="flex flex-col gap-3 p-4 border border-slate-100 rounded-md bg-slate-50 hover:border-[#0067A1]/30 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#0067A1] border border-[#0067A1]/30 bg-white px-2 py-0.5 rounded">
+                      {s.num}
                     </span>
-                    <div className="w-10 h-10 rounded-xl bg-[#0067A1]/10 text-[#0067A1] flex items-center justify-center group-hover:bg-[#0067A1] group-hover:text-white transition-all">
-                      <Icon className="w-5 h-5" />
+                    <div className="w-8 h-8 rounded bg-[#0067A1]/10 flex items-center justify-center">
+                      <Icon className="w-4 h-4 text-[#0067A1]" />
                     </div>
                   </div>
-                  <h3 className="text-base font-bold text-gray-900 mb-2">{item.title}</h3>
-                  <p className="text-xs text-gray-600 leading-relaxed flex-1">{item.desc}</p>
+                  <h3 className="text-sm font-bold text-slate-900">{s.title}</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">{s.body}</p>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Core Benefits Grid */}
-        <div className="mb-10">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-            Key Advantages for Patients & Doctors
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {benefits.map((b, i) => (
-              <div key={i} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-xs flex items-start gap-4">
-                <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
-                  <FaCheckCircle className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-base font-bold text-gray-900 mb-1">{b.title}</h4>
-                  <p className="text-xs text-gray-600 leading-relaxed">{b.desc}</p>
-                </div>
+        {/* ── NMC Regulatory Notice ────────────── */}
+        <div className="bg-white border border-slate-200 rounded-md p-5 sm:p-6">
+          <div className="flex items-start gap-4">
+            <div className="w-9 h-9 rounded bg-[#0067A1]/10 flex items-center justify-center shrink-0 mt-0.5">
+              <Stethoscope className="w-4.5 h-4.5 text-[#0067A1]" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm sm:text-base mb-3">
+                Regulatory Framework — NMC Telemedicine Practice Guidelines 2020
+              </h3>
+              <div className="space-y-2.5">
+                {[
+                  {
+                    label: "Guideline 3.2 — First Consultation",
+                    text: "A doctor may conduct telemedicine for the first time only after verifying patient identity and obtaining explicit digital consent. This tool aids in pre-consultation data collection only — no clinical opinions are generated.",
+                  },
+                  {
+                    label: "Guideline 3.7 — Emergency Protocol",
+                    text: "Where a life-threatening condition is identified during triage, the platform is mandated to immediately advise in-person emergency care. Telemedicine is not provided for emergency conditions.",
+                  },
+                  {
+                    label: "Schedule H / H1 / X Drugs",
+                    text: "Antibiotics, psychotropics, narcotics, and Schedule X controlled substances may only be prescribed after proper clinical evaluation by an NMC-registered doctor. This tool does not generate prescriptions.",
+                  },
+                ].map((r, i) => (
+                  <div key={i} className="border-l-2 border-[#0067A1]/30 pl-3">
+                    <p className="text-xs font-semibold text-slate-900">{r.label}</p>
+                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{r.text}</p>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         </div>
 
-        {/* Action / Next Steps Banner */}
-        <div className="bg-gradient-to-r from-[#003358] to-[#0067A1] rounded-2xl p-8 md:p-10 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-md">
-          <div className="max-w-xl">
-            <h3 className="text-xl md:text-2xl font-bold mb-2">Ready to consult a verified specialist?</h3>
-            <p className="text-white/80 text-sm leading-relaxed">
-              Find experienced doctors across 20+ specialties including General Physicians, ENT, Gastroenterologists, Dermatologists, and Pediatricians.
+        {/* ── Benefits Grid ────────────────────── */}
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-1">Why Use This Tool?</h2>
+          <p className="text-slate-500 text-sm mb-6">
+            Designed for patients across India — from metros to tier-3 districts.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {benefits.map((b, i) => {
+              const Icon = b.icon;
+              return (
+                <div
+                  key={i}
+                  className="bg-white border border-slate-200 rounded-md p-4 sm:p-5 flex items-start gap-3.5 hover:border-slate-300 transition-colors"
+                >
+                  <div className="w-8 h-8 rounded bg-[#0067A1]/8 flex items-center justify-center shrink-0 mt-0.5">
+                    <Icon className="w-4 h-4 text-[#0067A1]" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 mb-1">{b.title}</h4>
+                    <p className="text-xs text-slate-500 leading-relaxed">{b.body}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Two-column: Limitations + Compliance ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+          {/* What this is NOT */}
+          <div className="bg-white border border-slate-200 rounded-md p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <XCircle className="w-4.5 h-4.5 text-red-600 shrink-0" />
+              <h3 className="font-bold text-slate-900 text-sm">What This Tool Does NOT Provide</h3>
+            </div>
+            <ul className="space-y-2.5">
+              {notServices.map((item, i) => (
+                <li key={i} className="flex items-start gap-2.5 text-sm text-slate-600">
+                  <span className="text-red-400 font-bold shrink-0 mt-0.5">✕</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Compliance */}
+          <div className="bg-white border border-slate-200 rounded-md p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
+              <h3 className="font-bold text-slate-900 text-sm">Regulatory Compliance</h3>
+            </div>
+            <ul className="space-y-2.5">
+              {complianceItems.map((item, i) => (
+                <li key={i} className="flex items-center gap-2.5 text-sm text-slate-600">
+                  <Shield className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-[11px] text-slate-400 leading-relaxed border-t border-slate-100 pt-3">
+              MediConnect operates under the oversight of the National Medical Commission,
+              Ministry of Health &amp; Family Welfare (GoI), and CDSCO. All consultations
+              are subject to the laws of the Republic of India.
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3 shrink-0 w-full md:w-auto">
-            <Link
-              href="/website/doctors"
-              className="px-6 py-3.5 bg-white text-[#0067A1] rounded-xl font-bold text-sm hover:bg-slate-100 transition-all text-center"
-            >
-              Browse Doctor Specialties
-            </Link>
-            <Link
-              href="/website/contact"
-              className="px-6 py-3.5 bg-white/10 hover:bg-white/20 border border-white/30 text-white rounded-xl font-semibold text-sm transition-all text-center"
-            >
-              Contact Support
-            </Link>
+        </div>
+
+        {/* ── CTA Banner ───────────────────────── */}
+        <div className="bg-[#0067A1] rounded-md p-6 sm:p-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+            <div>
+              <h3 className="text-lg sm:text-xl font-bold text-white mb-1.5">
+                Ready to consult an NMC-registered specialist?
+              </h3>
+              <p className="text-white/75 text-sm leading-relaxed max-w-lg">
+                Browse verified doctors across 25+ specialties — General Physicians, Cardiologists, ENT, Dermatology, Psychiatry, Paediatrics &amp; more.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3 shrink-0">
+              <Link
+                href="/website/doctors"
+                className="px-5 py-2.5 bg-white text-[#0067A1] rounded-md font-semibold text-sm hover:bg-slate-50 transition-colors"
+              >
+                Browse Specialists
+              </Link>
+              <Link
+                href="/website/contact"
+                className="px-5 py-2.5 border border-white/30 text-white rounded-md font-semibold text-sm hover:bg-white/10 transition-colors"
+              >
+                Contact Support
+              </Link>
+            </div>
           </div>
         </div>
 
-        {/* Footer Support Info */}
-        <div className="mt-12 text-center text-xs text-gray-500 space-y-1">
-          <p className="flex items-center justify-center gap-1.5 font-medium">
-            <FaShieldAlt className="text-emerald-600" /> Compliant with Telemedicine Practice Guidelines & ABDM Framework
+        {/* ── Footer compliance line ───────────── */}
+        <div className="border-t border-slate-200 pt-6 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex flex-wrap gap-4 text-xs text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <BadgeCheck className="w-3.5 h-3.5 text-emerald-600" />
+                NMC Telemedicine Guidelines 2020
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Shield className="w-3.5 h-3.5 text-emerald-600" />
+                ABDM / ABHA Compliant
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-emerald-600" />
+                DPDP Act 2023
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 text-right">
+              Support: 9 AM – 9 PM IST &nbsp;|&nbsp; helpdesk@mediconnect.fit
+            </p>
+          </div>
+          <p className="mt-2 text-[11px] text-slate-400">
+            Grievance Officer: grievance@mediconnect.fit &nbsp;|&nbsp;
+            <Link href="/privacy-policy" className="underline hover:text-slate-600">Privacy Policy</Link>
+            &nbsp;|&nbsp;
+            <Link href="/terms" className="underline hover:text-slate-600">Terms of Service</Link>
+            &nbsp;|&nbsp;© {new Date().getFullYear()} MediConnect. All rights reserved.
           </p>
-          <p>Support Hours: 9:00 AM – 9:00 PM (All Days) | Email: info@mediconnect.fit</p>
         </div>
+
       </div>
     </div>
   );

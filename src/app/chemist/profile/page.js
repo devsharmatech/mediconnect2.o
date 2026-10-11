@@ -331,7 +331,7 @@ export default function ChemistProfilePage() {
  </label>
  <input
  type={type}
- className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#0067A1] focus:border-[#0067A1] dark:focus:ring-[#0067A1] dark:focus:border-[#0067A1] transition-all duration-200 outline-none hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+ className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#0067A1] focus:border-[#0067A1] dark:focus:ring-[#0067A1] dark:focus:border-[#0067A1] transition-all duration-200 outline-none hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
  value={profile?.[field] || ""}
  onChange={(e) =>
  setProfile((prev) => (prev ? { ...prev, [field]: e.target.value } : null))
@@ -446,7 +446,7 @@ export default function ChemistProfilePage() {
 
  {/* Stats Cards */}
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
- <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
+ <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg p-4 border border-gray-200 dark:border-gray-700">
  <div className="flex items-center gap-3">
  <div className="p-2 bg-[#0067A1]/10 dark:bg-[#003358]/30 rounded-lg">
  <Store className="w-5 h-5 text-[#0067A1] dark:text-[#0080C6]" />
@@ -460,7 +460,7 @@ export default function ChemistProfilePage() {
  </div>
  </div>
 
- <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
+ <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg p-4 border border-gray-200 dark:border-gray-700">
  <div className="flex items-center gap-3">
  <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
  <Clock className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -474,7 +474,7 @@ export default function ChemistProfilePage() {
  </div>
  </div>
 
- <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm">
+ <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg p-4 border border-gray-200 dark:border-gray-700">
  <div className="flex items-center gap-3">
  <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
  <User className="w-5 h-5 text-amber-600 dark:text-amber-400" />
@@ -494,10 +494,10 @@ export default function ChemistProfilePage() {
  {/* Left Column - Profile Image and Quick Info */}
  <div className="lg:col-span-1 space-y-6 lg:sticky lg:top-6 lg:self-start">
  {/* Profile Image Card */}
- <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
+ <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 p-6">
  {/* Profile Image */}
  <div className="flex flex-col items-center mb-6">
- <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white dark:border-gray-800 shadow-lg mb-4">
+ <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white dark:border-gray-800 mb-4">
  {profile?.store_photo ? (
  <Image
  src={profile.store_photo}
@@ -559,7 +559,7 @@ export default function ChemistProfilePage() {
  </div>
 
  {/* Documents Quick View */}
- <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
+ <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 p-6">
  <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-4">
  Documents Status
  </h4>
@@ -593,14 +593,14 @@ export default function ChemistProfilePage() {
  {/* Right Column - Main Forms */}
  <div className="lg:col-span-2 space-y-6">
  {/* Basic Information Section */}
- <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+ <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
  <div
  className="p-6 border-b border-gray-100 dark:border-gray-700 bg-[#0067A1]/5 dark:bg-gray-700 cursor-pointer"
  onClick={() => toggleSection("basic")}
  >
  <div className="flex items-center justify-between">
  <div className="flex items-center gap-3">
- <div className="p-3 bg-[#0067A1]/10 dark:bg-[#003358]/30 rounded-xl">
+ <div className="p-3 bg-[#0067A1]/10 dark:bg-[#003358]/30 rounded-lg">
  <Building2 className="w-6 h-6 text-[#0067A1] dark:text-[#0080C6]" />
  </div>
  <div>
@@ -693,7 +693,7 @@ export default function ChemistProfilePage() {
  </span>
  </label>
  <textarea
- className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#0067A1] focus:border-[#0067A1] dark:focus:ring-[#0067A1] dark:focus:border-[#0067A1] transition-all duration-200 outline-none hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 min-h-[120px] resize-none"
+ className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#0067A1] focus:border-[#0067A1] dark:focus:ring-[#0067A1] dark:focus:border-[#0067A1] transition-all duration-200 outline-none hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 min-h-[120px] resize-none"
  value={profile?.address || ""}
  onChange={(e) =>
  setProfile((prev) =>
@@ -711,7 +711,7 @@ export default function ChemistProfilePage() {
  Pharmacy Description
  </label>
  <textarea
- className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#0067A1] focus:border-[#0067A1] dark:focus:ring-[#0067A1] dark:focus:border-[#0067A1] transition-all duration-200 outline-none hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 min-h-[100px] resize-none"
+ className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#0067A1] focus:border-[#0067A1] dark:focus:ring-[#0067A1] dark:focus:border-[#0067A1] transition-all duration-200 outline-none hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 min-h-[100px] resize-none"
  value={profile?.description || ""}
  onChange={(e) =>
  setProfile((prev) =>
@@ -748,9 +748,9 @@ export default function ChemistProfilePage() {
  <button
  onClick={() => handleSave(saveBasicInfo, "basic")}
  disabled={saving && activeSave === "basic"}
- className={`px-8 py-3 rounded-xl font-medium flex items-center justify-center gap-2 transition-all duration-300 ${activeSave === "basic"
+ className={`px-8 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-all duration-300 ${activeSave === "basic"
  ? "bg-green-500 text-white"
- : "bg-[#0067A1] text-white hover:bg-[#004F7C] dark:bg-[#004F7C] dark:hover:bg-[#004F7C] shadow-lg hover:shadow-xl"
+ : "bg-[#0067A1] text-white hover:bg-[#004F7C] dark:bg-[#004F7C] dark:hover:bg-[#004F7C] hover:shadow-xl"
  }`}
  >
  {activeSave === "basic" ? (
@@ -776,14 +776,14 @@ export default function ChemistProfilePage() {
  </div>
 
  {/* Documents Section */}
- <div id="documents-section" className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+ <div id="documents-section" className="bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
  <div
  className="p-6 border-b border-gray-100 dark:border-gray-700 bg-purple-50 dark:bg-gray-700 cursor-pointer"
  onClick={() => toggleSection("documents")}
  >
  <div className="flex items-center justify-between">
  <div className="flex items-center gap-3">
- <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+ <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
  <FileText className="w-6 h-6 text-purple-600 dark:purple-400" />
  </div>
  <div>
@@ -806,7 +806,7 @@ export default function ChemistProfilePage() {
  {expandedSection.includes("documents") && (
  <div className="p-6">
  <div className="mb-6">
- <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-6">
+ <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-6">
  <div className="flex items-start gap-3">
  <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5" />
  <div>
@@ -839,14 +839,14 @@ export default function ChemistProfilePage() {
  </div>
 
  {/* Store Timings Section */}
- <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+ <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
  <div
  className="p-6 border-b border-gray-100 dark:border-gray-700 bg-green-50 dark:bg-gray-700 cursor-pointer"
  onClick={() => toggleSection("timings")}
  >
  <div className="flex items-center justify-between">
  <div className="flex items-center gap-3">
- <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-xl">
+ <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
  <Clock className="w-6 h-6 text-green-600 dark:text-green-400" />
  </div>
  <div>
@@ -873,7 +873,7 @@ export default function ChemistProfilePage() {
  ([day, timing]) => (
  <div
  key={day}
- className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl"
+ className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
  >
  <div className="flex items-center gap-4">
  <input
@@ -940,9 +940,9 @@ export default function ChemistProfilePage() {
  <button
  onClick={() => handleSave(saveStoreTimings, "timings")}
  disabled={saving && activeSave === "timings"}
- className={`px-8 py-3 rounded-xl font-medium flex items-center justify-center gap-2 transition-all duration-300 ${activeSave === "timings"
+ className={`px-8 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-all duration-300 ${activeSave === "timings"
  ? "bg-green-500 text-white"
- : "bg-green-600 text-white hover:bg-green-700 dark:bg-green-700 dark:hover:from-green-600 dark:hover:to-emerald-700 shadow-lg hover:shadow-xl"
+ : "bg-green-600 text-white hover:bg-green-700 dark:bg-green-700 dark:hover:from-green-600 dark:hover:to-emerald-700 hover:shadow-xl"
  }`}
  >
  {activeSave === "timings" ? (

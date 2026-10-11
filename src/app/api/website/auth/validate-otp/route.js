@@ -1,6 +1,7 @@
 import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+import { rateLimit, clearRateLimit } from "@/lib/rateLimit";
 
 const safeUuid = (val) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val) ? val : null);
 
@@ -17,6 +18,8 @@ export async function POST(req) {
     }
 
     const cleanPhone = phone_number ? String(phone_number).replace(/\D/g, "").slice(-10) : null;
+    const cleanEmail = email ? String(email).trim().toLowerCase() : null;
+    const rateLimitKey = user_id || cleanPhone || cleanEmail || "unknown";
 
     // ── Check Pending Registration (Register ONLY after OTP is verified) ──
     if (cleanPhone) {
@@ -37,6 +40,13 @@ export async function POST(req) {
         );
         const isTestOTP = String(otp).trim() === "123456" && isPermanentTestUser;
 
+        if (!isPermanentTestUser) {
+          const limitResult = rateLimit(`otp-validate:${rateLimitKey}`, 5, 60000); // 5 attempts per minute
+          if (!limitResult.allowed) {
+            return failure("Too many failed OTP verification attempts. Please wait 1 minute before trying again.", null, 429, { headers: corsHeaders });
+          }
+        }
+
         // Check OTP
         if (String(pending.otp_code).trim() !== String(otp).trim() && !isTestOTP) {
           return failure("Invalid OTP code. Please check and enter the correct 6-digit code.", null, 400, { headers: corsHeaders });
@@ -45,6 +55,8 @@ export async function POST(req) {
         if (!isTestOTP && pending.otp_expires_at && new Date(pending.otp_expires_at) < new Date()) {
           return failure("OTP has expired. Please request a new one.", null, 400, { headers: corsHeaders });
         }
+
+        clearRateLimit(`otp-validate:${rateLimitKey}`);
 
         // OTP IS VERIFIED! NOW, AND ONLY NOW, REGISTER THE PATIENT IN DATABASE
         try {
@@ -209,6 +221,13 @@ export async function POST(req) {
     );
     const isTestOTP = String(otp).trim() === "123456" && isPermanentTestUser;
 
+    if (!isPermanentTestUser) {
+      const limitResult = rateLimit(`otp-validate:${rateLimitKey}`, 5, 60000); // 5 attempts per minute
+      if (!limitResult.allowed) {
+        return failure("Too many failed OTP verification attempts. Please wait 1 minute before trying again.", null, 429, { headers: corsHeaders });
+      }
+    }
+
     // Validate OTP against database record
     if (String(user.otp_code).trim() !== String(otp).trim() && !isTestOTP) {
       return failure("Invalid OTP code. Please check and enter the correct 6-digit code.", null, 400, { headers: corsHeaders });
@@ -217,6 +236,8 @@ export async function POST(req) {
     if (!isTestOTP && user.otp_expires_at && new Date(user.otp_expires_at) < new Date()) {
       return failure("OTP has expired. Please request a new one.", null, 400, { headers: corsHeaders });
     }
+
+    clearRateLimit(`otp-validate:${rateLimitKey}`);
 
     // Mark as verified & clear OTP
     await sql`

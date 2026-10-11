@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import { logoutUser } from "@/lib/authHelpers";
 import {
   FaHome,
   FaCalendarAlt,
@@ -61,11 +62,7 @@ export default function PatientSidebar({
   });
 
   const handleLogout = () => {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("userData");
-    router.push("/website");
+    logoutUser("patient", "/");
   };
 
   const getInitials = (name) => {
@@ -366,17 +363,24 @@ export default function PatientSidebar({
         {/* Header / Logo */}
         <div className="px-4 flex items-center h-16 shrink-0 border-b border-white/10 justify-between">
           <Link
-            href="/website"
-            className="flex items-center"
+            href="/website/dashboard"
+            className="flex items-center gap-3 overflow-hidden group"
           >
-            <Image
-              src="/real-logo.png"
-              alt="MediConnect"
-              width={140}
-              height={40}
-              className="object-contain"
-              style={{ width: "auto", height: "40px" }}
-            />
+            <div className="w-9 h-9 rounded-md bg-white p-1 flex items-center justify-center border border-white/20 shrink-0 overflow-hidden">
+              <img
+                src="/real-logo.png"
+                alt="MediConnect"
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm sm:text-base font-semibold text-white tracking-wide whitespace-nowrap leading-tight">
+                MediConnect
+              </span>
+              <span className="text-[10px] font-medium uppercase tracking-wider text-teal-300 whitespace-nowrap">
+                Patient Portal
+              </span>
+            </div>
           </Link>
 
           {/* Controls */}

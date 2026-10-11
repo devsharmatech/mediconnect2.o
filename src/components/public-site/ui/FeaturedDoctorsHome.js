@@ -52,6 +52,8 @@ const SpecialtyFilter = ({ specialties, selectedSpecialty, onSelect }) => {
         {specialties.map((specialty, index) => (
           <button
             key={index}
+            type="button"
+            suppressHydrationWarning
             onClick={() => onSelect(specialty)}
             className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors snap-center ${selectedSpecialty === specialty
               ? "bg-[#0067A1] text-white shadow-md shadow-[#0067A1]/20"

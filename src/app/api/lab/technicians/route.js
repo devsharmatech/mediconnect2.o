@@ -1,5 +1,8 @@
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+
+const safeUuid = (val) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val) ? val : null);
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -7,13 +10,31 @@ export async function OPTIONS() {
 
 export async function GET(req) {
   try {
-    const technicians = [
-      { id: "tech-1", name: "Rahul Sharma", phone: "+919812345670", vehicle: "Hero Splendor (DL-3S-AB-1234)" },
-      { id: "tech-2", name: "Amit Kumar", phone: "+919812345671", vehicle: "Honda Activa (DL-4S-CD-5678)" },
-      { id: "tech-3", name: "Sanjeev Singh", phone: "+919812345672", vehicle: "Bajaj Pulsar (DL-5S-EF-9012)" }
-    ];
-    return success("Technicians fetched successfully", technicians, 200, { headers: corsHeaders });
+    const { searchParams } = new URL(req.url);
+    const labId = safeUuid(searchParams.get("lab_id"));
+
+    if (labId) {
+      const dbTechs = await sql`
+        SELECT 
+          id, 
+          name, 
+          phone, 
+          COALESCE(vehicle_info, '') as vehicle,
+          employee_id,
+          is_active
+        FROM lab_sample_collectors
+        WHERE lab_id = ${labId} AND is_active = TRUE
+        ORDER BY name ASC
+      `;
+
+      return success("Technicians fetched successfully", dbTechs, 200, { headers: corsHeaders });
+    }
+
+    // Default fallback
+    return success("Technicians fetched successfully", [], 200, { headers: corsHeaders });
   } catch (err) {
+    console.error("GET /api/lab/technicians error:", err);
     return failure("Failed to fetch technicians", err.message, 500, { headers: corsHeaders });
   }
 }
+

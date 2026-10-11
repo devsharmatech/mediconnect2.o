@@ -484,15 +484,15 @@ const SafeChatbot = () => {
             {/* Floating Button */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className={`fixed bottom-20 lg:bottom-6 right-4 sm:right-6 z-[9999] bg-[#0067A1] hover:bg-[#004F7C] text-white p-3.5 sm:p-4 rounded-full shadow-2xl transition-all hover:scale-105 items-center justify-center group border-4 border-white ${
+                className={`fixed bottom-[4.25rem] lg:bottom-6 right-3 sm:right-6 z-[9999] bg-[#0067A1] hover:bg-[#004F7C] text-white w-10 h-10 sm:w-12 sm:h-12 rounded-full shadow-2xl transition-all hover:scale-105 flex items-center justify-center group border-2 sm:border-4 border-white ${
                     isOpen ? "hidden sm:flex" : "flex"
                 }`}
                 aria-label={isOpen ? "Close Assistant" : "Open Assistant"}
             >
                 {isOpen ? (
-                    <FaTimes className="w-5 h-5 sm:w-6 sm:h-6" />
+                    <FaTimes className="w-4 h-4 sm:w-6 sm:h-6" />
                 ) : (
-                    <FaComments className="w-5 h-5 sm:w-6 sm:h-6 transform group-hover:-rotate-12 transition-transform" />
+                    <FaComments className="w-4 h-4 sm:w-6 sm:h-6 transform group-hover:-rotate-12 transition-transform" />
                 )}
             </button>
 

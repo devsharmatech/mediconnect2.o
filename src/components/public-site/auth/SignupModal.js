@@ -34,6 +34,22 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
     onLoginClick?.(e);
   };
 
+  const handleModalClose = () => {
+    setFormData({
+      full_name: '',
+      email: '',
+      phone_number: '',
+      gender: 'male',
+      date_of_birth: '',
+      address: '',
+    });
+    setError('');
+    setStep(1);
+    setOtp(['', '', '', '', '', '']);
+    setUserId(null);
+    onClose?.();
+  };
+
   useEffect(() => {
     if (isOpen) {
       window.scrollTo(0, 0);
@@ -41,9 +57,25 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
       setError('');
       setOtp(['', '', '', '', '', '']);
       setUserId(null);
+      setFormData({
+        full_name: '',
+        email: '',
+        phone_number: '',
+        gender: 'male',
+        date_of_birth: '',
+        address: '',
+      });
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
+      setFormData({
+        full_name: '',
+        email: '',
+        phone_number: '',
+        gender: 'male',
+        date_of_birth: '',
+        address: '',
+      });
       if (timerRef.current) clearInterval(timerRef.current);
     }
     return () => {
@@ -79,11 +111,34 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
 
   const handleNextStep = (e) => {
     e.preventDefault();
-    if (!formData.full_name || !formData.phone_number) {
-      setError('Please fill in all required fields');
+    setError('');
+
+    // Full Name Validation
+    const cleanFullName = String(formData.full_name || '').trim();
+    if (!cleanFullName) {
+      setError('Please enter your full name');
+      return;
+    }
+    if (cleanFullName.length < 2) {
+      setError('Full name must be at least 2 characters long');
+      return;
+    }
+    if (!/^[a-zA-Z\s.'-]+$/.test(cleanFullName)) {
+      setError('Full name should only contain letters and spaces');
       return;
     }
 
+    // Email Validation (Optional field, but must be valid if provided)
+    const cleanEmail = String(formData.email || '').trim();
+    if (cleanEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        setError('Please enter a valid email address');
+        return;
+      }
+    }
+
+    // Phone Number Validation
     const digitsOnly = String(formData.phone_number || '').replace(/\D/g, '');
     let cleanPhone = digitsOnly;
     if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) {
@@ -103,6 +158,34 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
     e.preventDefault();
     setError('');
 
+    // Re-validate Step 1 fields
+    const cleanFullName = String(formData.full_name || '').trim();
+    if (!cleanFullName) {
+      setError('Please enter your full name');
+      setStep(1);
+      return;
+    }
+    if (cleanFullName.length < 2) {
+      setError('Full name must be at least 2 characters long');
+      setStep(1);
+      return;
+    }
+    if (!/^[a-zA-Z\s.'-]+$/.test(cleanFullName)) {
+      setError('Full name should only contain letters and spaces');
+      setStep(1);
+      return;
+    }
+
+    const cleanEmail = String(formData.email || '').trim();
+    if (cleanEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        setError('Please enter a valid email address');
+        setStep(1);
+        return;
+      }
+    }
+
     const digitsOnly = String(formData.phone_number || '').replace(/\D/g, '');
     let cleanPhone = digitsOnly;
     if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) {
@@ -110,6 +193,18 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
     }
     if (cleanPhone.length !== 10 || !/^[6-9]\d{9}$/.test(cleanPhone)) {
       setError('Please enter a valid 10-digit mobile number');
+      setStep(1);
+      return;
+    }
+
+    // Address validation (Mandatory validation)
+    const cleanAddress = String(formData.address || '').trim();
+    if (!cleanAddress) {
+      setError('Please enter your address');
+      return;
+    }
+    if (cleanAddress.length < 5 || !/[a-zA-Z]/.test(cleanAddress)) {
+      setError('Please enter a valid address with at least 5 characters');
       return;
     }
 
@@ -117,11 +212,11 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
     try {
       const response = await api.post('/website/auth/patient/register', {
         phone_number: cleanPhone,
-        full_name: formData.full_name,
-        email: formData.email,
+        full_name: cleanFullName,
+        email: cleanEmail || undefined,
         gender: formData.gender,
         date_of_birth: formData.date_of_birth,
-        address: formData.address,
+        address: cleanAddress,
       });
 
       if (response.success) {
@@ -267,11 +362,11 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
       const cleanPhone = digitsOnly.length > 10 ? digitsOnly.slice(-10) : digitsOnly;
       const response = await api.post('/website/auth/patient/register', {
         phone_number: cleanPhone,
-        full_name: formData.full_name,
-        email: formData.email,
+        full_name: formData.full_name?.trim(),
+        email: formData.email?.trim() || undefined,
         gender: formData.gender,
         date_of_birth: formData.date_of_birth,
-        address: formData.address,
+        address: formData.address?.trim(),
       });
 
       if (response.success) {
@@ -297,7 +392,7 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 overflow-y-auto">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={handleModalClose} />
 
       {/* Clean Modal Window */}
       <div
@@ -308,7 +403,7 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
         <button
           type="button"
           className="absolute right-4 top-4 z-10 p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors"
-          onClick={onClose}
+          onClick={handleModalClose}
         >
           <FaTimes className="h-4 w-4" />
         </button>
@@ -341,6 +436,25 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
               {step === 4 && 'Redirecting to your dashboard...'}
             </p>
           </div>
+
+          {/* Mode Switcher: Log In vs Register (Step 1 only) */}
+          {step === 1 && (
+            <div className="flex bg-gray-100 p-1 rounded-xl mb-4 text-xs sm:text-sm font-semibold">
+              <button
+                type="button"
+                onClick={handleOpenLogin}
+                className="flex-1 py-2 text-center rounded-lg text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
+              >
+                Log In
+              </button>
+              <button
+                type="button"
+                className="flex-1 py-2 text-center rounded-lg bg-white text-[#0067A1] shadow-xs cursor-default font-bold"
+              >
+                Register
+              </button>
+            </div>
+          )}
 
           {/* Error Message */}
           {error && (
@@ -490,7 +604,7 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
               {/* Address */}
               <div>
                 <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Address
+                  Address <span className="text-red-400">*</span>
                 </label>
                 <div className="relative">
                   <div className="absolute top-3 left-0 pl-3.5 flex items-start pointer-events-none text-gray-400">
@@ -501,6 +615,7 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
                     name="address"
                     placeholder="Flat No, Street, City, State, Pincode"
                     rows={2}
+                    required
                     value={formData.address}
                     onChange={handleChange}
                     className="block w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm placeholder-gray-400 focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none resize-none"
@@ -541,7 +656,17 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
 
           {/* STEP 3: OTP Verification Inside Modal */}
           {step === 3 && (
-            <form onSubmit={handleVerifyOtp} className="space-y-5">
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              {/* Back / Change action */}
+              <button
+                type="button"
+                onClick={() => { setStep(1); setError(''); setOtp(['', '', '', '', '', '']); }}
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#0067A1] transition-colors mb-1 group"
+              >
+                <FaArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
+                <span>{formData.email ? 'Change Email / Phone' : 'Change Phone'}</span>
+              </button>
+
               <div className="flex justify-center mb-2">
                 <div className="w-14 h-14 rounded-2xl bg-[#0067A1]/10 flex items-center justify-center">
                   <FaShieldAlt className="w-6 h-6 text-[#0067A1]" />

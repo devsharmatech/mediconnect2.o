@@ -55,16 +55,82 @@ export const getLoggedInUser = (role) => {
 // Save user
 export const setLoggedInUser = (role, user) => {
   if (typeof window === "undefined") return;
+
+  // Clear stale conflicting role session keys
+  const allRoles = ["patient", "doctor", "chemist", "lab", "admin", "staff", "partner"];
+  allRoles.forEach((r) => {
+    if (r !== role) {
+      localStorage.removeItem(`${r}User`);
+    }
+  });
+
   localStorage.setItem(`${role}User`, JSON.stringify(user));
   if (user && user.id) {
+    localStorage.setItem("userId", String(user.id));
+    localStorage.setItem("userRole", role);
+    localStorage.setItem("userData", JSON.stringify(user));
     document.cookie = `session_id=${user.id}; path=/; max-age=86400; SameSite=Lax`;
   }
 };
 
-// Logout
-export const logoutUser = (role) => {
+// Clear all authentication session data completely
+export const clearAuthSession = () => {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(`${role}User`);
-  document.cookie = "session_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-  window.location.href = `/${role}/login`;
+
+  const authKeys = [
+    "userId",
+    "userRole",
+    "userData",
+    "authToken",
+    "token",
+    "adminUser",
+    "doctorUser",
+    "chemistUser",
+    "labUser",
+    "patientUser",
+    "staffUser",
+    "staffToken",
+    "staffPermissions",
+    "partnerUser",
+  ];
+
+  authKeys.forEach((key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {}
+  });
+
+  try {
+    sessionStorage.clear();
+  } catch (e) {}
+
+  // Expire auth cookies across paths
+  document.cookie = "session_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+  document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+  document.cookie = "authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+
+  try {
+    window.dispatchEvent(new Event("storage"));
+    window.dispatchEvent(new CustomEvent("userProfileUpdated"));
+    window.dispatchEvent(new CustomEvent("adminProfileUpdated"));
+  } catch (e) {}
+};
+
+// Complete Logout with hard page reload to clear in-memory state
+export const logoutUser = (role, redirectTo) => {
+  if (typeof window === "undefined") return;
+  clearAuthSession();
+
+  let target = redirectTo;
+  if (!target) {
+    if (role === "admin") target = "/admin/login";
+    else if (role === "chemist") target = "/chemist/login";
+    else if (role === "lab") target = "/lab/login";
+    else if (role === "doctor") target = "/doctor/login";
+    else if (role === "staff") target = "/staff/login";
+    else if (role === "partner") target = "/partner/login";
+    else target = "/";
+  }
+
+  window.location.href = target;
 };

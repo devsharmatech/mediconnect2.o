@@ -14,68 +14,128 @@ export async function POST(req) {
       return failure("order_id required", null, 400, { headers: corsHeaders });
     }
 
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(order_id));
+
     /* =====================================================
        1️⃣ FETCH ORDER CORE
     ===================================================== */
-    const orderRows = await sql`
-      SELECT
-        mo.id,
-        mo.unid,
-        mo.status,
-        mo.total_amount,
-        mo.medicine_subtotal,
-        mo.delivery_charge,
-        mo.discount,
-        mo.payment_qr_url,
-        mo.payment_qr_payload,
-        mo.payment_requested_at,
-        mo.payment_verified_at,
-        mo.promised_delivery_at,
-        mo.warning_at,
-        mo.breach_at,
-        mo.sla_status,
-        mo.created_at,
-        mo.updated_at,
-        mo.chemist_notes,
-        mo.prescription_id,
-        mo.patient_id,
-        mo.chemist_id,
-        mo.delivery_type,
-        mo.patient_notes,
-        mo.utr_number,
-        mo.payment_proof_url,
-        pd.address AS raw_delivery_address,
+    const orderRows = isUuid
+      ? await sql`
+          SELECT
+            mo.id,
+            mo.unid,
+            mo.status,
+            mo.total_amount,
+            mo.medicine_subtotal,
+            mo.delivery_charge,
+            mo.discount,
+            mo.payment_qr_url,
+            mo.payment_qr_payload,
+            mo.payment_requested_at,
+            mo.payment_verified_at,
+            mo.promised_delivery_at,
+            mo.warning_at,
+            mo.breach_at,
+            mo.sla_status,
+            mo.created_at,
+            mo.updated_at,
+            mo.chemist_notes,
+            mo.prescription_id,
+            mo.patient_id,
+            mo.chemist_id,
+            mo.delivery_type,
+            mo.patient_notes,
+            mo.utr_number,
+            mo.payment_proof_url,
+            mo.payment_status,
+            mo.payment_method,
+            mo.razorpay_payment_id,
+            mo.razorpay_order_id,
+            pd.address AS raw_delivery_address,
 
-        -- Patient basic
-        u.un_id        AS patient_un_id,
-        u.phone_number AS patient_phone,
+            -- Patient basic
+            u.un_id        AS patient_un_id,
+            u.phone_number AS patient_phone,
 
-        -- Patient details
-        pd.full_name     AS patient_full_name,
-        pd.gender        AS patient_gender,
-        pd.date_of_birth AS patient_dob,
-        pd.address       AS patient_address,
-        pd.email         AS patient_email,
-        pd.blood_group   AS patient_blood_group
+            -- Patient details
+            pd.full_name     AS patient_full_name,
+            pd.gender        AS patient_gender,
+            pd.date_of_birth AS patient_dob,
+            pd.address       AS patient_address,
+            pd.email         AS patient_email,
+            pd.blood_group   AS patient_blood_group
 
-      FROM medicine_orders mo
-      LEFT JOIN users         u  ON u.id  = mo.patient_id
-      LEFT JOIN patient_details pd ON pd.id = mo.patient_id
-      WHERE mo.id = ${order_id}
-      LIMIT 1
-    `;
+          FROM medicine_orders mo
+          LEFT JOIN users         u  ON u.id  = mo.patient_id
+          LEFT JOIN patient_details pd ON pd.id = mo.patient_id
+          WHERE mo.id = ${order_id}
+          LIMIT 1
+        `
+      : await sql`
+          SELECT
+            mo.id,
+            mo.unid,
+            mo.status,
+            mo.total_amount,
+            mo.medicine_subtotal,
+            mo.delivery_charge,
+            mo.discount,
+            mo.payment_qr_url,
+            mo.payment_qr_payload,
+            mo.payment_requested_at,
+            mo.payment_verified_at,
+            mo.promised_delivery_at,
+            mo.warning_at,
+            mo.breach_at,
+            mo.sla_status,
+            mo.created_at,
+            mo.updated_at,
+            mo.chemist_notes,
+            mo.prescription_id,
+            mo.patient_id,
+            mo.chemist_id,
+            mo.delivery_type,
+            mo.patient_notes,
+            mo.utr_number,
+            mo.payment_proof_url,
+            mo.payment_status,
+            mo.payment_method,
+            mo.razorpay_payment_id,
+            mo.razorpay_order_id,
+            pd.address AS raw_delivery_address,
+
+            -- Patient basic
+            u.un_id        AS patient_un_id,
+            u.phone_number AS patient_phone,
+
+            -- Patient details
+            pd.full_name     AS patient_full_name,
+            pd.gender        AS patient_gender,
+            pd.date_of_birth AS patient_dob,
+            pd.address       AS patient_address,
+            pd.email         AS patient_email,
+            pd.blood_group   AS patient_blood_group
+
+          FROM medicine_orders mo
+          LEFT JOIN users         u  ON u.id  = mo.patient_id
+          LEFT JOIN patient_details pd ON pd.id = mo.patient_id
+          WHERE mo.unid::text = ${String(order_id)} OR mo.id::text LIKE ${String(order_id) + '%'}
+          LIMIT 1
+        `;
 
     const order = orderRows[0];
     if (!order) {
       return failure("Order not found", null, 404, { headers: corsHeaders });
     }
 
+    const resolvedOrderId = order.id;
+
     /* =====================================================
        2️⃣ FETCH ORDER ITEMS
     ===================================================== */
     const items = await sql`
       SELECT * FROM medicine_order_items
-      WHERE order_id = ${order_id}
+      WHERE order_id = ${resolvedOrderId}
       ORDER BY unid ASC
     `;
 
@@ -215,7 +275,7 @@ export async function POST(req) {
         SELECT id, order_id, patient_id, amount, payment_method,
                payment_proof_url, utr_number, status, created_at
         FROM medicine_order_payments
-        WHERE order_id = ${order_id}
+        WHERE order_id = ${resolvedOrderId}
         ORDER BY created_at DESC
       `;
     } catch (_) {
@@ -232,7 +292,7 @@ export async function POST(req) {
                invoice_date, subtotal, tax_amount, total_amount,
                invoice_data, status, download_url, created_at
         FROM medicine_order_invoices
-        WHERE order_id = ${order_id}
+        WHERE order_id = ${resolvedOrderId}
         LIMIT 1
       `;
       invoice = invoiceRows[0] || null;
@@ -248,7 +308,7 @@ export async function POST(req) {
       priceHistory = await sql`
         SELECT id, total_amount, note, created_at, qr_url, qr_payload
         FROM medicine_order_price_history
-        WHERE order_id = ${order_id}
+        WHERE order_id = ${resolvedOrderId}
         ORDER BY created_at DESC
       `;
     } catch (_) {
@@ -271,7 +331,7 @@ export async function POST(req) {
       "delivered",
       "completed",
       "approved",
-    ].includes(String(order.status).toLowerCase());
+    ].includes(String(order.status).toLowerCase()) || order.payment_status === "paid";
 
     const maskAddress = (addr) => {
       if (!addr) return "Delivery area restricted (released after payment verification)";
@@ -295,6 +355,10 @@ export async function POST(req) {
       id: order.id,
       unid: order.unid,
       status: order.status,
+      payment_status: order.payment_status || null,
+      payment_method: order.payment_method || null,
+      razorpay_payment_id: order.razorpay_payment_id || null,
+      razorpay_order_id: order.razorpay_order_id || null,
       total_amount: order.total_amount,
       medicine_subtotal: order.medicine_subtotal,
       delivery_charge: order.delivery_charge,

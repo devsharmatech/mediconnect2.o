@@ -219,7 +219,7 @@ export default function InventoryPage() {
  {/* HEADER */}
  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8">
  <div className="flex items-center space-x-3 group">
- <div className="w-12 h-12 bg-[#0067A1] text-white rounded-xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
+ <div className="w-12 h-12 bg-[#0067A1] text-white rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
  <Layers size={26} className="group-hover:rotate-12 transition-transform duration-300" />
  </div>
  <div>
@@ -236,7 +236,7 @@ export default function InventoryPage() {
  <button
  onClick={handleRefresh}
  disabled={isRefreshing || loading}
- className="px-4 py-2.5 bg-[#0067A1] text-white rounded-xl flex items-center gap-2 shadow-lg hover:shadow-xl hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-50"
+ className="px-4 py-2.5 bg-[#0067A1] text-white rounded-lg flex items-center gap-2 hover:shadow-xl hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-50"
  >
  <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
  <span>Refresh</span>
@@ -247,7 +247,7 @@ export default function InventoryPage() {
  {/* STATS CARDS */}
  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6 mb-8">
  {/* Total Medicines */}
- <div className="p-5 rounded-2xl bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+ <div className="p-5 rounded-lg bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-[#004F7C] dark:text-teal-300 text-sm font-medium">Total Medicines</p>
@@ -256,14 +256,14 @@ export default function InventoryPage() {
  </h2>
  <p className="text-xs text-[#0067A1] dark:text-[#0080C6] mt-1">Across all batches</p>
  </div>
- <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-xl flex items-center justify-center animate-pulse">
+ <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-lg flex items-center justify-center animate-pulse">
  <Pill size={20} className="md:size-6" />
  </div>
  </div>
  </div>
 
  {/* Total Batches */}
- <div className="p-5 rounded-2xl bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+ <div className="p-5 rounded-lg bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-[#004F7C] dark:text-teal-300 text-sm font-medium">Total Batches</p>
@@ -272,14 +272,14 @@ export default function InventoryPage() {
  </h2>
  <p className="text-xs text-[#0067A1] dark:text-[#0080C6] mt-1">Active inventory</p>
  </div>
- <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-xl flex items-center justify-center animate-bounce-slow">
+ <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-lg flex items-center justify-center animate-bounce-slow">
  <Package size={20} className="md:size-6" />
  </div>
  </div>
  </div>
 
  {/* Stock Value */}
- <div className="p-5 rounded-2xl bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+ <div className="p-5 rounded-lg bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-[#004F7C] dark:text-teal-300 text-sm font-medium">Stock Value</p>
@@ -288,14 +288,14 @@ export default function InventoryPage() {
  </h2>
  <p className="text-xs text-[#0067A1] dark:text-[#0080C6] mt-1">Current inventory</p>
  </div>
- <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-xl flex items-center justify-center">
+ <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-lg flex items-center justify-center">
  <BarChart3 size={20} className="md:size-6" />
  </div>
  </div>
  </div>
 
  {/* Low Stock */}
- <div className="p-5 rounded-2xl bg-white dark:bg-gray-800 border border-red-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+ <div className="p-5 rounded-lg bg-white dark:bg-gray-800 border border-red-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-red-700 dark:text-red-300 text-sm font-medium">Low Stock</p>
@@ -304,14 +304,14 @@ export default function InventoryPage() {
  </h2>
  <p className="text-xs text-red-600 dark:text-red-400 mt-1">Need attention</p>
  </div>
- <div className="w-10 h-10 md:w-12 md:h-12 bg-red-600 text-white rounded-xl flex items-center justify-center animate-pulse">
+ <div className="w-10 h-10 md:w-12 md:h-12 bg-red-600 text-white rounded-lg flex items-center justify-center animate-pulse">
  <AlertTriangle size={20} className="md:size-6" />
  </div>
  </div>
  </div>
 
  {/* Expired */}
- <div className="p-5 rounded-2xl bg-white dark:bg-gray-800 border border-amber-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+ <div className="p-5 rounded-lg bg-white dark:bg-gray-800 border border-amber-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-amber-700 dark:text-amber-300 text-sm font-medium">Expired Stock</p>
@@ -320,7 +320,7 @@ export default function InventoryPage() {
  </h2>
  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Remove from inventory</p>
  </div>
- <div className="w-10 h-10 md:w-12 md:h-12 bg-amber-600 text-white rounded-xl flex items-center justify-center">
+ <div className="w-10 h-10 md:w-12 md:h-12 bg-amber-600 text-white rounded-lg flex items-center justify-center">
  <ShieldAlert size={20} className="md:size-6" />
  </div>
  </div>
@@ -328,7 +328,7 @@ export default function InventoryPage() {
  </div>
 
  {/* SEARCH & FILTERS */}
- <div className="bg-white dark:bg-gray-800 rounded-2xl border border-[#0067A1]/20 dark:border-gray-700 p-4 md:p-6 mb-6 shadow-lg backdrop-blur-sm bg-opacity-90">
+ <div className="bg-white dark:bg-gray-800 rounded-lg border border-[#0067A1]/20 dark:border-gray-700 p-4 md:p-6 mb-6 backdrop-blur-sm bg-opacity-90">
  <div className="flex flex-col lg:flex-row gap-4">
  {/* SEARCH BAR */}
  <div className="relative flex-1 group">
@@ -336,7 +336,7 @@ export default function InventoryPage() {
  <input
  type="text"
  placeholder="Search medicines by name, brand, or batch..."
- className="w-full pl-12 pr-4 py-3 rounded-xl bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all shadow-sm"
+ className="w-full pl-12 pr-4 py-3 rounded-lg bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all"
  value={search}
  onChange={(e) => setSearch(e.target.value)}
  />
@@ -346,8 +346,8 @@ export default function InventoryPage() {
  <div className="flex flex-wrap gap-3">
  <button
  onClick={() => setOnlyLowStock(!onlyLowStock)}
- className={`px-4 py-3 rounded-xl flex items-center gap-2 transition-all duration-300 ${onlyLowStock 
- ? 'bg-red-600 text-white shadow-lg' 
+ className={`px-4 py-3 rounded-lg flex items-center gap-2 transition-all duration-300 ${onlyLowStock 
+ ? 'bg-red-600 text-white' 
  : 'bg-white dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-red-300'}`}
  >
  <AlertCircle className="w-4 h-4" />
@@ -359,8 +359,8 @@ export default function InventoryPage() {
 
  <button
  onClick={() => setOnlyNearExpiry(!onlyNearExpiry)}
- className={`px-4 py-3 rounded-xl flex items-center gap-2 transition-all duration-300 ${onlyNearExpiry 
- ? 'bg-amber-600 text-white shadow-lg' 
+ className={`px-4 py-3 rounded-lg flex items-center gap-2 transition-all duration-300 ${onlyNearExpiry 
+ ? 'bg-amber-600 text-white' 
  : 'bg-white dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-amber-300'}`}
  >
  <Clock className="w-4 h-4" />
@@ -373,8 +373,8 @@ export default function InventoryPage() {
  {/* FILTER TOGGLE */}
  <button
  onClick={() => setExpandedFilters(!expandedFilters)}
- className={`px-4 py-3 rounded-xl flex items-center gap-2 transition-all duration-300 ${expandedFilters 
- ? 'bg-[#0067A1] text-white shadow-lg' 
+ className={`px-4 py-3 rounded-lg flex items-center gap-2 transition-all duration-300 ${expandedFilters 
+ ? 'bg-[#0067A1] text-white' 
  : 'bg-white dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 text-gray-700 dark:text-gray-300'}`}
  >
  <Filter className="w-4 h-4" />
@@ -414,7 +414,7 @@ export default function InventoryPage() {
  {/* LOADING STATE */}
  {loading && (
  <div className="text-center py-16">
- <div className="w-12 h-12 border-4 border-[#004F7C] border-t-transparent rounded-full animate-spin mx-auto shadow-lg"></div>
+ <div className="w-12 h-12 border-4 border-[#004F7C] border-t-transparent rounded-full animate-spin mx-auto"></div>
  <p className="mt-4 text-lg text-[#004F7C] dark:text-teal-300 font-medium animate-pulse">
  Loading inventory data...
  </p>
@@ -423,7 +423,7 @@ export default function InventoryPage() {
 
  {/* EMPTY STATE */}
  {!loading && inventory.length === 0 && (
- <div className="text-center p-12 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-2xl shadow-lg animate-pulse-slow">
+ <div className="text-center p-12 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg animate-pulse-slow">
  <Layers className="w-16 h-16 text-[#0080C6] mx-auto mb-4 animate-bounce" />
  <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">
  No Inventory Found
@@ -433,7 +433,7 @@ export default function InventoryPage() {
  </p>
  <button
  onClick={handleRefresh}
- className="px-6 py-2.5 bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95"
+ className="px-6 py-2.5 bg-[#0067A1] text-white rounded-lg hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95"
  >
  Refresh Data
  </button>
@@ -442,7 +442,7 @@ export default function InventoryPage() {
 
  {/* INVENTORY TABLE */}
  {!loading && inventory.length > 0 && (
- <div className="bg-white dark:bg-gray-900 rounded-2xl border border-[#0067A1]/20 dark:border-gray-700 shadow-lg overflow-hidden animate-slide-up">
+ <div className="bg-white dark:bg-gray-900 rounded-lg border border-[#0067A1]/20 dark:border-gray-700 overflow-hidden animate-slide-up">
  <div className="overflow-x-auto">
  <table className="w-full min-w-[800px]">
  <thead className="bg-[#0067A1]/5 dark:bg-gray-800">
@@ -562,7 +562,7 @@ export default function InventoryPage() {
  <td className="p-4">
  <button
  onClick={() => openBatches(item)}
- className="px-4 py-2 bg-[#0067A1] text-white rounded-xl flex items-center gap-2 shadow hover:shadow-lg hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 group"
+ className="px-4 py-2 bg-[#0067A1] text-white rounded-lg flex items-center gap-2 shadow hover:shadow-lg hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 group"
  >
  <Eye className="w-4 h-4 group-hover:scale-110 transition-transform" />
  <span className="text-sm font-medium">View Batches</span>
@@ -651,7 +651,7 @@ export default function InventoryPage() {
  {/* BATCHES MODAL */}
  {showBatchModal && selectedMedicine && (
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
- <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-slide-up">
+ <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-slide-up">
  {/* Modal Header */}
  <div className="sticky top-0 bg-white dark:bg-gray-900 border-b dark:border-gray-700 p-6 flex justify-between items-center z-10">
  <div className="flex items-center space-x-3">
@@ -677,7 +677,7 @@ export default function InventoryPage() {
  <div className="p-6">
  {/* Summary Cards */}
  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
- <div className="p-4 rounded-xl bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700">
+ <div className="p-4 rounded-lg bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm text-[#004F7C] dark:text-teal-300 font-medium">Total Stock</p>
@@ -689,7 +689,7 @@ export default function InventoryPage() {
  </div>
  </div>
 
- <div className="p-4 rounded-xl bg-amber-50 dark:bg-gray-800 border border-amber-200 dark:border-gray-700">
+ <div className="p-4 rounded-lg bg-amber-50 dark:bg-gray-800 border border-amber-200 dark:border-gray-700">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">Near Expiry</p>
@@ -701,7 +701,7 @@ export default function InventoryPage() {
  </div>
  </div>
 
- <div className="p-4 rounded-xl bg-red-50 dark:bg-gray-800 border border-red-200 dark:border-gray-700">
+ <div className="p-4 rounded-lg bg-red-50 dark:bg-gray-800 border border-red-200 dark:border-gray-700">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-sm text-red-700 dark:text-red-300 font-medium">Expired</p>
@@ -715,7 +715,7 @@ export default function InventoryPage() {
  </div>
 
  {/* Batches Table */}
- <div className="overflow-hidden rounded-xl border border-[#0067A1]/20 dark:border-gray-700">
+ <div className="overflow-hidden rounded-lg border border-[#0067A1]/20 dark:border-gray-700">
  <div className="bg-[#0067A1]/5 dark:bg-gray-800 p-4">
  <h3 className="font-semibold text-[#003358] dark:text-teal-300">Batch Details</h3>
  </div>
@@ -792,7 +792,7 @@ export default function InventoryPage() {
  <div className="mt-6 pt-6 border-t dark:border-gray-700 flex justify-end">
  <button
  onClick={closeBatches}
- className="px-5 py-2.5 bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] transition-all duration-300 hover:scale-105 active:scale-95"
+ className="px-5 py-2.5 bg-[#0067A1] text-white rounded-lg hover:bg-[#004F7C] transition-all duration-300 hover:scale-105 active:scale-95"
  >
  Close
  </button>

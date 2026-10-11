@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { Bell, Search, Sun, Moon, User, LogOut, Menu } from "lucide-react";
+import { logoutUser } from "@/lib/authHelpers";
 
 export default function StaffNavbar({ onMenuClick, sidebarOpen }) {
   const [staffUser, setStaffUser] = useState(null);
@@ -36,10 +37,7 @@ export default function StaffNavbar({ onMenuClick, sidebarOpen }) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("staffToken");
-    localStorage.removeItem("staffUser");
-    localStorage.removeItem("staffPermissions");
-    window.location.href = "/staff/login";
+    logoutUser("staff", "/staff/login");
   };
 
   return (

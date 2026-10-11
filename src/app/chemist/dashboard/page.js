@@ -125,7 +125,7 @@ function BroadcastQuickCard({ broadcast, chemistId, onQuoteSubmitted }) {
   const timeFormatted = `${minutes}:${remSec.toString().padStart(2, "0")}`;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-blue-100 dark:border-gray-700 p-5 shadow-sm hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between">
+    <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-blue-100 dark:border-gray-700 p-5 hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between">
       {/* Top accent line */}
       <div className={`absolute top-0 left-0 right-0 h-1 ${urgencyConfig.bar}`} />
 
@@ -459,11 +459,11 @@ export default function ChemistDashboard() {
       <Toaster position="top-right" />
 
       {/* ─── Hero / Greeting Header (Matching Patient Panel) ─── */}
-      <div className="relative overflow-hidden bg-[#0067A1] rounded-[5px] px-4 sm:px-6 pt-6 pb-10 sm:pb-12 shadow-md">
+      <div className="relative overflow-hidden bg-[#0067A1] rounded-[5px] px-4 sm:px-6 pt-6 pb-10 sm:pb-12">
         <div className="relative max-w-full mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <div className="flex items-start gap-3.5">
-              <div className="w-12 h-12 rounded-xl bg-white p-1 shadow-md border border-white/30 shrink-0 overflow-hidden flex items-center justify-center mt-1">
+              <div className="w-12 h-12 rounded-lg bg-white p-1 border border-white/30 shrink-0 overflow-hidden flex items-center justify-center mt-1">
                 <img
                   src="/real-logo.png"
                   alt="Pharmacy Logo"
@@ -517,7 +517,7 @@ export default function ChemistDashboard() {
       {/* ─── Engagement CTA Banner (When Broadcasts are Active) ─── */}
       {broadcasts.length > 0 && (
         <section>
-          <div className="p-4 sm:p-5 rounded-[5px] bg-gradient-to-r from-blue-700 via-[#0067A1] to-teal-700 text-white shadow-md relative overflow-hidden border border-white/20">
+          <div className="p-4 sm:p-5 rounded-[5px] bg-gradient-to-r from-blue-700 via-[#0067A1] to-teal-700 text-white relative overflow-hidden border border-white/20">
             <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-[5px] bg-white/20 flex items-center justify-center shrink-0">
@@ -598,7 +598,7 @@ export default function ChemistDashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Total Orders */}
-          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow transition-shadow">
+          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 hover:shadow transition-shadow">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Total Orders</p>
@@ -633,7 +633,7 @@ export default function ChemistDashboard() {
           </div>
 
           {/* Pending Action */}
-          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow transition-shadow">
+          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 hover:shadow transition-shadow">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Requires Action</p>
@@ -666,7 +666,7 @@ export default function ChemistDashboard() {
           </div>
 
           {/* Completed Orders */}
-          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow transition-shadow">
+          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 hover:shadow transition-shadow">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Delivered</p>
@@ -693,7 +693,7 @@ export default function ChemistDashboard() {
           </div>
 
           {/* Revenue */}
-          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow transition-shadow">
+          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 hover:shadow transition-shadow">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Revenue</p>
@@ -754,7 +754,7 @@ export default function ChemistDashboard() {
             ))}
           </div>
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-dashed border-gray-200 dark:border-gray-700 p-8 text-center shadow-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-dashed border-gray-200 dark:border-gray-700 p-8 text-center">
             <div className="w-12 h-12 bg-blue-50 dark:bg-blue-950/40 text-[#0067A1] rounded-full flex items-center justify-center mx-auto mb-3">
               <Radio className="w-6 h-6 animate-pulse" />
             </div>
@@ -783,7 +783,7 @@ export default function ChemistDashboard() {
           </Link>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 overflow-hidden">
           {recentOrders.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
@@ -873,7 +873,7 @@ export default function ChemistDashboard() {
       {/* ─── Revenue & Performance Trends ─── */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Revenue Trend Chart */}
-        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 shadow-sm">
+        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
             <div>
               <h2 className="text-base font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
@@ -889,7 +889,7 @@ export default function ChemistDashboard() {
                 onClick={() => setChartType("area")}
                 className={`px-2.5 py-1 text-xs font-bold rounded-[5px] transition-colors ${
                   chartType === "area"
-                    ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm"
+                    ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white"
                     : "text-gray-500"
                 }`}
               >
@@ -899,7 +899,7 @@ export default function ChemistDashboard() {
                 onClick={() => setChartType("bar")}
                 className={`px-2.5 py-1 text-xs font-bold rounded-[5px] transition-colors ${
                   chartType === "bar"
-                    ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm"
+                    ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white"
                     : "text-gray-500"
                 }`}
               >
@@ -971,7 +971,7 @@ export default function ChemistDashboard() {
         </div>
 
         {/* Pharmacy Quick Status & Rating Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 shadow-sm flex flex-col justify-between">
+        <div className="bg-white dark:bg-gray-800 rounded-[5px] border border-gray-100 dark:border-gray-700 p-5 flex flex-col justify-between">
           <div>
             <h2 className="text-base font-bold text-gray-800 dark:text-gray-100 mb-3">
               Pharmacy Compliance & Rating
@@ -1015,7 +1015,7 @@ export default function ChemistDashboard() {
           <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-700">
             <Link
               href="/chemist/orders"
-              className="w-full py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-bold rounded-[5px] shadow-sm transition-all flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-bold rounded-[5px] transition-all flex items-center justify-center gap-2"
             >
               <Truck className="w-3.5 h-3.5" />
               Manage All Deliveries

@@ -146,6 +146,7 @@ export async function POST(req, { params }) {
           UPDATE lab_test_orders
           SET
             status = 'technician_assigned',
+            technician_status = 'assigned',
             technician_id = ${cleanTechId},
             technician_name = ${technician_name},
             technician_phone = ${technician_phone},

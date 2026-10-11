@@ -185,14 +185,17 @@ function VerifyOtpContent() {
         setSuccessAnim(true);
         const { user_id, role, user } = response.data || {};
         if (typeof window !== 'undefined') {
+          const allRoles = ['doctorUser', 'chemistUser', 'labUser', 'adminUser', 'patientUser', 'staffUser', 'partnerUser'];
+          allRoles.forEach((k) => {
+            if (k !== `${role}User`) localStorage.removeItem(k);
+          });
+
           if (response.data?.token) localStorage.setItem('authToken', response.data.token);
           if (user_id) localStorage.setItem('userId', String(user_id));
           if (role) localStorage.setItem('userRole', role);
           if (user) localStorage.setItem('userData', JSON.stringify(user));
-          if (role === 'doctor') {
-            localStorage.setItem('doctorUser', JSON.stringify(user));
-          } else if (role === 'patient') {
-            localStorage.setItem('patientUser', JSON.stringify(user));
+          if (role) {
+            localStorage.setItem(`${role}User`, JSON.stringify(user));
           }
           if (user_id) {
             document.cookie = `session_id=${user_id}; path=/; max-age=86400; SameSite=Lax`;
@@ -331,6 +334,14 @@ function VerifyOtpContent() {
                   <span className="text-sm font-semibold text-emerald-800 tracking-wider">
                     {maskedIdentifier}
                   </span>
+                </div>
+                <div className="mt-2">
+                  <Link
+                    href="/website"
+                    className="text-xs font-semibold text-[#0067A1] hover:text-[#004F7C] transition-colors inline-flex items-center gap-1"
+                  >
+                    <span>{loginMethod === 'email' ? 'Change Email' : 'Change Phone'}</span>
+                  </Link>
                 </div>
               </>
             )}

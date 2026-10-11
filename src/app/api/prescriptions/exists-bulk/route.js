@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -9,11 +9,7 @@ export async function OPTIONS() {
 /**
  * POST /api/prescriptions/exists-bulk
  * Body: { appointment_ids: string[] }
- * Returns: { data: { [appointmentId]: true } }
- *
- * An appointment ID maps to `true` if:
- *   - It directly has a prescription, OR
- *   - It belongs to a care_episode that has at least one prescription in any appointment
+ * Returns: { data: { [appointmentId]: { exists: boolean, prescription_id?: string, is_signed?: boolean, status?: string } } }
  */
 export async function POST(req) {
   try {
@@ -24,72 +20,75 @@ export async function POST(req) {
       return failure("appointment_ids array is required", null, 400, { headers: corsHeaders });
     }
 
-    // 1. Get prescriptions that directly match the given appointment IDs
-    const { data: directRx, error: rxError } = await supabase
-      .from("prescriptions")
-      .select("appointment_id")
-      .in("appointment_id", appointment_ids);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const cleanIds = appointment_ids.filter((id) => uuidRegex.test(String(id)));
 
-    if (rxError) throw rxError;
+    if (cleanIds.length === 0) {
+      return success("Prescription existence check complete", {}, 200, { headers: corsHeaders });
+    }
+
+    // 1. Get prescriptions that directly match the given appointment IDs from AWS RDS
+    const directRx = await sql`
+      SELECT id, appointment_id, status, is_draft, signed_at, created_at
+      FROM prescriptions
+      WHERE appointment_id = ANY(${cleanIds})
+      ORDER BY created_at DESC
+    `;
 
     const existsMap = {};
 
-    // Mark appointments that directly have a prescription
     for (const row of directRx || []) {
-      existsMap[row.appointment_id] = true;
+      const isSigned = !!(row.signed_at || (!row.is_draft && row.status === "completed"));
+      existsMap[row.appointment_id] = {
+        exists: true,
+        prescription_id: row.id,
+        is_signed: isSigned,
+        status: row.status,
+      };
     }
 
-    // 2. Handle care episodes: fetch care_episode_id for all input appointments
-    const { data: apptRows, error: apptError } = await supabase
-      .from("appointments")
-      .select("id, care_episode_id")
-      .in("id", appointment_ids);
+    // 2. Also check care_episodes: if any appointment in the same care_episode has a prescription
+    const apptRows = await sql`
+      SELECT id, care_episode_id
+      FROM appointments
+      WHERE id = ANY(${cleanIds})
+    `;
 
-    if (apptError) throw apptError;
-
-    // Collect unique non-null care_episode_ids
     const episodeIds = [...new Set(
       (apptRows || [])
-        .map(a => a.care_episode_id)
-        .filter(Boolean)
+        .map((a) => a.care_episode_id)
+        .filter((ep) => ep && uuidRegex.test(String(ep)))
     )];
 
     if (episodeIds.length > 0) {
-      // Find all appointments that belong to those episodes
-      const { data: episodeAppts } = await supabase
-        .from("appointments")
-        .select("id, care_episode_id")
-        .in("care_episode_id", episodeIds);
+      const episodeAppts = await sql`
+        SELECT a.id, a.care_episode_id, p.id AS rx_id, p.status AS rx_status, p.signed_at AS rx_signed_at, p.is_draft AS rx_is_draft
+        FROM appointments a
+        INNER JOIN prescriptions p ON p.appointment_id = a.id
+        WHERE a.care_episode_id = ANY(${episodeIds})
+        ORDER BY p.created_at DESC
+      `;
 
-      if (episodeAppts && episodeAppts.length > 0) {
-        const episodeApptIds = episodeAppts.map(a => a.id);
-
-        // Check which of those episode appointments have prescriptions
-        const { data: episodeRx } = await supabase
-          .from("prescriptions")
-          .select("appointment_id")
-          .in("appointment_id", episodeApptIds);
-
-        // Build a map: care_episode_id -> bool (has any prescription)
-        const episodeHasRx = new Set((episodeRx || []).map(r => r.appointment_id));
-        const episodeApptMap = {};
-        for (const a of episodeAppts) {
-          if (!episodeApptMap[a.care_episode_id]) episodeApptMap[a.care_episode_id] = [];
-          episodeApptMap[a.care_episode_id].push(a.id);
-        }
-
-        // Mark original appointment IDs as true if their episode has a prescription
-        for (const appt of apptRows || []) {
-          if (!appt.care_episode_id) continue;
-          const sibling_ids = episodeApptMap[appt.care_episode_id] || [];
-          const episodeHasPrescription = sibling_ids.some(sid => episodeHasRx.has(sid));
-          if (episodeHasPrescription) {
-            existsMap[appt.id] = true;
+      for (const row of episodeAppts || []) {
+        const matchingOriginals = (apptRows || []).filter(
+          (orig) => orig.care_episode_id === row.care_episode_id
+        );
+        for (const orig of matchingOriginals) {
+          if (!existsMap[orig.id]) {
+            const isSigned = !!(row.rx_signed_at || (!row.rx_is_draft && row.rx_status === "completed"));
+            existsMap[orig.id] = {
+              exists: true,
+              prescription_id: row.rx_id,
+              is_signed: isSigned,
+              status: row.rx_status,
+            };
           }
         }
       }
     }
 
+    // Also support backward compatibility where caller expects boolean `existsMap[id] = true`
+    // We return both: the object map with details, and for boolean checks `!!existsMap[id]` is true.
     return success("Prescription existence check complete", existsMap, 200, { headers: corsHeaders });
   } catch (err) {
     console.error("exists-bulk error:", err);

@@ -21,21 +21,9 @@ import FAQ from "@/components/public-site/ui/FAQ";
 import dynamic from "next/dynamic";
 import MedicalNews from "@/components/public-site/ui/MedicalNews";
 
-const LoginModal = dynamic(
-  () => import("@/components/public-site/auth/LoginModal"),
-  { ssr: false },
-);
-
-const SignupModal = dynamic(
-  () => import("@/components/public-site/auth/SignupModal"),
-  { ssr: false },
-);
-
 import FeaturedDoctorsHome from "@/components/public-site/ui/FeaturedDoctorsHome";
 
 export default function Home() {
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [pageBlocks, setPageBlocks] = useState({});
   const [isLoadingBlocks, setIsLoadingBlocks] = useState(true);
 
@@ -85,13 +73,11 @@ export default function Home() {
   ];
 
   const handleLoginClick = () => {
-    setIsSignupOpen(false);
-    setIsLoginOpen(true);
+    window.dispatchEvent(new CustomEvent("open-login-modal", { detail: { userType: "patient" } }));
   };
 
   const handleSignupClick = () => {
-    setIsLoginOpen(false);
-    setIsSignupOpen(true);
+    window.dispatchEvent(new CustomEvent("open-signup-modal"));
   };
 
   return (
@@ -702,18 +688,6 @@ export default function Home() {
           </div>
         </section>
       </main>
-
-      {/* Modals */}
-      <LoginModal
-        isOpen={isLoginOpen}
-        onClose={() => setIsLoginOpen(false)}
-        onSignupClick={handleSignupClick}
-      />
-      <SignupModal
-        isOpen={isSignupOpen}
-        onClose={() => setIsSignupOpen(false)}
-        onLoginClick={handleLoginClick}
-      />
     </div>
   );
 }

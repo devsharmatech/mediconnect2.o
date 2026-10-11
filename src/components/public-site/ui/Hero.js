@@ -94,8 +94,9 @@ const Hero = ({ onLoginClick }) => {
               {description}
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center sm:items-stretch gap-3 mb-2 justify-center md:justify-start">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-2 justify-center md:justify-start w-full sm:w-auto">
               <Button
+                type="button"
                 onClick={() => {
                   if (cmsData?.primary_button_link && !cmsData.primary_button_link.includes('/login')) {
                     window.location.href = cmsData.primary_button_link;
@@ -108,7 +109,7 @@ const Hero = ({ onLoginClick }) => {
                     window.location.href = '/website/doctors';
                   }
                 }}
-                className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0067A1]"
+                className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 text-sm font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0067A1]"
               >
                 <FaCalendarCheck className="mr-2 h-4 w-4" />
                 {primaryText}
@@ -116,7 +117,7 @@ const Hero = ({ onLoginClick }) => {
               <Button
                 type="button"
                 variant="secondary"
-                className="inline-flex items-center justify-center px-6 py-3 text-sm font-semibold rounded-lg border border-[#0067A1] text-[#0067A1] bg-white hover:bg-[#F3F4F6]"
+                className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 text-sm font-semibold rounded-lg border border-[#0067A1] text-[#0067A1] bg-white hover:bg-[#F3F4F6]"
                 onClick={() => {
                   const section = document.getElementById('how-it-works');
                   if (section) {

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { logoutUser } from "@/lib/authHelpers";
 import {
   FaUserMd,
   FaHome,
@@ -479,14 +480,8 @@ export default function DoctorDashboardLayout({ children }) {
   };
 
   const handleLogout = useCallback(() => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("userData");
-      localStorage.removeItem("authToken");
-      localStorage.removeItem("userId");
-    }
-    router.replace("/website");
-  }, [router]);
+    logoutUser("doctor", "/doctor/login");
+  }, []);
 
   const getNotificationIcon = (type, title = "", message = "") => {
     const combined = `${type || ""} ${title || ""} ${message || ""}`.toLowerCase();
@@ -766,6 +761,12 @@ export default function DoctorDashboardLayout({ children }) {
       icon: FaUser,
       description: "Account settings",
     },
+    {
+      href: "/dashboard",
+      label: "Patient View",
+      icon: FaUser,
+      description: "Switch to patient view",
+    },
   ];
 
   const isActive = (href) => {
@@ -785,35 +786,38 @@ export default function DoctorDashboardLayout({ children }) {
     <div className="h-screen bg-[#F8FAFC] overflow-hidden">
       {/* ── Session Agreement Gate Modal ── */}
       {!sessionAgreed && (
-        <div className="fixed inset-0 z-[9999] flex sm:items-center sm:justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm overflow-hidden">
-          <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-md p-6 sm:p-8 flex flex-col justify-between overflow-y-auto animate-in fade-in duration-200 pb-safe">
-            <div className="space-y-6 my-auto">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[#0067A1] flex items-center justify-center mx-auto shadow-xl">
-                <FaUserMd className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-md max-h-[min(92vh,640px)] my-auto flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-100">
+            {/* Scrollable Content */}
+            <div className="overflow-y-auto p-5 sm:p-6 space-y-4 custom-scrollbar">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0067A1] to-[#0080C6] flex items-center justify-center mx-auto shadow-md shadow-[#0067A1]/20 shrink-0">
+                <FaUserMd className="w-6 h-6 text-white" />
               </div>
               <div className="text-center">
-                <h2 className="text-xl font-extrabold text-slate-900">Daily Session Agreement</h2>
-                <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+                <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">Daily Session Agreement</h2>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-snug">
                   By proceeding, you confirm that:
                 </p>
               </div>
-              <div className="text-left space-y-3">
+              <div className="text-left space-y-2.5 pt-0.5">
                 {[
                   "All AI suggestions are assistive only — final clinical decisions are yours alone.",
                   "You are practising under a valid and current medical registration.",
                   "You will not complete consultations with unresolved HIGH clinical risk flags without documented justification.",
                   "Patient data accessed today is solely for the clinical purpose of this session.",
                 ].map((text, i) => (
-                  <div key={i} className="flex items-start gap-3">
+                  <div key={i} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50/80 border border-slate-100/90 hover:bg-slate-50 transition-colors">
                     <div className="w-5 h-5 rounded-full bg-[#0067A1]/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="text-[#0067A1] text-xs font-bold">{i + 1}</span>
+                      <span className="text-[#0067A1] text-[11px] font-bold">{i + 1}</span>
                     </div>
-                    <p className="text-xs sm:text-sm text-slate-700 leading-relaxed">{text}</p>
+                    <p className="text-xs sm:text-[13px] text-slate-700 leading-snug">{text}</p>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="mt-6 pt-4 border-t border-slate-100 text-center space-y-2">
+
+            {/* Footer */}
+            <div className="p-4 sm:p-5 border-t border-slate-100 bg-white shrink-0 text-center space-y-2">
               <button
                 onClick={() => {
                   const todayKey = `session_agreed_${new Date().toISOString().split("T")[0]}`;
@@ -829,9 +833,9 @@ export default function DoctorDashboardLayout({ children }) {
                     body: JSON.stringify({}),
                   }).catch(() => {});
                 }}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0067A1] to-[#0080C6] text-white font-bold text-sm shadow-lg shadow-[#0067A1]/20 hover:shadow-xl transition-all cursor-pointer"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:from-[#005a8e] hover:to-[#0073b3] active:scale-[0.99] text-white font-bold text-sm shadow-md shadow-[#0067A1]/20 hover:shadow-lg transition-all cursor-pointer"
               >
-                I Understand &amp; Agree — Start Session
+                Agree &amp; Continue
               </button>
               <p className="text-[10px] text-slate-400">This prompt appears once per browser session per day.</p>
             </div>
@@ -871,13 +875,13 @@ export default function DoctorDashboardLayout({ children }) {
               </Link>
               <button
                 onClick={() => setIsSidebarOpen(false)}
-                className="p-2 rounded-xl text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+                className="p-1.5 rounded-md text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               >
-                <span className="text-xl">✕</span>
+                <span className="text-lg">✕</span>
               </button>
             </div>
 
-            <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-1.5 custom-scrollbar">
+            <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1 custom-scrollbar">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
@@ -886,9 +890,9 @@ export default function DoctorDashboardLayout({ children }) {
                     key={item.href}
                     href={item.href}
                     onClick={() => setIsSidebarOpen(false)}
-                    className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all duration-200 group text-sm font-medium ${
+                    className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-md transition-colors group text-sm font-medium ${
                       active
-                        ? "bg-white text-[#0067A1] shadow-md"
+                        ? "bg-white text-[#0067A1]"
                         : "text-white/70 hover:bg-white/10 hover:text-white"
                     }`}
                   >
@@ -900,7 +904,7 @@ export default function DoctorDashboardLayout({ children }) {
                     <span>{item.label}</span>
                     {item.badge && (
                       <span
-                        className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        className={`ml-auto px-2 py-0.5 rounded-md text-xs font-semibold ${
                           active ? "bg-[#0067A1]/10 text-[#0067A1]" : "bg-white/20 text-white"
                         }`}
                       >
@@ -913,9 +917,9 @@ export default function DoctorDashboardLayout({ children }) {
             </nav>
 
             {/* Footer actions */}
-            <div className="p-4 shrink-0 border-t border-white/10 bg-black/10">
-              <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-xl border border-white/10 mb-3">
-                <div className="w-10 h-10 rounded-full bg-[#0067A1] text-white flex items-center justify-center font-bold text-sm shadow-md overflow-hidden border border-white/20 shrink-0">
+            <div className="p-3.5 shrink-0 border-t border-white/10 bg-black/10">
+              <div className="flex items-center gap-3 px-3 py-2.5 bg-white/5 rounded-md border border-white/10 mb-2.5">
+                <div className="w-9 h-9 rounded-full bg-[#0067A1] text-white flex items-center justify-center font-semibold text-xs overflow-hidden border border-white/20 shrink-0">
                   {doctorImage ? (
                     <img
                       src={doctorImage}
@@ -928,10 +932,10 @@ export default function DoctorDashboardLayout({ children }) {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">
+                  <p className="text-xs sm:text-sm font-semibold text-white truncate">
                     {doctorName || "Doctor"}
                   </p>
-                  <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
+                  <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                     Online
                   </p>
@@ -939,9 +943,9 @@ export default function DoctorDashboardLayout({ children }) {
               </div>
               <button
                 onClick={handleLogout}
-                className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm transition-all duration-200 w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 font-medium border border-transparent hover:border-rose-500/30"
+                className="flex items-center justify-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-colors w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 border border-transparent hover:border-rose-500/30 cursor-pointer"
               >
-                <FaSignOutAlt className="flex-shrink-0 w-4 h-4" />
+                <FaSignOutAlt className="flex-shrink-0 w-3.5 h-3.5" />
                 <span>Sign Out</span>
               </button>
             </div>
@@ -952,14 +956,14 @@ export default function DoctorDashboardLayout({ children }) {
 
       <div className="flex h-full">
         {/* Desktop Sidebar */}
-        <aside className={`hidden md:flex md:flex-col h-full min-h-0 bg-[#003358] border-r border-[#003358] shadow-[4px_0_24px_rgba(0,0,0,0.1)] shrink-0 transition-all duration-300 relative z-40 ${isSidebarCollapsed ? "w-20" : "w-72"}`}>
+        <aside className={`hidden md:flex md:flex-col h-full min-h-0 bg-[#003358] border-r border-[#002742] shrink-0 transition-all duration-300 relative z-40 ${isSidebarCollapsed ? "w-20" : "w-72"}`}>
           {/* Header */}
-          <div className={`p-5 flex items-center h-20 shrink-0 border-b border-white/10 ${isSidebarCollapsed ? "justify-center relative" : "justify-between"}`}>
+          <div className={`p-4 flex items-center h-16 shrink-0 border-b border-white/10 ${isSidebarCollapsed ? "justify-center relative" : "justify-between"}`}>
             <Link
               href="/doctor"
               className="flex items-center gap-3 overflow-hidden"
             >
-              <div className="w-10 h-10 rounded-xl bg-white p-1.5 flex items-center justify-center shadow-md border border-white/20 shrink-0 overflow-hidden">
+              <div className="w-9 h-9 rounded-md bg-white p-1 flex items-center justify-center border border-white/20 shrink-0 overflow-hidden">
                 <img
                   src="/real-logo.png"
                   alt="MediConnect"
@@ -968,10 +972,10 @@ export default function DoctorDashboardLayout({ children }) {
               </div>
               {!isSidebarCollapsed && (
                 <div className="flex flex-col min-w-0">
-                  <span className="text-base font-bold text-white tracking-wide whitespace-nowrap leading-tight">
+                  <span className="text-sm sm:text-base font-semibold text-white tracking-wide whitespace-nowrap leading-tight">
                     MediConnect
                   </span>
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-teal-300 whitespace-nowrap">
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-teal-300 whitespace-nowrap">
                     Doctor Portal
                   </span>
                 </div>
@@ -980,21 +984,21 @@ export default function DoctorDashboardLayout({ children }) {
 
             <button
               onClick={toggleSidebarCollapse}
-              className={`hidden md:flex p-1.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors ${
+              className={`hidden md:flex p-1.5 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer ${
                 isSidebarCollapsed 
-                  ? "absolute -right-3.5 top-1/2 -translate-y-1/2 bg-[#003358] border border-white/20 shadow-lg rounded-full z-10 w-7 h-7 items-center justify-center hover:scale-110" 
+                  ? "absolute -right-3 top-1/2 -translate-y-1/2 bg-[#003358] border border-white/20 rounded-md z-10 w-6 h-6 items-center justify-center hover:scale-105" 
                   : ""
               }`}
             >
               {isSidebarCollapsed ? (
                 <FaChevronRight className="w-3 h-3" />
               ) : (
-                <FaChevronLeft className="w-4 h-4" />
+                <FaChevronLeft className="w-3.5 h-3.5" />
               )}
             </button>
           </div>
 
-          <nav className="flex-1 overflow-y-auto px-3 py-6 space-y-1.5 custom-scrollbar min-h-0">
+          <nav className="flex-1 overflow-y-auto px-2.5 py-4 space-y-1 custom-scrollbar min-h-0">
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
@@ -1003,21 +1007,21 @@ export default function DoctorDashboardLayout({ children }) {
                   key={item.href}
                   href={item.href}
                   title={isSidebarCollapsed ? item.label : undefined}
-                  className={`relative w-full flex items-center gap-3.5 px-3 py-3 rounded-xl transition-all duration-200 group text-sm font-medium ${
+                  className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors group text-xs sm:text-sm font-medium ${
                     active
-                      ? "bg-white text-[#0067A1] shadow-md"
+                      ? "bg-white text-[#0067A1]"
                       : "text-white/70 hover:bg-white/10 hover:text-white"
                   } ${isSidebarCollapsed ? "justify-center" : ""}`}
                 >
                   <Icon
                     className={`flex-shrink-0 transition-colors ${
                       active ? "text-[#0067A1]" : "text-white/60 group-hover:text-white"
-                    } ${isSidebarCollapsed ? "w-6 h-6" : "w-5 h-5"}`}
+                    } ${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"}`}
                   />
                   {!isSidebarCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
                   {!isSidebarCollapsed && item.badge && (
                     <span
-                      className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                      className={`ml-auto px-2 py-0.5 rounded-md text-[11px] font-medium ${
                         active ? "bg-[#0067A1]/10 text-[#0067A1]" : "bg-white/20 text-white"
                       }`}
                     >
@@ -1030,10 +1034,10 @@ export default function DoctorDashboardLayout({ children }) {
           </nav>
 
           {/* Footer actions */}
-          <div className="p-4 shrink-0 border-t border-white/10 bg-black/10">
+          <div className="p-3 shrink-0 border-t border-white/10 bg-black/10">
             {!isSidebarCollapsed && (
-              <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-xl border border-white/10 mb-3 overflow-hidden">
-                <div className="w-10 h-10 shrink-0 rounded-full bg-[#0067A1] text-white flex items-center justify-center font-bold text-sm shadow-md overflow-hidden border border-white/20">
+              <div className="flex items-center gap-2.5 px-3 py-2 bg-white/5 rounded-md border border-white/10 mb-2 overflow-hidden">
+                <div className="w-8 h-8 shrink-0 rounded-full bg-[#0067A1] text-white flex items-center justify-center font-semibold text-xs overflow-hidden border border-white/20">
                   {doctorImage ? (
                     <img
                       src={doctorImage}
@@ -1046,10 +1050,10 @@ export default function DoctorDashboardLayout({ children }) {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">
+                  <p className="text-xs font-semibold text-white truncate">
                     {doctorName || "Doctor"}
                   </p>
-                  <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
+                  <p className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                     Online
                   </p>
@@ -1059,9 +1063,9 @@ export default function DoctorDashboardLayout({ children }) {
             <button
               onClick={handleLogout}
               title={isSidebarCollapsed ? "Logout" : undefined}
-              className={`flex items-center gap-2 px-3 py-3 rounded-xl text-sm transition-all duration-200 w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 font-medium border border-transparent hover:border-rose-500/30 ${isSidebarCollapsed ? "justify-center" : "justify-center"}`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs transition-colors w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 font-medium border border-transparent hover:border-rose-500/30 cursor-pointer ${isSidebarCollapsed ? "justify-center" : "justify-center"}`}
             >
-              <FaSignOutAlt className={`flex-shrink-0 ${isSidebarCollapsed ? "w-6 h-6" : "w-4 h-4"}`} />
+              <FaSignOutAlt className={`flex-shrink-0 ${isSidebarCollapsed ? "w-4 h-4" : "w-3.5 h-3.5"}`} />
               {!isSidebarCollapsed && <span>Sign Out</span>}
             </button>
           </div>
@@ -1072,19 +1076,19 @@ export default function DoctorDashboardLayout({ children }) {
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           
           {/* Header */}
-          <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 flex items-center justify-between px-5 sm:px-6 lg:px-8 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)]">
+          <header className="sticky top-0 z-30 h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 lg:px-8">
             <div className="flex items-center gap-4">
 
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(true)}
-                className="md:hidden w-10 h-10 rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex items-center justify-center"
+                className="md:hidden w-9 h-9 rounded-md border border-slate-200 bg-white text-slate-600 hover:border-slate-300 transition-colors flex items-center justify-center"
               >
                 <FaBars className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="flex items-center gap-3 sm:gap-5">
+            <div className="flex items-center gap-3 sm:gap-4">
               {/* Notifications Dropdown */}
               <div className="relative" ref={notificationsRef}>
                 <button
@@ -1104,22 +1108,22 @@ export default function DoctorDashboardLayout({ children }) {
                   )}
                 </button>
 
-                {/* Notifications Dropdown Menu */}
+                {/* Notifications Dropdown / Full-screen Sheet on mobile */}
                 {showNotifications && (
-                  <div className="fixed sm:absolute right-2 sm:right-0 top-16 sm:top-auto sm:mt-2 w-[calc(100vw-1rem)] sm:w-[440px] max-w-[460px] max-h-[85vh] sm:max-h-[580px] bg-white rounded-lg border border-slate-200 overflow-hidden z-50 flex flex-col animate-in fade-in zoom-in-95 duration-150">
+                  <div className="fixed inset-0 w-full h-[100dvh] max-w-none max-h-none rounded-none border-none z-[100] bg-white flex flex-col sm:absolute sm:inset-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[440px] sm:max-w-[460px] sm:max-h-[580px] sm:rounded-lg sm:border sm:border-slate-200 sm:z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
                     {/* Header */}
-                    <div className="p-3.5 sm:p-4 border-b border-slate-100 bg-slate-50/70">
+                    <div className="p-3.5 sm:p-4 border-b border-slate-100 bg-slate-50/70 shrink-0">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                          <h3 className="text-sm font-semibold text-slate-900 tracking-tight">
                             Notifications
                           </h3>
                           {unreadCount > 0 ? (
-                            <span className="px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-bold rounded-md">
+                            <span className="px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 text-[11px] font-semibold rounded-md">
                               {unreadCount} unread
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-200 text-[11px] font-semibold rounded-md">
+                            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-200 text-[11px] font-medium rounded-md">
                               All caught up
                             </span>
                           )}
@@ -1130,24 +1134,34 @@ export default function DoctorDashboardLayout({ children }) {
                             <button
                               type="button"
                               onClick={markAllNotificationsRead}
-                              className="inline-flex items-center gap-1.5 text-xs text-[#0067A1] hover:text-[#004f7c] font-semibold px-2 py-1 rounded-md hover:bg-sky-50 transition-colors cursor-pointer"
+                              className="inline-flex items-center gap-1.5 text-xs text-[#0067A1] hover:text-[#004f7c] font-medium px-2 py-1 rounded-md hover:bg-sky-50 transition-colors cursor-pointer"
                               title="Mark all as read"
                             >
                               <FaCheckDouble className="w-3 h-3" />
-                              <span>Mark all read</span>
+                              <span className="hidden sm:inline">Mark read</span>
                             </button>
                           )}
                           {notifications.length > 0 && (
                             <button
                               type="button"
                               onClick={() => setShowClearConfirm((prev) => !prev)}
-                              className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700 font-semibold px-2 py-1 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                              className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700 font-medium px-2 py-1 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
                               title="Clear all notifications"
                             >
                               <FaTrash className="w-2.5 h-2.5" />
-                              <span>Clear all</span>
+                              <span className="hidden sm:inline">Clear all</span>
                             </button>
                           )}
+                          {/* Close button for full-screen / mobile dismissal */}
+                          <button
+                            type="button"
+                            onClick={() => setShowNotifications(false)}
+                            className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                            title="Close notifications"
+                            aria-label="Close notifications"
+                          >
+                            <FaTimes className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
 
@@ -1156,7 +1170,7 @@ export default function DoctorDashboardLayout({ children }) {
                         <div className="mt-2.5 p-2.5 bg-rose-50 border border-rose-200/80 rounded-md flex items-center justify-between gap-2 animate-in fade-in duration-150">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <FaExclamationCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                            <span className="text-xs font-semibold text-rose-800 truncate">
+                            <span className="text-xs font-medium text-rose-800 truncate">
                               Clear all {notifications.length} alerts?
                             </span>
                           </div>
@@ -1165,14 +1179,14 @@ export default function DoctorDashboardLayout({ children }) {
                               type="button"
                               onClick={clearAllNotifications}
                               disabled={isClearingNotifications}
-                              className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-semibold rounded-md transition-colors disabled:opacity-50 cursor-pointer"
+                              className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-medium rounded-md transition-colors disabled:opacity-50 cursor-pointer"
                             >
                               {isClearingNotifications ? "Clearing..." : "Yes, Clear"}
                             </button>
                             <button
                               type="button"
                               onClick={() => setShowClearConfirm(false)}
-                              className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-semibold rounded-md transition-colors cursor-pointer"
+                              className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-medium rounded-md transition-colors cursor-pointer"
                             >
                               Cancel
                             </button>
@@ -1185,7 +1199,7 @@ export default function DoctorDashboardLayout({ children }) {
                         <button
                           type="button"
                           onClick={() => setNotificationTab("all")}
-                          className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                          className={`px-3 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
                             notificationTab === "all"
                               ? "bg-[#0067A1] text-white"
                               : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/70"
@@ -1196,7 +1210,7 @@ export default function DoctorDashboardLayout({ children }) {
                         <button
                           type="button"
                           onClick={() => setNotificationTab("unread")}
-                          className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                          className={`px-3 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
                             notificationTab === "unread"
                               ? "bg-[#0067A1] text-white"
                               : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/70"
@@ -1230,14 +1244,14 @@ export default function DoctorDashboardLayout({ children }) {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-1 mb-1">
-                                <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wider truncate">
+                                <p className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider truncate">
                                   {notification.title || "Alert"}
                                 </p>
                                 {!notification.read && (
                                   <span className="w-2 h-2 rounded-full bg-[#0067A1] shrink-0" title="Unread" />
                                 )}
                               </div>
-                              <p className="text-xs sm:text-[13px] text-slate-800 font-medium leading-relaxed break-words">
+                              <p className="text-xs sm:text-[13px] text-slate-800 font-normal leading-relaxed break-words">
                                 {formatMessageText(notification.message)}
                               </p>
                               <div className="flex items-center justify-between gap-2 mt-2">
@@ -1276,8 +1290,8 @@ export default function DoctorDashboardLayout({ children }) {
                         ))
                       ) : (
                         <div className="py-12 px-6 text-center">
-                          <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
-                            <FaBell className="w-5 h-5" />
+                          <div className="w-10 h-10 rounded-md bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
+                            <FaBell className="w-4 h-4" />
                           </div>
                           <p className="text-sm font-semibold text-slate-700">
                             {notificationTab === "unread" ? "No unread alerts" : "No alerts yet"}
@@ -1292,7 +1306,7 @@ export default function DoctorDashboardLayout({ children }) {
                     </div>
 
                     {/* Footer */}
-                    <div className="p-3 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3 text-xs">
+                    <div className="p-3 pb-safe sm:pb-3 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3 text-xs shrink-0">
                       <span className="text-slate-500 font-medium truncate">
                         Showing {(notificationTab === "unread" ? notifications.filter(n => !n.read) : notifications).length} of {notifications.length} alerts
                       </span>
@@ -1301,7 +1315,7 @@ export default function DoctorDashboardLayout({ children }) {
                           <button
                             type="button"
                             onClick={() => setShowClearConfirm(true)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 font-semibold transition-colors text-xs cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 font-medium transition-colors text-xs cursor-pointer"
                           >
                             <FaTrash className="w-2.5 h-2.5" />
                             <span>Clear all</span>
@@ -1313,7 +1327,7 @@ export default function DoctorDashboardLayout({ children }) {
                             setShowNotifications(false);
                             openNotificationsModal();
                           }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#0067A1] text-white font-semibold hover:bg-[#004F7C] transition-colors text-xs cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#0067A1] text-white font-medium hover:bg-[#004F7C] transition-colors text-xs cursor-pointer"
                         >
                           <span>View all</span>
                           <FaChevronRight className="w-2.5 h-2.5" />
@@ -1327,9 +1341,9 @@ export default function DoctorDashboardLayout({ children }) {
               {/* Mobile logout */}
               <button
                 onClick={handleLogout}
-                className="md:hidden inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"
+                className="md:hidden inline-flex items-center px-2.5 py-1.5 rounded-md text-xs font-medium bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-colors"
               >
-                <FaSignOutAlt className="w-3 h-3 mr-1.5" />
+                <FaSignOutAlt className="w-3 h-3 mr-1" />
                 Logout
               </button>
 
@@ -1337,10 +1351,10 @@ export default function DoctorDashboardLayout({ children }) {
               <div className="hidden md:block relative" ref={profileRef}>
                 <button
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-slate-50 transition-colors"
+                  className="flex items-center gap-2 p-1 rounded-md hover:bg-slate-50 transition-colors"
                 >
                   <div className="relative">
-                    <div className="w-9 h-9 rounded-full bg-[#0067A1] text-white flex items-center justify-center text-xs font-bold shadow-xs overflow-hidden border border-slate-200 shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-[#0067A1] text-white flex items-center justify-center text-xs font-medium overflow-hidden border border-slate-200 shrink-0">
                       {doctorImage ? (
                         <img
                           src={doctorImage}
@@ -1352,25 +1366,25 @@ export default function DoctorDashboardLayout({ children }) {
                         getInitials(doctorName)
                       )}
                     </div>
-                    <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white ring-1 ring-emerald-500/20"></div>
+                    <div className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 rounded-full border border-white"></div>
                   </div>
                   <div className="text-left hidden sm:block">
-                    <p className="text-xs font-bold text-slate-800 truncate max-w-[150px]">
+                    <p className="text-xs font-semibold text-slate-800 truncate max-w-[140px]">
                       {doctorName || "Doctor"}
                     </p>
                     <p className="text-[10px] text-emerald-600 font-medium">Online</p>
                   </div>
                   <FaChevronDown
-                    className={`w-3 h-3 text-slate-400 transition-transform duration-200 ${showProfileMenu ? "rotate-180" : ""}`}
+                    className={`w-2.5 h-2.5 text-slate-400 transition-transform duration-200 ${showProfileMenu ? "rotate-180" : ""}`}
                   />
                 </button>
 
                 {/* Profile Dropdown Menu */}
                 {showProfileMenu && (
-                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
-                    <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                  <div className="absolute right-0 mt-2 w-60 bg-white rounded-lg shadow-md border border-slate-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="p-3.5 border-b border-slate-100 bg-slate-50/50">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-[#0067A1] text-white flex items-center justify-center text-lg font-bold overflow-hidden border border-slate-200 shadow-xs shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-[#0067A1] text-white flex items-center justify-center text-sm font-semibold overflow-hidden border border-slate-200 shrink-0">
                           {doctorImage ? (
                             <img
                               src={doctorImage}
@@ -1383,47 +1397,50 @@ export default function DoctorDashboardLayout({ children }) {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-900 truncate">
+                          <p className="text-xs font-semibold text-slate-900 truncate">
                             {doctorName || "Doctor"}
                           </p>
-                          <p className="text-xs text-slate-500 truncate">
+                          <p className="text-[11px] text-slate-500 truncate">
                             Attending Physician
                           </p>
-                          <p className="text-xs text-emerald-600 font-medium mt-1 flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
+                          <p className="text-[11px] text-emerald-600 font-medium mt-0.5 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
                             Active now
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    <div className="py-2">
+                    <div className="py-1.5">
                       <Link
                         href="/doctor/profile-settings"
-                        className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                        className="flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
                         onClick={() => setShowProfileMenu(false)}
                       >
-                        <FaEdit className="w-4 h-4 text-slate-500" />
+                        <FaEdit className="w-3.5 h-3.5 text-slate-400" />
                         <span>Edit Profile</span>
                       </Link>
+
+                      <Link
+                        href="/dashboard"
+                        className="flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                        onClick={() => setShowProfileMenu(false)}
+                      >
+                        <FaUser className="w-3.5 h-3.5 text-pink-500" />
+                        <span>Patient View</span>
+                      </Link>
                      
-                      <div className="border-t border-slate-100 my-2"></div>
+                      <div className="border-t border-slate-100 my-1"></div>
                       <button
                         onClick={() => {
                           setShowProfileMenu(false);
                           handleLogout();
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
                       >
-                        <FaSignOutAlt className="w-4 h-4" />
+                        <FaSignOutAlt className="w-3.5 h-3.5" />
                         <span>Sign Out</span>
                       </button>
-                    </div>
-
-                    <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-                      <p className="text-xs text-slate-500">
-                        Last login: Today, 09:42 AM
-                      </p>
                     </div>
                   </div>
                 )}
@@ -1432,10 +1449,10 @@ export default function DoctorDashboardLayout({ children }) {
           </header>
 
           {/* Assistive Tool Disclaimer Banner */}
-          <div className="bg-gradient-to-r from-[#0067A1]/5 to-[#14B8A6]/5 border-b border-[#0067A1]/10 px-5 py-2 text-center backdrop-blur-md">
-            <p className="text-[10px] sm:text-xs font-bold text-[#0067A1] flex items-center justify-center gap-2 tracking-wide uppercase">
-              <FaUserMd className="w-3.5 h-3.5 text-[#14B8A6] animate-pulse" />
-              <span>AI Clinical Assistant Enabled — Final clinical decisions are made by the attending physician</span>
+          <div className="bg-sky-50/60 border-b border-sky-100 px-4 py-1.5 text-center">
+            <p className="text-[11px] font-medium text-[#0067A1] flex items-center justify-center gap-1.5 tracking-normal">
+              <FaUserMd className="w-3 h-3 text-[#0067A1] shrink-0" />
+              <span>AI Clinical Assistant Enabled — Final clinical decisions are made by attending physicians</span>
             </p>
           </div>
 
@@ -1474,75 +1491,75 @@ export default function DoctorDashboardLayout({ children }) {
           </footer>
 
           {/* ── Mobile Footer Navigation Bar (Doctor Panel) ── */}
-          <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center justify-around">
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 px-2 pt-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center justify-around">
             <Link
               href="/doctor"
-              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-md transition-colors ${
                 pathname === "/doctor"
-                  ? "text-[#0067A1] font-bold"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "text-[#0067A1] font-semibold"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
               }`}
             >
-              <div className={`p-1 rounded-lg ${pathname === "/doctor" ? "bg-[#0067A1]/10 text-[#0067A1]" : ""}`}>
-                <FaHome className="w-5 h-5" />
+              <div className={`p-1 rounded-md ${pathname === "/doctor" ? "bg-sky-50 text-[#0067A1]" : ""}`}>
+                <FaHome className="w-4 h-4" />
               </div>
               <span className="text-[10px] mt-0.5">Home</span>
             </Link>
 
             <Link
               href="/doctor/appointments"
-              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-md transition-colors ${
                 pathname?.startsWith("/doctor/appointments")
-                  ? "text-[#0067A1] font-bold"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "text-[#0067A1] font-semibold"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
               }`}
             >
-              <div className={`p-1 rounded-lg ${pathname?.startsWith("/doctor/appointments") ? "bg-[#0067A1]/10 text-[#0067A1]" : ""}`}>
-                <FaCalendarAlt className="w-5 h-5" />
+              <div className={`p-1 rounded-md ${pathname?.startsWith("/doctor/appointments") ? "bg-sky-50 text-[#0067A1]" : ""}`}>
+                <FaCalendarAlt className="w-4 h-4" />
               </div>
               <span className="text-[10px] mt-0.5">Appts</span>
             </Link>
 
             <Link
               href="/doctor/prescriptions"
-              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-md transition-colors ${
                 pathname?.startsWith("/doctor/prescriptions")
-                  ? "text-[#0067A1] font-bold"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "text-[#0067A1] font-semibold"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
               }`}
             >
-              <div className={`p-1 rounded-lg ${pathname?.startsWith("/doctor/prescriptions") ? "bg-[#0067A1]/10 text-[#0067A1]" : ""}`}>
-                <FaFileMedical className="w-5 h-5" />
+              <div className={`p-1 rounded-md ${pathname?.startsWith("/doctor/prescriptions") ? "bg-sky-50 text-[#0067A1]" : ""}`}>
+                <FaFileMedical className="w-4 h-4" />
               </div>
               <span className="text-[10px] mt-0.5">Rx</span>
             </Link>
 
             <Link
               href="/doctor/my-patients"
-              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-md transition-colors ${
                 pathname?.startsWith("/doctor/my-patients")
-                  ? "text-[#0067A1] font-bold"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "text-[#0067A1] font-semibold"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
               }`}
             >
-              <div className={`p-1 rounded-lg ${pathname?.startsWith("/doctor/my-patients") ? "bg-[#0067A1]/10 text-[#0067A1]" : ""}`}>
-                <FaUsers className="w-5 h-5" />
+              <div className={`p-1 rounded-md ${pathname?.startsWith("/doctor/my-patients") ? "bg-sky-50 text-[#0067A1]" : ""}`}>
+                <FaUsers className="w-4 h-4" />
               </div>
               <span className="text-[10px] mt-0.5">Patients</span>
             </Link>
 
             <Link
               href="/doctor/profile-settings"
-              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-md transition-colors ${
                 pathname?.startsWith("/doctor/profile-settings")
-                  ? "text-[#0067A1] font-bold"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "text-[#0067A1] font-semibold"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
               }`}
             >
               <div className="relative">
-                <div className={`w-6 h-6 rounded-full overflow-hidden border-2 transition-all ${
+                <div className={`w-5 h-5 rounded-full overflow-hidden border transition-all ${
                   pathname?.startsWith("/doctor/profile-settings")
-                    ? "border-[#0067A1] ring-2 ring-[#0067A1]/20"
+                    ? "border-[#0067A1] ring-1 ring-[#0067A1]/30"
                     : "border-slate-300"
                 }`}>
                   {doctorImage ? (
@@ -1553,12 +1570,12 @@ export default function DoctorDashboardLayout({ children }) {
                       onError={() => setDoctorImage(null)}
                     />
                   ) : (
-                    <div className="w-full h-full bg-[#0067A1] text-white flex items-center justify-center text-[10px] font-bold">
+                    <div className="w-full h-full bg-[#0067A1] text-white flex items-center justify-center text-[9px] font-medium">
                       {getInitials(doctorName)}
                     </div>
                   )}
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full border border-white"></div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-500 rounded-full border border-white"></div>
               </div>
               <span className="text-[10px] mt-0.5">Profile</span>
             </Link>

@@ -15,34 +15,8 @@ export default function MobileFooterBar() {
 
   const refreshAuthState = useCallback(() => {
     if (typeof window === "undefined") return;
-    let role = localStorage.getItem("userRole");
-    let storedUser = localStorage.getItem("userData");
-
-    // Fallback: check role-specific keys if userRole/userData is not directly set
-    if (!role || !storedUser) {
-      const doctorUser = localStorage.getItem("doctorUser");
-      const patientUser = localStorage.getItem("patientUser");
-      const chemistUser = localStorage.getItem("chemistUser");
-      const labUser = localStorage.getItem("labUser");
-      const adminUser = localStorage.getItem("adminUser");
-
-      if (doctorUser) {
-        role = "doctor";
-        storedUser = doctorUser;
-      } else if (patientUser) {
-        role = "patient";
-        storedUser = patientUser;
-      } else if (chemistUser) {
-        role = "chemist";
-        storedUser = chemistUser;
-      } else if (labUser) {
-        role = "lab";
-        storedUser = labUser;
-      } else if (adminUser) {
-        role = "admin";
-        storedUser = adminUser;
-      }
-    }
+    const role = localStorage.getItem("userRole");
+    const storedUser = localStorage.getItem("userData");
 
     if (role && storedUser) {
       try {
@@ -130,7 +104,7 @@ export default function MobileFooterBar() {
     if (userRole === "doctor") return "/doctor";
     if (userRole === "chemist") return "/chemist/dashboard";
     if (userRole === "lab") return "/lab/dashboard";
-    if (userRole === "admin") return "/admin";
+    if (userRole === "admin") return "/admin/dashboard";
     return "/website/dashboard";
   };
 
@@ -231,6 +205,7 @@ export default function MobileFooterBar() {
 
       {/* 5th Tab: Role-Based Profile / Dashboard */}
       <Link
+        suppressHydrationWarning
         href={getDashboardHref()}
         onClick={handleProfileClick}
         className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all ${

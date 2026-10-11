@@ -14,6 +14,7 @@ import {
   FaHeartbeat
 } from 'react-icons/fa';
 import { FaBolt } from 'react-icons/fa6';
+import { logoutUser } from '@/lib/authHelpers';
 
 const Sidebar = () => {
   const pathname = usePathname();
@@ -89,7 +90,10 @@ const Sidebar = () => {
             </li>
           ))}
           <li className="mt-2">
-            <button className="flex items-center w-full px-4 py-2.5 text-red-600 hover:bg-red-50 rounded-lg">
+            <button
+              onClick={() => logoutUser("patient", "/")}
+              className="flex items-center w-full px-4 py-2.5 text-red-600 hover:bg-red-50 rounded-lg"
+            >
               <FaSignOutAlt className="mr-3" />
               Logout
             </button>

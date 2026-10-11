@@ -247,16 +247,10 @@ export default function DoctorDashboard() {
 
   if (isLoading) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-gradient-to-b from-gray-50 to-white min-h-[60vh]">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="w-16 h-16 border-4 border-[#0067A1]/20 rounded-full" />
-            <div className="w-16 h-16 border-4 border-[#0067A1] border-t-transparent rounded-full animate-spin absolute inset-0" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <FaStethoscope className="w-5 h-5 text-[#0067A1]" />
-            </div>
-          </div>
-          <p className="text-sm font-medium text-gray-500">Loading your dashboard&hellip;</p>
+      <div className="h-full w-full flex items-center justify-center bg-slate-50/60 min-h-[60vh]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-2 border-[#0067A1]/20 border-t-[#0067A1] rounded-full animate-spin" />
+          <p className="text-xs sm:text-sm font-medium text-slate-500">Loading your dashboard&hellip;</p>
         </div>
       </div>
     );
@@ -273,41 +267,40 @@ export default function DoctorDashboard() {
   })();
 
   const statCards = [
-    { title: "Total Appointments", value: stats.totalAppointments, icon: FaCalendarAlt, gradient: "from-[#0067A1] to-[#0080C6]", href: "/doctor/appointments" },
-    { title: "Completed", value: stats.completed, icon: FaCheck, gradient: "from-emerald-500 to-green-600", href: "/doctor/appointments?status=completed" },
-    { title: "Pending", value: stats.pending, icon: FaClock, gradient: "from-amber-500 to-orange-500", href: "/doctor/appointments?status=booked" },
-    { title: "Cancelled", value: stats.cancelled, icon: FaTimes, gradient: "from-rose-500 to-red-600", href: "/doctor/appointments?status=cancelled" },
-    { title: "Prescriptions", value: stats.totalPrescriptions, icon: FaFileMedical, gradient: "from-violet-500 to-purple-600", href: "/doctor/prescriptions" },
+    { title: "Total Appointments", value: stats.totalAppointments, icon: FaCalendarAlt, color: "text-[#0067A1] bg-sky-50 border-sky-100", href: "/doctor/appointments" },
+    { title: "Completed", value: stats.completed, icon: FaCheck, color: "text-emerald-700 bg-emerald-50 border-emerald-100", href: "/doctor/appointments?status=completed" },
+    { title: "Pending", value: stats.pending, icon: FaClock, color: "text-amber-700 bg-amber-50 border-amber-100", href: "/doctor/appointments?status=booked" },
+    { title: "Cancelled", value: stats.cancelled, icon: FaTimes, color: "text-rose-700 bg-rose-50 border-rose-100", href: "/doctor/appointments?status=cancelled" },
+    { title: "Prescriptions", value: stats.totalPrescriptions, icon: FaFileMedical, color: "text-indigo-700 bg-indigo-50 border-indigo-100", href: "/doctor/prescriptions" },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      <div className="w-full mx-auto space-y-5 sm:space-y-6">
-        {/* Hero Banner */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-[#0067A1] via-[#0080C6] to-[#0067A1] rounded-3xl px-5 sm:px-8 pt-6 pb-8 sm:pb-10">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-24 -mb-24" />
-          <div className="absolute top-1/2 right-1/4 w-20 h-20 bg-white/5 rounded-full" />
-          <div className="relative">
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <div>
-                <p className="text-white/60 text-sm font-medium tracking-wide">{greeting}</p>
-                <h1 className="text-2xl sm:text-3xl font-bold text-white mt-1">
-                  {cleanDoctorName} &#128075;
-                </h1>
-                <p className="text-white/70 text-sm mt-1.5">
-                  Here&apos;s your practice overview for {formatDate(currentTime)}
-                </p>
+    <div className="min-h-screen bg-slate-50/60 pb-8">
+      <div className="w-full mx-auto space-y-4 sm:space-y-5">
+        {/* Hero Header Banner */}
+        <div className="bg-[#0067A1] border border-[#005a8e] rounded-lg px-4 sm:px-6 py-4 sm:py-5 text-white">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] sm:text-xs font-medium text-sky-100 uppercase tracking-wider">{greeting}</span>
+                <span className="text-sky-300">•</span>
+                <span className="text-[11px] sm:text-xs text-sky-100 font-medium">Doctor Portal</span>
               </div>
-              <div className="flex items-center gap-3 self-start sm:self-auto">
-                <div className="px-4 py-2.5 bg-white/15 backdrop-blur-sm border border-white/20 rounded-2xl text-white">
-                  <p className="text-lg font-bold leading-tight">{formatTime(currentTime)}</p>
-                  <p className="text-[10px] text-white/50">Current time</p>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-2 bg-white/10 backdrop-blur-sm rounded-xl border border-white/10">
-                  <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                  <span className="text-xs text-white/80 font-medium">Online</span>
-                </div>
+              <h1 className="text-xl sm:text-2xl font-semibold text-white tracking-tight mt-1">
+                {cleanDoctorName}
+              </h1>
+              <p className="text-xs sm:text-sm text-sky-100/85 mt-0.5">
+                Practice overview for {formatDate(currentTime)}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3 self-start sm:self-auto shrink-0">
+              <div className="px-3 py-1.5 bg-white/10 border border-white/20 rounded-md text-white text-left sm:text-right">
+                <p className="text-sm sm:text-base font-semibold leading-tight">{formatTime(currentTime)}</p>
+                <p className="text-[10px] text-sky-200">Local Time</p>
+              </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/10 border border-white/20 rounded-md">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-xs text-white font-medium">Online</span>
               </div>
             </div>
           </div>
@@ -315,88 +308,82 @@ export default function DoctorDashboard() {
 
         {/* Quick Actions */}
         <section>
-          <h2 className="text-lg font-bold text-gray-800 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <h2 className="text-sm sm:text-base font-semibold text-slate-800 mb-2.5">Quick Actions</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
             <Link
               href="/doctor/my-patients"
-              className="group relative bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-lg hover:border-[#0067A1]/20 transition-all duration-300 text-left overflow-hidden"
+              className="bg-white rounded-lg border border-slate-200 p-3.5 hover:border-[#0067A1]/50 hover:bg-slate-50/60 transition-colors text-left group"
             >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#0067A1] to-[#0080C6] opacity-0 group-hover:opacity-100 transition-opacity rounded-t-2xl" />
-              <div className="w-11 h-11 bg-[#0067A1]/10 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform relative">
-                <FaUserMd className="w-5 h-5 text-[#0067A1]" />
+              <div className="w-9 h-9 bg-sky-50 text-[#0067A1] border border-sky-100 rounded-md flex items-center justify-center mb-2.5">
+                <FaUserMd className="w-4 h-4" />
               </div>
-              <h3 className="text-sm font-semibold text-gray-800">My Patients</h3>
-              <p className="text-[11px] text-gray-400 mt-0.5">
-                View patient records
-              </p>
+              <h3 className="text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-[#0067A1] transition-colors">My Patients</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">Patient records</p>
             </Link>
 
             <Link
               href="/doctor/appointments"
-              className="group relative bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-lg hover:border-[#0067A1]/20 transition-all duration-300 text-left overflow-hidden"
+              className="bg-white rounded-lg border border-slate-200 p-3.5 hover:border-[#0067A1]/50 hover:bg-slate-50/60 transition-colors text-left group"
             >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500 opacity-0 group-hover:opacity-100 transition-opacity rounded-t-2xl" />
-              <div className="w-11 h-11 bg-amber-50 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <FaCalendarAlt className="w-5 h-5 text-amber-600" />
+              <div className="w-9 h-9 bg-amber-50 text-amber-700 border border-amber-100 rounded-md flex items-center justify-center mb-2.5">
+                <FaCalendarAlt className="w-4 h-4" />
               </div>
-              <h3 className="text-sm font-semibold text-gray-800">Appointments</h3>
-              <p className="text-[11px] text-gray-400 mt-0.5">Manage schedule</p>
+              <h3 className="text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-[#0067A1] transition-colors">Appointments</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">Manage schedule</p>
             </Link>
 
             <Link
               href="/doctor/prescriptions"
-              className="group relative bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-lg hover:border-[#0067A1]/20 transition-all duration-300 text-left overflow-hidden"
+              className="bg-white rounded-lg border border-slate-200 p-3.5 hover:border-[#0067A1]/50 hover:bg-slate-50/60 transition-colors text-left group"
             >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity rounded-t-2xl" />
-              <div className="w-11 h-11 bg-violet-50 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <FaFileMedical className="w-5 h-5 text-violet-600" />
+              <div className="w-9 h-9 bg-violet-50 text-violet-700 border border-violet-100 rounded-md flex items-center justify-center mb-2.5">
+                <FaFileMedical className="w-4 h-4" />
               </div>
-              <h3 className="text-sm font-semibold text-gray-800">Prescriptions</h3>
-              <p className="text-[11px] text-gray-400 mt-0.5">Medical records</p>
+              <h3 className="text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-[#0067A1] transition-colors">Prescriptions</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">Medical records</p>
             </Link>
 
             <Link
               href="/doctor/manage-slots"
-              className="group relative bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-lg hover:border-[#0067A1]/20 transition-all duration-300 text-left overflow-hidden"
+              className="bg-white rounded-lg border border-slate-200 p-3.5 hover:border-[#0067A1]/50 hover:bg-slate-50/60 transition-colors text-left group"
             >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-green-600 opacity-0 group-hover:opacity-100 transition-opacity rounded-t-2xl" />
-              <div className="w-11 h-11 bg-emerald-50 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                <FaClock className="w-5 h-5 text-emerald-600" />
+              <div className="w-9 h-9 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-md flex items-center justify-center mb-2.5">
+                <FaClock className="w-4 h-4" />
               </div>
-              <h3 className="text-sm font-semibold text-gray-800">Manage Slots</h3>
-              <p className="text-[11px] text-gray-400 mt-0.5">Availability</p>
+              <h3 className="text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-[#0067A1] transition-colors">Manage Slots</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">Availability</p>
             </Link>
           </div>
         </section>
 
         {/* Stats Grid */}
         <section>
-          <div className="flex items-center justify-between mb-4">
-             <h2 className="text-lg font-bold text-gray-800">Today's Statistics</h2>
-             {scorecard && (
-               <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-100 rounded-full">
-                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest leading-none">
-                     Clinical Safety Audit: {scorecard.safety_score === 'N/A' ? 'No Data' : scorecard.safety_score}
-                  </span>
-               </div>
-             )}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+            <h2 className="text-sm sm:text-base font-semibold text-slate-800">Today&apos;s Statistics</h2>
+            {scorecard && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-md self-start sm:self-auto">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <span className="text-[10px] sm:text-[11px] font-medium text-emerald-800 uppercase tracking-wide">
+                  Clinical Safety Audit: {scorecard.safety_score === 'N/A' ? 'No Data' : scorecard.safety_score}
+                </span>
+              </div>
+            )}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
             {statCards.map((s) => (
               <Link
                 key={s.title}
                 href={s.href}
-                className="group relative bg-white rounded-2xl border border-gray-100 p-4 hover:shadow-lg hover:border-[#0067A1]/20 transition-all duration-300 block cursor-pointer"
+                className="bg-white rounded-lg border border-slate-200 p-3.5 hover:border-slate-300 transition-colors block text-left group"
               >
-                <div className="flex items-center justify-between mb-3">
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.gradient} flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                    <s.icon className="w-4 h-4 text-white" />
+                <div className="flex items-center justify-between mb-2">
+                  <div className={`w-8 h-8 rounded-md border flex items-center justify-center ${s.color}`}>
+                    <s.icon className="w-3.5 h-3.5" />
                   </div>
-                  <FaChevronRight className="w-3 h-3 text-gray-300 group-hover:text-[#0067A1] group-hover:translate-x-0.5 transition-all" />
+                  <FaChevronRight className="w-2.5 h-2.5 text-slate-300 group-hover:text-[#0067A1] group-hover:translate-x-0.5 transition-all" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">{s.value}</p>
-                <p className="text-xs text-gray-500 mt-0.5 font-medium">{s.title}</p>
+                <p className="text-xl sm:text-2xl font-semibold text-slate-800 leading-tight">{s.value}</p>
+                <p className="text-xs text-slate-500 font-medium mt-1 truncate">{s.title}</p>
               </Link>
             ))}
           </div>
@@ -404,53 +391,50 @@ export default function DoctorDashboard() {
 
         {/* Clinical Performance Scorecard (M8) */}
         {scorecard && (
-          <section className="mt-8">
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 overflow-hidden relative">
-              <div className="absolute top-0 right-0 p-8 opacity-5">
-                 <FaStethoscope size={100} className="text-[#0067A1]" />
-              </div>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-[#0067A1] rounded-xl flex items-center justify-center shadow-lg shadow-[#0067A1]/20">
-                  <TrendingUp className="w-5 h-5 text-white" />
+          <section>
+            <div className="bg-white rounded-lg border border-slate-200 p-4 sm:p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 bg-[#0067A1] text-white rounded-md flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-4 h-4" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900 tracking-tight">Clinical Performance Scorecard</h2>
-                  <p className="text-xs text-slate-400 font-medium">Compliance & Safety metrics from your last {scorecard.total_consultations} sessions</p>
+                  <h2 className="text-sm sm:text-base font-semibold text-slate-900 tracking-tight">Clinical Performance Scorecard</h2>
+                  <p className="text-xs text-slate-500">Compliance & safety metrics from your last {scorecard.total_consultations} sessions</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
-                <div className="space-y-2">
-                   <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Safety Compliance</span>
-                      <span className="text-sm font-black text-[#0067A1]">{scorecard.safety_score}</span>
-                   </div>
-                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#0067A1] rounded-full transition-all duration-1000" style={{ width: scorecard.safety_score === 'N/A' ? '0%' : scorecard.safety_score }}></div>
-                   </div>
-                   <p className="text-[10px] text-slate-400 leading-tight">Percentage of high-severity alerts acknowledged with valid clinical justification.</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 pt-3 border-t border-slate-100">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-600 uppercase tracking-wider">Safety Compliance</span>
+                    <span className="text-sm font-semibold text-[#0067A1]">{scorecard.safety_score}</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-100 rounded-sm overflow-hidden">
+                    <div className="h-full bg-[#0067A1] rounded-sm transition-all duration-700" style={{ width: scorecard.safety_score === 'N/A' ? '0%' : scorecard.safety_score }}></div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-tight">Percentage of high-severity alerts acknowledged with valid clinical justification.</p>
                 </div>
 
-                <div className="space-y-2">
-                   <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Doc Quality</span>
-                      <span className="text-sm font-black text-emerald-600">{scorecard.quality_score}</span>
-                   </div>
-                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000" style={{ width: scorecard.quality_score === 'N/A' ? '0%' : scorecard.quality_score }}></div>
-                   </div>
-                   <p className="text-[10px] text-slate-400 leading-tight">Ratio of manual vs auto-populated entries. Indicates depth of clinical documentation.</p>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-600 uppercase tracking-wider">Doc Quality</span>
+                    <span className="text-sm font-semibold text-emerald-700">{scorecard.quality_score}</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-100 rounded-sm overflow-hidden">
+                    <div className="h-full bg-emerald-600 rounded-sm transition-all duration-700" style={{ width: scorecard.quality_score === 'N/A' ? '0%' : scorecard.quality_score }}></div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-tight">Ratio of manual vs auto-populated entries. Indicates depth of clinical documentation.</p>
                 </div>
 
-                <div className="space-y-2">
-                   <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Patient Impact</span>
-                      <span className="text-sm font-black text-indigo-600">{scorecard.patient_impact}</span>
-                   </div>
-                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-indigo-500 rounded-full transition-all duration-1000" style={{ width: scorecard.patient_impact === 'N/A' ? '0%' : scorecard.patient_impact }}></div>
-                   </div>
-                   <p className="text-[10px] text-slate-400 leading-tight">Aggregate improvement score based on patient follow-up feedback.</p>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-600 uppercase tracking-wider">Patient Impact</span>
+                    <span className="text-sm font-semibold text-indigo-700">{scorecard.patient_impact}</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-100 rounded-sm overflow-hidden">
+                    <div className="h-full bg-indigo-600 rounded-sm transition-all duration-700" style={{ width: scorecard.patient_impact === 'N/A' ? '0%' : scorecard.patient_impact }}></div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-tight">Aggregate improvement score based on patient follow-up feedback.</p>
                 </div>
               </div>
             </div>
@@ -460,32 +444,30 @@ export default function DoctorDashboard() {
         {/* AI Smart Tool Alerts */}
         {aiAlerts.length > 0 && (
           <section>
-            <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-5 border-l-4 border-l-red-500">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
-                    <FaBrain className="w-4 h-4 text-red-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-gray-800">Potential risk detected. Please review before proceeding.</h3>
-                    <p className="text-xs text-red-500 font-semibold">{aiAlerts.length} patient assessment(s) require review</p>
-                  </div>
+            <div className="bg-white rounded-lg border border-rose-200 border-l-4 border-l-rose-500 p-4 sm:p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-8 h-8 bg-rose-50 border border-rose-100 rounded-md flex items-center justify-center shrink-0">
+                  <FaBrain className="w-4 h-4 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-semibold text-slate-800">Clinical Risk Alert</h3>
+                  <p className="text-xs text-rose-600 font-medium">{aiAlerts.length} patient assessment(s) require review</p>
                 </div>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {aiAlerts.map(alert => (
-                  <div key={alert.id} className="bg-red-50/50 rounded-xl p-4 border border-red-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div>
+                  <div key={alert.id} className="bg-slate-50 rounded-md p-3 sm:p-3.5 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold text-gray-500 uppercase">{alert.tool_name === "lung_connect" ? "Lung Report" : "Cardio Report"}</span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${alert.risk_level === "critical" || alert.risk_level === "high" ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700"}`}>
+                        <span className="text-[11px] font-semibold text-slate-600 uppercase">{alert.tool_name === "lung_connect" ? "Lung Report" : "Cardio Report"}</span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${alert.risk_level === "critical" || alert.risk_level === "high" ? "bg-rose-100 text-rose-800 border border-rose-200" : "bg-amber-100 text-amber-800 border border-amber-200"}`}>
                           {alert.risk_level?.toUpperCase()} RISK
                         </span>
                       </div>
-                      <p className="text-sm text-gray-700">{alert.recommendation ? alert.recommendation.substring(0, 100) + "..." : "Preliminary assessment completed."}</p>
-                      <p className="text-xs text-gray-400 mt-1">Logged: {new Date(alert.timestamp).toLocaleString()}</p>
+                      <p className="text-xs sm:text-sm text-slate-700">{alert.recommendation ? alert.recommendation.substring(0, 120) + "..." : "Preliminary assessment completed."}</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Logged: {new Date(alert.timestamp).toLocaleString()}</p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                       <button
                         onClick={async () => {
                           const toastId = toast.loading("Logging override...");
@@ -501,8 +483,8 @@ export default function DoctorDashboard() {
                             }
                           } catch (e) { toast.error("Failed to log", { id: toastId }) }
                         }}
-                        className="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-xs font-bold hover:bg-red-200 transition-colors">
-                        Doctor acknowledges and proceeds with clinical judgment.
+                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-md text-xs font-medium transition-colors cursor-pointer">
+                        Override
                       </button>
                       <button
                         onClick={async () => {
@@ -519,7 +501,7 @@ export default function DoctorDashboard() {
                             }
                           } catch (e) { toast.error("Failed to log", { id: toastId }) }
                         }}
-                        className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50 transition-colors">
+                        className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-md text-xs font-medium transition-colors cursor-pointer">
                         Acknowledge
                       </button>
                     </div>
@@ -531,109 +513,109 @@ export default function DoctorDashboard() {
         )}
 
         {/* Main Grid: Appointments + Prescriptions */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
           {/* Recent Appointments */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-sm transition-shadow">
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-white rounded-lg border border-slate-200 p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3.5">
                 <div>
-                  <h3 className="text-base font-bold text-gray-800">Recent Appointments</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Today&apos;s schedule</p>
+                  <h3 className="text-sm sm:text-base font-semibold text-slate-800">Recent Appointments</h3>
+                  <p className="text-xs text-slate-500">Today&apos;s schedule</p>
                 </div>
                 <Link
                   href="/doctor/appointments"
-                  className="text-xs text-[#0067A1] hover:text-[#004F7C] font-semibold flex items-center gap-1"
+                  className="text-xs text-[#0067A1] hover:text-[#004F7C] font-medium flex items-center gap-1"
                 >
-                  View All <FaChevronRight className="w-3 h-3" />
+                  View All <FaChevronRight className="w-2.5 h-2.5" />
                 </Link>
               </div>
               {recentAppointments.length > 0 ? (
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {recentAppointments.map((apt) => (
                     <div
                       key={apt.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-gray-50 hover:bg-gray-50/80 transition-colors"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-md border border-slate-100 hover:bg-slate-50/70 transition-colors"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-[#0067A1]/10 flex items-center justify-center shrink-0">
-                          <FaUser className="w-4 h-4 text-[#0067A1]" />
+                        <div className="w-9 h-9 rounded-md bg-sky-50 border border-sky-100 flex items-center justify-center shrink-0">
+                          <FaUser className="w-3.5 h-3.5 text-[#0067A1]" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">{apt.patient}</p>
-                          <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
-                            <FaClock className="w-3 h-3" />
+                          <p className="text-sm font-medium text-slate-800 truncate">{apt.patient}</p>
+                          <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                            <FaClock className="w-3 h-3 text-slate-400" />
                             <span>{apt.date} &bull; {apt.time}</span>
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto flex-wrap">
                         <StatusBadge status={apt.status} />
                         {["rejected", "cancelled"].includes(apt.status) ? (
-                          <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
+                          <span className="text-[11px] font-medium text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
                             {apt.status === "rejected" ? "Rejected" : "Cancelled"}
                           </span>
                         ) : isAppointmentExpired(apt) ? (
-                          <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200/60 px-2 py-1 rounded-md">
+                          <span className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
                             Expired
                           </span>
                         ) : (apt.status === "booked" || apt.status === "approved") ? (
-                          <>
+                          <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => handleStartCall(apt)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0067A1] text-white text-xs font-semibold rounded-lg hover:bg-[#004F7C] transition-colors"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-medium rounded-md transition-colors cursor-pointer"
                             >
                               <FaVideo className="w-3 h-3" />
-                              {apt.status === "booked" ? "Accept & Join" : "Join Call"}
+                              <span>Join Call</span>
                             </button>
                             <button
                               onClick={() => handleNotifyPatient(apt)}
                               disabled={isLoading}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 rounded-md text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
                               title="Notify Patient"
                             >
                               <FaBell className="w-3 h-3" />
-                              Notify
+                              <span>Notify</span>
                             </button>
-                          </>
+                          </div>
                         ) : null}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <EmptyState icon={FaCalendarAlt} title="No appointments today" sub="Schedule will appear here" />
+                <EmptyState icon={FaCalendarAlt} title="No appointments today" sub="Scheduled appointments will appear here" />
               )}
             </div>
           </div>
 
           {/* Recent Prescriptions */}
           <div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-sm transition-shadow">
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-white rounded-lg border border-slate-200 p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3.5">
                 <div>
-                  <h3 className="text-base font-bold text-gray-800">Recent Prescriptions</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Latest records</p>
+                  <h3 className="text-sm sm:text-base font-semibold text-slate-800">Recent Prescriptions</h3>
+                  <p className="text-xs text-slate-500">Latest records</p>
                 </div>
                 <Link
                   href="/doctor/prescriptions"
-                  className="text-xs text-[#0067A1] hover:text-[#004F7C] font-semibold flex items-center gap-1"
+                  className="text-xs text-[#0067A1] hover:text-[#004F7C] font-medium flex items-center gap-1"
                 >
-                  View All <FaChevronRight className="w-3 h-3" />
+                  View All <FaChevronRight className="w-2.5 h-2.5" />
                 </Link>
               </div>
               {recentPrescriptions.length > 0 ? (
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {recentPrescriptions.map((rx) => (
                     <div
                       key={rx.id}
-                      className="flex items-center gap-3 p-3.5 rounded-xl border border-gray-50 hover:bg-gray-50/80 transition-colors"
+                      className="flex items-center gap-3 p-3 rounded-md border border-slate-100 hover:bg-slate-50/70 transition-colors"
                     >
-                      <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
-                        <FaFileMedical className="w-4 h-4 text-violet-500" />
+                      <div className="w-9 h-9 rounded-md bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                        <FaFileMedical className="w-3.5 h-3.5 text-indigo-700" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 truncate">{rx.patient}</p>
-                        <div className="flex items-center justify-between text-xs text-gray-400 mt-0.5">
+                        <p className="text-sm font-medium text-slate-800 truncate">{rx.patient}</p>
+                        <div className="flex items-center justify-between text-xs text-slate-500 mt-0.5">
                           <span>{rx.medicines} medicine{rx.medicines !== 1 ? "s" : ""}</span>
                           <span>{rx.date}</span>
                         </div>
@@ -642,7 +624,7 @@ export default function DoctorDashboard() {
                   ))}
                 </div>
               ) : (
-                <EmptyState icon={FaFileMedical} title="No prescriptions" sub="Records appear here" />
+                <EmptyState icon={FaFileMedical} title="No prescriptions" sub="Prescription history will appear here" />
               )}
             </div>
           </div>
@@ -650,33 +632,33 @@ export default function DoctorDashboard() {
 
         {/* Activity Logs */}
         <section>
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-sm transition-shadow">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 sm:p-5">
+            <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="text-base font-bold text-gray-800">Activity Log</h3>
-                <p className="text-xs text-gray-400 mt-0.5">Recent actions</p>
+                <h3 className="text-sm sm:text-base font-semibold text-slate-800">Activity Log</h3>
+                <p className="text-xs text-slate-500">Recent clinical actions</p>
               </div>
             </div>
             {logs.length > 0 ? (
-              <div className="space-y-2.5">
+              <div className="divide-y divide-slate-100">
                 {logs.slice(0, 6).map((log) => (
                   <div
                     key={log.id}
-                    className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50/80 transition-colors"
+                    className="flex items-start gap-3 py-2.5 hover:bg-slate-50/70 rounded-md px-1 transition-colors"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 mt-0.5">
-                      <FaHistory className="w-3 h-3 text-gray-400" />
+                    <div className="w-7 h-7 rounded-md bg-slate-100 text-slate-500 flex items-center justify-center shrink-0 mt-0.5">
+                      <FaHistory className="w-3 h-3" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-700">{log.action}</p>
-                      <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                      <p className="text-xs sm:text-sm text-slate-700 font-normal">{log.action}</p>
+                      <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5">
                         <span className="flex items-center gap-1">
-                          <FaCalendarAlt className="w-3 h-3" />
+                          <FaCalendarAlt className="w-2.5 h-2.5" />
                           {log.date}
                         </span>
                         {log.time && (
                           <span className="flex items-center gap-1">
-                            <FaClock className="w-3 h-3" />
+                            <FaClock className="w-2.5 h-2.5" />
                             {log.time}
                           </span>
                         )}
@@ -697,16 +679,16 @@ export default function DoctorDashboard() {
 
 function StatusBadge({ status }) {
   const cfg = {
-    completed: { text: "Completed", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-    booked: { text: "Booked", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-    approved: { text: "Approved", cls: "bg-[#0067A1]/8 text-[#0067A1] border-[#0067A1]/20" },
-    pending: { text: "Pending", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-    cancelled: { text: "Cancelled", cls: "bg-red-50 text-red-600 border-red-200" },
-    rejected: { text: "Rejected", cls: "bg-red-50 text-red-600 border-red-200" },
+    completed: { text: "Completed", cls: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+    booked: { text: "Booked", cls: "bg-amber-50 text-amber-800 border-amber-200" },
+    approved: { text: "Approved", cls: "bg-sky-50 text-sky-800 border-sky-200" },
+    pending: { text: "Pending", cls: "bg-amber-50 text-amber-800 border-amber-200" },
+    cancelled: { text: "Cancelled", cls: "bg-rose-50 text-rose-800 border-rose-200" },
+    rejected: { text: "Rejected", cls: "bg-rose-50 text-rose-800 border-rose-200" },
   };
-  const c = cfg[status] || { text: status, cls: "bg-gray-50 text-gray-600 border-gray-200" };
+  const c = cfg[status] || { text: status, cls: "bg-slate-50 text-slate-700 border-slate-200" };
   return (
-    <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${c.cls}`}>
+    <span className={`px-2 py-0.5 rounded-md text-[11px] font-medium border ${c.cls}`}>
       {c.text}
     </span>
   );
@@ -714,12 +696,12 @@ function StatusBadge({ status }) {
 
 function EmptyState({ icon: Icon, title, sub }) {
   return (
-    <div className="text-center py-8">
-      <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-        <Icon className="w-5 h-5 text-gray-400" />
+    <div className="text-center py-6 px-4 bg-slate-50/50 rounded-md border border-dashed border-slate-200">
+      <div className="w-10 h-10 bg-white border border-slate-200 rounded-md flex items-center justify-center mx-auto mb-2 text-slate-400">
+        <Icon className="w-4 h-4" />
       </div>
-      <p className="text-sm text-gray-500 font-medium">{title}</p>
-      <p className="text-xs text-gray-400 mt-1">{sub}</p>
+      <p className="text-xs sm:text-sm text-slate-700 font-medium">{title}</p>
+      <p className="text-[11px] text-slate-400 mt-0.5">{sub}</p>
     </div>
   );
 }

@@ -114,6 +114,9 @@ export async function POST(req) {
         d.license_number AS doctor_license_number,
         d.qualification AS doctor_qualification,
         d.consultation_fee AS doctor_consultation_fee,
+        d.video_consultation_fee AS doctor_video_consultation_fee,
+        d.clinic_consultation_fee AS doctor_clinic_consultation_fee,
+        d.home_visit_fee AS doctor_home_visit_fee,
         d.passport_photo AS doctor_passport_photo,
         d.meta AS doctor_meta,
         du.profile_picture AS doctor_profile_picture,
@@ -143,6 +146,66 @@ export async function POST(req) {
       );
     }
 
+    // ── Batch lookup prescriptions & DigiLocker status ──
+    const apptIds = rows.map((r) => r.id).filter(Boolean);
+    const episodeIds = [...new Set(rows.map((r) => r.care_episode_id).filter(Boolean))];
+
+    let rxRows = [];
+    try {
+      if (apptIds.length > 0) {
+        if (episodeIds.length > 0) {
+          rxRows = await sql`
+            SELECT DISTINCT ON (p.appointment_id)
+              p.id, p.appointment_id, p.status, p.signed_at, p.is_draft, p.file_url, p.created_at,
+              a.care_episode_id
+            FROM prescriptions p
+            LEFT JOIN appointments a ON a.id = p.appointment_id
+            WHERE p.appointment_id = ANY(${apptIds})
+               OR (a.care_episode_id IS NOT NULL AND a.care_episode_id = ANY(${episodeIds}))
+            ORDER BY p.appointment_id, p.created_at DESC
+          `;
+        } else {
+          rxRows = await sql`
+            SELECT DISTINCT ON (p.appointment_id)
+              p.id, p.appointment_id, p.status, p.signed_at, p.is_draft, p.file_url, p.created_at,
+              NULL AS care_episode_id
+            FROM prescriptions p
+            WHERE p.appointment_id = ANY(${apptIds})
+            ORDER BY p.appointment_id, p.created_at DESC
+          `;
+        }
+      }
+    } catch (rxErr) {
+      console.warn("[patient-appointment] Prescription fetch warning:", rxErr.message);
+    }
+
+    const rxIds = (rxRows || []).map((r) => r.id).filter(Boolean);
+    const digiLockerRxIds = new Set();
+    if (rxIds.length > 0) {
+      try {
+        const lockerRows = await sql`
+          SELECT tags, document_url, description
+          FROM digital_locker_documents
+          WHERE user_id = ${patient_id}
+            AND document_type = 'prescription'
+        `;
+        for (const d of lockerRows || []) {
+          const dTags = Array.isArray(d.tags) ? d.tags : [];
+          for (const rxId of rxIds) {
+            if (
+              dTags.includes(rxId) ||
+              (d.document_url && d.document_url.includes(rxId)) ||
+              (d.description && d.description.includes(rxId))
+            ) {
+              digiLockerRxIds.add(rxId);
+            }
+          }
+        }
+      } catch (lockerErr) {
+        console.warn("[patient-appointment] Locker status check warning:", lockerErr.message);
+      }
+    }
+
     const merged = rows.map((a) => {
       let resolvedDocPhoto = a.doctor_profile_picture || null;
       if (!resolvedDocPhoto && a.doctor_passport_photo) {
@@ -158,6 +221,18 @@ export async function POST(req) {
           if (!resolvedDocPhoto && raw.startsWith("http")) resolvedDocPhoto = raw;
         }
       }
+
+      // Match prescription directly or via care episode
+      const matchedRx =
+        (rxRows || []).find((r) => r.appointment_id === a.id) ||
+        (a.care_episode_id ? (rxRows || []).find((r) => r.care_episode_id === a.care_episode_id) : null);
+
+      const hasPrescription = !!matchedRx;
+      const isSigned = !!(
+        matchedRx?.signed_at ||
+        (matchedRx && !matchedRx.is_draft && matchedRx.status === "completed")
+      );
+      const isSavedInDigiLocker = matchedRx ? digiLockerRxIds.has(matchedRx.id) : false;
 
       return {
         id: a.id,
@@ -177,6 +252,20 @@ export async function POST(req) {
         care_episode_id: a.care_episode_id,
         created_at: a.created_at,
         updated_at: a.updated_at,
+        prescription: matchedRx
+          ? {
+              id: matchedRx.id,
+              status: matchedRx.status,
+              is_signed: isSigned,
+              signed_at: matchedRx.signed_at,
+              file_url: matchedRx.file_url,
+              is_saved_in_digilocker: isSavedInDigiLocker,
+            }
+          : null,
+        has_prescription: hasPrescription,
+        is_prescription_signed: isSigned,
+        prescription_id: matchedRx?.id || null,
+        prescription_saved_in_digilocker: isSavedInDigiLocker,
         doctor: a.doctor_id ? {
           id: a.doctor_id,
           full_name: a.doctor_full_name || null,
@@ -187,6 +276,9 @@ export async function POST(req) {
           license_number: a.doctor_license_number || null,
           qualification: a.doctor_qualification || null,
           consultation_fee: a.doctor_consultation_fee || null,
+          video_consultation_fee: a.doctor_video_consultation_fee || null,
+          clinic_consultation_fee: a.doctor_clinic_consultation_fee || null,
+          home_visit_fee: a.doctor_home_visit_fee || null,
           meta: a.doctor_meta || null,
           profile_image_url: resolvedDocPhoto || null,
           profile_image: resolvedDocPhoto || null,

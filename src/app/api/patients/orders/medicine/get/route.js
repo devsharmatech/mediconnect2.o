@@ -19,7 +19,12 @@ export async function GET(req) {
 
     let filterCondition = sql``;
     if (order_id) {
-      filterCondition = sql`WHERE mo.id = ${order_id}`;
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(order_id);
+      if (isUuid) {
+        filterCondition = sql`WHERE mo.id = ${order_id}`;
+      } else {
+        filterCondition = sql`WHERE mo.unid::text = ${order_id} OR mo.id::text LIKE ${order_id + '%'}`;
+      }
     } else if (prescription_id && patient_id) {
       filterCondition = sql`WHERE mo.prescription_id = ${prescription_id} AND mo.patient_id = ${patient_id}`;
     } else if (prescription_id) {

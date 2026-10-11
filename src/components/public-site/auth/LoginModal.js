@@ -22,6 +22,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [isAnimating, setIsAnimating] = useState(false);
   const [step, setStep] = useState('login'); // 'login' | 'otp' | 'success'
   const [userId, setUserId] = useState(null);
@@ -38,18 +39,46 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
     onSignupClick?.(e);
   };
 
+  const handleModalClose = () => {
+    setFormData({
+      phone_number: '',
+      email: '',
+    });
+    setError('');
+    setSuccessMessage('');
+    setStep('login');
+    setOtp(['', '', '', '', '', '']);
+    setUserId(null);
+    onClose?.();
+  };
+
   useEffect(() => {
     if (isOpen) {
       setUserType(initialUserType || 'patient');
       setIsAnimating(true);
       window.scrollTo(0, 0);
       document.body.style.overflow = 'hidden';
+      // Reset form data so fields are completely blank on open/reopen
+      setFormData({
+        phone_number: '',
+        email: '',
+      });
+      setError('');
+      setSuccessMessage('');
+      setStep('login');
+      setOtp(['', '', '', '', '', '']);
+      setUserId(null);
     } else {
       document.body.style.overflow = 'unset';
-      // Reset state when modal closes
+      // Reset state and clear form data when modal closes
+      setFormData({
+        phone_number: '',
+        email: '',
+      });
       setStep('login');
       setOtp(['', '', '', '', '', '']);
       setError('');
+      setSuccessMessage('');
       setUserId(null);
       if (timerRef.current) clearInterval(timerRef.current);
     }
@@ -89,6 +118,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
     if (loginMethod === 'phone') {
       const digitsOnly = String(formData.phone_number || '').replace(/\D/g, '');
       let cleanPhone = digitsOnly;
@@ -99,27 +129,38 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
         setError('Please enter a valid 10-digit mobile number');
         return;
       }
-    } else if (!identifier) {
-      setError('Please enter your email address');
-      return;
+    } else {
+      const cleanEmail = String(formData.email || '').trim().toLowerCase();
+      if (!cleanEmail) {
+        setError('Please enter your email address');
+        return;
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanEmail)) {
+        setError('Please enter a valid email address');
+        return;
+      }
     }
 
     setLoading(true);
     try {
       const payload = loginMethod === 'phone'
         ? { phone_number: formData.phone_number }
-        : { email: formData.email };
+        : { email: formData.email.trim().toLowerCase() };
       const endpoint = userType === 'doctor' ? '/website/auth/doctor/login' : '/website/auth/patient/login';
       const response = await api.post(endpoint, payload);
 
       if (response.success) {
         setUserId(response.data.user_id);
         setIsUnverifiedAccount(response.data.is_verified === false);
+        setSuccessMessage(
+          response.data?.message || (loginMethod === 'email' ? `OTP sent to ${formData.email}` : `OTP sent successfully.`)
+        );
         // Store in session for fallback
         if (loginMethod === 'phone') {
           sessionStorage.setItem('loginPhoneNumber', formData.phone_number);
         } else {
-          sessionStorage.setItem('loginEmail', formData.email);
+          sessionStorage.setItem('loginEmail', formData.email.trim().toLowerCase());
         }
         sessionStorage.setItem('loginMethod', loginMethod);
         sessionStorage.setItem('loginUserType', userType);
@@ -230,16 +271,18 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
         setStep('success');
         const { user_id, role, user } = response.data || {};
         if (typeof window !== 'undefined') {
+          // Clear stale conflicting role session keys
+          const allRoles = ['doctorUser', 'chemistUser', 'labUser', 'adminUser', 'patientUser', 'staffUser', 'partnerUser'];
+          allRoles.forEach((k) => {
+            if (k !== `${role}User`) localStorage.removeItem(k);
+          });
+
           if (response.data?.token) localStorage.setItem('authToken', response.data.token);
           if (user_id) localStorage.setItem('userId', String(user_id));
           if (role) localStorage.setItem('userRole', role);
           if (user) localStorage.setItem('userData', JSON.stringify(user));
-          if (role === 'doctor') {
-            localStorage.setItem('doctorUser', JSON.stringify(user));
-          } else if (role === 'patient') {
-            localStorage.setItem('patientUser', JSON.stringify(user));
-            localStorage.removeItem('labUser');
-            localStorage.removeItem('chemistUser');
+          if (role) {
+            localStorage.setItem(`${role}User`, JSON.stringify(user));
           }
           if (user_id) {
             document.cookie = `session_id=${user_id}; path=/; max-age=86400; SameSite=Lax`;
@@ -313,7 +356,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
       className={`fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto transition-all duration-300 ${isAnimating ? 'opacity-100' : 'opacity-0'}`}
     >
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={handleModalClose} />
 
       {/* Modal */}
       <div
@@ -324,7 +367,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
         <button
           type="button"
           className="absolute right-3 top-3 z-10 p-2 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors"
-          onClick={onClose}
+          onClick={handleModalClose}
         >
           <FaTimes className="h-4 w-4" />
         </button>
@@ -335,19 +378,33 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
           {step === 'login' && (
             <>
               {/* Header */}
-              <div className="text-center mb-5">
-                <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-[#0067A1]/10 mb-2">
+              <div className="text-center mb-4">
+                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-[#0067A1]/10 mb-2">
                   <FaShieldAlt className="w-5 h-5 text-[#0067A1]" />
                 </div>
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-1">
-                  Welcome Back
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">
+                  Welcome to MediConnect
                 </h2>
-                <p className="text-sm text-gray-500">
-                  New here?{' '}
-                  <button onClick={handleOpenSignup} className="font-semibold text-[#0067A1] hover:text-[#004F7C] transition-colors">
-                    Create an account
-                  </button>
+                <p className="text-xs sm:text-sm text-gray-500">
+                  Log in or register to book appointments & view health records
                 </p>
+              </div>
+
+              {/* Mode Switcher: Log In vs Register */}
+              <div className="flex bg-gray-100 p-1 rounded-xl mb-4 text-xs sm:text-sm font-semibold">
+                <button
+                  type="button"
+                  className="flex-1 py-2 text-center rounded-lg bg-white text-[#0067A1] shadow-xs cursor-default font-bold"
+                >
+                  Log In
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenSignup}
+                  className="flex-1 py-2 text-center rounded-lg text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
+                >
+                  Register
+                </button>
               </div>
 
               {/* User Type Selector */}
@@ -492,11 +549,11 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
               {/* Back button */}
               <button
                 type="button"
-                onClick={() => { setStep('login'); setError(''); setOtp(['', '', '', '', '', '']); }}
+                onClick={() => { setStep('login'); setError(''); setSuccessMessage(''); setOtp(['', '', '', '', '', '']); }}
                 className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#0067A1] transition-colors mb-4 group"
               >
                 <FaArrowLeft className="w-3 h-3 group-hover:-translate-x-0.5 transition-transform" />
-                <span>Change number</span>
+                <span>{loginMethod === 'email' ? 'Change Email' : 'Change number'}</span>
               </button>
 
               {/* Header */}
@@ -521,6 +578,14 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
                   </span>
                 </div>
               </div>
+
+              {/* Success Feedback Banner */}
+              {successMessage && (
+                <div className="mb-4 flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 text-xs text-emerald-800 font-medium">
+                  <FaCheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{successMessage}</span>
+                </div>
+              )}
 
               {/* Unverified Account Notice */}
               {isUnverifiedAccount && (

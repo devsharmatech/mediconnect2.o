@@ -580,7 +580,7 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
  * 7. RESCHEDULE_APPOINTMENT Action Router (Migrated to AWS RDS PostgreSQL)
  */
 async function executeRescheduleAppointment(payload, actorId) {
-  const { appointment_id, new_date, new_time } = payload;
+  const { appointment_id, new_date, new_time, new_type, payment_id, razorpay_order_id, amount_paid } = payload;
 
   if (!appointment_id || !new_date || !new_time) {
     throw new Error("appointment_id, new_date, and new_time are required");
@@ -592,7 +592,7 @@ async function executeRescheduleAppointment(payload, actorId) {
   const appointment = appts[0];
   if (!appointment) throw new Error("Appointment not found.");
 
-  // Check slot
+  // Check slot availability
   const slots = await sql`
     SELECT id FROM appointments
     WHERE doctor_id = ${appointment.doctor_id}
@@ -604,16 +604,43 @@ async function executeRescheduleAppointment(payload, actorId) {
   `;
   if (slots.length > 0) throw new Error("This new slot is already booked.");
 
+  const finalType = new_type || appointment.appointment_type || "clinic_visit";
+  const finalPaymentStatus = payment_id ? "paid" : (appointment.payment_status || "booked");
+
   const updatedRows = await sql`
     UPDATE appointments
     SET appointment_date = ${new_date},
         appointment_time = ${new_time},
+        appointment_type = ${finalType},
         status = 'booked',
+        payment_status = ${finalPaymentStatus},
+        razorpay_payment_id = COALESCE(${payment_id || null}, razorpay_payment_id),
+        razorpay_order_id = COALESCE(${razorpay_order_id || null}, razorpay_order_id),
         updated_at = NOW()
     WHERE id = ${appointment_id}
     RETURNING *
   `;
   const updated = updatedRows[0];
+
+  // If a payment was made during reschedule, record ledger entry
+  if (payment_id && amount_paid) {
+    try {
+      await createLedgerEntry({
+        patient_id: appointment.patient_id,
+        care_episode_id: appointment.care_episode_id,
+        service_type: "consultation",
+        debit_credit: "debit",
+        amount: Number(amount_paid),
+        payment_mode: "Razorpay",
+        payment_gateway_id: payment_id,
+        status: "completed",
+        description: `Consultation fee for rescheduled appointment`,
+        metadata: { appointment_id, razorpay_order_id, new_date, new_time }
+      });
+    } catch (ledgErr) {
+      console.warn("[LEDGER] Reschedule ledger entry note:", ledgErr.message);
+    }
+  }
 
   // Dispatch WhatsApp Rescheduled Template notification asynchronously
   (async () => {
@@ -636,7 +663,7 @@ async function executeRescheduleAppointment(payload, actorId) {
           doctor_or_service: "Dr. " + doctorName,
           date: new_date,
           time: new_time,
-          location_or_mode: (appointment.appointment_type === "video_call" || appointment.appointment_type === "video_consultation" || appointment.appointment_type === "video") ? "Video Call" : (appointment.appointment_type === "home_visit" ? "Home Visit" : "Clinic Visit"),
+          location_or_mode: (finalType === "video_call" || finalType === "video_consultation" || finalType === "video") ? "Video Call" : (finalType === "home_visit" ? "Home Visit" : "Clinic Visit"),
           patient_id: appointment.patient_id
         });
       }
@@ -667,6 +694,7 @@ async function executeRescheduleAppointment(payload, actorId) {
 
   return updated;
 }
+
 
 /**
  * 8. CANCEL_APPOINTMENT Action Router (Migrated to AWS RDS PostgreSQL)

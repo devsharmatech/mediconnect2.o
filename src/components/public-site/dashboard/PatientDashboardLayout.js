@@ -46,13 +46,13 @@ const PatientDashboardLayout = ({ children }) => {
       setShowDisclaimer(true);
     }
 
-    // Check if user is logged in (Any authenticated user can access patient dashboard)
+    // Check if user is logged in (Any authenticated role: doctor, chemist, lab, admin, patient can access patient dashboard)
     const userId = localStorage.getItem("userId");
     const userRole = localStorage.getItem("userRole");
     const userData = localStorage.getItem("userData");
 
     if (!userId) {
-      router.push("/website");
+      router.push("/");
       return;
     }
 
@@ -284,31 +284,63 @@ const PatientDashboardLayout = ({ children }) => {
           isSidebarCollapsed={isCollapsed}
         />
 
-        {/* Professional Persona Banner (when Doctor, Chemist, Lab or Admin is viewing Patient Panel) */}
-        {typeof window !== "undefined" && localStorage.getItem("userRole") && localStorage.getItem("userRole") !== "patient" && (
-          <div className="bg-gradient-to-r from-teal-50 via-sky-50 to-indigo-50 border-b border-teal-200/80 px-4 py-2 flex items-center justify-between text-xs font-medium text-gray-700 shadow-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
-              <span>
-                You are in <strong>Patient View</strong> (Logged in as {localStorage.getItem("userRole").toUpperCase()})
-              </span>
+        {/* Professional Persona Banner (when Doctor, Chemist, Lab, Staff, or Admin is viewing Patient Panel) */}
+        {(() => {
+          if (typeof window === "undefined") return null;
+          let role = localStorage.getItem("userRole");
+          if (!role || role === "patient") {
+            if (localStorage.getItem("doctorUser")) role = "doctor";
+            else if (localStorage.getItem("chemistUser")) role = "chemist";
+            else if (localStorage.getItem("labUser")) role = "lab";
+            else if (localStorage.getItem("adminUser")) role = "admin";
+            else if (localStorage.getItem("staffUser")) role = "staff";
+            else if (localStorage.getItem("partnerUser")) role = "partner";
+          }
+          if (!role || role === "patient") return null;
+
+          const destination =
+            role === "doctor"
+              ? "/doctor"
+              : role === "chemist"
+              ? "/chemist/dashboard"
+              : role === "lab"
+              ? "/lab/dashboard"
+              : role === "staff"
+              ? "/staff/dashboard"
+              : role === "partner"
+              ? "/partner/dashboard"
+              : "/admin/dashboard";
+
+          const buttonLabel =
+            role === "doctor"
+              ? "Doctor Panel"
+              : role === "chemist"
+              ? "Chemist Panel"
+              : role === "lab"
+              ? "Lab Panel"
+              : role === "staff"
+              ? "Staff Panel"
+              : role === "partner"
+              ? "Partner Panel"
+              : "Admin Panel";
+
+          return (
+            <div className="bg-gradient-to-r from-teal-50 via-sky-50 to-indigo-50 border-b border-teal-200/80 px-4 py-2 flex items-center justify-between text-xs font-medium text-gray-700 shadow-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
+                <span>
+                  You are in <strong>Patient View</strong> (Logged in as {role.toUpperCase()})
+                </span>
+              </div>
+              <Link
+                href={destination}
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-white text-teal-700 hover:bg-teal-700 hover:text-white rounded-lg border border-teal-300 font-semibold transition-all shadow-xs"
+              >
+                <span>{buttonLabel} →</span>
+              </Link>
             </div>
-            <Link
-              href={
-                localStorage.getItem("userRole") === "doctor"
-                  ? "/doctor"
-                  : localStorage.getItem("userRole") === "chemist"
-                  ? "/chemist/dashboard"
-                  : localStorage.getItem("userRole") === "lab"
-                  ? "/lab/dashboard"
-                  : "/admin"
-              }
-              className="inline-flex items-center gap-1.5 px-3 py-1 bg-white text-teal-700 hover:bg-teal-700 hover:text-white rounded-lg border border-teal-300 font-semibold transition-all shadow-xs"
-            >
-              <span>Return to {localStorage.getItem("userRole").charAt(0).toUpperCase() + localStorage.getItem("userRole").slice(1)} Dashboard →</span>
-            </Link>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Mandatory Patient UI Disclaimer */}
         {showDisclaimer && (
@@ -334,7 +366,7 @@ const PatientDashboardLayout = ({ children }) => {
         )}
 
         {/* Page Content */}
-        <main className={`flex-1 pb-20 lg:pb-0 ${
+        <main className={`flex-1 pb-24 lg:pb-0 ${
           pathname?.includes("/lung-connect") || 
           pathname?.includes("/lung-activities") || 
           pathname?.includes("/lung-assessment") || 
@@ -471,11 +503,11 @@ const PatientDashboardLayout = ({ children }) => {
         </div>
       )}
 
-      <div className="fixed bottom-20 lg:bottom-4 right-4 z-40">
+      <div className="fixed bottom-[4.75rem] lg:bottom-4 right-3 sm:right-4 z-40">
         <button
           type="button"
           onClick={() => setShowChat(true)}
-          className="w-11 h-11 rounded-[5px] bg-[#0067A1] text-white shadow-lg hover:shadow-xl flex items-center justify-center hover:bg-[#004F7C] transition-colors"
+          className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-[#0067A1] text-white shadow-xl hover:shadow-2xl flex items-center justify-center hover:bg-[#004F7C] transition-all border-2 border-white active:scale-95"
           aria-label="Open Dr. Mediconnect assistant"
         >
           <FaUserMd className="w-4 h-4" />

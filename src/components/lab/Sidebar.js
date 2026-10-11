@@ -13,6 +13,8 @@ import {
   ChevronRight,
   X,
   Microscope,
+  UserCheck,
+  Heart,
 } from "lucide-react";
 import { getLoggedInUser, logoutUser } from "@/lib/authHelpers";
 
@@ -64,6 +66,16 @@ export default function LabSidebar({
       name: "Test Orders",
       icon: ClipboardList,
       path: "/lab/orders",
+    },
+    {
+      name: "Patient View",
+      icon: Heart,
+      path: "/dashboard",
+    },
+    {
+      name: "Sample Collectors",
+      icon: UserCheck,
+      path: "/lab/collectors",
     },
     {
       name: "Test Catalog",

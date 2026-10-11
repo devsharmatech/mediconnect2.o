@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { logoutUser } from "@/lib/authHelpers";
 import {
   FaUser,
   FaSignOutAlt,
@@ -413,6 +414,22 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
     } else if (type === "prescription" || type === "document_shared") {
       router.push("/website/digital-locker");
     } else if (
+      type === "medicine_order" ||
+      type === "order" ||
+      type.includes("medicine") ||
+      type.includes("pharmacy")
+    ) {
+      let orderId = null;
+      try {
+        const meta = typeof notification.metadata === "string" ? JSON.parse(notification.metadata) : notification.metadata;
+        orderId = meta?.order_id || meta?.orderId;
+      } catch {}
+      if (orderId) {
+        router.push(`/website/medicine-order?order_id=${encodeURIComponent(orderId)}`);
+      } else {
+        router.push("/website/medicine-order");
+      }
+    } else if (
       type === "payment" ||
       type === "payment_success" ||
       type === "payment_failure"
@@ -595,11 +612,7 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("userData");
-    router.push("/website");
+    logoutUser("patient", "/");
   };
 
   const getInitials = (name) => {
@@ -703,67 +716,54 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
               )}
             </button>
 
-            {/* Notifications Dropdown */}
+            {/* Notifications Dropdown (Compact, Responsive & Professional) */}
             {isNotificationOpen && (
-              <div className="fixed sm:absolute inset-x-3 sm:inset-auto sm:right-0 top-16 sm:top-full mt-2 w-auto sm:w-[420px] max-w-[calc(100vw-1.5rem)] sm:max-w-[420px] max-h-[78vh] sm:max-h-[600px] bg-white rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,40,80,0.22)] border border-slate-200/90 overflow-hidden flex flex-col z-50 transition-all duration-200 ease-out">
+              <div className="fixed left-3 right-3 top-[68px] sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-[380px] max-h-[82vh] sm:max-h-[480px] bg-white rounded-xl shadow-lg border border-slate-200 z-[60] flex flex-col overflow-hidden transition-all duration-150 ease-out animate-in fade-in zoom-in-95">
                 {/* Header */}
-                <div className="px-4 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 via-white to-sky-50/40 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-[#0067A1]/10 text-[#0067A1] flex items-center justify-center">
-                      <FaBell className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-slate-900 text-sm">Notifications</h3>
-                        {unreadCount > 0 && (
-                          <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[11px] font-semibold rounded-full border border-rose-100">
-                            {unreadCount} new
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-slate-500">
-                        {unreadCount > 0 ? `${unreadCount} unread alert${unreadCount === 1 ? "" : "s"}` : "Stay updated on your health activities"}
-                      </p>
-                    </div>
+                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-slate-900 text-sm">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <span className="px-2 py-0.5 bg-sky-50 text-[#0067A1] text-[10px] font-bold rounded-full border border-sky-100">
+                        {unreadCount} unread
+                      </span>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     {unreadCount > 0 && (
                       <button
                         type="button"
                         onClick={markAllNotificationsRead}
-                        className="text-xs font-semibold text-[#0067A1] hover:text-[#004F7C] hover:bg-sky-50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                        className="text-xs font-semibold text-[#0067A1] hover:text-[#004F7C] transition-colors cursor-pointer"
                         title="Mark all as read"
                       >
-                        <FaCheckDouble className="w-3 h-3" />
-                        <span className="hidden sm:inline">Mark read</span>
+                        Mark Read
                       </button>
                     )}
-                    {notifications.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleClearAllNotifications}
-                        className="text-xs font-semibold text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                        title="Clear all notifications"
-                      >
-                        <FaTrash className="w-2.5 h-2.5" />
-                        <span>Clear all</span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsNotificationOpen(false)}
+                      className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                      title="Close"
+                      aria-label="Close notifications"
+                    >
+                      <FaTimes className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
 
-                {/* Filter Tabs */}
+                {/* Sub-header Filter Tabs */}
                 {notifications.length > 0 && (
-                  <div className="px-4 py-2 bg-slate-50/60 border-b border-slate-100 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5">
+                  <div className="px-3.5 py-1.5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between text-xs shrink-0">
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => setFilterType("all")}
-                        className={`px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer ${
                           filterType === "all"
-                            ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
-                            : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                            ? "bg-white text-slate-900 shadow-2xs font-semibold border border-slate-200/70"
+                            : "text-slate-500 hover:text-slate-800"
                         }`}
                       >
                         All ({notifications.length})
@@ -771,27 +771,27 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
                       <button
                         type="button"
                         onClick={() => setFilterType("unread")}
-                        className={`px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer ${
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer ${
                           filterType === "unread"
-                            ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
-                            : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
+                            ? "bg-white text-slate-900 shadow-2xs font-semibold border border-slate-200/70"
+                            : "text-slate-500 hover:text-slate-800"
                         }`}
                       >
                         Unread ({unreadCount})
                       </button>
                     </div>
-                    <span className="text-[11px] text-slate-400">
-                      {displayedNotifications.length} shown
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {displayedNotifications.length} items
                     </span>
                   </div>
                 )}
 
                 {/* Notifications List */}
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+                <div className="flex-1 overflow-y-auto divide-y divide-slate-100 overscroll-contain">
                   {notificationsLoading ? (
                     <div className="py-12 text-center flex flex-col items-center justify-center gap-2">
-                      <div className="w-6 h-6 rounded-full border-2 border-[#0067A1] border-t-transparent animate-spin" />
-                      <p className="text-xs text-slate-500">Loading notifications...</p>
+                      <div className="w-5 h-5 rounded-full border-2 border-[#0067A1] border-t-transparent animate-spin" />
+                      <p className="text-xs text-slate-400">Loading notifications...</p>
                     </div>
                   ) : displayedNotifications.length > 0 ? (
                     displayedNotifications.map((notification) => {
@@ -799,47 +799,44 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
                       return (
                         <div
                           key={notification.id}
-                          className={`p-3.5 sm:p-4 hover:bg-slate-50/80 transition-all cursor-pointer relative group flex items-start gap-3.5 border-l-[3px] ${
-                            !notification.read
-                              ? "bg-sky-50/30 border-l-[#0067A1]"
-                              : "bg-white border-l-transparent"
+                          className={`p-3 hover:bg-slate-50/80 transition-colors cursor-pointer relative group flex items-start gap-2.5 ${
+                            !notification.read ? "bg-sky-50/35" : "bg-white"
                           }`}
                           onClick={() => handleNotificationClick(notification, true)}
                         >
-                          {/* Visual Badge Icon */}
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border shadow-xs mt-0.5 ${visual.bg}`}>
+                          {/* Visual Icon */}
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border mt-0.5 ${visual.bg}`}>
                             {visual.icon}
                           </div>
 
                           {/* Content */}
-                          <div className="flex-1 min-w-0 pr-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border tracking-wide uppercase ${visual.badgeColor}`}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border uppercase tracking-wider ${visual.badgeColor}`}>
                                 {visual.badge}
                               </span>
                               {!notification.read && (
-                                <span className="w-2 h-2 rounded-full bg-[#0067A1] shrink-0" title="Unread" />
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#0067A1] shrink-0" title="Unread" />
                               )}
+                              <span className="text-[10px] text-slate-400 ml-auto shrink-0 flex items-center gap-1">
+                                <FaClock className="w-2.5 h-2.5 opacity-60" />
+                                {formatNotificationTime(notification.created_at)}
+                              </span>
                             </div>
 
-                            <h4 className={`text-sm text-slate-800 leading-snug break-words mb-1 ${!notification.read ? "font-bold text-slate-900" : "font-semibold"}`}>
+                            <h4 className={`text-xs text-slate-800 leading-snug truncate ${!notification.read ? "font-bold text-slate-900" : "font-semibold"}`}>
                               {formatNotificationTitle(notification.title || "Health Alert")}
                             </h4>
 
                             {notification.message && (
-                              <p className="text-xs text-slate-600 leading-relaxed break-words line-clamp-3 mb-2">
+                              <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-2 mt-0.5">
                                 {formatMessageText(notification.message)}
                               </p>
                             )}
-
-                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                              <FaClock className="w-2.5 h-2.5 text-slate-400/80" />
-                              <span>{formatNotificationTime(notification.created_at)}</span>
-                            </div>
                           </div>
 
                           {/* Actions */}
-                          <div className="flex flex-col items-center gap-1.5 shrink-0 sm:opacity-70 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1 shrink-0 opacity-80 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                             {!notification.read && (
                               <button
                                 type="button"
@@ -847,11 +844,11 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
                                   e.stopPropagation();
                                   handleMarkNotificationRead(notification.id);
                                 }}
-                                className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100/80 flex items-center justify-center transition-colors cursor-pointer"
-                                title="Mark as read"
-                                aria-label="Mark as read"
+                                className="w-6 h-6 rounded-md bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center transition-colors cursor-pointer"
+                                title="Mark read"
+                                aria-label="Mark read"
                               >
-                                <FaCheckCircle className="w-3.5 h-3.5" />
+                                <FaCheckCircle className="w-3 h-3" />
                               </button>
                             )}
                             <button
@@ -860,59 +857,54 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
                                 e.stopPropagation();
                                 handleDeleteNotification(notification.id);
                               }}
-                              className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 flex items-center justify-center transition-colors cursor-pointer"
-                              title="Delete notification"
-                              aria-label="Delete notification"
+                              className="w-6 h-6 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors cursor-pointer"
+                              title="Delete"
+                              aria-label="Delete"
                             >
-                              <FaTrash className="w-3 h-3" />
+                              <FaTrash className="w-2.5 h-2.5" />
                             </button>
                           </div>
                         </div>
                       );
                     })
                   ) : (
-                    <div className="py-12 px-6 text-center flex flex-col items-center justify-center">
-                      <div className="w-12 h-12 rounded-2xl bg-sky-50 text-[#0067A1] flex items-center justify-center mb-2.5 shadow-inner">
-                        <FaBell className="w-5 h-5" />
+                    <div className="py-10 px-4 text-center flex flex-col items-center justify-center">
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mb-2">
+                        <FaBell className="w-4 h-4" />
                       </div>
-                      <h4 className="text-sm font-bold text-slate-800 mb-1">
+                      <h4 className="text-xs font-bold text-slate-700 mb-0.5">
                         {filterType === "unread" ? "No unread alerts" : "All Caught Up!"}
                       </h4>
-                      <p className="text-xs text-slate-500 max-w-[240px] leading-relaxed">
+                      <p className="text-[11px] text-slate-400 max-w-[220px]">
                         {filterType === "unread"
                           ? "You have reviewed all your notifications."
-                          : "No notifications right now. We'll alert you about upcoming appointments and health updates."}
+                          : "No notifications right now."}
                       </p>
                     </div>
                   )}
                 </div>
 
                 {/* Footer */}
-                <div className="p-3 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-500 font-medium">
-                      {notifications.length} notification{notifications.length === 1 ? "" : "s"}
-                    </span>
-                    {notifications.length > 0 && (
-                      <>
-                        <span className="text-slate-300">•</span>
-                        <button
-                          type="button"
-                          onClick={handleClearAllNotifications}
-                          className="text-xs font-medium text-rose-500 hover:text-rose-700 hover:underline cursor-pointer"
-                        >
-                          Clear all
-                        </button>
-                      </>
-                    )}
-                  </div>
+                <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between text-xs shrink-0">
+                  {notifications.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={handleClearAllNotifications}
+                      className="text-[11px] font-medium text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                    >
+                      Clear All
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-slate-400 font-medium">No alerts</span>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => {
                       setIsNotificationOpen(false);
                       openNotificationsModal();
                     }}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#0067A1] text-white font-semibold hover:bg-[#004F7C] shadow-sm hover:shadow transition-all cursor-pointer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0067A1] text-white text-xs font-semibold hover:bg-[#004F7C] transition-colors cursor-pointer shadow-2xs"
                   >
                     <span>View All</span>
                     <FaChevronRight className="w-2.5 h-2.5" />
@@ -1015,206 +1007,176 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
         </div>
       </div>
 
+      {/* ── All Notifications Modal ──────────────── */}
       {showNotificationsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4">
           <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200/90 max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="px-5 sm:px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 via-white to-sky-50/40 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#0067A1] text-white flex items-center justify-center shadow-md shadow-[#0067A1]/20">
-                  <FaBell className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-slate-900">All Notifications</h3>
-                    {unreadCount > 0 && (
-                      <span className="px-2.5 py-0.5 bg-rose-50 text-rose-600 text-xs font-semibold rounded-full border border-rose-100">
-                        {unreadCount} unread
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    View, manage, and review your complete alert history
-                  </p>
-                </div>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-slate-200 shrink-0">
+              <div className="flex items-center gap-2">
+                <FaBell className="w-4 h-4 text-[#0067A1]" />
+                <h3 className="font-semibold text-slate-900 text-sm">All Notifications</h3>
+                {unreadCount > 0 && (
+                  <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[11px] font-semibold rounded-full border border-rose-100">
+                    {unreadCount} unread
+                  </span>
+                )}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 {unreadCount > 0 && (
                   <button
                     type="button"
                     onClick={markAllNotificationsRead}
-                    className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold text-[#0067A1] bg-[#0067A1]/10 hover:bg-[#0067A1]/20 transition-colors cursor-pointer"
+                    className="text-xs font-medium text-[#0067A1] hover:underline px-2 py-1 cursor-pointer"
                   >
-                    <FaCheckDouble className="w-3.5 h-3.5" />
-                    <span>Mark all read</span>
+                    Mark all read
                   </button>
                 )}
                 {modalNotifications.length > 0 && (
                   <button
                     type="button"
                     onClick={handleClearAllNotifications}
-                    className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100 transition-colors cursor-pointer"
+                    className="text-xs font-medium text-rose-500 hover:underline px-2 py-1 cursor-pointer"
                   >
-                    <FaTrash className="w-3 h-3" />
-                    <span>Clear all</span>
+                    Clear
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setShowNotificationsModal(false)}
-                  className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
-                  title="Close"
+                  className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer ml-1"
                   aria-label="Close"
                 >
-                  <FaTimes className="w-4 h-4" />
+                  <FaTimes className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
-            {/* Filter bar */}
-            <div className="px-5 sm:px-6 py-2.5 bg-slate-50/70 border-b border-slate-100 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalFilterType("all")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
-                    modalFilterType === "all"
-                      ? "bg-white text-slate-900 shadow-xs border border-slate-200"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  All ({modalNotifications.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModalFilterType("unread")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-all cursor-pointer ${
-                    modalFilterType === "unread"
-                      ? "bg-white text-slate-900 shadow-xs border border-slate-200"
-                      : "text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  Unread ({modalNotifications.filter((n) => !n.read).length})
-                </button>
-              </div>
-              {unreadCount > 0 && (
-                <button
-                  type="button"
-                  onClick={markAllNotificationsRead}
-                  className="sm:hidden text-xs font-semibold text-[#0067A1] flex items-center gap-1 cursor-pointer"
-                >
-                  <FaCheckDouble className="w-3 h-3" />
-                  Mark all
-                </button>
-              )}
+            {/* Modal Filter tabs */}
+            <div className="flex items-center gap-1 px-4 sm:px-5 py-2 border-b border-slate-100 bg-slate-50 shrink-0">
+              <button
+                type="button"
+                onClick={() => setModalFilterType("all")}
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                  modalFilterType === "all"
+                    ? "bg-white border border-slate-200 text-slate-900"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                All ({modalNotifications.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalFilterType("unread")}
+                className={`px-3 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+                  modalFilterType === "unread"
+                    ? "bg-white border border-slate-200 text-slate-900"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Unread ({modalNotifications.filter((n) => !n.read).length})
+              </button>
             </div>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto">
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
               {modalLoading ? (
-                <div className="py-16 text-center flex flex-col items-center justify-center gap-3">
-                  <div className="w-8 h-8 rounded-full border-2 border-[#0067A1] border-t-transparent animate-spin" />
-                  <p className="text-xs text-slate-500">Loading notifications...</p>
+                <div className="py-12 flex flex-col items-center justify-center gap-2">
+                  <div className="w-5 h-5 rounded-full border-2 border-[#0067A1] border-t-transparent animate-spin" />
+                  <p className="text-xs text-slate-400">Loading...</p>
                 </div>
               ) : displayedModalNotifications.length > 0 ? (
-                <div className="divide-y divide-slate-100">
-                  {displayedModalNotifications.map((n) => {
-                    const visual = getNotificationVisual(n);
-                    return (
-                      <div
-                        key={n.id}
-                        className={`px-5 sm:px-6 py-4 flex items-start gap-4 cursor-pointer hover:bg-slate-50/80 transition-all border-l-[3px] ${
-                          !n.read ? "bg-sky-50/30 border-l-[#0067A1]" : "bg-white border-l-transparent"
-                        }`}
-                        onClick={() => handleNotificationClick(n, false)}
-                      >
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-xs mt-0.5 ${visual.bg}`}>
-                          {visual.icon}
+                displayedModalNotifications.map((n) => {
+                  const visual = getNotificationVisual(n);
+                  return (
+                    <div
+                      key={n.id}
+                      className={`relative flex items-start gap-3 px-4 sm:px-5 py-3.5 cursor-pointer group transition-colors ${
+                        !n.read ? "bg-blue-50/40 hover:bg-blue-50/70" : "hover:bg-slate-50"
+                      }`}
+                      onClick={() => handleNotificationClick(n, false)}
+                    >
+                      {!n.read && (
+                        <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#0067A1] rounded-r" />
+                      )}
+                      <div className="w-8 h-8 rounded-md bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
+                        {visual.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                            {visual.badge}
+                          </span>
+                          {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-[#0067A1]" />}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border tracking-wide uppercase ${visual.badgeColor}`}>
-                              {visual.badge}
-                            </span>
-                            {!n.read && (
-                              <span className="w-2 h-2 rounded-full bg-[#0067A1]" title="Unread" />
-                            )}
-                          </div>
-                          <h4 className={`text-sm text-slate-800 break-words mb-1 ${!n.read ? "font-bold text-slate-900" : "font-semibold"}`}>
-                            {formatNotificationTitle(n.title || "Health Alert")}
-                          </h4>
-                          {n.message && (
-                            <p className="text-xs text-slate-600 leading-relaxed break-words mb-2">
-                              {formatMessageText(n.message)}
-                            </p>
-                          )}
-                          <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                            <FaClock className="w-2.5 h-2.5 text-slate-400/80" />
-                            <span>{formatNotificationTime(n.created_at)}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 ml-2 shrink-0">
-                          {!n.read && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleMarkNotificationRead(n.id);
-                              }}
-                              className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100 flex items-center justify-center transition-colors cursor-pointer"
-                              title="Mark as read"
-                            >
-                              <FaCheckCircle className="w-4 h-4" />
-                            </button>
-                          )}
+                        <p className={`text-sm leading-snug break-words ${
+                          !n.read ? "font-semibold text-slate-900" : "font-medium text-slate-700"
+                        }`}>
+                          {formatNotificationTitle(n.title || "Health Alert")}
+                        </p>
+                        {n.message && (
+                          <p className="text-xs text-slate-500 leading-relaxed mt-0.5 line-clamp-2">
+                            {formatMessageText(n.message)}
+                          </p>
+                        )}
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          {formatNotificationTime(n.created_at)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {!n.read && (
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteNotification(n.id);
-                            }}
-                            className="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-100 flex items-center justify-center transition-colors cursor-pointer"
-                            title="Delete notification"
+                            onClick={(e) => { e.stopPropagation(); handleMarkNotificationRead(n.id); }}
+                            className="w-6 h-6 rounded text-emerald-600 hover:bg-emerald-50 flex items-center justify-center transition-colors cursor-pointer"
+                            title="Mark read"
                           >
-                            <FaTrash className="w-3.5 h-3.5" />
+                            <FaCheckCircle className="w-3 h-3" />
                           </button>
-                        </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteNotification(n.id); }}
+                          className="w-6 h-6 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50 flex items-center justify-center transition-colors cursor-pointer"
+                          title="Delete"
+                        >
+                          <FaTrash className="w-3 h-3" />
+                        </button>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })
               ) : (
-                <div className="py-16 text-center flex flex-col items-center justify-center gap-3">
-                  <div className="w-14 h-14 rounded-2xl bg-sky-50 text-[#0067A1] flex items-center justify-center shadow-inner">
-                    <FaBell className="w-6 h-6" />
+                <div className="py-14 flex flex-col items-center justify-center gap-2">
+                  <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                    <FaBell className="w-5 h-5 text-slate-400" />
                   </div>
-                  <h4 className="text-sm font-bold text-slate-800">No notifications found</h4>
-                  <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
-                    {modalFilterType === "unread" ? "You have no unread notifications." : "Appointment updates and other activity will appear here."}
+                  <p className="text-sm font-medium text-slate-600">No notifications found</p>
+                  <p className="text-xs text-slate-400 text-center max-w-[200px]">
+                    {modalFilterType === "unread" ? "No unread notifications." : "Appointment updates will appear here."}
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Pagination Footer */}
-            <div className="px-5 sm:px-6 py-3.5 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between gap-3 text-xs">
-              <span className="text-slate-500 font-medium">Page {modalPage}</span>
+            {/* Modal Pagination Footer */}
+            <div className="flex items-center justify-between px-4 sm:px-5 py-2.5 border-t border-slate-100 bg-slate-50 shrink-0 text-xs">
+              <span className="text-slate-400">Page {modalPage}</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   disabled={modalPage === 1 || modalLoading}
                   onClick={() => loadModalPage(Math.max(1, modalPage - 1))}
-                  className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors cursor-pointer"
+                  className="px-3 py-1.5 rounded border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors cursor-pointer"
                 >
-                  Previous
+                  Prev
                 </button>
                 <button
                   type="button"
                   disabled={!modalHasMore || modalLoading}
                   onClick={() => loadModalPage(modalPage + 1)}
-                  className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-700 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors cursor-pointer"
+                  className="px-3 py-1.5 rounded border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors cursor-pointer"
                 >
                   Next
                 </button>
@@ -1223,6 +1185,7 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
           </div>
         </div>
       )}
+
     </header>
   );
 };

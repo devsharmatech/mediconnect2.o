@@ -1,6 +1,8 @@
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { corsHeaders } from "@/lib/cors";
+
+export const dynamic = "force-dynamic";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -15,20 +17,14 @@ export async function GET(req) {
       return failure("Missing appointment_id", null, 400, { headers: corsHeaders });
     }
 
-    // Fetch appointment record
-    const { data: appointment } = await supabase
-      .from("appointments")
-      .select("*")
-      .eq("id", appointment_id)
-      .maybeSingle();
+    // Fetch appointment record from AWS RDS PostgreSQL
+    const [appointment] = await sql`
+      SELECT * FROM appointments WHERE id = ${appointment_id} LIMIT 1
+    `;
 
-    const { data: prescription, error } = await supabase
-      .from("prescriptions")
-      .select("*")
-      .eq("appointment_id", appointment_id)
-      .maybeSingle();
-
-    if (error) throw error;
+    const [prescription] = await sql`
+      SELECT * FROM prescriptions WHERE appointment_id = ${appointment_id} LIMIT 1
+    `;
 
     const docId = appointment?.doctor_id || prescription?.doctor_id;
     const patId = appointment?.patient_id || prescription?.patient_id;
@@ -37,20 +33,22 @@ export async function GET(req) {
     let patientDetails = null;
 
     if (docId) {
-      const { data: docData } = await supabase
-        .from("doctor_details")
-        .select("id, full_name, email, specialization, clinic_name, clinic_address, license_number, qualification, profile_picture, signature_url")
-        .eq("id", docId)
-        .maybeSingle();
-      doctorDetails = docData;
+      const [docData] = await sql`
+        SELECT id, full_name, email, specialization, clinic_name, clinic_address, license_number, qualification, signature_url
+        FROM doctor_details
+        WHERE id = ${docId}
+        LIMIT 1
+      `;
+      doctorDetails = docData || null;
     }
 
     if (patId) {
-      const { data: patData } = await supabase
-        .from("patient_details")
-        .select("id, full_name, gender, date_of_birth, un_id")
-        .eq("id", patId)
-        .maybeSingle();
+      const [patData] = await sql`
+        SELECT id, full_name, gender, date_of_birth, un_id
+        FROM patient_details
+        WHERE id = ${patId}
+        LIMIT 1
+      `;
 
       if (patData) {
         let calculatedAge = null;
@@ -78,7 +76,7 @@ export async function GET(req) {
         appointment_id: appointment_id,
         appointment_date: appointment?.appointment_date || null,
         appointment_time: appointment?.appointment_time || null,
-        appointment_type: appointment?.appointment_type || appointment?.type || null,
+        appointment_type: appointment?.appointment_type || null,
         doctor_details: doctorDetails,
         patient_details: patientDetails,
         diagnosis: "No formal diagnosis recorded yet.",
@@ -117,7 +115,7 @@ export async function GET(req) {
       appointment_id: appointment_id,
       appointment_date: appointment?.appointment_date || null,
       appointment_time: appointment?.appointment_time || null,
-      appointment_type: appointment?.appointment_type || appointment?.type || null,
+      appointment_type: appointment?.appointment_type || null,
       doctor_details: doctorDetails,
       patient_details: patientDetails,
       diagnosis: diagnosisVal,

@@ -900,7 +900,7 @@ export default function ChemistOnboarding() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-4"
         >
-          <div className="bg-[#0067A1] text-white rounded-lg p-4 sm:p-6 border border-teal-800 shadow-sm">
+          <div className="bg-[#0067A1] text-white rounded-lg p-4 sm:p-6 border border-teal-800">
             <h1 className="text-lg sm:text-xl font-bold mb-1">Chemist Onboarding Form</h1>
             <p className="text-xs sm:text-sm opacity-90">
               Join our network of pharmacies
@@ -909,7 +909,7 @@ export default function ChemistOnboarding() {
         </motion.div>
 
         {/* Progress Bar */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 mb-4">
+        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4">
           <div className="mb-3">
             <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <motion.div
@@ -962,7 +962,7 @@ export default function ChemistOnboarding() {
         </div>
 
         {/* Form */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <form onSubmit={handleSubmit}>
             {/* Step 1: Personal Information */}
             {currentStep === 1 && (
@@ -1154,7 +1154,7 @@ export default function ChemistOnboarding() {
                   <button
                     type="button"
                     onClick={nextStep}
-                    className="bg-[#0067A1] hover:bg-[#004F7C] text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm shadow-sm"
+                    className="bg-[#0067A1] hover:bg-[#004F7C] text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm"
                   >
                     Next Step
                   </button>
@@ -1303,14 +1303,14 @@ export default function ChemistOnboarding() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm shadow-sm"
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm"
                   >
                     Previous
                   </button>
                   <button
                     type="button"
                     onClick={nextStep}
-                    className="bg-[#0067A1] hover:bg-[#004F7C] text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm shadow-sm"
+                    className="bg-[#0067A1] hover:bg-[#004F7C] text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm"
                   >
                     Next Step
                   </button>
@@ -1408,14 +1408,14 @@ export default function ChemistOnboarding() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm shadow-sm"
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm"
                   >
                     Previous
                   </button>
                   <button
                     type="button"
                     onClick={nextStep}
-                    className="bg-[#0067A1] hover:bg-[#004F7C] text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm shadow-sm"
+                    className="bg-[#0067A1] hover:bg-[#004F7C] text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm"
                   >
                     Next Step
                   </button>
@@ -1565,14 +1565,14 @@ export default function ChemistOnboarding() {
                   <button
                     type="button"
                     onClick={prevStep}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm shadow-sm"
+                    className="bg-gray-500 hover:bg-gray-600 text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm"
                   >
                     Previous
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="bg-[#0067A1] hover:bg-[#004F7C] text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-[#0067A1] hover:bg-[#004F7C] text-white px-5 py-2 rounded-md transition-colors font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <div className="flex items-center space-x-2">
@@ -1604,7 +1604,7 @@ export default function ChemistOnboarding() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-lg w-full max-w-xl max-h-[90vh] flex flex-col shadow-xl border border-gray-200"
+              className="bg-white rounded-lg w-full max-w-xl max-h-[90vh] flex flex-col border border-gray-200"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="bg-[#0067A1] text-white p-4 flex-shrink-0">
@@ -1753,7 +1753,7 @@ export default function ChemistOnboarding() {
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 10 }}
-              className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden shadow-xl border border-gray-200 flex flex-col"
+              className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-hidden border border-gray-200 flex flex-col"
             >
               {/* Header */}
               <div className="bg-[#0067A1] text-white p-5 flex-shrink-0">
@@ -1812,7 +1812,7 @@ export default function ChemistOnboarding() {
               <div className="bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end flex-shrink-0">
                 <button
                   onClick={() => setShowConsentModal(false)}
-                  className="bg-[#0067A1] hover:bg-[#004F7C] text-white px-5 py-2 rounded-md font-semibold text-sm shadow-sm"
+                  className="bg-[#0067A1] hover:bg-[#004F7C] text-white px-5 py-2 rounded-md font-semibold text-sm"
                 >
                   I Understand & Agree
                 </button>

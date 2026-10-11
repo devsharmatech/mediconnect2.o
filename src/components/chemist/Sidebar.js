@@ -7,6 +7,7 @@ import {
   Home,
   ClipboardList,
   User,
+  Heart,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -51,6 +52,11 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
       name: "Medicine Orders",
       icon: ClipboardList,
       path: "/chemist/orders",
+    },
+    {
+      name: "Patient View",
+      icon: Heart,
+      path: "/dashboard",
     },
     {
       name: "Profile Settings",
@@ -111,7 +117,7 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
 
         {/* Offcanvas Drawer Content */}
         <aside
-          className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-[#003358] flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
+          className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-[#003358] flex flex-col transition-transform duration-300 ease-in-out ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -122,7 +128,7 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
               onClick={onCloseMobile}
               className="flex items-center gap-3 overflow-hidden"
             >
-              <div className="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center shadow-md border border-white/20 shrink-0 overflow-hidden">
+              <div className="w-10 h-10 rounded-md bg-white p-1 flex items-center justify-center border border-white/20 shrink-0 overflow-hidden">
                 <img
                   src="/real-logo.png"
                   alt="MediConnect"
@@ -140,7 +146,7 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
             </Link>
             <button
               onClick={onCloseMobile}
-              className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              className="p-1.5 rounded-md text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               title="Close Menu"
             >
               <X className="w-5 h-5" />
@@ -157,9 +163,9 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
                   key={item.path}
                   href={item.path}
                   onClick={onCloseMobile}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-200 text-sm font-medium ${
                     active
-                      ? "bg-white text-[#0067A1] shadow-md font-semibold"
+                      ? "bg-white text-[#0067A1] font-semibold"
                       : "text-white/70 hover:bg-white/10 hover:text-white"
                   }`}
                 >
@@ -172,8 +178,8 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
 
           {/* Footer Profile & Logout */}
           <div className="p-3 shrink-0 border-t border-white/10 bg-black/10">
-            <div className="flex items-center gap-2.5 px-3 py-2 bg-white/5 rounded-xl border border-white/10 mb-2 overflow-hidden">
-              <div className="w-8 h-8 shrink-0 rounded-full bg-[#0067A1] text-white flex items-center justify-center font-bold text-xs shadow-md overflow-hidden border border-white/20">
+            <div className="flex items-center gap-2.5 px-3 py-2 bg-white/5 rounded-md border border-white/10 mb-2 overflow-hidden">
+              <div className="w-8 h-8 shrink-0 rounded-full bg-[#0067A1] text-white flex items-center justify-center font-bold text-xs overflow-hidden border border-white/20">
                 {getInitials(chemistName)}
               </div>
               <div className="flex-1 min-w-0">
@@ -193,7 +199,7 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
             </div>
             <button
               onClick={handleLogout}
-              className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs transition-all duration-200 w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 font-medium border border-transparent hover:border-rose-500/30 cursor-pointer"
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-md text-xs transition-all duration-200 w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 font-medium border border-transparent hover:border-rose-500/30 cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
               <span>Sign Out</span>
@@ -206,7 +212,7 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
       <aside
         className={`hidden md:flex md:flex-col h-full min-h-0 bg-[#003358] shrink-0 transition-all duration-300 ease-in-out relative z-40 ${
           open
-            ? "w-72 border-r border-[#003358] shadow-[4px_0_24px_rgba(0,0,0,0.1)]"
+            ? "w-72 border-r border-white/10"
             : "w-0 overflow-hidden border-0 shadow-none pointer-events-none"
         }`}
       >
@@ -217,7 +223,7 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
               href="/chemist/dashboard"
               className="flex items-center gap-3 overflow-hidden"
             >
-              <div className="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center shadow-md border border-white/20 shrink-0 overflow-hidden">
+              <div className="w-10 h-10 rounded-md bg-white p-1 flex items-center justify-center border border-white/20 shrink-0 overflow-hidden">
                 <img
                   src="/real-logo.png"
                   alt="MediConnect"
@@ -236,7 +242,7 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
 
             <button
               onClick={onToggle}
-              className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              className="p-1.5 rounded-md text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               title="Minimize Sidebar"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -252,9 +258,9 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
                 <Link
                   key={item.path}
                   href={item.path}
-                  className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group text-sm font-medium ${
+                  className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-200 group text-sm font-medium ${
                     active
-                      ? "bg-white text-[#0067A1] shadow-md font-semibold"
+                      ? "bg-white text-[#0067A1] font-semibold"
                       : "text-white/70 hover:bg-white/10 hover:text-white"
                   }`}
                 >
@@ -271,8 +277,8 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
 
           {/* Footer Profile & Logout */}
           <div className="p-3 shrink-0 border-t border-white/10 bg-black/10">
-            <div className="flex items-center gap-2.5 px-3 py-2 bg-white/5 rounded-xl border border-white/10 mb-2 overflow-hidden">
-              <div className="w-8 h-8 shrink-0 rounded-full bg-[#0067A1] text-white flex items-center justify-center font-bold text-xs shadow-md overflow-hidden border border-white/20">
+            <div className="flex items-center gap-2.5 px-3 py-2 bg-white/5 rounded-md border border-white/10 mb-2 overflow-hidden">
+              <div className="w-8 h-8 shrink-0 rounded-full bg-[#0067A1] text-white flex items-center justify-center font-bold text-xs overflow-hidden border border-white/20">
                 {getInitials(chemistName)}
               </div>
               <div className="flex-1 min-w-0">
@@ -292,7 +298,7 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
             </div>
             <button
               onClick={handleLogout}
-              className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs transition-all duration-200 w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 font-medium border border-transparent hover:border-rose-500/30 cursor-pointer"
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-md text-xs transition-all duration-200 w-full text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 font-medium border border-transparent hover:border-rose-500/30 cursor-pointer"
             >
               <LogOut className="flex-shrink-0 w-3.5 h-3.5" />
               <span>Sign Out</span>

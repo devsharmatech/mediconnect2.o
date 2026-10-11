@@ -57,36 +57,13 @@ export async function GET(req, { params }) {
 
     const html = buildPrescriptionHtml(rec, { isChemistView, mode });
 
-    const pdfResponse = await fetch(
-      "https://argosmob.uk/dhillon/public/api/v1/pdf/generate-pdf",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ html }),
-      }
-    );
-
-    if (!pdfResponse.ok) {
-      const errText = await pdfResponse.text();
-      throw new Error(`PDF service error: ${pdfResponse.status} — ${errText}`);
-    }
-    const pdfJson = await pdfResponse.json();
-
-    console.log("PDF API result:", pdfJson);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: "Prescription PDF generated successfully.",
-        url: pdfJson.url || "",
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    return new Response(html, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        ...corsHeaders,
+      },
+    });
   } catch (error) {
     console.error("PDF generation error:", error);
     return failure("Failed to generate PDF.", error.message, 500, {

@@ -28,6 +28,7 @@ import {
 } from "react-icons/fa";
 import { TbLungsFilled } from "react-icons/tb";
 import Link from "next/link";
+import { logoutUser } from "@/lib/authHelpers";
 import { useScroll } from "@/hooks/useScroll";
 import dynamic from "next/dynamic";
 import ProfileDropdown from "./ProfileDropdown";
@@ -41,6 +42,13 @@ const SignupModal = dynamic(
 
 const LoginModal = dynamic(
   () => import("@/components/public-site/auth/LoginModal"),
+  {
+    ssr: false,
+  }
+);
+
+const GlobalSearchModal = dynamic(
+  () => import("@/components/public-site/ui/GlobalSearchModal"),
   {
     ssr: false,
   }
@@ -62,6 +70,19 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
   const [loginUserType, setLoginUserType] = useState("patient");
   const [mounted, setMounted] = useState(false);
   const [settings, setSettings] = useState(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Global Ctrl+K / Cmd+K listener to open search
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
 
   const timeoutRef = useRef(null);
   const navContainerRef = useRef(null);
@@ -146,34 +167,8 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
 
   const refreshAuthState = useCallback(() => {
     if (typeof window === "undefined") return;
-    let role = localStorage.getItem("userRole");
-    let storedUser = localStorage.getItem("userData");
-
-    // Fallback: check role-specific keys if userRole/userData is not directly set
-    if (!role || !storedUser) {
-      const doctorUser = localStorage.getItem("doctorUser");
-      const patientUser = localStorage.getItem("patientUser");
-      const chemistUser = localStorage.getItem("chemistUser");
-      const labUser = localStorage.getItem("labUser");
-      const adminUser = localStorage.getItem("adminUser");
-
-      if (doctorUser) {
-        role = "doctor";
-        storedUser = doctorUser;
-      } else if (patientUser) {
-        role = "patient";
-        storedUser = patientUser;
-      } else if (chemistUser) {
-        role = "chemist";
-        storedUser = chemistUser;
-      } else if (labUser) {
-        role = "lab";
-        storedUser = labUser;
-      } else if (adminUser) {
-        role = "admin";
-        storedUser = adminUser;
-      }
-    }
+    const role = localStorage.getItem("userRole");
+    const storedUser = localStorage.getItem("userData");
 
     if (role && storedUser) {
       try {
@@ -183,8 +178,9 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
         setIsLoggedIn(true);
 
         // Keep localStorage synced for consistent reads across modules
-        if (!localStorage.getItem("userRole")) localStorage.setItem("userRole", role);
-        if (!localStorage.getItem("userData")) localStorage.setItem("userData", JSON.stringify(parsedUser));
+        if (!localStorage.getItem("userId") && parsedUser?.id) {
+          localStorage.setItem("userId", String(parsedUser.id));
+        }
       } catch {
         setIsLoggedIn(false);
         setUser(null);
@@ -245,12 +241,12 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
 
   const handleCloseSignup = useCallback(() => {
     setIsTransitioning(true);
-    toggleSideBar?.();
+    if (isMenuOpen) toggleSideBar?.();
     setTimeout(() => {
       setActiveModal(null);
       setIsTransitioning(false);
     }, 200);
-  }, [toggleSideBar]);
+  }, [isMenuOpen, toggleSideBar]);
 
   const handleOpenLogin = useCallback((e, userType = "patient") => {
     e?.preventDefault();
@@ -259,38 +255,87 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
     setIsTransitioning(false);
   }, []);
 
+  // Listen for global open-login-modal and open-signup-modal events (from MobileFooterBar, CTA buttons, etc.)
+  useEffect(() => {
+    const handleOpenLoginModalEvent = (e) => {
+      const userType = e?.detail?.userType || "patient";
+      handleOpenLogin(null, userType);
+    };
+
+    const handleOpenSignupModalEvent = () => {
+      handleOpenSignup();
+    };
+
+    window.addEventListener("open-login-modal", handleOpenLoginModalEvent);
+    window.addEventListener("open-signup-modal", handleOpenSignupModalEvent);
+
+    return () => {
+      window.removeEventListener("open-login-modal", handleOpenLoginModalEvent);
+      window.removeEventListener("open-signup-modal", handleOpenSignupModalEvent);
+    };
+  }, [handleOpenLogin, handleOpenSignup]);
+
+  // Auto-show Login/Register modal after a few seconds if visitor is not logged in
+  useEffect(() => {
+    if (!mounted) return;
+    if (isLoggedIn) return;
+    if (typeof window === "undefined") return;
+
+    // Check if prompt was already shown or dismissed in this browser session
+    const hasSeenPrompt = sessionStorage.getItem("mediconnect_auth_prompt_shown");
+    if (hasSeenPrompt) return;
+
+    // Don't auto-prompt on standalone auth, verify, or role portals
+    const currentPath = pathname || "";
+    if (
+      currentPath.includes("/verify-otp") ||
+      currentPath.includes("/login") ||
+      currentPath.includes("/register") ||
+      currentPath.startsWith("/doctor") ||
+      currentPath.startsWith("/chemist") ||
+      currentPath.startsWith("/lab") ||
+      currentPath.startsWith("/admin") ||
+      currentPath.startsWith("/staff") ||
+      currentPath.startsWith("/partner")
+    ) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const storedRole = localStorage.getItem("userRole");
+      const storedUser = localStorage.getItem("userData");
+      const patientUser = localStorage.getItem("patientUser");
+      const doctorUser = localStorage.getItem("doctorUser");
+      const isCurrentlyLoggedIn = Boolean(storedRole || storedUser || patientUser || doctorUser);
+
+      if (!isCurrentlyLoggedIn && !activeModal) {
+        sessionStorage.setItem("mediconnect_auth_prompt_shown", "true");
+        setLoginUserType("patient");
+        setActiveModal("login");
+      }
+    }, 3500); // 3.5 seconds
+
+    return () => clearTimeout(timer);
+  }, [mounted, isLoggedIn, pathname, activeModal]);
+
   const handleCloseLogin = useCallback(() => {
     setIsTransitioning(true);
-    toggleSideBar?.();
+    if (isMenuOpen) toggleSideBar?.();
     setTimeout(() => {
       setActiveModal(null);
       setIsTransitioning(false);
     }, 200);
-  }, [toggleSideBar]);
+  }, [isMenuOpen, toggleSideBar]);
 
   const handleLogout = useCallback(() => {
     setIsLoggedIn(false);
     setUser(null);
     setUserRole(null);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("userData");
-      localStorage.removeItem("doctorUser");
-      localStorage.removeItem("patientUser");
-      localStorage.removeItem("chemistUser");
-      localStorage.removeItem("labUser");
-      localStorage.removeItem("adminUser");
-      localStorage.removeItem("authToken");
-      localStorage.removeItem("userId");
-      document.cookie = "session_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-      window.dispatchEvent(new Event("storage"));
-      window.dispatchEvent(new CustomEvent("userProfileUpdated"));
-    }
     if (isMenuOpen) {
       toggleSideBar?.();
     }
-    router.push("/");
-  }, [toggleSideBar, isMenuOpen, router]);
+    logoutUser(userRole || "patient", "/");
+  }, [toggleSideBar, isMenuOpen, userRole]);
 
   const toggleLoginMenu = useCallback(() => {
     setIsLoginMenuOpen((prev) => !prev);
@@ -329,10 +374,15 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
   );
 
   // Derived user details for mobile drawer
-  const isPatient = userRole === "patient" || user?.role === "patient";
-  const isDoctor = !isPatient && (userRole === "doctor" || user?.role === "doctor");
-  const isChemist = !isPatient && (userRole === "chemist" || user?.role === "chemist");
-  const isLab = !isPatient && (userRole === "lab" || user?.role === "lab");
+  const hasDoctor = userRole === "doctor" || user?.role === "doctor" || (typeof window !== "undefined" && !!localStorage.getItem("doctorUser"));
+  const hasChemist = userRole === "chemist" || user?.role === "chemist" || (typeof window !== "undefined" && !!localStorage.getItem("chemistUser"));
+  const hasLab = userRole === "lab" || user?.role === "lab" || (typeof window !== "undefined" && !!localStorage.getItem("labUser"));
+  const hasAdmin = userRole === "admin" || user?.role === "admin" || (typeof window !== "undefined" && !!localStorage.getItem("adminUser"));
+  const isDoctor = hasDoctor;
+  const isChemist = hasChemist;
+  const isLab = hasLab;
+  const isAdmin = hasAdmin;
+  const isPatient = !isDoctor && !isChemist && !isLab && !isAdmin;
 
   const getRawName = () => {
     return (
@@ -424,6 +474,7 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                 >
                   <button
                     type="button"
+                    suppressHydrationWarning
                     onClick={() => handleToggleMenu("lab")}
                     className={`px-3 py-1.5 text-xs lg:text-[13px] xl:text-sm font-semibold rounded-md transition-all duration-150 whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer ${
                       activeMenu === "lab" || pathname?.startsWith("/services/lab-tests")
@@ -508,6 +559,7 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                 >
                   <button
                     type="button"
+                    suppressHydrationWarning
                     onClick={() => handleToggleMenu("nursing")}
                     className={`px-3 py-1.5 text-xs lg:text-[13px] xl:text-sm font-semibold rounded-md transition-all duration-150 whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer ${
                       activeMenu === "nursing" || pathname === "/nursing-care" || pathname === "/medical-equipment"
@@ -590,6 +642,7 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                 >
                   <button
                     type="button"
+                    suppressHydrationWarning
                     onClick={() => handleToggleMenu("more")}
                     className={`px-3 py-1.5 text-xs lg:text-[13px] xl:text-sm font-semibold rounded-md transition-all duration-150 whitespace-nowrap inline-flex items-center gap-1.5 cursor-pointer ${
                       activeMenu === "more" ||
@@ -698,9 +751,25 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
               </div>
 
               {/* CTA & Profile (Desktop) */}
-              <div className="flex items-center space-x-3 border-l border-gray-200 pl-4 ml-2">
+              <div className="flex items-center space-x-2.5 xl:space-x-3 border-l border-gray-200 pl-3 xl:pl-4 ml-1 xl:ml-2" suppressHydrationWarning>
+                {/* Global Search Button (Desktop) */}
+                <button
+                  type="button"
+                  suppressHydrationWarning
+                  onClick={() => setIsSearchOpen(true)}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-white text-slate-500 hover:text-slate-800 text-xs font-medium shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                  title="Search medical services (Ctrl+K)"
+                >
+                  <FaSearch className="w-3.5 h-3.5 text-[#0067A1]" />
+                  <span className="hidden xl:inline">Search...</span>
+                  <span className="xl:hidden">Search</span>
+                  <kbd className="hidden lg:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono text-slate-400 bg-white border border-slate-200 rounded">
+                    Ctrl K
+                  </kbd>
+                </button>
+
                 {!mounted ? (
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-3" suppressHydrationWarning>
                     <div className="w-24 h-10 bg-gray-100 animate-pulse rounded-lg"></div>
                     <div className="w-24 h-10 bg-gray-100 animate-pulse rounded-lg"></div>
                   </div>
@@ -708,9 +777,10 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                   <ProfileDropdown user={user} userRole={userRole} onLogout={handleLogout} />
                 ) : (
                   <>
-                    <div className="relative inline-block text-left">
+                    <div className="relative inline-block text-left" suppressHydrationWarning>
                       <button
                         type="button"
+                        suppressHydrationWarning
                         onClick={toggleLoginMenu}
                         className="inline-flex items-center justify-center px-4 py-2 text-xs xl:text-sm font-semibold rounded-xl bg-[#0067A1] text-white hover:bg-[#004F7C] focus:outline-none transition-colors cursor-pointer shadow-xs gap-1.5"
                       >
@@ -783,8 +853,17 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
               </div>
             </div>
 
-            {/* MOBILE CONTROLS (Hamburger Menu - Profile is located in mobile bottom navigation) */}
+            {/* MOBILE CONTROLS (Search & Hamburger Menu) */}
             <div className="flex items-center gap-2 lg:hidden">
+              <button
+                type="button"
+                onClick={() => setIsSearchOpen(true)}
+                className="w-9 h-9 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                title="Search medical services"
+                aria-label="Global Search"
+              >
+                <FaSearch className="w-4 h-4 text-[#0067A1]" />
+              </button>
               <MobileMenuButton isOpen={isMenuOpen} onClick={toggleSideBar} />
             </div>
           </div>
@@ -943,7 +1022,8 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                   <p className="px-3 py-1 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                     Account & Shortcuts
                   </p>
-                  {isDoctor ? (
+                  {/* Role Specific Shortcuts */}
+                  {isDoctor && (
                     <>
                       <MobileNavLink href="/doctor" onClick={toggleSideBar}>
                         <div className="flex items-center gap-2.5">
@@ -969,64 +1049,102 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                           <span>Clinic & Profile Settings</span>
                         </div>
                       </MobileNavLink>
-                      <div className="pt-2 mt-1 border-t border-gray-100">
-                        <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                          Patient View
-                        </div>
-                        <MobileNavLink href="/website/dashboard" onClick={toggleSideBar}>
-                          <div className="flex items-center gap-2.5">
-                            <FaUser className="w-4 h-4 text-[#0067A1]" />
-                            <span>Patient Dashboard</span>
-                          </div>
-                        </MobileNavLink>
-                        <MobileNavLink href="/website/appointments" onClick={toggleSideBar}>
-                          <div className="flex items-center gap-2.5">
-                            <FaCalendarAlt className="w-4 h-4 text-[#0067A1]" />
-                            <span>My Consultations</span>
-                          </div>
-                        </MobileNavLink>
-                      </div>
                     </>
-                  ) : (
+                  )}
+
+                  {isChemist && (
                     <>
-                      <MobileNavLink href="/website/dashboard" onClick={toggleSideBar}>
+                      <MobileNavLink href="/chemist/dashboard" onClick={toggleSideBar}>
                         <div className="flex items-center gap-2.5">
-                          <FaUser className="w-4 h-4 text-[#0067A1]" />
-                          <span>Patient Dashboard</span>
+                          <FaCog className="w-4 h-4 text-teal-600" />
+                          <span>Chemist Dashboard</span>
                         </div>
                       </MobileNavLink>
-                      <MobileNavLink href="/website/appointments" onClick={toggleSideBar}>
+                      <MobileNavLink href="/chemist/orders" onClick={toggleSideBar}>
                         <div className="flex items-center gap-2.5">
-                          <FaCalendarAlt className="w-4 h-4 text-[#0067A1]" />
-                          <span>My Appointments</span>
-                        </div>
-                      </MobileNavLink>
-                      <MobileNavLink href="/website/lung-connect" onClick={toggleSideBar}>
-                        <div className="flex items-center gap-2.5">
-                          <TbLungsFilled className="w-4 h-4 text-teal-600" />
-                          <span>LungConnect</span>
-                        </div>
-                      </MobileNavLink>
-                      <MobileNavLink href="/website/cardio-connect" onClick={toggleSideBar}>
-                        <div className="flex items-center gap-2.5">
-                          <FaHeartbeat className="w-4 h-4 text-rose-500" />
-                          <span>CardioConnect</span>
-                        </div>
-                      </MobileNavLink>
-                      <MobileNavLink href="/website/lab-reports" onClick={toggleSideBar}>
-                        <div className="flex items-center gap-2.5">
-                          <FaFlask className="w-4 h-4 text-purple-600" />
-                          <span>Lab Reports</span>
-                        </div>
-                      </MobileNavLink>
-                      <MobileNavLink href="/website/profile" onClick={toggleSideBar}>
-                        <div className="flex items-center gap-2.5">
-                          <FaCog className="w-4 h-4 text-[#0067A1]" />
-                          <span>My Profile</span>
+                          <FaCalendarAlt className="w-4 h-4 text-teal-600" />
+                          <span>Medicine Orders</span>
                         </div>
                       </MobileNavLink>
                     </>
                   )}
+
+                  {isLab && (
+                    <>
+                      <MobileNavLink href="/lab/dashboard" onClick={toggleSideBar}>
+                        <div className="flex items-center gap-2.5">
+                          <FaCog className="w-4 h-4 text-blue-600" />
+                          <span>Lab Dashboard</span>
+                        </div>
+                      </MobileNavLink>
+                      <MobileNavLink href="/lab/orders" onClick={toggleSideBar}>
+                        <div className="flex items-center gap-2.5">
+                          <FaFlask className="w-4 h-4 text-blue-600" />
+                          <span>Test Orders</span>
+                        </div>
+                      </MobileNavLink>
+                    </>
+                  )}
+
+                  {isAdmin && (
+                    <MobileNavLink href="/admin/dashboard" onClick={toggleSideBar}>
+                      <div className="flex items-center gap-2.5">
+                        <FaCog className="w-4 h-4 text-indigo-600" />
+                        <span>Admin Panel</span>
+                      </div>
+                    </MobileNavLink>
+                  )}
+
+                  {/* Patient View for All Users */}
+                  <div className={`pt-2 mt-1 ${(isDoctor || isChemist || isLab || isAdmin) ? "border-t border-gray-100" : ""}`}>
+                    {(isDoctor || isChemist || isLab || isAdmin) && (
+                      <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                        Patient View
+                      </div>
+                    )}
+                    <MobileNavLink href="/dashboard" onClick={toggleSideBar}>
+                      <div className="flex items-center gap-2.5">
+                        <FaUser className="w-4 h-4 text-[#0067A1]" />
+                        <span>Patient Dashboard</span>
+                      </div>
+                    </MobileNavLink>
+                    <MobileNavLink href="/appointments" onClick={toggleSideBar}>
+                      <div className="flex items-center gap-2.5">
+                        <FaCalendarAlt className="w-4 h-4 text-[#0067A1]" />
+                        <span>My Appointments</span>
+                      </div>
+                    </MobileNavLink>
+                    <MobileNavLink href="/lung-connect" onClick={toggleSideBar}>
+                      <div className="flex items-center gap-2.5">
+                        <TbLungsFilled className="w-4 h-4 text-teal-600" />
+                        <span>LungConnect</span>
+                      </div>
+                    </MobileNavLink>
+                    <MobileNavLink href="/cardio-connect" onClick={toggleSideBar}>
+                      <div className="flex items-center gap-2.5">
+                        <FaHeartbeat className="w-4 h-4 text-rose-500" />
+                        <span>CardioConnect</span>
+                      </div>
+                    </MobileNavLink>
+                    <MobileNavLink href="/lab-reports" onClick={toggleSideBar}>
+                      <div className="flex items-center gap-2.5">
+                        <FaFlask className="w-4 h-4 text-purple-600" />
+                        <span>Lab Reports</span>
+                      </div>
+                    </MobileNavLink>
+                    <MobileNavLink href="/medicine-order" onClick={toggleSideBar}>
+                      <div className="flex items-center gap-2.5">
+                        <FaCog className="w-4 h-4 text-[#0067A1]" />
+                        <span>Medicine Orders</span>
+                      </div>
+                    </MobileNavLink>
+                    <MobileNavLink href="/profile" onClick={toggleSideBar}>
+                      <div className="flex items-center gap-2.5">
+                        <FaCog className="w-4 h-4 text-[#0067A1]" />
+                        <span>My Profile</span>
+                      </div>
+                    </MobileNavLink>
+                  </div>
 
                   {/* Sign Out Button in Drawer */}
                   <button
@@ -1043,40 +1161,52 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
               )}
 
               {/* Login / Register buttons (When NOT Logged In) */}
-              {!mounted ? (
-                <div className="mt-3 flex flex-col gap-2">
-                  <div className="w-full h-11 bg-gray-100 animate-pulse rounded-lg"></div>
-                  <div className="w-full h-11 bg-gray-100 animate-pulse rounded-lg"></div>
-                </div>
-              ) : (
-                !isLoggedIn && (
-                  <div className="mt-3 flex flex-col gap-2">
-                    <button
-                      onClick={(e) => {
-                        toggleSideBar();
-                        handleOpenSignup(e);
-                      }}
-                      className="inline-flex items-center justify-center w-full px-4 py-2.5 border border-[#0067A1] text-sm font-semibold rounded-lg text-[#0067A1] bg-white hover:bg-[#F6F8FA] focus:outline-none focus:ring-1 focus:ring-[#0067A1]"
-                    >
-                      <FaUserPlus className="mr-2 h-4 w-4" />
-                      Register
-                    </button>
-                    <button
-                      onClick={() => {
-                        toggleSideBar();
-                        handleRoleLogin("patient");
-                      }}
-                      className="inline-flex items-center justify-center w-full px-4 py-2.5 border border-transparent text-sm font-semibold rounded-lg text-white bg-[#0067A1] hover:bg-[#004F7C] focus:outline-none focus:ring-1 focus:ring-[#0067A1]"
-                    >
-                      <FaUser className="mr-2 h-4 w-4" />
-                      Login
-                    </button>
+              <div suppressHydrationWarning>
+                {!mounted ? (
+                  <div className="mt-3 flex flex-col gap-2" suppressHydrationWarning>
+                    <div className="w-full h-11 bg-gray-100 animate-pulse rounded-lg"></div>
+                    <div className="w-full h-11 bg-gray-100 animate-pulse rounded-lg"></div>
                   </div>
-                )
-              )}
+                ) : (
+                  !isLoggedIn && (
+                    <div className="mt-3 flex flex-col gap-2" suppressHydrationWarning>
+                      <button
+                        type="button"
+                        suppressHydrationWarning
+                        onClick={(e) => {
+                          toggleSideBar();
+                          handleOpenSignup(e);
+                        }}
+                        className="inline-flex items-center justify-center w-full px-4 py-2.5 border border-[#0067A1] text-sm font-semibold rounded-lg text-[#0067A1] bg-white hover:bg-[#F6F8FA] focus:outline-none focus:ring-1 focus:ring-[#0067A1]"
+                      >
+                        <FaUserPlus className="mr-2 h-4 w-4" />
+                        Register
+                      </button>
+                      <button
+                        type="button"
+                        suppressHydrationWarning
+                        onClick={() => {
+                          toggleSideBar();
+                          handleRoleLogin("patient");
+                        }}
+                        className="inline-flex items-center justify-center w-full px-4 py-2.5 border border-transparent text-sm font-semibold rounded-lg text-white bg-[#0067A1] hover:bg-[#004F7C] focus:outline-none focus:ring-1 focus:ring-[#0067A1]"
+                      >
+                        <FaUser className="mr-2 h-4 w-4" />
+                        Login
+                      </button>
+                    </div>
+                  )
+                )}
+              </div>
             </div>
           </div>
         )}
+
+        {/* Global Search Modal */}
+        <GlobalSearchModal
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+        />
       </nav>
     </>
   );
@@ -1099,6 +1229,7 @@ const MobileMenuButton = ({ isOpen, onClick }) => (
 const NavLink = ({ href, active, children }) => (
   <Link
     href={href}
+    suppressHydrationWarning
     className={`px-3 py-1.5 text-xs lg:text-[13px] xl:text-sm font-semibold rounded-md transition-all duration-150 whitespace-nowrap inline-flex items-center ${
       active
         ? "text-[#0067A1] bg-sky-50 font-bold shadow-2xs ring-1 ring-sky-200/60"

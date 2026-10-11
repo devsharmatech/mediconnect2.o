@@ -1,4 +1,4 @@
-import { supabase } from "../supabaseAdmin.js";
+import sql from "@/lib/db";
 
 /**
  * LAYER-111 / MASTER ARCHITECTURE (J16 & J16A):
@@ -9,6 +9,7 @@ import { supabase } from "../supabaseAdmin.js";
  * 2. Execution Gate (J16A): Executing backend service MUST validate current authoritative
  *    consent state immediately before execution of any protected action.
  * 3. Mobile UI or cached consent state is never authoritative on its own.
+ * 4. 100% AWS RDS PostgreSQL.
  */
 
 /**
@@ -28,32 +29,39 @@ export async function logConsent({ patient_id, care_episode_id = null, consent_t
             return { success: false, error: "patient_id and consent_type are required" };
         }
 
-        const payload = {
-            patient_id,
-            care_episode_id,
-            consent_type,
-            status: Boolean(status),
-            ip_address: metadata.ip || metadata.ip_address || null,
-            user_agent: metadata.userAgent || metadata.user_agent || null,
-            metadata: {
-                ...metadata,
-                purpose: purpose || consent_type,
-                timestamp: new Date().toISOString()
-            }
+        const ip = metadata.ip || metadata.ip_address || null;
+        const ua = metadata.userAgent || metadata.user_agent || null;
+        const metaPayload = {
+            ...metadata,
+            purpose: purpose || consent_type,
+            timestamp: new Date().toISOString()
         };
 
-        const { error } = await supabase
-            .from("consent_logs")
-            .insert(payload);
-
-        if (error) {
-            // If table does not exist or schema variation, log error gracefully
-            console.warn("consent_logs insert warning:", error.message);
-        }
+        await sql`
+            INSERT INTO consent_logs (
+                patient_id,
+                care_episode_id,
+                consent_type,
+                status,
+                ip_address,
+                user_agent,
+                metadata,
+                created_at
+            ) VALUES (
+                ${patient_id},
+                ${care_episode_id},
+                ${consent_type},
+                ${Boolean(status)},
+                ${ip},
+                ${ua},
+                ${JSON.stringify(metaPayload)}::jsonb,
+                NOW()
+            )
+        `;
 
         return { success: true };
     } catch (err) {
-        console.error("Consent logging error:", err);
+        console.error("Consent logging error:", err.message);
         return { success: false, error: err.message };
     }
 }
@@ -64,19 +72,18 @@ export async function logConsent({ patient_id, care_episode_id = null, consent_t
 export async function checkActiveConsent(patient_id, consent_type) {
     if (!patient_id) return true;
     try {
-        const { data, error } = await supabase
-            .from("consent_logs")
-            .select("*")
-            .eq("patient_id", patient_id)
-            .eq("consent_type", consent_type)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+        const rows = await sql`
+            SELECT status FROM consent_logs
+            WHERE patient_id = ${patient_id}
+              AND consent_type = ${consent_type}
+            ORDER BY created_at DESC
+            LIMIT 1
+        `;
         
-        if (error || !data) return true; // Operational fallback
-        return data.status === true;
+        if (rows.length === 0) return true; // Operational fallback
+        return rows[0].status === true;
     } catch (err) {
-        console.error("checkActiveConsent error:", err);
+        console.error("checkActiveConsent error:", err.message);
         return true;
     }
 }
@@ -97,46 +104,39 @@ export async function verifyConsentGate({ patient_id, consent_type, care_episode
     }
 
     try {
-        let query = supabase
-            .from("consent_logs")
-            .select("status, created_at, metadata")
-            .eq("patient_id", patient_id)
-            .eq("consent_type", consent_type)
-            .order("created_at", { ascending: false })
-            .limit(1);
-
         if (care_episode_id) {
-            // check episode-specific first if provided
-            const { data: epConsent } = await supabase
-                .from("consent_logs")
-                .select("status, created_at")
-                .eq("patient_id", patient_id)
-                .eq("care_episode_id", care_episode_id)
-                .eq("consent_type", consent_type)
-                .order("created_at", { ascending: false })
-                .limit(1)
-                .maybeSingle();
+            // Check episode-specific first if provided
+            const epRows = await sql`
+                SELECT status FROM consent_logs
+                WHERE patient_id = ${patient_id}
+                  AND care_episode_id = ${care_episode_id}
+                  AND consent_type = ${consent_type}
+                ORDER BY created_at DESC
+                LIMIT 1
+            `;
 
-            if (epConsent) {
-                return epConsent.status === true
+            if (epRows.length > 0) {
+                return epRows[0].status === true
                     ? { allowed: true }
                     : { allowed: false, reason: `Consent for ${consent_type} was revoked for this care episode.` };
             }
         }
 
-        const { data, error } = await query.maybeSingle();
-        if (error) {
-            console.warn("verifyConsentGate query note:", error.message);
-            return { allowed: true }; // allow with warning
-        }
+        const rows = await sql`
+            SELECT status FROM consent_logs
+            WHERE patient_id = ${patient_id}
+              AND consent_type = ${consent_type}
+            ORDER BY created_at DESC
+            LIMIT 1
+        `;
 
-        if (data && data.status === false) {
+        if (rows.length > 0 && rows[0].status === false) {
             return { allowed: false, reason: `Active consent for ${consent_type} is not granted or was revoked.` };
         }
 
         return { allowed: true };
     } catch (err) {
-        console.error("verifyConsentGate error:", err);
+        console.error("verifyConsentGate error:", err.message);
         return { allowed: true };
     }
 }

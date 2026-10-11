@@ -94,6 +94,7 @@ export default function LabOrderDetails() {
   const [selectedTech, setSelectedTech] = useState("");
   const [techVehicle, setTechVehicle] = useState("");
   const [assigningTech, setAssigningTech] = useState(false);
+  const [isReassigning, setIsReassigning] = useState(false);
   const [reportPdfUrl, setReportPdfUrl] = useState("");
   const [structuredValues, setStructuredValues] = useState({});
   const [reportNotes, setReportNotes] = useState("");
@@ -192,21 +193,29 @@ export default function LabOrderDetails() {
     }
   };
 
-  useEffect(() => {
-    const fetchTechnicians = async () => {
-      try {
-        const res = await fetch("/api/lab/technicians");
-        const json = await res.json();
-        if (json.status) {
-          setTechnicians(json.data);
-          if (json.data.length > 0) setSelectedTech(json.data[0].id);
+  const fetchTechnicians = async (targetLabId) => {
+    try {
+      const user = getLoggedInUser("lab");
+      const labId = targetLabId || order?.lab_id || user?.id;
+      const url = labId ? `/api/lab/technicians?lab_id=${labId}` : "/api/lab/technicians";
+      const res = await fetch(url);
+      const json = await res.json();
+      if (json.status) {
+        const list = json.data || [];
+        setTechnicians(list);
+        if (list.length > 0) {
+          setSelectedTech(list[0].id);
+          setTechVehicle(list[0].vehicle || "");
         }
-      } catch (err) {
-        console.error("Failed to load technicians:", err);
       }
-    };
+    } catch (err) {
+      console.error("Failed to load technicians:", err);
+    }
+  };
+
+  useEffect(() => {
     fetchTechnicians();
-  }, []);
+  }, [order?.lab_id]);
 
   const statusOptions = [
     "pending",
@@ -323,13 +332,14 @@ export default function LabOrderDetails() {
       });
       const json = await res.json();
       if (json.status) {
-        toast.success("Technician assigned successfully!");
+        toast.success("Sample collector aligned successfully!");
+        setIsReassigning(false);
         fetchDetails();
       } else {
-        toast.error(json.message || "Failed to assign technician");
+        toast.error(json.message || "Failed to assign sample collector");
       }
     } catch (err) {
-      toast.error("Error assigning technician");
+      toast.error("Error assigning sample collector");
     } finally {
       setAssigningTech(false);
     }
@@ -1514,66 +1524,127 @@ export default function LabOrderDetails() {
                 </div>
 
                 {/* Phlebotomist/Technician Assignment Card */}
-                {order && order.visit_type === 'home_collection' && (
+                {order && (
                   <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xs border border-slate-200/80 dark:border-slate-700 overflow-hidden">
-                    <div className="bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
-                      <BriefcaseMedical className="w-5 h-5 text-[#0067A1]" />
-                      <h2 className="text-lg font-bold text-slate-900 dark:text-white">Phlebotomist Assignment</h2>
+                    <div className="bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <BriefcaseMedical className="w-5 h-5 text-[#0067A1]" />
+                        <h2 className="text-base font-bold text-slate-900 dark:text-white">Sample Collector Alignment</h2>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => router.push("/lab/collectors")}
+                        className="text-xs font-semibold text-[#0067A1] hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Manage Staff
+                      </button>
                     </div>
-                    <div className="p-6 space-y-4">
-                      {order.technician_name ? (
-                        <div className="bg-teal-50/50 dark:bg-[#003358]/10 p-4 rounded-md border border-teal-100 dark:border-teal-900/30 space-y-2">
-                          <div className="flex justify-between text-sm">
+                    <div className="p-5 space-y-4">
+                      {order.technician_name && !isReassigning ? (
+                        <div className="bg-teal-50/50 dark:bg-[#003358]/10 p-4 rounded-md border border-teal-100 dark:border-teal-900/30 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-teal-800 dark:text-teal-300 uppercase tracking-wider flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Aligned Employee
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setIsReassigning(true)}
+                              className="text-xs text-[#0067A1] hover:underline font-semibold cursor-pointer"
+                            >
+                              Change Collector
+                            </button>
+                          </div>
+                          <div className="flex justify-between text-xs pt-1 border-t border-teal-100/60 dark:border-teal-900/30">
                             <span className="text-slate-500">Name:</span>
                             <span className="font-semibold text-slate-800 dark:text-slate-200">{order.technician_name}</span>
                           </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-slate-500">Phone:</span>
-                            <span className="font-semibold text-slate-800 dark:text-slate-200">{order.technician_phone}</span>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-slate-500">Mobile Phone:</span>
+                            <a href={`tel:${order.technician_phone}`} className="font-semibold text-[#0067A1] hover:underline font-mono">
+                              {order.technician_phone}
+                            </a>
                           </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-slate-500">Vehicle:</span>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-slate-500">Vehicle / Transit:</span>
                             <span className="font-semibold text-slate-800 dark:text-slate-200">{order.technician_vehicle || '—'}</span>
                           </div>
                         </div>
                       ) : (
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                              Select Phlebotomist
-                            </label>
-                            <select
-                              value={selectedTech}
-                              onChange={(e) => setSelectedTech(e.target.value)}
-                              className="w-full px-3.5 py-2.5 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
-                            >
-                              {technicians.map((t) => (
-                                <option key={t.id} value={t.id}>
-                                  {t.name} ({t.phone})
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                              Vehicle Details (Optional)
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="e.g. Hero Splendor DL-3S-AB-1234"
-                              value={techVehicle}
-                              onChange={(e) => setTechVehicle(e.target.value)}
-                              className="w-full px-3.5 py-2.5 border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
-                            />
-                          </div>
-                          <button
-                            onClick={handleAssignTechnician}
-                            disabled={assigningTech}
-                            className="w-full py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold rounded-md transition-all shadow-xs flex items-center justify-center gap-2 text-sm cursor-pointer"
-                          >
-                            {assigningTech ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                            Assign Technician
-                          </button>
+                        <div className="space-y-3.5">
+                          {isReassigning && (
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-slate-500 font-medium">Realign collection staff:</span>
+                              <button
+                                type="button"
+                                onClick={() => setIsReassigning(false)}
+                                className="text-slate-500 hover:text-slate-700 underline cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
+
+                          {technicians.length === 0 ? (
+                            <div className="p-3.5 bg-amber-50 dark:bg-amber-950/20 rounded-md border border-amber-200 dark:border-amber-800 text-center space-y-2">
+                              <p className="text-xs text-amber-800 dark:text-amber-300">
+                                No sample collection employees added yet.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => router.push("/lab/collectors")}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0067A1] text-white text-xs font-semibold rounded-md hover:bg-[#004F7C] transition-colors cursor-pointer"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                Add Sample Collector
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                                  Select Sample Collector / Phlebotomist
+                                </label>
+                                <select
+                                  value={selectedTech}
+                                  onChange={(e) => {
+                                    setSelectedTech(e.target.value);
+                                    const found = technicians.find(t => t.id === e.target.value);
+                                    if (found?.vehicle) setTechVehicle(found.vehicle);
+                                  }}
+                                  className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                                >
+                                  {technicians.map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                      {t.name} ({t.phone}){t.vehicle ? ` — ${t.vehicle}` : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                                  Vehicle / Transit Details
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Hero Splendor DL-3S-AB-1234"
+                                  value={techVehicle}
+                                  onChange={(e) => setTechVehicle(e.target.value)}
+                                  className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={handleAssignTechnician}
+                                disabled={assigningTech}
+                                className="w-full py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold rounded-md transition-colors text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                              >
+                                {assigningTech ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                {isReassigning ? "Realign Collector" : "Align Employee for Collection"}
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>

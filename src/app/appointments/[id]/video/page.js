@@ -27,6 +27,7 @@ import {
 import toast from "react-hot-toast";
 import SessionStateTracker from "@/components/doctor/SessionStateTracker";
 import { loadRazorpayScript } from "@/lib/razorpay";
+import PrescriptionViewerModal from "@/components/public-site/appointments/PrescriptionViewerModal";
 import SharePrescriptionModal from "@/components/public-site/appointments/SharePrescriptionModal";
 import { exportPrescriptionPdf, printPrescriptionPdf } from "@/lib/prescriptionPdfEngine";
 import { MEDICONNECT_LOGO_BASE64, DOCTOR_CADUCEUS_BASE64 } from "@/lib/prescriptionAssets";
@@ -1168,11 +1169,10 @@ function VideoCall({ appointmentId, userId, role }) {
         </div>
       )}
 
-      {/* ── Patient Prescription Modal ── */}
+      {/* ── Prescription Modal ── */}
       <AnimatePresence>
-        {role === "patient" && isPrescriptionOpen && (
-          <PrescriptionModal
-            userId={userId}
+        {isPrescriptionOpen && (
+          <PrescriptionViewerModal
             data={prescriptionData}
             chemistOrder={chemistOrder}
             chemistInfo={chemistInfo}
@@ -1180,6 +1180,7 @@ function VideoCall({ appointmentId, userId, role }) {
             labInfo={labInfo}
             onOrdersUpdated={refreshOrders}
             onClose={() => setIsPrescriptionOpen(false)}
+            isDoctor={role === "doctor"}
           />
         )}
       </AnimatePresence>
@@ -1387,10 +1388,15 @@ function formatSpecialMessage(text) {
   );
 }
 
-function PrescriptionModal({ userId, data, chemistOrder, chemistInfo, labOrder, labInfo, onOrdersUpdated, onClose }) {
+function PrescriptionModal(props) {
+  return <PrescriptionViewerModal {...props} />;
+}
+
+function _UnusedLegacyPrescriptionModal({ userId, data, chemistOrder, chemistInfo, labOrder, labInfo, onOrdersUpdated, onClose }) {
   const [shareTarget, setShareTarget] = useState(null); // "chemist" | "lab" | null
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [sigLoadFailed, setSigLoadFailed] = useState(false);
 
   const handleDownload = async () => {
     const el = document.getElementById('rx-preview-print-area');
@@ -1503,17 +1509,76 @@ function PrescriptionModal({ userId, data, chemistOrder, chemistInfo, labOrder, 
     return "OPD Care & Consultation";
   })();
 
-  const prescriptionId = `MED-${doc.un_id || "0"}-${pat.un_id || "0"}-${data.unid || data.id?.slice(0, 8) || "0"}`;
+  const prescriptionId = `MED-${doc.un_id || "0"}-${pat.un_id || "0"}-${data.unid || data.pid || data.prescription_number || data.id?.slice(0, 8) || "0"}`;
   const episodeId = data.episode_id || (data.care_episode_id ? `EP-${String(data.care_episode_id).slice(0, 8).toUpperCase()}` : (appt.care_episode_id ? `EP-${String(appt.care_episode_id).slice(0, 8).toUpperCase()}` : null));
   const chemistName = chemistInfo?.pharmacy_name || chemistInfo?.owner_name || "Selected Chemist";
   const chemistSub = [chemistInfo?.address, chemistInfo?.mobile].filter(Boolean).join(" • ");
   const labName = labInfo?.lab_name || labInfo?.owner_name || "Selected Lab";
   const labSub = [labInfo?.address, labInfo?.phone_number].filter(Boolean).join(" • ");
 
+  const signatureRawUrl = (() => {
+    const raw = doc.signature_url || data.doctor_signature_url || data.signature_url;
+    if (!raw) return null;
+    if (typeof raw === "string" && raw.trim().startsWith("[")) {
+      try {
+        const arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr[0] : raw;
+      } catch {
+        return raw;
+      }
+    }
+    if (Array.isArray(raw)) return raw[0] || null;
+    return raw;
+  })();
+
+  const signatureImgUrl = signatureRawUrl
+    ? (signatureRawUrl.startsWith("http")
+        ? `/api/common/image-proxy?url=${encodeURIComponent(signatureRawUrl)}`
+        : signatureRawUrl)
+    : null;
+
   const fmtDate = (d) => {
     if (!d) return "N/A";
     try { return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); } catch { return d; }
   };
+
+  const fmtDateTime = (d) => {
+    if (!d) return "—";
+    try {
+      return new Date(d).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch {
+      return d;
+    }
+  };
+
+  const symptoms = (() => {
+    let symp = {};
+    let td = data.template_data || {};
+    if (typeof td === 'string') {
+      try { td = JSON.parse(td); } catch { td = {}; }
+    }
+    if (td) {
+      if (td._dynamic_complaints && Array.isArray(td._dynamic_complaints)) {
+        td._dynamic_complaints.forEach(c => {
+          if (c.complaint) symp[c.complaint] = c.details || "Yes";
+        });
+      } else {
+        if (td['PRESENTING COMPLAINTS__fever']) symp['Fever / Chills'] = td['PRESENTING COMPLAINTS__fever'];
+        if (td['PRESENTING COMPLAINTS__cough']) symp['Cough / Cold / Sore throat'] = td['PRESENTING COMPLAINTS__cough'];
+        if (td['PRESENTING COMPLAINTS__headache']) symp['Headache / Bodyache'] = td['PRESENTING COMPLAINTS__headache'];
+        if (td['PRESENTING COMPLAINTS__gi_symptoms']) symp['Nausea / Vomiting / Diarrhea'] = td['PRESENTING COMPLAINTS__gi_symptoms'];
+        if (td['PRESENTING COMPLAINTS__weakness']) symp['Weakness / Fatigue'] = td['PRESENTING COMPLAINTS__weakness'];
+      }
+    }
+    return Object.keys(symp).length > 0 ? symp : null;
+  })();
 
   const formatVitalKey = (k) => {
     if (!k) return "";
@@ -1783,6 +1848,10 @@ function PrescriptionModal({ userId, data, chemistOrder, chemistInfo, labOrder, 
                           <span className="text-[#0067A1] font-bold text-right">{pat.gender || "—"}</span>
                         </div>
                         <div className="py-1 flex justify-between gap-2">
+                          <span className="font-semibold text-gray-500 shrink-0">Blood Group:</span>
+                          <span className="text-[#0067A1] font-bold text-right">{pat.blood_group || "—"}</span>
+                        </div>
+                        <div className="py-1 flex justify-between gap-2">
                           <span className="font-semibold text-gray-500 shrink-0">Age:</span>
                           <span className="text-[#0067A1] font-bold text-right">{calculateAge(pat.date_of_birth, pat.age)}</span>
                         </div>
@@ -1841,6 +1910,23 @@ function PrescriptionModal({ userId, data, chemistOrder, chemistInfo, labOrder, 
                             )}
                           </div>
                         </div>
+
+                        {/* Presenting Complaints */}
+                        {symptoms && Object.keys(symptoms).length > 0 && (
+                          <div>
+                            <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                              Presenting Complaints
+                            </h3>
+                            <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                              {Object.entries(symptoms).map(([k, val]) => (
+                                <div key={k} className="py-1 flex justify-between gap-2">
+                                  <span className="font-semibold text-gray-500 shrink-0">{k}:</span>
+                                  <span className="text-[#0067A1] font-bold text-right">{String(val)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Vital Signs */}
                         <div>
@@ -1985,30 +2071,46 @@ function PrescriptionModal({ userId, data, chemistOrder, chemistInfo, labOrder, 
                             Digital Signature
                           </h3>
                           <div className="mt-1 flex flex-col items-end text-xs">
-                            {doc.signature_url && (
-                              <img
-                                src={(() => {
-                                  const raw = doc.signature_url;
-                                  if (!raw) return null;
-                                  if (typeof raw === 'string' && raw.startsWith('[')) {
-                                    try { const arr = JSON.parse(raw); return Array.isArray(arr) ? arr[0] : raw; } catch { return raw; }
-                                  }
-                                  if (Array.isArray(raw)) return raw[0];
-                                  return raw;
-                                })()}
-                                alt="Doctor Signature"
-                                style={{ maxHeight: '36px', height: '36px', objectFit: 'contain' }}
-                                className="h-9 border-b border-gray-300 pb-0.5 mb-0.5 object-contain"
-                              />
+                            {signatureImgUrl && !sigLoadFailed ? (
+                              <div className="flex justify-end w-full mb-1">
+                                <img
+                                  src={signatureImgUrl}
+                                  alt="Doctor Signature"
+                                  onError={(e) => {
+                                    if (signatureRawUrl && e.currentTarget.src !== signatureRawUrl) {
+                                      e.currentTarget.src = signatureRawUrl;
+                                    } else {
+                                      setSigLoadFailed(true);
+                                    }
+                                  }}
+                                  style={{ maxHeight: '42px', height: '42px', objectFit: 'contain' }}
+                                  className="h-10 border-b border-gray-300 pb-0.5 object-contain inline-block"
+                                />
+                              </div>
+                            ) : (
+                              <div className="font-serif italic text-base text-[#0067A1] font-bold py-1">
+                                Dr. {doc.full_name?.replace(/^Dr\.\s*/i, '') || "Doctor"}
+                              </div>
                             )}
+                            <div className="w-full flex justify-end mb-1">
+                              <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-semibold">
+                                ✓ Digitally Signed &amp; Verified
+                              </span>
+                            </div>
                             <div className="py-1 flex justify-between w-full gap-2 border-b border-dotted border-gray-300">
                               <span className="font-semibold text-gray-500">Signed by:</span>
                               <span className="text-[#0067A1] font-bold">{doc.full_name ? `Dr. ${doc.full_name.replace(/^Dr\.\s*/i, '')}` : "—"}</span>
                             </div>
+                            {(doc.license_number || doc.reg_no) && (
+                              <div className="py-1 flex justify-between w-full gap-2 border-b border-dotted border-gray-300">
+                                <span className="font-semibold text-gray-500">Reg / License No:</span>
+                                <span className="text-[#0067A1] font-bold text-right">{doc.license_number || doc.reg_no}</span>
+                              </div>
+                            )}
                             <div className="py-1 flex justify-between w-full gap-2 border-b border-dotted border-gray-300">
                               <span className="font-semibold text-gray-500">Signed at:</span>
                               <span className="text-[#0067A1] font-bold text-right">
-                                {data.signed_at ? fmtDate(data.signed_at) : (data.created_at ? fmtDate(data.created_at) : "—")}
+                                {fmtDateTime(data.signed_at || data.created_at)}
                               </span>
                             </div>
                           </div>

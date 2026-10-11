@@ -502,7 +502,7 @@ export default function ChemistOrdersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-slate-200/80">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-lg bg-[#0067A1] text-white shrink-0 shadow-xs">
+          <div className="p-2.5 rounded-lg bg-[#0067A1] text-white shrink-0">
             <ClipboardList className="w-5 h-5" />
           </div>
           <div>
@@ -521,7 +521,7 @@ export default function ChemistOrdersPage() {
               fetchBroadcasts();
               fetchOrders(pagination.currentPage);
             }}
-            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium shadow-xs transition-colors cursor-pointer"
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-md text-xs font-medium transition-colors cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
             <span>Refresh</span>
@@ -534,7 +534,7 @@ export default function ChemistOrdersPage() {
         {/* Stat 1: Live Pool Requests */}
         <div
           onClick={() => setActiveTab("pool")}
-          className={`p-4 sm:p-5 rounded-xl border bg-white transition-all cursor-pointer shadow-xs ${
+          className={`p-4 sm:p-5 rounded-lg border bg-white transition-all cursor-pointer ${
             activeTab === "pool"
               ? "border-[#0067A1] ring-1 ring-[#0067A1]/20"
               : "border-slate-200/80 hover:border-slate-300"
@@ -558,7 +558,7 @@ export default function ChemistOrdersPage() {
         {/* Stat 2: Payment Verification Queue */}
         <div
           onClick={() => setActiveTab("verification")}
-          className={`p-4 sm:p-5 rounded-xl border bg-white transition-all cursor-pointer shadow-xs ${
+          className={`p-4 sm:p-5 rounded-lg border bg-white transition-all cursor-pointer ${
             activeTab === "verification"
               ? "border-[#0067A1] ring-1 ring-[#0067A1]/20"
               : "border-slate-200/80 hover:border-slate-300"
@@ -586,7 +586,7 @@ export default function ChemistOrdersPage() {
         {/* Stat 3: Active Orders */}
         <div
           onClick={() => setActiveTab("active")}
-          className={`p-4 sm:p-5 rounded-xl border bg-white transition-all cursor-pointer shadow-xs ${
+          className={`p-4 sm:p-5 rounded-lg border bg-white transition-all cursor-pointer ${
             activeTab === "active"
               ? "border-[#0067A1] ring-1 ring-[#0067A1]/20"
               : "border-slate-200/80 hover:border-slate-300"
@@ -607,7 +607,7 @@ export default function ChemistOrdersPage() {
         {/* Stat 4: Revenue */}
         <div
           onClick={() => setActiveTab("all")}
-          className={`p-4 sm:p-5 rounded-xl border bg-white transition-all cursor-pointer shadow-xs ${
+          className={`p-4 sm:p-5 rounded-lg border bg-white transition-all cursor-pointer ${
             activeTab === "all"
               ? "border-[#0067A1] ring-1 ring-[#0067A1]/20"
               : "border-slate-200/80 hover:border-slate-300"
@@ -715,12 +715,12 @@ export default function ChemistOrdersPage() {
           </div>
 
           {broadcastsLoading && broadcasts.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 text-center border border-slate-200 shadow-xs space-y-3">
+            <div className="bg-white rounded-lg p-12 text-center border border-slate-200 space-y-3">
               <Loader2 className="w-6 h-6 text-[#0067A1] animate-spin mx-auto" />
               <p className="text-xs text-slate-500">Checking for patient medicine requests in your area...</p>
             </div>
           ) : broadcasts.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 text-center border border-dashed border-slate-200 shadow-xs space-y-2">
+            <div className="bg-white rounded-lg p-12 text-center border border-dashed border-slate-200 space-y-2">
               <Radio className="w-8 h-8 text-slate-300 mx-auto" />
               <h3 className="text-sm font-semibold text-slate-800">No Patient Requests in Pool</h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -740,7 +740,7 @@ export default function ChemistOrdersPage() {
                 return (
                   <div
                     key={b.id}
-                    className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between"
+                    className="bg-white rounded-lg p-4 sm:p-5 border border-slate-200 hover:border-slate-300 transition-all flex flex-col justify-between"
                   >
                     <div>
                       {/* Header with Urgency Timer */}
@@ -807,7 +807,7 @@ export default function ChemistOrdersPage() {
                             <button
                               type="button"
                               onClick={() => handleOpenQuoteModal(b)}
-                              className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
+                              className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-md text-xs transition-colors cursor-pointer"
                             >
                               Edit Offer
                             </button>
@@ -815,7 +815,7 @@ export default function ChemistOrdersPage() {
                               type="button"
                               disabled={withdrawingQuoteId === b.id}
                               onClick={() => setWithdrawConfirmItem(b)}
-                              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-medium rounded-lg text-xs transition-colors cursor-pointer"
+                              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-medium rounded-md text-xs transition-colors cursor-pointer"
                               title="Withdraw Quote"
                             >
                               Withdraw
@@ -826,7 +826,7 @@ export default function ChemistOrdersPage() {
                         <button
                           type="button"
                           onClick={() => handleOpenQuoteModal(b)}
-                          className="w-full py-2.5 bg-[#0067A1] hover:bg-[#005485] text-white rounded-lg text-xs font-medium transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="w-full py-2.5 bg-[#0067A1] hover:bg-[#005485] text-white rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Pill className="w-3.5 h-3.5" />
                           <span>Create & Submit Quotation</span>
@@ -855,7 +855,7 @@ export default function ChemistOrdersPage() {
           </div>
 
           {verificationQueueOrders.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 text-center border border-dashed border-slate-200 shadow-xs space-y-2">
+            <div className="bg-white rounded-lg p-12 text-center border border-dashed border-slate-200 space-y-2">
               <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
               <h3 className="text-sm font-semibold text-slate-800">Verification Queue is Clear</h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -867,7 +867,7 @@ export default function ChemistOrdersPage() {
               {verificationQueueOrders.map((order) => (
                 <div
                   key={order.id}
-                  className="bg-white rounded-xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col justify-between space-y-4"
+                  className="bg-white rounded-lg p-4 sm:p-5 border border-slate-200 flex flex-col justify-between space-y-4"
                 >
                   <div className="space-y-3">
                     <div className="flex items-start justify-between">
@@ -925,7 +925,7 @@ export default function ChemistOrdersPage() {
                     <button
                       type="button"
                       onClick={() => setRejectModalOrder(order)}
-                      className="flex-1 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
+                      className="flex-1 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium rounded-md text-xs transition-colors cursor-pointer"
                     >
                       Reject Proof
                     </button>
@@ -933,7 +933,7 @@ export default function ChemistOrdersPage() {
                       type="button"
                       disabled={verifyingPayment}
                       onClick={() => handleApprovePayment(order.id)}
-                      className="flex-[1.5] py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-xs transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:bg-slate-300"
+                      className="flex-[1.5] py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-md text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:bg-slate-300"
                     >
                       <Check className="w-3.5 h-3.5" />
                       <span>Verify & Release</span>
@@ -950,7 +950,7 @@ export default function ChemistOrdersPage() {
       {/* TAB 3 & 4: ACTIVE & ALL ORDERS TABLE                                      */}
       {/* ========================================================================= */}
       {["active", "all"].includes(activeTab) && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
           {/* Search & Filter Bar */}
           <div className="p-3.5 sm:p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
             <div className="relative flex-1 max-w-sm">
@@ -1062,7 +1062,7 @@ export default function ChemistOrdersPage() {
                               <button
                                 type="button"
                                 onClick={() => handleAdvanceOrderStatus(order, "packing")}
-                                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
+                                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium rounded-md text-xs transition-colors cursor-pointer"
                               >
                                 Start Packing
                               </button>
@@ -1071,7 +1071,7 @@ export default function ChemistOrdersPage() {
                               <button
                                 type="button"
                                 onClick={() => handleAdvanceOrderStatus(order, "ready_for_dispatch")}
-                                className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
+                                className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 font-medium rounded-md text-xs transition-colors cursor-pointer"
                               >
                                 Ready to Dispatch
                               </button>
@@ -1080,7 +1080,7 @@ export default function ChemistOrdersPage() {
                               <button
                                 type="button"
                                 onClick={() => handleAdvanceOrderStatus(order, "out_for_delivery")}
-                                className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
+                                className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 font-medium rounded-md text-xs transition-colors cursor-pointer"
                               >
                                 Out for Delivery
                               </button>
@@ -1089,7 +1089,7 @@ export default function ChemistOrdersPage() {
                               <button
                                 type="button"
                                 onClick={() => handleAdvanceOrderStatus(order, "delivered")}
-                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-xs transition-colors shadow-xs cursor-pointer"
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-md text-xs transition-colors cursor-pointer"
                               >
                                 Mark Delivered
                               </button>
@@ -1146,7 +1146,7 @@ export default function ChemistOrdersPage() {
       {/* ========================================================================= */}
       {quoteModalBroadcast && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="bg-white w-full h-[100dvh] sm:h-auto sm:max-h-[92vh] sm:max-w-xl sm:rounded-2xl border-0 sm:border border-slate-200 shadow-2xl flex flex-col overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-white w-full h-[100dvh] sm:h-auto sm:max-h-[92vh] sm:max-w-xl sm:rounded-lg border-0 sm:border border-slate-200 flex flex-col overflow-hidden animate-in fade-in duration-200">
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0 bg-white">
               <div className="flex items-center gap-3">
@@ -1161,7 +1161,7 @@ export default function ChemistOrdersPage() {
               <button
                 type="button"
                 onClick={() => setQuoteModalBroadcast(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md cursor-pointer transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1177,7 +1177,7 @@ export default function ChemistOrdersPage() {
                 </div>
                 <div className="space-y-2">
                   {quoteMeds.map((med, idx) => (
-                    <div key={idx} className="p-3 sm:p-3.5 bg-slate-50/70 hover:bg-slate-50 rounded-xl border border-slate-200/70 flex items-center justify-between gap-3 text-xs transition-colors">
+                    <div key={idx} className="p-3 sm:p-3.5 bg-slate-50/70 hover:bg-slate-50 rounded-lg border border-slate-200/70 flex items-center justify-between gap-3 text-xs transition-colors">
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-slate-800 truncate">{med.name}</p>
                         <div className="flex items-center gap-2 mt-0.5 text-slate-500">
@@ -1213,7 +1213,7 @@ export default function ChemistOrdersPage() {
 
               {/* Charges and ETA */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-200/70">
+                <div className="bg-slate-50/60 p-3 rounded-lg border border-slate-200/70">
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">Delivery Fee (₹)</label>
                   <div className="relative">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-xs">₹</span>
@@ -1231,7 +1231,7 @@ export default function ChemistOrdersPage() {
                   </div>
                 </div>
 
-                <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-200/70">
+                <div className="bg-slate-50/60 p-3 rounded-lg border border-slate-200/70">
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">Discount (₹)</label>
                   <div className="relative">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-xs">₹</span>
@@ -1249,7 +1249,7 @@ export default function ChemistOrdersPage() {
                   </div>
                 </div>
 
-                <div className="bg-slate-50/60 p-3 rounded-xl border border-slate-200/70">
+                <div className="bg-slate-50/60 p-3 rounded-lg border border-slate-200/70">
                   <label className="text-[11px] font-semibold text-slate-600 block mb-1">Delivery ETA (Mins)</label>
                   <input
                     type="number"
@@ -1262,7 +1262,7 @@ export default function ChemistOrdersPage() {
               </div>
 
               {/* Total Net Calculation */}
-              <div className="p-3.5 sm:p-4 bg-gradient-to-r from-sky-50/80 via-slate-50/70 to-blue-50/80 rounded-xl border border-sky-100 flex items-center justify-between">
+              <div className="p-3.5 sm:p-4 bg-gradient-to-r from-sky-50/80 via-slate-50/70 to-blue-50/80 rounded-lg border border-sky-100 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-slate-800 block">Total Net Amount to Patient:</span>
                   <span className="text-[11px] text-slate-500 font-medium">
@@ -1288,7 +1288,7 @@ export default function ChemistOrdersPage() {
                 type="button"
                 disabled={submittingQuote || netAmount <= 0}
                 onClick={handleSubmitDetailedQuote}
-                className="flex-[1.5] py-2.5 bg-[#0067A1] hover:bg-[#005485] text-white font-semibold rounded-lg text-xs sm:text-sm transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:bg-slate-300 disabled:cursor-not-allowed"
+                className="flex-[1.5] py-2.5 bg-[#0067A1] hover:bg-[#005485] text-white font-semibold rounded-lg text-xs sm:text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:bg-slate-300 disabled:cursor-not-allowed"
               >
                 {submittingQuote ? (
                   <>
@@ -1312,7 +1312,7 @@ export default function ChemistOrdersPage() {
       {/* ========================================================================= */}
       {proofModalOrder && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-2xl w-full border border-slate-200 shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-lg max-w-2xl w-full border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
             {/* Header */}
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
               <div>
@@ -1329,7 +1329,7 @@ export default function ChemistOrdersPage() {
                 <button
                   type="button"
                   onClick={() => setZoomLevel((z) => Math.min(3, z + 0.25))}
-                  className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
+                  className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md cursor-pointer"
                   title="Zoom In"
                 >
                   <ZoomIn className="w-4 h-4" />
@@ -1337,7 +1337,7 @@ export default function ChemistOrdersPage() {
                 <button
                   type="button"
                   onClick={() => setZoomLevel((z) => Math.max(0.75, z - 0.25))}
-                  className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
+                  className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md cursor-pointer"
                   title="Zoom Out"
                 >
                   <ZoomOut className="w-4 h-4" />
@@ -1345,7 +1345,7 @@ export default function ChemistOrdersPage() {
                 <button
                   type="button"
                   onClick={() => setZoomLevel(1)}
-                  className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
+                  className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md cursor-pointer"
                   title="Reset Zoom"
                 >
                   <RotateCcw className="w-4 h-4" />
@@ -1353,7 +1353,7 @@ export default function ChemistOrdersPage() {
                 <button
                   type="button"
                   onClick={() => setProofModalOrder(null)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-md cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1375,7 +1375,7 @@ export default function ChemistOrdersPage() {
               <button
                 type="button"
                 onClick={() => setRejectModalOrder(proofModalOrder)}
-                className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
+                className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-medium rounded-md text-xs transition-colors cursor-pointer"
               >
                 Reject Proof
               </button>
@@ -1384,7 +1384,7 @@ export default function ChemistOrdersPage() {
                 <button
                   type="button"
                   onClick={() => setProofModalOrder(null)}
-                  className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg text-xs transition-colors cursor-pointer"
+                  className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-md text-xs transition-colors cursor-pointer"
                 >
                   Close
                 </button>
@@ -1392,7 +1392,7 @@ export default function ChemistOrdersPage() {
                   type="button"
                   disabled={verifyingPayment}
                   onClick={() => handleApprovePayment(proofModalOrder.id)}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-xs transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer disabled:bg-slate-300"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-md text-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:bg-slate-300"
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>Verify Payment & Release</span>
@@ -1408,7 +1408,7 @@ export default function ChemistOrdersPage() {
       {/* ========================================================================= */}
       {rejectModalOrder && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl p-5 sm:p-6 max-w-md w-full border border-slate-200 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-lg p-5 sm:p-6 max-w-md w-full border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <h3 className="font-semibold text-slate-900 text-sm">Reject Payment Proof</h3>
               <button type="button" onClick={() => setRejectModalOrder(null)} className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer">
@@ -1470,7 +1470,7 @@ export default function ChemistOrdersPage() {
                 type="button"
                 disabled={rejectingPayment}
                 onClick={handleRejectPayment}
-                className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-lg text-xs transition-colors shadow-xs cursor-pointer disabled:bg-slate-300"
+                className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-md text-xs transition-colors cursor-pointer disabled:bg-slate-300"
               >
                 {rejectingPayment ? "Rejecting..." : "Confirm Rejection"}
               </button>
@@ -1484,8 +1484,8 @@ export default function ChemistOrdersPage() {
       {/* ========================================================================= */}
       {withdrawConfirmItem && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[70] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm sm:max-w-md w-full p-5 sm:p-6 border border-slate-200 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-xs">
+          <div className="bg-white rounded-lg max-w-sm sm:max-w-md w-full p-5 sm:p-6 border border-slate-200 text-center space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-12 h-12 rounded-lg bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
 
@@ -1504,7 +1504,7 @@ export default function ChemistOrdersPage() {
               <button
                 type="button"
                 onClick={() => setWithdrawConfirmItem(null)}
-                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors cursor-pointer"
+                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-md text-xs transition-colors cursor-pointer"
               >
                 Cancel
               </button>
@@ -1517,7 +1517,7 @@ export default function ChemistOrdersPage() {
                   setWithdrawConfirmItem(null);
                   await handleWithdrawQuote(bId, qId);
                 }}
-                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg text-xs transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:bg-rose-300"
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-md text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:bg-rose-300"
               >
                 {withdrawingQuoteId === withdrawConfirmItem.id ? (
                   <>

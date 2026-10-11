@@ -251,6 +251,11 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
       icon: <Settings />,
       path: `/admin/settings`,
     },
+    {
+      name: "Patient View",
+      icon: <Heart />,
+      path: `/dashboard`,
+    },
   ];
 
   const handleLogout = (role) => {

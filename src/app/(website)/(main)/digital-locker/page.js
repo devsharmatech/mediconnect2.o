@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   FaCloudUploadAlt,
   FaFileAlt,
@@ -13,8 +14,18 @@ import {
   FaShareAlt,
   FaUserMd,
   FaTrash,
+  FaFilePdf,
+  FaFileImage,
+  FaEye,
+  FaEdit,
+  FaSearchPlus,
+  FaSearchMinus,
+  FaRedo,
+  FaTimes,
+  FaCheckCircle,
 } from "react-icons/fa";
 import { LoadingScreen } from "@/components/public-site/ui/LoadingStates";
+import PdfJsViewer from "@/components/public-site/ui/PdfJsViewer";
 
 const DOCUMENT_TYPES = [
   { value: "prescription", label: "Prescription" },
@@ -97,8 +108,24 @@ export default function DigitalLockerPage() {
   const [shares, setShares] = useState([]);
   const [activeTab, setActiveTab] = useState("documents"); // "documents" or "sharing"
   const [viewingDoc, setViewingDoc] = useState(null);
+  const [imageZoom, setImageZoom] = useState(1);
   const [deletingDoc, setDeletingDoc] = useState(null);
   const [deletingLoading, setDeletingLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (viewingDoc) {
+      const orig = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = orig;
+      };
+    }
+  }, [viewingDoc]);
 
   const handleDeleteDocument = async (docId) => {
     if (!docId || !userId) return;
@@ -814,7 +841,7 @@ export default function DigitalLockerPage() {
         <button
           type="button"
           onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#0067A1] text-white text-sm font-semibold hover:bg-[#004F7C] transition-colors shrink-0 w-full sm:w-auto"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#0067A1] text-white text-sm font-semibold hover:bg-[#004F7C] shadow-sm hover:shadow transition-all shrink-0 w-full sm:w-auto cursor-pointer"
         >
           <FaCloudUploadAlt className="w-4 h-4" />
           Add Document
@@ -1011,81 +1038,128 @@ export default function DigitalLockerPage() {
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {documents.map((doc) => (
-                <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3.5 hover:bg-slate-50 transition-colors">
-                  {/* Doc icon */}
-                  <div className="w-9 h-9 rounded-lg bg-[#0067A1]/8 border border-[#0067A1]/10 flex items-center justify-center shrink-0">
-                    <FaFileAlt className="w-4 h-4 text-[#0067A1]" />
-                  </div>
+              {documents.map((doc) => {
+                const isDocImage = Boolean(
+                  doc.mime_type?.startsWith("image/") ||
+                  doc.document_url?.match(/\.(jpeg|jpg|png|webp|gif|bmp)(\?.*)?$/i)
+                );
+                const isDocPdf = Boolean(
+                  doc.mime_type?.includes("pdf") ||
+                  doc.document_url?.toLowerCase().includes(".pdf") ||
+                  doc.document_url?.startsWith("/api/prescriptions/")
+                );
 
-                  {/* Doc info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{doc.document_name}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      <span className="capitalize">{doc.document_type}</span>
-                      <span className="mx-1.5">·</span>
-                      {formatBytes(doc.file_size)}
-                      <span className="mx-1.5">·</span>
-                      {formatDate(doc.upload_date || doc.created_at)}
-                    </p>
-                    {doc.description && (
-                      <p className="text-xs text-slate-500 mt-1 line-clamp-1">{doc.description}</p>
-                    )}
-                  </div>
+                return (
+                  <div
+                    key={doc.id}
+                    className="flex flex-col md:flex-row md:items-center justify-between gap-3.5 px-4 sm:px-5 py-4 hover:bg-slate-50/80 transition-colors"
+                  >
+                    {/* Doc Icon & Information */}
+                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border shadow-2xs ${
+                        isDocPdf
+                          ? "bg-rose-50 text-rose-600 border-rose-200/80"
+                          : isDocImage
+                          ? "bg-purple-50 text-purple-600 border-purple-200/80"
+                          : "bg-sky-50 text-[#0067A1] border-sky-200/80"
+                      }`}>
+                        {isDocPdf ? (
+                          <FaFilePdf className="w-5 h-5" />
+                        ) : isDocImage ? (
+                          <FaFileImage className="w-5 h-5" />
+                        ) : (
+                          <FaFileAlt className="w-5 h-5" />
+                        )}
+                      </div>
 
-                  {/* Actions */}
-                  <div className="flex flex-wrap gap-2 shrink-0">
-                    <button
-                      type="button"
-                      disabled={loadingEditDoc === doc.id}
-                      onClick={() => handleEditRequest(doc)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50 transition-colors"
-                    >
-                      {loadingEditDoc === doc.id ? (
-                        <div className="w-3 h-3 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
-                      ) : (
-                        <FaFileAlt className="w-3 h-3" />
-                      )}
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setSharingDoc(doc); setShowShareModal(true); setShareError(""); setShareSuccess(""); setShareConsent(false); }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-blue-200 text-xs font-medium text-[#0067A1] hover:bg-blue-50 transition-colors"
-                    >
-                      <FaShareAlt className="w-3 h-3" />
-                      Share
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setViewingDoc(doc); logAction(doc.id, "viewed"); }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-                    >
-                      <FaExternalLinkAlt className="w-3 h-3" />
-                      View
-                    </button>
-                    <a
-                      href={doc.document_url}
-                      download={doc.document_name || "document"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => logAction(doc.id, "downloaded")}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#0067A1] text-white text-xs font-medium hover:bg-[#004F7C] transition-colors"
-                    >
-                      <FaDownload className="w-3 h-3" />
-                      Download
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => setDeletingDoc(doc)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-red-200 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors"
-                    >
-                      <FaTrash className="w-3 h-3" />
-                      Delete
-                    </button>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <p className="text-sm font-bold text-slate-900 leading-snug break-words">
+                            {doc.document_name}
+                          </p>
+                          {doc.is_verified && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full shrink-0">
+                              <FaShieldAlt className="w-2.5 h-2.5 text-emerald-600" />
+                              Verified
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200/60 uppercase tracking-wider">
+                            {doc.document_type?.replace(/_/g, " ")}
+                          </span>
+                          <span className="text-slate-300">•</span>
+                          <span className="font-medium text-slate-600">{formatBytes(doc.file_size)}</span>
+                          <span className="text-slate-300">•</span>
+                          <span>{formatDate(doc.upload_date || doc.created_at)}</span>
+                        </div>
+
+                        {doc.description && (
+                          <p className="text-xs text-slate-500 mt-1 line-clamp-1 italic">
+                            {doc.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Responsive Action Buttons */}
+                    <div className="flex items-center gap-2 shrink-0 self-end md:self-center flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => { setViewingDoc(doc); setImageZoom(1); logAction(doc.id, "viewed"); }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0067A1] text-white hover:bg-[#005282] text-xs font-semibold transition-all shadow-xs hover:shadow-sm cursor-pointer"
+                      >
+                        <FaEye className="w-3.5 h-3.5" />
+                        <span>View</span>
+                      </button>
+
+                      <a
+                        href={doc.document_url}
+                        download={doc.document_name || "document"}
+                        onClick={() => logAction(doc.id, "downloaded")}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-all shadow-xs hover:shadow-sm cursor-pointer"
+                      >
+                        <FaDownload className="w-3 h-3 text-[#0067A1]" />
+                        <span>Download</span>
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={() => { setSharingDoc(doc); setShowShareModal(true); setShareError(""); setShareSuccess(""); setShareConsent(false); }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-[#0067A1]/40 hover:text-[#0067A1] hover:bg-slate-50 text-xs font-semibold transition-all shadow-xs hover:shadow-sm cursor-pointer"
+                        title="Share with Doctor"
+                      >
+                        <FaShareAlt className="w-3 h-3" />
+                        <span className="hidden lg:inline">Share</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={loadingEditDoc === doc.id}
+                        onClick={() => handleEditRequest(doc)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-xs font-semibold shadow-xs hover:shadow-sm disabled:opacity-50 transition-all cursor-pointer"
+                        title="Edit metadata"
+                      >
+                        {loadingEditDoc === doc.id ? (
+                          <div className="w-3 h-3 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                        ) : (
+                          <FaEdit className="w-3 h-3" />
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setDeletingDoc(doc)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-rose-200 bg-white text-rose-600 hover:bg-rose-50 text-xs font-semibold shadow-xs hover:shadow-sm transition-all cursor-pointer"
+                        title="Delete Document"
+                      >
+                        <FaTrash className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1265,46 +1339,156 @@ export default function DigitalLockerPage() {
         </div>
       )}
 
-      {/* Document View Preview Modal */}
-      {viewingDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <FaFileAlt className="w-5 h-5 text-[#0067A1]" />
-                <div>
-                  <h3 className="font-bold text-gray-900 text-base">{viewingDoc.document_name}</h3>
-                  <p className="text-xs text-gray-500">{viewingDoc.document_type} · {formatBytes(viewingDoc.file_size)}</p>
+      {/* In-App Document & Report Viewer Modal (PDF Reader & Image Viewer, NO New Tab) */}
+      {viewingDoc && (() => {
+        const isDocImage = Boolean(
+          viewingDoc.mime_type?.startsWith("image/") ||
+          viewingDoc.document_url?.match(/\.(jpeg|jpg|png|webp|gif|bmp)(\?.*)?$/i)
+        );
+        const isDocPdf = Boolean(
+          viewingDoc.mime_type?.includes("pdf") ||
+          viewingDoc.document_url?.toLowerCase().includes(".pdf") ||
+          viewingDoc.document_url?.startsWith("/api/prescriptions/")
+        );
+
+        if (!mounted || typeof document === "undefined") return null;
+
+        return createPortal(
+          <div
+            className="fixed inset-0 z-[99999] bg-white sm:bg-slate-950/80 sm:backdrop-blur-xs flex flex-col sm:items-center sm:justify-center p-0 sm:p-4 md:p-6 overflow-hidden"
+            style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999 }}
+          >
+            {/* Desktop backdrop click */}
+            <div
+              className="hidden sm:block absolute inset-0 bg-transparent"
+              onClick={() => setViewingDoc(null)}
+            />
+            <div className="relative w-full h-full flex-1 sm:flex-initial sm:h-[88vh] sm:max-h-[88vh] sm:max-w-5xl bg-white rounded-none sm:rounded-xl shadow-none sm:shadow-2xl border-0 sm:border sm:border-slate-200 overflow-hidden flex flex-col z-10">
+              {/* Modal Header */}
+              <div className="px-3.5 sm:px-5 py-2.5 sm:py-3 bg-white border-b border-slate-200 flex items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                  <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0 border ${
+                    isDocPdf
+                      ? "bg-rose-50 text-rose-600 border-rose-200"
+                      : isDocImage
+                      ? "bg-purple-50 text-purple-600 border-purple-200"
+                      : "bg-sky-50 text-[#0067A1] border-sky-200"
+                  }`}>
+                    {isDocPdf ? <FaFilePdf className="w-4 h-4" /> : isDocImage ? <FaFileImage className="w-4 h-4" /> : <FaFileAlt className="w-4 h-4" />}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-slate-900 text-xs sm:text-base leading-snug truncate max-w-[200px] xs:max-w-[280px] sm:max-w-md">
+                      {viewingDoc.document_name}
+                    </h3>
+                    <p className="text-[11px] sm:text-xs text-slate-500 flex items-center gap-1.5 mt-0.5 truncate">
+                      <span className="capitalize font-semibold truncate">{viewingDoc.document_type?.replace(/_/g, " ")}</span>
+                      <span>•</span>
+                      <span>{formatBytes(viewingDoc.file_size)}</span>
+                      <span className="hidden xs:inline sm:inline">•</span>
+                      <span className="hidden xs:inline sm:inline font-mono uppercase text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-semibold border border-slate-200/60">
+                        {isDocPdf ? "PDF Document" : isDocImage ? "Medical Image" : "Document"}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  {isDocImage && (
+                    <a
+                      href={viewingDoc.document_url}
+                      download={viewingDoc.document_name || "document"}
+                      onClick={() => logAction(viewingDoc.id, "downloaded")}
+                      className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs hover:shadow-sm transition-all cursor-pointer"
+                    >
+                      <FaDownload className="w-3 h-3 text-[#0067A1]" />
+                      <span className="hidden sm:inline">Download</span>
+                    </a>
+                  )}
+                  <button
+                    onClick={() => setViewingDoc(null)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                    title="Close preview"
+                  >
+                    <FaTimes className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-              <button onClick={() => setViewingDoc(null)} className="text-gray-400 hover:text-gray-700 text-lg font-bold">✕</button>
-            </div>
-            <div className="flex-1 bg-gray-100 p-4 overflow-auto flex items-center justify-center min-h-[400px]">
-              {viewingDoc.document_url?.match(/\.(jpeg|jpg|png|webp|gif)/i) ? (
-                <img src={viewingDoc.document_url} alt={viewingDoc.document_name} className="max-w-full max-h-[70vh] object-contain rounded-xl shadow" />
-              ) : (
-                <object
-                  data={viewingDoc.document_url}
-                  type="application/pdf"
-                  className="w-full h-[65vh] rounded-xl border-none"
+
+              {/* Modal Viewer Body */}
+              <div className="flex-1 overflow-hidden flex flex-col relative min-h-0 bg-slate-100">
+                {isDocImage ? (
+                  <div className="w-full h-full flex items-center justify-center overflow-auto p-4 relative select-none bg-slate-900">
+                    {/* Image Zoom Toolbar */}
+                    <div className="absolute top-3 right-3 flex items-center gap-1 bg-slate-800/90 backdrop-blur-sm border border-slate-700 rounded-lg p-1 z-10 shadow-lg">
+                      <button
+                        onClick={() => setImageZoom((z) => Math.max(0.5, z - 0.25))}
+                        className="w-7 h-7 rounded-md text-slate-300 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                        title="Zoom Out"
+                      >
+                        <FaSearchMinus className="w-3 h-3" />
+                      </button>
+                      <span className="text-[11px] font-mono text-slate-300 px-1 font-bold">{Math.round(imageZoom * 100)}%</span>
+                      <button
+                        onClick={() => setImageZoom((z) => Math.min(3, z + 0.25))}
+                        className="w-7 h-7 rounded-md text-slate-300 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                        title="Zoom In"
+                      >
+                        <FaSearchPlus className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => setImageZoom(1)}
+                        className="w-7 h-7 rounded-md text-slate-300 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+                        title="Reset Zoom"
+                      >
+                        <FaRedo className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                    <img
+                      src={viewingDoc.document_url}
+                      alt={viewingDoc.document_name}
+                      className="max-w-full max-h-full object-contain transition-transform duration-150 rounded-lg shadow-2xl"
+                      style={{ transform: `scale(${imageZoom})` }}
+                    />
+                  </div>
+                ) : isDocPdf ? (
+                  <div className="w-full h-full flex flex-col overflow-hidden bg-slate-100">
+                    <PdfJsViewer
+                      url={viewingDoc.document_url}
+                      fileName={viewingDoc.document_name}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex flex-col overflow-hidden bg-white">
+                    <iframe
+                      src={viewingDoc.document_url}
+                      title={viewingDoc.document_name}
+                      className="w-full h-full border-0 bg-white"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-3.5 sm:px-5 py-2.5 sm:py-3 bg-white border-t border-slate-200 flex items-center justify-between text-xs shrink-0 mt-auto pb-[max(0.625rem,env(safe-area-inset-bottom))]">
+                <div className="flex items-center gap-1.5 text-emerald-700 font-semibold truncate mr-2">
+                  <FaShieldAlt className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="truncate text-[11px] sm:text-xs">
+                    Verified Medical Record · MediConnect Digital Locker
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingDoc(null)}
+                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold shadow-xs hover:shadow-sm transition-colors cursor-pointer shrink-0"
                 >
-                  <iframe
-                    src={`https://docs.google.com/gview?url=${encodeURIComponent(viewingDoc.document_url)}&embedded=true`}
-                    title={viewingDoc.document_name}
-                    className="w-full h-[65vh] rounded-xl border-none"
-                  />
-                </object>
-              )}
+                  Close
+                </button>
+              </div>
             </div>
-            <div className="px-6 py-3 bg-white border-t border-gray-100 flex justify-between items-center">
-              <a href={viewingDoc.document_url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-[#0067A1] hover:underline flex items-center gap-1">
-                <FaExternalLinkAlt className="w-3 h-3" /> Open in New Tab
-              </a>
-              <button onClick={() => setViewingDoc(null)} className="px-5 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200">Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        );
+      })()}
 
       {/* Document Delete Confirmation Modal */}
       {deletingDoc && (
@@ -1338,36 +1522,9 @@ export default function DigitalLockerPage() {
       {/* Note */}
       <div className="text-xs text-gray-500 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 border-t border-gray-100">
         <span>
-          Documents are stored in your Digital Locker for easy access. If you need
+          Documents are securely encrypted and stored in your Digital Locker for instant access. If you need
           help, contact support at info@mediconnect.fit.
         </span>
-        {process.env.NODE_ENV === "development" && (
-          <button
-            type="button"
-            onClick={async () => {
-              if (!confirm("Reset email verification for testing? This will lock your locker again.")) return;
-              try {
-                const res = await fetch("/api/digital-locker/test", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ user_id: userId, test_type: "cleanup_unlock_test" }),
-                });
-                const data = await res.json();
-                if (data.success) {
-                  alert("State cleaned up successfully! Locker is now locked for this user. Page will reload.");
-                  window.location.reload();
-                } else {
-                  alert("Failed to reset: " + data.message);
-                }
-              } catch (e) {
-                alert("Error: " + e.message);
-              }
-            }}
-            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 rounded-lg text-[10px] font-bold transition-all shrink-0 w-fit"
-          >
-            Reset Verification (Test Mode)
-          </button>
-        )}
       </div>
     </div>
   );

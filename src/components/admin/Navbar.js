@@ -12,6 +12,7 @@ import {
   Menu,
   Trash2,
   X,
+  Heart,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -261,7 +262,7 @@ export default function Navbar({ onMenuClick, sidebarOpen }) {
     } else if (text.includes("chemist") || text.includes("pharmacy")) {
       router.push("/admin/chemists");
     } else {
-      router.push("/admin");
+      router.push("/admin/dashboard");
     }
   };
 
@@ -316,16 +317,26 @@ export default function Navbar({ onMenuClick, sidebarOpen }) {
               </button>
 
               {notificationsOpen && (
-                <div className="absolute right-0 top-12 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50">
-                  <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                    <h3 className="font-semibold text-gray-800 dark:text-gray-200">
-                      Notifications
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {unreadCount} unread
-                    </p>
+                <div className="fixed inset-0 w-full h-[100dvh] max-w-none max-h-none rounded-none border-none z-[100] bg-white dark:bg-gray-800 flex flex-col sm:absolute sm:inset-auto sm:right-0 sm:top-12 sm:w-80 sm:h-auto sm:rounded-xl sm:shadow-2xl sm:border sm:border-gray-200 dark:sm:border-gray-700 sm:z-50 overflow-hidden">
+                  <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between shrink-0">
+                    <div>
+                      <h3 className="font-semibold text-gray-800 dark:text-gray-200">
+                        Notifications
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {unreadCount} unread
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setNotificationsOpen(false)}
+                      className="p-1 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                      title="Close"
+                      aria-label="Close notifications"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
-                  <div className="max-h-96 overflow-y-auto">
+                  <div className="flex-1 sm:max-h-96 overflow-y-auto">
                     {notifications.length > 0 ? notifications.slice(0, 10).map((notification) => (
                       <div
                         key={notification.id}
@@ -353,7 +364,7 @@ export default function Navbar({ onMenuClick, sidebarOpen }) {
                       </div>
                     )}
                   </div>
-                  <div className="p-2">
+                  <div className="p-2 pb-safe sm:pb-2 border-t border-gray-100 dark:border-gray-700 shrink-0">
                     <button onClick={() => { setNotificationsOpen(false); setAllNotificationsOpen(true); }} className="w-full text-center py-2 text-sm text-[#0067A1] dark:text-[#0080C6] font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 scrollbar-hide rounded-lg transition-colors cursor-pointer">
                       View All Notifications
                     </button>
@@ -408,6 +419,12 @@ export default function Navbar({ onMenuClick, sidebarOpen }) {
                       <Settings size={18} />
                       <span className="text-sm text-gray-700 dark:text-gray-300">
                         Settings
+                      </span>
+                    </Link>
+                    <Link href="/dashboard" className="flex items-center space-x-3 w-full p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer">
+                      <Heart size={18} className="text-pink-500" />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                        Patient View
                       </span>
                     </Link>
                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>

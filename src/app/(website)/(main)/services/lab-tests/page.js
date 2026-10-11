@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, Suspense, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   FaFlask,
@@ -23,6 +23,8 @@ import {
   FaTint,
   FaBolt,
   FaMicroscope,
+  FaChevronLeft,
+  FaChevronRight,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import Link from "next/link";
@@ -119,6 +121,93 @@ function PublicLabsContent() {
   // Geolocation state
   const [userLocation, setUserLocation] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
+
+  // Quick Search Horizontal Scroll State & Handlers
+  const quickSearchRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const isDraggingRef = useRef(false);
+
+  const checkQuickScroll = useCallback(() => {
+    const el = quickSearchRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setCanScrollLeft(scrollLeft > 6);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 10);
+  }, []);
+
+  useEffect(() => {
+    const el = quickSearchRef.current;
+    if (!el) return;
+    checkQuickScroll();
+    const handleResize = () => checkQuickScroll();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [checkQuickScroll]);
+
+  // Convert vertical mouse wheel into horizontal scroll when hovering Quick Search pills
+  useEffect(() => {
+    const el = quickSearchRef.current;
+    if (!el) return;
+    const handleWheel = (e) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && el.scrollWidth > el.clientWidth) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+        checkQuickScroll();
+      }
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [checkQuickScroll]);
+
+  // Mouse Drag-to-Scroll support
+  useEffect(() => {
+    const el = quickSearchRef.current;
+    if (!el) return;
+    let isDown = false;
+    let startX = 0;
+    let scrollStart = 0;
+
+    const onMouseDown = (e) => {
+      // Don't drag if clicking buttons directly with intent
+      isDown = true;
+      isDraggingRef.current = false;
+      startX = e.pageX - el.offsetLeft;
+      scrollStart = el.scrollLeft;
+    };
+    const onMouseMove = (e) => {
+      if (!isDown) return;
+      const x = e.pageX - el.offsetLeft;
+      const walk = (x - startX) * 1.5;
+      if (Math.abs(walk) > 4) {
+        isDraggingRef.current = true;
+      }
+      el.scrollLeft = scrollStart - walk;
+      checkQuickScroll();
+    };
+    const onMouseUp = () => {
+      isDown = false;
+      setTimeout(() => {
+        isDraggingRef.current = false;
+      }, 50);
+    };
+    el.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      el.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [checkQuickScroll]);
+
+  const scrollQuickSearch = (direction) => {
+    const el = quickSearchRef.current;
+    if (!el) return;
+    const distance = 240;
+    el.scrollBy({ left: direction === "left" ? -distance : distance, behavior: "smooth" });
+    setTimeout(checkQuickScroll, 320);
+  };
 
   useEffect(() => {
     fetchLabs();
@@ -433,10 +522,32 @@ function PublicLabsContent() {
             </form>
           </div>
 
-          {/* QUICK TAP TEST CATEGORY PILLS (Designed specifically for non-tech users) */}
-          <div className="mt-2.5 max-w-4xl mx-auto">
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 hidden sm:inline">
+          {/* QUICK TAP TEST CATEGORY PILLS (With Scroll Arrows, Wheel & Drag Scroll) */}
+          <div className="mt-2.5 max-w-4xl mx-auto relative group">
+            {/* Left Chevron Button */}
+            {canScrollLeft && (
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10 flex items-center">
+                <div className="w-9 h-full bg-gradient-to-r from-slate-50 via-slate-50/90 to-transparent pointer-events-none absolute -left-1 inset-y-0" />
+                <button
+                  type="button"
+                  onClick={() => scrollQuickSearch("left")}
+                  aria-label="Scroll left"
+                  title="Scroll Left"
+                  className="w-7 h-7 rounded-full bg-white shadow-md border border-slate-200 text-slate-700 hover:text-[#0067A1] hover:bg-slate-50 flex items-center justify-center transition-all cursor-pointer z-10 relative"
+                >
+                  <FaChevronLeft className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Quick Search Scroll Container */}
+            <div
+              ref={quickSearchRef}
+              onScroll={checkQuickScroll}
+              className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 scroll-smooth select-none cursor-grab active:cursor-grabbing no-scrollbar text-xs px-1"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 hidden sm:inline select-none">
                 Quick Search:
               </span>
               {POPULAR_QUICK_TESTS.map((test) => {
@@ -446,16 +557,19 @@ function PublicLabsContent() {
                   <button
                     key={test.label}
                     type="button"
-                    onClick={() => handleQuickFilter(test.query)}
-                    className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs transition-all cursor-pointer ${
+                    onClick={() => {
+                      if (isDraggingRef.current) return;
+                      handleQuickFilter(test.query);
+                    }}
+                    className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] sm:text-xs transition-all cursor-pointer whitespace-nowrap select-none ${
                       isActive
-                        ? "bg-[#0067A1] text-white font-bold shadow-xs"
-                        : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200 font-medium shadow-2xs"
+                        ? "bg-[#0067A1] text-white font-bold shadow-xs hover:bg-[#005B8E]"
+                        : "bg-white text-slate-700 hover:bg-slate-100 hover:border-slate-300 border border-slate-200 font-medium shadow-2xs"
                     }`}
                   >
                     {IconComponent && (
                       <IconComponent
-                        className={`w-3 h-3 ${isActive ? "text-white" : test.iconColor}`}
+                        className={`w-3 h-3 shrink-0 ${isActive ? "text-white" : test.iconColor}`}
                       />
                     )}
                     <span>{test.label}</span>
@@ -463,6 +577,22 @@ function PublicLabsContent() {
                 );
               })}
             </div>
+
+            {/* Right Chevron Button */}
+            {canScrollRight && (
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex items-center">
+                <div className="w-9 h-full bg-gradient-to-l from-slate-50 via-slate-50/90 to-transparent pointer-events-none absolute -right-1 inset-y-0" />
+                <button
+                  type="button"
+                  onClick={() => scrollQuickSearch("right")}
+                  aria-label="Scroll right"
+                  title="Scroll Right"
+                  className="w-7 h-7 rounded-full bg-white shadow-md border border-slate-200 text-slate-700 hover:text-[#0067A1] hover:bg-slate-50 flex items-center justify-center transition-all cursor-pointer z-10 relative"
+                >
+                  <FaChevronRight className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </section>

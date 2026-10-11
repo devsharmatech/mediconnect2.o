@@ -41,13 +41,32 @@ async function handleFetchProfile(userId, req) {
   }
 
   // 🧩 Fetch role details
-  const [details] = await sql.unsafe(
-    `SELECT * FROM ${table} WHERE id = $1 LIMIT 1`,
-    [user.id]
-  );
+  let details = null;
+  try {
+    const [fetched] = await sql.unsafe(
+      `SELECT * FROM ${table} WHERE id = $1 LIMIT 1`,
+      [user.id]
+    );
+    details = fetched || null;
+  } catch (err) {
+    console.warn("Could not query role table:", table, err.message);
+  }
 
   if (!details) {
-    return failure("Profile details not found.", null, 404, { headers: corsHeaders });
+    details = {
+      id: user.id,
+      full_name:
+        user.role === "doctor"
+          ? "Doctor"
+          : user.role === "chemist"
+          ? "Pharmacist"
+          : user.role === "lab"
+          ? "Diagnostic Lab"
+          : user.role === "admin"
+          ? "Administrator"
+          : "User",
+      role: user.role,
+    };
   }
 
   let cleanPic = user.profile_picture;

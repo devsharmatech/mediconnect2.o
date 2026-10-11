@@ -1,28 +1,11 @@
 /**
- * LAYER-111: Idempotency Service
+ * LAYER-111: Idempotency Service (AWS RDS PostgreSQL)
  * 
- * Uses a direct REST call to the Supabase RPC endpoint to bypass PostgREST
- * schema cache issues that occur after new tables/functions are created.
+ * Ensures exactly-once execution of critical write operations via AWS RDS PostgreSQL functions.
+ * 100% Direct AWS RDS PostgreSQL.
  */
 
-import { supabase } from '../supabaseAdmin';
-
-/**
- * Calls a Supabase RPC function.
- * @private
- */
-async function callRpc(functionName, params) {
-  try {
-    const { data, error } = await supabase.rpc(functionName, params);
-    if (error) {
-      return { data: null, error: { message: error.message || String(error) } };
-    }
-    return { data, error: null };
-  } catch (err) {
-    return { data: null, error: { message: err.message } };
-  }
-}
-
+import sql from "@/lib/db";
 
 /**
  * Ensures exactly-once execution of critical write operations.
@@ -33,17 +16,15 @@ export async function acquireIdempotencyLock(idempotencyKey, apiPath, careEpisod
   }
 
   try {
-    const { data, error } = await callRpc("acquire_idempotency_lock", {
-      p_key: idempotencyKey,
-      p_api_path: apiPath,
-      p_care_episode_id: careEpisodeId
-    });
+    const rows = await sql`
+      SELECT * FROM acquire_idempotency_lock(
+        ${idempotencyKey},
+        ${apiPath},
+        ${careEpisodeId}
+      )
+    `;
 
-    if (error) {
-      return { error: "Failed to acquire lock. " + error.message };
-    }
-
-    const row = Array.isArray(data) ? data[0] : data;
+    const row = rows[0];
     if (!row) {
       return { error: "Failed to acquire lock. No response from database." };
     }
@@ -64,6 +45,7 @@ export async function acquireIdempotencyLock(idempotencyKey, apiPath, careEpisod
     return { isLocked: true, isDuplicate: false };
 
   } catch (err) {
+    console.error("[idempotencyService] acquireIdempotencyLock error:", err);
     return { error: err.message };
   }
 }
@@ -73,12 +55,14 @@ export async function acquireIdempotencyLock(idempotencyKey, apiPath, careEpisod
  */
 export async function releaseIdempotencyLock(idempotencyKey, responseBody, responseStatus = 200, status = "COMPLETED") {
   try {
-    await callRpc("release_idempotency_lock", {
-      p_key: idempotencyKey,
-      p_response_body: responseBody,
-      p_response_status: responseStatus,
-      p_status: status
-    });
+    await sql`
+      SELECT * FROM release_idempotency_lock(
+        ${idempotencyKey},
+        ${JSON.stringify(responseBody)}::jsonb,
+        ${responseStatus},
+        ${status}
+      )
+    `;
   } catch (err) {
     console.error("[idempotencyService] releaseIdempotencyLock failed:", err.message);
   }

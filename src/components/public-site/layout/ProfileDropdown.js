@@ -14,6 +14,7 @@ import {
   FaVideo,
   FaUsers,
   FaCheckCircle,
+  FaFolderOpen,
 } from "react-icons/fa";
 import { TbLungsFilled } from "react-icons/tb";
 
@@ -47,11 +48,15 @@ const ProfileDropdown = ({ user, userRole, onLogout, className = "" }) => {
     onLogout?.();
   };
 
-  const isPatient = userRole === "patient" || user?.role === "patient";
-  const isDoctor = !isPatient && (userRole === "doctor" || user?.role === "doctor");
-  const isChemist = !isPatient && (userRole === "chemist" || user?.role === "chemist");
-  const isLab = !isPatient && (userRole === "lab" || user?.role === "lab");
-  const isAdmin = !isPatient && !isDoctor && (userRole === "admin" || user?.role === "admin");
+  const hasDoctor = userRole === "doctor" || user?.role === "doctor" || (typeof window !== "undefined" && !!localStorage.getItem("doctorUser"));
+  const hasChemist = userRole === "chemist" || user?.role === "chemist" || (typeof window !== "undefined" && !!localStorage.getItem("chemistUser"));
+  const hasLab = userRole === "lab" || user?.role === "lab" || (typeof window !== "undefined" && !!localStorage.getItem("labUser"));
+  const hasAdmin = userRole === "admin" || user?.role === "admin" || (typeof window !== "undefined" && !!localStorage.getItem("adminUser"));
+  const isDoctor = hasDoctor;
+  const isChemist = hasChemist;
+  const isLab = hasLab;
+  const isAdmin = hasAdmin;
+  const isPatient = !isDoctor && !isChemist && !isLab && !isAdmin;
 
   // Get display name
   const getRawName = () => {
@@ -124,23 +129,7 @@ const ProfileDropdown = ({ user, userRole, onLogout, className = "" }) => {
     setImageError(false);
   }, [avatarUrl]);
 
-  // Clean up any stale lab/chemist session from localStorage if current user is a patient
-  useEffect(() => {
-    if (typeof window !== "undefined" && isPatient) {
-      try {
-        const labRaw = localStorage.getItem("labUser");
-        if (labRaw) {
-          const lu = JSON.parse(labRaw);
-          if (lu?.id !== user?.id) localStorage.removeItem("labUser");
-        }
-        const chemRaw = localStorage.getItem("chemistUser");
-        if (chemRaw) {
-          const cu = JSON.parse(chemRaw);
-          if (cu?.id !== user?.id) localStorage.removeItem("chemistUser");
-        }
-      } catch {}
-    }
-  }, [isPatient, user?.id]);
+  // Synchronize avatar state without purging valid multi-role sessions
 
   const getRoleLabel = () => {
     if (isDoctor) return "Doctor";
@@ -154,6 +143,8 @@ const ProfileDropdown = ({ user, userRole, onLogout, className = "" }) => {
     <div className={`relative ${className}`} ref={dropdownRef}>
       {/* Profile Trigger Button - Elegant, Clean, Medical Standard */}
       <button
+        type="button"
+        suppressHydrationWarning
         onClick={toggleDropdown}
         className={`group flex items-center gap-2.5 px-3 py-1.5 rounded-lg border transition-all duration-200 cursor-pointer text-left ${
           isOpen
@@ -246,30 +237,7 @@ const ProfileDropdown = ({ user, userRole, onLogout, className = "" }) => {
 
           {/* Menu Items - Simple, Short & Non-Technical Labels */}
           <div className="p-1.5 space-y-0.5 text-xs">
-            {/* Dual Role Backlinks */}
-            {isChemist && (
-              <Link
-                href="/chemist/dashboard"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-2 text-teal-800 bg-teal-50/70 hover:bg-teal-100/70 rounded-lg font-medium transition-colors mb-1"
-              >
-                <FaCog className="h-3.5 w-3.5 text-teal-700 shrink-0" />
-                <span>Chemist Panel</span>
-              </Link>
-            )}
-
-            {isLab && (
-              <Link
-                href="/lab/dashboard"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-2 text-blue-800 bg-blue-50/70 hover:bg-blue-100/70 rounded-lg font-medium transition-colors mb-1"
-              >
-                <FaCog className="h-3.5 w-3.5 text-blue-700 shrink-0" />
-                <span>Lab Panel</span>
-              </Link>
-            )}
-
-            {/* DOCTOR MENU OPTIONS */}
+            {/* Professional Portal Links (Doctor, Chemist, Lab, Admin) */}
             {isDoctor && (
               <>
                 <Link
@@ -287,7 +255,7 @@ const ProfileDropdown = ({ user, userRole, onLogout, className = "" }) => {
                   className="flex items-center gap-2.5 px-3 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
                 >
                   <FaCalendarAlt className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                  <span>Appointments</span>
+                  <span>Doctor Appointments</span>
                 </Link>
 
                 <Link
@@ -305,102 +273,126 @@ const ProfileDropdown = ({ user, userRole, onLogout, className = "" }) => {
                   className="flex items-center gap-2.5 px-3 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
                 >
                   <FaCog className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                  <span>Profile & Settings</span>
+                  <span>Doctor Settings</span>
                 </Link>
-
-                {/* Personal Health for Doctor */}
-                <div className="pt-1.5 mt-1 border-t border-slate-100">
-                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    My Health
-                  </div>
-                  <Link
-                    href="/dashboard"
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
-                  >
-                    <FaUser className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                    <span>Health Records</span>
-                  </Link>
-
-                  <Link
-                    href="/website/appointments"
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
-                  >
-                    <FaCalendarAlt className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                    <span>My Doctor Visits</span>
-                  </Link>
-
-                  <Link
-                    href="/website/dashboard/lab-booking/orders"
-                    onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
-                  >
-                    <FaFlask className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                    <span>Lab Reports</span>
-                  </Link>
-                </div>
               </>
             )}
 
-            {/* PATIENT MENU OPTIONS */}
-            {!isDoctor && (
+            {isChemist && (
               <>
                 <Link
-                  href="/website/dashboard"
+                  href="/chemist/dashboard"
                   onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+                  className="flex items-center gap-2.5 px-3 py-2 text-teal-800 bg-teal-50/70 hover:bg-teal-100/70 rounded-lg font-medium transition-colors"
                 >
-                  <FaUser className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                  <span>My Health</span>
+                  <FaCog className="h-3.5 w-3.5 text-teal-700 shrink-0" />
+                  <span>Chemist Panel</span>
                 </Link>
-
                 <Link
-                  href="/website/appointments"
+                  href="/chemist/orders"
                   onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+                  className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors"
                 >
-                  <FaCalendarAlt className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                  <span>Appointments</span>
-                </Link>
-
-                <Link
-                  href="/website/lung-connect"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
-                >
-                  <TbLungsFilled className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                  <span>Lung Health</span>
-                </Link>
-
-                <Link
-                  href="/website/cardio-connect"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
-                >
-                  <FaHeartbeat className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                  <span>Heart Health</span>
-                </Link>
-
-                <Link
-                  href="/website/lab-reports"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
-                >
-                  <FaFlask className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                  <span>Lab Reports</span>
-                </Link>
-
-                <Link
-                  href="/website/profile"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
-                >
-                  <FaCog className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                  <span>Profile</span>
+                  <FaCalendarAlt className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span>Chemist Orders</span>
                 </Link>
               </>
             )}
+
+            {isLab && (
+              <>
+                <Link
+                  href="/lab/dashboard"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-2 text-blue-800 bg-blue-50/70 hover:bg-blue-100/70 rounded-lg font-medium transition-colors"
+                >
+                  <FaCog className="h-3.5 w-3.5 text-blue-700 shrink-0" />
+                  <span>Lab Panel</span>
+                </Link>
+                <Link
+                  href="/lab/orders"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors"
+                >
+                  <FaFlask className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span>Lab Orders</span>
+                </Link>
+              </>
+            )}
+
+            {isAdmin && (
+              <Link
+                href="/admin/dashboard"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-2 text-indigo-800 bg-indigo-50/70 hover:bg-indigo-100/70 rounded-lg font-medium transition-colors"
+              >
+                <FaCog className="h-3.5 w-3.5 text-indigo-700 shrink-0" />
+                <span>Admin Panel</span>
+              </Link>
+            )}
+
+            {/* PATIENT VIEW / PERSONAL HEALTH SECTION (Accessible by ALL users: Patient, Doctor, Chemist, Lab, Admin) */}
+            <div className={`pt-1.5 mt-1 ${(isDoctor || isChemist || isLab || isAdmin) ? "border-t border-slate-100" : ""}`}>
+              {(isDoctor || isChemist || isLab || isAdmin) && (
+                <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Patient View
+                </div>
+              )}
+
+              <Link
+                href="/dashboard"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+              >
+                <FaUser className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
+                <span>Health Records</span>
+              </Link>
+
+              <Link
+                href="/appointments"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+              >
+                <FaCalendarAlt className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
+                <span>My Appointments</span>
+              </Link>
+
+              <Link
+                href="/lab-reports"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+              >
+                <FaFlask className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
+                <span>My Lab Reports</span>
+              </Link>
+
+              <Link
+                href="/medicine-order"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+              >
+                <FaCog className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
+                <span>My Medicine Orders</span>
+              </Link>
+
+              <Link
+                href="/digital-locker"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+              >
+                <FaFolderOpen className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
+                <span>Digital Locker</span>
+              </Link>
+
+              <Link
+                href="/profile"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+              >
+                <FaUser className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
+                <span>My Profile</span>
+              </Link>
+            </div>
 
             {/* Divider */}
             <div className="border-t border-slate-100 my-1"></div>

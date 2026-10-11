@@ -3,6 +3,7 @@ import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { sendOTPViaGateway } from "@/lib/sms";
 import { sendEmailOTP, generateNumericOTP } from "@/lib/emailOtp";
+import { rateLimit } from "@/lib/rateLimit";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -14,6 +15,12 @@ export async function POST(req) {
     
     if (!phone_number && !email) {
       return failure("Phone number or email is required.", null, 400, { headers: corsHeaders });
+    }
+
+    const rateLimitKey = phone_number || (email ? String(email).trim().toLowerCase() : "unknown");
+    const limitResult = rateLimit(`otp-send:${rateLimitKey}`, 3, 120000); // 3 requests per 2 minutes
+    if (!limitResult.allowed) {
+      return failure("Too many OTP requests. Please wait 2 minutes before requesting a new OTP.", null, 429, { headers: corsHeaders });
     }
 
     let user = null;

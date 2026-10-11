@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-    FaFlask, FaSearch, FaMapMarkerAlt, FaStar, FaHome, FaClock,
-    FaArrowRight, FaTimes, FaPhone, FaVial, FaUserMd, FaTruck,
-    FaStarHalfAlt, FaRegStar
+    FaFlask, FaSearch, FaMapMarkerAlt, FaStar, FaClock,
+    FaArrowRight, FaTimes, FaPhone, FaVial, FaTruck,
+    FaBuilding, FaCheckCircle, FaReceipt
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
@@ -62,236 +62,255 @@ export default function BrowseLabsPage() {
     };
 
     return (
-        <div className="min-h-screen pb-20 pt-2 sm:pt-4">
-            {/* Header Banner - Solid #0067A1, rounded-xl, no gradient, no heavy shadow */}
-            <div className="bg-[#0067A1] text-white rounded-xl px-4 sm:px-6 py-4 sm:py-5 mb-5 border border-[#005585]">
-                <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 sm:w-10 sm:h-10 bg-white/15 rounded-lg border border-white/20 flex items-center justify-center shrink-0">
-                            <FaFlask className="w-4 h-4 text-white" />
-                        </div>
-                        <div className="min-w-0">
-                            <h1 className="text-lg sm:text-2xl font-black text-white tracking-tight leading-tight truncate">
-                                Book Lab Tests
-                            </h1>
-                            <p className="text-white/80 text-xs mt-0.5 font-medium truncate">
-                                Browse certified diagnostic labs, compare test prices & book online
-                            </p>
-                        </div>
+        <div className="min-h-screen bg-[#F8FAFC] py-6 sm:py-8">
+            <div className="w-full max-w-7xl mx-auto px-4 sm:px-6">
+                {/* Page Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
+                    <div>
+                        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                            Book Lab Tests
+                        </h1>
+                        <p className="text-slate-500 text-xs sm:text-sm mt-1">
+                            Browse verified diagnostic laboratories, compare test catalog & schedule investigations
+                        </p>
                     </div>
 
-                    {/* Search */}
-                    <form onSubmit={handleSearch} className="mt-3 flex gap-2">
+                    <button
+                        type="button"
+                        onClick={() => router.push("/dashboard/lab-booking/orders")}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:text-[#0067A1] hover:border-[#0067A1]/40 shadow-xs hover:shadow-sm transition-all cursor-pointer self-start sm:self-auto"
+                    >
+                        <FaReceipt className="w-3.5 h-3.5 text-[#0067A1]" />
+                        <span>My Lab Orders</span>
+                    </button>
+                </div>
+
+                {/* Search & Filter Bar */}
+                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-4 sm:p-5 mb-6 sm:mb-8">
+                    <form onSubmit={handleSearch} className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
                         <div className="relative flex-1">
-                            <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-3.5 h-3.5" />
+                            <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
                             <input
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Search labs by name or city..."
-                                className="w-full pl-9 pr-3 py-2 sm:py-2.5 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none text-xs sm:text-sm"
+                                placeholder="Search diagnostic labs by name, test or city..."
+                                className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] text-xs sm:text-sm transition-all"
                             />
                         </div>
-                        <button
-                            type="submit"
-                            className="px-4 py-2 bg-white/15 hover:bg-white/25 text-white rounded-lg font-semibold transition-colors border border-white/20 cursor-pointer text-xs"
-                        >
-                            Search
-                        </button>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                                type="button"
+                                onClick={() => { setHomeCollection(!homeCollection); setPage(1); }}
+                                className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all border cursor-pointer ${
+                                    homeCollection
+                                        ? "bg-emerald-50 text-emerald-800 border-emerald-300 shadow-xs"
+                                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50 shadow-xs hover:shadow-sm"
+                                }`}
+                            >
+                                <FaTruck className="w-3 h-3 text-emerald-600" />
+                                <span>Home Collection</span>
+                                {homeCollection && <FaTimes className="w-2.5 h-2.5 ml-1 text-emerald-700" />}
+                            </button>
+
+                            <button
+                                type="submit"
+                                className="px-5 py-2.5 bg-[#0067A1] hover:bg-[#005282] text-white rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-xs hover:shadow-sm"
+                            >
+                                Search
+                            </button>
+                        </div>
                     </form>
 
-                    {/* Filters & Stats Row */}
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/15 pt-3">
-                        <button
-                            type="button"
-                            onClick={() => { setHomeCollection(!homeCollection); setPage(1); }}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border cursor-pointer ${homeCollection
-                                ? "bg-white text-[#0067A1] border-white"
-                                : "bg-white/10 text-white border-white/20 hover:bg-white/20"
-                                }`}
-                        >
-                            <FaTruck className="w-3 h-3" />
-                            Home Collection
-                            {homeCollection && <FaTimes className="w-2.5 h-2.5 ml-1" />}
-                        </button>
-
-                        {!loading && labs.length > 0 && (
-                            <div className="flex items-center gap-4 text-xs">
-                                <div>
-                                    <span className="font-bold text-white">{labs.length}</span>
-                                    <span className="text-white/70 ml-1">Labs Found</span>
-                                </div>
-                                <div className="w-px h-4 bg-white/20" />
-                                <div>
-                                    <span className="font-bold text-emerald-200">{labs.filter(l => l.accepts_home_collection).length}</span>
-                                    <span className="text-white/70 ml-1">Home Collection</span>
-                                </div>
+                    {/* Stats Summary */}
+                    {!loading && labs.length > 0 && (
+                        <div className="flex items-center gap-4 text-xs pt-3 mt-3 border-t border-slate-100 flex-wrap">
+                            <div className="flex items-center gap-1.5 text-slate-600">
+                                <span className="font-bold text-slate-900">{labs.length}</span>
+                                <span>Accredited Labs Found</span>
                             </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Lab Cards Grid */}
-            {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                    {[1, 2, 3, 4, 5, 6].map((i) => (
-                        <div key={i} className="bg-white rounded-2xl border border-gray-100 p-6 h-64 animate-pulse">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="w-14 h-14 bg-gray-200 rounded-xl" />
-                                <div className="flex-1">
-                                    <div className="h-5 bg-gray-200 rounded w-3/4 mb-2" />
-                                    <div className="h-3 bg-gray-100 rounded w-1/2" />
-                                </div>
+                            <span className="text-slate-300">•</span>
+                            <div className="flex items-center gap-1.5 text-slate-600">
+                                <span className="font-bold text-emerald-700">
+                                    {labs.filter(l => l.accepts_home_collection).length}
+                                </span>
+                                <span>Offer Home Sample Collection</span>
                             </div>
-                            <div className="space-y-2">
-                                <div className="h-3 bg-gray-100 rounded w-full" />
-                                <div className="h-3 bg-gray-100 rounded w-2/3" />
-                            </div>
-                            <div className="mt-4 h-10 bg-gray-200 rounded-xl w-full" />
                         </div>
-                    ))}
-                </div>
-            ) : labs.length === 0 ? (
-                <div className="bg-white rounded-xl border border-slate-200 p-10 sm:p-14 text-center">
-                    <div className="w-14 h-14 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-4 text-slate-400">
-                        <FaFlask className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">No Labs Found</h3>
-                    <p className="text-gray-500 max-w-md mx-auto">
-                        {search ? "Try a different search term or location." : "There are currently no labs available matching your criteria."}
-                    </p>
-                    {search && (
-                        <button
-                            onClick={() => { setSearch(""); setHomeCollection(false); setPage(1); fetchLabs(); }}
-                            className="mt-6 font-bold text-[#0067A1] hover:underline"
-                        >
-                            Clear All Filters
-                        </button>
                     )}
                 </div>
-            ) : (
-                <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {labs.map((lab, idx) => (
-                            <motion.div
-                                key={lab.id}
-                                initial={{ opacity: 0, y: 15 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.05 }}
-                                onClick={() => router.push(`/website/dashboard/lab-booking/${lab.id}`)}
-                                className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:border-[#0067A1] transition-colors cursor-pointer group flex flex-col h-full relative"
-                            >
-                                <div className="p-5 flex-1 flex flex-col">
-                                    {/* Lab Header Info */}
-                                    <div className="flex items-start gap-3.5 mb-3.5">
-                                        <div className="w-12 h-12 bg-[#0067A1]/10 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-[#0067A1] group-hover:text-white transition-colors overflow-hidden">
-                                            <FaFlask className="w-5 h-5 text-[#0067A1] group-hover:text-white transition-colors" />
-                                        </div>
-                                        <div className="flex-1 min-w-0 pt-1">
-                                            <h3 className="text-lg font-bold text-gray-900 group-hover:text-[#0067A1] transition-colors leading-tight truncate">
-                                                {lab.lab_name || lab.name || "MediConnect Partner Lab"}
-                                            </h3>
-                                            {lab.owner_name && (
-                                                <p className="text-xs text-gray-500 mt-1 font-medium">By {lab.owner_name}</p>
-                                            )}
-                                            {lab.phone_number && (
-                                                <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5 mt-2">
-                                                    <FaPhone className="w-3 h-3 text-gray-400" />
-                                                    {lab.phone_number}
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
 
-                                    {/* Address block */}
-                                    {lab.address && (
-                                        <p className="text-xs text-gray-600 mb-4 flex items-start gap-1.5 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
-                                            <FaMapMarkerAlt className="w-3.5 h-3.5 shrink-0 mt-0.5 text-gray-400" />
-                                            <span className="leading-relaxed line-clamp-2">{lab.address}</span>
-                                        </p>
-                                    )}
-
-                                    {/* Stats Grid */}
-                                    <div className="grid grid-cols-2 gap-2 mb-4">
-                                        {lab.rating && (
-                                            <div className="flex items-center gap-2 bg-amber-50 rounded-xl px-3 py-2 border border-amber-100/50">
-                                                <FaStar className="w-4 h-4 text-amber-500" />
-                                                <div>
-                                                    <p className="text-xs font-bold text-amber-900 leading-none">{lab.rating}</p>
-                                                    {lab.total_reviews > 0 && <p className="text-[9px] text-amber-700 mt-0.5">{lab.total_reviews} reviews</p>}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {lab.opening_hours && (
-                                            <div className="flex items-center gap-2 bg-blue-50 rounded-xl px-3 py-2 border border-blue-100/50">
-                                                <FaClock className="w-4 h-4 text-blue-500" />
-                                                <div className="min-w-0">
-                                                    <p className="text-[10px] text-[#0067A1] font-semibold uppercase tracking-wider leading-none mb-0.5">Hours</p>
-                                                    <p className="text-xs font-bold text-blue-900 truncate">{formatOpeningHours(lab.opening_hours)}</p>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {lab.general_turnaround && (
-                                            <div className="flex items-center gap-2 bg-purple-50 rounded-xl px-3 py-2 border border-purple-100/50 col-span-2">
-                                                <FaVial className="w-4 h-4 text-purple-500" />
-                                                <div className="min-w-0">
-                                                    <p className="text-[10px] text-purple-600 font-semibold uppercase tracking-wider leading-none mb-0.5">Avg Turnaround</p>
-                                                    <p className="text-xs font-bold text-purple-900 truncate">{lab.general_turnaround}</p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Badges / Services */}
-                                    <div className="flex flex-wrap items-center gap-2 mt-auto pt-2">
-                                        {lab.accepts_home_collection && (
-                                            <span className="text-[10px] font-bold bg-green-100 text-green-800 px-2.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-green-200">
-                                                <FaTruck className="w-3 h-3" /> Home Collection
-                                            </span>
-                                        )}
-
-                                        {/* Show services */}
-                                        {lab.services && Array.isArray(lab.services) && lab.services.slice(0, 3).map((svc, i) => (
-                                            <span key={i} className="text-[10px] font-medium bg-gray-100 text-gray-600 px-2.5 py-1.5 rounded-full truncate max-w-[140px] border border-gray-200">
-                                                {typeof svc === "object" ? svc.service_name : svc}
-                                            </span>
-                                        ))}
-                                        {lab.services && Array.isArray(lab.services) && lab.services.length > 3 && (
-                                            <span className="text-[10px] font-bold bg-gray-50 text-gray-500 px-2 py-1.5 rounded-full border border-gray-200">
-                                                +{lab.services.length - 3} more
-                                            </span>
-                                        )}
+                {/* Lab Cards Grid */}
+                {loading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {[1, 2, 3, 4, 5, 6].map((i) => (
+                            <div key={i} className="bg-white rounded-2xl border border-slate-200 p-5 h-72 animate-pulse flex flex-col justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-slate-200 rounded-xl shrink-0" />
+                                    <div className="flex-1 space-y-2">
+                                        <div className="h-4 bg-slate-200 rounded w-3/4" />
+                                        <div className="h-3 bg-slate-100 rounded w-1/2" />
                                     </div>
                                 </div>
-
-                                {/* Card Footer action */}
-                                <div className="px-6 py-4 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between group-hover:bg-[#0067A1]/5 transition-colors">
-                                    <span className="text-sm font-bold text-[#0067A1]">Book Tests</span>
-                                    <div className="w-8 h-8 rounded-full bg-white shadow-sm flex items-center justify-center group-hover:bg-[#0067A1] group-hover:text-white transition-all">
-                                        <FaArrowRight className="w-3.5 h-3.5 text-[#0067A1] group-hover:text-white" />
-                                    </div>
+                                <div className="space-y-2 my-4">
+                                    <div className="h-3 bg-slate-100 rounded w-full" />
+                                    <div className="h-3 bg-slate-100 rounded w-2/3" />
                                 </div>
-                            </motion.div>
+                                <div className="h-10 bg-slate-200 rounded-xl w-full" />
+                            </div>
                         ))}
                     </div>
-
-                    {/* Pagination */}
-                    {totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-3 mt-8">
-                            <button disabled={page <= 1} onClick={() => setPage(page - 1)}
-                                className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-sm">
-                                Previous
-                            </button>
-                            <span className="text-sm text-gray-400 font-medium">Page {page} of {totalPages}</span>
-                            <button disabled={page >= totalPages} onClick={() => setPage(page + 1)}
-                                className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-sm">
-                                Next
-                            </button>
+                ) : labs.length === 0 ? (
+                    <div className="bg-white rounded-2xl border border-slate-200 p-10 sm:p-14 text-center max-w-md mx-auto">
+                        <div className="w-14 h-14 bg-[#0067A1]/10 rounded-2xl flex items-center justify-center mx-auto mb-4 text-[#0067A1]">
+                            <FaFlask className="w-6 h-6" />
                         </div>
-                    )}
-                </>
-            )}
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-1">No Diagnostic Labs Found</h3>
+                        <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
+                            {search ? "No labs matched your search keywords. Try adjusting your search." : "There are currently no active labs matching the selected filters."}
+                        </p>
+                        {(search || homeCollection) && (
+                            <button
+                                type="button"
+                                onClick={() => { setSearch(""); setHomeCollection(false); setPage(1); fetchLabs(); }}
+                                className="mt-5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                            >
+                                Clear Filters
+                            </button>
+                        )}
+                    </div>
+                ) : (
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                            {labs.map((lab, idx) => (
+                                <motion.div
+                                    key={lab.id}
+                                    initial={{ opacity: 0, y: 12 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: idx * 0.04 }}
+                                    onClick={() => router.push(`/dashboard/lab-booking/${lab.id}`)}
+                                    className="bg-white rounded-2xl border border-slate-200/90 hover:border-[#0067A1]/50 shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer group flex flex-col justify-between overflow-hidden"
+                                >
+                                    <div className="p-5 flex-1 flex flex-col">
+                                        {/* Lab Header */}
+                                        <div className="flex items-start gap-3.5 pb-3.5 border-b border-slate-100">
+                                            <div className="w-12 h-12 bg-[#0067A1]/10 text-[#0067A1] rounded-xl flex items-center justify-center shrink-0 group-hover:bg-[#0067A1] group-hover:text-white transition-colors">
+                                                <FaBuilding className="w-5 h-5" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <h3 className="text-base font-bold text-slate-900 group-hover:text-[#0067A1] transition-colors leading-snug truncate">
+                                                        {lab.lab_name || lab.name || "MediConnect Partner Lab"}
+                                                    </h3>
+                                                    <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.2 rounded-full shrink-0">
+                                                        <FaCheckCircle className="w-2.5 h-2.5" />
+                                                        Verified
+                                                    </span>
+                                                </div>
+                                                {lab.owner_name && (
+                                                    <p className="text-xs text-slate-500 mt-0.5">By {lab.owner_name}</p>
+                                                )}
+                                                {lab.phone_number && (
+                                                    <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-1">
+                                                        <FaPhone className="w-2.5 h-2.5 text-slate-400" />
+                                                        <span>{lab.phone_number}</span>
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Location */}
+                                        {lab.address && (
+                                            <div className="my-3 flex items-start gap-2 text-xs text-slate-600 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                                                <FaMapMarkerAlt className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
+                                                <span className="leading-relaxed line-clamp-2">{lab.address}</span>
+                                            </div>
+                                        )}
+
+                                        {/* Medical Metrics Badges */}
+                                        <div className="grid grid-cols-2 gap-2 my-2">
+                                            {lab.rating && (
+                                                <div className="flex items-center gap-1.5 bg-amber-50/80 rounded-xl px-2.5 py-2 border border-amber-200/60">
+                                                    <FaStar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs font-bold text-amber-900 leading-none">{lab.rating}</p>
+                                                        {lab.total_reviews > 0 && <p className="text-[9px] text-amber-700 mt-0.5">{lab.total_reviews} reviews</p>}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {lab.opening_hours && (
+                                                <div className="flex items-center gap-1.5 bg-sky-50/80 rounded-xl px-2.5 py-2 border border-sky-200/60">
+                                                    <FaClock className="w-3.5 h-3.5 text-[#0067A1] shrink-0" />
+                                                    <div className="min-w-0">
+                                                        <p className="text-[9px] font-bold text-[#0067A1] uppercase tracking-wider leading-none mb-0.5">Hours</p>
+                                                        <p className="text-xs font-bold text-sky-900 truncate">{formatOpeningHours(lab.opening_hours)}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {lab.general_turnaround && (
+                                                <div className="flex items-center gap-1.5 bg-slate-50 rounded-xl px-2.5 py-2 border border-slate-200/80 col-span-2">
+                                                    <FaVial className="w-3.5 h-3.5 text-[#0067A1] shrink-0" />
+                                                    <div className="min-w-0">
+                                                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider leading-none mb-0.5">Avg Turnaround</p>
+                                                        <p className="text-xs font-bold text-slate-800 truncate">{lab.general_turnaround}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Home Collection & Services */}
+                                        <div className="flex flex-wrap items-center gap-1.5 mt-auto pt-2">
+                                            {lab.accepts_home_collection && (
+                                                <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.8 rounded-md flex items-center gap-1">
+                                                    <FaTruck className="w-2.5 h-2.5 text-emerald-600" />
+                                                    Home Collection
+                                                </span>
+                                            )}
+                                            {lab.services && Array.isArray(lab.services) && lab.services.slice(0, 2).map((svc, i) => (
+                                                <span key={i} className="text-[10px] font-medium bg-slate-100 text-slate-600 px-2 py-0.8 rounded-md truncate max-w-[130px] border border-slate-200">
+                                                    {typeof svc === "object" ? svc.service_name : svc}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Action CTA */}
+                                    <div className="px-5 py-3.5 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between group-hover:bg-[#0067A1]/5 transition-colors">
+                                        <span className="text-xs font-bold text-[#0067A1]">Select Lab</span>
+                                        <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 shadow-2xs flex items-center justify-center group-hover:bg-[#0067A1] group-hover:text-white group-hover:border-[#0067A1] transition-all">
+                                            <FaArrowRight className="w-3 h-3 text-[#0067A1] group-hover:text-white" />
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-center gap-3 mt-8">
+                                <button
+                                    type="button"
+                                    disabled={page <= 1}
+                                    onClick={() => setPage(page - 1)}
+                                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-xs hover:shadow-sm"
+                                >
+                                    Previous
+                                </button>
+                                <span className="text-xs text-slate-500 font-semibold">Page {page} of {totalPages}</span>
+                                <button
+                                    type="button"
+                                    disabled={page >= totalPages}
+                                    onClick={() => setPage(page + 1)}
+                                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-xs hover:shadow-sm"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
         </div>
     );
 }

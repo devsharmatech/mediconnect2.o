@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import { logoutUser } from "@/lib/authHelpers";
 import { Toaster } from "react-hot-toast";
 import {
   LayoutDashboard, Package, ClipboardList, Users,
@@ -43,9 +44,8 @@ export default function PartnerLayout({ children }) {
   }, [pathname, router]);
 
   const handleLogout = useCallback(() => {
-    localStorage.removeItem("partnerUser");
-    router.replace("/partner/login");
-  }, [router]);
+    logoutUser("partner", "/partner/login");
+  }, []);
 
   const handleRefresh = () => {
     setIsRefreshing(true);

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import toast, { Toaster } from "react-hot-toast";
-import { sendOtp, verifyOtp, setLoggedInUser } from "@/lib/authHelpers";
+import { sendOtp, verifyOtp, setLoggedInUser, getLoggedInUser } from "@/lib/authHelpers";
 
 export default function AdminLogin() {
   const [phone, setPhone] = useState("");
@@ -12,6 +12,14 @@ export default function AdminLogin() {
   const [userId, setUserId] = useState(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  // Redirect to dashboard if admin is already logged in
+  useEffect(() => {
+    const user = getLoggedInUser("admin");
+    if (user?.id) {
+      router.replace("/admin/dashboard");
+    }
+  }, [router]);
 
   const handleSendOtp = async () => {
     if (!phone.trim()) {

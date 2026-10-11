@@ -25,6 +25,7 @@ import {
   Clock,
   Sparkles,
   RotateCcw,
+  FlaskConical,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { loadRazorpayScript } from "@/lib/razorpay";
@@ -946,15 +947,20 @@ function SharePrescriptionModal({
   const currentStepIndex = step === "select" || step === "prompt" ? 0 : step === "review" ? 1 : 2;
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[10000] flex flex-col bg-white w-full h-[100dvh] sm:h-full sm:absolute sm:inset-0 sm:rounded-2xl sm:z-10 overflow-hidden"
-    >
-      {/* Header */}
-      <div className="bg-gradient-to-r from-[#005B8E] via-[#0067A1] to-[#007EA7] text-white shrink-0 shadow-sm">
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5">
+    <div className="fixed inset-0 z-[10000] flex sm:items-center sm:justify-center p-0 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs overflow-hidden">
+      {/* Backdrop for desktop click to close */}
+      <div className="absolute inset-0 hidden sm:block" onClick={onClose} />
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.98, y: 10 }}
+        transition={{ duration: 0.2 }}
+        className="relative bg-white w-full h-[100dvh] sm:h-[88vh] sm:max-h-[760px] sm:max-w-2xl lg:max-w-3xl sm:rounded-2xl shadow-2xl border-0 sm:border sm:border-slate-200/80 flex flex-col overflow-hidden z-10"
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-r from-[#005B8E] via-[#0067A1] to-[#007EA7] text-white shrink-0 shadow-sm sm:rounded-t-2xl">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3.5">
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               type="button"
@@ -1338,8 +1344,8 @@ function SharePrescriptionModal({
                   {quotes.map((q) => (
                     <div key={q.id} className="p-4 border-2 border-slate-100 rounded-2xl bg-white hover:border-[#0067A1]/30 transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
                       <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center text-sm font-bold shadow-md shrink-0">
-                          {q.pharmacy_name.charAt(0).toUpperCase()}
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-md shrink-0">
+                          <Store className="w-5 h-5 text-white" />
                         </div>
                         <div>
                           <div className="flex items-center gap-1.5">
@@ -1523,8 +1529,8 @@ function SharePrescriptionModal({
                 </div>
               ) : (
                 <div className="flex items-center gap-3.5 mb-3.5">
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0067A1] to-[#005282] text-white flex items-center justify-center text-base font-bold shadow-xs shrink-0">
-                    {getName(selected).charAt(0).toUpperCase()}
+                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0067A1] to-[#005282] text-white flex items-center justify-center shadow-xs shrink-0">
+                    <FlaskConical className="w-5 h-5 text-white" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
@@ -1684,8 +1690,8 @@ function SharePrescriptionModal({
                 {/* Lab Card */}
                 <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:border-[#0067A1]/40 transition-all">
                   <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0067A1] to-[#005282] text-white flex items-center justify-center text-base font-bold shadow-xs shrink-0">
-                      {getName(selected).charAt(0).toUpperCase()}
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0067A1] to-[#005282] text-white flex items-center justify-center shadow-xs shrink-0">
+                      <FlaskConical className="w-5 h-5 text-white" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -2043,8 +2049,8 @@ function SharePrescriptionModal({
                     className="w-full text-left p-3.5 sm:p-4 rounded-2xl border border-slate-200 hover:border-[#0067A1] hover:bg-[#0067A1]/5 transition-all group flex items-center justify-between gap-3 cursor-pointer shadow-xs"
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0067A1]/10 to-[#0067A1]/20 text-[#0067A1] flex items-center justify-center text-base font-bold group-hover:bg-[#0067A1] group-hover:text-white transition-all shrink-0">
-                        {getName(item).charAt(0).toUpperCase()}
+                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0067A1]/10 to-[#0067A1]/20 text-[#0067A1] flex items-center justify-center group-hover:bg-[#0067A1] group-hover:text-white transition-all shrink-0">
+                        {isChemist ? <Building2 className="w-5 h-5" /> : <FlaskConical className="w-5 h-5" />}
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
@@ -2103,9 +2109,7 @@ function SharePrescriptionModal({
             >
               <div>
                 <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
+                  <ShieldCheck className="w-6 h-6 text-emerald-600" />
                 </div>
                 <h3 className="text-center text-lg font-bold text-gray-900">Confirm Booking</h3>
                 <p className="text-center text-sm text-gray-600 mt-2">
@@ -2152,9 +2156,7 @@ function SharePrescriptionModal({
             >
               <div>
                 <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
+                  <AlertTriangle className="w-6 h-6 text-amber-600" />
                 </div>
                 <h3 className="text-center text-lg font-bold text-gray-950">Direct Payment Disclaimer</h3>
                 <p className="text-center text-[11px] text-gray-600 mt-2 leading-relaxed">
@@ -2188,7 +2190,8 @@ function SharePrescriptionModal({
           </div>
         )}
       </AnimatePresence>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 }
 

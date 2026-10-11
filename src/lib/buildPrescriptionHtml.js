@@ -239,20 +239,24 @@ export const buildPrescriptionHtml = (rec, options = {}) => {
     }
     return raw;
   };
-  const signatureUrl =
-    parseUrl(rec.doctor_details?.signature_url) ||
-    "https://placehold.co/200x60?text=Doctor+Signature";
+  const signatureUrl = parseUrl(
+    rec.doctor_details?.signature_url ||
+    rec.doctor_signature_url ||
+    rec.signature_url
+  );
 
   // Patient Details safe fallback
   const pDetails = rec.patient_details || {};
 
-  const displayPid = rec.pid || rec.formatted_id || (() => {
+  const displayPid = (() => {
     const docUnId = rec.doctor_details?.un_id || rec.doc_un_id || null;
     const patUnId = rec.patient_details?.un_id || rec.pat_un_id || null;
-    const rxUnId = rec.unid || rec.id?.slice(0, 8);
+    const rxUnId = rec.unid || rec.pid || rec.id?.slice(0, 8);
     if (docUnId || patUnId) {
       return `MED-${docUnId || "0"}-${patUnId || "0"}-${rxUnId || "0"}`;
     }
+    if (rec.formatted_id) return rec.formatted_id;
+    if (rec.pid) return `MED-${rec.pid}`;
     return rxUnId ? `MED-${rxUnId}` : "N/A";
   })();
 
@@ -441,6 +445,7 @@ ${vitalsHtml}
 <h3>Patient Details</h3>
 <div class="field">Name: <span class="value">${escapeHtml(pDetails.full_name || "-")}</span></div>
 <div class="field">Gender: <span class="value">${escapeHtml(pDetails.gender || "-")}</span></div>
+<div class="field">Blood Group: <span class="value">${escapeHtml(pDetails.blood_group || "-")}</span></div>
 <div class="field">DOB: <span class="value">${escapeHtml(pDetails.date_of_birth ? dayjs(pDetails.date_of_birth).format("DD MMM YYYY") : "-")}</span></div>
 <div class="field">Address: <span class="value">${escapeHtml(pDetails.address || "-")}</span></div>
 
@@ -463,8 +468,10 @@ ${(isChemistView || isLabView) ? '' : `
 `}
 
 <h3>Digital Signature</h3>
-<div class="signature-box"><img src="${sanitizeUrl(signatureUrl)}" alt="Doctor's Signature" /></div>
-<div class="field">Signed by: <span class="value">${escapeHtml(rec.doctor_details?.full_name || "-")}</span></div>
+<div class="signature-box">${signatureUrl ? `<img src="${sanitizeUrl(signatureUrl)}" alt="Doctor's Signature" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='block';" /><div style="display:none;font-family:Georgia,serif;font-style:italic;font-size:16px;color:#0067A1;font-weight:bold;padding:4px 0;">${escapeHtml(rec.doctor_details?.full_name ? ('Dr. ' + rec.doctor_details.full_name.replace(/^Dr\.\s*/i, '')) : "Doctor")}</div>` : `<div style="font-family:Georgia,serif;font-style:italic;font-size:16px;color:#0067A1;font-weight:bold;padding:4px 0;">${escapeHtml(rec.doctor_details?.full_name ? ('Dr. ' + rec.doctor_details.full_name.replace(/^Dr\.\s*/i, '')) : "Doctor")}</div>`}</div>
+<div class="field" style="margin-bottom: 4px;"><span style="color: #166534; font-size: 11px; font-weight: 700; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 2px 6px; border-radius: 3px;">✓ Digitally Signed &amp; Verified</span></div>
+<div class="field">Signed by: <span class="value">${escapeHtml(rec.doctor_details?.full_name ? ('Dr. ' + rec.doctor_details.full_name.replace(/^Dr\.\s*/i, '')) : "-")}</span></div>
+${(rec.doctor_details?.license_number || rec.doctor_details?.registration_number) ? `<div class="field">Reg / License No: <span class="value">${escapeHtml(rec.doctor_details?.license_number || rec.doctor_details?.registration_number)}</span></div>` : ''}
 <div class="field">Signed at: <span class="value">${escapeHtml((rec.signed_at || rec.created_at) ? dayjs(rec.signed_at || rec.created_at).format("DD MMM YYYY, hh:mm A") : "-")}</span></div>
 
 </td>

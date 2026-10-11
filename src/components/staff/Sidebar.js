@@ -7,6 +7,7 @@ import {
   Stethoscope, Pill, Calendar, LogOut, User, Shield,
   Microscope, Hospital, Bell, Activity, Key, Heart
 } from "lucide-react";
+import { logoutUser } from "@/lib/authHelpers";
 
 // Permission → menu mapping
 const allMenuItems = [
@@ -48,10 +49,7 @@ export default function StaffSidebar({ open, mobileOpen, onToggle, onCloseMobile
   );
 
   const handleLogout = () => {
-    localStorage.removeItem("staffToken");
-    localStorage.removeItem("staffUser");
-    localStorage.removeItem("staffPermissions");
-    window.location.href = "/staff/login";
+    logoutUser("staff", "/staff/login");
   };
 
   const handleNavigation = (path) => {

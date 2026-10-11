@@ -91,7 +91,7 @@ export default function MainLayout({ children }) {
     <div className="min-h-screen bg-gray-50 flex flex-col w-full max-w-full overflow-x-hidden">
       <OfflineBanner />
       <Navbar isMenuOpen={isMenuOpen} toggleSideBar={toggleSideBar} />
-      <main className="flex-1 pb-16 lg:pb-0 w-full max-w-full overflow-x-hidden">
+      <main className="flex-1 pb-32 sm:pb-24 lg:pb-0 w-full max-w-full overflow-x-hidden">
         {children}
       </main>
       <ComplianceStrip />

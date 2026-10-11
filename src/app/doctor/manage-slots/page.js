@@ -482,33 +482,32 @@ export default function ManageSlots() {
   }
 
   const renderSlotCard = (slot) => {
-    const colors = getSlotColor(slot);
     const isAvailable = slot.status === 'available' || slot.slot_booked === false;
     const category = getSlotCategory(slot);
 
     return (
       <div
         key={slot.time}
-        className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 ${
-          isAvailable ? 'border-[#0067A1]/20' : 'border-rose-100'
+        className={`bg-white rounded-md border transition-colors ${
+          isAvailable ? 'border-sky-200 hover:border-[#0067A1]' : 'border-rose-200 hover:border-rose-300'
         }`}
       >
-        <div className="p-4">
+        <div className="p-3.5 sm:p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <div
-                className={`p-2.5 rounded-lg ${
-                  isAvailable ? 'bg-[#0067A1]/10' : 'bg-rose-100'
+                className={`w-8 h-8 rounded-md border flex items-center justify-center shrink-0 ${
+                  isAvailable ? 'bg-sky-50 text-[#0067A1] border-sky-100' : 'bg-rose-50 text-rose-600 border-rose-100'
                 }`}
               >
                 {getSlotIcon(slot)}
               </div>
               <div>
-                <div className="text-lg md:text-xl font-bold text-slate-800">
+                <div className="text-base sm:text-lg font-semibold text-slate-800">
                   {formatTimeTo12h(slot.time)}
                 </div>
                 <div
-                  className={`text-xs font-semibold mt-1 ${
+                  className={`text-xs font-medium ${
                     isAvailable ? 'text-[#0067A1]' : 'text-rose-600'
                   }`}
                 >
@@ -518,22 +517,22 @@ export default function ManageSlots() {
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm">
+          <div className="space-y-2 text-xs sm:text-sm">
+            <div className="flex items-center justify-between">
               <span className="text-slate-500">Consultation Type</span>
               <span className="font-medium text-slate-700">
                 {getSlotCategoryLabel(category)}
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between">
               <span className="text-slate-500">Duration</span>
               <span className="font-medium text-slate-700">
                 {slot.duration || '30 min'}
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between">
               <span className="text-slate-500">Time Range</span>
               <span className="font-medium text-slate-700 capitalize">
                 {getTimeRange(slot.time)}
@@ -542,12 +541,12 @@ export default function ManageSlots() {
           </div>
 
           {slot.patient_name && (
-            <div className="mt-4 pt-4 border-t border-slate-100">
-              <div className="flex items-center gap-2 text-sm">
-                <FaUsers className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-slate-500">Patient</span>
+            <div className="mt-3 pt-3 border-t border-slate-100">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                <FaUsers className="w-3 h-3 text-slate-400" />
+                <span>Patient</span>
               </div>
-              <p className="text-sm font-medium text-slate-700 truncate mt-1">
+              <p className="text-xs sm:text-sm font-medium text-slate-700 truncate mt-0.5">
                 {slot.patient_name}
               </p>
             </div>
@@ -555,72 +554,68 @@ export default function ManageSlots() {
         </div>
 
         <div
-          className={`px-4 py-3 rounded-b-xl ${
-            isAvailable ? 'bg-[#0067A1]/5' : 'bg-rose-50'
+          className={`px-3.5 py-2.5 rounded-b-md border-t border-slate-100 flex items-center justify-between gap-2 ${
+            isAvailable ? 'bg-sky-50/30' : 'bg-rose-50/30'
           }`}
         >
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-500">
-              Slot ID: #{slot.id || slot.time.replace(/[: ]/g, '')}
-            </span>
+          <span className="text-[11px] text-slate-500 font-mono">
+            #{slot.id || slot.time.replace(/[: ]/g, '')}
+          </span>
+          <div className="flex items-center gap-1.5">
             <span
-              className={`px-2 py-1 rounded text-xs font-semibold ${
+              className={`px-2 py-0.5 rounded-md text-[11px] font-medium border ${
                 isAvailable
-                  ? 'bg-[#0067A1]/10 text-[#0067A1] border border-[#0067A1]/20'
-                  : 'bg-rose-100 text-rose-700 border border-rose-200'
+                  ? 'bg-sky-50 text-[#0067A1] border-sky-200'
+                  : 'bg-rose-50 text-rose-700 border-rose-200'
               }`}
             >
               {getSlotStatus(slot)}
             </span>
-          </div>
-          {(slot.status === 'available' || slot.status === 'freezed') && (
-            <div className="mt-3 flex justify-end">
+            {(slot.status === 'available' || slot.status === 'freezed') && (
               <button
                 type="button"
                 disabled={isLoading}
                 onClick={() => handleSlotToggle(slot)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors disabled:opacity-50 cursor-pointer ${
                   slot.status === 'freezed'
                     ? 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                     : 'bg-[#0067A1] text-white border-[#0067A1] hover:bg-[#004F7C]'
                 }`}
               >
-                {slot.status === 'freezed' ? 'Unblock Slot' : 'Block Slot'}
+                {slot.status === 'freezed' ? 'Unblock' : 'Block'}
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-[#F6F8FA]">
-      <div className="w-full mx-auto space-y-4 md:space-y-6">
-        {/* Header - Matching Dashboard */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-[#0067A1] shadow-md">
-                <FaCalendarAlt className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-slate-800">Time Slot Management</h1>
-                <p className="text-xs sm:text-sm text-slate-500 mt-1">Manage your consultation availability and schedule</p>
-              </div>
+    <div className="min-h-screen bg-slate-50/60 pb-8">
+      <div className="w-full mx-auto space-y-3.5 sm:space-y-4">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-md bg-[#0067A1] text-white flex items-center justify-center shrink-0">
+              <FaCalendarAlt className="w-4 h-4 sm:w-5 sm:h-5" />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl md:text-2xl font-semibold text-slate-800 tracking-tight">Time Slot Management</h1>
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Manage your consultation availability and schedule</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
-            <div className="px-4 py-2 bg-white rounded-xl border border-slate-200 shadow-sm">
-              <div className="text-[11px] font-semibold text-[#0067A1] uppercase tracking-wider mb-1">
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="px-3 py-1.5 bg-white rounded-md border border-slate-200">
+              <div className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider">
                 Selected Date
               </div>
-              <div className="text-sm md:text-base font-semibold text-slate-800">{formatShortDate(selectedDate)}</div>
+              <div className="text-xs sm:text-sm font-semibold text-slate-800">{formatShortDate(selectedDate)}</div>
             </div>
             <button
               onClick={() => fetchSlots(selectedDate)}
-              className="px-4 py-2 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all text-sm font-semibold text-slate-700 hover:text-slate-900 hover:border-slate-300"
+              className="px-3 py-1.5 bg-white rounded-md border border-slate-200 text-xs sm:text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 hover:border-slate-300 transition-colors cursor-pointer"
             >
               Refresh
             </button>
@@ -629,60 +624,60 @@ export default function ManageSlots() {
 
         {/* ── Blocked Appointments Modal ──────────────────────────────── */}
         {showBlockedModal && (
-          <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm overflow-hidden">
-            <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-md p-6 flex flex-col justify-between overflow-y-auto pb-safe">
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
-                    <FaExclamationCircle className="text-amber-500 w-5 h-5" />
+          <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center p-0 sm:p-4 bg-black/50 overflow-hidden">
+            <div className="bg-white rounded-none sm:rounded-md border border-slate-200 w-full h-full sm:h-auto sm:max-w-md p-5 flex flex-col justify-between overflow-y-auto">
+              <div className="space-y-3.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 bg-amber-50 border border-amber-200 rounded-md flex items-center justify-center shrink-0">
+                    <FaExclamationCircle className="text-amber-600 w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900">Cannot Go Offline</h3>
-                    <p className="text-sm text-gray-500">You have active appointments today</p>
+                    <h3 className="font-semibold text-sm sm:text-base text-slate-900">Cannot Go Offline</h3>
+                    <p className="text-xs text-slate-500">You have active appointments today</p>
                   </div>
                 </div>
-                <div className="space-y-2 max-h-60 sm:max-h-52 overflow-y-auto">
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
                   {blockedAppointments.map((apt, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-amber-50 rounded-xl border border-amber-100 text-sm">
-                      <span className="font-medium text-gray-800">
+                    <div key={i} className="flex items-center justify-between p-2.5 bg-amber-50/70 rounded-md border border-amber-200 text-xs">
+                      <span className="font-medium text-slate-800">
                         {apt.appointment_time?.slice(0, 5)} — {apt.appointment_type?.replace('_', ' ')}
                       </span>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${apt.status === 'booked' ? 'bg-blue-100 text-[#004F7C]' : 'bg-green-100 text-green-700'}`}>
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${apt.status === 'booked' ? 'bg-sky-50 text-[#0067A1] border-sky-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
                         {apt.status}
                       </span>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-gray-500">Complete or cancel these appointments before going offline.</p>
+                <p className="text-xs text-slate-500">Complete or cancel these appointments before going offline.</p>
               </div>
               <button
                 onClick={() => setShowBlockedModal(false)}
-                className="w-full mt-6 py-3 sm:py-2.5 bg-[#0067A1] text-white rounded-xl font-semibold text-sm hover:bg-[#004F7C] transition-colors cursor-pointer"
+                className="w-full mt-4 py-2 bg-[#0067A1] text-white rounded-md font-medium text-xs sm:text-sm hover:bg-[#004F7C] transition-colors cursor-pointer"
               >
-                OK, Got It
+                Understood
               </button>
             </div>
           </div>
         )}
 
         {/* ── Availability Toggle Card ──────────────────────────────────── */}
-        <div className={`rounded-2xl border-2 shadow-lg p-5 transition-all duration-500 ${isOpen ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200' : 'bg-gradient-to-r from-slate-50 to-gray-50 border-slate-200'}`}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className={`rounded-md border p-4 transition-colors ${isOpen ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50/70 border-slate-200'}`}>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             {/* Status Section */}
-            <div className="flex items-center gap-4">
-              <div className={`relative w-16 h-8 rounded-full cursor-pointer transition-colors duration-300 shadow-inner ${toggleLoading ? 'opacity-50 cursor-not-allowed' : ''} ${isOpen ? 'bg-emerald-500' : 'bg-slate-300'}`}
+            <div className="flex items-start sm:items-center gap-3">
+              <div className={`relative w-12 h-6 rounded-full cursor-pointer transition-colors duration-200 shrink-0 mt-0.5 sm:mt-0 ${toggleLoading ? 'opacity-50 cursor-not-allowed' : ''} ${isOpen ? 'bg-emerald-600' : 'bg-slate-300'}`}
                 onClick={() => !toggleLoading && handleToggle(!isOpen)}
               >
-                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transform transition-transform duration-300 ${isOpen ? 'translate-x-9' : 'translate-x-1'}`} />
+                <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200 ${isOpen ? 'translate-x-6' : 'translate-x-0.5'}`} />
                 {toggleLoading && (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <FaSpinner className="animate-spin text-white w-4 h-4" />
+                    <FaSpinner className="animate-spin text-white w-3 h-3" />
                   </div>
                 )}
               </div>
               <div>
-                <p className={`font-bold text-lg ${isOpen ? 'text-emerald-700' : 'text-slate-600'}`}>
-                  {isOpen ? '🟢 Open for Appointments' : '🔴 Currently Closed'}
+                <p className={`font-semibold text-sm sm:text-base ${isOpen ? 'text-emerald-800' : 'text-slate-700'}`}>
+                  {isOpen ? 'Open for Appointments' : 'Currently Closed'}
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {isOpen
@@ -690,123 +685,123 @@ export default function ManageSlots() {
                     : 'Your slots are hidden. You do not appear in instant call listings.'}
                 </p>
                 {availabilityMessage && (
-                  <p className="text-xs text-emerald-600 font-medium mt-1">{availabilityMessage}</p>
+                  <p className="text-xs text-emerald-700 font-medium mt-1">{availabilityMessage}</p>
                 )}
               </div>
             </div>
 
             {/* Slot Interval Section */}
-            <div className="flex flex-col gap-2">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Slot Interval</p>
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Slot Interval</p>
+              <div className="flex flex-wrap items-center gap-1.5">
                 {[5, 10, 15, 30, 45, 60].map((mins) => (
                   <button
                     key={mins}
                     onClick={() => handleIntervalChange(mins)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-all border ${slotInterval === mins
-                      ? 'bg-[#0067A1] text-white border-[#0067A1] shadow-md'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-[#0067A1] hover:text-[#0067A1]'
+                    className={`px-2.5 py-1 rounded-md text-xs sm:text-sm font-medium transition-colors border cursor-pointer ${slotInterval === mins
+                      ? 'bg-[#0067A1] text-white border-[#0067A1]'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-800'
                     }`}
                   >
                     {mins}m
                   </button>
                 ))}
               </div>
-              <p className="text-[11px] text-slate-400">Each appointment slot duration</p>
+              <p className="text-[10px] text-slate-400">Each appointment slot duration</p>
             </div>
           </div>
         </div>
 
-        {/* Stats Cards - Matching Dashboard Colors */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+          <div className="bg-white rounded-md border border-slate-200 p-3.5 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-0.5">
                   Total Slots
                 </p>
-                <p className="text-2xl font-bold text-slate-800">{timeSlots.length}</p>
+                <p className="text-xl sm:text-2xl font-semibold text-slate-800">{timeSlots.length}</p>
               </div>
-              <div className="p-3 rounded-xl bg-[#0067A1]">
-                <FaCalendarAlt className="w-6 h-6 text-white" />
+              <div className="w-8 h-8 rounded-md bg-sky-50 text-[#0067A1] border border-sky-100 flex items-center justify-center shrink-0">
+                <FaCalendarAlt className="w-4 h-4" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5">
+          <div className="bg-white rounded-md border border-slate-200 p-3.5 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-0.5">
                   Available
                 </p>
-                <p className="text-2xl font-bold text-slate-800">{availableSlots.length}</p>
+                <p className="text-xl sm:text-2xl font-semibold text-slate-800">{availableSlots.length}</p>
               </div>
-              <div className="p-3 rounded-xl bg-[#0067A1]">
-                <FaCalendarCheck className="w-6 h-6 text-white" />
+              <div className="w-8 h-8 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center justify-center shrink-0">
+                <FaCalendarCheck className="w-4 h-4" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5">
+          <div className="bg-white rounded-md border border-slate-200 p-3.5 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider mb-0.5">
                   Booked
                 </p>
-                <p className="text-2xl font-bold text-slate-800">{bookedSlots.length}</p>
+                <p className="text-xl sm:text-2xl font-semibold text-slate-800">{bookedSlots.length}</p>
               </div>
-              <div className="p-3 rounded-xl bg-[#0067A1]">
-                <FaCalendarTimes className="w-6 h-6 text-white" />
+              <div className="w-8 h-8 rounded-md bg-rose-50 text-rose-700 border border-rose-100 flex items-center justify-center shrink-0">
+                <FaCalendarTimes className="w-4 h-4" />
               </div>
             </div>
           </div>
         </div>
 
         {/* Date Navigation */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-[#0067A1]/10">
-                <FaCalendarDay className="w-5 h-5 text-[#0067A1]" />
+        <div className="bg-white rounded-md border border-slate-200 p-3.5 sm:p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-md bg-sky-50 text-[#0067A1] border border-sky-100 flex items-center justify-center shrink-0">
+                <FaCalendarDay className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-slate-800">Select Date</h3>
-                <p className="text-sm text-slate-500">Choose date to view availability</p>
+                <h3 className="text-sm sm:text-base font-semibold text-slate-800">Select Date</h3>
+                <p className="text-xs text-slate-500">Choose date to view availability</p>
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-1">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+              <div className="flex items-center gap-1 bg-slate-50 rounded-md p-1 border border-slate-200 w-full sm:w-auto">
                 <button
                   onClick={() => handleDateChange(-1)}
-                  className="p-2.5 rounded-lg hover:bg-white hover:shadow-sm transition-all"
+                  className="p-1.5 rounded-md hover:bg-white text-slate-600 transition-colors cursor-pointer"
                   title="Previous day"
                 >
-                  <FaChevronLeft className="w-4 h-4 text-slate-600" />
+                  <FaChevronLeft className="w-3.5 h-3.5" />
                 </button>
                 
-                <div className="relative">
+                <div className="relative flex-1 sm:flex-initial">
                   <input
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="w-full px-4 py-2.5 pl-11 rounded-lg border border-slate-200 bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-transparent"
+                    className="w-full sm:w-auto px-2.5 py-1.5 pl-8 rounded-md border border-slate-200 bg-white text-slate-700 text-xs sm:text-sm font-medium focus:outline-none focus:border-[#0067A1]"
                   />
-                  <FaCalendarAlt className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <FaCalendarAlt className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                 </div>
                 
                 <button
                   onClick={() => handleDateChange(1)}
-                  className="p-2.5 rounded-lg hover:bg-white hover:shadow-sm transition-all"
+                  className="p-1.5 rounded-md hover:bg-white text-slate-600 transition-colors cursor-pointer"
                   title="Next day"
                 >
-                  <FaChevronRight className="w-4 h-4 text-slate-600" />
+                  <FaChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
               
               <button
                 onClick={handleToday}
-                className="px-4 py-2.5 bg-[#0067A1] text-white font-semibold rounded-xl hover:bg-[#004F7C] transition-all duration-200"
+                className="px-3 py-1.5 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs sm:text-sm font-medium rounded-md transition-colors cursor-pointer shrink-0"
               >
                 Today
               </button>
@@ -815,15 +810,15 @@ export default function ManageSlots() {
         </div>
 
         {/* Main Content */}
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
-          {/* Filter Tabs - Matching Dashboard Style */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="bg-white rounded-md border border-slate-200 p-3.5 sm:p-5">
+          {/* Filter Tabs */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-5">
             <div>
-              <h3 className="text-lg font-semibold text-slate-800">Time Slots</h3>
-              <p className="text-sm text-slate-500 mt-1">Manage your consultation slots</p>
+              <h3 className="text-sm sm:text-base font-semibold text-slate-800">Time Slots</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Manage your consultation slots</p>
             </div>
             
-            <div className="flex items-center gap-2 bg-slate-50 rounded-xl p-1">
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-50 p-1 rounded-md border border-slate-200">
               {[
                 { id: 'all', label: 'All Slots', count: timeSlots.length, icon: FaCalendarAlt },
                 { id: 'available', label: 'Available', count: availableSlots.length, icon: FaCheck },
@@ -835,18 +830,18 @@ export default function ManageSlots() {
                   <button
                     key={filter.id}
                     onClick={() => setSelectedView(filter.id)}
-                    className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg text-xs sm:text-sm transition-all duration-200 ${
+                    className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-md text-xs sm:text-sm font-medium transition-colors cursor-pointer ${
                       isActive
-                        ? 'bg-[#0067A1] text-white shadow-md'
-                        : 'text-slate-600 hover:bg-white hover:shadow-sm'
+                        ? 'bg-[#0067A1] text-white'
+                        : 'text-slate-600 hover:bg-white hover:text-slate-800'
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
-                    <span className="font-semibold">{filter.label}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold ${
+                    <Icon className="w-3 h-3" />
+                    <span>{filter.label}</span>
+                    <span className={`px-1.5 py-0.2 rounded-md text-[10px] sm:text-xs font-medium ${
                       isActive
                         ? 'bg-white/20 text-white'
-                        : 'bg-slate-200 text-slate-600'
+                        : 'bg-slate-200 text-slate-700'
                     }`}>
                       {filter.count}
                     </span>
@@ -857,27 +852,27 @@ export default function ManageSlots() {
           </div>
 
           {message && (
-            <div className={`mb-6 p-4 rounded-xl border flex items-start gap-3 ${
+            <div className={`mb-4 p-3 rounded-md border flex items-start gap-2.5 ${
               message.toLowerCase().includes('error') || 
               message.toLowerCase().includes('unable') || 
               message.toLowerCase().includes('please log in')
                 ? 'bg-rose-50 border-rose-200'
                 : 'bg-emerald-50 border-emerald-200'
             }`}>
-              <FaExclamationCircle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+              <FaExclamationCircle className={`w-4 h-4 mt-0.5 shrink-0 ${
                 message.toLowerCase().includes('error') || 
                 message.toLowerCase().includes('unable') || 
                 message.toLowerCase().includes('please log in')
-                  ? 'text-rose-500'
-                  : 'text-emerald-500'
+                  ? 'text-rose-600'
+                  : 'text-emerald-600'
               }`} />
               <div className="flex-1">
-                <p className={`font-medium ${
+                <p className={`text-xs sm:text-sm font-medium ${
                   message.toLowerCase().includes('error') || 
                   message.toLowerCase().includes('unable') || 
                   message.toLowerCase().includes('please log in')
                     ? 'text-rose-700'
-                    : 'text-emerald-700'
+                    : 'text-emerald-800'
                 }`}>
                   {message}
                 </p>
@@ -887,14 +882,14 @@ export default function ManageSlots() {
 
           {/* Slots Display */}
           {getFilteredSlots().length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-slate-50 flex items-center justify-center shadow-sm">
-                <FaClock className="w-10 h-10 text-slate-300" />
+            <div className="text-center py-10 px-4 bg-slate-50/50 rounded-md border border-dashed border-slate-200">
+              <div className="w-10 h-10 mx-auto mb-2.5 rounded-md bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+                <FaClock className="w-4 h-4" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-700 mb-2">
+              <h3 className="text-sm font-semibold text-slate-700 mb-1">
                 {timeSlots.length === 0 ? 'No Slots Available' : 'No Slots Match Filter'}
               </h3>
-              <p className="text-slate-500 max-w-md mx-auto">
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 {timeSlots.length === 0 
                   ? 'No time slots are scheduled for this date. Please set up your availability in settings.'
                   : `No ${selectedView} slots found for ${formatDate(selectedDate)}.`
@@ -902,7 +897,7 @@ export default function ManageSlots() {
               </p>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-5">
               {/* Grouped by Consultation Type */}
               {['clinic', 'video', 'home'].map((category) => {
                 const slotsForCategory = getFilteredSlots().filter(
@@ -916,19 +911,19 @@ export default function ManageSlots() {
                 );
 
                 return (
-                  <div key={category} className="space-y-3">
+                  <div key={category} className="space-y-2.5">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="text-base font-semibold text-slate-800">
+                        <h4 className="text-sm sm:text-base font-semibold text-slate-800">
                           {getSlotCategoryLabel(category)} Slots
                         </h4>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <p className="text-[11px] text-slate-500">
                           {slotsForCategory.length} total • {availableInCategory.length} available
                         </p>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3">
                       {slotsForCategory.map((slot) => renderSlotCard(slot))}
                     </div>
                   </div>
@@ -936,18 +931,18 @@ export default function ManageSlots() {
               })}
 
               {/* Time Range Summary */}
-              <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 rounded-lg bg-[#0067A1]/10">
-                    <FaClock className="w-5 h-5 text-[#0067A1]" />
+              <div className="bg-slate-50/70 rounded-md p-4 border border-slate-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-md bg-sky-50 text-[#0067A1] border border-sky-100 flex items-center justify-center shrink-0">
+                    <FaClock className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <h4 className="text-base font-semibold text-slate-800">Time Distribution</h4>
-                    <p className="text-sm text-slate-500">Slot availability by time of day</p>
+                    <h4 className="text-xs sm:text-sm font-semibold text-slate-800">Time Distribution</h4>
+                    <p className="text-[11px] text-slate-500">Slot availability by time of day</p>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
                   {Object.entries(timeRanges).map(([rangeKey, rangeConfig]) => {
                     const slotsInRange = getFilteredSlots().filter((slot) => {
                       const mins = parseTimeToMinutes(slot.time);
@@ -959,38 +954,38 @@ export default function ManageSlots() {
                     );
                     
                     return (
-                      <div key={rangeKey} className="bg-white rounded-xl p-4 border border-slate-200">
-                        <div className="flex items-center justify-between mb-3">
-                          <h5 className="font-semibold text-slate-700 capitalize">{rangeConfig.label}</h5>
-                          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                      <div key={rangeKey} className="bg-white rounded-md p-3 border border-slate-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="text-xs font-semibold text-slate-700 capitalize">{rangeConfig.label}</h5>
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
                             {slotsInRange.length} slots
                           </span>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           {slotsInRange.length > 0 ? (
                             slotsInRange.map(slot => (
-                              <div key={slot.time} className="flex items-center justify-between text-sm">
-                                <span className="text-slate-600">{slot.time}</span>
-                                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                              <div key={slot.time} className="flex items-center justify-between text-xs">
+                                <span className="text-slate-600 font-mono">{slot.time}</span>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${
                                   slot.status === 'available' || slot.slot_booked === false
-                                    ? 'bg-[#0067A1]/10 text-[#0067A1] border border-[#0067A1]/20'
-                                    : 'bg-rose-100 text-rose-700 border border-rose-200'
+                                    ? 'bg-sky-50 text-[#0067A1] border-sky-200'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200'
                                 }`}>
                                   {getSlotStatus(slot)}
                                 </span>
                               </div>
                             ))
                           ) : (
-                            <p className="text-sm text-slate-400 text-center py-2">No slots in this range</p>
+                            <p className="text-xs text-slate-400 text-center py-2">No slots in this range</p>
                           )}
                         </div>
                         {availableInRange.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-slate-100">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-slate-500">
+                          <div className="mt-2.5 pt-2.5 border-t border-slate-100">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-slate-500">
                                 {availableInRange.length} available
                               </span>
-                              <span className="text-xs font-semibold text-emerald-600">
+                              <span className="font-semibold text-emerald-700">
                                 {Math.round((availableInRange.length / slotsInRange.length) * 100)}% available
                               </span>
                             </div>
@@ -1004,25 +999,25 @@ export default function ManageSlots() {
 
               {/* Quick Stats */}
               {selectedView === 'all' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-[#0067A1]/5 rounded-2xl p-5 border border-[#0067A1]/20">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-[#0067A1]">
-                        <FaCalendarCheck className="w-6 h-6 text-white" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3">
+                  <div className="bg-sky-50/40 rounded-md p-3.5 sm:p-4 border border-sky-100">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-md bg-[#0067A1] text-white flex items-center justify-center shrink-0 mt-0.5">
+                        <FaCalendarCheck className="w-4 h-4" />
                       </div>
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-emerald-800 mb-3">Available Slots</h4>
-                        <div className="flex flex-wrap gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs sm:text-sm font-semibold text-slate-800 mb-2">Available Slots</h4>
+                        <div className="flex flex-wrap gap-1.5">
                           {availableSlots.slice(0, 6).map(slot => (
                             <span 
                               key={slot.time} 
-                              className="px-3 py-1.5 bg-white text-emerald-700 font-semibold rounded-lg text-sm border border-emerald-200"
+                              className="px-2 py-1 bg-white text-emerald-800 font-medium rounded-md text-xs border border-emerald-200 font-mono"
                             >
                               {formatTimeTo12h(slot.time)}
                             </span>
                           ))}
                           {availableSlots.length > 6 && (
-                            <span className="px-3 py-1.5 bg-white text-emerald-700 font-semibold rounded-lg text-sm border border-emerald-200">
+                            <span className="px-2 py-1 bg-white text-emerald-800 font-medium rounded-md text-xs border border-emerald-200">
                               +{availableSlots.length - 6} more
                             </span>
                           )}
@@ -1031,24 +1026,24 @@ export default function ManageSlots() {
                     </div>
                   </div>
 
-                  <div className="bg-rose-50 rounded-2xl p-5 border border-rose-200">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-[#0067A1]">
-                        <FaCalendarTimes className="w-6 h-6 text-white" />
+                  <div className="bg-rose-50/40 rounded-md p-3.5 sm:p-4 border border-rose-100">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-md bg-rose-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                        <FaCalendarTimes className="w-4 h-4" />
                       </div>
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-rose-800 mb-3">Booked Slots</h4>
-                        <div className="flex flex-wrap gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs sm:text-sm font-semibold text-slate-800 mb-2">Booked Slots</h4>
+                        <div className="flex flex-wrap gap-1.5">
                           {bookedSlots.slice(0, 6).map(slot => (
                             <span 
                               key={slot.time} 
-                              className="px-3 py-1.5 bg-white text-rose-700 font-semibold rounded-lg text-sm border border-rose-200"
+                              className="px-2 py-1 bg-white text-rose-800 font-medium rounded-md text-xs border border-rose-200 font-mono"
                             >
                               {formatTimeTo12h(slot.time)}
                             </span>
                           ))}
                           {bookedSlots.length > 6 && (
-                            <span className="px-3 py-1.5 bg-white text-rose-700 font-semibold rounded-lg text-sm border border-rose-200">
+                            <span className="px-2 py-1 bg-white text-rose-800 font-medium rounded-md text-xs border border-rose-200">
                               +{bookedSlots.length - 6} more
                             </span>
                           )}
@@ -1064,7 +1059,7 @@ export default function ManageSlots() {
 
         {/* Footer Note */}
         <div className="text-center">
-          <p className="text-sm text-slate-500">
+          <p className="text-xs text-slate-400">
             Total {timeSlots.length} slots • {availableSlots.length} available • {bookedSlots.length} booked
           </p>
         </div>

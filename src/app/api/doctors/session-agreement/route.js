@@ -9,7 +9,7 @@
  */
 
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 /**
  * GET — Check if doctor has accepted agreement today
@@ -23,16 +23,16 @@ export async function GET(req) {
 
         const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
 
-        const { data: agreement } = await supabase
-            .from("doctor_session_agreement")
-            .select("*")
-            .eq("doctor_id", doctor_id)
-            .eq("session_date", today)
-            .single();
+        const rows = await sql`
+            SELECT * FROM doctor_session_agreement
+            WHERE doctor_id = ${doctor_id}::uuid AND session_date = ${today}::date
+            LIMIT 1
+        `;
+        const agreement = rows[0] || null;
 
         return success("Session agreement status", {
             accepted_today: !!agreement,
-            agreement: agreement || null,
+            agreement,
             session_date: today,
         });
 
@@ -56,33 +56,27 @@ export async function POST(req) {
         const today = new Date().toISOString().split("T")[0];
 
         // Check if already accepted today
-        const { data: existing } = await supabase
-            .from("doctor_session_agreement")
-            .select("id")
-            .eq("doctor_id", doctor_id)
-            .eq("session_date", today)
-            .single();
+        const existing = await sql`
+            SELECT id FROM doctor_session_agreement
+            WHERE doctor_id = ${doctor_id}::uuid AND session_date = ${today}::date
+            LIMIT 1
+        `;
 
-        if (existing) {
+        if (existing && existing.length > 0) {
             return success("Agreement already accepted today", { already_accepted: true });
         }
 
         // Insert new agreement
-        const { data, error } = await supabase
-            .from("doctor_session_agreement")
-            .insert({
-                doctor_id,
-                session_date: today,
-                accepted_at: new Date().toISOString(),
-                ip_address: ip_address || null,
-                device_info: device_info || null,
-            })
-            .select()
-            .single();
+        const inserted = await sql`
+            INSERT INTO doctor_session_agreement (
+                doctor_id, session_date, accepted_at, ip_address, device_info
+            ) VALUES (
+                ${doctor_id}::uuid, ${today}::date, NOW(), ${ip_address || null}, ${device_info || null}
+            )
+            RETURNING *
+        `;
 
-        if (error) throw error;
-
-        return success("Session agreement accepted", data);
+        return success("Session agreement accepted", inserted[0]);
 
     } catch (err) {
         console.error("POST /api/doctors/session-agreement error:", err);

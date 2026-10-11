@@ -2,10 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { FaTimes, FaPaperPlane, FaFlask, FaPills, FaArrowRight, FaCheckCircle, FaPrint, FaEnvelope, FaArrowsAltH, FaDownload, FaSpinner } from "react-icons/fa";
+import { FaTimes, FaArrowsAltH, FaLock, FaCheck } from "react-icons/fa";
+import { Download, Loader2, Building2, FlaskConical, RotateCcw, ShoppingBag, CalendarCheck } from "lucide-react";
+import { XMarkIcon } from "@heroicons/react/24/outline";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
-import { exportPrescriptionPdf, printPrescriptionPdf } from "@/lib/prescriptionPdfEngine";
+import { exportPrescriptionPdf, createPrescriptionJsPdf } from "@/lib/prescriptionPdfEngine";
 import { MEDICONNECT_LOGO_BASE64, DOCTOR_CADUCEUS_BASE64 } from "@/lib/prescriptionAssets";
 import SharePrescriptionModal from "./SharePrescriptionModal";
 
@@ -35,9 +37,48 @@ function VitalChip({ label, value }) {
   );
 }
 
+const safeJsonParse = (value, fallback) => {
+  if (!value) return fallback;
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+};
+
+const formatCustomFieldLabel = (rawField, secName = "") => {
+  if (!rawField) return "";
+  const rf = String(rawField).trim();
+  const lower = rf.toLowerCase();
+  if (lower === "lesion_type") return "Lesion Type";
+  if (lower === "hairscalp" || lower === "hair_scalp") return "Hair / Scalp";
+  if (lower === "site") return "Site";
+  if (lower === "morphology") return "Morphology";
+  if (lower === "distribution") return "Distribution";
+  if (lower === "nails") return "Nails";
+  if (lower === "findings") return "Findings";
+  if (lower === "lmp") return "LMP";
+  if (lower === "procedure" || lower === "procedures") return "Procedure";
+  if (lower === "others") return "Others";
+  if (lower === "info" || lower === "notes") return "Notes";
+  if (lower === "bp") return "BP";
+  if (lower === "pulse") return "Pulse";
+  if (lower === "respiratory_rate") return "Respiratory Rate";
+  if (lower === "spo" || lower === "spo2") return "SpO₂";
+  if (lower === "temperature") return "Temperature";
+  if (lower === "return_after") return "Return After";
+  if (lower === "warning_signs") return "Warning Signs";
+  if (lower === "red_flags") return "Red Flags";
+  if (lower === "instructions") return "Instructions";
+  if (lower === "itching_rash_redness_scaling_burning_pain") return "Itching / Rash / Redness / Scaling";
+  if (lower === "hair_fall_white_patches_acne_boils_nail_changes") return "Hair fall / White patches / Acne";
+  return rf.replace(/_/g, " ").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
 const formatSpecialMessage = (text) => {
   if (!text) return null;
-  const cleanText = text.replace(/\[\s*(PRESENTING COMPLAINTS|COMPLAINTS)\s*\][^\[]*/gi, '');
+  const cleanText = String(text).replace(/\[\s*(PRESENTING COMPLAINTS|COMPLAINTS)\s*\][^\[]*/gi, '');
   return cleanText.split("\n").map((line, idx) => {
     if (!line.trim()) return null;
     const isHeader = line.trim().startsWith("[") && line.trim().endsWith("]");
@@ -52,24 +93,49 @@ const formatSpecialMessage = (text) => {
 };
 
 export default function PrescriptionViewerModal({
-  data,
+  data: rawData,
   onClose,
   combinedLabs = [],
   onSendToLab,
-  onSendToChemist
+  onSendToChemist,
+  isDoctor = false,
+  onOrdersUpdated,
+  chemistOrder: propChemistOrder,
+  chemistInfo: propChemistInfo,
+  labOrder: propLabOrder,
+  labInfo: propLabInfo,
+  autoSaveDigiLocker = false,
 }) {
+  const data = rawData || {};
   const router = useRouter();
   const [chemistOrder, setChemistOrder] = useState(null);
+  const [chemistInfo, setChemistInfo] = useState(null);
   const [labOrder, setLabOrder] = useState(null);
+  const [labInfo, setLabInfo] = useState(null);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [shareTarget, setShareTarget] = useState(null);
-  const [showFulfillPrompt, setShowFulfillPrompt] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSavingToDigiLocker, setIsSavingToDigiLocker] = useState(false);
+  const [isSavedInDigiLocker, setIsSavedInDigiLocker] = useState(false);
+  const [sigLoadFailed, setSigLoadFailed] = useState(false);
+
+  useEffect(() => {
+    let patientId = typeof window !== "undefined" ? (localStorage.getItem("userId") || localStorage.getItem("user_id")) : null;
+    const rxId = data?.id;
+    if (patientId && rxId) {
+      fetch(`/api/patients/prescriptions/save-to-digilocker?patient_id=${patientId}&prescription_id=${rxId}`)
+        .then((res) => res.json())
+        .then((d) => {
+          if (d?.data?.is_saved) setIsSavedInDigiLocker(true);
+        })
+        .catch(() => {});
+    }
+  }, [data?.id]);
 
   const fetchOrders = async () => {
     if (!data?.id) { setOrdersLoading(false); return; }
-    const patientId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+    const patientId = data?.patient_id || data?.patient_details?.id || (typeof window !== "undefined" && !isDoctor ? (localStorage.getItem("userId") || localStorage.getItem("user_id")) : null);
     if (!patientId) { setOrdersLoading(false); return; }
 
     const pickLatest = (orders) => {
@@ -81,26 +147,46 @@ export default function PrescriptionViewerModal({
 
     setOrdersLoading(true);
     try {
-      const [medData, labData] = await Promise.all([
+      const [medRes, labRes] = await Promise.all([
         fetch("/api/patients/orders/medicine/by-prescription", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prescription_id: data.id, patient_id: patientId }),
-        }).then(r => r.json()).catch(() => null),
+        }),
         fetch("/api/patients/orders/lab/by-prescription", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prescription_id: data.id, patient_id: patientId }),
-        }).then(r => r.json()).catch(() => null),
+        }),
       ]);
-      const mOrder = pickLatest(medData?.data || []);
-      const lOrder = pickLatest(labData?.data || []);
-      setChemistOrder(mOrder);
-      setLabOrder(lOrder);
 
-      const hasMedicines = Array.isArray(data.medicines) && data.medicines.length > 0;
-      const hasLabs = Array.isArray(combinedLabs) && combinedLabs.length > 0;
-      if ((hasMedicines && !mOrder) || (hasLabs && !lOrder)) {
-        setShowFulfillPrompt(true);
+      const medData = await medRes.json().catch(() => null);
+      const labData = await labRes.json().catch(() => null);
+
+      const latestMed = pickLatest(medData?.data || []);
+      const latestLab = pickLatest(labData?.data || []);
+
+      setChemistOrder(latestMed || null);
+      setLabOrder(latestLab || null);
+
+      if (latestMed?.chemist_id) {
+        const chemistRes = await fetch(`/api/chemists/web/${latestMed.chemist_id}`);
+        const chemistData = await chemistRes.json().catch(() => null);
+        setChemistInfo(chemistData?.data || null);
+      } else {
+        setChemistInfo(null);
       }
+
+      if (latestLab?.lab_id) {
+        const labRes = await fetch(`/api/lab/web/${latestLab.lab_id}`);
+        const labInfoData = await labRes.json().catch(() => null);
+        setLabInfo(labInfoData?.data || null);
+      } else {
+        setLabInfo(null);
+      }
+    } catch {
+      setChemistOrder(null);
+      setLabOrder(null);
+      setChemistInfo(null);
+      setLabInfo(null);
     } finally {
       setOrdersLoading(false);
     }
@@ -110,35 +196,190 @@ export default function PrescriptionViewerModal({
     fetchOrders();
   }, [data?.id]);
 
-  if (!data) return null;
-
   const doc = data.doctor_details || {};
   const pat = data.patient_details || {};
   const appt = data.appointments || {};
   const medicines = Array.isArray(data.medicines) ? data.medicines : [];
-  const vitals = data.vital_signs || data.vitals || null;
+  const td = safeJsonParse(data.template_data, {});
+
+  const rawVitals = safeJsonParse(data.vital_signs || data.vitals, null);
+  const vitals = (() => {
+    let v = rawVitals && typeof rawVitals === "object" ? { ...rawVitals } : {};
+    if (td && typeof td === "object") {
+      Object.entries(td).forEach(([k, val]) => {
+        if (!val || typeof val !== "string" || !val.trim()) return;
+        const lower = k.toLowerCase();
+        if (lower.startsWith("vitals__") || lower.startsWith("vitals (reported)__")) {
+          const field = (k.split("__")[1] || "").toLowerCase();
+          if (field === "bp" && !v.blood_pressure && !v.bp) v.blood_pressure = val.trim();
+          else if (field === "pulse" && !v.pulse) v.pulse = val.trim();
+          else if (field === "temperature" && !v.temperature) v.temperature = val.trim();
+          else if ((field === "spo" || field === "spo2") && !v.spo2 && !v.spo) v.spo2 = val.trim();
+          else if (field === "respiratory_rate" && !v.respiratory_rate && !v.rr) v.respiratory_rate = val.trim();
+          else if (field === "weight" && !v.weight) v.weight = val.trim();
+          else if (field === "height" && !v.height) v.height = val.trim();
+        }
+      });
+    }
+    return Object.keys(v).length > 0 ? v : null;
+  })();
+
+  const labTestsRaw = Array.isArray(data.lab_tests) ? data.lab_tests : [];
+  const investigationsRaw = Array.isArray(data.investigations) ? data.investigations : [];
+
+  const combinedLabsAndInvestigations = [
+    ...((Array.isArray(combinedLabs) && combinedLabs.length > 0) ? combinedLabs : []),
+    ...labTestsRaw.map(t => ({
+      name: typeof t === "string" ? t : t.test_name || t.name || "",
+      instructions: typeof t === "string" ? "" : t.instructions || "",
+      urgency: typeof t === "string" ? "" : t.urgency || ""
+    })),
+    ...investigationsRaw.map(inv => ({
+      name: typeof inv === "string" ? inv : inv?.name || "",
+      instructions: typeof inv === "string" ? "" : inv?.instructions || "",
+      urgency: typeof inv === "string" ? "" : inv?.urgency || ""
+    }))
+  ].filter(item => {
+    const n = typeof item === "string" ? item : item?.name;
+    return n && n.trim();
+  });
+
+  const uniqueLabs = [];
+  const seenLabNames = new Set();
+  for (const item of combinedLabsAndInvestigations) {
+    const n = typeof item === "string" ? item.trim() : (item.name || "").trim();
+    if (n && !seenLabNames.has(n.toLowerCase())) {
+      seenLabNames.add(n.toLowerCase());
+      uniqueLabs.push(typeof item === "string" ? { name: n } : item);
+    }
+  }
+
+  // Include any extra investigations from template_data
+  if (td && typeof td === "object") {
+    const extraInv = td['INVESTIGATIONS__others'] || td['INVESTIGATIONS__info'] || td['INVESTIGATIONS.__others'] || td['INVESTIGATIONS.__info'];
+    if (extraInv && typeof extraInv === "string" && extraInv.trim()) {
+      const invNames = extraInv.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+      invNames.forEach(invName => {
+        if (invName && !seenLabNames.has(invName.toLowerCase())) {
+          seenLabNames.add(invName.toLowerCase());
+          uniqueLabs.push({ name: invName });
+        }
+      });
+    }
+  }
   
   const symptoms = (() => {
     let symp = {};
-    let td = data.template_data || {};
-    if (typeof td === 'string') {
-      try { td = JSON.parse(td); } catch { td = {}; }
-    }
-    if (td) {
+    if (td && typeof td === "object") {
       if (td._dynamic_complaints && Array.isArray(td._dynamic_complaints)) {
-        td._dynamic_complaints.forEach(c => {
-          if (c.complaint) symp[c.complaint] = c.details || "Yes";
+        td._dynamic_complaints.forEach((c) => {
+          if (c && c.complaint && typeof c.complaint === "string" && c.complaint.trim()) {
+            symp[c.complaint.trim()] = c.details ? c.details.trim() : "Yes";
+          }
         });
-      } else {
-        if (td['PRESENTING COMPLAINTS__fever']) symp['Fever / Chills'] = td['PRESENTING COMPLAINTS__fever'];
-        if (td['PRESENTING COMPLAINTS__cough']) symp['Cough / Cold / Sore throat'] = td['PRESENTING COMPLAINTS__cough'];
-        if (td['PRESENTING COMPLAINTS__headache']) symp['Headache / Bodyache'] = td['PRESENTING COMPLAINTS__headache'];
-        if (td['PRESENTING COMPLAINTS__gi_symptoms']) symp['Nausea / Vomiting / Diarrhea'] = td['PRESENTING COMPLAINTS__gi_symptoms'];
-        if (td['PRESENTING COMPLAINTS__weakness']) symp['Weakness / Fatigue'] = td['PRESENTING COMPLAINTS__weakness'];
+      }
+      Object.entries(td).forEach(([k, val]) => {
+        if (!val || typeof val !== "string" || !val.trim()) return;
+        const lower = k.toLowerCase();
+        if (
+          lower.startsWith("presenting complaints__") ||
+          lower.startsWith("persenting complaints__") ||
+          lower.startsWith("complaints__")
+        ) {
+          const field = k.split("__")[1] || "";
+          const label = formatCustomFieldLabel(field, "Complaints");
+          if (label && !symp[label]) {
+            symp[label] = val.trim();
+          }
+        }
+      });
+    }
+
+    if (data.symptoms) {
+      if (typeof data.symptoms === "string" && data.symptoms.trim()) {
+        if (!symp[data.symptoms.trim()]) symp[data.symptoms.trim()] = "Yes";
+      } else if (Array.isArray(data.symptoms)) {
+        data.symptoms.forEach((s) => {
+          if (typeof s === "string" && s.trim() && !symp[s.trim()]) {
+            symp[s.trim()] = "Yes";
+          }
+        });
+      } else if (typeof data.symptoms === "object") {
+        Object.entries(data.symptoms).forEach(([k, v]) => {
+          if (v && !symp[k]) symp[k] = String(v);
+        });
       }
     }
     return Object.keys(symp).length > 0 ? symp : null;
   })();
+
+  const customTemplateSections = (() => {
+    const sections = {};
+    if (!td || typeof td !== "object") return sections;
+
+    const isIgnoredSection = (normSec) => {
+      return (
+        normSec.startsWith("vital") ||
+        normSec.includes("provisional diagnosis") ||
+        normSec === "diagnosis" ||
+        normSec.startsWith("treatment") ||
+        normSec === "rx" ||
+        normSec.startsWith("medicine") ||
+        normSec.startsWith("investigation") ||
+        normSec.startsWith("lab") ||
+        normSec.startsWith("follow") ||
+        normSec.includes("complaint") ||
+        normSec === "symptoms" ||
+        normSec === "conditions" ||
+        normSec.includes("digital signature")
+      );
+    };
+
+    Object.entries(td).forEach(([key, val]) => {
+      if (val === null || val === undefined) return;
+      if (typeof val !== "string" && typeof val !== "number") return;
+      const strVal = String(val).trim();
+      if (!strVal || strVal === "—") return;
+
+      if (!key.includes("__")) return;
+      const [rawSec, rawField] = key.split("__");
+      if (!rawSec || !rawField) return;
+
+      const trimmedSec = rawSec.trim().replace(/:+$/, "");
+      const normSec = trimmedSec.toLowerCase();
+
+      if (isIgnoredSection(normSec)) return;
+
+      const label = formatCustomFieldLabel(rawField, trimmedSec);
+      if (!sections[trimmedSec]) {
+        sections[trimmedSec] = [];
+      }
+      sections[trimmedSec].push({
+        key: rawField,
+        label: label || rawField,
+        value: strVal,
+      });
+    });
+
+    return sections;
+  })();
+
+  const examFindingsNotes = (() => {
+    const ef = data.examination_findings;
+    if (!ef) return "";
+    if (typeof ef === "string") {
+      try {
+        const parsed = JSON.parse(ef);
+        return typeof parsed === "object" ? (parsed.notes || parsed.text || "") : ef;
+      } catch {
+        return ef;
+      }
+    }
+    if (typeof ef === "object") {
+      return ef.notes || ef.text || "";
+    }
+    return String(ef);
+  })().trim();
 
   const formatVitalKey = (k) => {
     if (!k) return "";
@@ -228,7 +469,7 @@ export default function PrescriptionViewerModal({
     return "OPD Care & Consultation";
   })();
 
-  const prescriptionId = `MED-${doc.un_id || "0"}-${pat.un_id || "0"}-${data.unid || data.id?.slice(0, 8) || "0"}`;
+  const prescriptionId = `MED-${doc.un_id || "0"}-${pat.un_id || "0"}-${data.unid || data.pid || data.prescription_number || data.id?.slice(0, 8) || "0"}`;
 
   const episodeCode = (() => {
     if (data.episode_id) return data.episode_id;
@@ -240,10 +481,52 @@ export default function PrescriptionViewerModal({
     return null;
   })();
 
+  const chemistName = chemistInfo?.pharmacy_name || chemistInfo?.owner_name || chemistOrder?.chemist_name || "Selected Chemist";
+  const chemistSub = [chemistInfo?.address || chemistOrder?.delivery_address, chemistInfo?.mobile || chemistOrder?.contact_number].filter(Boolean).join(" • ");
+  const labName = labInfo?.lab_name || labInfo?.owner_name || labOrder?.lab_name || "Selected Lab";
+  const labSub = [labInfo?.address, labInfo?.phone_number].filter(Boolean).join(" • ");
+
   const fmtDate = (d) => {
     if (!d) return "N/A";
     try { return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }); } catch { return d; }
   };
+
+  const fmtDateTime = (d) => {
+    if (!d) return "—";
+    try {
+      return new Date(d).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch {
+      return d;
+    }
+  };
+
+  const signatureRawUrl = (() => {
+    const raw = doc.signature_url || data.doctor_signature_url || data.signature_url;
+    if (!raw) return null;
+    if (typeof raw === "string" && raw.startsWith("[")) {
+      try {
+        const arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr[0] : raw;
+      } catch {
+        return raw;
+      }
+    }
+    if (Array.isArray(raw)) return raw[0];
+    return raw;
+  })();
+
+  const signatureImgUrl = signatureRawUrl
+    ? (signatureRawUrl.startsWith("http")
+        ? `/api/common/image-proxy?url=${encodeURIComponent(signatureRawUrl)}`
+        : signatureRawUrl)
+    : null;
 
   const fmtTime = (str) => {
     if (!str) return "—";
@@ -269,14 +552,14 @@ export default function PrescriptionViewerModal({
     }
   })();
 
-  let warningSignsHtml = followUpObj?.warning_signs || followUpObj?.notes || "";
+  let warningSignsHtml = followUpObj?.warning_signs || followUpObj?.notes || td?.['INFORM IMMEDIATELY IN CASE:__info'] || td?.['INFORM IMMEDIATELY IN CASES__info'] || td?.['RED FLAGS__info'] || td?.['Warning signs__info'] || "";
   if (Array.isArray(warningSignsHtml)) warningSignsHtml = warningSignsHtml.join(", ");
   warningSignsHtml = warningSignsHtml.trim();
   if (!warningSignsHtml || warningSignsHtml === "—") {
     warningSignsHtml = "Seek immediate medical attention if you experience high fever, severe breathlessness, chest pain, or sudden weakness.";
   }
 
-  const followUpDateVal = followUpObj?.date || followUpObj?.return_after || "";
+  const followUpDateVal = followUpObj?.date || followUpObj?.return_after || td?.['FOLLOW-UP__return_after'] || td?.['FOLLOW-UP:__return_after'] || td?.['FOLLOW-UP__info'] || "";
   const followUpNotesVal = followUpObj?.notes || "";
   const isDateVal = followUpDateVal && !isNaN(Date.parse(followUpDateVal));
 
@@ -313,365 +596,768 @@ export default function PrescriptionViewerModal({
     }
   };
 
+  const handleSaveToDigiLocker = async () => {
+    const el = document.getElementById("rx-print-area");
+    if (!el) {
+      toast.error("Prescription area not found");
+      return;
+    }
+    const patientId = data?.patient_id || data?.patient_details?.id || (typeof window !== "undefined" ? (localStorage.getItem("userId") || localStorage.getItem("user_id")) : null);
+    if (!patientId) {
+      toast.error("Please login to save to DigiLocker");
+      return;
+    }
+    try {
+      setIsSavingToDigiLocker(true);
+      toast.loading("Rendering PDF & saving to DigiLocker...", { id: "save-rx-digilocker" });
+
+      const pdf = await createPrescriptionJsPdf(el);
+      const pdfBlob = pdf.output("blob");
+      const filename = `Prescription_${prescriptionId || "MediConnect"}.pdf`;
+      const pdfFile = new File([pdfBlob], filename, { type: "application/pdf" });
+
+      const formData = new FormData();
+      formData.append("patient_id", patientId);
+      formData.append("prescription_id", data?.id || "");
+      formData.append("appointment_id", data?.appointment_id || "");
+      formData.append("file", pdfFile);
+
+      const res = await fetch("/api/patients/prescriptions/save-to-digilocker", {
+        method: "POST",
+        body: formData,
+      });
+      const resData = await res.json();
+
+      if (resData.success) {
+        setIsSavedInDigiLocker(true);
+        toast.success(resData.message || "Prescription saved to your MediConnect DigiLocker!", { id: "save-rx-digilocker" });
+      } else {
+        toast.error(resData.message || "Failed to save to DigiLocker", { id: "save-rx-digilocker" });
+      }
+    } catch (err) {
+      console.error("Save to DigiLocker error:", err);
+      toast.error("Failed to save to DigiLocker: " + err.message, { id: "save-rx-digilocker" });
+    } finally {
+      setIsSavingToDigiLocker(false);
+    }
+  };
+
+  useEffect(() => {
+    if (autoSaveDigiLocker && !isSavedInDigiLocker && !isSavingToDigiLocker) {
+      const timer = setTimeout(() => {
+        handleSaveToDigiLocker();
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [autoSaveDigiLocker]);
+
   const handlePrint = async () => {
     await handleDownload();
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative bg-white rounded-none sm:rounded-2xl shadow-none sm:shadow-2xl w-full sm:max-w-4xl h-full sm:h-[95dvh] sm:max-h-[96vh] flex flex-col overflow-hidden">
+  if (!rawData) return null;
 
-        {/* Modal toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 bg-slate-800 flex-shrink-0">
-          <span className="text-white font-semibold text-sm">Prescription View</span>
-          <div className="flex items-center gap-2">
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-0 sm:p-4 bg-black/70">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div className="relative bg-white rounded-none sm:rounded-2xl shadow-none sm:shadow-2xl w-full sm:max-w-4xl h-full sm:h-auto sm:max-h-[95vh] flex flex-col overflow-hidden">
+
+        {/* ── Close bar ── */}
+        <div className="flex items-center justify-between px-3 sm:px-6 py-3 bg-gradient-to-r from-[#0067A1] to-[#005282] text-white shrink-0 shadow-sm gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <h3 className="text-xs sm:text-base font-bold tracking-wide uppercase truncate">Prescription</h3>
+            <span className="hidden md:inline-block text-[10px] bg-white/20 text-white font-semibold px-2 py-0.5 rounded-md tracking-wider border border-white/20">A4 PDF</span>
+          </div>
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Save to DigiLocker Button */}
+            {!isDoctor && (
+              <button
+                type="button"
+                onClick={handleSaveToDigiLocker}
+                disabled={isSavingToDigiLocker}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer active:scale-95 ${
+                  isSavedInDigiLocker
+                    ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                    : "bg-white/15 hover:bg-white/25 text-white border border-white/20"
+                }`}
+                title={isSavedInDigiLocker ? "Saved in MediConnect DigiLocker" : "Save this PDF in MediConnect DigiLocker"}
+              >
+                {isSavingToDigiLocker ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : isSavedInDigiLocker ? (
+                  <FaCheck className="w-3 h-3 text-white" />
+                ) : (
+                  <FaLock className="w-3 h-3 text-white/80" />
+                )}
+                <span className="hidden sm:inline">{isSavingToDigiLocker ? "Saving..." : isSavedInDigiLocker ? "In Locker" : "DigiLocker"}</span>
+                <span className="sm:hidden">{isSavedInDigiLocker ? "Saved" : "Locker"}</span>
+              </button>
+            )}
+
+            {/* Download PDF Button */}
             <button
               type="button"
               onClick={handleDownload}
               disabled={isDownloading}
-              className="px-4 py-1.5 bg-[#0080C6] text-white hover:bg-[#0067A1] active:scale-95 disabled:opacity-50 rounded-lg text-xs font-semibold transition cursor-pointer shadow-sm flex items-center gap-1.5"
+              className="px-2.5 sm:px-3.5 py-1.5 bg-white text-[#0067A1] hover:bg-sky-50 active:scale-95 disabled:opacity-50 rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
               title="Download Prescription (A4 PDF)"
             >
-              {isDownloading ? <FaSpinner className="w-3.5 h-3.5 animate-spin" /> : <FaDownload className="w-3.5 h-3.5" />}
-              <span>{isDownloading ? "Generating PDF..." : "Download PDF"}</span>
+              {isDownloading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span className="hidden sm:inline">{isDownloading ? "Generating..." : "Download PDF"}</span>
+              <span className="sm:hidden">PDF</span>
             </button>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-300 hover:text-white transition ml-1"
-            >
-              <FaTimes className="w-4 h-4" />
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/20 active:scale-95 transition-all cursor-pointer">
+              <XMarkIcon className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Scrollable prescription document — vertical and horizontal scroll to preserve pristine A4 layout */}
+        {/* ── Scrollable letter body (2-way scrollable for narrow screens while maintaining pristine A4 layout) ── */}
         <div className="flex-1 overflow-x-auto overflow-y-auto bg-slate-100/90 p-2 sm:p-6">
           <div className="min-w-fit flex flex-col items-center">
+
+            {/* ── Mobile Scroll Hint ── */}
             <div className="block md:hidden text-[11px] text-slate-500 font-medium mb-2 w-[794px] px-2 text-center flex items-center justify-center gap-1.5">
-              <FaArrowsAltH className="w-3.5 h-3.5 text-slate-400 inline" />
+              <FaArrowsAltH className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <span>Scroll horizontally to view full standard A4 prescription sheet</span>
             </div>
-            <div id="rx-print-area" style={{ fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif', background: 'white', width: 794, minWidth: 794, maxWidth: 794, margin: '0 auto', padding: 28, borderRadius: 0, boxShadow: 'none', border: 'none', color: '#333', boxSizing: 'border-box' }}>
+
+            {/* ─── A4 Prescription Sheet ─── */}
+            <div 
+              id="rx-print-area"
+              className="bg-white text-gray-900 mx-auto"
+              style={{ width: 794, minWidth: 794, maxWidth: 794, boxSizing: 'border-box', background: '#ffffff', padding: '24px 28px', border: 'none', boxShadow: 'none', borderRadius: '0px' }}
+            >
             
-            {/* HEADER */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', background: 'linear-gradient(135deg,#66baf7 0%,#62bcfb 100%)', borderRadius: 0, borderBottom: '2px solid #0067A1', marginBottom: 10 }}>
-              <tbody>
-                <tr>
-                  <td style={{ width: 84, textAlign: 'center', verticalAlign: 'middle', padding: '10px 14px' }}>
-                    <img src={MEDICONNECT_LOGO_BASE64} alt="logo" width={60} height={60} style={{ width: 60, height: 60, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
-                  </td>
-                  <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '10px 4px' }}>
-                    <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'black', textShadow: '1px 1px 2px rgba(0,0,0,0.25)', whiteSpace: 'nowrap' }}>MediConnect.fit</h1>
-                    <p style={{ margin: '3px 0 0', fontSize: 12, color: 'black', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      {tagline}
-                    </p>
-                    <p style={{ margin: '2px 0 0', fontSize: 11, color: 'black' }}><FaEnvelope style={{ display: 'inline', width: 12, height: 12, marginRight: 4, verticalAlign: 'middle' }} /> hello@mediconnect.fit</p>
-                  </td>
-                  <td style={{ width: 84, textAlign: 'center', verticalAlign: 'middle', padding: '10px 14px' }}>
-                    <img src={DOCTOR_CADUCEUS_BASE64} alt="dr" width={60} height={60} style={{ width: 60, height: 60, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+              {/* ─── Header / Letterhead ─── */}
+              <table 
+                style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse', 
+                  background: 'linear-gradient(135deg, #66baf7 0%, #62bcfb 100%)', 
+                  borderRadius: '0px',
+                  borderBottom: '2px solid #0067A1',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <tbody>
+                  <tr>
+                    <td style={{ width: '84px', padding: '10px 14px', verticalAlign: 'middle', textAlign: 'center' }}>
+                      <img
+                        src={MEDICONNECT_LOGO_BASE64}
+                        alt="MediConnect Logo"
+                        style={{ width: '60px', height: '60px', maxWidth: '60px', maxHeight: '60px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                        width={60}
+                        height={60}
+                      />
+                    </td>
+                    <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '10px 4px' }}>
+                      <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 800, color: '#000000', textShadow: '1px 1px 2px rgba(0,0,0,0.25)', whiteSpace: 'nowrap' }}>
+                        MediConnect.fit
+                      </h1>
+                      <p style={{ margin: '3px 0 0', fontSize: '12px', fontWeight: 700, color: '#000000', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        {tagline}
+                      </p>
+                      <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#000000' }}>
+                        hello@mediconnect.fit
+                      </p>
+                    </td>
+                    <td style={{ width: '84px', padding: '10px 14px', verticalAlign: 'middle', textAlign: 'center' }}>
+                      <img
+                        src={DOCTOR_CADUCEUS_BASE64}
+                        alt="Doctor Icon"
+                        style={{ width: '60px', height: '60px', maxWidth: '60px', maxHeight: '60px', objectFit: 'contain', display: 'block', margin: '0 auto' }}
+                        width={60}
+                        height={60}
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
 
-            {/* TOP ROW (Metadata line - No Box) */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', background: 'transparent', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', marginBottom: 10 }}>
-              <tbody>
-                <tr>
-                  <td style={{ padding: '8px 4px', fontSize: 12, fontWeight: 600, color: '#333', textAlign: 'left', width: '35%' }}>
-                    Rx ID: <span style={{ color: '#0067A1' }}>{data.pid ? `RX-${String(data.pid).padStart(4, '0')}` : prescriptionId}</span>
-                  </td>
-                  <td style={{ padding: '8px 4px', fontSize: 12, fontWeight: 600, textAlign: 'center', width: '35%' }}>
-                    {episodeCode && (
-                      <span>Episode ID: <span style={{ color: '#0067A1', fontFamily: 'monospace' }}>{episodeCode}</span></span>
-                    )}
-                  </td>
-                  <td style={{ padding: '8px 4px', fontSize: 12, fontWeight: 600, color: '#333', textAlign: 'right', width: '30%' }}>
-                    Date: <span style={{ color: '#0067A1' }}>{fmtDate(data.created_at)}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+              {/* ─── Top Info Bar (Clean Letterhead Metadata Strip - No Box) ─── */}
+              <table 
+                style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse', 
+                  background: 'transparent', 
+                  borderTop: '1px solid #e2e8f0', 
+                  borderBottom: '1px solid #e2e8f0', 
+                  marginTop: '10px',
+                  boxSizing: 'border-box'
+                }}
+              >
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '8px 4px', fontSize: '12px', fontWeight: 600, color: '#374151', textAlign: 'left', width: '38%' }}>
+                      Prescription ID: <span style={{ color: '#0067A1', fontWeight: 700 }}>{prescriptionId}</span>
+                    </td>
+                    <td style={{ padding: '8px 4px', fontSize: '12px', textAlign: 'center', width: '34%' }}>
+                      {episodeCode ? (
+                        <span>
+                          <span style={{ color: '#6b7280' }}>Episode ID: </span>
+                          <span style={{ color: '#0067A1', fontWeight: 700, fontFamily: 'monospace' }}>{episodeCode}</span>
+                        </span>
+                      ) : null}
+                    </td>
+                    <td style={{ padding: '8px 4px', fontSize: '12px', fontWeight: 600, color: '#374151', textAlign: 'right', width: '28%' }}>
+                      Date: <span style={{ color: '#0067A1', fontWeight: 700 }}>{fmtDate(data.created_at)}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
 
-            {/* NOTICE */}
-            {isTele && (
-              <div style={{ background: '#fffbeb', padding: '7px 12px', fontSize: 11, borderRadius: 0, borderLeft: '3px solid #f59e0b', fontStyle: 'italic', marginBottom: 10, color: '#475569' }}>
-                This prescription is based solely on information provided during teleconsultation without physical examination. If symptoms worsen, seek in-person evaluation or emergency care immediately.
-              </div>
-            )}
-
-            <hr style={{ border: 'none', height: 1, background: 'linear-gradient(90deg,transparent,#0080C6,transparent)', margin: '10px 0' }} />
-
-            {/* TWO COLUMNS (Table based) */}
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <tbody>
-                <tr>
-                  {/* LEFT COLUMN */}
-                  <td style={{ width: '48%', verticalAlign: 'top', paddingRight: 12, fontSize: 12 }}>
-                    <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 10 }}>DOCTOR DETAILS</h3>
-                {[['Name', `Dr. ${doc.full_name || 'Doctor'}`],
-                  ['Qualification', qualification || 'N/A'],
-                  ['Specialization', specialization || 'N/A'],
-                  ['Reg No.', doc.license_number ? `${doc.license_number}` : 'N/A'],
-                  ['Clinic', isTele && doc.clinic_address ? (
-                    <span>
-                      {doc.clinic_name ? doc.clinic_name + ", " : ""}
-                      <span style={{ filter: 'blur(4px)', userSelect: 'none' }} title="Hidden for Teleconsultation">{doc.clinic_address}</span>
-                    </span>
-                  ) : ([doc.clinic_name, doc.clinic_address].filter(Boolean).join(", ") || 'Virtual Consultation Only')]
-                ].map(([lbl, val]) => (
-                  <div key={lbl} style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                    <span style={{ fontWeight: 600 }}>{lbl}: </span>
-                    <span style={{ color: '#0067A1', fontWeight: 500 }}>{val}</span>
-                  </div>
-                ))}
-
-                <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 14 }}>PROVISIONAL DIAGNOSIS</h3>
-                <div style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                  <span style={{ color: '#0067A1', fontWeight: 600, fontSize: 13 }}>{diagnosis || '—'}</span>
-                  {diagnosisNotes && (
-                    <div style={{ fontSize: 11, color: '#555', marginTop: 3 }}>
-                      {diagnosisNotes}
-                    </div>
-                  )}
+              {/* ─── Teleconsultation Notice ─── */}
+              {isTele && (
+                <div 
+                  style={{ 
+                    marginTop: '10px',
+                    background: '#fffbeb', 
+                    padding: '7px 12px', 
+                    borderRadius: '0px', 
+                    borderLeft: '3px solid #f59e0b', 
+                    fontSize: '11px', 
+                    color: '#475569', 
+                    fontStyle: 'italic',
+                    boxSizing: 'border-box' 
+                  }}
+                >
+                  This prescription is based solely on information provided during teleconsultation without physical examination. If symptoms worsen, seek in-person evaluation or emergency care immediately.
                 </div>
+              )}
 
-                {vitals && Object.values(vitals).some(Boolean) && (
-                  <>
-                    <h4 style={{ margin: '12px 0 6px', fontSize: 12, fontWeight: 700, borderLeft: '3px solid #0080C6', paddingLeft: 8 }}>VITALS (Self-reported)</h4>
-                    {Object.entries(vitals).map(([k, v]) =>
-                      v ? (
-                        <div key={k} style={{ position: 'relative', paddingBottom: 5, margin: '4px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                          <span style={{ fontWeight: 600 }}>{formatVitalKey(k)}: </span>
-                          <span style={{ color: '#0067A1', fontWeight: 500 }}>{formatVital(k, v)}</span>
-                        </div>
-                      ) : null
-                    )}
-                  </>
-                )}
-
-                {combinedLabs?.length > 0 && (
-                  <>
-                    <h4 style={{ margin: '12px 0 6px', fontSize: 12, fontWeight: 700, borderLeft: '3px solid #0080C6', paddingLeft: 8 }}>INVESTIGATIONS / LAB TESTS ADVISED</h4>
-                    {combinedLabs.map((t, i) => (
-                      <div key={i} style={{ paddingBottom: 5, margin: '4px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                        <span style={{ color: '#0067A1', fontWeight: 500 }}>{i+1}. {typeof t === 'object' ? (t.test_name || t.name || JSON.stringify(t)) : t}</span>
+            {/* ─── Doctor & Patient Info Block (Guaranteed 2 Columns Side-by-Side via Table) ─── */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '12px', boxSizing: 'border-box' }}>
+              <tbody>
+                <tr>
+                  {/* Doctor Details */}
+                  <td style={{ width: '48%', verticalAlign: 'top', paddingRight: '12px', boxSizing: 'border-box' }}>
+                    <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                      Doctor Details
+                    </h3>
+                    <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                      <div className="py-1 flex justify-between gap-2">
+                        <span className="font-semibold text-gray-500 shrink-0">Name:</span>
+                        <span className="text-[#0067A1] font-bold text-right">{doc.full_name ? `Dr. ${doc.full_name.replace(/^Dr\.\s*/i, '')}` : "—"}</span>
                       </div>
-                    ))}
-                  </>
-                )}
-              </td>
+                      <div className="py-1 flex justify-between gap-2">
+                        <span className="font-semibold text-gray-500 shrink-0">Qualification:</span>
+                        <span className="text-[#0067A1] font-bold text-right">{qualification || "—"}</span>
+                      </div>
+                      <div className="py-1 flex justify-between gap-2">
+                        <span className="font-semibold text-gray-500 shrink-0">Specialization:</span>
+                        <span className="text-[#0067A1] font-bold text-right">{specialization || "—"}</span>
+                      </div>
+                      <div className="py-1 flex justify-between gap-2">
+                        <span className="font-semibold text-gray-500 shrink-0">License No:</span>
+                        <span className="text-[#0067A1] font-bold text-right">{doc.license_number || "—"}</span>
+                      </div>
+                      <div className="py-1 flex justify-between gap-2">
+                        <span className="font-semibold text-gray-500 shrink-0">Clinic:</span>
+                        <span className="text-[#0067A1] font-bold text-right">
+                          {[doc.clinic_name, doc.clinic_address].filter(Boolean).join(", ") || "Virtual Consultation"}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
 
                   <td style={{ width: '4%', borderRight: '1px dashed #cbd5e1' }}></td>
 
-                  {/* RIGHT COLUMN */}
-                  <td style={{ width: '48%', verticalAlign: 'top', paddingLeft: 12, fontSize: 12 }}>
-                    <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 10 }}>PATIENT DETAILS</h3>
-                    {[['Name', pat.full_name || '—'],
-                      ['Gender', pat.gender || '—'],
-                      ['Blood Group', pat.blood_group || '—'],
-                      ['Age', calculateAge(pat.date_of_birth, pat.age)]
-                    ].map(([lbl, val]) => (
-                      <div key={lbl} style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                        <span style={{ fontWeight: 600 }}>{lbl}: </span>
-                        <span style={{ color: '#0067A1', fontWeight: 500 }}>{val}</span>
+                  {/* Patient Details */}
+                  <td style={{ width: '48%', verticalAlign: 'top', paddingLeft: '12px', boxSizing: 'border-box' }}>
+                    <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                      Patient Details
+                    </h3>
+                    <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                      <div className="py-1 flex justify-between gap-2">
+                        <span className="font-semibold text-gray-500 shrink-0">Name:</span>
+                        <span className="text-[#0067A1] font-bold text-right">{pat.full_name || "—"}</span>
                       </div>
-                    ))}
-
-                    <div style={{ background: 'transparent', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', color: '#0067A1', textAlign: 'center', fontWeight: 800, padding: '6px 0', margin: '10px 0', borderRadius: 0, fontSize: '11px', letterSpacing: '1px' }}>
-                      {(data.appointment_type || 'TELECONSULTATION').toUpperCase().replace(/_/g, ' ')}
+                      <div className="py-1 flex justify-between gap-2">
+                        <span className="font-semibold text-gray-500 shrink-0">Gender:</span>
+                        <span className="text-[#0067A1] font-bold text-right">{pat.gender || "—"}</span>
+                      </div>
+                      <div className="py-1 flex justify-between gap-2">
+                        <span className="font-semibold text-gray-500 shrink-0">Blood Group:</span>
+                        <span className="text-[#0067A1] font-bold text-right">{pat.blood_group || "—"}</span>
+                      </div>
+                      <div className="py-1 flex justify-between gap-2">
+                        <span className="font-semibold text-gray-500 shrink-0">Age:</span>
+                        <span className="text-[#0067A1] font-bold text-right">{calculateAge(pat.date_of_birth, pat.age)}</span>
+                      </div>
+                      <div className="py-1 flex justify-between gap-2">
+                        <span className="font-semibold text-gray-500 shrink-0">Address:</span>
+                        <span className="text-[#0067A1] font-bold text-right">{pat.address || "—"}</span>
+                      </div>
                     </div>
-
-                    {symptoms && Object.keys(symptoms).length > 0 && (
-                      <>
-                        <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 12 }}>PRESENTING COMPLAINTS</h3>
-                        {Object.entries(symptoms).map(([k, v]) =>
-                          v ? (
-                            <div key={k} style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                              <span style={{ fontWeight: 600 }}>{k}: </span>
-                              <span style={{ color: '#0067A1', fontWeight: 500 }}>{String(v)}</span>
-                            </div>
-                          ) : null
-                        )}
-                      </>
-                    )}
-
-                    {medicines?.length > 0 && (
-                      <>
-                        <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 12 }}>TREATMENT (Rx)</h3>
-                        {medicines.map((med, idx) => (
-                          <div key={idx} style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                            <span style={{ color: '#0067A1', fontWeight: 500 }}>
-                              {idx + 1}. {med.name || `Medicine ${idx+1}`}
-                              {med.dosage ? ` - ${med.dosage}` : ''}
-                              {med.frequency ? `, ${med.frequency}` : ''}
-                              {med.duration ? ` x ${med.duration}` : ''}
-                              {med.instructions ? `. ${med.instructions}` : ''}
-                            </span>
-                          </div>
-                        ))}
-                      </>
-                    )}
-
-                    <h3 style={{ borderBottom: '2px solid #000', paddingBottom: 5, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: 12 }}>FOLLOW-UP</h3>
-                    {(() => {
-                      const dateVal = (isDateVal && followUpDateVal) ? followUpDateVal : null;
-                      const retVal = followUpObj?.return_after;
-                      const displayDate = retVal || dateVal;
-                      return displayDate ? (
-                        <div style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                          <span style={{ fontWeight: 600 }}>Next Visit: </span>
-                          <span style={{ color: '#0067A1', fontWeight: 500 }}>{displayDate}</span>
-                        </div>
-                      ) : null;
-                    })()}
-                    {warningSignsHtml && (
-                      <div style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', borderBottom: '1px dotted #e0e0e0' }}>
-                        <span style={{ fontWeight: 600, color: 'red' }}>Warning Signs: </span>
-                        <span style={{ color: '#0067A1', fontWeight: 500 }}>
-                          {warningSignsHtml}
-                        </span>
-                      </div>
-                    )}
-                    {(data.notes || data.special_message || diagnosisNotes) && (
-                      <>
-                        <h4 style={{ margin: '12px 0 6px', fontSize: 12, fontWeight: 700, borderLeft: '3px solid #0080C6', paddingLeft: 8 }}>SPECIAL ADVICE / CLINICAL NOTES</h4>
-                        <div style={{ position: 'relative', paddingBottom: 5, margin: '5px 0', color: '#0067A1' }}>
-                          {formatSpecialMessage(data.special_message || data.notes || diagnosisNotes)}
-                        </div>
-                      </>
-                    )}
                   </td>
                 </tr>
               </tbody>
             </table>
 
-            <hr style={{ border: 'none', height: 1, background: 'linear-gradient(90deg,transparent,#0080C6,transparent)', margin: '14px 0 8px' }} />
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+            {/* ─── Prescription (Rx) Medical Divider (Clean Divider - No Bulky Pill Box) ─── */}
+            <table 
+              style={{ 
+                width: '100%', 
+                borderCollapse: 'collapse', 
+                borderTop: '1px solid #e2e8f0', 
+                borderBottom: '2px solid #0067A1', 
+                marginTop: '12px', 
+                marginBottom: '10px',
+                boxSizing: 'border-box'
+              }}
+            >
               <tbody>
                 <tr>
-                  <td style={{ fontSize: 10, color: '#666', textAlign: 'left' }}>
-                    <strong>MediConnect Healthcare Services</strong> &middot; Ref ID: {prescriptionId}
-                  </td>
-                  <td style={{ fontSize: 10, color: '#666', textAlign: 'right' }}>
-                    Confidential Medical Document &middot; Page 1 of 1
-                  </td>
-                </tr>
-                <tr>
-                  <td colSpan={2} style={{ textAlign: 'center', fontSize: 9, color: '#888', paddingTop: 4 }}>
-                    &copy; {new Date().getFullYear()} MediConnect.fit &bull; Digitally verified electronic prescription complying with Telemedicine Practice Guidelines.
+                  <td style={{ padding: '6px 2px', verticalAlign: 'middle', textAlign: 'left' }}>
+                    <span style={{ fontSize: '18px', fontWeight: 900, fontFamily: 'serif', color: '#0067A1', marginRight: '8px', verticalAlign: 'middle', lineHeight: 1 }}>℞</span>
+                    <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#0f172a', verticalAlign: 'middle' }}>
+                      PRESCRIPTION (Rx)
+                    </span>
                   </td>
                 </tr>
               </tbody>
             </table>
+
+            {/* ─── Clinical Columns (Guaranteed 2 Columns Side-by-Side via Table) ─── */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', boxSizing: 'border-box' }}>
+              <tbody>
+                <tr>
+                  {/* Left Column: Diagnosis & Findings */}
+                  <td style={{ width: '48%', verticalAlign: 'top', paddingRight: '12px', boxSizing: 'border-box' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {/* Diagnosis */}
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                          Provisional Diagnosis
+                        </h3>
+                        <div className="mt-1 border-b border-dotted border-gray-300 py-1 text-xs">
+                          <div className="text-[#0067A1] font-bold">
+                            {diagnosis || "—"}
+                          </div>
+                          {diagnosisNotes && (
+                            <p className="text-[11px] text-gray-500 mt-0.5 italic">{diagnosisNotes}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Presenting Complaints */}
+                      {symptoms && Object.keys(symptoms).length > 0 && (
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                            Presenting Complaints
+                          </h3>
+                          <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                            {Object.entries(symptoms).map(([k, val]) => (
+                              <div key={k} className="py-1 flex justify-between gap-2">
+                                <span className="font-semibold text-gray-500 shrink-0">{k}:</span>
+                                <span className="text-[#0067A1] font-bold text-right">{String(val)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Vital Signs */}
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                          Vital Signs
+                        </h3>
+                        <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                          {vitals && Object.entries(vitals).some(([_, val]) => val) ? (
+                            Object.entries(vitals)
+                              .filter(([_, val]) => val)
+                              .map(([k, val]) => (
+                                <div key={k} className="py-1 flex justify-between gap-2">
+                                  <span className="font-semibold text-gray-500 shrink-0">{formatVitalKey(k)}:</span>
+                                  <span className="text-[#0067A1] font-bold text-right">{formatVital(k, val)}</span>
+                                </div>
+                              ))
+                          ) : (
+                            <div className="py-1 text-gray-500 italic">Not recorded</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Custom Specialty Template Sections (e.g. Tele-Examination, Positive Findings, Procedures, etc.) */}
+                      {Object.entries(customTemplateSections).map(([secTitle, fields]) => (
+                        <div key={secTitle}>
+                          <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                            {secTitle}
+                          </h3>
+                          <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                            {fields.map((f, i) => {
+                              const isLongText = f.value.length > 40 || f.value.includes("\n");
+                              return isLongText ? (
+                                <div key={i} className="py-1 flex flex-col gap-0.5">
+                                  <span className="font-semibold text-gray-500">{f.label}:</span>
+                                  <span className="text-[#0067A1] font-bold text-left whitespace-pre-wrap">{f.value}</span>
+                                </div>
+                              ) : (
+                                <div key={i} className="py-1 flex justify-between gap-2">
+                                  <span className="font-semibold text-gray-500 shrink-0">{f.label}:</span>
+                                  <span className="text-[#0067A1] font-bold text-right">{f.value}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Examination Findings Fallback (if no custom structured sections were rendered but notes exist) */}
+                      {Object.keys(customTemplateSections).length === 0 && examFindingsNotes && (
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                            Examination Findings
+                          </h3>
+                          <div className="mt-1 text-gray-800 text-xs leading-relaxed">
+                            {formatSpecialMessage(examFindingsNotes)}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Clinical Notes / Special Instructions */}
+                      {(data.special_message || data.notes || diagnosisNotes) && (
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                            Clinical Notes / Special Instructions
+                          </h3>
+                          <div className="mt-1 text-gray-800 text-xs leading-relaxed">
+                            {formatSpecialMessage(data.special_message || data.notes || diagnosisNotes)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+
+                  <td style={{ width: '4%', borderRight: '1px dashed #cbd5e1' }}></td>
+
+                  {/* Right Column: Treatment & Follow-up */}
+                  <td style={{ width: '48%', verticalAlign: 'top', paddingLeft: '12px', boxSizing: 'border-box' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {/* Medicines */}
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                          Medicines
+                        </h3>
+                        <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                          {medicines.length > 0 ? (
+                            medicines.map((m, i) => (
+                              <div key={i} className="py-1 flex flex-col gap-0.5">
+                                <div className="flex justify-between items-start gap-2">
+                                  <span className="font-semibold text-gray-500 shrink-0">{i + 1}.</span>
+                                  <span className="text-[#0067A1] font-bold text-left flex-1">{m.name || "—"}</span>
+                                  <span className="text-gray-600 text-[11px] shrink-0 text-right">
+                                    {[m.dosage || m.dose, m.frequency, m.duration].filter(Boolean).join(" · ")}
+                                  </span>
+                                </div>
+                                {(m.instructions || m.notes) && (
+                                  <div className="pl-4 text-[11px] text-gray-500 italic">
+                                    {m.instructions || m.notes}
+                                  </div>
+                                )}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="py-1 text-gray-500 italic">No medicines prescribed</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Investigations / Lab Tests */}
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                          Investigations / Lab Tests
+                        </h3>
+                        <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                          {uniqueLabs.length > 0 ? (
+                            uniqueLabs.map((t, i) => {
+                              const testName = typeof t === "string" ? t : (t.test_name || t.name || "");
+                              const urgency = typeof t === "object" && t.urgency ? ` (${t.urgency})` : "";
+                              const instructions = typeof t === "object" && t.instructions ? ` — ${t.instructions}` : "";
+                              return (
+                                <div key={i} className="py-1 flex flex-col gap-0.5">
+                                  <div className="flex justify-between gap-2">
+                                    <span className="font-semibold text-gray-500 shrink-0">{i + 1}.</span>
+                                    <span className="text-[#0067A1] font-bold text-right flex-1">{testName}{urgency}</span>
+                                  </div>
+                                  {instructions && (
+                                    <div className="pl-4 text-[11px] text-gray-500 italic">
+                                      {instructions}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div className="py-1 text-gray-500 italic">No investigations or lab tests advised</div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Follow Up */}
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                          Follow Up
+                        </h3>
+                        <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
+                          {followUpDateVal && (
+                            <div className="py-1 flex justify-between gap-2">
+                              <span className="font-semibold text-gray-500 shrink-0">
+                                {isDateVal ? "Follow-up Date:" : "Return After:"}
+                              </span>
+                              <span className="text-[#0067A1] font-bold text-right">
+                                {isDateVal ? fmtDate(followUpDateVal) : followUpDateVal}
+                              </span>
+                            </div>
+                          )}
+                          {followUpNotesVal && (
+                            <div className="py-1 flex justify-between gap-2">
+                              <span className="font-semibold text-gray-500 shrink-0">Notes:</span>
+                              <span className="text-[#0067A1] font-bold text-right">{followUpNotesVal}</span>
+                            </div>
+                          )}
+                          {(!followUpDateVal && !followUpNotesVal) && (
+                            <div className="py-1 flex justify-between gap-2">
+                              <span className="font-semibold text-gray-500 shrink-0">Return After:</span>
+                              <span className="text-[#0067A1] font-bold text-right">—</span>
+                            </div>
+                          )}
+                          <div className="py-1 flex flex-col gap-0.5">
+                            <span className="font-semibold text-red-600">Warning Signs:</span>
+                            <span className="text-gray-700 text-[11px]">
+                              {warningSignsHtml}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Digital Signature */}
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '12px', fontWeight: 800, borderBottom: '2px solid #030712', paddingBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#111827' }}>
+                          Digital Signature
+                        </h3>
+                        <div className="mt-1 flex flex-col items-end text-xs">
+                          {signatureImgUrl && !sigLoadFailed ? (
+                            <div className="flex justify-end w-full mb-1">
+                              <img
+                                src={signatureImgUrl}
+                                alt="Doctor Signature"
+                                onError={(e) => {
+                                  if (signatureRawUrl && e.currentTarget.src !== signatureRawUrl) {
+                                    e.currentTarget.src = signatureRawUrl;
+                                  } else {
+                                    setSigLoadFailed(true);
+                                  }
+                                }}
+                                style={{ maxHeight: '42px', height: '42px', objectFit: 'contain' }}
+                                className="h-10 border-b border-gray-300 pb-0.5 object-contain inline-block"
+                              />
+                            </div>
+                          ) : (
+                            <div className="font-serif italic text-base text-[#0067A1] font-bold py-1">
+                              Dr. {doc.full_name?.replace(/^Dr\.\s*/i, '') || "Doctor"}
+                            </div>
+                          )}
+                          <div className="w-full flex justify-end mb-1">
+                            <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-semibold">
+                              ✓ Digitally Signed &amp; Verified
+                            </span>
+                          </div>
+                          <div className="py-1 flex justify-between w-full gap-2 border-b border-dotted border-gray-300">
+                            <span className="font-semibold text-gray-500">Signed by:</span>
+                            <span className="text-[#0067A1] font-bold">{doc.full_name ? `Dr. ${doc.full_name.replace(/^Dr\.\s*/i, '')}` : "—"}</span>
+                          </div>
+                          {(doc.license_number || doc.reg_no) && (
+                            <div className="py-1 flex justify-between w-full gap-2 border-b border-dotted border-gray-300">
+                              <span className="font-semibold text-gray-500">Reg / License No:</span>
+                              <span className="text-[#0067A1] font-bold text-right">{doc.license_number || doc.reg_no}</span>
+                            </div>
+                          )}
+                          <div className="py-1 flex justify-between w-full gap-2 border-b border-dotted border-gray-300">
+                            <span className="font-semibold text-gray-500">Signed at:</span>
+                            <span className="text-[#0067A1] font-bold text-right">
+                              {fmtDateTime(data.signed_at || data.created_at)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+              {/* ─── Bottom Footer Strip ─── */}
+              <table 
+                style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse', 
+                  borderTop: '2px solid #e2e8f0', 
+                  marginTop: '14px', 
+                  paddingTop: '6px',
+                  boxSizing: 'border-box' 
+                }}
+              >
+                <tbody>
+                  <tr>
+                    <td style={{ fontSize: '11px', color: '#4b5563', padding: '6px 0', textAlign: 'left' }}>
+                      <strong style={{ color: '#1f2937' }}>MediConnect Healthcare Services</strong>
+                      <span style={{ color: '#9ca3af', margin: '0 6px' }}>|</span>
+                      <span>Confidential Medical Document</span>
+                    </td>
+                    <td style={{ fontSize: '11px', color: '#4b5563', padding: '6px 0', textAlign: 'right' }}>
+                      Issued for: <span style={{ color: '#0067A1', fontWeight: 700 }}>{pat.full_name || "—"}</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontSize: '10px', color: '#6b7280', paddingTop: '4px', borderTop: '1px dotted #e5e7eb', textAlign: 'left' }}>
+                      © {new Date().getFullYear()} MediConnect.fit &bull; Digitally verified medical teleconsultation prescription.
+                    </td>
+                    <td style={{ fontSize: '10px', color: '#9ca3af', fontWeight: 600, paddingTop: '4px', borderTop: '1px dotted #e5e7eb', textAlign: 'right' }}>
+                      Page 1 of 1
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-      </div>
 
-        {/* ── Order Status / Actions footer ── */}
-        <div className="flex flex-col gap-2 p-3 sm:p-4 border-t border-gray-200 bg-gray-50 shrink-0">
-
-          {/* Medicine Order */}
-          {medicines.length > 0 && (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-[#0067A1] text-white flex items-center justify-center shrink-0">
-                  <FaPills className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] text-gray-500">Medicine Order</p>
-                  {ordersLoading ? (
-                    <p className="text-xs font-semibold text-gray-400">Checking…</p>
-                  ) : chemistOrder ? (
-                    <div className="flex items-center gap-1.5">
-                      <FaCheckCircle className="w-3 h-3 text-emerald-600 shrink-0" />
-                      <p className="text-xs font-semibold text-emerald-700 truncate">
-                        {chemistOrder.status ? chemistOrder.status.charAt(0).toUpperCase() + chemistOrder.status.slice(1) : "Ordered"}
-                        {chemistOrder.unid && <span className="text-gray-400 font-normal"> · #{chemistOrder.unid}</span>}
-                      </p>
+        {/* ─── Responsive Action / Order Cards Footer (100% responsive, outside horizontal scroll) ─── */}
+        <div className="bg-white border-t border-slate-200 p-3 sm:p-4 shrink-0 shadow-sm z-10 w-full">
+          <div className="w-full">
+            <div className={`grid grid-cols-1 ${uniqueLabs.length > 0 ? "sm:grid-cols-2" : ""} gap-3 w-full`}>
+              {/* Chemist Order Card */}
+              <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-r from-blue-50/40 via-white to-slate-50/60 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-[#0067A1]/40 transition-all">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0067A1] to-[#005282] text-white flex items-center justify-center shadow-xs shrink-0">
+                    <Building2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Chemist Order</p>
+                      {chemistOrder && (
+                        <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                          {chemistOrder.status || "Ordered"}
+                        </span>
+                      )}
                     </div>
-                  ) : (
-                    <p className="text-xs font-semibold text-gray-700">Not ordered yet</p>
-                  )}
+                    <p className="text-sm font-bold text-slate-900 truncate">
+                      {chemistOrder ? chemistName : "Not ordered yet"}
+                    </p>
+                    {chemistOrder && (chemistSub || chemistOrder.unid) && (
+                      <p className="text-[11px] text-slate-500 truncate">
+                        {chemistSub ? chemistSub : ""}{chemistOrder.unid ? ` • #${chemistOrder.unid}` : ""}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-              {!ordersLoading && (
-                chemistOrder ? (
-                  <button
-                    onClick={() => { onClose(); router.push("/website/medicine-order"); }}
-                    className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold active:scale-95 transition-all shadow-xs hover:shadow cursor-pointer"
-                  >
-                    View <FaArrowRight className="w-2.5 h-2.5" />
-                  </button>
+
+                {isDoctor ? (
+                  <span className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold ${
+                    chemistOrder
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : "bg-slate-100 text-slate-500"
+                  }`}>
+                    {chemistOrder ? "Ordered" : "Pending Patient"}
+                  </span>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => setShareTarget("chemist")}
-                    className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:brightness-105 active:scale-95 text-white text-xs font-bold transition-all shadow-sm hover:shadow cursor-pointer"
+                    className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-xs hover:shadow ${
+                      chemistOrder
+                        ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300/80"
+                        : "bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:from-[#005a8f] hover:to-[#006ea8] text-white"
+                    }`}
                   >
-                    <FaPaperPlane className="w-2.5 h-2.5" /> Order
+                    {chemistOrder ? (
+                      <>
+                        <span>Change</span>
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingBag className="w-3.5 h-3.5" />
+                        <span>Order</span>
+                      </>
+                    )}
                   </button>
-                )
-              )}
-            </div>
-          )}
+                )}
+              </div>
 
-          {/* Lab Order */}
-          {combinedLabs.length > 0 && (
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-[#0067A1] text-white flex items-center justify-center shrink-0">
-                  <FaFlask className="w-3.5 h-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] text-gray-500">Lab Order</p>
-                  {ordersLoading ? (
-                    <p className="text-xs font-semibold text-gray-400">Checking…</p>
-                  ) : labOrder ? (
-                    <div className="flex items-center gap-1.5">
-                      <FaCheckCircle className="w-3 h-3 text-emerald-600 shrink-0" />
-                      <p className="text-xs font-semibold text-emerald-700 truncate">
-                        {labOrder.status ? labOrder.status.charAt(0).toUpperCase() + labOrder.status.slice(1) : "Ordered"}
-                        {labOrder.unid && <span className="text-gray-400 font-normal"> · #{labOrder.unid}</span>}
-                      </p>
+              {/* Lab Order Card */}
+              {uniqueLabs.length > 0 && (
+                <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-r from-teal-50/40 via-white to-slate-50/60 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-teal-600/40 transition-all">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-600 to-teal-800 text-white flex items-center justify-center shadow-xs shrink-0">
+                      <FlaskConical className="w-5 h-5 text-white" />
                     </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Lab Order</p>
+                        {labOrder && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                            {labOrder.status || "Ordered"}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold text-slate-900 truncate">
+                        {labOrder ? labName : "Not ordered yet"}
+                      </p>
+                      {labOrder && (labSub || labOrder.unid) && (
+                        <p className="text-[11px] text-slate-500 truncate">
+                          {labSub ? labSub : ""}{labOrder.unid ? ` • #${labOrder.unid}` : ""}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {isDoctor ? (
+                    <span className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold ${
+                      labOrder
+                        ? "bg-teal-50 text-teal-700 border border-teal-200"
+                        : "bg-slate-100 text-slate-500"
+                    }`}>
+                      {labOrder ? "Booked" : "Pending Patient"}
+                    </span>
                   ) : (
-                    <p className="text-xs font-semibold text-gray-700">Not ordered yet</p>
+                    <button
+                      type="button"
+                      onClick={() => setShareTarget("lab")}
+                      className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-xs hover:shadow ${
+                        labOrder
+                          ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300/80"
+                          : "bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white"
+                      }`}
+                    >
+                      {labOrder ? (
+                        <>
+                          <span>Change</span>
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </>
+                      ) : (
+                        <>
+                          <CalendarCheck className="w-3.5 h-3.5" />
+                          <span>Book</span>
+                        </>
+                      )}
+                    </button>
                   )}
                 </div>
-              </div>
-              {!ordersLoading && (
-                labOrder ? (
-                  <button
-                    onClick={() => { onClose(); router.push("/website/dashboard/lab-booking/orders"); }}
-                    className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-bold active:scale-95 transition-all shadow-xs hover:shadow cursor-pointer"
-                  >
-                    View <FaArrowRight className="w-2.5 h-2.5" />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setShareTarget("lab")}
-                    className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:brightness-105 active:scale-95 text-white text-xs font-bold transition-all shadow-sm hover:shadow cursor-pointer"
-                  >
-                    <FaPaperPlane className="w-2.5 h-2.5" /> Book
-                  </button>
-                )
               )}
             </div>
-          )}
-
-          {/* Close button */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full py-2.5 text-xs font-semibold rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 active:scale-98 transition-all cursor-pointer"
-          >
-            Close
-          </button>
+          </div>
         </div>
 
       </div>
 
+      {/* ── Share Modal overlay ── */}
       <AnimatePresence>
         {shareTarget && (
           <SharePrescriptionModal
@@ -680,89 +1366,11 @@ export default function PrescriptionViewerModal({
             prescriptionId={data.id}
             prescriptionDisplayId={prescriptionId}
             medicines={medicines}
-            labTests={combinedLabs}
+            labTests={uniqueLabs}
             existingOrder={shareTarget === "chemist" ? chemistOrder : labOrder}
             onOrdersUpdated={async () => fetchOrders()}
             onClose={() => setShareTarget(null)}
           />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showFulfillPrompt && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[10000] flex items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-md"
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 15 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 15 }}
-              className="bg-white rounded-none sm:rounded-3xl p-6 sm:p-8 max-w-md w-full h-[100dvh] sm:h-auto shadow-2xl border-0 sm:border sm:border-slate-100 flex flex-col justify-center items-center text-center animate-in zoom-in duration-200"
-            >
-              {/* Icon Container */}
-              <div className="flex items-center justify-center gap-3 mb-5">
-                {medicines.length > 0 && (
-                  <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shadow-sm">
-                    <FaPills className="w-5 h-5" />
-                  </div>
-                )}
-                {combinedLabs.length > 0 && (
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shadow-sm">
-                    <FaFlask className="w-5 h-5" />
-                  </div>
-                )}
-              </div>
-
-              {/* Title & Description */}
-              <h3 className="text-xl font-bold text-slate-800 mb-2">
-                Fulfill e-Prescription?
-              </h3>
-              <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-                {medicines.length > 0 && combinedLabs.length > 0
-                  ? "Your doctor has prescribed medicines and lab tests. Would you like to order your medicines and book your lab tests through MediConnect?"
-                  : medicines.length > 0
-                  ? "Your doctor has prescribed medicines. Would you like to order them through MediConnect's partner pharmacies?"
-                  : "Your doctor has prescribed lab tests. Would you like to book them through MediConnect's partner labs?"}
-              </p>
-
-              {/* Action Buttons */}
-              <div className="w-full flex flex-col gap-2.5">
-                {medicines.length > 0 && !chemistOrder && (
-                  <button
-                    onClick={() => {
-                      setShowFulfillPrompt(false);
-                      setShareTarget("chemist");
-                    }}
-                    className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold rounded-2xl transition-all shadow-md flex items-center justify-center gap-2"
-                  >
-                    <FaPills className="w-4 h-4" /> Proceed with Medicines
-                  </button>
-                )}
-
-                {combinedLabs.length > 0 && !labOrder && (
-                  <button
-                    onClick={() => {
-                      setShowFulfillPrompt(false);
-                      setShareTarget("lab");
-                    }}
-                    className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold rounded-2xl transition-all shadow-md flex items-center justify-center gap-2"
-                  >
-                    <FaFlask className="w-4 h-4" /> Proceed with Lab Tests
-                  </button>
-                )}
-
-                <button
-                  onClick={() => setShowFulfillPrompt(false)}
-                  className="w-full py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 font-semibold rounded-2xl transition-all"
-                >
-                  No, Thank You
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
         )}
       </AnimatePresence>
     </div>

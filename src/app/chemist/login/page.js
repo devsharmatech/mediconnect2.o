@@ -86,7 +86,7 @@ export default function ChemistLogin() {
 
   return (
     <div className="w-full min-h-screen flex items-center justify-center bg-[#F0F4F8] p-4 sm:p-6 lg:p-8">
-      <div className="w-full max-w-5xl flex flex-col lg:flex-row bg-white rounded-3xl shadow-xl border border-slate-200/80 overflow-hidden">
+      <div className="w-full max-w-5xl flex flex-col lg:flex-row bg-white rounded-3xl border border-slate-200/80 overflow-hidden">
         
         {/* ── Left Panel: Illustration & Feature Badges (Desktop) ── */}
         <div className="hidden lg:flex lg:w-[48%] relative overflow-hidden flex-col">
@@ -103,7 +103,7 @@ export default function ChemistLogin() {
           {/* Overlay Content */}
           <div className="absolute bottom-0 left-0 right-0 p-10 z-10">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-11 h-11 bg-white rounded-xl p-1.5 flex items-center justify-center shadow-md border border-white/20 shrink-0 overflow-hidden">
+              <div className="w-11 h-11 bg-white rounded-lg p-1.5 flex items-center justify-center border border-white/20 shrink-0 overflow-hidden">
                 <img
                   src="/real-logo.png"
                   alt="MediConnect"
@@ -146,7 +146,7 @@ export default function ChemistLogin() {
         <div className="flex-1 p-6 sm:p-10 lg:p-12 flex flex-col justify-center bg-white">
           {/* Mobile Brand Header */}
           <div className="flex items-center gap-3 mb-8 lg:hidden">
-            <div className="w-11 h-11 bg-white rounded-xl p-1.5 flex items-center justify-center shadow-sm border border-slate-200 shrink-0 overflow-hidden">
+            <div className="w-11 h-11 bg-white rounded-lg p-1.5 flex items-center justify-center border border-slate-200 shrink-0 overflow-hidden">
               <img
                 src="/real-logo.png"
                 alt="MediConnect"
@@ -199,7 +199,7 @@ export default function ChemistLogin() {
                 <label className="block text-xs font-semibold text-slate-600 mb-2 uppercase tracking-wider">
                   Mobile Number
                 </label>
-                <div className="flex items-center border border-slate-300 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[#0067A1]/30 focus-within:border-[#0067A1] transition-all bg-slate-50">
+                <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-[#0067A1]/30 focus-within:border-[#0067A1] transition-all bg-slate-50">
                   <div className="flex items-center gap-2 px-4 py-3.5 border-r border-slate-200 bg-white shrink-0">
                     <Phone className="w-4 h-4 text-slate-400" />
                     <span className="text-slate-700 text-sm font-semibold">+91</span>
@@ -221,7 +221,7 @@ export default function ChemistLogin() {
               <button
                 onClick={handleSendOtp}
                 disabled={loading}
-                className="w-full py-3.5 bg-[#003358] hover:bg-[#004F7C] disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm shadow-md shadow-[#003358]/20 hover:shadow-lg hover:shadow-[#003358]/30 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 bg-[#003358] hover:bg-[#004F7C] disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg font-bold text-sm shadow-[#003358]/20 hover:shadow-lg hover:shadow-[#003358]/30 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -277,7 +277,7 @@ export default function ChemistLogin() {
                     setOtp(text.replace(/\D/g, "").slice(0, 6));
                   }}
                   onKeyDown={(e) => e.key === "Enter" && handleVerifyOtp()}
-                  className="w-full px-5 py-4 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30 focus:border-[#0067A1] text-center text-2xl tracking-[0.6em] font-mono bg-slate-50 text-slate-900 transition-all"
+                  className="w-full px-5 py-4 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0067A1]/30 focus:border-[#0067A1] text-center text-2xl tracking-[0.6em] font-mono bg-slate-50 text-slate-900 transition-all"
                   maxLength={6}
                   autoFocus
                 />
@@ -287,7 +287,7 @@ export default function ChemistLogin() {
                 <button
                   onClick={handleBack}
                   disabled={loading}
-                  className="flex items-center justify-center gap-2 flex-1 py-3.5 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl font-semibold text-sm transition-all cursor-pointer"
+                  className="flex items-center justify-center gap-2 flex-1 py-3.5 border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg font-semibold text-sm transition-all cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Back
@@ -295,7 +295,7 @@ export default function ChemistLogin() {
                 <button
                   onClick={handleVerifyOtp}
                   disabled={loading}
-                  className="flex-[2] py-3.5 bg-[#003358] hover:bg-[#004F7C] disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm shadow-md shadow-[#003358]/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-[2] py-3.5 bg-[#003358] hover:bg-[#004F7C] disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg font-bold text-sm shadow-[#003358]/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loading ? (
                     <>

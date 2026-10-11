@@ -78,7 +78,7 @@ async function handleDispensingCopy({ order_id, chemist_id, format = "json" }) {
 
     // 4. Fetch Patient details
     const [patientDetails] = await sql`
-      SELECT id, full_name, gender, date_of_birth, address, city, state, pincode
+      SELECT id, full_name, gender, date_of_birth, address
       FROM patient_details
       WHERE id = ${order.patient_id}
       LIMIT 1
@@ -113,8 +113,8 @@ async function handleDispensingCopy({ order_id, chemist_id, format = "json" }) {
     ].includes(String(order.status).toLowerCase());
 
     const deliveryAddress = isPaymentVerified
-      ? (patientDetails?.address ? `${patientDetails.address}, ${patientDetails.city || ''} ${patientDetails.pincode || ''}`.trim() : "Address on file")
-      : `Area / PIN: ${patientDetails?.pincode || 'Protected'} (Full address released upon verified payment)`;
+      ? (patientDetails?.address || "Address on file")
+      : `Address released upon verified payment`;
 
     const patientContact = isPaymentVerified
       ? (patientUser?.phone_number || "Contact on file")

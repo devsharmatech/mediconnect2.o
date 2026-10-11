@@ -3,6 +3,7 @@ import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { sendGenericOTPViaSMS } from "@/lib/sms";
 import { sendEmailOTP, generateNumericOTP } from "@/lib/emailOtp";
+import { rateLimit } from "@/lib/rateLimit";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -17,6 +18,17 @@ export async function POST(req) {
       return failure("Phone number and full name are required.", null, 400, { headers: corsHeaders });
     }
 
+    const cleanFullName = String(full_name).trim();
+    if (!cleanFullName) {
+      return failure("Full name is required.", null, 400, { headers: corsHeaders });
+    }
+    if (cleanFullName.length < 2) {
+      return failure("Full name must be at least 2 characters long.", null, 400, { headers: corsHeaders });
+    }
+    if (!/^[a-zA-Z\s.'-]+$/.test(cleanFullName)) {
+      return failure("Full name should only contain letters and spaces.", null, 400, { headers: corsHeaders });
+    }
+
     const digitsOnly = String(phone_number).replace(/\D/g, "");
     let cleanPhone = digitsOnly;
     if (digitsOnly.length === 12 && digitsOnly.startsWith("91")) {
@@ -28,7 +40,18 @@ export async function POST(req) {
 
     const cleanEmail = email ? String(email).trim().toLowerCase() : null;
     if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      return failure("Invalid email format.", null, 400, { headers: corsHeaders });
+      return failure("Please enter a valid email address.", null, 400, { headers: corsHeaders });
+    }
+
+    // Address validation
+    const cleanAddress = address !== undefined && address !== null ? String(address).trim() : null;
+    if (cleanAddress !== null) {
+      if (cleanAddress.length === 0) {
+        return failure("Address is required.", null, 400, { headers: corsHeaders });
+      }
+      if (cleanAddress.length < 5 || !/[a-zA-Z]/.test(cleanAddress)) {
+        return failure("Please enter a valid address with at least 5 characters.", null, 400, { headers: corsHeaders });
+      }
     }
 
     // 1. Check if phone is already registered and verified
@@ -75,12 +98,21 @@ export async function POST(req) {
       console.warn("Cleanup unverified user note:", cleanupErr?.message);
     }
 
-    // 4. Generate 6-digit OTP
+    // 4. Rate-limit & Generate 6-digit OTP
     const isDummyNumber = Boolean(
       cleanPhone.endsWith("9999999991") ||
       cleanPhone.endsWith("9999999992") ||
       cleanPhone.endsWith("9999999993")
     );
+
+    if (!isDummyNumber) {
+      const rateLimitKey = cleanPhone || cleanEmail || "unknown";
+      const limitResult = rateLimit(`otp-send:${rateLimitKey}`, 3, 120000); // 3 requests per 2 minutes
+      if (!limitResult.allowed) {
+        return failure("Too many OTP requests. Please wait 2 minutes before requesting a new OTP.", null, 429, { headers: corsHeaders });
+      }
+    }
+
     const otpCode = generateNumericOTP(6);
     const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 

@@ -510,7 +510,7 @@ export default function MedicinesPage() {
  {/* HEADER */}
  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8">
  <div className="flex items-center space-x-3 group">
- <div className="w-12 h-12 bg-[#0067A1] text-white rounded-xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
+ <div className="w-12 h-12 bg-[#0067A1] text-white rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
  <Pill size={26} className="group-hover:rotate-12 transition-transform duration-300" />
  </div>
  <div>
@@ -527,14 +527,14 @@ export default function MedicinesPage() {
     <button
       onClick={handleRefresh}
       disabled={isRefreshing}
-      className="p-2.5 bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl text-[#0067A1] dark:text-[#0080C6] hover:bg-[#004F7C]/5 dark:hover:bg-gray-700 transition-all duration-300 hover:scale-105 disabled:opacity-50"
+      className="p-2.5 bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg text-[#0067A1] dark:text-[#0080C6] hover:bg-[#004F7C]/5 dark:hover:bg-gray-700 transition-all duration-300 hover:scale-105 disabled:opacity-50"
       title="Refresh"
     >
       <RefreshCw size={20} className={isRefreshing ? "animate-spin" : ""} />
     </button>
     <button
       onClick={handleDownloadTemplate}
-      className="px-4 py-2.5 bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 text-[#0067A1] dark:text-[#0080C6] rounded-xl flex items-center space-x-2 shadow hover:shadow-md transition-all duration-300 active:scale-95"
+      className="px-4 py-2.5 bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 text-[#0067A1] dark:text-[#0080C6] rounded-lg flex items-center space-x-2 shadow hover:shadow-md transition-all duration-300 active:scale-95"
       title="Download Sample CSV Template"
     >
       <ChevronDown className="w-4 h-4" />
@@ -542,7 +542,7 @@ export default function MedicinesPage() {
     </button>
     <button
       onClick={() => document.getElementById("bulk-csv-input").click()}
-      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex items-center space-x-2 shadow-lg hover:shadow-xl transition-all duration-300 active:scale-95"
+      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg flex items-center space-x-2 hover:shadow-xl transition-all duration-300 active:scale-95"
       title="Upload Medicines via CSV"
     >
       <Upload className="w-4 h-4" />
@@ -560,7 +560,7 @@ export default function MedicinesPage() {
         resetForm();
         setShowModal(true);
       }}
-      className="px-4 py-2.5 bg-[#0067A1] text-white rounded-xl flex items-center space-x-2 shadow-lg hover:shadow-xl hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 group"
+      className="px-4 py-2.5 bg-[#0067A1] text-white rounded-lg flex items-center space-x-2 hover:shadow-xl hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 group"
     >
       <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
       <span>Add Medicine</span>
@@ -570,7 +570,7 @@ export default function MedicinesPage() {
 
  {/* STATS CARDS */}
  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8">
- <div className="p-5 md:p-6 rounded-2xl bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+ <div className="p-5 md:p-6 rounded-lg bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-[#004F7C] dark:text-teal-300 text-sm font-medium">
@@ -580,13 +580,13 @@ export default function MedicinesPage() {
  {stats.total}
  </h2>
  </div>
- <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-xl flex items-center justify-center animate-bounce-slow">
+ <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-lg flex items-center justify-center animate-bounce-slow">
  <ClipboardList size={20} className="md:size-6" />
  </div>
  </div>
  </div>
 
- <div className="p-5 md:p-6 rounded-2xl bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+ <div className="p-5 md:p-6 rounded-lg bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-[#004F7C] dark:text-teal-300 text-sm font-medium">
@@ -596,13 +596,13 @@ export default function MedicinesPage() {
  {stats.categories}
  </h2>
  </div>
- <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-xl flex items-center justify-center animate-pulse">
+ <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-lg flex items-center justify-center animate-pulse">
  <Layers size={20} className="md:size-6" />
  </div>
  </div>
  </div>
 
- <div className="p-5 md:p-6 rounded-2xl bg-green-100 dark:bg-gray-800 border border-green-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+ <div className="p-5 md:p-6 rounded-lg bg-green-100 dark:bg-gray-800 border border-green-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-green-800 dark:text-green-300 text-sm font-medium">
@@ -612,7 +612,7 @@ export default function MedicinesPage() {
  {stats.strengths}
  </h2>
  </div>
- <div className="w-10 h-10 md:w-12 md:h-12 bg-green-600 text-white rounded-xl flex items-center justify-center animate-bounce-slow">
+ <div className="w-10 h-10 md:w-12 md:h-12 bg-green-600 text-white rounded-lg flex items-center justify-center animate-bounce-slow">
  <Tag size={20} className="md:size-6" />
  </div>
  </div>
@@ -620,14 +620,14 @@ export default function MedicinesPage() {
  </div>
 
  {/* SEARCH & FILTER BAR */}
- <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 md:p-6 mb-6 shadow-lg backdrop-blur-sm bg-opacity-90">
+ <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 md:p-6 mb-6 backdrop-blur-sm bg-opacity-90">
  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
  {/* SEARCH */}
  <div className="relative flex-1 group">
  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#0080C6] w-5 h-5 group-focus-within:text-[#0067A1] transition-colors" />
  <input
  placeholder="Search medicines..."
- className="w-full pl-10 pr-4 py-2.5 bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all duration-200 shadow-sm"
+ className="w-full pl-10 pr-4 py-2.5 bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all duration-200"
  value={search}
  onChange={(e) => setSearch(e.target.value)}
  />
@@ -643,7 +643,7 @@ export default function MedicinesPage() {
  setCategoryFilter(e.target.value);
  // Add your filter logic here
  }}
- className="pl-10 pr-8 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
+ className="pl-10 pr-8 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm appearance-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
  >
  <option value="all">All Categories</option>
  {CATEGORY_OPTIONS.map((cat) => (
@@ -666,7 +666,7 @@ export default function MedicinesPage() {
  }));
  fetchMedicines(1);
  }}
- className="pl-3 pr-8 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-sm appearance-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
+ className="pl-3 pr-8 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm appearance-none focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
  >
  <option value="10" className="dark:bg-gray-800 dark:text-white">10/page</option>
  <option value="25" className="dark:bg-gray-800 dark:text-white">25/page</option>
@@ -681,7 +681,7 @@ export default function MedicinesPage() {
  {/* LOADING STATE */}
  {loading && (
  <div className="text-center py-16">
- <div className="w-12 h-12 border-4 border-[#0067A1] border-t-transparent rounded-full animate-spin mx-auto shadow-lg"></div>
+ <div className="w-12 h-12 border-4 border-[#0067A1] border-t-transparent rounded-full animate-spin mx-auto"></div>
  <p className="mt-4 text-lg text-[#004F7C] dark:text-teal-300 font-medium animate-pulse">
  Loading medicines...
  </p>
@@ -690,7 +690,7 @@ export default function MedicinesPage() {
 
  {/* TABLE */}
  {!loading && medicines.length > 0 && (
- <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden animate-slide-up">
+ <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden animate-slide-up">
  <div className="overflow-x-auto">
  <table className="w-full min-w-[600px]">
  <thead className="bg-[#0067A1]/5 dark:bg-gray-800">
@@ -755,14 +755,14 @@ export default function MedicinesPage() {
  <div className="flex gap-2">
  <button
  onClick={() => editMedicine(m)}
- className="p-2 bg-[#0067A1] text-white rounded-lg hover:bg-[#004F7C] transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-md hover:shadow-lg group"
+ className="p-2 bg-[#0067A1] text-white rounded-lg hover:bg-[#004F7C] transition-all duration-200 transform hover:scale-105 active:scale-95 hover:shadow-lg group"
  title="Edit"
  >
  <Edit size={16} className="group-hover:rotate-12 transition-transform" />
  </button>
  <button
  onClick={() => confirmDelete(m)}
- className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-md hover:shadow-lg group"
+ className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all duration-200 transform hover:scale-105 active:scale-95 hover:shadow-lg group"
  title="Delete"
  >
  <Trash2 size={16} className="group-hover:shake" />
@@ -816,7 +816,7 @@ export default function MedicinesPage() {
  onClick={() => goToPage(n)}
  className={`w-8 h-8 md:w-10 md:h-10 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 ${
  n === pagination.currentPage
- ? "bg-[#0067A1] text-white shadow-lg"
+ ? "bg-[#0067A1] text-white"
  : "hover:bg-[#004F7C]/10 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
  }`}
  >
@@ -854,7 +854,7 @@ export default function MedicinesPage() {
 
  {/* NO RESULTS */}
  {!loading && medicines.length === 0 && (
- <div className="text-center p-12 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl shadow-lg animate-pulse-slow">
+ <div className="text-center p-12 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg animate-pulse-slow">
  <Pill className="w-16 h-16 text-[#0080C6] mx-auto mb-4 animate-bounce" />
  <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">
  No Medicines Found
@@ -867,7 +867,7 @@ export default function MedicinesPage() {
  resetForm();
  setShowModal(true);
  }}
- className="px-6 py-2.5 bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95"
+ className="px-6 py-2.5 bg-[#0067A1] text-white rounded-lg hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95"
  >
  Add Your First Medicine
  </button>
@@ -877,7 +877,7 @@ export default function MedicinesPage() {
  {/* ADD/EDIT MEDICINE MODAL */}
  {showModal && (
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
- <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
+ <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
  {/* Modal Header */}
  <div className="sticky top-0 bg-white dark:bg-gray-900 border-b dark:border-gray-700 p-6 flex justify-between items-center z-10">
  <h2 className="text-2xl font-bold text-[#0067A1] dark:text-[#0080C6]">
@@ -905,7 +905,7 @@ export default function MedicinesPage() {
  onChange={(e) => setForm({ ...form, name: e.target.value })}
  required
  placeholder="Enter medicine name"
- className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
+ className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
  />
  </div>
 
@@ -919,7 +919,7 @@ export default function MedicinesPage() {
  value={form.brand}
  onChange={(e) => setForm({ ...form, brand: e.target.value })}
  placeholder="Enter brand name"
- className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
+ className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all"
  />
  </div>
 
@@ -933,7 +933,7 @@ export default function MedicinesPage() {
  value={form.category}
  onChange={(e) => handleSelectChange("category", e.target.value)}
  required
- className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all appearance-none pr-10"
+ className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all appearance-none pr-10"
  >
  <option value="">Select Category</option>
  {CATEGORY_OPTIONS.map((cat) => (
@@ -951,7 +951,7 @@ export default function MedicinesPage() {
  onChange={(e) => setForm({ ...form, categoryCustom: e.target.value })}
  required
  placeholder="Enter custom category"
- className="w-full p-3 mt-2 bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all animate-slide-down"
+ className="w-full p-3 mt-2 bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all animate-slide-down"
  />
  )}
  </div>
@@ -966,7 +966,7 @@ export default function MedicinesPage() {
  value={form.strength}
  onChange={(e) => handleSelectChange("strength", e.target.value)}
  required
- className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all appearance-none pr-10"
+ className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all appearance-none pr-10"
  >
  <option value="">Select Strength</option>
  {STRENGTH_OPTIONS.map((strength) => (
@@ -984,7 +984,7 @@ export default function MedicinesPage() {
  onChange={(e) => setForm({ ...form, strengthCustom: e.target.value })}
  required
  placeholder="Enter custom strength"
- className="w-full p-3 mt-2 bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all animate-slide-down"
+ className="w-full p-3 mt-2 bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all animate-slide-down"
  />
  )}
  </div>
@@ -999,7 +999,7 @@ export default function MedicinesPage() {
  value={form.type}
  onChange={(e) => handleSelectChange("type", e.target.value)}
  required
- className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all appearance-none pr-10"
+ className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all appearance-none pr-10"
  >
  <option value="">Select Type</option>
  {TYPE_OPTIONS.map((type) => (
@@ -1017,7 +1017,7 @@ export default function MedicinesPage() {
  onChange={(e) => setForm({ ...form, typeCustom: e.target.value })}
  required
  placeholder="Enter custom type"
- className="w-full p-3 mt-2 bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all animate-slide-down"
+ className="w-full p-3 mt-2 bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all animate-slide-down"
  />
  )}
  </div>
@@ -1032,7 +1032,7 @@ export default function MedicinesPage() {
  onChange={(e) => setForm({ ...form, description: e.target.value })}
  placeholder="Enter description"
  rows="3"
- className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all resize-none"
+ className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-transparent transition-all resize-none"
  />
  </div>
  </div>
@@ -1042,14 +1042,14 @@ export default function MedicinesPage() {
  <button
  type="button"
  onClick={() => setShowModal(false)}
- className="px-5 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors hover:scale-105 active:scale-95"
+ className="px-5 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors hover:scale-105 active:scale-95"
  >
  Cancel
  </button>
  <button
  type="submit"
  disabled={isSubmitting}
- className="px-6 py-2.5 bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] transition-all duration-300 shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+ className="px-6 py-2.5 bg-[#0067A1] text-white rounded-lg hover:bg-[#004F7C] transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
  >
  {isSubmitting && (
  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -1065,7 +1065,7 @@ export default function MedicinesPage() {
  {/* DELETE CONFIRMATION MODAL */}
  {showDeleteModal && (
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4 backdrop-blur-sm animate-fade-in">
- <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md animate-bounce-in">
+ <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-md animate-bounce-in">
  <div className="p-6">
  <div className="flex items-center justify-center w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full mx-auto mb-4 animate-pulse">
  <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
@@ -1089,13 +1089,13 @@ export default function MedicinesPage() {
  setShowDeleteModal(false);
  setMedicineToDelete(null);
  }}
- className="px-5 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors hover:scale-105 active:scale-95 flex-1"
+ className="px-5 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors hover:scale-105 active:scale-95 flex-1"
  >
  Cancel
  </button>
  <button
  onClick={deleteMedicine}
- className="px-5 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-300 hover:scale-105 active:scale-95 flex-1 shadow-lg"
+ className="px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-300 hover:scale-105 active:scale-95 flex-1"
  >
  Delete
  </button>

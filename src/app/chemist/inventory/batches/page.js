@@ -465,7 +465,7 @@ export default function BatchesPage() {
  {/* HEADER */}
  <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8">
  <div className="flex items-center space-x-3 group">
- <div className="w-12 h-12 bg-[#0067A1] text-white rounded-xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
+ <div className="w-12 h-12 bg-[#0067A1] text-white rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform duration-300">
  <Layers size={26} className="group-hover:rotate-12 transition-transform duration-300" />
  </div>
  <div>
@@ -481,7 +481,7 @@ export default function BatchesPage() {
  <div className="flex items-center gap-3">
  <button
  onClick={openGlobalAddModal}
- className="px-4 py-2.5 bg-[#0067A1] text-white rounded-xl flex items-center gap-2 shadow-lg hover:shadow-xl hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 group"
+ className="px-4 py-2.5 bg-[#0067A1] text-white rounded-lg flex items-center gap-2 hover:shadow-xl hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 group"
  >
  <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
  <span>Add Batch</span>
@@ -490,7 +490,7 @@ export default function BatchesPage() {
  <button
  onClick={handleRefresh}
  disabled={isRefreshing || loading}
- className="px-4 py-2.5 bg-[#0067A1] text-white rounded-xl flex items-center gap-2 shadow-lg hover:shadow-xl hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-50"
+ className="px-4 py-2.5 bg-[#0067A1] text-white rounded-lg flex items-center gap-2 hover:shadow-xl hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-50"
  >
  <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
  <span>Refresh</span>
@@ -500,7 +500,7 @@ export default function BatchesPage() {
 
  {/* STATS CARDS */}
  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
- <div className="p-5 rounded-2xl bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+ <div className="p-5 rounded-lg bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-[#004F7C] dark:text-teal-300 text-sm font-medium">Total Batches</p>
@@ -509,13 +509,13 @@ export default function BatchesPage() {
  </h2>
  <p className="text-xs text-[#0067A1] dark:text-[#0080C6] mt-1">Active batches</p>
  </div>
- <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-xl flex items-center justify-center animate-pulse">
+ <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-lg flex items-center justify-center animate-pulse">
  <Package size={20} className="md:size-6" />
  </div>
  </div>
  </div>
 
- <div className="p-5 rounded-2xl bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+ <div className="p-5 rounded-lg bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-[#004F7C] dark:text-teal-300 text-sm font-medium">Total Stock</p>
@@ -524,13 +524,13 @@ export default function BatchesPage() {
  </h2>
  <p className="text-xs text-[#0067A1] dark:text-[#0080C6] mt-1">Units across batches</p>
  </div>
- <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-xl flex items-center justify-center animate-bounce-slow">
+ <div className="w-10 h-10 md:w-12 md:h-12 bg-[#0067A1] text-white rounded-lg flex items-center justify-center animate-bounce-slow">
  <BarChart3 size={20} className="md:size-6" />
  </div>
  </div>
  </div>
 
- <div className="p-5 rounded-2xl bg-white dark:bg-gray-800 border border-amber-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+ <div className="p-5 rounded-lg bg-white dark:bg-gray-800 border border-amber-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-amber-700 dark:text-amber-300 text-sm font-medium">Near Expiry</p>
@@ -539,13 +539,13 @@ export default function BatchesPage() {
  </h2>
  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Within 30 days</p>
  </div>
- <div className="w-10 h-10 md:w-12 md:h-12 bg-amber-600 text-white rounded-xl flex items-center justify-center">
+ <div className="w-10 h-10 md:w-12 md:h-12 bg-amber-600 text-white rounded-lg flex items-center justify-center">
  <Clock size={20} className="md:size-6" />
  </div>
  </div>
  </div>
 
- <div className="p-5 rounded-2xl bg-white dark:bg-gray-800 border border-red-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+ <div className="p-5 rounded-lg bg-white dark:bg-gray-800 border border-red-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
  <div className="flex items-center justify-between">
  <div>
  <p className="text-red-700 dark:text-red-300 text-sm font-medium">Expired</p>
@@ -554,7 +554,7 @@ export default function BatchesPage() {
  </h2>
  <p className="text-xs text-red-600 dark:text-red-400 mt-1">Remove from inventory</p>
  </div>
- <div className="w-10 h-10 md:w-12 md:h-12 bg-red-600 text-white rounded-xl flex items-center justify-center">
+ <div className="w-10 h-10 md:w-12 md:h-12 bg-red-600 text-white rounded-lg flex items-center justify-center">
  <ShieldAlert size={20} className="md:size-6" />
  </div>
  </div>
@@ -562,13 +562,13 @@ export default function BatchesPage() {
  </div>
 
  {/* SEARCH & FILTERS */}
- <div className="bg-white dark:bg-gray-800 rounded-2xl border border-[#0067A1]/20 dark:border-gray-700 p-4 md:p-6 mb-6 shadow-lg backdrop-blur-sm bg-opacity-90">
+ <div className="bg-white dark:bg-gray-800 rounded-lg border border-[#0067A1]/20 dark:border-gray-700 p-4 md:p-6 mb-6 backdrop-blur-sm bg-opacity-90">
  <div className="flex flex-col lg:flex-row gap-4">
  {/* SEARCH BAR */}
  <div className="relative flex-1 group">
  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#0080C6] w-5 h-5 group-focus-within:text-[#004F7C] transition-colors" />
  <input
- className="w-full pl-12 pr-4 py-3 bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all shadow-sm"
+ className="w-full pl-12 pr-4 py-3 bg-[#0067A1]/5 dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all"
  placeholder="Search medicines, batch numbers, or brands..."
  value={search}
  onChange={(e) => setSearch(e.target.value)}
@@ -579,8 +579,8 @@ export default function BatchesPage() {
  <div className="flex flex-wrap gap-3">
  <button
  onClick={() => setFilterExpired(!filterExpired)}
- className={`px-4 py-3 rounded-xl flex items-center gap-2 transition-all duration-300 ${filterExpired 
- ? 'bg-red-600 text-white shadow-lg' 
+ className={`px-4 py-3 rounded-lg flex items-center gap-2 transition-all duration-300 ${filterExpired 
+ ? 'bg-red-600 text-white' 
  : 'bg-white dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-red-300'}`}
  >
  <AlertCircle className="w-4 h-4" />
@@ -592,8 +592,8 @@ export default function BatchesPage() {
 
  <button
  onClick={() => setFilterNearExpiry(!filterNearExpiry)}
- className={`px-4 py-3 rounded-xl flex items-center gap-2 transition-all duration-300 ${filterNearExpiry 
- ? 'bg-amber-600 text-white shadow-lg' 
+ className={`px-4 py-3 rounded-lg flex items-center gap-2 transition-all duration-300 ${filterNearExpiry 
+ ? 'bg-amber-600 text-white' 
  : 'bg-white dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-amber-300'}`}
  >
  <Clock className="w-4 h-4" />
@@ -605,8 +605,8 @@ export default function BatchesPage() {
 
  <button
  onClick={() => setExpandedFilters(!expandedFilters)}
- className={`px-4 py-3 rounded-xl flex items-center gap-2 transition-all duration-300 ${expandedFilters 
- ? 'bg-[#0067A1] text-white shadow-lg' 
+ className={`px-4 py-3 rounded-lg flex items-center gap-2 transition-all duration-300 ${expandedFilters 
+ ? 'bg-[#0067A1] text-white' 
  : 'bg-white dark:bg-gray-700 border border-[#0067A1]/20 dark:border-gray-600 text-gray-700 dark:text-gray-300'}`}
  >
  <Filter className="w-4 h-4" />
@@ -645,7 +645,7 @@ export default function BatchesPage() {
  {/* LOADING STATE */}
  {loading && (
  <div className="text-center py-16">
- <div className="w-12 h-12 border-4 border-[#004F7C] border-t-transparent rounded-full animate-spin mx-auto shadow-lg"></div>
+ <div className="w-12 h-12 border-4 border-[#004F7C] border-t-transparent rounded-full animate-spin mx-auto"></div>
  <p className="mt-4 text-lg text-[#004F7C] dark:text-teal-300 font-medium animate-pulse">
  Loading batches...
  </p>
@@ -654,7 +654,7 @@ export default function BatchesPage() {
 
  {/* EMPTY STATE */}
  {!loading && batches.length === 0 && (
- <div className="text-center p-12 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-2xl shadow-lg animate-pulse-slow">
+ <div className="text-center p-12 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg animate-pulse-slow">
  <Package className="w-16 h-16 text-[#0080C6] mx-auto mb-4 animate-bounce" />
  <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">
  No Batches Found
@@ -665,13 +665,13 @@ export default function BatchesPage() {
  <div className="flex flex-col sm:flex-row gap-3 justify-center">
  <button
  onClick={openGlobalAddModal}
- className="px-6 py-2.5 bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95"
+ className="px-6 py-2.5 bg-[#0067A1] text-white rounded-lg hover:bg-[#004F7C] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95"
  >
  Add Your First Batch
  </button>
  <button
  onClick={handleRefresh}
- className="px-6 py-2.5 bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 text-[#004F7C] dark:text-teal-300 rounded-xl hover:bg-[#004F7C]/5 dark:hover:bg-gray-700 transition-all duration-300"
+ className="px-6 py-2.5 bg-white dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 text-[#004F7C] dark:text-teal-300 rounded-lg hover:bg-[#004F7C]/5 dark:hover:bg-gray-700 transition-all duration-300"
  >
  Refresh Data
  </button>
@@ -681,7 +681,7 @@ export default function BatchesPage() {
 
  {/* BATCHES TABLE VIEW (Changed from grouped view) */}
  {!loading && batches.length > 0 && (
- <div className="bg-white dark:bg-gray-900 rounded-2xl border border-[#0067A1]/20 dark:border-gray-700 shadow-lg overflow-hidden animate-slide-up">
+ <div className="bg-white dark:bg-gray-900 rounded-lg border border-[#0067A1]/20 dark:border-gray-700 overflow-hidden animate-slide-up">
  <div className="overflow-x-auto">
  <table className="w-full min-w-[1000px]">
  <thead className="bg-[#0067A1]/5 dark:bg-gray-800">
@@ -857,7 +857,7 @@ export default function BatchesPage() {
  onClick={() => paginate(n)}
  className={`w-8 h-8 md:w-10 md:h-10 rounded-lg transition-all duration-200 hover:scale-105 active:scale-95 ${
  n === pagination.currentPage
- ? "bg-[#0067A1] text-white shadow-lg"
+ ? "bg-[#0067A1] text-white"
  : "hover:bg-[#004F7C]/10 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
  }`}
  >
@@ -896,7 +896,7 @@ export default function BatchesPage() {
  {/* MEDICINE SELECTION MODAL */}
  {showMedicineSelectModal && (
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
- <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] overflow-y-auto animate-slide-up">
+ <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-3xl max-h-[80vh] overflow-y-auto animate-slide-up">
  {/* Modal Header */}
  <div className="sticky top-0 bg-white dark:bg-gray-900 border-b dark:border-gray-700 p-6 flex justify-between items-center z-10">
  <div>
@@ -939,7 +939,7 @@ export default function BatchesPage() {
  setShowMedicineSelectModal(false);
  setShowModal(true);
  }}
- className="p-5 text-left rounded-xl border border-[#0067A1]/20 dark:border-gray-700 hover:bg-gradient-to-r hover:bg-[#004F7C]/5 dark:hover:from-gray-800 dark:hover:to-gray-900 hover:border-teal-300 dark:hover:border-[#0067A1] transition-all duration-300 hover:scale-[1.02] group"
+ className="p-5 text-left rounded-lg border border-[#0067A1]/20 dark:border-gray-700 hover:bg-gradient-to-r hover:bg-[#004F7C]/5 dark:hover:from-gray-800 dark:hover:to-gray-900 hover:border-teal-300 dark:hover:border-[#0067A1] transition-all duration-300 hover:scale-[1.02] group"
  >
  <div className="flex items-start justify-between">
  <div className="flex items-center gap-3">
@@ -975,7 +975,7 @@ export default function BatchesPage() {
  {/* ADD / EDIT BATCH MODAL */}
  {showModal && (
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm animate-fade-in">
- <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
+ <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
  {/* Modal Header */}
  <div className="sticky top-0 bg-white dark:bg-gray-900 border-b dark:border-gray-700 p-6 flex justify-between items-center z-10">
  <div>
@@ -1014,7 +1014,7 @@ export default function BatchesPage() {
  </label>
  <input
  type="text"
- className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all"
+ className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all"
  placeholder="Enter batch number (e.g., BATCH-001)"
  value={batchForm.batch_no}
  onChange={(e) =>
@@ -1030,7 +1030,7 @@ export default function BatchesPage() {
  </label>
  <input
  type="date"
- className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all"
+ className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all"
  value={batchForm.expiry_date}
  onChange={(e) =>
  setBatchForm((f) => ({ ...f, expiry_date: e.target.value }))
@@ -1046,7 +1046,7 @@ export default function BatchesPage() {
  <input
  type="number"
  min="1"
- className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all"
+ className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all"
  placeholder="Enter stock quantity"
  value={batchForm.stock_qty}
  onChange={(e) =>
@@ -1065,7 +1065,7 @@ export default function BatchesPage() {
  type="number"
  min="0"
  step="0.01"
- className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all"
+ className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all"
  placeholder="Enter purchase price"
  value={batchForm.purchase_price}
  onChange={(e) =>
@@ -1085,7 +1085,7 @@ export default function BatchesPage() {
  type="number"
  min="0"
  step="0.01"
- className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all"
+ className="w-full p-3 bg-[#0067A1]/5 dark:bg-gray-800 border border-[#0067A1]/20 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-[#004F7C] focus:border-transparent transition-all"
  placeholder="Enter selling price"
  value={batchForm.selling_price}
  onChange={(e) =>
@@ -1104,14 +1104,14 @@ export default function BatchesPage() {
  <button
  type="button"
  onClick={() => setShowModal(false)}
- className="px-5 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors hover:scale-105 active:scale-95"
+ className="px-5 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors hover:scale-105 active:scale-95"
  >
  Cancel
  </button>
  <button
  onClick={saveBatch}
  disabled={isSubmitting}
- className="px-6 py-2.5 bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] transition-all duration-300 shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+ className="px-6 py-2.5 bg-[#0067A1] text-white rounded-lg hover:bg-[#004F7C] transition-all duration-300 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
  >
  {isSubmitting && (
  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -1127,7 +1127,7 @@ export default function BatchesPage() {
  {/* DELETE CONFIRM MODAL */}
  {showDeleteConfirm && (
  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4 backdrop-blur-sm animate-fade-in">
- <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md animate-bounce-in">
+ <div className="bg-white dark:bg-gray-900 rounded-lg w-full max-w-md animate-bounce-in">
  <div className="p-6">
  <div className="flex items-center justify-center w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full mx-auto mb-4 animate-pulse">
  <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
@@ -1144,13 +1144,13 @@ export default function BatchesPage() {
  <div className="flex justify-center gap-3">
  <button
  onClick={() => setShowDeleteConfirm(false)}
- className="px-5 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors hover:scale-105 active:scale-95 flex-1"
+ className="px-5 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors hover:scale-105 active:scale-95 flex-1"
  >
  Cancel
  </button>
  <button
  onClick={deleteBatch}
- className="px-5 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-300 hover:scale-105 active:scale-95 flex-1 shadow-lg"
+ className="px-5 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-300 hover:scale-105 active:scale-95 flex-1"
  >
  Delete
  </button>

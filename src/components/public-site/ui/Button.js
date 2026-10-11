@@ -2,6 +2,7 @@
 
 const Button = ({
   children,
+  type = 'button',
   variant = 'primary',
   className = '',
   ...props
@@ -17,6 +18,7 @@ const Button = ({
 
   return (
     <button
+      type={type}
       suppressHydrationWarning
       className={`${baseStyles} ${variants[variant]} ${className}`}
       {...props}

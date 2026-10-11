@@ -12,7 +12,7 @@
  */
 
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { resolveCallerFromRequest } from "@/lib/layer1/authGuard";
 
 export async function POST(req) {
@@ -27,14 +27,13 @@ export async function POST(req) {
         const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
 
         // Check if already agreed today (idempotent)
-        const { data: existing } = await supabase
-            .from("doctor_session_agreement")
-            .select("id")
-            .eq("doctor_id", doctor_id)
-            .eq("session_date", today)
-            .single();
+        const existing = await sql`
+            SELECT id FROM doctor_session_agreement
+            WHERE doctor_id = ${doctor_id}::uuid AND session_date = ${today}::date
+            LIMIT 1
+        `;
 
-        if (existing) {
+        if (existing && existing.length > 0) {
             return success("Session agreement already recorded for today", { already_agreed: true });
         }
 
@@ -63,21 +62,16 @@ export async function POST(req) {
         }
 
         // Insert session agreement
-        const { data, error } = await supabase
-            .from("doctor_session_agreement")
-            .insert({
-                doctor_id,
-                session_date: today,
-                accepted_at: new Date().toISOString(),
-                ip_address,
-                device_info,
-            })
-            .select()
-            .single();
+        const inserted = await sql`
+            INSERT INTO doctor_session_agreement (
+                doctor_id, session_date, accepted_at, ip_address, device_info
+            ) VALUES (
+                ${doctor_id}::uuid, ${today}::date, NOW(), ${ip_address}, ${device_info}
+            )
+            RETURNING id, session_date
+        `;
 
-        if (error) throw error;
-
-        return success("Session agreement recorded", { id: data.id, session_date: today });
+        return success("Session agreement recorded", { id: inserted[0]?.id, session_date: today });
 
     } catch (err) {
         console.error("POST /api/doctor/session-agreement error:", err);
