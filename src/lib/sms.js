@@ -26,11 +26,14 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
                               formattedNumber.endsWith("9999999992") || 
                               formattedNumber.endsWith("9999999993") ||
                               formattedNumber.endsWith("8744412521") ||
+                              formattedNumber.endsWith("9876543210") ||
+                              formattedNumber.endsWith("0000000002") ||
                               formattedNumber.endsWith("9027924662") ||
                               formattedNumber.endsWith("7289043777") ||
                               formattedNumber.endsWith("8082253151") ||
                               userId === "31272986-c9c3-41ac-a0ff-50381575d1be" ||
-                              userId === "4c2e8cb1-df50-438d-a46b-96e673f0341a";
+                              userId === "4c2e8cb1-df50-438d-a46b-96e673f0341a" ||
+                              userId === "e8d2491a-7b3f-4e92-bc10-7299a9a3f821";
         const otp = isDummyNumber ? "123456" : String(Math.floor(100000 + Math.random() * 900000));
         const expiresAt = isDummyNumber 
             ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) 
