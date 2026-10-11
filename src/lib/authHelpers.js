@@ -77,37 +77,39 @@ export const setLoggedInUser = (role, user) => {
 export const clearAuthSession = () => {
   if (typeof window === "undefined") return;
 
-  const authKeys = [
-    "userId",
-    "userRole",
-    "userData",
-    "authToken",
-    "token",
-    "adminUser",
-    "doctorUser",
-    "chemistUser",
-    "labUser",
-    "patientUser",
-    "staffUser",
-    "staffToken",
-    "staffPermissions",
-    "partnerUser",
-  ];
-
-  authKeys.forEach((key) => {
-    try {
-      localStorage.removeItem(key);
-    } catch (e) {}
-  });
+  const preservedTheme = localStorage.getItem("theme");
+  try {
+    localStorage.clear();
+    if (preservedTheme) {
+      localStorage.setItem("theme", preservedTheme);
+    }
+  } catch (e) {}
 
   try {
     sessionStorage.clear();
   } catch (e) {}
 
-  // Expire auth cookies across paths
-  document.cookie = "session_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
-  document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
-  document.cookie = "authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax";
+  // Expire all auth cookies across paths and root domain
+  const cookiesToClear = [
+    "session_id",
+    "token",
+    "authToken",
+    "sb-access-token",
+    "sb-refresh-token",
+    "lab_catalog_consent",
+  ];
+
+  cookiesToClear.forEach((name) => {
+    document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+    try {
+      document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; domain=${window.location.hostname}; SameSite=Lax`;
+    } catch (_) {}
+  });
+
+  // Call server-side logout route with keepalive so server clears cookies too
+  try {
+    fetch("/api/auth/logout", { method: "POST", keepalive: true }).catch(() => {});
+  } catch (e) {}
 
   try {
     window.dispatchEvent(new Event("storage"));
@@ -132,5 +134,5 @@ export const logoutUser = (role, redirectTo) => {
     else target = "/";
   }
 
-  window.location.href = target;
+  window.location.replace(target);
 };

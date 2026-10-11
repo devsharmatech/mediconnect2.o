@@ -8,10 +8,12 @@ import PatientHeader from "@/components/public-site/dashboard/PatientHeader";
 import AIDoctorChat from "@/components/AIDoctorChat";
 import { FaUserMd, FaHome, FaCalendarAlt, FaPills, FaUser } from "react-icons/fa";
 import toast from "react-hot-toast";
+import { logoutUser } from "@/lib/authHelpers";
 
 const PatientDashboardLayout = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showChat, setShowChat] = useState(false);
@@ -46,24 +48,47 @@ const PatientDashboardLayout = ({ children }) => {
       setShowDisclaimer(true);
     }
 
-    // Check if user is logged in (Any authenticated role: doctor, chemist, lab, admin, patient can access patient dashboard)
-    const userId = localStorage.getItem("userId");
+    // Check if user is logged in
+    const userId = localStorage.getItem("userId") || localStorage.getItem("user_id");
     const userRole = localStorage.getItem("userRole");
     const userData = localStorage.getItem("userData");
 
     if (!userId) {
-      router.push("/");
+      window.location.replace("/");
       return;
     }
 
-    if (userData) {
-      try {
-        setUser(JSON.parse(userData));
-      } catch (e) {
-        console.error("Failed to parse user data:", e);
-      }
-    }
-    setLoading(false);
+    // Verify session is active and valid against backend
+    fetch(`/api/auth/verify-session?token=${encodeURIComponent(userId)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data || !data.role) {
+          // Stale or logged out session detected — wipe and redirect to home
+          logoutUser("patient", "/");
+          return;
+        }
+
+        setIsAuthenticated(true);
+
+        if (userData) {
+          try {
+            setUser(JSON.parse(userData));
+          } catch (e) {
+            console.error("Failed to parse user data:", e);
+          }
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        // Network fallback
+        setIsAuthenticated(true);
+        if (userData) {
+          try {
+            setUser(JSON.parse(userData));
+          } catch (e) {}
+        }
+        setLoading(false);
+      });
 
     // Fetch fresh user profile in background to ensure latest profile_picture & details are synced
     if (userId) {
@@ -247,12 +272,12 @@ const PatientDashboardLayout = ({ children }) => {
     setIsSidebarOpen(false);
   };
 
-  if (loading) {
+  if (loading || !isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#0067A1] mx-auto"></div>
-          <p className="mt-4 text-gray-500">Loading...</p>
+          <p className="mt-4 text-gray-500 font-medium text-sm">Verifying session...</p>
         </div>
       </div>
     );
