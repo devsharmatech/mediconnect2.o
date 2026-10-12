@@ -34,9 +34,9 @@ const iconMap = {
 };
 
 const ServiceCard = ({ icon: Icon, title, description, delay, link, img }) => {
-  const isComingSoon = title.toLowerCase().includes("abha") || title.toLowerCase().includes("digital health");
+  const isComingSoon = link?.includes("coming-soon") || title.toLowerCase().includes("symptom check");
   let actualLink = isComingSoon ? "/coming-soon" : link;
-  if (!isComingSoon) {
+  if (!isComingSoon && actualLink) {
     if (actualLink.includes("nursing-care") || actualLink.includes("home-care")) {
       actualLink = "/nursing-care";
     } else if (actualLink.startsWith("/website")) {
@@ -49,8 +49,8 @@ const ServiceCard = ({ icon: Icon, title, description, delay, link, img }) => {
       <Link href={actualLink} className="block h-full group">
         <div className="relative h-full rounded-2xl border border-[#DCE6EB] bg-white p-6 sm:p-7 shadow-2xs hover:border-[#1677A8]/50 hover:shadow-xs transition-all duration-200 flex flex-col justify-between">
           {isComingSoon && (
-            <div className="absolute top-4 right-4 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-              Coming Soon
+            <div className="absolute top-4 right-4 bg-[#159A8A]/10 text-[#159A8A] border border-[#159A8A]/30 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+              Roadmap
             </div>
           )}
           <div>
@@ -73,7 +73,7 @@ const ServiceCard = ({ icon: Icon, title, description, delay, link, img }) => {
 
           <div className="mt-auto border-t border-[#DCE6EB]/60 pt-4 flex items-center justify-between">
             <span className="inline-flex items-center text-xs font-bold text-[#1677A8] group-hover:translate-x-0.5 transition-transform">
-              Explore Service &rarr;
+              Explore &rarr;
             </span>
           </div>
         </div>
@@ -97,43 +97,43 @@ const fallbackMainServices = [
     icon: FaUserMd,
     title: "Doctor Consultations",
     description:
-      "HD video consultations and in-clinic visits with verified specialists across 15+ specialties.",
-    link: "/website/doctors",
+      "HD video consultations and in-clinic visits with verified specialists across 15+ clinical specialties.",
+    link: "/doctors",
   },
   {
     icon: FaFlask,
     title: "Lab Tests & Diagnostics",
     description:
-      "Book verified lab packages and individual tests with digital reports delivered directly to your account.",
-    link: "/website/services/lab-tests",
+      "Book NABL-accredited diagnostic packages and tests with digital reports delivered directly to your account.",
+    link: "/dashboard/lab-booking",
   },
   {
     icon: FaPills,
-    title: "Medicine Delivery",
+    title: "Pharmacy & Medicines",
     description:
-      "Order prescribed medications from trusted licensed pharmacy partners with reliable door delivery.",
-    link: "/website/services/pharmacy",
+      "Order genuine prescribed medications and healthcare essentials with reliable home delivery.",
+    link: "/medicine-order",
+  },
+  {
+    icon: FaHandHoldingHeart,
+    title: "Home Healthcare & Nursing Care",
+    description:
+      "Certified home nursing, elder care, clinical procedures, and medical equipment at home.",
+    link: "/nursing-care",
   },
   {
     icon: FaPrescriptionBottle,
-    title: "Digital Health Records",
+    title: "MediConnect DigiLocker",
     description:
-      "Secure, ABHA-integrated record storage for your prescriptions, diagnostic reports, and medical history.",
-    link: "/website/coming-soon",
-  },
-  {
-    icon: FaCalendarCheck,
-    title: "Appointments & Follow-Ups",
-    description:
-      "Automated reminders, timely follow-up coordination, and seamless scheduling across your care journey.",
-    link: "/website/coming-soon",
+      "Encrypted digital health records for prescriptions, diagnostic reports, and medical history.",
+    link: "/digital-locker",
   },
   {
     icon: FaHeadset,
     title: "24/7 Care Support",
     description:
       "Multi-channel support via phone, WhatsApp, and email for assistance with appointments and orders.",
-    link: "/website/contact",
+    link: "/contact",
   },
 ];
 
@@ -212,14 +212,14 @@ export default function ServicesPage() {
       title: "Guided Symptom Check",
       description:
         "A guided tool to organize your symptoms before consulting a certified doctor.",
-      link: "/website/coming-soon",
+      link: "/coming-soon",
     },
     {
       icon: FaChartLine,
       title: "Health Insights & Trends",
       description:
         "Contextual summaries and diagnostic trends to support doctor-led clinical decisions.",
-      link: "/website/coming-soon",
+      link: "/coming-soon",
     },
   ];
 

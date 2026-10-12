@@ -1537,7 +1537,7 @@ export default function AppointmentsPage() {
           ) : error ? (
             <p className="text-sm text-red-500">{error}</p>
           ) : filteredAppointments.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-4">
               {filteredAppointments.map((appointment) => (
                 <AppointmentCard
                   key={appointment.id}
@@ -1733,40 +1733,40 @@ const AppointmentCard = ({
 
   return (
     <div
-      className={`bg-white border rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-lg flex flex-col justify-between ${
+      className={`bg-white border rounded-xl overflow-hidden transition-all duration-200 hover:shadow-md flex flex-col justify-between ${
         isActiveCall
-          ? "border-emerald-400 shadow-md shadow-emerald-100/50 ring-1 ring-emerald-300"
-          : "border-slate-200 shadow-xs hover:border-slate-300"
+          ? "border-emerald-400 shadow-sm shadow-emerald-100/50 ring-1 ring-emerald-300"
+          : "border-slate-200/90 shadow-xs hover:border-[#0067A1]/40"
       }`}
     >
       {/* Active Call Alert Banner */}
       {isActiveCall && (
-        <div className="bg-emerald-600 text-white px-3.5 py-1.5 text-xs font-semibold text-center flex items-center justify-center gap-2 animate-pulse">
+        <div className="bg-emerald-600 text-white px-2.5 py-1 text-[11px] font-semibold text-center flex items-center justify-center gap-1.5 animate-pulse">
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
           </span>
-          Doctor is waiting in video consultation
+          Doctor waiting in consultation
         </div>
       )}
 
-      <div className="p-4 flex flex-col flex-1 justify-between gap-3.5">
+      <div className="p-3 sm:p-3.5 flex flex-col flex-1 justify-between gap-2.5">
         <div>
           {/* Top Row — Consultation Type & Status Badges */}
-          <div className="flex items-center justify-between mb-3">
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-semibold border rounded-full ${typeColorCls}`}>
-              <TypeIcon className="w-3 h-3" />
-              {getAppointmentTypeLabel(appointment)}
+          <div className="flex items-center justify-between gap-1.5 mb-2">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10.5px] font-semibold border rounded-md ${typeColorCls}`}>
+              <TypeIcon className="w-2.5 h-2.5 shrink-0" />
+              <span className="truncate">{getAppointmentTypeLabel(appointment)}</span>
             </span>
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-semibold border rounded-full ${statusCfg.cls}`}>
+            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[10.5px] font-semibold border rounded-md shrink-0 ${statusCfg.cls}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
               {statusCfg.label}
             </span>
           </div>
 
           {/* Doctor Info Row */}
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-11 h-11 rounded-full bg-slate-100 border border-slate-200 ring-2 ring-slate-100/80 flex items-center justify-center shrink-0 overflow-hidden">
+          <div className="flex items-center gap-2.5 mb-2">
+            <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200/80 ring-1 ring-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
               {doctorImageUrl && !imgError ? (
                 <img
                   src={doctorImageUrl}
@@ -1775,55 +1775,59 @@ const AppointmentCard = ({
                   onError={() => setImgError(true)}
                 />
               ) : (
-                <FaUserMd className="w-5 h-5 text-[#0067A1]" />
+                <FaUserMd className="w-4 h-4 text-[#0067A1]" />
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-semibold text-slate-900 truncate leading-snug">
+              <h3 className="text-xs sm:text-[13px] font-bold text-slate-800 truncate leading-snug">
                 {doctorName}
               </h3>
               {specialty && (
-                <p className="text-xs text-[#0067A1] font-medium truncate mt-0.5">{specialty}</p>
+                <p className="text-[10.5px] text-[#0067A1] font-medium truncate leading-tight mt-0.5">
+                  {specialty}
+                </p>
               )}
             </div>
           </div>
 
-          {/* Date / Time / Location Block */}
-          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-2.5 space-y-1.5">
-            <div className="flex items-center gap-2 text-xs text-slate-700">
-              <FaCalendarAlt className="w-3.5 h-3.5 text-[#0067A1] shrink-0" />
-              <span className="font-medium">
-                {getDateTime(appointment).dateObj?.toLocaleDateString("en-IN", {
-                  weekday: "short",
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                }) || "—"}
-              </span>
+          {/* Date / Time / Location Block — Compact Medical Standard */}
+          <div className="bg-slate-50/80 border border-slate-100/90 rounded-lg p-2 space-y-1">
+            <div className="flex items-center justify-between text-[11px] text-slate-700">
+              <div className="flex items-center gap-1.5 min-w-0 font-medium">
+                <FaCalendarAlt className="w-3 h-3 text-[#0067A1] shrink-0" />
+                <span className="truncate">
+                  {getDateTime(appointment).dateObj?.toLocaleDateString("en-IN", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  }) || "—"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-slate-600 font-semibold text-[10.5px] shrink-0 bg-white/90 px-1.5 py-0.5 rounded border border-slate-200/60">
+                <FaClock className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                <span>{formatTimeTo12Hour(getDateTime(appointment).timeStr) || "—"}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-700">
-              <FaClock className="w-3.5 h-3.5 text-[#0067A1] shrink-0" />
-              <span className="font-medium">{formatTimeTo12Hour(getDateTime(appointment).timeStr) || "—"}</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <FaMapMarkerAlt className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500">
+              <FaMapMarkerAlt className="w-2.5 h-2.5 text-slate-400 shrink-0" />
               <span className="truncate">
-                {appointment.location || appointment.doctor?.clinic_name || "Online consultation"}
+                {appointment.location || appointment.doctor?.clinic_name || (appointmentTypeKey === "video" ? "Video Consultation" : "MediConnect Clinic")}
               </span>
             </div>
           </div>
         </div>
 
         {/* Action Buttons Section */}
-        <div className="space-y-2 pt-1 border-t border-slate-100">
+        <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
           {/* Primary Action Row */}
-          <div className={`grid gap-2 ${showVideoButton || hasRx ? "grid-cols-2" : "grid-cols-1"}`}>
+          <div className={`grid gap-1.5 ${showVideoButton || hasRx ? "grid-cols-2" : "grid-cols-1"}`}>
             <button
               type="button"
               onClick={() => onViewDetails(appointment)}
-              className="h-9 w-full flex items-center justify-center gap-1.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 text-xs font-semibold border border-slate-200/80 transition-all cursor-pointer"
+              className="h-8 w-full flex items-center justify-center gap-1 px-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 text-[11px] font-semibold border border-slate-200/80 transition-all cursor-pointer"
             >
-              <FaEye className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+              <FaEye className="h-3 w-3 text-slate-600 shrink-0" />
               Details
             </button>
 
@@ -1834,16 +1838,16 @@ const AppointmentCard = ({
                 onClick={() => timing.canJoin && onJoinCall(appointment)}
                 disabled={!timing.canJoin}
                 title={timing.tooltip || (timing.canJoin ? "Join video consultation" : "Call unavailable")}
-                className={`h-9 w-full flex items-center justify-center gap-1.5 px-3 rounded-xl text-xs font-semibold transition-all ${
+                className={`h-8 w-full flex items-center justify-center gap-1 px-2 rounded-lg text-[11px] font-semibold transition-all ${
                   timing.canJoin
                     ? isActiveCall
-                      ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm ring-2 ring-emerald-400/50 cursor-pointer animate-pulse"
-                      : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm cursor-pointer"
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs ring-1 ring-emerald-400 cursor-pointer animate-pulse"
+                      : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
                     : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none"
                 }`}
               >
-                <FaVideo className={`h-3.5 w-3.5 shrink-0 ${!timing.canJoin ? "opacity-40" : "text-white"}`} />
-                {isActiveCall && timing.canJoin ? "Join Active" : timing.label}
+                <FaVideo className={`h-3 w-3 shrink-0 ${!timing.canJoin ? "opacity-40" : "text-white"}`} />
+                <span className="truncate">{isActiveCall && timing.canJoin ? "Join" : timing.label}</span>
               </button>
             )}
 
@@ -1852,23 +1856,23 @@ const AppointmentCard = ({
               <button
                 type="button"
                 onClick={() => onViewPrescription(appointment)}
-                className="h-9 w-full flex items-center justify-center gap-1.5 px-3 rounded-xl bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold shadow-xs hover:shadow transition-all cursor-pointer"
-                title="View digitally signed medical prescription"
+                className="h-8 w-full flex items-center justify-center gap-1 px-2 rounded-lg bg-[#0067A1] hover:bg-[#004F7C] text-white text-[11px] font-semibold shadow-xs hover:shadow-sm transition-all cursor-pointer"
+                title="View medical prescription"
               >
-                <FaFileMedical className="h-3.5 w-3.5 shrink-0" />
+                <FaFileMedical className="h-3 w-3 shrink-0" />
                 Prescription
               </button>
             )}
           </div>
 
-          {/* Save DigiLocker Quick Action */}
+          {/* DigiLocker Quick Action */}
           {hasRx && (
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+            <div className="pt-1 border-t border-slate-100/80 flex items-center justify-end">
               <button
                 type="button"
                 onClick={() => onSaveToDigiLocker ? onSaveToDigiLocker(appointment) : null}
                 title={isDigiLockerSaved ? "Saved in DigiLocker" : "Save to DigiLocker"}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10.5px] font-semibold transition-all cursor-pointer border ${
                   isDigiLockerSaved
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : "bg-sky-50 text-[#0067A1] hover:bg-sky-100 border-sky-200/80"
@@ -1876,13 +1880,13 @@ const AppointmentCard = ({
               >
                 {isDigiLockerSaved ? (
                   <>
-                    <FaCheck className="w-3 h-3 text-emerald-600" />
+                    <FaCheck className="w-2.5 h-2.5 text-emerald-600" />
                     <span>In DigiLocker</span>
                   </>
                 ) : (
                   <>
-                    <FaLock className="w-3 h-3 text-[#0067A1]" />
-                    <span>Save DigiLocker</span>
+                    <FaLock className="w-2.5 h-2.5 text-[#0067A1]" />
+                    <span>DigiLocker</span>
                   </>
                 )}
               </button>
@@ -1891,23 +1895,23 @@ const AppointmentCard = ({
 
           {/* Reschedule & Cancel Row */}
           {canModify && (
-            <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+            <div className="flex items-center gap-1.5 pt-1 border-t border-slate-100/80">
               <button
                 type="button"
                 onClick={() => onReschedule(appointment)}
-                className="flex-1 h-8.5 px-3 rounded-xl text-xs font-semibold text-[#0067A1] bg-sky-50 hover:bg-sky-100 border border-sky-200/80 transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:shadow-xs"
-                title="Reschedule appointment date or time"
+                className="flex-1 h-7.5 px-2 rounded-lg text-[11px] font-semibold text-[#0067A1] bg-sky-50 hover:bg-sky-100 border border-sky-200/80 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                title="Reschedule appointment"
               >
-                <FaCalendarAlt className="w-3 h-3 text-[#0067A1]" />
+                <FaCalendarAlt className="w-2.5 h-2.5 text-[#0067A1]" />
                 <span>Reschedule</span>
               </button>
               <button
                 type="button"
                 onClick={() => onCancel(appointment)}
-                className="h-8.5 px-3.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:shadow-xs"
+                className="h-7.5 px-2.5 rounded-lg text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition-all flex items-center justify-center gap-1 cursor-pointer"
                 title="Cancel appointment"
               >
-                <FaTimes className="w-3 h-3 text-rose-500" />
+                <FaTimes className="w-2.5 h-2.5 text-rose-500" />
                 <span>Cancel</span>
               </button>
             </div>
@@ -1915,12 +1919,12 @@ const AppointmentCard = ({
 
           {/* Orchestrator Next Steps */}
           {orchestrator.loading ? (
-            <div className="flex justify-center items-center py-2 bg-slate-50 border border-slate-100 rounded-xl">
-              <div className="w-3 h-3 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin" />
-              <span className="ml-2 text-[11px] text-slate-500 font-medium">Checking actions...</span>
+            <div className="flex justify-center items-center py-1.5 bg-slate-50 border border-slate-100 rounded-lg">
+              <div className="w-2.5 h-2.5 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin" />
+              <span className="ml-1.5 text-[10.5px] text-slate-500 font-medium">Checking actions...</span>
             </div>
           ) : orchestrator.data?.type === "ACTION" && orchestrator.data.actions.length > 0 ? (
-            <div className="flex flex-col gap-1.5 pt-1 border-t border-slate-100">
+            <div className="flex flex-col gap-1 pt-1 border-t border-slate-100">
               {orchestrator.data.actions.map((action, idx) => (
                 <button
                   key={idx}
@@ -1930,20 +1934,20 @@ const AppointmentCard = ({
                     else if (action.action_id === "BOOK_FOLLOWUP" || action.action_id === "CONFIRM_FOLLOWUP") onReschedule(appointment);
                     else if (action.action_id?.startsWith("ORDER_")) onServiceRecommendations(appointment);
                   }}
-                  className={`h-8.5 w-full flex items-center justify-center gap-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                  className={`h-7.5 w-full flex items-center justify-center gap-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
                     action.priority === 1
                       ? "bg-[#0067A1] hover:bg-[#004F7C] text-white shadow-xs"
                       : "bg-sky-50 hover:bg-sky-100 text-[#004F7C] border border-sky-200"
                   }`}
                   title={action.description}
                 >
-                  {action.action_id === "SUBMIT_OUTCOME" ? <Activity className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
-                  {action.label}
+                  {action.action_id === "SUBMIT_OUTCOME" ? <Activity className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
+                  <span className="truncate">{action.label}</span>
                 </button>
               ))}
             </div>
           ) : orchestrator.data?.type === "MONITOR" ? (
-            <div className="w-full bg-slate-50 border border-slate-200 text-slate-500 py-1.5 text-center text-[10px] font-medium tracking-wide rounded-xl">
+            <div className="w-full bg-slate-50 border border-slate-200/80 text-slate-500 py-1 text-center text-[10px] font-medium tracking-wide rounded-lg">
               Monitoring — Awaiting Doctor Action
             </div>
           ) : null}

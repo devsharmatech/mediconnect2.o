@@ -25,10 +25,18 @@ export async function GET(req) {
       LIMIT 1
     `;
 
-    const broadcast = broadcastRows[0];
+    const orderRows = await sql`
+      SELECT mo.id, mo.unid, mo.status, mo.total_amount, mo.payment_method, mo.payu_status, cd.pharmacy_name
+      FROM medicine_orders mo
+      LEFT JOIN chemist_details cd ON cd.id = mo.chemist_id
+      WHERE mo.prescription_id = ${prescription_id}
+      ORDER BY mo.created_at DESC
+      LIMIT 1
+    `;
+    const existingOrder = orderRows[0] || null;
 
     if (!broadcast) {
-      return success("No broadcast found for this prescription", { broadcast: null, quotes: [] }, 200, {
+      return success("No broadcast found for this prescription", { broadcast: null, quotes: [], existing_order: existingOrder }, 200, {
         headers: corsHeaders,
       });
     }
@@ -118,6 +126,7 @@ export async function GET(req) {
         seconds_remaining: broadcast.seconds_remaining || 0,
       },
       quotes: formattedQuotes,
+      existing_order: existingOrder,
     }, 200, { headers: corsHeaders });
   } catch (err) {
     console.error("Error fetching active broadcast:", err);

@@ -91,11 +91,11 @@ async function generateMonthlyReport({ chemist_id, month, year }) {
     const refundedOrders = allOrders.filter(o => String(o.status).toLowerCase() === "refunded");
     const refundsAmount = refundedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
 
-    // Platform Commission (5% default)
-    const commissionRate = 0.05;
+    // Platform Commission (10% platform fee, 90% chemist net settlement)
+    const commissionRate = 0.10;
     const mediconnectRevenue = parseFloat((grossTransactionValue * commissionRate).toFixed(2));
 
-    // Net Pharmacy Settlement Amount
+    // Net Pharmacy Settlement Amount (90% payout)
     const pharmacySettlementAmount = parseFloat((grossTransactionValue - refundsAmount - mediconnectRevenue).toFixed(2));
 
     // SLA Breaches

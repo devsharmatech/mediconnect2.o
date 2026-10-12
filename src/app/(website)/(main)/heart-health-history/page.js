@@ -561,6 +561,8 @@ export default function HeartHealthHistoryPage() {
                     serialNo: selectedAssessment.serialNo || selectedAssessment.serial_no || selectedAssessment.rawAssessment?.serial_no,
                     inputs: selectedAssessment.inputs || selectedAssessment.rawAssessment?.inputs || selectedAssessment.rawAssessment?.heart_health_inputs?.[0],
                     heart_health_inputs: selectedAssessment.rawAssessment?.heart_health_inputs || selectedAssessment.heart_health_inputs,
+                    recommendations: selectedAssessment.recommendations || selectedAssessment.rawAssessment?.recommendations,
+                    wellness_practices: selectedAssessment.wellness_practices || selectedAssessment.rawAssessment?.wellness_practices || selectedAssessment.recommendations || selectedAssessment.rawAssessment?.recommendations,
                     date: selectedAssessment.date || selectedAssessment.created_at,
                     created_at: selectedAssessment.date || selectedAssessment.created_at
                   };

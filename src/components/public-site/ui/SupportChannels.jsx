@@ -10,7 +10,7 @@ export default function SupportChannels() {
       title: "MediConnect AI",
       desc: "Get answers and navigate healthcare services.",
       actionText: "Chat with AI",
-      href: "/website/ai-health-guide",
+      href: "#",
       icon: FaRobot,
       isSpecialAction: true,
       buttonAction: () => {

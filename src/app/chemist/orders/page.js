@@ -101,6 +101,42 @@ function StatusBadge({ status }) {
   );
 }
 
+// ─── Financial Split Breakdown Card (Chemist 90% / Platform 10%) ────
+function ChemistOrderFinancialCard({ totalAmount, subtotal, discount, className = "" }) {
+  const amount = Number(totalAmount || 0);
+  const chemistShare = (amount * 0.90).toFixed(2);
+  const platformFee = (amount * 0.10).toFixed(2);
+
+  return (
+    <div className={`p-3 bg-gradient-to-r from-sky-50/80 via-slate-50/70 to-blue-50/80 rounded-lg border border-sky-100 space-y-1.5 ${className}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <span className="text-xs font-bold text-slate-800 block">Total Amount:</span>
+          <span className="text-[11px] text-slate-500 font-medium">
+            {subtotal !== undefined
+              ? `Subtotal: ₹${Number(subtotal).toFixed(2)} + Delivery: FREE (₹0) - Discount: ₹${Number(discount || 0).toFixed(2)}`
+              : "Net Patient Bill"}
+          </span>
+        </div>
+        <span className="text-sm sm:text-base font-extrabold text-[#0067A1] shrink-0">
+          ₹{amount.toFixed(2)}
+        </span>
+      </div>
+
+      <div className="pt-1.5 border-t border-sky-200/60 flex items-center justify-between text-[11px]">
+        <span className="text-emerald-700 font-semibold flex items-center gap-1">
+          <span>Chemist Share (90%):</span>
+          <strong className="text-emerald-800">₹{chemistShare}</strong>
+        </span>
+        <span className="text-slate-600 font-medium flex items-center gap-1">
+          <span>Platform Fee (10%):</span>
+          <strong className="text-slate-700">₹{platformFee}</strong>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 // ─── Countdown Hook ─────────────────────────────────────────────
 function useCountdown(expiresAt) {
   const [seconds, setSeconds] = useState(() =>
@@ -121,6 +157,236 @@ function useCountdown(expiresAt) {
   }, [expiresAt]);
 
   return seconds;
+}
+
+// ─── Live Broadcast Quick-Quote Card (Matching Chemist Dashboard) ───
+function BroadcastPoolCard({ broadcast, chemistId, onRefresh, onOpenDetailedModal, onWithdraw }) {
+  const [cost, setCost] = useState(broadcast.estimated_cost || broadcast.quote_amount || "350");
+  const [eta, setEta] = useState(broadcast.delivery_time_minutes || "30");
+  const [submitting, setSubmitting] = useState(false);
+  const seconds = useCountdown(broadcast.expires_at);
+
+  const urgency = seconds < 60 ? "critical" : seconds < 180 ? "warn" : "ok";
+  const urgencyConfig = {
+    ok: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500" },
+    warn: { badge: "bg-amber-50 text-amber-700 border-amber-200", bar: "bg-amber-500" },
+    critical: { badge: "bg-rose-50 text-rose-700 border-rose-200 animate-pulse", bar: "bg-rose-500" },
+  }[urgency];
+
+  let parsedMeds = [];
+  try {
+    parsedMeds = typeof broadcast.medicines === "string" ? JSON.parse(broadcast.medicines) : broadcast.medicines || [];
+  } catch {
+    parsedMeds = [];
+  }
+
+  const handleInstantAccept = async (orderCost, deliveryMins) => {
+    try {
+      setSubmitting(true);
+      const res = await fetch("/api/chemists/order/accept", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          broadcast_id: broadcast.id,
+          chemist_id: chemistId,
+          estimated_cost: parseFloat(orderCost || cost || 350),
+          delivery_time_minutes: parseInt(deliveryMins || eta || 30, 10),
+        }),
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        toast.success("Order Claimed & Accepted! Moved to your active orders 🎉");
+        if (onRefresh) onRefresh();
+      } else {
+        toast.error(result.message || "Failed to accept order");
+      }
+    } catch {
+      toast.error("Error accepting order. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const minutes = Math.floor(seconds / 60);
+  const remSec = seconds % 60;
+  const timeFormatted = `${minutes}:${remSec.toString().padStart(2, "0")}`;
+
+  return (
+    <div className="bg-white rounded-[5px] border border-blue-100 p-5 hover:shadow-md transition-all relative overflow-hidden flex flex-col justify-between">
+      {/* Top accent line */}
+      <div className={`absolute top-0 left-0 right-0 h-1 ${urgencyConfig.bar}`} />
+
+      <div>
+        {/* Header & Countdown */}
+        <div className="flex items-center justify-between mb-3">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[5px] text-xs font-bold bg-[#0067A1]/10 text-[#0067A1]">
+            <Radio className="w-3.5 h-3.5 animate-pulse text-[#0067A1]" />
+            Live Prescription Pool
+          </span>
+          <span
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-[5px] text-xs font-bold border ${urgencyConfig.badge}`}
+          >
+            <Timer className="w-3.5 h-3.5" />
+            {seconds > 0 ? timeFormatted : "Expired"}
+          </span>
+        </div>
+
+        {/* Patient Area */}
+        <div className="mb-3">
+          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+            <span className="font-semibold text-gray-800">
+              {broadcast.delivery_area || broadcast.delivery_address || "Nearby Patient"}
+            </span>
+          </div>
+        </div>
+
+        {/* Medicines List */}
+        <div className="space-y-1.5 mb-4">
+          <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+            Prescribed Medicines ({parsedMeds.length || 0})
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {parsedMeds && parsedMeds.length > 0 ? (
+              parsedMeds.map((med, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[5px] bg-slate-50 text-slate-700 text-xs font-medium border border-slate-200"
+                >
+                  <Pill className="w-3 h-3 text-[#0067A1]" />
+                  {typeof med === "string" ? med : (med.name || med.medicine_name || `Medicine #${idx + 1}`)}
+                  {med?.dosage && <span className="text-[10px] text-gray-500">({med.dosage})</span>}
+                </span>
+              ))
+            ) : (
+              <span className="text-xs text-gray-500 italic">Prescription attached by patient</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Instant Action Section */}
+      {broadcast.already_quoted ? (
+        <div className="mt-3 p-3 bg-emerald-50 rounded-[5px] border border-emerald-200 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-emerald-700">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span className="text-xs font-bold">Quote Submitted</span>
+            </div>
+            <span className="text-xs font-bold text-emerald-800">
+              ₹{broadcast.quote_amount || broadcast.submitted_quote?.estimated_cost || "Confirmed"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 pt-1.5 border-t border-emerald-200/60">
+            <button
+              type="button"
+              onClick={() => onOpenDetailedModal(broadcast)}
+              className="flex-1 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-[5px] text-xs border border-slate-200 transition-colors cursor-pointer"
+            >
+              Edit Offer
+            </button>
+            <button
+              type="button"
+              onClick={() => onWithdraw(broadcast)}
+              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold rounded-[5px] text-xs transition-colors cursor-pointer"
+            >
+              Withdraw
+            </button>
+          </div>
+        </div>
+      ) : seconds <= 0 ? (
+        <div className="mt-3 p-2.5 bg-gray-50 rounded-[5px] text-center text-xs text-gray-500 font-medium">
+          Inquiry window expired
+        </div>
+      ) : (
+        <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+          {/* 1-Click Instant Accept Button (NO WAITING IN POOL) */}
+          <button
+            type="button"
+            onClick={() => handleInstantAccept(cost, eta)}
+            disabled={submitting}
+            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-[5px] shadow-xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+          >
+            {submitting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <>
+                <Zap className="w-3.5 h-3.5 text-yellow-300 fill-yellow-300" />
+                ⚡ Instant Accept Order (₹{cost || 350})
+              </>
+            )}
+          </button>
+
+          {/* Optional Price & ETA Controls */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 mb-0.5">
+                Set Price (₹)
+              </label>
+              <div className="relative">
+                <IndianRupee className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="number"
+                  placeholder="350"
+                  value={cost}
+                  onChange={(e) => setCost(e.target.value)}
+                  className="w-full pl-6 pr-2 py-1 text-xs font-bold text-gray-900 bg-white border border-gray-200 rounded-[5px] focus:outline-none focus:border-[#0067A1]"
+                  min="1"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-500 mb-0.5">
+                Delivery (Mins)
+              </label>
+              <div className="relative">
+                <Clock className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="number"
+                  placeholder="30"
+                  value={eta}
+                  onChange={(e) => setEta(e.target.value)}
+                  className="w-full pl-6 pr-2 py-1 text-xs font-bold text-gray-900 bg-white border border-gray-200 rounded-[5px] focus:outline-none focus:border-[#0067A1]"
+                  min="5"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Real-time Earnings Split Preview */}
+          <div className="p-3 bg-gradient-to-r from-sky-50/80 via-slate-50/70 to-blue-50/80 rounded-lg border border-sky-100 space-y-1 mt-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-800">Quotation Total:</span>
+              <span className="font-extrabold text-[#0067A1]">
+                ₹{parseFloat(cost || 0).toFixed(2)}
+              </span>
+            </div>
+            <div className="pt-1 border-t border-sky-200/60 flex items-center justify-between text-[11px]">
+              <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                <span>Chemist Share (90%):</span>
+                <strong className="text-emerald-800">₹{(parseFloat(cost || 0) * 0.9).toFixed(2)}</strong>
+              </span>
+              <span className="text-slate-600 font-medium flex items-center gap-1">
+                <span>Platform Fee (10%):</span>
+                <strong className="text-slate-700">₹{(parseFloat(cost || 0) * 0.1).toFixed(2)}</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Detailed Quotation Option */}
+          <button
+            type="button"
+            onClick={() => onOpenDetailedModal(broadcast)}
+            className="w-full py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-semibold rounded-[5px] text-[11px] transition-colors flex items-center justify-center gap-1 cursor-pointer mt-1"
+          >
+            <Pill className="w-3 h-3 text-[#0067A1]" />
+            <span>Customize Item-by-Item Quote</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Main Page ────────────────────────────────────────────────────
@@ -242,7 +508,7 @@ export default function ChemistOrdersPage() {
     ["payment_submitted", "payment_verification_pending"].includes(o.status)
   );
   const activeProcessingOrders = orders.filter((o) =>
-    ["approved", "packing", "ready_for_dispatch", "out_for_delivery"].includes(o.status)
+    ["payment_pending", "approved", "packing", "ready_for_dispatch", "out_for_delivery"].includes(o.status)
   );
   const completedOrders = orders.filter((o) =>
     ["delivered", "completed"].includes(o.status)
@@ -321,15 +587,15 @@ export default function ChemistOrdersPage() {
     }
 
     setQuoteMeds(items);
-    setQuoteDeliveryFee(prevQuote ? sanitizeNumber(prevQuote.delivery_charge, 0) : 0);
+    setQuoteDeliveryFee(0); // Free delivery promotional policy
     setQuoteDiscount(prevQuote ? sanitizeNumber(prevQuote.discount, 0) : 0);
     setQuoteEta(prevQuote ? (parseInt(prevQuote.delivery_time_minutes, 10) || 25) : (b.delivery_time_minutes || 25));
     setQuoteNotes(prevQuote?.bid_notes || b.bid_notes || "");
   };
 
-  // Calculate quote totals with full safety against NaN
+  // Calculate quote totals (Delivery is Free currently)
   const subtotal = quoteMeds.reduce((acc, item) => acc + sanitizeNumber(item.price, 0), 0);
-  const netAmount = Math.max(0, subtotal + sanitizeNumber(quoteDeliveryFee, 0) - sanitizeNumber(quoteDiscount, 0));
+  const netAmount = Math.max(0, subtotal - sanitizeNumber(quoteDiscount, 0));
 
   // ─── Submit Detailed Quote ───────────────────────────────────────
   const handleSubmitDetailedQuote = async () => {
@@ -355,7 +621,7 @@ export default function ChemistOrdersPage() {
           chemist_id: chemist.id,
           estimated_cost: netAmount,
           medicine_subtotal: subtotal,
-          delivery_charge: sanitizeNumber(quoteDeliveryFee, 0),
+          delivery_charge: 0,
           discount: sanitizeNumber(quoteDiscount, 0),
           final_amount: netAmount,
           delivery_time_minutes: parseInt(quoteEta || 25, 10),
@@ -729,114 +995,19 @@ export default function ChemistOrdersPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {broadcasts.map((b) => {
-                let parsedMeds = [];
-                try {
-                  parsedMeds = typeof b.medicines === "string" ? JSON.parse(b.medicines) : b.medicines || [];
-                } catch {
-                  parsedMeds = [];
-                }
-
-                return (
-                  <div
-                    key={b.id}
-                    className="bg-white rounded-lg p-4 sm:p-5 border border-slate-200 hover:border-slate-300 transition-all flex flex-col justify-between"
-                  >
-                    <div>
-                      {/* Header with Urgency Timer */}
-                      <div className="flex items-start justify-between gap-2 mb-3">
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 text-xs font-medium border border-rose-100">
-                          <Radio className="w-3 h-3 text-rose-500 animate-pulse" />
-                          <span>Live Request</span>
-                        </span>
-
-                        <span className="inline-flex items-center gap-1 text-xs font-mono font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          <span>{b.seconds_remaining ? `${Math.floor(b.seconds_remaining / 60)}m ${b.seconds_remaining % 60}s` : "Open"}</span>
-                        </span>
-                      </div>
-
-                      {/* Locality (DPDP Shielded) */}
-                      <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100 mb-3 space-y-1">
-                        <p className="text-[11px] font-medium text-slate-500">Delivery Zone</p>
-                        <p className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                          <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                          <span className="truncate">{b.delivery_address || "Local Delivery Area"}</span>
-                        </p>
-                      </div>
-
-                      {/* Prescribed Items List */}
-                      <div className="space-y-1.5 mb-4">
-                        <p className="text-[11px] font-medium text-slate-500">
-                          Prescribed Medicines ({parsedMeds.length || 1})
-                        </p>
-                        <div className="divide-y divide-slate-100 border border-slate-200/80 rounded-lg overflow-hidden max-h-36 overflow-y-auto">
-                          {parsedMeds.length > 0 ? (
-                            parsedMeds.map((med, idx) => (
-                              <div key={idx} className="p-2 text-xs flex items-center justify-between bg-white">
-                                <span className="font-medium text-slate-800 truncate max-w-[160px]">
-                                  {typeof med === "string" ? med : med.name}
-                                </span>
-                                <span className="text-xs text-slate-500 font-medium">
-                                  Qty: {med.quantity || 1}
-                                </span>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="p-2 text-xs text-slate-500 italic">Prescription Document Attached</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Quotation Action */}
-                    <div className="pt-3 border-t border-slate-100">
-                      {b.already_quoted ? (
-                        <div className="space-y-2">
-                          <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-center">
-                            <span className="text-xs font-semibold text-emerald-800 flex items-center justify-center gap-1">
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Quote Submitted: ₹{b.quote_amount}</span>
-                            </span>
-                            <span className="text-[11px] text-emerald-600 block mt-0.5">
-                              ETA: {b.delivery_time_minutes || 30} mins &bull; Awaiting Patient Selection
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenQuoteModal(b)}
-                              className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-md text-xs transition-colors cursor-pointer"
-                            >
-                              Edit Offer
-                            </button>
-                            <button
-                              type="button"
-                              disabled={withdrawingQuoteId === b.id}
-                              onClick={() => setWithdrawConfirmItem(b)}
-                              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-medium rounded-md text-xs transition-colors cursor-pointer"
-                              title="Withdraw Quote"
-                            >
-                              Withdraw
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenQuoteModal(b)}
-                          className="w-full py-2.5 bg-[#0067A1] hover:bg-[#005485] text-white rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <Pill className="w-3.5 h-3.5" />
-                          <span>Create & Submit Quotation</span>
-                          <ArrowRight className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              {broadcasts.map((b) => (
+                <BroadcastPoolCard
+                  key={b.id}
+                  broadcast={b}
+                  chemistId={chemist?.id}
+                  onRefresh={() => {
+                    fetchBroadcasts();
+                    fetchOrders(pagination.currentPage);
+                  }}
+                  onOpenDetailedModal={(item) => handleOpenQuoteModal(item)}
+                  onWithdraw={(item) => setWithdrawConfirmItem(item)}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -879,10 +1050,13 @@ export default function ChemistOrdersPage() {
                           {order.patient_name || "Patient"}
                         </p>
                       </div>
-                      <span className="text-sm font-semibold text-[#0067A1]">
-                        ₹{order.total_amount}
+                      <span className="text-xs font-semibold text-slate-500">
+                        {order.created_at ? new Date(order.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" }) : "Today"}
                       </span>
                     </div>
+
+                    {/* Order Financial Split Card */}
+                    <ChemistOrderFinancialCard totalAmount={order.total_amount} />
 
                     {/* UTR Box */}
                     <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100 space-y-1">
@@ -970,6 +1144,7 @@ export default function ChemistOrdersPage() {
                 className="px-3 py-2 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1]"
               >
                 <option value="all">All Statuses</option>
+                <option value="payment_pending">Awaiting Payment</option>
                 <option value="approved">Confirmed</option>
                 <option value="packing">Packing</option>
                 <option value="ready_for_dispatch">Ready for Dispatch</option>
@@ -988,7 +1163,7 @@ export default function ChemistOrdersPage() {
                   <th className="py-3 px-4">Patient & Delivery Area</th>
                   <th className="py-3 px-4">Items</th>
                   <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Total</th>
+                  <th className="py-3 px-4 min-w-[240px]">Amount & Payout Split (90% / 10%)</th>
                   <th className="py-3 px-4 text-right">Fulfillment Action</th>
                 </tr>
               </thead>
@@ -1011,7 +1186,7 @@ export default function ChemistOrdersPage() {
                   orders
                     .filter((o) => {
                       if (activeTab === "active") {
-                        return ["approved", "packing", "ready_for_dispatch", "out_for_delivery"].includes(o.status);
+                        return ["payment_pending", "approved", "packing", "ready_for_dispatch", "out_for_delivery"].includes(o.status);
                       }
                       return true;
                     })
@@ -1050,9 +1225,9 @@ export default function ChemistOrdersPage() {
                           <StatusBadge status={order.status} />
                         </td>
 
-                        {/* Amount */}
-                        <td className="py-3.5 px-4 align-middle font-semibold text-slate-900">
-                          ₹{order.total_amount || 0}
+                        {/* Amount & Settlement Split Card */}
+                        <td className="py-3.5 px-4 align-middle min-w-[240px]">
+                          <ChemistOrderFinancialCard totalAmount={order.total_amount} />
                         </td>
 
                         {/* Actions */}
@@ -1214,19 +1389,20 @@ export default function ChemistOrdersPage() {
               {/* Charges and ETA */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="bg-slate-50/60 p-3 rounded-lg border border-slate-200/70">
-                  <label className="text-[11px] font-semibold text-slate-600 block mb-1">Delivery Fee (₹)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-semibold text-slate-600">Delivery Fee (₹)</label>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      FREE Promo
+                    </span>
+                  </div>
                   <div className="relative">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-xs">₹</span>
                     <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={quoteDeliveryFee ?? ""}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        setQuoteDeliveryFee(raw === "" ? "" : (parseFloat(raw) || 0));
-                      }}
-                      className="w-full pl-6 pr-2.5 py-1.5 text-xs sm:text-sm font-semibold rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] transition-all"
+                      type="text"
+                      readOnly
+                      disabled
+                      value="0.00 (FREE)"
+                      className="w-full pl-6 pr-2.5 py-1.5 text-xs sm:text-sm font-semibold rounded-lg border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed"
                     />
                   </div>
                 </div>
@@ -1261,17 +1437,36 @@ export default function ChemistOrdersPage() {
                 </div>
               </div>
 
-              {/* Total Net Calculation */}
-              <div className="p-3.5 sm:p-4 bg-gradient-to-r from-sky-50/80 via-slate-50/70 to-blue-50/80 rounded-lg border border-sky-100 flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-bold text-slate-800 block">Total Net Amount to Patient:</span>
-                  <span className="text-[11px] text-slate-500 font-medium">
-                    Subtotal: ₹{subtotal.toFixed(2)} + Delivery: ₹{sanitizeNumber(quoteDeliveryFee, 0).toFixed(2)} - Discount: ₹{sanitizeNumber(quoteDiscount, 0).toFixed(2)}
+              {/* Total Net Calculation & Payout Split Preview */}
+              <div className="p-3.5 sm:p-4 bg-gradient-to-r from-sky-50/80 via-slate-50/70 to-blue-50/80 rounded-lg border border-sky-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-slate-800 block">Quotation Total (Patient Bill):</span>
+                      <span className="text-[10px] text-emerald-700 bg-emerald-100/80 px-1.5 py-0.5 rounded font-medium">
+                        🔒 Internal Chemist Split (Hidden from Patient)
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      Subtotal: ₹{subtotal.toFixed(2)} + Delivery: FREE (₹0) - Discount: ₹{sanitizeNumber(quoteDiscount, 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <span className="text-base sm:text-lg font-extrabold text-[#0067A1]">
+                    ₹{netAmount.toFixed(2)}
                   </span>
                 </div>
-                <span className="text-base sm:text-lg font-extrabold text-[#0067A1]">
-                  ₹{netAmount.toFixed(2)}
-                </span>
+
+                {/* 90% Chemist / 10% Platform Commission Split */}
+                <div className="pt-2 border-t border-sky-200/60 flex items-center justify-between text-[11px]">
+                  <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                    <span>Chemist Share (90%):</span>
+                    <strong className="text-emerald-800">₹{(netAmount * 0.90).toFixed(2)}</strong>
+                  </span>
+                  <span className="text-slate-600 font-medium flex items-center gap-1">
+                    <span>Platform Fee (10%):</span>
+                    <strong className="text-slate-700">₹{(netAmount * 0.10).toFixed(2)}</strong>
+                  </span>
+                </div>
               </div>
             </div>
 

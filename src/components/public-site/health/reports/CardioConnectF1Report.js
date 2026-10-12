@@ -134,7 +134,7 @@ export default function CardioConnectF1Report({
   })();
 
   const wellnessPractices = dynamicRecs.length > 0
-    ? dynamicRecs.slice(0, 4).map((rec, idx) => {
+    ? dynamicRecs.map((rec, idx) => {
         let steps = [];
         if (Array.isArray(rec.action_steps) && rec.action_steps.length > 0) {
           steps = rec.action_steps.map((s) => String(s));
@@ -454,33 +454,6 @@ export default function CardioConnectF1Report({
             </div>
           </div>
 
-          {/* YOUR NEXT OPTIONS */}
-          <div style={{ marginBottom: "12px" }}>
-            <div style={{ fontSize: "11.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
-              YOUR NEXT OPTIONS
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.3fr", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#ffffff" }}>
-              <div style={{ padding: "10px 12px", borderRight: "1px solid #cbd5e1" }}>
-                <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>CONTINUE</div>
-                <div style={{ fontSize: "12px", fontWeight: "800", color: "#0d3b66", marginTop: "2px", marginBottom: "3px" }}>Heart Training</div>
-                <div style={{ fontSize: "9.5px", color: "#475569", lineHeight: "1.3", marginBottom: "6px" }}>Start or resume your activity journey.</div>
-                <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>→ START HEART TRAINING</div>
-              </div>
-              <div style={{ padding: "10px 12px", borderRight: "1px solid #cbd5e1" }}>
-                <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>TRACK</div>
-                <div style={{ fontSize: "12px", fontWeight: "800", color: "#0d3b66", marginTop: "2px", marginBottom: "3px" }}>My Progress</div>
-                <div style={{ fontSize: "9.5px", color: "#475569", lineHeight: "1.3", marginBottom: "6px" }}>Review checkpoints and recorded activity over time.</div>
-                <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>→ VIEW MY PROGRESS</div>
-              </div>
-              <div style={{ padding: "10px 12px" }}>
-                <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>CONNECT</div>
-                <div style={{ fontSize: "12px", fontWeight: "800", color: "#0d3b66", marginTop: "2px", marginBottom: "3px" }}>Care & Consultation</div>
-                <div style={{ fontSize: "9.5px", color: "#475569", lineHeight: "1.3", marginBottom: "6px" }}>Supported care options when appropriate.</div>
-                <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>→ EXPLORE CARE OPTIONS</div>
-              </div>
-            </div>
-          </div>
-
           {/* Factual Record Integrity Block */}
           <div style={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "4px", padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
             <div>
@@ -622,54 +595,59 @@ export default function CardioConnectF1Report({
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px" }}>
-              {wellnessPractices.map((practice, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    border: "1px solid #cbd5e1",
-                    borderRadius: "4px",
-                    backgroundColor: "#ffffff",
-                    padding: "9px 11px",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between"
-                  }}
-                >
-                  <div>
-                    {/* Badge & timeframe */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px", flexWrap: "wrap", gap: "3px" }}>
-                      <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                        <span style={{ fontSize: "8.5px", fontWeight: "800", color: "#065f46", backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0", padding: "1px 5px", borderRadius: "2px", textTransform: "uppercase" }}>
-                          {practice.category}
-                        </span>
-                        <span style={{ fontSize: "8px", fontWeight: "700", color: "#1e293b", backgroundColor: "#f1f5f9", border: "1px solid #cbd5e1", padding: "1px 4px", borderRadius: "2px", textTransform: "uppercase" }}>
-                          {practice.priorityTag}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              {wellnessPractices.map((practice, idx) => {
+                const isLastOdd = (wellnessPractices.length % 2 === 1) && (idx === wellnessPractices.length - 1);
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "4px",
+                      backgroundColor: "#ffffff",
+                      padding: "8px 11px",
+                      display: "flex",
+                      flexDirection: isLastOdd ? "row" : "column",
+                      justifyContent: "space-between",
+                      gridColumn: isLastOdd ? "1 / -1" : "auto",
+                      gap: isLastOdd ? "14px" : "0px"
+                    }}
+                  >
+                    <div style={{ flex: isLastOdd ? "1.1" : "none" }}>
+                      {/* Badge & timeframe */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px", flexWrap: "wrap", gap: "3px" }}>
+                        <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                          <span style={{ fontSize: "8.5px", fontWeight: "800", color: "#065f46", backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0", padding: "1px 5px", borderRadius: "2px", textTransform: "uppercase" }}>
+                            {practice.category}
+                          </span>
+                          <span style={{ fontSize: "8px", fontWeight: "700", color: "#1e293b", backgroundColor: "#f1f5f9", border: "1px solid #cbd5e1", padding: "1px 4px", borderRadius: "2px", textTransform: "uppercase" }}>
+                            {practice.priorityTag}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: "8.5px", color: "#64748b", fontWeight: "600" }}>
+                          {practice.timeframe}
                         </span>
                       </div>
-                      <span style={{ fontSize: "8.5px", color: "#64748b", fontWeight: "600" }}>
-                        {practice.timeframe}
-                      </span>
-                    </div>
 
-                    {/* Title */}
-                    <div style={{ fontSize: "11px", fontWeight: "800", color: "#0f2d4a", marginBottom: "3px", lineHeight: "1.25" }}>
-                      {practice.title}
-                    </div>
+                      {/* Title */}
+                      <div style={{ fontSize: "10.5px", fontWeight: "800", color: "#0f2d4a", marginBottom: "2px", lineHeight: "1.25" }}>
+                        {practice.title}
+                      </div>
 
-                    {/* Description */}
-                    <div style={{ fontSize: "9.5px", color: "#475569", lineHeight: "1.35", marginBottom: "6px" }}>
-                      {practice.description}
+                      {/* Description */}
+                      <div style={{ fontSize: "9px", color: "#475569", lineHeight: "1.3", marginBottom: "5px" }}>
+                        {practice.description}
+                      </div>
                     </div>
 
                     {/* Steps list */}
-                    <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "5px" }}>
-                      <div style={{ fontSize: "8.5px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "3px", letterSpacing: "0.2px" }}>
+                    <div style={{ flex: isLastOdd ? "1" : "none", borderTop: isLastOdd ? "none" : "1px solid #f1f5f9", borderLeft: isLastOdd ? "1px solid #f1f5f9" : "none", paddingTop: isLastOdd ? "0px" : "4px", paddingLeft: isLastOdd ? "12px" : "0px" }}>
+                      <div style={{ fontSize: "8.5px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "2px", letterSpacing: "0.2px" }}>
                         Recommended Steps:
                       </div>
                       <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
                         {practice.steps.map((step, sIdx) => (
-                          <li key={sIdx} style={{ fontSize: "9px", color: "#334155", lineHeight: "1.3", marginBottom: "2.5px", display: "flex", alignItems: "flex-start", gap: "4px" }}>
+                          <li key={sIdx} style={{ fontSize: "8.5px", color: "#334155", lineHeight: "1.25", marginBottom: "1.5px", display: "flex", alignItems: "flex-start", gap: "4px" }}>
                             <span style={{ color: "#059669", fontWeight: "800", flexShrink: 0 }}>✓</span>
                             <span>{step}</span>
                           </li>
@@ -677,8 +655,8 @@ export default function CardioConnectF1Report({
                       </ul>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -734,6 +712,33 @@ export default function CardioConnectF1Report({
                     </li>
                   ))}
                 </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* YOUR NEXT OPTIONS */}
+          <div style={{ marginTop: "10px", marginBottom: "4px" }}>
+            <div style={{ fontSize: "11px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "5px" }}>
+              YOUR NEXT OPTIONS
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.3fr", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#ffffff" }}>
+              <div style={{ padding: "8px 10px", borderRight: "1px solid #cbd5e1" }}>
+                <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>CONTINUE</div>
+                <div style={{ fontSize: "11px", fontWeight: "800", color: "#0d3b66", marginTop: "1px", marginBottom: "2px" }}>Heart Training</div>
+                <div style={{ fontSize: "9px", color: "#475569", lineHeight: "1.3", marginBottom: "4px" }}>Start or resume your activity journey.</div>
+                <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>→ START HEART TRAINING</div>
+              </div>
+              <div style={{ padding: "8px 10px", borderRight: "1px solid #cbd5e1" }}>
+                <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>TRACK</div>
+                <div style={{ fontSize: "11px", fontWeight: "800", color: "#0d3b66", marginTop: "1px", marginBottom: "2px" }}>My Progress</div>
+                <div style={{ fontSize: "9px", color: "#475569", lineHeight: "1.3", marginBottom: "4px" }}>Review checkpoints and recorded activity over time.</div>
+                <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>→ VIEW MY PROGRESS</div>
+              </div>
+              <div style={{ padding: "8px 10px" }}>
+                <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px" }}>CONNECT</div>
+                <div style={{ fontSize: "11px", fontWeight: "800", color: "#0d3b66", marginTop: "1px", marginBottom: "2px" }}>Care & Consultation</div>
+                <div style={{ fontSize: "9px", color: "#475569", lineHeight: "1.3", marginBottom: "4px" }}>Supported care options when appropriate.</div>
+                <div style={{ fontSize: "9px", fontWeight: "800", color: "#007a8c", textTransform: "uppercase" }}>→ EXPLORE CARE OPTIONS</div>
               </div>
             </div>
           </div>

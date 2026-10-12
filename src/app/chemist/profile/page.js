@@ -145,6 +145,10 @@ export default function ChemistProfilePage() {
  registration_no: "",
  description: "",
  upi_id: "",
+ bank_name: "",
+ bank_account_number: "",
+ bank_ifsc_code: "",
+ bank_branch: "",
  created_at: new Date().toISOString(),
  updated_at: new Date().toISOString(),
  });
@@ -194,6 +198,10 @@ export default function ChemistProfilePage() {
  registration_no: profile?.registration_no,
  description: profile?.description,
  upi_id: profile?.upi_id,
+ bank_name: profile?.bank_name,
+ bank_account_number: profile?.bank_account_number,
+ bank_ifsc_code: profile?.bank_ifsc_code,
+ bank_branch: profile?.bank_branch,
  }),
  });
 
@@ -680,6 +688,30 @@ export default function ChemistProfilePage() {
  "upi_id",
  "UPI ID (VPA)",
  <CreditCard className="w-4 h-4" />,
+ "text"
+ )}
+ {renderInputField(
+ "bank_name",
+ "Bank Name",
+ <Building2 className="w-4 h-4" />,
+ "text"
+ )}
+ {renderInputField(
+ "bank_account_number",
+ "Bank Account Number",
+ <CreditCard className="w-4 h-4" />,
+ "text"
+ )}
+ {renderInputField(
+ "bank_ifsc_code",
+ "Bank IFSC Code",
+ <CreditCard className="w-4 h-4" />,
+ "text"
+ )}
+ {renderInputField(
+ "bank_branch",
+ "Bank Branch",
+ <Building2 className="w-4 h-4" />,
  "text"
  )}
  </div>

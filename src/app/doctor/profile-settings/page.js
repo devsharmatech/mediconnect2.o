@@ -290,19 +290,71 @@ export default function DoctorProfile() {
 
       const parsed = res.data;
       const details = parsed?.details || {};
+
+      // Parse available_time fallback
+      let parsedAvailableTime = details.available_time;
+      if (typeof parsedAvailableTime === "string") {
+        try { parsedAvailableTime = JSON.parse(parsedAvailableTime); } catch { parsedAvailableTime = null; }
+      }
+      const generalTimeFallback = (parsedAvailableTime && typeof parsedAvailableTime === "object" && parsedAvailableTime.start && parsedAvailableTime.end)
+        ? parsedAvailableTime
+        : null;
+
+      const activeDaysList = Array.isArray(details.available_days)
+        ? details.available_days
+        : (typeof details.available_days === "string" ? details.available_days.split(",").map(d => d.trim()) : []);
+
       // Parse weekly availability slots (clinic, video, home) and leave days
-      const parseSlots = (value) => {
-        if (!value) return {};
+      const parseSlots = (value, fallbackTime = null) => {
+        let raw = value;
         if (typeof value === "string") {
           try {
-            const parsed = JSON.parse(value);
-            return parsed && typeof parsed === "object" ? parsed : {};
+            raw = JSON.parse(value);
           } catch {
-            return {};
+            raw = {};
           }
         }
-        if (typeof value === "object") return value;
-        return {};
+        if (!raw || typeof raw !== "object") raw = {};
+
+        const normalized = {};
+        daysOfWeek.forEach((day) => {
+          const shortDay = day.slice(0, 3);
+          const val = raw[day] ?? raw[shortDay] ?? raw[day.toLowerCase()] ?? raw[shortDay.toLowerCase()];
+
+          if (val) {
+            if (Array.isArray(val) && val.length > 0) {
+              const validSlots = val.filter((s) => s && (s.start || s.end));
+              if (validSlots.length > 0) {
+                const first = validSlots[0] || {};
+                const last = validSlots[validSlots.length - 1] || first;
+                normalized[day] = {
+                  start: first.start || "",
+                  end: last.end || first.end || "",
+                };
+              } else {
+                normalized[day] = { start: "", end: "" };
+              }
+            } else if (typeof val === "object") {
+              const start = val.start || val["0"]?.start || "";
+              const end = val.end || val["0"]?.end || "";
+              normalized[day] = { start, end };
+            } else {
+              normalized[day] = { start: "", end: "" };
+            }
+          } else if (
+            fallbackTime &&
+            (activeDaysList.includes(day) || activeDaysList.includes(shortDay) || activeDaysList.includes(day.toLowerCase()))
+          ) {
+            normalized[day] = {
+              start: fallbackTime.start || "",
+              end: fallbackTime.end || "",
+            };
+          } else {
+            normalized[day] = { start: "", end: "" };
+          }
+        });
+
+        return normalized;
       };
 
       const parseLeaveDays = (value) => {
@@ -326,7 +378,7 @@ export default function DoctorProfile() {
         return [];
       };
 
-      const clinicSlots = parseSlots(details.clinic_slots);
+      const clinicSlots = parseSlots(details.clinic_slots, generalTimeFallback);
       const videoSlots = parseSlots(details.video_slots);
       const homeSlots = parseSlots(details.home_slots);
       const leaveDays = parseLeaveDays(details.leave_days);
@@ -620,16 +672,19 @@ export default function DoctorProfile() {
   };
 
   const handleWeeklySlotChange = (type, day, field, value) => {
-    setWeeklyAvailability((prev) => ({
-      ...prev,
-      [type]: {
-        ...(prev[type] || {}),
-        [day]: {
-          ...(prev[type]?.[day] || {}),
-          [field]: value,
+    setWeeklyAvailability((prev) => {
+      const currentDay = prev[type]?.[day] || { start: "", end: "" };
+      return {
+        ...prev,
+        [type]: {
+          ...(prev[type] || {}),
+          [day]: {
+            start: field === "start" ? value : (currentDay.start || ""),
+            end: field === "end" ? value : (currentDay.end || ""),
+          },
         },
-      },
-    }));
+      };
+    });
   };
 
   const handleSpecialityAdd = (value) => {

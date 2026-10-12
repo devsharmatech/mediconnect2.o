@@ -27,8 +27,6 @@ import { HiSparkles } from "react-icons/hi2";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
-  const [email, setEmail] = useState("");
-  const [subscribed, setSubscribed] = useState(false);
   const [settings, setSettings] = useState(null);
   const [contactData, setContactData] = useState(null);
 
@@ -52,32 +50,13 @@ const Footer = () => {
       .catch(console.error);
   }, []);
 
-  const handleSubscribe = async (e) => {
-    e.preventDefault();
-    if (!email) return;
-    try {
-      const res = await fetch("/api/subscribers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      if (res.ok) {
-        setSubscribed(true);
-        setEmail("");
-        setTimeout(() => setSubscribed(false), 3000);
-      }
-    } catch (err) {
-      console.error("Subscribe error:", err);
-    }
-  };
-
   const legal = [
-    { name: "FAQs", href: "/website/faqs" },
-    { name: "Privacy Policy", href: "/website/privacy" },
-    { name: "Terms of Use", href: "/website/terms" },
-    { name: "Telemedicine Policy", href: "/website/telemedicine-policy" },
-    { name: "Refund Policy", href: "/website/refund-policy" },
-    { name: "Grievance Redressal", href: "/website/grievance-redressal" },
+    { name: "FAQs", href: "/faqs" },
+    { name: "Privacy Policy", href: "/privacy" },
+    { name: "Terms of Use", href: "/terms" },
+    { name: "Telemedicine Policy", href: "/telemedicine-policy" },
+    { name: "Refund Policy", href: "/refund-policy" },
+    { name: "Grievance Redressal", href: "/grievance-redressal" },
     {
       name: "ISO 9001:2015 Certified",
       href: "/iso-certifications.pdf",
@@ -105,63 +84,8 @@ const Footer = () => {
 
   return (
     <footer className="relative bg-[#003358] text-white overflow-hidden">
-      {/* Newsletter Section */}
-      <div className="relative border-b border-gray-800">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="bg-[#0067A1] rounded-2xl p-8 md:p-12 relative">
-            <div className="relative flex flex-col lg:flex-row items-center justify-between gap-6">
-              <div className="text-center lg:text-left">
-                <h3 className="text-2xl md:text-3xl font-bold text-white mb-2">
-                  Stay informed about your care
-                </h3>
-                <p className="text-[#E0F2F1] text-sm md:text-base">
-                  Get relevant care reminders, service updates, and important
-                  health information when needed. No promotions.
-                </p>
-              </div>
-
-              <form
-                onSubmit={handleSubscribe}
-                className="flex-shrink-0 w-full lg:w-auto"
-              >
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="relative flex-1">
-                    <FaEnvelope className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      suppressHydrationWarning
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Enter your email"
-                      className="w-full sm:w-80 pl-11 pr-4 py-3.5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all"
-                    />
-                  </div>
-                  <button
-                    suppressHydrationWarning
-                    type="submit"
-                    className="flex items-center justify-center gap-2 px-6 py-3.5 bg-white text-[#0067A1] font-semibold rounded-xl hover:bg-gray-100 transform hover:scale-105 transition-all duration-200 shadow-lg"
-                  >
-                    {subscribed ? (
-                      <>
-                        <FaCheckCircle className="w-4 h-4 text-green-500" />
-                        Subscribed!
-                      </>
-                    ) : (
-                      <>
-                        Subscribe for Updates
-                        <FaArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Main Footer Content */}
-      <div className="relative container mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-0">
+      <div className="relative container mx-auto px-4 sm:px-6 lg:px-8 py-10 pb-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-6">
           {/* Brand Column */}
           <div className="space-y-6">

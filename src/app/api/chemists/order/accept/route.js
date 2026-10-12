@@ -59,9 +59,10 @@ export async function POST(req) {
     const pharmacyAddress = chemist.address || "Registered Partner Pharmacy";
     const ratingVal = chemist.rating && Number(chemist.total_reviews || 0) > 0 ? Number(chemist.rating) : null;
 
-    // 3. Calculate financial breakdown
+    // 3. Calculate financial breakdown (Delivery charge is promotional FREE: ₹0)
+    const effectiveDeliveryCharge = 0;
     const finalAmount = parseFloat(estimated_cost || 350);
-    const subtotal = finalAmount - parseFloat(delivery_charge || 0) + parseFloat(discount || 0);
+    const subtotal = finalAmount + parseFloat(discount || 0);
     const deliveryMins = parseInt(delivery_time_minutes, 10) || 30;
 
     // 4. Create or update quote
@@ -81,7 +82,7 @@ export async function POST(req) {
           final_amount = ${finalAmount},
           estimated_cost = ${finalAmount},
           medicine_subtotal = ${subtotal},
-          delivery_charge = ${delivery_charge},
+          delivery_charge = ${effectiveDeliveryCharge},
           discount = ${discount},
           delivery_time_minutes = ${deliveryMins},
           created_at = NOW()
@@ -105,7 +106,7 @@ export async function POST(req) {
           ${chemist_id},
           ${finalAmount},
           ${subtotal},
-          ${delivery_charge},
+          ${effectiveDeliveryCharge},
           ${discount},
           ${finalAmount},
           ${deliveryMins},
@@ -123,7 +124,7 @@ export async function POST(req) {
       chemist_id,
       estimated_cost: finalAmount,
       medicine_subtotal: subtotal,
-      delivery_charge: parseFloat(delivery_charge || 0),
+      delivery_charge: effectiveDeliveryCharge,
       discount: parseFloat(discount || 0),
       final_amount: finalAmount,
       delivery_time_minutes: deliveryMins,

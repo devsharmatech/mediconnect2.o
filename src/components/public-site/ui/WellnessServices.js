@@ -351,13 +351,13 @@ const WellnessServices = ({ onLoginClick }) => {
         }
 
         if (serviceType === 'cardio') {
-            router.push('/website/heart-health');
+            router.push('/heart-health');
         } else if (serviceType === 'cardio_hub') {
-            router.push('/website/cardio-connect');
+            router.push('/cardio-connect');
         } else if (serviceType === 'lung') {
             router.push('/lung-connect');
         } else if (serviceType === 'lung_assessment') {
-            router.push('/website/lung-assessment');
+            router.push('/lung-assessment');
         }
     };
 

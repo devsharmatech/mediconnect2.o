@@ -26,7 +26,7 @@ export default function CareApproachSections({ pageBlocks = {}, isLoadingBlocks 
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-left">
                   <Link 
-                    href="/website/coming-soon" 
+                    href="/coming-soon" 
                     className="p-4 rounded-xl bg-[#F7FAFC] border border-[#DCE6EB] hover:border-[#1677A8] hover:bg-white transition-all group block"
                   >
                     <p className="text-xs font-bold text-[#1677A8] uppercase tracking-wide mb-1">
@@ -41,7 +41,7 @@ export default function CareApproachSections({ pageBlocks = {}, isLoadingBlocks 
                   </Link>
 
                   <Link 
-                    href="/website/coming-soon" 
+                    href="/coming-soon" 
                     className="p-4 rounded-xl bg-[#F7FAFC] border border-[#DCE6EB] hover:border-[#1677A8] hover:bg-white transition-all group block"
                   >
                     <p className="text-xs font-bold text-[#1677A8] uppercase tracking-wide mb-1">
@@ -60,8 +60,8 @@ export default function CareApproachSections({ pageBlocks = {}, isLoadingBlocks 
 
             {/* ABHA Creation Block */}
             <div className="relative rounded-2xl border border-emerald-200/90 bg-emerald-50/40 p-6 sm:p-8 flex flex-col justify-between shadow-2xs">
-              <div className="absolute top-4 right-4 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                Coming Soon
+              <div className="absolute top-4 right-4 bg-[#159A8A]/10 text-[#159A8A] border border-[#159A8A]/30 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                Roadmap
               </div>
               <div className="text-center sm:text-left">
                 <p className="text-[11px] sm:text-xs font-bold tracking-widest text-emerald-800 uppercase mb-1.5">
@@ -79,7 +79,7 @@ export default function CareApproachSections({ pageBlocks = {}, isLoadingBlocks 
                   href="/coming-soon" 
                   className="inline-flex items-center justify-center px-6 py-2.5 text-xs sm:text-sm font-bold rounded-xl text-white bg-[#0B3A5B] hover:bg-[#1677A8] transition-colors shadow-xs"
                 >
-                  Coming Soon &rarr;
+                  Learn More
                 </Link>
               </div>
             </div>

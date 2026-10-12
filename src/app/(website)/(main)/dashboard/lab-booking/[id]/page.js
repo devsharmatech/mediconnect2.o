@@ -32,10 +32,8 @@ export default function LabTestsPage({ params }) {
 
     const [lab, setLab] = useState(null);
     const [tests, setTests] = useState([]);
-    const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
-    const [activeCategory, setActiveCategory] = useState("all");
     const [cart, setCart] = useState([]);
     const [showCart, setShowCart] = useState(false);
     const [expandedTest, setExpandedTest] = useState(null);
@@ -81,7 +79,6 @@ export default function LabTestsPage({ params }) {
             if (labData.success) setLab(labData.data);
             if (testsData.success) {
                 setTests(testsData.data?.tests || []);
-                setCategories(testsData.data?.categories || []);
             }
         } catch {
             toast.error("Failed to load lab details");
@@ -91,10 +88,30 @@ export default function LabTestsPage({ params }) {
     };
 
     const filtered = tests.filter(t => {
-        const matchSearch = t.test_name?.toLowerCase().includes(search.toLowerCase()) ||
-            (t.test_code && t.test_code.toLowerCase().includes(search.toLowerCase()));
-        const matchCat = activeCategory === "all" || t.category?.id === activeCategory;
-        return matchSearch && matchCat;
+        const query = search.trim().toLowerCase();
+        if (!query) return true;
+
+        const terms = query.split(/\s+/).filter(Boolean);
+
+        const testName = (t.test_name || "").toLowerCase();
+        const testCode = (t.test_code || "").toLowerCase();
+        const specimen = (t.specimen_type || "").toLowerCase();
+        const remarks = (t.remarks || "").toLowerCase();
+        const container = (t.container || "").toLowerCase();
+
+        // Normalized text with punctuation and hyphens replaced by space
+        const normalizedBlob = `${testName} ${testCode} ${specimen} ${remarks} ${container}`.replace(/[-_/()]/g, " ");
+
+        return terms.every(term => {
+            const cleanTerm = term.replace(/[-_/()]/g, " ").trim();
+            return (
+                testName.includes(term) ||
+                testCode.includes(term) ||
+                specimen.includes(term) ||
+                remarks.includes(term) ||
+                (cleanTerm && normalizedBlob.includes(cleanTerm))
+            );
+        });
     });
 
     const isInCart = (testId) => cart.some(t => t.test_id === testId);
@@ -204,49 +221,39 @@ export default function LabTestsPage({ params }) {
                     )}
 
                     {/* Search */}
-                    <div className="mt-5 relative">
-                        <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search tests by name or code..."
-                            className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-white text-gray-900 placeholder-gray-400 focus:outline-none text-xs sm:text-sm" />
+                    <div className="mt-4 sm:mt-5 relative">
+                        <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none" />
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search tests by name, code, or specimen (e.g. Vitamin D, CBC, Urine, X-Ray)..."
+                            className="w-full pl-11 pr-10 py-3 rounded-xl bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/40 text-xs sm:text-sm shadow-sm"
+                        />
+                        {search && (
+                            <button
+                                type="button"
+                                onClick={() => setSearch("")}
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 transition-colors cursor-pointer"
+                                title="Clear search"
+                            >
+                                <FaTimes className="w-3.5 h-3.5" />
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-6">
-                {/* Categories Sidebar */}
-                <div className="w-full lg:w-56 shrink-0">
-                    <div className="bg-white rounded-xl border border-slate-200 p-4 sticky top-24">
-                        <h3 className="font-bold text-gray-900 text-sm mb-3 px-1">Categories</h3>
-                        <div className="space-y-1">
-                            <button onClick={() => setActiveCategory("all")}
-                                className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all text-left cursor-pointer ${activeCategory === "all" ? "bg-[#0067A1] text-white font-semibold shadow-md" : "text-gray-600 hover:bg-gray-50"}`}>
-                                <FaFlask className="w-3.5 h-3.5" /> All Tests
-                                <span className="ml-auto text-[10px] opacity-60">{tests.length}</span>
-                            </button>
-                            {categories.map(cat => {
-                                const catCount = tests.filter(t => t.category?.id === cat.id).length;
-                                return (
-                                    <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
-                                        className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all text-left truncate cursor-pointer ${activeCategory === cat.id ? "bg-[#0067A1] text-white font-semibold shadow-md" : "text-gray-600 hover:bg-gray-50"}`}>
-                                        <span className="truncate">{cat.name}</span>
-                                        <span className="ml-auto text-[10px] opacity-60 shrink-0">{catCount}</span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Test Grid */}
-                <div className="flex-1">
+            <div className="w-full">
+                {/* Test Grid (Full Width, Category Filter Removed) */}
+                <div className="w-full">
                     <div className="flex items-center justify-between mb-4">
                         <div>
                             <h2 className="text-lg font-bold text-gray-900">
-                                {activeCategory === "all" ? "All Tests" : categories.find(c => c.id === activeCategory)?.name || "Tests"}
+                                {search ? `Search Results for "${search}"` : "All Tests"}
                             </h2>
                             <p className="text-xs text-gray-400 font-medium mt-0.5">
-                                {filtered.length} {filtered.length === 1 ? "test available" : "tests available"}
+                                {filtered.length} {filtered.length === 1 ? "test found" : "tests available"}
                             </p>
                         </div>
                         <div className="flex items-center gap-1.5 bg-gray-100/80 p-1 rounded-xl">
@@ -276,8 +283,8 @@ export default function LabTestsPage({ params }) {
                     </div>
 
                     {loading ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
-                            {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3">
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(i => (
                                 <div key={i} className="bg-white rounded-2xl border border-gray-100 p-3.5 h-36 animate-pulse">
                                     <div className="flex justify-between mb-2">
                                         <div className="h-3 bg-gray-200 rounded w-12" />
@@ -293,11 +300,22 @@ export default function LabTestsPage({ params }) {
                         <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
                             <FaSearch className="w-8 h-8 text-gray-300 mx-auto mb-3" />
                             <h3 className="font-bold text-gray-900">No Tests Found</h3>
-                            <p className="text-gray-500 text-sm mt-1">Try a different search or category filter.</p>
+                            <p className="text-gray-500 text-sm mt-1">
+                                {search ? `No tests matching "${search}".` : "No tests available right now."}
+                            </p>
+                            {search && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearch("")}
+                                    className="mt-3 px-4 py-2 bg-[#0067A1] text-white rounded-lg text-xs font-semibold hover:bg-[#004F7C] transition-colors cursor-pointer"
+                                >
+                                    Clear Search
+                                </button>
+                            )}
                         </div>
                     ) : viewMode === "grid" ? (
-                        /* ─── COMPACT GRID VIEW (2 cols mobile, 4 cols desktop) ─── */
-                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+                        /* ─── COMPACT GRID VIEW (Full Width: 2 cols mobile, 5 cols desktop) ─── */
+                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3.5">
                             {filtered.map((test, idx) => {
                                 const inCart = isInCart(test.id);
                                 const hasDetails = hasTestDetails(test);

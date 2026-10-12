@@ -30,7 +30,7 @@ export default function SpecializedProgramsStrip() {
       tagline: "Reliable health information for everyday living.",
       description: "Explore easy-to-understand articles, guides and resources on a range of health topics.",
       cta: "Explore Health Library",
-      link: "/website/health-library",
+      link: "/health-insights",
       badgeColor: "bg-blue-50 text-blue-600 border-blue-200",
     },
   ];

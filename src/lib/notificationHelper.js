@@ -13,12 +13,14 @@ import sql from "@/lib/db";
  */
 export async function sendPushAndInAppNotification({
   user_id,
+  userId,
   title = "MediConnect Notification",
   message = "",
   type = "general",
   metadata = {},
 }) {
-  if (!user_id) {
+  const targetUserId = user_id || userId;
+  if (!targetUserId) {
     console.warn("[NOTIFICATION HELPER] user_id is required. Skipping notification.");
     return { success: false, error: "user_id is required" };
   }
@@ -31,10 +33,10 @@ export async function sendPushAndInAppNotification({
     try {
       await sql`
         INSERT INTO notifications (user_id, title, message, type, metadata, created_at)
-        VALUES (${user_id}, ${title}, ${message}, ${type}, ${JSON.stringify(metadata)}, NOW())
+        VALUES (${targetUserId}, ${title}, ${message}, ${type}, ${JSON.stringify(metadata)}, NOW())
       `;
       dbCreated = true;
-      console.log(`[NOTIFICATION HELPER] DB notification created for user ${user_id}:`, title);
+      console.log(`[NOTIFICATION HELPER] DB notification created for user ${targetUserId}:`, title);
     } catch (dbErr) {
       console.error("[NOTIFICATION HELPER] DB insert error:", dbErr.message);
     }
@@ -42,7 +44,7 @@ export async function sendPushAndInAppNotification({
     // 2. Fetch user's FCM token from RDS and dispatch push notification
     try {
       const [user] = await sql`
-        SELECT fcm_token FROM users WHERE id = ${user_id} LIMIT 1
+        SELECT fcm_token FROM users WHERE id = ${targetUserId} LIMIT 1
       `;
 
       if (user?.fcm_token) {
@@ -62,6 +64,15 @@ export async function sendPushAndInAppNotification({
           console.log(`[NOTIFICATION HELPER] FCM Push sent to user ${user_id}`);
         } catch (fcmErr) {
           console.warn(`[NOTIFICATION HELPER] FCM Push failed for user ${user_id}:`, fcmErr.message);
+          // If token is expired or unregistered, prune it from database
+          if (fcmErr.message?.includes("NotRegistered") || fcmErr.code === "messaging/registration-token-not-registered") {
+            try {
+              await sql`UPDATE users SET fcm_token = NULL, updated_at = NOW() WHERE id = ${user_id}`;
+              console.log(`[NOTIFICATION HELPER] Pruned stale FCM token for user ${user_id}`);
+            } catch (pruneErr) {
+              console.warn("[NOTIFICATION HELPER] Could not clear stale FCM token:", pruneErr.message);
+            }
+          }
         }
       } else {
         console.log(`[NOTIFICATION HELPER] No FCM token for user ${user_id}. DB notification stored.`);

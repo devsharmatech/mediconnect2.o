@@ -174,6 +174,24 @@ function MedicineOrderContent() {
     if (savedAddress) setDeliveryAddress((prev) => prev || savedAddress);
   }, []);
 
+  // Handle PayU redirect callback params (success / failure)
+  useEffect(() => {
+    const statusParam = searchParams?.get("status");
+    const msgParam = searchParams?.get("msg");
+    const reasonParam = searchParams?.get("reason");
+
+    if (statusParam === "payment_success") {
+      toast.success("Payment verified successfully via PayU! 🎉 Chemist notified to pack medicines.", { duration: 6000 });
+      setActiveTab("orders");
+      fetchOrders();
+    } else if (statusParam === "payment_failed") {
+      const displayReason = msgParam || (reasonParam === "security_hash_mismatch" ? "Security verification mismatch" : "Transaction failed or cancelled");
+      toast.error(`PayU Payment Failed: ${displayReason}`, { duration: 6000 });
+      setActiveTab("orders");
+      fetchOrders();
+    }
+  }, [searchParams]);
+
   // Fetch all orders for this patient
   const fetchOrders = async (silent = false) => {
     const rxIdParam = searchParams?.get("prescription_id");
@@ -496,101 +514,66 @@ function MedicineOrderContent() {
     }
   };
 
-  // Online Gateway Payment via Razorpay
-  const handlePayOnlineWithRazorpay = async (order) => {
+  // Online Gateway Payment via PayU (Exclusively for Chemist/Pharmacy Orders)
+  const handlePayOnlineWithPayU = async (order, directPayuData = null) => {
     if (!order?.id) return;
     setPayingOrderId(order.id);
-    const tid = toast.loading("Launching secure payment gateway...");
+    const tid = toast.loading("Launching PayU secure payment gateway...");
     try {
-      let rzOrderId = order.razorpay_order_id;
-      let rzKey = order.razorpay_key;
-      let amount = order.total_amount;
-      let pharmacyName = order.pharmacy_name || order.chemist_details?.pharmacy_name || "Partner Pharmacy";
+      let payuData = directPayuData;
 
-      if (!rzOrderId || !rzKey) {
-        const initRes = await fetch("/api/patients/orders/medicine/initiate-payment", {
+      if (!payuData?.action_url || !payuData?.payment_params) {
+        const initRes = await fetch("/api/patients/orders/medicine/payu/initiate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ order_id: order.id }),
+          body: JSON.stringify({
+            order_id: order.id,
+            customer_name: typeof window !== "undefined" ? (localStorage.getItem("userName") || "") : "",
+            customer_email: typeof window !== "undefined" ? (localStorage.getItem("userEmail") || "") : "",
+            customer_phone: contactPhone || "",
+          }),
         });
         const initData = await initRes.json();
         if (!initRes.ok || !initData?.success) {
-          throw new Error(initData?.message || "Failed to initiate online payment");
+          throw new Error(initData?.message || "Failed to initiate PayU payment");
         }
-        rzOrderId = initData.data.razorpay_order_id;
-        rzKey = initData.data.razorpay_key;
-        amount = initData.data.amount || amount;
-        pharmacyName = initData.data.pharmacy_name || pharmacyName;
+        payuData = initData.data;
       }
 
-      await loadRazorpayScript();
       toast.dismiss(tid);
 
-      if (typeof window === "undefined" || !window.Razorpay) {
-        throw new Error("Razorpay payment gateway failed to load. Please check your internet connection.");
+      let actionUrl = payuData.action_url || "https://test.payu.in/_payment";
+      const params = payuData.payment_params;
+
+      if (!params || !params.hash) {
+        throw new Error("PayU payment parameters or hash missing. Please contact support.");
       }
 
-      const options = {
-        key: rzKey,
-        amount: Math.round(Number(amount) * 100),
-        currency: "INR",
-        name: "MediConnect Pharmacy",
-        description: `Order #${order.unid || order.id.slice(0, 8)} - ${pharmacyName}`,
-        order_id: rzOrderId,
-        handler: async function (paymentResponse) {
-          const verifyTid = toast.loading("Verifying payment transaction…");
-          try {
-            const verifyRes = await fetch("/api/patients/orders/medicine/verify-payment", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                order_id: order.id,
-                razorpay_order_id: paymentResponse.razorpay_order_id,
-                razorpay_payment_id: paymentResponse.razorpay_payment_id,
-                razorpay_signature: paymentResponse.razorpay_signature,
-              }),
-            });
+      if (params.key === "Kx7dGD") {
+        actionUrl = "https://test.payu.in/_payment";
+      }
 
-            const verifyData = await verifyRes.json().catch(() => null);
-            toast.dismiss(verifyTid);
+      // Submit dynamic hidden form to PayU Hosted Checkout
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = actionUrl;
+      form.style.display = "none";
 
-            if (verifyRes.ok && verifyData?.success) {
-              toast.success("Payment verified successfully! 🎉 Chemist notified to pack medicines.");
-              await fetchOrders();
-            } else {
-              toast.error(verifyData?.message || "Payment signature verification failed");
-            }
-          } catch (vErr) {
-            toast.dismiss(verifyTid);
-            toast.error("Payment verification failed. Your funds are safe — contact support.");
-          } finally {
-            setPayingOrderId(null);
-          }
-        },
-        image: `${typeof window !== "undefined" ? window.location.origin : ""}/real-logo.png`,
-        prefill: {
-          name: typeof window !== "undefined" ? (localStorage.getItem("userName") || "") : "",
-          contact: contactPhone || "",
-          email: typeof window !== "undefined" ? (localStorage.getItem("userEmail") || "") : "",
-        },
-        theme: { color: "#0067A1" },
-        modal: {
-          ondismiss: () => {
-            setPayingOrderId(null);
-            toast("Payment not completed. You can pay anytime from the orders tracker.", { icon: "ℹ️" });
-          },
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", (response) => {
-        setPayingOrderId(null);
-        toast.error("Payment failed: " + (response.error?.description || "Transaction declined"));
+      Object.keys(params).forEach((key) => {
+        if (params[key] !== undefined && params[key] !== null) {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = key;
+          input.value = String(params[key]);
+          form.appendChild(input);
+        }
       });
-      rzp.open();
+
+      document.body.appendChild(form);
+      HTMLFormElement.prototype.submit.call(form);
     } catch (err) {
       toast.dismiss(tid);
-      toast.error(err.message || "Failed to launch payment checkout");
+      toast.error(err.message || "Failed to launch PayU payment checkout");
       setPayingOrderId(null);
     }
   };
@@ -618,10 +601,7 @@ function MedicineOrderContent() {
       const data = await res.json();
       if (data.success && data.data?.order) {
         const order = data.data.order;
-        const razorpay_order_id = data.data.razorpay_order_id;
-        const razorpay_key = data.data.razorpay_key;
-        const amount = data.data.amount || order.total_amount;
-        const pharmacy_name = data.data.pharmacy_name || bidToSelect.pharmacy_name;
+        const payuData = data.data.payu;
 
         setBidToSelect(null);
         setActiveBroadcastId(null);
@@ -629,10 +609,10 @@ function MedicineOrderContent() {
         await fetchOrders();
         setSelectedOrder(order);
 
-        // If Razorpay gateway credentials exist, launch immediate checkout
-        if (razorpay_order_id && razorpay_key) {
-          toast.success("Quote Selected! Opening secure payment gateway...");
-          await handlePayOnlineWithRazorpay({ ...order, razorpay_order_id, razorpay_key, amount, pharmacy_name });
+        // If PayU gateway credentials exist, launch immediate checkout
+        if (payuData) {
+          toast.success("Quote Selected! Redirecting to PayU gateway...");
+          await handlePayOnlineWithPayU(order, payuData);
         } else {
           toast.success("Chemist Selected! Order Created. Proceed with payment.");
         }
@@ -1008,13 +988,13 @@ function MedicineOrderContent() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handlePayOnlineWithRazorpay(order);
+                              handlePayOnlineWithPayU(order);
                             }}
                             disabled={payingOrderId === order.id}
                             className="mt-2 w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-md text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-xs"
                           >
                             <CreditCard className="w-3 h-3" />
-                            <span>Pay ₹{order.total_amount} Now</span>
+                            <span>Pay ₹{order.total_amount} via PayU</span>
                           </button>
                         )}
                       </div>
@@ -1075,18 +1055,18 @@ function MedicineOrderContent() {
                               <button
                                 type="button"
                                 disabled={payingOrderId === selectedOrder.id}
-                                onClick={() => handlePayOnlineWithRazorpay(selectedOrder)}
+                                onClick={() => handlePayOnlineWithPayU(selectedOrder)}
                                 className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all shrink-0"
                               >
                                 {payingOrderId === selectedOrder.id ? (
                                   <>
                                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                    <span>Opening...</span>
+                                    <span>Opening PayU...</span>
                                   </>
                                 ) : (
                                   <>
                                     <CreditCard className="w-3.5 h-3.5" />
-                                    <span>Pay ₹{selectedOrder.total_amount} Now</span>
+                                    <span>Pay ₹{selectedOrder.total_amount} via PayU</span>
                                   </>
                                 )}
                               </button>
@@ -1124,18 +1104,18 @@ function MedicineOrderContent() {
                             <button
                               type="button"
                               disabled={payingOrderId === selectedOrder.id}
-                              onClick={() => handlePayOnlineWithRazorpay(selectedOrder)}
+                              onClick={() => handlePayOnlineWithPayU(selectedOrder)}
                               className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all shrink-0"
                             >
                               {payingOrderId === selectedOrder.id ? (
                                 <>
                                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                  <span>Opening Gateway...</span>
+                                  <span>Opening PayU...</span>
                                 </>
                               ) : (
                                 <>
                                   <CreditCard className="w-3.5 h-3.5" />
-                                  <span>Pay ₹{selectedOrder.total_amount} Online Now</span>
+                                  <span>Pay ₹{selectedOrder.total_amount} via PayU</span>
                                 </>
                               )}
                             </button>
@@ -1155,11 +1135,11 @@ function MedicineOrderContent() {
                                     Payment Received & Verified (₹{selectedOrder.total_amount})
                                   </h4>
                                   <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                    {selectedOrder.razorpay_payment_id ? "Razorpay Gateway" : "Chemist Verified"}
+                                    {selectedOrder.payu_mihpayid ? "PayU Gateway" : selectedOrder.razorpay_payment_id ? "Online Gateway" : "Chemist Verified"}
                                   </span>
                                 </div>
                                 <p className="text-[11px] text-emerald-800 font-normal">
-                                  {selectedOrder.razorpay_payment_id || selectedOrder.utr_number ? `Ref: ${selectedOrder.razorpay_payment_id || selectedOrder.utr_number} • ` : ""}
+                                  {selectedOrder.payu_mihpayid || selectedOrder.razorpay_payment_id || selectedOrder.utr_number ? `Ref: ${selectedOrder.payu_mihpayid || selectedOrder.razorpay_payment_id || selectedOrder.utr_number} • ` : ""}
                                   Chemist partner has been notified to pack and dispatch your medicines.
                                 </p>
                               </div>
@@ -1337,8 +1317,8 @@ function MedicineOrderContent() {
                           </div>
                           <div className="flex justify-between text-slate-600 text-[11px]">
                             <span>Delivery & Handling:</span>
-                            <span className="font-semibold text-slate-800">
-                              ₹{Number(selectedOrder.delivery_charge || 0).toFixed(2)}
+                            <span className="font-semibold text-emerald-600">
+                              {Number(selectedOrder.delivery_charge || 0) === 0 ? "FREE" : `₹${Number(selectedOrder.delivery_charge).toFixed(2)}`}
                             </span>
                           </div>
                           {Number(selectedOrder.discount || 0) > 0 && (
@@ -1490,7 +1470,7 @@ function MedicineOrderContent() {
                               <div className="pt-3 border-t border-slate-200/80 space-y-3">
                                 <div>
                                   <h4 className="font-bold text-slate-800 text-xs">Submit Manual UTR Proof</h4>
-                                  <p className="text-[11px] text-slate-500">Attach screenshot and 12-digit UTR if paying outside Razorpay.</p>
+                                  <p className="text-[11px] text-slate-500">Attach screenshot and 12-digit UTR if paying outside PayU gateway.</p>
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -21,7 +21,7 @@ const defaultServices = [
     title: "Doctor Consultations",
     description: "HD video consultations and in-clinic visits with verified specialists across key specialties.",
     buttonText: "Book Slot",
-    link: "/website/doctors",
+    link: "/doctors",
   },
   {
     id: "diagnostics",
@@ -29,7 +29,7 @@ const defaultServices = [
     title: "Lab Tests",
     description: "Book diagnostic lab tests with digital reports. Sample collection available where applicable.",
     buttonText: "Book Test",
-    link: "/website/services/lab-tests",
+    link: "/dashboard/lab-booking",
   },
   {
     id: "pharmacy",
@@ -45,7 +45,7 @@ const defaultServices = [
     title: "Nursing Care",
     description: "Home nursing services including elder care and post-hospital recovery support.",
     buttonText: "Explore Care",
-    link: "/website/services/home-care",
+    link: "/nursing-care",
   },
   {
     id: "equipment",
@@ -53,15 +53,15 @@ const defaultServices = [
     title: "Medical Equipment",
     description: "Rent or purchase essential medical equipment for home care including oxygen, beds, and more.",
     buttonText: "View Equipment",
-    link: "/website/services/home-care",
+    link: "/nursing-care",
   },
   {
     id: "digilocker",
     icon: FaFileMedical,
     title: "MediConnect DigiLocker",
-    description: "Keep your medical records, prescriptions, and ABHA-linked health summaries organised and accessible.",
+    description: "Keep your medical records, prescriptions, and health summaries encrypted, organised and accessible.",
     buttonText: "Open Locker",
-    link: "/website/digital-health-records",
+    link: "/digital-locker",
     isLive: true,
   },
   {

@@ -202,16 +202,18 @@ const Dashboard = () => {
   })();
 
   const quickActions = [
-    { label: "Appointments", sub: "Book & manage", href: "/website/appointments", icon: FaCalendarAlt, gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50", text: "text-[#004F7C]" },
-    { label: "LungConnect", sub: "Respiratory Hub", href: "/lung-connect", icon: TbLungsFilled, gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50", text: "text-[#0067A1]" },
-    { label: "CardioConnect", sub: "Heart Vitals & Hub", href: "/website/cardio-connect", icon: FaHeartbeat, gradient: "from-rose-500 to-pink-600", bg: "bg-rose-50", text: "text-rose-600" },
-    { label: "Medicines", sub: "Order online", href: "/website/medicine-order", icon: FaPills, gradient: "from-amber-500 to-orange-600", bg: "bg-amber-50", text: "text-amber-700" },
-    { label: "Lab Reports", sub: "View results", href: "/website/lab-reports", icon: FaFileMedical, gradient: "from-purple-500 to-violet-600", bg: "bg-purple-50", text: "text-purple-700" },
-    { label: "Nursing Status", sub: "Track request", href: "/website/nursing-care/status", icon: FaHandHoldingHeart, gradient: "from-fuchsia-500 to-purple-600", bg: "bg-fuchsia-50", text: "text-fuchsia-700" },
-    { label: "Digital Locker", sub: "Your records", href: "/website/digital-locker", icon: FaLock, gradient: "from-slate-500 to-gray-700", bg: "bg-slate-50", text: "text-slate-700" },
-    { label: "Lab Tests", sub: "Book now", href: "/website/dashboard/lab-booking", icon: FaFlask, gradient: "from-blue-500 to-indigo-600", bg: "bg-blue-50", text: "text-[#004F7C]" },
-    { label: "Breathing Exercises", sub: "Relax & restore", href: "/lung-connect?action=breathing", icon: FaWind, gradient: "from-teal-400 to-emerald-500", bg: "bg-emerald-50", text: "text-emerald-700" },
-    { label: "Health Assistant", sub: "Chat for help", onClick: () => window.dispatchEvent(new CustomEvent("open-dr-mediconnect-chat")), icon: FaUserMd, gradient: "from-emerald-500 to-teal-600", bg: "bg-emerald-50", text: "text-emerald-700" },
+    { label: "Appointments", sub: "Book & manage", href: "/website/appointments", image: "/images/dashboard-icons/appointments.png", gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50/80", text: "text-[#004F7C]" },
+    { label: "Video Consult", sub: "Talk to doctors", href: "/website/appointments", image: "/images/dashboard-icons/video-consult.png", gradient: "from-sky-500 to-blue-600", bg: "bg-sky-50/80", text: "text-sky-600" },
+    { label: "LungConnect", sub: "Breathe better", href: "/lung-connect", image: "/images/dashboard-icons/lung-connect.png", gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50/80", text: "text-[#0067A1]" },
+    { label: "CardioConnect", sub: "Heart vitals & care", href: "/website/cardio-connect", image: "/images/dashboard-icons/cardio-connect.png", gradient: "from-rose-500 to-pink-600", bg: "bg-rose-50/80", text: "text-rose-600" },
+    { label: "Medicines", sub: "Order online", href: "/website/medicine-order", image: "/images/dashboard-icons/medicines.png", gradient: "from-amber-500 to-orange-600", bg: "bg-amber-50/80", text: "text-amber-700" },
+    { label: "Lab Reports", sub: "Records & tests", href: "/website/lab-reports", image: "/images/dashboard-icons/medical-records.png", gradient: "from-purple-500 to-violet-600", bg: "bg-purple-50/80", text: "text-purple-700" },
+    { label: "Nursing Care", sub: "Home nurse care", href: "/website/nursing-care/status", image: "/images/dashboard-icons/nursing-care.png", gradient: "from-fuchsia-500 to-purple-600", bg: "bg-fuchsia-50/80", text: "text-fuchsia-700" },
+    { label: "Digital Locker", sub: "Secure health vault", href: "/website/digital-locker", image: "/images/dashboard-icons/digilocker.png", gradient: "from-slate-500 to-gray-700", bg: "bg-slate-50/80", text: "text-slate-700" },
+    { label: "Lab Tests", sub: "Sample collection", href: "/website/dashboard/lab-booking", image: "/images/dashboard-icons/lab-tests.png", gradient: "from-blue-500 to-indigo-600", bg: "bg-blue-50/80", text: "text-[#004F7C]" },
+    { label: "Home Doctor", sub: "Doctor at home", href: "/website/appointments", image: "/images/dashboard-icons/home-visit.png", gradient: "from-rose-500 to-red-600", bg: "bg-rose-50/80", text: "text-rose-700" },
+    { label: "Breathing", sub: "Relax & exercise", href: "/lung-connect?action=breathing", image: "/images/dashboard-icons/lung-connect.png", gradient: "from-emerald-400 to-teal-500", bg: "bg-emerald-50/80", text: "text-emerald-700" },
+    { label: "Health Assistant", sub: "24/7 AI guide", onClick: () => window.dispatchEvent(new CustomEvent("open-dr-mediconnect-chat")), image: "/images/dashboard-icons/consultation.png", gradient: "from-emerald-500 to-teal-600", bg: "bg-emerald-50/80", text: "text-emerald-700" },
   ];
 
   return (
@@ -294,21 +296,37 @@ const Dashboard = () => {
 
         {/* Quick Actions */}
         <section>
-          <h2 className="text-lg font-bold text-gray-800 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-gray-800">Quick Actions</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Instant access to key healthcare services</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
             {quickActions.map((action) => {
               const Wrapper = action.href ? Link : "button";
               const wrapperProps = action.href ? { href: action.href } : { type: "button", onClick: action.onClick };
               return (
                 <Wrapper key={action.label} {...wrapperProps}
-                  className="group relative bg-white rounded-[5px] border border-gray-100 p-4 hover:shadow-lg hover:border-gray-200 transition-all duration-300 text-left overflow-hidden">
-                  <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${action.gradient} opacity-0 group-hover:opacity-100 transition-opacity rounded-t-2xl`} />
-                  <div className={`w-11 h-11 ${action.bg} rounded-[5px] flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
-                    <action.icon className={`w-5 h-5 ${action.text}`} />
-                    {action.pulse && <span className="absolute top-3.5 right-3.5 w-2 h-2 bg-green-500 rounded-full animate-pulse" />}
+                  className="group relative bg-white rounded-xl border border-gray-100 p-3.5 sm:p-4 hover:shadow-lg hover:border-gray-200 hover:-translate-y-0.5 transition-all duration-200 text-left overflow-hidden flex flex-col justify-between">
+                  <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${action.gradient} opacity-0 group-hover:opacity-100 transition-opacity`} />
+                  <div>
+                    <div className={`w-12 h-12 sm:w-14 sm:h-14 ${action.bg} rounded-xl flex items-center justify-center p-2 mb-3 group-hover:scale-105 transition-transform duration-200 shadow-sm border border-black/[0.04]`}>
+                      {action.image ? (
+                        <img
+                          src={action.image}
+                          alt={action.label}
+                          className="w-full h-full object-contain filter drop-shadow-sm select-none"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <action.icon className={`w-6 h-6 ${action.text}`} />
+                      )}
+                      {action.pulse && <span className="absolute top-2 right-2 w-2 h-2 bg-green-500 rounded-full animate-pulse" />}
+                    </div>
+                    <h3 className="text-sm font-semibold text-gray-800 group-hover:text-[#0067A1] transition-colors">{action.label}</h3>
+                    <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 leading-tight">{action.sub}</p>
                   </div>
-                  <h3 className="text-sm font-semibold text-gray-800">{action.label}</h3>
-                  <p className="text-[11px] text-gray-800 mt-0.5">{action.sub}</p>
                 </Wrapper>
               );
             })}

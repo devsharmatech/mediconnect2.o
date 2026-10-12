@@ -21,18 +21,18 @@ import {
 import { RiMentalHealthLine } from "react-icons/ri";
 
 const specialties = [
-  { name: "General Physician", icon: FaUserMd, link: "/website/doctors?specialty=General Physician" },
-  { name: "Dermatology", icon: RiMentalHealthLine, link: "/website/doctors?specialty=Dermatology" },
-  { name: "Gynaecology", icon: FaFemale, link: "/website/doctors?specialty=Gynaecology" },
-  { name: "Pediatrics", icon: FaBaby, link: "/website/doctors?specialty=Pediatrics" },
-  { name: "Cardiology", icon: FaHeartbeat, link: "/website/doctors?specialty=Cardiology" },
-  { name: "Pulmonology", icon: FaLungs, link: "/website/doctors?specialty=Pulmonology" },
-  { name: "Endocrinology", icon: GiDna2, link: "/website/doctors?specialty=Endocrinology" },
-  { name: "Gastroenterology", icon: GiStomach, link: "/website/doctors?specialty=Gastroenterology" },
-  { name: "Orthopedics", icon: FaBone, link: "/website/doctors?specialty=Orthopedics" },
-  { name: "Neurology", icon: FaBrain, link: "/website/doctors?specialty=Neurology" },
-  { name: "Urology", icon: GiKidneys, link: "/website/doctors?specialty=Urology" },
-  { name: "More", icon: FaEllipsisH, link: "/website/doctors" },
+  { name: "General Physician", icon: FaUserMd, link: "/doctors?specialty=General Physician" },
+  { name: "Dermatology", icon: RiMentalHealthLine, link: "/doctors?specialty=Dermatology" },
+  { name: "Gynaecology", icon: FaFemale, link: "/doctors?specialty=Gynaecology" },
+  { name: "Pediatrics", icon: FaBaby, link: "/doctors?specialty=Pediatrics" },
+  { name: "Cardiology", icon: FaHeartbeat, link: "/doctors?specialty=Cardiology" },
+  { name: "Pulmonology", icon: FaLungs, link: "/doctors?specialty=Pulmonology" },
+  { name: "Endocrinology", icon: GiDna2, link: "/doctors?specialty=Endocrinology" },
+  { name: "Gastroenterology", icon: GiStomach, link: "/doctors?specialty=Gastroenterology" },
+  { name: "Orthopedics", icon: FaBone, link: "/doctors?specialty=Orthopedics" },
+  { name: "Neurology", icon: FaBrain, link: "/doctors?specialty=Neurology" },
+  { name: "Urology", icon: GiKidneys, link: "/doctors?specialty=Urology" },
+  { name: "More", icon: FaEllipsisH, link: "/doctors" },
 ];
 
 export default function SpecialtiesStrip() {
@@ -49,7 +49,7 @@ export default function SpecialtiesStrip() {
             </p>
           </div>
           <Link 
-            href="/website/doctors" 
+            href="/doctors" 
             className="inline-flex items-center text-xs sm:text-sm font-semibold text-[#1677A8] hover:text-[#0B3A5B] transition-colors shrink-0"
           >
             <span>View all specialties</span>

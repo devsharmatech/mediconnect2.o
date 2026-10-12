@@ -261,8 +261,38 @@ export default function LungConnectFullReport({
 
   const hasEntRecommendation = hasCough;
 
-  // Suggested Respiratory Wellness Practices (Matching exact on-screen cards)
-  const wellnessPractices = [
+  // Suggested Respiratory Wellness Practices (Resolved dynamically from assessmentData / screening evaluation)
+  const dynamicPractices = (() => {
+    const raw = assessmentData?.wellness_practices || assessmentData?.recommendations;
+    if (Array.isArray(raw) && raw.length > 0) return raw;
+    if (typeof raw === "string") {
+      try {
+        const p = JSON.parse(raw);
+        if (Array.isArray(p) && p.length > 0) return p;
+        if (Array.isArray(p?.recommendations) && p.recommendations.length > 0) return p.recommendations;
+      } catch (_) {}
+    }
+    return null;
+  })();
+
+  const wellnessPractices = (dynamicPractices && dynamicPractices.length > 0)
+    ? dynamicPractices.map((practice, pIdx) => {
+        const rawSteps = practice.action_steps || practice.steps || [];
+        const steps = Array.isArray(rawSteps) && rawSteps.length > 0
+          ? rawSteps.map((s) => String(s))
+          : (practice.description
+              ? [practice.description]
+              : ["Follow clinical breathing guidelines and consult your physician."]);
+        return {
+          title: practice.title || `Wellness Practice ${pIdx + 1}`,
+          category: practice.category || "Airway Comfort",
+          priorityTag: practice.priorityTag || practice.priority || "Daily Core Habit",
+          timeframe: practice.timeframe || "Daily Routine",
+          description: practice.description || "",
+          steps: steps
+        };
+      })
+    : [
     {
       title: "Pursed-Lip Breathing Technique",
       category: "Airway Relief",
@@ -708,54 +738,59 @@ export default function LungConnectFullReport({
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-              {wellnessPractices.map((practice, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    border: "1px solid #cbd5e1",
-                    borderRadius: "4px",
-                    backgroundColor: "#ffffff",
-                    padding: "10px 12px",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between"
-                  }}
-                >
-                  <div>
-                    {/* Badge & timeframe */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px", flexWrap: "wrap", gap: "4px" }}>
-                      <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                        <span style={{ fontSize: "9px", fontWeight: "700", color: "#065f46", backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0", padding: "1px 6px", borderRadius: "3px", textTransform: "uppercase" }}>
-                          {practice.category}
-                        </span>
-                        <span style={{ fontSize: "8.5px", fontWeight: "700", color: "#1e293b", backgroundColor: "#f1f5f9", border: "1px solid #cbd5e1", padding: "1px 5px", borderRadius: "3px", textTransform: "uppercase" }}>
-                          {practice.priorityTag}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              {wellnessPractices.map((practice, idx) => {
+                const isLastOdd = (wellnessPractices.length % 2 === 1) && (idx === wellnessPractices.length - 1);
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "4px",
+                      backgroundColor: "#ffffff",
+                      padding: "8px 11px",
+                      display: "flex",
+                      flexDirection: isLastOdd ? "row" : "column",
+                      justifyContent: "space-between",
+                      gridColumn: isLastOdd ? "1 / -1" : "auto",
+                      gap: isLastOdd ? "14px" : "0px"
+                    }}
+                  >
+                    <div style={{ flex: isLastOdd ? "1.1" : "none" }}>
+                      {/* Badge & timeframe */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px", flexWrap: "wrap", gap: "4px" }}>
+                        <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                          <span style={{ fontSize: "8.5px", fontWeight: "700", color: "#065f46", backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0", padding: "1px 5px", borderRadius: "3px", textTransform: "uppercase" }}>
+                            {practice.category}
+                          </span>
+                          <span style={{ fontSize: "8px", fontWeight: "700", color: "#1e293b", backgroundColor: "#f1f5f9", border: "1px solid #cbd5e1", padding: "1px 4px", borderRadius: "3px", textTransform: "uppercase" }}>
+                            {practice.priorityTag}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: "8.5px", color: "#64748b", fontWeight: "500" }}>
+                          {practice.timeframe}
                         </span>
                       </div>
-                      <span style={{ fontSize: "9px", color: "#64748b", fontWeight: "500" }}>
-                        {practice.timeframe}
-                      </span>
-                    </div>
 
-                    {/* Title */}
-                    <div style={{ fontSize: "11.5px", fontWeight: "700", color: "#0f2d4a", marginBottom: "4px", lineHeight: "1.3" }}>
-                      {practice.title}
-                    </div>
+                      {/* Title */}
+                      <div style={{ fontSize: "10.5px", fontWeight: "700", color: "#0f2d4a", marginBottom: "2px", lineHeight: "1.25" }}>
+                        {practice.title}
+                      </div>
 
-                    {/* Description */}
-                    <div style={{ fontSize: "10px", color: "#475569", lineHeight: "1.4", marginBottom: "7px" }}>
-                      {practice.description}
+                      {/* Description */}
+                      <div style={{ fontSize: "9px", color: "#475569", lineHeight: "1.35", marginBottom: "5px" }}>
+                        {practice.description}
+                      </div>
                     </div>
 
                     {/* Steps list */}
-                    <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "6px" }}>
-                      <div style={{ fontSize: "9px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", marginBottom: "3px", letterSpacing: "0.3px" }}>
+                    <div style={{ flex: isLastOdd ? "1" : "none", borderTop: isLastOdd ? "none" : "1px solid #f1f5f9", borderLeft: isLastOdd ? "1px solid #f1f5f9" : "none", paddingTop: isLastOdd ? "0px" : "4px", paddingLeft: isLastOdd ? "12px" : "0px" }}>
+                      <div style={{ fontSize: "8.5px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", marginBottom: "2px", letterSpacing: "0.2px" }}>
                         Recommended Steps:
                       </div>
                       <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
                         {practice.steps.map((step, sIdx) => (
-                          <li key={sIdx} style={{ fontSize: "9.5px", color: "#334155", lineHeight: "1.35", marginBottom: "3px", display: "flex", alignItems: "flex-start", gap: "5px" }}>
+                          <li key={sIdx} style={{ fontSize: "8.5px", color: "#334155", lineHeight: "1.25", marginBottom: "2px", display: "flex", alignItems: "flex-start", gap: "4px" }}>
                             <span style={{ color: "#059669", fontWeight: "700", flexShrink: 0 }}>✓</span>
                             <span>{step}</span>
                           </li>
@@ -763,8 +798,8 @@ export default function LungConnectFullReport({
                       </ul>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

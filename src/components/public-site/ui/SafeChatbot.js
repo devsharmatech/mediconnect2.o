@@ -535,7 +535,7 @@ const SafeChatbot = () => {
                     actions = [{ label: "Order Prescribed Medicines", url: "/patient/medicine-order", icon: FaPills, iconName: "FaPills" }];
                 } else {
                     botText += "\n\nMediConnect पर दवाइयाँ ऑर्डर करने के लिए डॉक्टर का मान्य पर्चा (Prescription) होना आवश्यक है। बिना डॉक्टर की सलाह के दवाइयाँ न लें।";
-                    actions = [{ label: "Consult Doctor", url: "/website/doctors", icon: FaUserMd, iconName: "FaUserMd" }];
+                    actions = [{ label: "Consult Doctor", url: "/doctors", icon: FaUserMd, iconName: "FaUserMd" }];
                 }
             } else if (
                 data.route_id === "DIGILOCKER" ||
@@ -611,7 +611,7 @@ const SafeChatbot = () => {
                     const topSpecs = matchedSpecialties.slice(0, 3);
                     actions = topSpecs.map((s) => ({
                         label: s.buttonLabel,
-                        url: `/website/doctors?specialty=${encodeURIComponent(s.filterValue)}`,
+                        url: `/doctors?specialty=${encodeURIComponent(s.filterValue)}`,
                         icon: FaUserMd,
                         iconName: "FaUserMd",
                     }));
@@ -619,7 +619,7 @@ const SafeChatbot = () => {
                     const singleSpec = matchedSpecialties[0];
                     actions = [{
                         label: singleSpec.buttonLabel,
-                        url: `/website/doctors?specialty=${encodeURIComponent(singleSpec.filterValue)}`,
+                        url: `/doctors?specialty=${encodeURIComponent(singleSpec.filterValue)}`,
                         icon: FaUserMd,
                         iconName: "FaUserMd",
                     }];
@@ -629,13 +629,13 @@ const SafeChatbot = () => {
                     actions = [
                         {
                             label: "Consult General Physician",
-                            url: "/website/doctors?specialty=General%20Physician",
+                            url: "/doctors?specialty=General%20Physician",
                             icon: FaUserMd,
                             iconName: "FaUserMd",
                         },
                         {
                             label: "All Doctors",
-                            url: "/website/doctors",
+                            url: "/doctors",
                             icon: FaUserMd,
                             iconName: "FaUserMd",
                         },

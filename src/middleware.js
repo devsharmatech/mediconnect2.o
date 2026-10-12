@@ -18,7 +18,9 @@ export function middleware(req) {
     pathname.startsWith("/lab/onboarding") ||
     pathname.startsWith("/doctor/login") ||
     pathname.startsWith("/partner/login") ||
-    pathname.startsWith("/staff/login")
+    pathname.startsWith("/staff/login") ||
+    pathname.includes("/video") ||
+    pathname.includes("/legal-record")
   ) {
     return NextResponse.next();
   }
@@ -58,7 +60,7 @@ export function middleware(req) {
   const isPatientRoute =
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/medicine-order") ||
-    pathname.startsWith("/appointments") ||
+    (pathname.startsWith("/appointments") && !pathname.includes("/video") && !pathname.includes("/legal-record")) ||
     pathname.startsWith("/lab-reports") ||
     pathname.startsWith("/digital-locker") ||
     pathname.startsWith("/profile") ||

@@ -21,17 +21,17 @@ import {
 import { MdBloodtype, MdOutlineSick } from "react-icons/md";
 
 const concerns = [
-  { name: "Hair & Skin", icon: GiHairStrands, link: "/website/doctors?specialty=Dermatology" },
-  { name: "Thyroid", icon: GiDna2, link: "/website/doctors?specialty=Endocrinology" },
-  { name: "PCOS", icon: FaHeartbeat, link: "/website/doctors?specialty=Gynaecology" },
-  { name: "Weight Management", icon: FaWeight, link: "/website/doctors?specialty=Endocrinology" },
-  { name: "Diabetes", icon: GiDrop, link: "/website/doctors?specialty=Endocrinology" },
-  { name: "Blood Pressure", icon: MdBloodtype, link: "/website/doctors?specialty=Cardiology" },
-  { name: "Digestive Health", icon: GiStomach, link: "/website/doctors?specialty=Gastroenterology" },
-  { name: "Respiratory", icon: FaLungs, link: "/website/doctors?specialty=Pulmonology" },
-  { name: "Dental", icon: FaTooth, link: "/website/doctors?specialty=General Physician" },
-  { name: "Fatigue", icon: FaBrain, link: "/website/doctors?specialty=General Physician" },
-  { name: "General Symptoms", icon: MdOutlineSick, link: "/website/doctors?specialty=General Physician" },
+  { name: "Hair & Skin", icon: GiHairStrands, link: "/doctors?specialty=Dermatology" },
+  { name: "Thyroid", icon: GiDna2, link: "/doctors?specialty=Endocrinology" },
+  { name: "PCOS", icon: FaHeartbeat, link: "/doctors?specialty=Gynaecology" },
+  { name: "Weight Management", icon: FaWeight, link: "/doctors?specialty=Endocrinology" },
+  { name: "Diabetes", icon: GiDrop, link: "/doctors?specialty=Endocrinology" },
+  { name: "Blood Pressure", icon: MdBloodtype, link: "/doctors?specialty=Cardiology" },
+  { name: "Digestive Health", icon: GiStomach, link: "/doctors?specialty=Gastroenterology" },
+  { name: "Respiratory", icon: FaLungs, link: "/doctors?specialty=Pulmonology" },
+  { name: "Dental", icon: FaTooth, link: "/doctors?specialty=General Physician" },
+  { name: "Fatigue", icon: FaBrain, link: "/doctors?specialty=General Physician" },
+  { name: "General Symptoms", icon: MdOutlineSick, link: "/doctors?specialty=General Physician" },
 ];
 
 export default function HealthConcernsStrip() {
@@ -48,7 +48,7 @@ export default function HealthConcernsStrip() {
             </p>
           </div>
           <Link 
-            href="/website/doctors" 
+            href="/doctors" 
             className="inline-flex items-center text-xs sm:text-sm font-semibold text-[#1677A8] hover:text-[#0B3A5B] transition-colors shrink-0"
           >
             <span>View all health concerns</span>

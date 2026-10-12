@@ -37,11 +37,12 @@ export async function POST(req) {
     // 1. Price Arithmetic & NaN Safety
     const parsedRaw = parseFloat(rawCost);
     const parsedSub = parseFloat(medicine_subtotal);
-    const subtotal = !isNaN(parsedSub) && parsedSub >= 0 ? parsedSub : (!isNaN(parsedRaw) && parsedRaw >= 0 ? parsedRaw : 0);
-    const delCharge = Math.max(0, parseFloat(delivery_charge) || 0);
+    // Delivery charge is currently free (₹0 platform promotional policy)
+    const delCharge = 0;
     const disc = Math.max(0, parseFloat(discount) || 0);
+    const subtotal = !isNaN(parsedSub) && parsedSub >= 0 ? parsedSub : (!isNaN(parsedRaw) ? parsedRaw : 0);
     const parsedFinal = parseFloat(final_amount !== undefined ? final_amount : rawCost);
-    const finalAmt = !isNaN(parsedFinal) && parsedFinal >= 0 ? parsedFinal : Math.max(0, subtotal + delCharge - disc);
+    const finalAmt = !isNaN(parsedFinal) && parsedFinal >= 0 ? parsedFinal : Math.max(0, subtotal - disc);
     const deliveryMins = parseInt(delivery_time_minutes, 10) || 30;
 
     if (isNaN(finalAmt) || finalAmt <= 0) {

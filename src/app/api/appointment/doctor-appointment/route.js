@@ -28,14 +28,14 @@ export async function POST(req) {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const offset = (pageNum - 1) * perPage;
 
-    // Build date filter fragment for AWS RDS
+    // Build date filter fragment for AWS RDS (Indian Standard Time)
     let dateCondition = sql``;
     if (date_filter === "today") {
-      dateCondition = sql`AND a.appointment_date = CURRENT_DATE`;
+      dateCondition = sql`AND a.appointment_date = (NOW() AT TIME ZONE 'Asia/Kolkata')::date`;
     } else if (date_filter === "tomorrow") {
-      dateCondition = sql`AND a.appointment_date = CURRENT_DATE + INTERVAL '1 day'`;
+      dateCondition = sql`AND a.appointment_date = ((NOW() AT TIME ZONE 'Asia/Kolkata')::date + INTERVAL '1 day')`;
     } else if (date_filter === "this_week") {
-      dateCondition = sql`AND a.appointment_date >= CURRENT_DATE AND a.appointment_date <= CURRENT_DATE + INTERVAL '6 days'`;
+      dateCondition = sql`AND a.appointment_date >= (NOW() AT TIME ZONE 'Asia/Kolkata')::date AND a.appointment_date <= ((NOW() AT TIME ZONE 'Asia/Kolkata')::date + INTERVAL '6 days')`;
     } else if (date_filter && date_filter !== "all") {
       dateCondition = sql`AND a.appointment_date = ${date_filter}::date`;
     }
@@ -75,7 +75,22 @@ export async function POST(req) {
       LEFT JOIN doctor_details d ON d.id = a.doctor_id
       WHERE a.doctor_id = ${doctor_id}
         ${dateCondition}
-      ORDER BY a.appointment_date ASC, a.appointment_time ASC
+      ORDER BY 
+        CASE 
+          WHEN a.appointment_date = (NOW() AT TIME ZONE 'Asia/Kolkata')::date THEN 0
+          WHEN a.appointment_date > (NOW() AT TIME ZONE 'Asia/Kolkata')::date THEN 1
+          ELSE 2
+        END ASC,
+        CASE 
+          WHEN a.appointment_date >= (NOW() AT TIME ZONE 'Asia/Kolkata')::date THEN a.appointment_date 
+          ELSE NULL 
+        END ASC,
+        CASE 
+          WHEN a.appointment_date >= (NOW() AT TIME ZONE 'Asia/Kolkata')::date THEN a.appointment_time 
+          ELSE NULL 
+        END ASC,
+        a.appointment_date DESC,
+        a.appointment_time DESC
       LIMIT ${perPage} OFFSET ${offset}
     `;
 

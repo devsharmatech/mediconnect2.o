@@ -252,6 +252,26 @@ function BroadcastQuickCard({ broadcast, chemistId, onQuoteSubmitted }) {
               </div>
             </div>
           </div>
+
+          {/* Real-time Earnings Split Preview */}
+          <div className="p-3 bg-gradient-to-r from-sky-50/80 via-slate-50/70 to-blue-50/80 dark:from-slate-800 dark:via-slate-800 dark:to-slate-800 rounded-lg border border-sky-100 dark:border-slate-700 space-y-1 mt-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-800 dark:text-slate-200">Quotation Total:</span>
+              <span className="font-extrabold text-[#0067A1] dark:text-sky-400">
+                ₹{parseFloat(cost || 0).toFixed(2)}
+              </span>
+            </div>
+            <div className="pt-1 border-t border-sky-200/60 dark:border-slate-700 flex items-center justify-between text-[11px]">
+              <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                <span>Chemist Share (90%):</span>
+                <strong className="text-emerald-800 dark:text-emerald-300">₹{(parseFloat(cost || 0) * 0.9).toFixed(2)}</strong>
+              </span>
+              <span className="text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1">
+                <span>Platform Fee (10%):</span>
+                <strong className="text-slate-700 dark:text-slate-300">₹{(parseFloat(cost || 0) * 0.1).toFixed(2)}</strong>
+              </span>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -793,7 +813,7 @@ export default function ChemistDashboard() {
                     <th className="py-3 px-4">Patient</th>
                     <th className="py-3 px-4">Items</th>
                     <th className="py-3 px-4">Date / Time</th>
-                    <th className="py-3 px-4">Total Amount</th>
+                    <th className="py-3 px-4 min-w-[240px]">Total & Share Split (90% / 10%)</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Action</th>
                   </tr>
@@ -837,8 +857,24 @@ export default function ChemistDashboard() {
                             : "Today"}{" "}
                           • {formatTime12h(order.created_at)}
                         </td>
-                        <td className="py-3 px-4 font-bold text-gray-900 dark:text-gray-100">
-                          {formatCurrency(order.total_amount)}
+                        {/* Order Pricing & Financial Split Card */}
+                        <td className="py-3 px-4 min-w-[240px]">
+                          <div className="p-2.5 bg-gradient-to-r from-sky-50/80 via-slate-50/70 to-blue-50/80 dark:from-slate-800 dark:via-slate-800 dark:to-slate-800 rounded-lg border border-sky-100 dark:border-slate-700 space-y-1 text-left">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200">Total:</span>
+                              <span className="text-xs font-extrabold text-[#0067A1] dark:text-sky-400">
+                                ₹{Number(order.total_amount || 0).toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="pt-1 border-t border-sky-200/60 dark:border-slate-700 flex items-center justify-between text-[10px]">
+                              <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                                Chemist (90%): <strong className="text-emerald-800 dark:text-emerald-300">₹{(Number(order.total_amount || 0) * 0.9).toFixed(2)}</strong>
+                              </span>
+                              <span className="text-slate-600 dark:text-slate-400 font-medium">
+                                Fee (10%): <strong className="text-slate-700 dark:text-slate-300">₹{(Number(order.total_amount || 0) * 0.1).toFixed(2)}</strong>
+                              </span>
+                            </div>
+                          </div>
                         </td>
                         <td className="py-3 px-4">
                           <span

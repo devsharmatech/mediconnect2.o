@@ -26,6 +26,7 @@ import {
   Sparkles,
   RotateCcw,
   FlaskConical,
+  CreditCard,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { loadRazorpayScript } from "@/lib/razorpay";
@@ -90,14 +91,29 @@ function SharePrescriptionModal({
       try {
         const res = await fetch(`/api/patients/orders/medicine/broadcast/active?prescription_id=${prescriptionId}`);
         const data = await res.json();
-        if (isMounted && data?.success && data?.data?.broadcast) {
-          const b = data.data.broadcast;
-          setBroadcastId(b.id);
-          setTimeLeft(b.seconds_remaining || 0);
-          if (Array.isArray(data.data.quotes) && data.data.quotes.length > 0) {
-            setQuotes(data.data.quotes);
+        if (isMounted && data?.success) {
+          if (data.data?.existing_order) {
+            const o = data.data.existing_order;
+            setOrderResult({
+              unid: o.unid || (o.id ? `ORD-${o.id.slice(0, 8).toUpperCase()}` : ""),
+              id: o.id,
+              amount: o.total_amount,
+              pharmacy_name: o.pharmacy_name,
+              paid: o.payu_status === "success" || o.status === "confirmed",
+              type: "medicine",
+            });
+            setStep("done");
+            return;
           }
-          setStep("broadcast");
+          if (data?.data?.broadcast) {
+            const b = data.data.broadcast;
+            setBroadcastId(b.id);
+            setTimeLeft(b.seconds_remaining || 0);
+            if (Array.isArray(data.data.quotes) && data.data.quotes.length > 0) {
+              setQuotes(data.data.quotes);
+            }
+            setStep("broadcast");
+          }
         }
       } catch (err) {
         console.warn("Could not check active broadcast:", err);
@@ -162,7 +178,7 @@ function SharePrescriptionModal({
             sseActive = true;
             setQuotes(payload.quotes);
             if (payload.seconds_remaining !== undefined) {
-              setTimeLeft(payload.seconds_remaining);
+              setTimeLeft(Math.min(900, Math.max(0, payload.seconds_remaining)));
             }
           } else if (payload.type === "NEW_QUOTE" && payload.quote) {
             sseActive = true;
@@ -181,7 +197,7 @@ function SharePrescriptionModal({
             toast("A chemist withdrew their quotation", { icon: "ℹ️" });
             setQuotes((prev) => prev.filter((q) => q.id !== payload.quote_id));
           } else if (payload.type === "BROADCAST_STATUS" && payload.status === "completed") {
-            toast("Bidding window closed", { icon: "ℹ️" });
+            // broadcast concluded quietly
           }
         } catch (e) {
           console.warn("SSE parse error:", e);
@@ -203,7 +219,7 @@ function SharePrescriptionModal({
         if (data?.success && Array.isArray(data.data?.quotes)) {
           setQuotes(data.data.quotes);
           if (data.data?.broadcast?.seconds_remaining !== undefined) {
-            setTimeLeft(data.data.broadcast.seconds_remaining);
+            setTimeLeft(Math.min(900, Math.max(0, data.data.broadcast.seconds_remaining)));
           }
         }
       } catch (err) {
@@ -237,6 +253,76 @@ function SharePrescriptionModal({
     return () => clearInterval(timer);
   }, [step, timeLeft]);
 
+  const [payingPayU, setPayingPayU] = useState(false);
+  const [pendingPayUData, setPendingPayUData] = useState(null);
+
+  const submitPayUForm = (payuData) => {
+    if (!payuData || !payuData.payment_params) {
+      toast.error("Payment parameters missing.");
+      return;
+    }
+    const params = payuData.payment_params;
+    let actionUrl = payuData.action_url || (params.key === "Kx7dGD" ? "https://test.payu.in/_payment" : "https://secure.payu.in/_payment");
+
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = actionUrl;
+    form.target = "_self";
+    form.style.display = "none";
+
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = key;
+        input.value = typeof val === "object" ? JSON.stringify(val) : String(val);
+        form.appendChild(input);
+      }
+    });
+
+    document.body.appendChild(form);
+    try {
+      form.submit();
+    } catch (e) {
+      HTMLFormElement.prototype.submit.call(form);
+    }
+  };
+
+  const handlePayWithPayUDirect = async (orderInfo) => {
+    const targetOrderId = orderInfo?.id;
+    if (!targetOrderId) {
+      toast.error("Order ID not found to initiate payment.");
+      return;
+    }
+    setPayingPayU(true);
+    const tid = toast.loading("Launching PayU secure checkout...");
+    try {
+      const res = await fetch("/api/patients/orders/medicine/payu/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: targetOrderId,
+          customer_name: typeof window !== "undefined" ? (localStorage.getItem("userName") || "") : "",
+          customer_email: typeof window !== "undefined" ? (localStorage.getItem("userEmail") || "") : "",
+          customer_phone: "",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success || !data?.data?.payment_params) {
+        throw new Error(data?.message || "Failed to initiate PayU payment");
+      }
+
+      toast.dismiss(tid);
+      const payu = data.data;
+      setPendingPayUData(payu);
+      submitPayUForm(payu);
+    } catch (err) {
+      toast.dismiss(tid);
+      toast.error(err.message || "Failed to launch PayU payment");
+      setPayingPayU(false);
+    }
+  };
+
   const handleSelectQuote = async (quoteId) => {
     setSharing(true);
     const tid = toast.loading("Confirming quote & preparing secure payment...");
@@ -255,9 +341,28 @@ function SharePrescriptionModal({
         return;
       }
 
-      const { order, razorpay_order_id, razorpay_key, amount, pharmacy_name } = data.data || {};
+      const { order, payu, razorpay_order_id, razorpay_key, amount, pharmacy_name } = data.data || {};
 
-      // Launch Razorpay online payment gateway if order was created
+      // Launch PayU online payment gateway if payu payload is provided
+      if (payu && payu.payment_params && payu.payment_params.hash) {
+        setPendingPayUData(payu);
+        setOrderResult({
+          unid: order?.unid || (order?.id ? `ORD-${order.id.slice(0, 8).toUpperCase()}` : ""),
+          id: order?.id,
+          amount: amount || order?.total_amount,
+          pharmacy_name: pharmacy_name,
+          paid: false,
+          type: "medicine",
+        });
+        setStep("done");
+        toast.success("Redirecting to PayU secure payment gateway…");
+        setTimeout(() => {
+          submitPayUForm(payu);
+        }, 120);
+        return;
+      }
+
+      // Launch Razorpay online payment gateway if order was created with Razorpay
       if (razorpay_order_id && razorpay_key) {
         await loadRazorpayScript();
 
@@ -1138,6 +1243,23 @@ function SharePrescriptionModal({
               transition={{ delay: 0.3 }}
               className="w-full flex flex-col sm:flex-row items-center gap-2 pt-3"
             >
+              {isChemist && !orderResult?.paid && (
+                <button
+                  type="button"
+                  disabled={payingPayU}
+                  onClick={() => {
+                    if (pendingPayUData) {
+                      submitPayUForm(pendingPayUData);
+                    } else {
+                      handlePayWithPayUDirect(orderResult);
+                    }
+                  }}
+                  className="w-full sm:flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>{payingPayU ? "Opening PayU..." : `Pay ₹${orderResult?.amount || "150"} via PayU`}</span>
+                </button>
+              )}
               {isChemist && (
                 <button
                   type="button"
@@ -1145,16 +1267,16 @@ function SharePrescriptionModal({
                     onClose();
                     window.location.href = `/website/medicine-order?prescription_id=${prescriptionId}`;
                   }}
-                  className="w-full sm:flex-1 py-2 px-3 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-medium transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+                  className="w-full sm:w-auto py-2.5 px-3 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-medium transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
                 >
                   <Truck className="w-3.5 h-3.5" />
-                  <span>Live Order Tracker</span>
+                  <span>Track Order</span>
                 </button>
               )}
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full sm:w-auto py-2 px-4 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                className="w-full sm:w-auto py-2.5 px-4 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg text-xs font-medium transition-colors cursor-pointer"
               >
                 Done
               </button>
@@ -1263,7 +1385,7 @@ function SharePrescriptionModal({
                 <div className="mt-3.5 flex items-center gap-2">
                   <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0067A1]/10 text-[#0067A1] font-mono text-xs sm:text-sm font-bold rounded-full border border-[#0067A1]/20 shadow-xs">
                     <Clock className="w-3.5 h-3.5" />
-                    <span>{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')} remaining</span>
+                    <span>{Math.floor(Math.min(900, Math.max(0, timeLeft)) / 60)}:{(Math.min(900, Math.max(0, timeLeft)) % 60).toString().padStart(2, '0')} remaining</span>
                   </div>
                   <button
                     type="button"

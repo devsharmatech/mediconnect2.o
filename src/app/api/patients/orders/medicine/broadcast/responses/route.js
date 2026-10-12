@@ -169,7 +169,7 @@ export async function GET(req) {
 
     const secondsRemaining = Math.max(
       0,
-      Math.floor((new Date(broadcast.expires_at).getTime() - Date.now()) / 1000)
+      Math.min(900, Math.floor((new Date(broadcast.expires_at).getTime() - Date.now()) / 1000))
     );
 
     return success("Broadcast quotes fetched successfully", {

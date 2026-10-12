@@ -68,11 +68,11 @@ export default function NewsletterAndFinalCTA() {
 
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
               <Link
-                href="/website/doctors"
+                href="/doctors"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-[#0B3A5B] hover:bg-slate-100 text-xs sm:text-sm font-bold transition-all shadow-sm"
               >
                 <FaCalendarCheck className="w-3.5 h-3.5 text-[#1677A8]" />
-                <span>Book a Consultation &rarr;</span>
+                <span>Book Consultation &rarr;</span>
               </Link>
             </div>
           </div>

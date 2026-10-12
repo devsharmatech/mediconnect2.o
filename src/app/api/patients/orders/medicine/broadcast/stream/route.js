@@ -98,7 +98,7 @@ export async function GET(req) {
   }
 
   const secondsRemaining = broadcast?.expires_at 
-    ? Math.max(0, Math.floor((new Date(broadcast.expires_at) - new Date()) / 1000))
+    ? Math.max(0, Math.min(900, Math.floor((new Date(broadcast.expires_at) - new Date()) / 1000)))
     : 0;
 
   // 3. Create a ReadableStream for SSE real-time push

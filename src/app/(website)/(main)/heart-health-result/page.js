@@ -359,6 +359,146 @@ export default function HeartHealthResult() {
     } catch (e) {}
   }
 
+  // ── Construct rich, clinically tailored Suggested Cardiovascular Wellness Practices ──
+  const resolvedCardioPractices = (() => {
+    let list = [];
+    if (Array.isArray(recommendations)) {
+      list = [...recommendations];
+    } else if (typeof recommendations === 'string') {
+      try {
+        const p = JSON.parse(recommendations);
+        if (Array.isArray(p)) list = p;
+        else if (Array.isArray(p?.recommendations)) list = p.recommendations;
+      } catch (e) {}
+    }
+    if (list.length === 0 && parsedAi) {
+      const aiRecs = parsedAi.recommendations || parsedAi.action_plan || parsedAi.action_recommendations;
+      if (Array.isArray(aiRecs)) list = aiRecs;
+      else if (typeof aiRecs === 'string') {
+        try {
+          const p = JSON.parse(aiRecs);
+          if (Array.isArray(p)) list = p;
+        } catch (_) {}
+      }
+    }
+
+    if (list.length >= 4 && list.every(item => item.title && (item.action_steps || item.steps || item.description))) {
+      return list;
+    }
+
+    const tailored = [];
+    const sys = Number(inputs.systolic_bp) || 120;
+    const dia = Number(inputs.diastolic_bp) || 80;
+    const rhr = Number(inputs.resting_heart_rate) || 72;
+    const steps = Number(inputs.daily_steps || inputs.steps) || 0;
+    const activityMin = Number(inputs.physical_activity_minutes) || 0;
+    const isSmoker = inputs.smoking_status === 'current' || inputs.smoking_status === 'smoker';
+    const isFormerSmoker = inputs.smoking_status === 'former';
+    const aqiNum = Number(inputs.aqi || 146);
+    const locName = inputs.city || inputs.location || "Delhi";
+
+    // 1. Structured Aerobic Physical Activity Band
+    tailored.push({
+      id: 'aerobic-activity',
+      category: 'Active Living',
+      priorityTag: activityMin >= 150 ? 'Maintenance Habit' : 'Gradual Build-up',
+      timeframe: '150–300 mins/week · Moderate Pace',
+      title: 'Structured Aerobic Physical Activity Band',
+      description: `For adults where moderate-intensity aerobic activity is appropriate, 150–300 minutes per week is the evidence-based reference to strengthen myocardium and reduce arterial stiffness.${steps > 0 ? ` Currently logging ~${steps.toLocaleString()} daily steps.` : ''}`,
+      action_steps: [
+        'Engage in brisk walking, swimming, or cycling at a moderate intensity where you can speak comfortably without gasping (talk test).',
+        'Distribute sessions across 4–5 days per week, aiming for 30–45 minutes each session.',
+        'Include a 5-minute warm-up walk and gentle cool-down stretch with each activity session.'
+      ]
+    });
+
+    // 2. Heart-Healthy Nutrition & Lipid Optimization
+    const highBp = sys >= 130 || dia >= 85;
+    tailored.push({
+      id: 'nutrition-lipid',
+      category: 'Nutritional Care',
+      priorityTag: highBp ? 'DASH Dietary Protocol' : 'Heart-Healthy Nutrition',
+      timeframe: 'Daily Core Routine',
+      title: highBp ? 'Cardiovascular Sodium & Lipid Control' : 'Heart-Healthy Nutrition & Lipid Optimization',
+      description: highBp
+        ? `Recorded blood pressure (${sys}/${dia} mmHg) benefits from a reduced-sodium, potassium-rich dietary pattern (DASH/Mediterranean principles adapted for Indian meals) with minimal deep-fried foods.`
+        : 'Dietary patterns rich in vegetables, whole grains, and legumes support healthy lipid profiles and assist in long-term arterial compliance.',
+      action_steps: [
+        'Limit dietary sodium to < 2,000 mg/day (approx. 1 level tsp salt); reduce processed papads, pickles, and salty snacks.',
+        'Emphasize soluble fiber from oats, lentils, pulses, and leafy vegetables to support healthy LDL clearance.',
+        'Replace saturated and trans-fats with modest amounts of cold-pressed plant oils (mustard, olive) and handfuls of walnuts/almonds.'
+      ]
+    });
+
+    // 3. Autonomic Vascular & Blood Pressure Regulation
+    tailored.push({
+      id: 'vascular-regulation',
+      category: 'Vascular Care',
+      priorityTag: highBp || rhr > 85 ? 'Vascular Monitoring' : 'Autonomic Balance',
+      timeframe: 'Morning & Evening Log',
+      title: 'Blood Pressure & Autonomic Vascular Regulation',
+      description: `Resting heart rate is recorded at ${rhr} bpm. Consistent home blood pressure tracking paired with slow breathing supports vascular tone and moderates sympathetic stress peaks.`,
+      action_steps: [
+        'Record home blood pressure at consistent times: once in the morning before breakfast and once in the evening.',
+        'Sit comfortably with your back supported for 5 minutes in a quiet room before taking automated BP cuff readings.',
+        'Practice 10 minutes of slow 4-7-8 diaphragmatic breathing daily to moderate sympathetic cardiovascular tone.'
+      ]
+    });
+
+    // 4. Cardiovascular Smoking Cessation Protocol (if current or former smoker)
+    if (isSmoker || isFormerSmoker) {
+      tailored.push({
+        id: 'smoking-cessation',
+        category: 'Lifestyle Cessation',
+        priorityTag: isSmoker ? 'High Clinical Priority' : 'Vascular Protection',
+        timeframe: isSmoker ? 'Immediate Action · Next 1–2 Weeks' : 'Sustained Maintenance',
+        title: 'Cardiovascular Smoking Cessation Protocol',
+        description: isSmoker
+          ? 'Tobacco smoking accelerates arterial plaque deposition and arterial stiffening. Complete cessation significantly reduces cardiovascular risk within months.'
+          : 'Sustaining a smoke-free lifestyle protects your endothelial lining and maintains long-term arterial flexibility.',
+        action_steps: [
+          'Consult a healthcare provider regarding nicotine replacement therapies or behavioral cessation strategies.',
+          'Identify personal trigger environments and set a definitive smoke-free routine.',
+          'Celebrate smoke-free milestones and monitor resting pulse recovery in CardioConnect.'
+        ]
+      });
+    }
+
+    // 5. Restorative Sleep & Circadian Recovery
+    tailored.push({
+      id: 'circadian-sleep',
+      category: 'Lifestyle Rhythm',
+      priorityTag: 'Rest & Recovery',
+      timeframe: '7–8 Hours Nightly',
+      title: 'Restorative Sleep & Circadian Recovery Protocol',
+      description: 'Deep restorative sleep facilitates essential nocturnal blood-pressure dipping and autonomic equilibrium needed for myocardial tissue recovery.',
+      action_steps: [
+        'Maintain consistent sleep and wake times 7 days a week to anchor cardiac circadian rhythm.',
+        'Avoid heavy meals, caffeine, and digital screen blue-light within 60 minutes of sleeping.',
+        'Discuss sleep quality with your doctor if you experience chronic fatigue or loud nighttime snoring.'
+      ]
+    });
+
+    // 6. Environmental Air Quality & Particulate Shield (if AQI >= 100)
+    if (aqiNum >= 100) {
+      tailored.push({
+        id: 'aqi-shield',
+        category: 'Environmental Care',
+        priorityTag: `Ambient AQI ${aqiNum}`,
+        timeframe: 'Commute & Smog Windows',
+        title: `Air Quality & Particulate Shield (Local AQI ${aqiNum})`,
+        description: `Current ambient air pollution in ${locName} (AQI ${aqiNum}) elevates systemic oxidative stress. Reducing outdoor particulate inhalation protects cardiovascular endothelium.`,
+        action_steps: [
+          'Wear a certified N95 or particulate respirator during high-traffic commutes or dusty outdoor environments.',
+          'Shift aerobic workouts indoors and avoid heavy outdoor exertion during morning smog peaks.',
+          'Keep living and sleeping areas sealed during peak pollution and use HEPA air filtration if available.'
+        ]
+      });
+    }
+
+    return tailored;
+  })();
+
   const riskBadgeStyles = {
     low: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     moderate: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -925,48 +1065,32 @@ export default function HeartHealthResult() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {Array.isArray(parsedRecs) && parsedRecs.length > 0 ? (
-                parsedRecs.slice(0, 4).map((rec, idx) => (
-                  <div key={idx} className="p-3 bg-slate-50/70 rounded-[5px] border border-slate-200/90 text-xs space-y-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold text-slate-900 text-xs">{rec.title || `Action Plan ${idx + 1}`}</span>
-                      <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        {rec.category || 'Wellness'}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-950 leading-relaxed line-clamp-3">
-                      {rec.description || (rec.action_steps && rec.action_steps[0]) || 'Maintain healthy daily activity and balanced diet.'}
-                    </p>
+              {resolvedCardioPractices.map((rec, idx) => (
+                <div key={idx} className="p-3 bg-slate-50/70 rounded-[5px] border border-slate-200/90 text-xs space-y-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-semibold text-slate-900 text-xs">{rec.title || `Action Plan ${idx + 1}`}</span>
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      {rec.category || 'Wellness'}
+                    </span>
                   </div>
-                ))
-              ) : (
-                <>
-                  <div className="p-3 bg-slate-50/70 rounded-[5px] border border-slate-200/90 text-xs space-y-1">
-                    <span className="font-semibold text-slate-900 text-xs">1. Aerobic Physical Activity</span>
-                    <p className="text-[11px] text-slate-950 leading-relaxed">
-                      For adults for whom moderate-intensity aerobic activity is appropriate, 150–300 minutes per week is used as a public-health reference band. Increase activity gradually.
-                    </p>
+                  <div className="text-[10px] text-slate-500 font-medium">
+                    ⏱ {rec.timeframe} • <span className="text-amber-700 font-semibold">{rec.priorityTag}</span>
                   </div>
-                  <div className="p-3 bg-slate-50/70 rounded-[5px] border border-slate-200/90 text-xs space-y-1">
-                    <span className="font-semibold text-slate-900 text-xs">2. Heart-Healthy Nutrition</span>
-                    <p className="text-[11px] text-slate-950 leading-relaxed">
-                      Choose a dietary pattern rich in vegetables, whole grains, and legumes; prefer unsaturated plant oils and limit excess sodium, saturated fat, and processed foods.
-                    </p>
-                  </div>
-                  <div className="p-3 bg-slate-50/70 rounded-[5px] border border-slate-200/90 text-xs space-y-1">
-                    <span className="font-semibold text-slate-900 text-xs">3. Blood Pressure & Stress Regulation</span>
-                    <p className="text-[11px] text-slate-950 leading-relaxed">
-                      Record home blood pressure at consistent times and practice 10 minutes of slow 4-7-8 diaphragmatic breathing daily to support autonomic vascular balance.
-                    </p>
-                  </div>
-                  <div className="p-3 bg-slate-50/70 rounded-[5px] border border-slate-200/90 text-xs space-y-1">
-                    <span className="font-semibold text-slate-900 text-xs">4. Restorative Sleep & Recovery</span>
-                    <p className="text-[11px] text-slate-950 leading-relaxed">
-                      Maintain consistent 7–8 hours of restorative sleep to promote nocturnal blood pressure dipping and cellular recovery. Limit screen time 45 minutes before bedtime.
-                    </p>
-                  </div>
-                </>
-              )}
+                  <p className="text-[11px] text-slate-950 leading-relaxed">
+                    {rec.description}
+                  </p>
+                  {Array.isArray(rec.action_steps) && rec.action_steps.length > 0 && (
+                    <ul className="mt-1 space-y-0.5 pt-1 border-t border-slate-200/60">
+                      {rec.action_steps.slice(0, 2).map((step, sIdx) => (
+                        <li key={sIdx} className="text-[10px] text-slate-700 flex items-start gap-1">
+                          <span className="text-emerald-600 font-bold shrink-0">✓</span>
+                          <span>{step}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
             </div>
 
             <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[10px] text-slate-800">
@@ -1156,28 +1280,44 @@ export default function HeartHealthResult() {
               <div className="bg-white shadow-2xl ring-1 ring-black/20 overflow-x-auto max-w-full rounded-[2px]">
                 {selectedFormat === "F1" && (
                   <CardioConnectF1Report
-                    assessmentData={effectiveAssessmentData || assessmentData}
+                    assessmentData={{
+                      ...(effectiveAssessmentData || assessmentData),
+                      wellness_practices: resolvedCardioPractices,
+                      recommendations: resolvedCardioPractices
+                    }}
                     patientData={patientData || {}}
                     reportRef={reportRef}
                   />
                 )}
                 {selectedFormat === "F2" && (
                   <CardioConnectF2Report
-                    assessmentData={effectiveAssessmentData || assessmentData}
+                    assessmentData={{
+                      ...(effectiveAssessmentData || assessmentData),
+                      wellness_practices: resolvedCardioPractices,
+                      recommendations: resolvedCardioPractices
+                    }}
                     patientData={patientData || {}}
                     reportRef={reportRef}
                   />
                 )}
                 {selectedFormat === "F3" && (
                   <CardioConnectF3Report
-                    assessmentData={effectiveAssessmentData || assessmentData}
+                    assessmentData={{
+                      ...(effectiveAssessmentData || assessmentData),
+                      wellness_practices: resolvedCardioPractices,
+                      recommendations: resolvedCardioPractices
+                    }}
                     patientData={patientData || {}}
                     reportRef={reportRef}
                   />
                 )}
                 {selectedFormat === "F4" && (
                   <CardioConnectF4Report
-                    assessmentData={effectiveAssessmentData || assessmentData}
+                    assessmentData={{
+                      ...(effectiveAssessmentData || assessmentData),
+                      wellness_practices: resolvedCardioPractices,
+                      recommendations: resolvedCardioPractices
+                    }}
                     patientData={patientData || {}}
                     reportRef={reportRef}
                   />

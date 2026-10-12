@@ -80,10 +80,34 @@ export default function DoctorAppointmentsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [activeModalTab, setActiveModalTab] = useState("overview");
   const [showFilters, setShowFilters] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const prevAppointmentsRef = useRef([]);
+  const initialTargetIdHandledRef = useRef(false);
+  const todayStr = useMemo(() => (currentTime ? currentTime.toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA")), [currentTime]);
+
+  const [extendingAppointment, setExtendingAppointment] = useState(null);
+  const [extendMode, setExtendMode] = useState("now");
+  const [extendMinutes, setExtendMinutes] = useState(15);
+  const [isExtending, setIsExtending] = useState(false);
+
+  const handleCloseModal = () => {
+    setSelectedAppointment(null);
+    setActiveModalTab("overview");
+    initialTargetIdHandledRef.current = true;
+    if (typeof window !== "undefined") {
+      try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has("id") || url.searchParams.has("appointment_id")) {
+          url.searchParams.delete("id");
+          url.searchParams.delete("appointment_id");
+          window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+        }
+      } catch (_) {}
+    }
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -202,14 +226,15 @@ export default function DoctorAppointmentsPage() {
       setPagination(res.data.pagination || null);
       setPage(pageToLoad);
 
-      if (typeof window !== "undefined") {
+      if (typeof window !== "undefined" && !isBackground && !initialTargetIdHandledRef.current) {
         const params = new URLSearchParams(window.location.search);
         const targetId = params.get("id") || params.get("appointment_id");
         if (targetId) {
+          initialTargetIdHandledRef.current = true;
           const matched = loaded.find((a) => a.id === targetId || String(a.id) === String(targetId));
           if (matched) {
             setSelectedAppointment(matched);
-          } else if (!isBackground) {
+          } else {
             api.post("/appointment/doctor-appointments-detailed", {
               doctor_id: userId,
               date_filter: "all",
@@ -297,6 +322,48 @@ export default function DoctorAppointmentsPage() {
     }
   };
 
+  const handleExtendSlot = async (apt, minutes = 15, mode = "now") => {
+    if (!apt) return;
+    try {
+      setIsExtending(true);
+      const userId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+      if (!userId) {
+        toast.error("Please login as doctor.");
+        return;
+      }
+
+      const res = await api.post("/appointment/extend", {
+        appointment_id: apt.id,
+        doctor_id: userId || apt.doctor_id,
+        minutes,
+        mode,
+      });
+
+      if (!res.success) {
+        toast.error(res.error || "Failed to extend appointment slot.");
+        return;
+      }
+
+      toast.success("Slot extended successfully! Appointment is now active.");
+      setExtendingAppointment(null);
+      await loadAppointments(page, dateFilter);
+
+      if (selectedAppointment && selectedAppointment.id === apt.id) {
+        setSelectedAppointment((prev) => ({
+          ...prev,
+          appointment_date: res.data?.appointment?.appointment_date || prev.appointment_date,
+          appointment_time: res.data?.appointment?.appointment_time || prev.appointment_time,
+          _forceExpired: false,
+        }));
+      }
+    } catch (err) {
+      console.error("Error extending slot", err);
+      toast.error("Failed to extend appointment slot.");
+    } finally {
+      setIsExtending(false);
+    }
+  };
+
   const filteredAppointments = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
@@ -328,19 +395,42 @@ export default function DoctorAppointmentsPage() {
         return haystack.includes(query);
       });
 
-    // Sort by date and time
-    // If dateFilter is "all", sort descending (latest first). Otherwise, sort ascending (chronological).
+    // Prioritize Today & Upcoming first, then Past (most recent past first)
     return filtered.sort((a, b) => {
       const dateA = a.appointment_date || "";
       const dateB = b.appointment_date || "";
-      if (dateA !== dateB) {
-        return dateFilter === "all" ? dateB.localeCompare(dateA) : dateA.localeCompare(dateB);
-      }
       const timeA = a.appointment_time || "";
       const timeB = b.appointment_time || "";
-      return dateFilter === "all" ? timeB.localeCompare(timeA) : timeA.localeCompare(timeB);
+
+      // Group priority:
+      // 0: Today
+      // 1: Upcoming / Future
+      // 2: Past
+      const getPriority = (d) => {
+        if (!d) return 3;
+        if (d === todayStr) return 0;
+        if (d > todayStr) return 1;
+        return 2;
+      };
+
+      const prioA = getPriority(dateA);
+      const prioB = getPriority(dateB);
+
+      if (prioA !== prioB) {
+        return prioA - prioB;
+      }
+
+      // If Today or Upcoming (priority 0 or 1), order chronologically (earliest first)
+      if (prioA === 0 || prioA === 1) {
+        if (dateA !== dateB) return dateA.localeCompare(dateB);
+        return timeA.localeCompare(timeB);
+      }
+
+      // If Past, order reverse chronologically (most recent past first)
+      if (dateA !== dateB) return dateB.localeCompare(dateA);
+      return timeB.localeCompare(timeA);
     });
-  }, [appointments, statusFilter, typeFilter, searchQuery, dateFilter]);
+  }, [appointments, statusFilter, typeFilter, searchQuery, dateFilter, todayStr]);
 
   function isVideoAppointment(apt) {
     const t = String(apt.appointment_type || apt.type || "").toLowerCase();
@@ -662,27 +752,25 @@ export default function DoctorAppointmentsPage() {
           </div>
         )}
 
-        {/* Appointments List */}
-        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-800">Appointments List</h3>
-                <p className="text-sm text-slate-500">
-                  Showing {filteredAppointments.length} of {appointments.length} appointments
-                </p>
-              </div>
-              {isLoading && (
-                <div className="flex items-center gap-2 text-sm text-slate-500">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Loading...
-                </div>
-              )}
+        {/* Appointments Section */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-white px-5 py-3.5 rounded-xl border border-slate-200">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-800">Appointments</h3>
+              <p className="text-xs sm:text-sm text-slate-500">
+                Showing {filteredAppointments.length} of {appointments.length} appointments • Prioritizing Today & Upcoming
+              </p>
             </div>
+            {isLoading && (
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500">
+                <Loader2 className="w-4 h-4 animate-spin text-[#0067A1]" />
+                Refreshing...
+              </div>
+            )}
           </div>
 
           {isLoading && appointments.length === 0 ? (
-            <div className="py-16 text-center">
+            <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#0067A1]/10 mb-4">
                 <Loader2 className="w-8 h-8 text-[#0067A1] animate-spin" />
               </div>
@@ -690,7 +778,7 @@ export default function DoctorAppointmentsPage() {
               <p className="text-sm text-slate-500">Fetching your consultation details...</p>
             </div>
           ) : filteredAppointments.length === 0 ? (
-            <div className="py-16 text-center">
+            <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4">
                 <Calendar className="w-8 h-8 text-slate-400" />
               </div>
@@ -702,147 +790,177 @@ export default function DoctorAppointmentsPage() {
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
               {filteredAppointments.map((apt) => {
                 const isNext = nextUpcomingId && apt.id === nextUpcomingId;
+                const isToday = apt.appointment_date === todayStr;
+                const isExpired = isAppointmentExpired(apt, currentTime);
+                const withinSlot = isWithinSlot(apt, currentTime) && !isExpired;
+
                 return (
-                <div
-                  key={apt.id}
-                  className={`px-5 py-4 transition-colors group ${
-                    isNext
-                      ? "bg-emerald-50/60 border-l-4 border-emerald-500"
-                      : "hover:bg-slate-50/50"
-                  }`}
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                    {/* Patient Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start gap-3">
-                        <div className="relative">
-                          <div className="w-11 h-11 rounded-lg bg-gradient-to-br from-[#0067A1]/10 to-[#0067A1]/5 flex items-center justify-center">
-                            <User className="w-5 h-5 text-[#0067A1]" />
-                          </div>
-                          {isWithinSlot(apt, currentTime) && !isAppointmentExpired(apt, currentTime) && (
-                            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white"></div>
+                  <div
+                    key={apt.id}
+                    className={`bg-white rounded-xl border transition-all duration-200 hover:shadow-md flex flex-col justify-between p-3.5 sm:p-4 ${
+                      isNext
+                        ? "border-emerald-400 shadow-sm shadow-emerald-50 ring-1 ring-emerald-300"
+                        : isToday
+                        ? "border-sky-300/80 shadow-xs hover:border-[#0067A1]"
+                        : "border-slate-200/90 hover:border-slate-300"
+                    }`}
+                  >
+                    <div>
+                      {/* Top Badges & Actions */}
+                      <div className="flex items-center justify-between gap-1.5 mb-2.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold ${
+                            TYPE_COLORS[apt.appointment_type] || "bg-slate-100 text-slate-700"
+                          }`}>
+                            {(() => {
+                              const tKey = String(apt.appointment_type || apt.type || "").toLowerCase();
+                              if (["video", "video_consultation", "video_call", "teleconsultation", "instant_call", "telemedicine", "instant"].includes(tKey)) return <><Video className="w-2.5 h-2.5" /> Video</>;
+                              if (["home", "home_visit"].includes(tKey)) return "Home";
+                              return "Clinic";
+                            })()}
+                          </span>
+
+                          {isNext && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider animate-pulse">
+                              <Clock className="w-2.5 h-2.5" />
+                              Next
+                            </span>
+                          )}
+
+                          {isToday && !isNext && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-100/70 text-[#0067A1] text-[10px] font-bold uppercase tracking-wider">
+                              Today
+                            </span>
                           )}
                         </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <h4 className="text-base font-semibold text-slate-800 truncate">
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {isExpired && apt.status === "booked" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700 text-[10.5px] font-semibold">
+                              <Clock className="w-2.5 h-2.5" />
+                              Expired
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10.5px] font-semibold ${
+                              STATUS_COLORS[apt.status] || "bg-slate-100 text-slate-700 border-slate-200"
+                            }`}>
+                              {getStatusIcon(apt.status)}
+                              <span className="capitalize">{apt.status || "unknown"}</span>
+                            </span>
+                          )}
+
+                          <button
+                            onClick={() => {
+                              setSelectedAppointment(apt);
+                              setActiveModalTab("overview");
+                            }}
+                            className="p-1 rounded-md text-slate-400 hover:text-[#0067A1] hover:bg-[#0067A1]/10 transition-colors cursor-pointer"
+                            title="View Details"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Patient Row */}
+                      <div className="flex items-center gap-2.5 mb-2.5">
+                        <div className="relative shrink-0">
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0067A1]/15 to-[#0067A1]/5 flex items-center justify-center border border-[#0067A1]/15">
+                            <User className="w-4 h-4 text-[#0067A1]" />
+                          </div>
+                          {withinSlot && (
+                            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border border-white animate-ping" />
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="text-xs sm:text-[13px] font-bold text-slate-800 truncate leading-snug">
                               {apt.patient?.full_name || "Patient"}
                             </h4>
-                            {isNext && (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[11px] font-semibold uppercase tracking-wide">
-                                <Clock className="w-3 h-3" />
-                                Next
+                            {apt.patient?.blood_group && (
+                              <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9.5px] font-semibold bg-rose-50 text-rose-600 border border-rose-100 shrink-0">
+                                <Droplet className="w-2.5 h-2.5 text-rose-500" />
+                                {apt.patient.blood_group}
                               </span>
                             )}
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-medium ${
-                              TYPE_COLORS[apt.appointment_type] || "bg-slate-100 text-slate-700"
-                            }`}>
-                              {(() => {
-                                 const tKey = String(apt.appointment_type || apt.type || "").toLowerCase();
-                                 if (["video", "video_consultation", "video_call", "teleconsultation", "instant_call", "telemedicine", "instant"].includes(tKey)) return "Video";
-                                 if (["home", "home_visit"].includes(tKey)) return "Home";
-                                 return "Clinic";
-                               })()}
-                            </span>
                           </div>
-
-                          {/* Patient Details */}
-                          <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
-                            <div className="flex items-center gap-1.5">
-                              <Phone className="w-4 h-4 text-slate-400" />
-                              <span>{apt.patient?.phone || "N/A"}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <Mail className="w-4 h-4 text-slate-400" />
-                              <span className="truncate max-w-[200px]">{apt.patient?.email || "N/A"}</span>
-                            </div>
-                            {apt.patient?.blood_group && (
-                              <div className="flex items-center gap-1.5">
-                                <Droplet className="w-4 h-4 text-red-400" />
-                                <span className="font-medium">{apt.patient.blood_group}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Appointment Details */}
-                          <div className="flex flex-wrap items-center gap-4 mt-3">
-                            <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                              <Calendar className="w-4 h-4" />
-                              <span>{apt.appointment_date}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-sm text-slate-500">
-                              <Clock className="w-4 h-4" />
-                              <span>{formatTime(apt.appointment_time)}</span>
-                            </div>
-                            {apt.reason && (
-                              <div className="flex items-start gap-1.5 text-sm text-slate-600">
-                                <MessageSquare className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                                <span className="line-clamp-1">{apt.reason}</span>
-                              </div>
-                            )}
-                            {apt.screening?.analysis?.summary && (
-                              <div className="flex items-start gap-1.5 text-sm text-slate-600">
-                                <BarChart3 className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#0067A1]" />
-                                <span className="line-clamp-1">
-                                  {apt.screening.analysis.summary}
-                                </span>
-                              </div>
+                          <div className="flex items-center gap-2 text-[10.5px] text-slate-500 truncate mt-0.5">
+                            <span className="truncate">{apt.patient?.phone || "No phone"}</span>
+                            {apt.patient?.email && (
+                              <>
+                                <span>•</span>
+                                <span className="truncate">{apt.patient.email}</span>
+                              </>
                             )}
                           </div>
                         </div>
+                      </div>
+
+                      {/* Schedule & Notes Strip */}
+                      <div className="bg-slate-50/80 border border-slate-100/90 rounded-lg p-2 space-y-1 my-2">
+                        <div className="flex items-center justify-between text-[11px] text-slate-700 font-medium">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Calendar className="w-3 h-3 text-[#0067A1] shrink-0" />
+                            <span className="truncate">{apt.appointment_date}</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-slate-600 font-semibold text-[10.5px] shrink-0 bg-white/90 px-1.5 py-0.5 rounded border border-slate-200/60">
+                            <Clock className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                            <span>{formatTime(apt.appointment_time)}</span>
+                          </div>
+                        </div>
+
+                        {apt.reason && (
+                          <div className="flex items-start gap-1 text-[10.5px] text-slate-600 pt-0.5 border-t border-slate-100/80">
+                            <MessageSquare className="w-2.5 h-2.5 mt-0.5 text-slate-400 shrink-0" />
+                            <span className="line-clamp-1">{apt.reason}</span>
+                          </div>
+                        )}
+
+                        {apt.screening?.analysis?.summary && (
+                          <div className="flex items-start gap-1 text-[10.5px] text-[#0067A1] pt-0.5">
+                            <BarChart3 className="w-2.5 h-2.5 mt-0.5 shrink-0" />
+                            <span className="line-clamp-1">{apt.screening.analysis.summary}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    {/* Status & Actions */}
-                    <div className="flex flex-col items-start lg:items-end gap-3">
-                      <div className="flex items-center gap-2">
-                        {isAppointmentExpired(apt, currentTime) && apt.status === "booked" ? (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-amber-200 bg-amber-50 text-amber-700 text-xs font-medium">
-                            <Clock className="w-3.5 h-3.5" />
-                            <span>Expired</span>
-                          </div>
-                        ) : (
-                          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium ${
-                            STATUS_COLORS[apt.status] || "bg-slate-100 text-slate-700 border-slate-200"
-                          }`}>
-                            {getStatusIcon(apt.status)}
-                            <span className="capitalize">{apt.status || "unknown"}</span>
-                          </div>
-                        )}
-                        
-                        <button
-                          onClick={() => setSelectedAppointment(apt)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-[#0067A1] hover:bg-[#0067A1]/5 transition-colors"
-                          title="View Details"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
+                    {/* Card Action Buttons (Concise per AGENTS.md) */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5 mt-1">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
                         {["rejected", "cancelled"].includes(apt.status) ? (
-                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1.5 rounded-md border border-slate-200/60 inline-flex items-center gap-1.5">
-                            <Info className="w-3.5 h-3.5" />
-                            Appointment {apt.status}
+                          <span className="text-[10.5px] font-medium text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-200/50 inline-flex items-center gap-1">
+                            <Info className="w-3 h-3 text-slate-400" />
+                            {apt.status === "rejected" ? "Rejected" : "Cancelled"}
                           </span>
-                        ) : isAppointmentExpired(apt, currentTime) ? (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-md border border-amber-200/60 inline-flex items-center gap-1.5">
-                              <Info className="w-3.5 h-3.5" />
-                              Expired Slot
+                        ) : isExpired ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10.5px] font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200/60">
+                              Expired
                             </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExtendingAppointment(apt);
+                                setExtendMode("now");
+                                setExtendMinutes(15);
+                              }}
+                              className="h-7 px-2 rounded-md bg-blue-50 text-[#0067A1] hover:bg-blue-100 border border-blue-200/80 text-[10.5px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                              title="Add minutes to expired slot"
+                            >
+                              <Clock className="w-3 h-3 text-[#0067A1]" />
+                              <span>+ Add Time</span>
+                            </button>
                             {apt.status === "booked" && (
                               <button
                                 onClick={() => updateAppointmentStatus(apt.id, "rejected")}
                                 disabled={isLoading}
-                                title="Reject or dismiss expired appointment"
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-red-50 text-red-700 border border-red-100 hover:bg-red-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
+                                className="h-7 px-2 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/60 text-[10.5px] font-semibold transition-all cursor-pointer"
                               >
-                                <XCircle className="w-3.5 h-3.5" />
                                 Reject
                               </button>
                             )}
@@ -857,11 +975,9 @@ export default function DoctorAppointmentsPage() {
                                   <button
                                     type="button"
                                     disabled={true}
-                                    title="Video call will be enabled 5 minutes before scheduled start time"
-                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-slate-100 text-slate-400 border border-slate-200 text-xs font-medium cursor-not-allowed transition-all"
+                                    className="h-7.5 px-2 rounded-md bg-slate-100 text-slate-400 border border-slate-200 text-[10.5px] font-medium cursor-not-allowed"
                                   >
-                                    <PhoneCall className="w-3.5 h-3.5 text-slate-400" />
-                                    Opens 5m before
+                                    Opens in 5m
                                   </button>
                                 );
                               }
@@ -871,53 +987,63 @@ export default function DoctorAppointmentsPage() {
                                   type="button"
                                   onClick={() => handleStartCall(apt)}
                                   disabled={isLoading || !timing.isAvailable}
-                                  className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                                  className={`h-7.5 px-2.5 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 ${
                                     timing.isAvailable
-                                      ? "bg-[#0067A1] text-white hover:bg-[#004F7C] active:scale-[0.98]"
+                                      ? "bg-[#0067A1] text-white hover:bg-[#004F7C] shadow-xs cursor-pointer active:scale-95"
                                       : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
                                   }`}
                                 >
-                                  <PhoneCall className="w-4 h-4" />
+                                  <PhoneCall className="w-3 h-3" />
                                   Start Call
                                 </button>
                               );
                             })()}
-                            
-                            <button
-                              onClick={() => handleNotifyPatient(apt)}
-                              disabled={isLoading}
-                              className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-                            >
-                              <Bell className="w-4 h-4" />
-                              Notify
-                            </button>
 
-                            {apt.status === "booked" && !isAppointmentExpired(apt, currentTime) && (
+                            {apt.status === "booked" && !isExpired && (
                               <>
                                 <button
                                   onClick={() => updateAppointmentStatus(apt.id, "approved")}
-                                  disabled={isLoading || isAppointmentExpired(apt, currentTime)}
-                                  className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                                  disabled={isLoading || isExpired}
+                                  className="h-7.5 px-2.5 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/70 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1"
                                 >
-                                  <CheckSquare className="w-4 h-4" />
+                                  <CheckSquare className="w-3 h-3" />
                                   Approve
                                 </button>
                                 <button
                                   onClick={() => updateAppointmentStatus(apt.id, "rejected")}
                                   disabled={isLoading}
-                                  className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-red-50 text-red-700 border border-red-100 hover:bg-red-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                                  className="h-7.5 px-2 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/70 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1"
                                 >
-                                  <XCircle className="w-4 h-4" />
+                                  <XCircle className="w-3 h-3" />
                                   Reject
                                 </button>
                               </>
                             )}
+
+                            <button
+                              onClick={() => handleNotifyPatient(apt)}
+                              disabled={isLoading}
+                              className="h-7.5 px-2 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10.5px] font-semibold transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                              title="Notify Patient"
+                            >
+                              <Bell className="w-3 h-3" />
+                              Notify
+                            </button>
                           </>
                         )}
                       </div>
+
+                      <button
+                        onClick={() => {
+                          setSelectedAppointment(apt);
+                          setActiveModalTab("overview");
+                        }}
+                        className="h-7.5 px-2.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-semibold border border-slate-200/80 transition-all cursor-pointer shrink-0"
+                      >
+                        Details
+                      </button>
                     </div>
                   </div>
-                </div>
                 );
               })}
             </div>
@@ -1002,35 +1128,16 @@ export default function DoctorAppointmentsPage() {
                   <p className="text-xs text-slate-500 mt-0.5">ID: {selectedAppointment.id}</p>
                 </div>
                 <button
-                  onClick={() => setSelectedAppointment(null)}
+                  onClick={handleCloseModal}
                   className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
                 >
                   <XCircle className="w-5 h-5" />
                 </button>
               </div>
-              <div className="flex border-t border-slate-100 px-6 mt-2">
-                <button
-                  onClick={() => setActiveModalTab("overview")}
-                  className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-colors ${
-                    activeModalTab === "overview" ? "border-[#0067A1] text-[#0067A1]" : "border-transparent text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  <div className="flex items-center justify-center gap-2"><User className="w-4 h-4"/> Overview</div>
-                </button>
-                <button
-                  onClick={() => setActiveModalTab("workspace")}
-                  className={`flex-1 py-3 text-sm font-semibold border-b-2 transition-colors ${
-                    activeModalTab === "workspace" ? "border-[#0067A1] text-[#0067A1]" : "border-transparent text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  <div className="flex items-center justify-center gap-2"><Stethoscope className="w-4 h-4"/> Clinical Workspace</div>
-                </button>
-              </div>
             </div>
             
             <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 flex-1 min-h-0">
-              {activeModalTab === "overview" ? (
-                <div className="space-y-6">
+              <div className="space-y-6">
               {/* Patient Info */}
               <div className="flex items-start gap-4">
                 <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-[#0067A1]/10 to-[#0067A1]/5 flex items-center justify-center">
@@ -1232,46 +1339,37 @@ export default function DoctorAppointmentsPage() {
                 )}
               </div>
             </div>
-          ) : ["rejected", "cancelled"].includes(selectedAppointment?.status) ? (
-            <div className="py-10 px-6 text-center space-y-3 bg-slate-50 rounded-lg border border-slate-200/80 m-4">
-              <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto">
-                <AlertCircle className="w-5 h-5" />
-              </div>
-              <h4 className="text-base font-bold text-slate-800">
-                Clinical Workspace Unavailable
-              </h4>
-              <p className="text-sm text-slate-500 max-w-md mx-auto">
-                This appointment has been <span className="font-semibold capitalize text-slate-700">{selectedAppointment?.status}</span>. Writing prescriptions and consultation notes is disabled for {selectedAppointment?.status} appointments.
-              </p>
-            </div>
-          ) : (
-            <ConsultationWorkspace 
-              appointment={selectedAppointment} 
-              onConsultationUpdate={() => {
-                // Refresh list
-                loadAppointments(page, dateFilter);
-              }} 
-            />
-          )}
-        </div>
-        
-        {activeModalTab === "overview" && (
+            
             <div className="sticky bottom-0 bg-white border-t border-slate-100 px-4 py-3 sm:px-6 sm:py-4 flex flex-wrap justify-end gap-2 sm:gap-3 z-10 shrink-0 pb-safe">
               <button
-                onClick={() => setSelectedAppointment(null)}
-                className="px-4 py-2 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors text-sm font-medium"
+                onClick={handleCloseModal}
+                className="px-3.5 py-2 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors text-xs font-semibold cursor-pointer"
               >
                 Close
               </button>
+              {isAppointmentExpired(selectedAppointment, currentTime) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setExtendingAppointment(selectedAppointment);
+                    setExtendMode("now");
+                    setExtendMinutes(15);
+                  }}
+                  className="px-3 py-2 rounded-md bg-blue-50 text-[#0067A1] hover:bg-blue-100 border border-blue-200 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Clock className="w-3.5 h-3.5 text-[#0067A1]" />
+                  + Add Time
+                </button>
+              )}
               {selectedAppointment.screening?.id && (
                 <button
                   onClick={() => {
                     window.open(`/api/screening/${selectedAppointment.screening.id}/doctors`, "_blank");
                   }}
-                  className="px-4 py-2 rounded-md border border-[#0067A1]/20 text-[#0067A1] bg-white hover:bg-[#0067A1]/5 transition-colors text-sm font-medium flex items-center gap-2"
+                  className="px-3 py-2 rounded-md border border-[#0067A1]/20 text-[#0067A1] bg-white hover:bg-[#0067A1]/5 transition-colors text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                 >
-                  <ExternalLink className="w-4 h-4" />
-                  View Full Screening
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Screening
                 </button>
               )}
               {isVideoAppointment(selectedAppointment) && !["rejected", "cancelled"].includes(selectedAppointment.status) && !isAppointmentExpired(selectedAppointment, currentTime) && (() => {
@@ -1280,22 +1378,163 @@ export default function DoctorAppointmentsPage() {
                   <button
                     onClick={() => {
                       handleStartCall(selectedAppointment);
-                      setSelectedAppointment(null);
+                      handleCloseModal();
                     }}
                     disabled={!timing.isAvailable}
                     title={timing.status === "early" ? "Opens 5 minutes before scheduled start time" : undefined}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    className={`px-3.5 py-2 rounded-md text-xs font-semibold transition-all cursor-pointer ${
                       timing.isAvailable
-                        ? "bg-[#0067A1] text-white hover:bg-[#004F7C]"
+                        ? "bg-[#0067A1] text-white hover:bg-[#004F7C] shadow-xs"
                         : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
                     }`}
                   >
-                    {timing.status === "early" ? "Call Opens 5m Before" : "Start Video Call"}
+                    {timing.status === "early" ? "Opens in 5m" : "Start Call"}
                   </button>
                 );
               })()}
             </div>
-        )}
+          </div>
+        </div>
+      </div>
+      )}
+
+      {/* Extend Appointment Time Modal */}
+      {extendingAppointment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-fade-in">
+          <div className="w-full max-w-md rounded-xl bg-white border border-slate-200 shadow-xl overflow-hidden p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#0067A1] flex items-center justify-center">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">Add Time / Extend Slot</h3>
+                  <p className="text-xs text-slate-500">Reactivate expired consultation</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExtendingAppointment(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Patient:</span>
+                <span className="font-semibold text-slate-800">{extendingAppointment.patient?.full_name || "Patient"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Original Slot:</span>
+                <span className="font-medium text-slate-700">{extendingAppointment.appointment_date} • {formatTime(extendingAppointment.appointment_time)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Type:</span>
+                <span className="capitalize font-medium text-slate-700">{extendingAppointment.appointment_type?.replace("_", " ") || "Consultation"}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-2">
+                Select Extension Option:
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setExtendMode("now"); setExtendMinutes(0); }}
+                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                    extendMode === "now"
+                      ? "border-[#0067A1] bg-sky-50/70 text-[#0067A1] ring-1 ring-[#0067A1]"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <p className="text-xs font-bold flex items-center gap-1.5">
+                    <CheckCircle className={`w-3.5 h-3.5 ${extendMode === "now" ? "text-[#0067A1]" : "text-slate-300"}`} />
+                    Active Now
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5 ml-5">Live immediately for next 40m</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setExtendMode("add"); setExtendMinutes(15); }}
+                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                    extendMode === "add" && extendMinutes === 15
+                      ? "border-[#0067A1] bg-sky-50/70 text-[#0067A1] ring-1 ring-[#0067A1]"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <p className="text-xs font-bold flex items-center gap-1.5">
+                    <CheckCircle className={`w-3.5 h-3.5 ${extendMode === "add" && extendMinutes === 15 ? "text-[#0067A1]" : "text-slate-300"}`} />
+                    +15 Mins
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5 ml-5">Slot in 15 mins from now</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setExtendMode("add"); setExtendMinutes(30); }}
+                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                    extendMode === "add" && extendMinutes === 30
+                      ? "border-[#0067A1] bg-sky-50/70 text-[#0067A1] ring-1 ring-[#0067A1]"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <p className="text-xs font-bold flex items-center gap-1.5">
+                    <CheckCircle className={`w-3.5 h-3.5 ${extendMode === "add" && extendMinutes === 30 ? "text-[#0067A1]" : "text-slate-300"}`} />
+                    +30 Mins
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5 ml-5">Slot in 30 mins from now</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setExtendMode("add"); setExtendMinutes(60); }}
+                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                    extendMode === "add" && extendMinutes === 60
+                      ? "border-[#0067A1] bg-sky-50/70 text-[#0067A1] ring-1 ring-[#0067A1]"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <p className="text-xs font-bold flex items-center gap-1.5">
+                    <CheckCircle className={`w-3.5 h-3.5 ${extendMode === "add" && extendMinutes === 60 ? "text-[#0067A1]" : "text-slate-300"}`} />
+                    +60 Mins
+                  </p>
+                  <p className="text-[10px] text-slate-500 mt-0.5 ml-5">Slot in 1 hour from now</p>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setExtendingAppointment(null)}
+                disabled={isExtending}
+                className="h-8.5 px-3 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleExtendSlot(extendingAppointment, extendMinutes, extendMode)}
+                disabled={isExtending}
+                className="h-8.5 px-4 rounded-lg bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold shadow-xs transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isExtending ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Extend Slot
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

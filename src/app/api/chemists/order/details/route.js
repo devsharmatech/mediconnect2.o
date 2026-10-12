@@ -51,6 +51,13 @@ export async function POST(req) {
             mo.payment_method,
             mo.razorpay_payment_id,
             mo.razorpay_order_id,
+            mo.payu_mihpayid,
+            mo.payu_txnid,
+            mo.payu_status,
+            mo.chemist_payout_amount,
+            mo.platform_commission_amount,
+            mo.chemist_payout_method,
+            mo.chemist_payout_destination,
             pd.address AS raw_delivery_address,
 
             -- Patient basic
@@ -102,6 +109,13 @@ export async function POST(req) {
             mo.payment_method,
             mo.razorpay_payment_id,
             mo.razorpay_order_id,
+            mo.payu_mihpayid,
+            mo.payu_txnid,
+            mo.payu_status,
+            mo.chemist_payout_amount,
+            mo.platform_commission_amount,
+            mo.chemist_payout_method,
+            mo.chemist_payout_destination,
             pd.address AS raw_delivery_address,
 
             -- Patient basic

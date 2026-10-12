@@ -545,6 +545,34 @@ export default function LungHealthResult() {
         ? (Number(inputs.weight_kg) / ((Number(inputs.height_cm) / 100) ** 2)).toFixed(1)
         : '22.5');
 
+  const unifiedAssessmentData = {
+    ...assessmentData,
+    serial_no: formattedSerialNo,
+    patient_name: resolvedPatientName || assessmentData?.patient_name || "Self-Reported",
+    health_score,
+    risk_level,
+    ai_analysis: parsedAi || ai_analysis,
+    wellness_practices: resolvedPractices,
+    recommendations: resolvedPractices,
+    inputs: {
+      ...rawInputs,
+      ...inputs,
+      peak_flow: peakFlow,
+      breaths_per_minute: bpm,
+      aqi: aqiVal,
+      breath_holding_time: breathHold,
+      smoking_status: rawSmoking,
+      smoking_pack_years: packYears,
+      cigarettes_per_day: cigsPerDay,
+      smoking_years: smkYears,
+      age: inputs.age || 35,
+      bmi: formattedBmi,
+      cough_frequency: inputs.cough_frequency || (hasCough ? "Daily" : "None"),
+      breathlessness: inputs.breathlessness || (isShortOfBreath ? "Moderate" : "None"),
+      wheezing: hasWheezing
+    }
+  };
+
   const handleDownloadPDF = async (format = selectedLungFormat) => {
     try {
       setDownloadingPDF(true);
@@ -627,7 +655,7 @@ export default function LungHealthResult() {
       <AssessmentPrintReport
         assessmentType="lung"
         formatType={selectedLungFormat}
-        assessmentData={assessmentData}
+        assessmentData={unifiedAssessmentData}
         patientData={patientData}
         reportRef={reportRef}
       />
@@ -1128,7 +1156,7 @@ export default function LungHealthResult() {
                 Official Format:
               </span>
               {[
-                { id: "lung-v9.9", label: "Health Summary", badge: "1-Page Summary" },
+                { id: "lung-v9.9", label: "Health Summary", badge: "Clinical Summary" },
                 { id: "lung-full", label: "Full Clinical Assessment", badge: "Comprehensive Matrix" }
               ].map((fmt) => (
                 <button
@@ -1154,12 +1182,12 @@ export default function LungHealthResult() {
               <div className="bg-white shadow-2xl ring-1 ring-black/20 overflow-x-auto max-w-full rounded-[2px]">
                 {selectedLungFormat === "lung-v9.9" ? (
                   <LungConnectV99Report
-                    assessmentData={assessmentData}
+                    assessmentData={unifiedAssessmentData}
                     patientData={patientData}
                   />
                 ) : (
                   <LungConnectFullReport
-                    assessmentData={assessmentData}
+                    assessmentData={unifiedAssessmentData}
                     patientData={patientData}
                   />
                 )}

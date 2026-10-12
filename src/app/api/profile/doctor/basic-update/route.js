@@ -63,9 +63,25 @@ export async function PUT(req) {
     if (languages !== undefined) updateData.languages = Array.isArray(languages) ? languages.join(", ") : languages;
     if (available_days !== undefined) updateData.available_days = Array.isArray(available_days) ? available_days : null;
     if (available_time !== undefined) updateData.available_time = sql.json(available_time);
-    if (clinic_slots !== undefined) updateData.clinic_slots = sql.json(clinic_slots);
-    if (video_slots !== undefined) updateData.video_slots = sql.json(video_slots);
-    if (home_slots !== undefined) updateData.home_slots = sql.json(home_slots);
+
+    function sanitizeSlotMap(slots) {
+      if (!slots || typeof slots !== "object") return {};
+      const result = {};
+      for (const [day, val] of Object.entries(slots)) {
+        if (!val) continue;
+        if (Array.isArray(val)) {
+          const filtered = val.filter(s => s && s.start && s.end);
+          if (filtered.length > 0) result[day] = filtered;
+        } else if (typeof val === "object" && val.start && val.end) {
+          result[day] = [{ start: val.start, end: val.end }];
+        }
+      }
+      return result;
+    }
+
+    if (clinic_slots !== undefined) updateData.clinic_slots = sql.json(sanitizeSlotMap(clinic_slots));
+    if (video_slots !== undefined) updateData.video_slots = sql.json(sanitizeSlotMap(video_slots));
+    if (home_slots !== undefined) updateData.home_slots = sql.json(sanitizeSlotMap(home_slots));
     if (leave_days !== undefined) updateData.leave_days = sql.json(leave_days);
     if (second_booking_discount_type !== undefined) updateData.second_booking_discount_type = second_booking_discount_type;
     if (second_booking_discount_value !== undefined) updateData.second_booking_discount_value = Number(second_booking_discount_value) || 0;
@@ -93,16 +109,11 @@ export async function PUT(req) {
       `;
     }
 
-    // Update users table (phone_number and full_name if present)
-    const userUpdates = {};
-    if (phone_number) userUpdates.phone_number = phone_number;
-    if (full_name) userUpdates.full_name = full_name;
-    if (Object.keys(userUpdates).length > 0) {
-      userUpdates.updated_at = new Date();
-      const userKeys = Object.keys(userUpdates);
+    // Update users table (phone_number if present — full_name is stored in doctor_details)
+    if (phone_number) {
       await sql`
         UPDATE users
-        SET ${sql(userUpdates, ...userKeys)}
+        SET phone_number = ${phone_number}, updated_at = NOW()
         WHERE id = ${user_id}
       `;
     }

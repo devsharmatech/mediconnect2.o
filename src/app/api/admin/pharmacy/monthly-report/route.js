@@ -73,8 +73,8 @@ async function generatePlatformMonthlyReport({ month, year }) {
     const refundedOrders = allOrders.filter(o => String(o.status).toLowerCase() === "refunded");
     const totalRefunds = refundedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
 
-    // Commission & Settlement
-    const commissionRate = 0.05; // 5% MediConnect revenue
+    // Commission & Settlement (10% Admin/System fee, 90% Chemist payout)
+    const commissionRate = 0.10; // 10% MediConnect admin/system revenue
     const totalMediConnectRevenue = parseFloat((totalTransactionValue * commissionRate).toFixed(2));
     const totalPharmacySettlement = parseFloat((totalTransactionValue - totalRefunds - totalMediConnectRevenue).toFixed(2));
 

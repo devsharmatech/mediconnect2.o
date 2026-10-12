@@ -13,7 +13,7 @@ export default function Footer() {
             <ul className="space-y-2 text-sm text-gray-400">
               <li>
                 <Link
-                  href="/website/privacy"
+                  href="/privacy"
                   className="hover:text-white transition-colors"
                 >
                   Privacy Policy
@@ -21,7 +21,7 @@ export default function Footer() {
               </li>
               <li>
                 <Link
-                  href="/website/terms"
+                  href="/terms"
                   className="hover:text-white transition-colors"
                 >
                   Terms of Use
@@ -29,7 +29,7 @@ export default function Footer() {
               </li>
               <li>
                 <Link
-                  href="/website/telemedicine-disclaimer"
+                  href="/telemedicine-disclaimer"
                   className="hover:text-white transition-colors"
                 >
                   Telemedicine Consent

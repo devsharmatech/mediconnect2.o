@@ -255,7 +255,7 @@ export default function CardioConnectF4Report({
   })();
 
   const wellnessPractices = dynamicRecs.length > 0
-    ? dynamicRecs.slice(0, 4).map((rec, idx) => {
+    ? dynamicRecs.map((rec, idx) => {
         let steps = [];
         if (Array.isArray(rec.action_steps) && rec.action_steps.length > 0) {
           steps = rec.action_steps.map((s) => String(s));
@@ -769,54 +769,59 @@ export default function CardioConnectF4Report({
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "9px" }}>
-              {wellnessPractices.map((practice, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    border: "1px solid #cbd5e1",
-                    borderRadius: "4px",
-                    backgroundColor: "#ffffff",
-                    padding: "9px 11px",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between"
-                  }}
-                >
-                  <div>
-                    {/* Badge & timeframe */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px", flexWrap: "wrap", gap: "3px" }}>
-                      <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                        <span style={{ fontSize: "8.5px", fontWeight: "800", color: "#065f46", backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0", padding: "1px 5px", borderRadius: "2px", textTransform: "uppercase" }}>
-                          {practice.category}
-                        </span>
-                        <span style={{ fontSize: "8px", fontWeight: "700", color: "#1e293b", backgroundColor: "#f1f5f9", border: "1px solid #cbd5e1", padding: "1px 4px", borderRadius: "2px", textTransform: "uppercase" }}>
-                          {practice.priorityTag}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              {wellnessPractices.map((practice, idx) => {
+                const isLastOdd = (wellnessPractices.length % 2 === 1) && (idx === wellnessPractices.length - 1);
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "4px",
+                      backgroundColor: "#ffffff",
+                      padding: "8px 11px",
+                      display: "flex",
+                      flexDirection: isLastOdd ? "row" : "column",
+                      justifyContent: "space-between",
+                      gridColumn: isLastOdd ? "1 / -1" : "auto",
+                      gap: isLastOdd ? "14px" : "0px"
+                    }}
+                  >
+                    <div style={{ flex: isLastOdd ? "1.1" : "none" }}>
+                      {/* Badge & timeframe */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "3px", flexWrap: "wrap", gap: "3px" }}>
+                        <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                          <span style={{ fontSize: "8.5px", fontWeight: "800", color: "#065f46", backgroundColor: "#ecfdf5", border: "1px solid #a7f3d0", padding: "1px 5px", borderRadius: "2px", textTransform: "uppercase" }}>
+                            {practice.category}
+                          </span>
+                          <span style={{ fontSize: "8px", fontWeight: "700", color: "#1e293b", backgroundColor: "#f1f5f9", border: "1px solid #cbd5e1", padding: "1px 4px", borderRadius: "2px", textTransform: "uppercase" }}>
+                            {practice.priorityTag}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: "8.5px", color: "#64748b", fontWeight: "600" }}>
+                          {practice.timeframe}
                         </span>
                       </div>
-                      <span style={{ fontSize: "8.5px", color: "#64748b", fontWeight: "600" }}>
-                        {practice.timeframe}
-                      </span>
-                    </div>
 
-                    {/* Title */}
-                    <div style={{ fontSize: "11px", fontWeight: "800", color: "#0f2d4a", marginBottom: "3px", lineHeight: "1.25" }}>
-                      {practice.title}
-                    </div>
+                      {/* Title */}
+                      <div style={{ fontSize: "10.5px", fontWeight: "800", color: "#0f2d4a", marginBottom: "2px", lineHeight: "1.25" }}>
+                        {practice.title}
+                      </div>
 
-                    {/* Description */}
-                    <div style={{ fontSize: "9.5px", color: "#475569", lineHeight: "1.35", marginBottom: "6px" }}>
-                      {practice.description}
+                      {/* Description */}
+                      <div style={{ fontSize: "9px", color: "#475569", lineHeight: "1.3", marginBottom: "5px" }}>
+                        {practice.description}
+                      </div>
                     </div>
 
                     {/* Steps list */}
-                    <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "5px" }}>
-                      <div style={{ fontSize: "8.5px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "3px", letterSpacing: "0.2px" }}>
+                    <div style={{ flex: isLastOdd ? "1" : "none", borderTop: isLastOdd ? "none" : "1px solid #f1f5f9", borderLeft: isLastOdd ? "1px solid #f1f5f9" : "none", paddingTop: isLastOdd ? "0px" : "4px", paddingLeft: isLastOdd ? "12px" : "0px" }}>
+                      <div style={{ fontSize: "8.5px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", marginBottom: "2px", letterSpacing: "0.2px" }}>
                         Recommended Steps:
                       </div>
                       <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
                         {practice.steps.map((step, sIdx) => (
-                          <li key={sIdx} style={{ fontSize: "9px", color: "#334155", lineHeight: "1.3", marginBottom: "2.5px", display: "flex", alignItems: "flex-start", gap: "4px" }}>
+                          <li key={sIdx} style={{ fontSize: "8.5px", color: "#334155", lineHeight: "1.25", marginBottom: "1.5px", display: "flex", alignItems: "flex-start", gap: "4px" }}>
                             <span style={{ color: "#059669", fontWeight: "800", flexShrink: 0 }}>✓</span>
                             <span>{step}</span>
                           </li>
@@ -824,8 +829,8 @@ export default function CardioConnectF4Report({
                       </ul>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

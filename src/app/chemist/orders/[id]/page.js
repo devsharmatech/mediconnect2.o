@@ -1087,8 +1087,8 @@ export default function OrderDetailsPage() {
 
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 dark:text-slate-400">Delivery Fee</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">
-                    ₹{deliveryCharge.toLocaleString()}
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    {deliveryCharge === 0 ? "FREE (₹0 Promo)" : `₹${deliveryCharge.toLocaleString()}`}
                   </span>
                 </div>
 
@@ -1113,6 +1113,22 @@ export default function OrderDetailsPage() {
                   <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                     ₹{grandTotal.toLocaleString()}
                   </span>
+                </div>
+
+                {/* Payout & Commission Breakdown */}
+                <div className="mt-3 pt-3 border-t border-dashed border-slate-200 dark:border-slate-700 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+                    <span>Chemist Share (90%)</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      ₹{(grandTotal * 0.9).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-[11px]">
+                    <span>MediConnect Platform (10%)</span>
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
+                      ₹{(grandTotal * 0.1).toFixed(2)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1477,8 +1493,8 @@ export default function OrderDetailsPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Delivery:</span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">
-                    ₹{deliveryCharge.toLocaleString()}
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    {deliveryCharge === 0 ? "FREE" : `₹${deliveryCharge.toLocaleString()}`}
                   </span>
                 </div>
                 {discountAmount > 0 && (
@@ -1492,6 +1508,60 @@ export default function OrderDetailsPage() {
                   <span className="text-emerald-600 dark:text-emerald-400">
                     ₹{grandTotal.toLocaleString()}
                   </span>
+                </div>
+
+                {/* Settlement split */}
+                <div className="mt-2 pt-2 border-t border-dashed border-slate-200 dark:border-slate-700 space-y-1 text-[11px]">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>Chemist Payout (90%):</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                      ₹{order.chemist_payout_amount ? Number(order.chemist_payout_amount).toFixed(2) : (grandTotal * 0.9).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-500 dark:text-slate-400">
+                    <span>Platform Fee (10%):</span>
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
+                      ₹{order.platform_commission_amount ? Number(order.platform_commission_amount).toFixed(2) : (grandTotal * 0.1).toFixed(2)}
+                    </span>
+                  </div>
+
+                  {/* Destination Audit Block */}
+                  {order.chemist_payout_method && (
+                    <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-2 rounded">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wide font-semibold">Payout Destination</span>
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+                          {order.chemist_payout_method === "BANK_ACCOUNT" ? "Bank Transfer" : "UPI Transfer"}
+                        </span>
+                      </div>
+                      {order.chemist_payout_destination && (
+                        <div className="text-[11px] text-slate-700 dark:text-slate-300 space-y-0.5">
+                          {order.chemist_payout_method === "BANK_ACCOUNT" ? (
+                            <>
+                              <p className="font-medium truncate">{order.chemist_payout_destination.bank_name || "Bank"}</p>
+                              <p className="font-mono text-[10px] text-slate-500">
+                                A/C: {order.chemist_payout_destination.account_number_masked || order.chemist_payout_destination.account_number}
+                              </p>
+                              <p className="font-mono text-[10px] text-slate-500">
+                                IFSC: {order.chemist_payout_destination.ifsc_code}
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="font-mono font-semibold text-sky-600 dark:text-sky-400 break-all">
+                                {order.chemist_payout_destination.upi_id || order.payment_qr_payload || "UPI"}
+                              </p>
+                              {order.chemist_payout_destination.beneficiary_name && (
+                                <p className="text-[10px] text-slate-500">
+                                  Beneficiary: {order.chemist_payout_destination.beneficiary_name}
+                                </p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1515,6 +1585,18 @@ export default function OrderDetailsPage() {
                     <span className="font-semibold text-slate-900 dark:text-white uppercase">
                       {order.payment_method}
                     </span>
+                  </div>
+                )}
+                {order.payu_mihpayid && (
+                  <div className="p-2 rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-[11px]">
+                    <span className="text-slate-500">PayU ID: </span>
+                    <span className="font-bold text-slate-900 dark:text-white break-all">{order.payu_mihpayid}</span>
+                  </div>
+                )}
+                {order.payu_txnid && (
+                  <div className="p-2 rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-[11px]">
+                    <span className="text-slate-500">Txn ID: </span>
+                    <span className="font-bold text-slate-900 dark:text-white break-all">{order.payu_txnid}</span>
                   </div>
                 )}
                 {order.razorpay_payment_id && (

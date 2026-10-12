@@ -4,6 +4,7 @@ import { broadcastEmitter } from "@/lib/broadcastEmitter";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { sendPushAndInAppNotification } from "@/lib/notificationHelper";
+import { getPayUConfig, generatePayUHash, buildPayUSplitRequest } from "@/lib/payu";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -28,7 +29,101 @@ export async function POST(req) {
     }
 
     if (broadcast.status === "completed") {
-      return failure("An offer has already been selected for this broadcast", null, 409, { headers: corsHeaders });
+      // Check if there is an existing pending order that can proceed to payment
+      const existingOrderRows = await sql`
+        SELECT * FROM medicine_orders
+        WHERE (prescription_id = ${broadcast.prescription_id} OR patient_id = ${broadcast.patient_id})
+          AND status IN ('payment_pending', 'pending')
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+      const existingOrder = existingOrderRows[0];
+      if (existingOrder) {
+        const quoteRows = await sql`
+          SELECT q.*, cd.pharmacy_name, cd.payu_child_key, cd.payu_vendor_id
+          FROM medicine_order_quotes q
+          LEFT JOIN chemist_details cd ON cd.id = q.chemist_id
+          WHERE q.id = ${quote_id}
+          LIMIT 1
+        `;
+        const quote = quoteRows[0];
+        const finalAmount = parseFloat(existingOrder.total_amount);
+        const payuConfig = getPayUConfig();
+
+        let originClean = "";
+        try {
+          const originHdr = req.headers.get("origin") || req.headers.get("referer") || "";
+          if (originHdr) originClean = new URL(originHdr).origin;
+        } catch (_) {}
+        const baseUrl = originClean || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+        const surl = `${baseUrl}/api/patients/orders/medicine/payu/response`;
+        const furl = `${baseUrl}/api/patients/orders/medicine/payu/response`;
+
+        const txnid = `PAYU_MED_${existingOrder.unid || existingOrder.id.slice(0, 8)}_${Date.now()}`;
+        const formattedAmount = finalAmount.toFixed(2);
+        const productinfo = `Medicine Order #${existingOrder.unid} - ${(quote?.pharmacy_name || "Pharmacy").slice(0, 50)}`;
+
+        const patientRows = await sql`
+          SELECT pd.full_name, pd.email, u.phone_number 
+          FROM users u 
+          LEFT JOIN patient_details pd ON pd.id = u.id 
+          WHERE u.id = ${broadcast.patient_id} 
+          LIMIT 1
+        `;
+        const patient = patientRows[0] || {};
+        const firstname = (patient.full_name || "Customer").trim().split(" ")[0] || "Customer";
+        const email = patient.email || "patient@mediconnect.fit";
+        const phone = (patient.phone_number || broadcast.contact_phone || "9999999999").replace(/\D/g, "").slice(-10) || "9999999999";
+
+        const hash = generatePayUHash({
+          key: payuConfig.key,
+          txnid,
+          amount: formattedAmount,
+          productinfo,
+          firstname,
+          email,
+          udf1: String(existingOrder.id),
+          udf2: String(broadcast.patient_id),
+          udf3: String(quote?.chemist_id || existingOrder.chemist_id),
+          udf4: String(existingOrder.unid),
+          udf5: "pharmacy_order",
+          salt: payuConfig.salt,
+        });
+
+        await sql`
+          UPDATE medicine_orders 
+          SET payu_txnid = ${txnid}, payu_status = 'initiated', updated_at = NOW() 
+          WHERE id = ${existingOrder.id}
+        `;
+
+        return success("Resuming payment for existing order", {
+          order: existingOrder,
+          payu: {
+            action_url: payuConfig.actionUrl,
+            payment_params: {
+              key: payuConfig.key,
+              txnid,
+              amount: formattedAmount,
+              productinfo,
+              firstname,
+              email,
+              phone,
+              surl,
+              furl,
+              hash,
+              udf1: String(existingOrder.id),
+              udf2: String(broadcast.patient_id),
+              udf3: String(quote?.chemist_id || existingOrder.chemist_id),
+              udf4: String(existingOrder.unid),
+              udf5: "pharmacy_order",
+            }
+          },
+          amount: finalAmount,
+          pharmacy_name: quote?.pharmacy_name || "Pharmacy",
+        }, 200, { headers: corsHeaders });
+      }
+
+      return failure("An offer has already been completed for this broadcast", null, 409, { headers: corsHeaders });
     }
 
     // 2. Fetch the selected quote with chemist details
@@ -38,7 +133,9 @@ export async function POST(req) {
         cd.pharmacy_name,
         cd.address as chemist_address,
         cd.payment_qr_url,
-        cd.payment_qr_payload
+        cd.payment_qr_payload,
+        cd.payu_child_key,
+        cd.payu_vendor_id
       FROM medicine_order_quotes q
       LEFT JOIN chemist_details cd ON cd.id = q.chemist_id
       WHERE q.id = ${quote_id} AND q.broadcast_id = ${broadcast_id}
@@ -184,40 +281,118 @@ export async function POST(req) {
       }
     }
 
-    // 8. Generate Razorpay Checkout Order
-    const razorpayKeyId = process.env.RAZORPAY_KEY_ID || process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
-    const razorpaySecret = process.env.RAZORPAY_KEY_SECRET;
-    let razorpayOrder = null;
+    // 8. Generate PayU Checkout Details (Dedicated for Chemist / Pharmacy Orders)
+    const payuConfig = getPayUConfig();
+    let payuPayload = null;
 
-    if (razorpayKeyId && razorpaySecret && finalAmount > 0) {
+    if (payuConfig.key && payuConfig.salt && finalAmount > 0) {
       try {
-        const razorpay = new Razorpay({
-          key_id: razorpayKeyId,
-          key_secret: razorpaySecret,
-        });
+        const patientRows = await sql`
+          SELECT 
+            pd.full_name, 
+            pd.email, 
+            u.phone_number 
+          FROM users u
+          LEFT JOIN patient_details pd ON pd.id = u.id 
+          WHERE u.id = ${broadcast.patient_id} 
+          LIMIT 1
+        `;
+        const patient = patientRows[0] || {};
 
-        razorpayOrder = await razorpay.orders.create({
-          amount: Math.round(finalAmount * 100), // convert to paise
-          currency: "INR",
-          receipt: `med_ord_${order.unid || Date.now().toString().slice(-6)}`,
-          notes: {
-            order_id: String(order.id),
-            unid: String(order.unid || nextUnid),
-            patient_id: String(broadcast.patient_id),
-            chemist_id: String(quote.chemist_id),
-            pharmacy_name: quote.pharmacy_name || "Partner Pharmacy",
-          },
-        });
+        const txnid = `PAYU_MED_${order.unid || nextUnid}_${Date.now()}`;
+        const formattedAmount = finalAmount.toFixed(2);
+        const productinfo = `Medicine Order #${order.unid || nextUnid} - ${(quote.pharmacy_name || "Partner Pharmacy").slice(0, 50)}`;
+        const firstname = (patient.full_name || "Customer").trim().split(" ")[0] || "Customer";
+        const email = patient.email || "patient@mediconnect.fit";
+        const phone = (patient.phone_number || broadcast.contact_phone || "9999999999").replace(/\D/g, "").slice(-10) || "9999999999";
 
-        if (razorpayOrder?.id) {
-          await sql`
-            UPDATE medicine_orders 
-            SET razorpay_order_id = ${razorpayOrder.id}
-            WHERE id = ${order.id}
-          `;
+        const udf1 = String(order.id);
+        const udf2 = String(broadcast.patient_id);
+        const udf3 = String(quote.chemist_id);
+        const udf4 = String(order.unid || nextUnid);
+        const udf5 = "pharmacy_order";
+
+        // ── 90% Chemist Settlement / 10% Platform Commission Split ──
+        const chemistAmount = parseFloat((finalAmount * 0.90).toFixed(2));
+        const platformAmount = parseFloat((finalAmount - chemistAmount).toFixed(2));
+
+        const childMerchantKey = quote.payu_child_key || quote.payu_vendor_id || process.env.PAYU_PHARMACY_CHILD_KEY || null;
+        let splitRequest = null;
+        if (childMerchantKey) {
+          splitRequest = buildPayUSplitRequest({
+            childMerchantKey,
+            chemistAmount,
+            platformAmount,
+            subTxnId: `${txnid}_sub1`,
+          });
         }
-      } catch (rzErr) {
-        console.warn("Could not create Razorpay order for medicine order:", rzErr.message);
+
+        const hash = generatePayUHash({
+          key: payuConfig.key,
+          txnid,
+          amount: formattedAmount,
+          productinfo,
+          firstname,
+          email,
+          udf1,
+          udf2,
+          udf3,
+          udf4,
+          udf5,
+          splitRequest,
+          salt: payuConfig.salt,
+        });
+
+        let originClean = "";
+        try {
+          const originHdr = req.headers.get("origin") || req.headers.get("referer") || "";
+          if (originHdr) originClean = new URL(originHdr).origin;
+        } catch (_) {}
+        const baseUrl = originClean || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+        const surl = `${baseUrl}/api/patients/orders/medicine/payu/response`;
+        const furl = `${baseUrl}/api/patients/orders/medicine/payu/response`;
+
+        await sql`
+          UPDATE medicine_orders 
+          SET 
+            payu_txnid = ${txnid},
+            payment_method = 'payu',
+            payu_status = 'initiated',
+            chemist_payout_amount = ${chemistAmount},
+            platform_commission_amount = ${platformAmount},
+            payu_split_request = ${splitRequest ? JSON.parse(splitRequest) : null}::jsonb,
+            payu_split_status = ${splitRequest ? 'split_configured' : 'ledger_only'},
+            updated_at = NOW()
+          WHERE id = ${order.id}
+        `;
+
+        payuPayload = {
+          action_url: payuConfig.actionUrl,
+          payment_split: {
+            chemist_share: chemistAmount,
+            platform_commission: platformAmount,
+          },
+          payment_params: {
+            key: payuConfig.key,
+            txnid,
+            amount: formattedAmount,
+            productinfo,
+            firstname,
+            email,
+            phone,
+            surl,
+            furl,
+            hash,
+            udf1,
+            udf2,
+            udf3,
+            udf4,
+            udf5,
+            ...(splitRequest ? { splitRequest } : {}),
+          },
+        };
+      } catch (payuErr) {
+        console.warn("Could not generate PayU order payload:", payuErr.message);
       }
     }
 
@@ -236,8 +411,7 @@ export async function POST(req) {
 
     return success("Offer selected and payment initiated", {
       order,
-      razorpay_order_id: razorpayOrder?.id || null,
-      razorpay_key: razorpayKeyId || null,
+      payu: payuPayload,
       amount: finalAmount,
       pharmacy_name: quote.pharmacy_name || "Partner Pharmacy",
     }, 200, { headers: corsHeaders });
