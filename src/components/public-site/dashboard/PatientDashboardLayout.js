@@ -54,7 +54,8 @@ const PatientDashboardLayout = ({ children }) => {
     const userData = localStorage.getItem("userData");
 
     if (!userId) {
-      window.location.replace("/");
+      const target = typeof window !== "undefined" ? window.location.pathname : (pathname || "/");
+      window.location.replace(`/?auth=login&redirect=${encodeURIComponent(target)}`);
       return;
     }
 

@@ -304,8 +304,14 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
           if (onSuccess) {
             onSuccess(response.data);
           } else {
-            const redirectPath = role === 'doctor' ? '/doctor' : '/website/dashboard';
-            router.push(redirectPath);
+            const storedRedirect = typeof window !== "undefined" ? sessionStorage.getItem("post_login_redirect") : null;
+            if (storedRedirect) {
+              sessionStorage.removeItem("post_login_redirect");
+              router.push(storedRedirect);
+            } else {
+              const redirectPath = role === 'doctor' ? '/doctor' : '/website/dashboard';
+              router.push(redirectPath);
+            }
           }
         }, 1000);
       } else {

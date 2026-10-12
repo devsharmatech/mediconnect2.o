@@ -86,6 +86,7 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
 
   const timeoutRef = useRef(null);
   const navContainerRef = useRef(null);
+  const loginMenuRef = useRef(null);
 
   const handleMenuEnter = (menuKey) => {
     if (timeoutRef.current) {
@@ -124,6 +125,7 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
     }
     setActiveMenu(null);
     setIsPinned(false);
+    setIsLoginMenuOpen(false);
   };
 
   // Close menus on route change
@@ -136,6 +138,9 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
     const handleClickOutside = (e) => {
       if (navContainerRef.current && !navContainerRef.current.contains(e.target)) {
         closeAllMenus();
+      }
+      if (loginMenuRef.current && !loginMenuRef.current.contains(e.target)) {
+        setIsLoginMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -274,6 +279,22 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
       window.removeEventListener("open-signup-modal", handleOpenSignupModalEvent);
     };
   }, [handleOpenLogin, handleOpenSignup]);
+
+  // Handle auto-opening login modal if directed with ?auth=login
+  useEffect(() => {
+    if (!mounted || typeof window === "undefined" || isLoggedIn) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("auth") === "login") {
+        const redirectTarget = params.get("redirect");
+        if (redirectTarget) {
+          sessionStorage.setItem("post_login_redirect", redirectTarget);
+        }
+        handleOpenLogin(null, "patient");
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    } catch (_) {}
+  }, [mounted, isLoggedIn, handleOpenLogin]);
 
   // Auto-show Login/Register modal after a few seconds if visitor is not logged in
   useEffect(() => {
@@ -441,7 +462,7 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
         onSignupClick={handleOpenSignup}
         initialUserType={loginUserType}
       />
-      <nav className="sticky top-0 z-[10001] border-b border-gray-100 bg-white">
+      <nav ref={navContainerRef} className="sticky top-0 z-[10001] border-b border-gray-100 bg-white">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             {/* LOGO */}
@@ -776,79 +797,160 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                 ) : isLoggedIn ? (
                   <ProfileDropdown user={user} userRole={userRole} onLogout={handleLogout} />
                 ) : (
-                  <>
-                    <div className="relative inline-block text-left" suppressHydrationWarning>
-                      <button
-                        type="button"
-                        suppressHydrationWarning
-                        onClick={toggleLoginMenu}
-                        className="inline-flex items-center justify-center px-4 py-2 text-xs xl:text-sm font-semibold rounded-xl bg-[#0067A1] text-white hover:bg-[#004F7C] focus:outline-none transition-colors cursor-pointer shadow-xs gap-1.5"
-                      >
-                        <FaUser className="h-3.5 w-3.5 text-white" />
-                        <span>Login / Register</span>
-                        <FaChevronDown
-                          className={`h-3 w-3 transition-transform duration-200 ${
-                            isLoginMenuOpen ? "rotate-180" : ""
-                          }`}
-                        />
-                      </button>
-                      {isLoginMenuOpen && (
-                        <div className="absolute right-0 mt-2 w-56 rounded-xl bg-white border border-slate-200 shadow-xl p-1.5 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                  <div className="relative inline-block text-left" ref={loginMenuRef} suppressHydrationWarning>
+                    <button
+                      type="button"
+                      suppressHydrationWarning
+                      onClick={toggleLoginMenu}
+                      aria-expanded={isLoginMenuOpen}
+                      aria-haspopup="true"
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs xl:text-sm font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#00507c] active:scale-[0.98] focus:outline-none transition-all cursor-pointer shadow-xs hover:shadow-sm"
+                    >
+                      <FaUser className="h-3.5 w-3.5 text-white shrink-0" />
+                      <span>Login</span>
+                      <FaChevronDown
+                        className={`h-3 w-3 text-sky-100 transition-transform duration-200 ${
+                          isLoginMenuOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                    {isLoginMenuOpen && (
+                      <div className="absolute right-0 mt-2.5 w-72 rounded-2xl bg-white border border-slate-200/80 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                        {/* Primary: Patient Login (Highlighted for non-tech users) */}
+                        <div className="p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => handleRoleLogin("patient")}
+                            className="w-full flex items-center justify-between p-2.5 rounded-xl bg-sky-50/70 hover:bg-sky-100/80 border border-sky-100 text-left transition-all group cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-9 h-9 rounded-xl bg-[#0067A1] text-white flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                                <FaUser className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <div className="text-xs font-bold text-slate-900 group-hover:text-[#0067A1] transition-colors">
+                                  Patient Login
+                                </div>
+                                <div className="text-[11px] text-slate-500 font-medium">
+                                  Book doctor & test reports
+                                </div>
+                              </div>
+                            </div>
+                            <FaChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] group-hover:translate-x-0.5 transition-all shrink-0" />
+                          </button>
+                        </div>
+
+                        {/* Healthcare Partners Section */}
+                        <div className="mt-1 pt-1.5 border-t border-slate-100 px-0.5">
+                          <div className="px-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            Doctors & Partners
+                          </div>
+
                           <div className="space-y-0.5">
                             <button
-                              onClick={(e) => {
-                                setIsLoginMenuOpen(false);
-                                handleOpenSignup(e);
-                              }}
-                              className="flex items-center gap-2 w-full px-2.5 py-2 text-left text-xs font-bold text-[#0067A1] bg-sky-50 hover:bg-sky-100 rounded-lg transition-colors cursor-pointer"
+                              type="button"
+                              onClick={() => handleRoleLogin("doctor")}
+                              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-slate-50 text-left transition-colors group cursor-pointer"
                             >
-                              <FaUserPlus className="w-3.5 h-3.5 text-[#0067A1] shrink-0" />
-                              <span>Register Account</span>
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                  <FaUserMd className="w-3.5 h-3.5" />
+                                </div>
+                                <div>
+                                  <div className="text-xs font-semibold text-slate-700 group-hover:text-slate-900">
+                                    Doctor Portal
+                                  </div>
+                                  <div className="text-[10px] text-slate-400">
+                                    Consultations & OPD
+                                  </div>
+                                </div>
+                              </div>
+                              <FaChevronRight className="w-3 h-3 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all shrink-0" />
                             </button>
 
-                            <p className="px-2.5 pt-2 pb-0.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-t border-slate-100">
-                              Login to Portal
-                            </p>
                             <button
-                              onClick={() => handleRoleLogin("patient")}
-                              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-left text-xs text-slate-700 hover:text-[#0067A1] hover:bg-slate-50 rounded-lg transition-colors group cursor-pointer"
-                            >
-                              <FaUser className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                              <span className="font-medium">Patient</span>
-                            </button>
-                            <button
-                              onClick={() => handleRoleLogin("doctor")}
-                              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-left text-xs text-slate-700 hover:text-[#0067A1] hover:bg-slate-50 rounded-lg transition-colors group cursor-pointer"
-                            >
-                              <FaUserMd className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                              <span className="font-medium">Doctor</span>
-                            </button>
-                            <button
+                              type="button"
                               onClick={() => handleRoleLogin("chemist")}
-                              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-left text-xs text-slate-700 hover:text-[#0067A1] hover:bg-slate-50 rounded-lg transition-colors group cursor-pointer"
+                              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-slate-50 text-left transition-colors group cursor-pointer"
                             >
-                              <FaPills className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                              <span className="font-medium">Chemist / Pharmacy</span>
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                                  <FaPills className="w-3.5 h-3.5" />
+                                </div>
+                                <div>
+                                  <div className="text-xs font-semibold text-slate-700 group-hover:text-slate-900">
+                                    Chemist / Pharmacy
+                                  </div>
+                                  <div className="text-[10px] text-slate-400">
+                                    Medicines & Orders
+                                  </div>
+                                </div>
+                              </div>
+                              <FaChevronRight className="w-3 h-3 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all shrink-0" />
                             </button>
+
                             <button
+                              type="button"
                               onClick={() => handleRoleLogin("lab")}
-                              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-left text-xs text-slate-700 hover:text-[#0067A1] hover:bg-slate-50 rounded-lg transition-colors group cursor-pointer"
+                              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-slate-50 text-left transition-colors group cursor-pointer"
                             >
-                              <FaFlask className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                              <span className="font-medium">Diagnostic Lab</span>
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                                  <FaFlask className="w-3.5 h-3.5" />
+                                </div>
+                                <div>
+                                  <div className="text-xs font-semibold text-slate-700 group-hover:text-slate-900">
+                                    Diagnostic Lab
+                                  </div>
+                                  <div className="text-[10px] text-slate-400">
+                                    Tests & Pathology
+                                  </div>
+                                </div>
+                              </div>
+                              <FaChevronRight className="w-3 h-3 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all shrink-0" />
                             </button>
+
                             <button
+                              type="button"
                               onClick={() => handleRoleLogin("nursing")}
-                              className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-left text-xs text-slate-700 hover:text-[#0067A1] hover:bg-slate-50 rounded-lg transition-colors group cursor-pointer"
+                              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-slate-50 text-left transition-colors group cursor-pointer"
                             >
-                              <FaHeartbeat className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                              <span className="font-medium">Nursing Care</span>
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 group-hover:bg-rose-600 group-hover:text-white transition-colors">
+                                  <FaHeartbeat className="w-3.5 h-3.5" />
+                                </div>
+                                <div>
+                                  <div className="text-xs font-semibold text-slate-700 group-hover:text-slate-900">
+                                    Nursing Care
+                                  </div>
+                                  <div className="text-[10px] text-slate-400">
+                                    Home Health & Attendants
+                                  </div>
+                                </div>
+                              </div>
+                              <FaChevronRight className="w-3 h-3 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all shrink-0" />
                             </button>
                           </div>
                         </div>
-                      )}
-                    </div>
-                  </>
+
+                        {/* Registration Footer */}
+                        <div className="mt-1 pt-2 border-t border-slate-100 px-2 py-1.5 flex items-center justify-between text-xs bg-slate-50/70 rounded-xl">
+                          <span className="text-slate-500 text-[11px]">New to MediConnect?</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              setIsLoginMenuOpen(false);
+                              handleOpenSignup(e);
+                            }}
+                            className="font-bold text-[#0067A1] hover:text-[#004f7c] hover:underline cursor-pointer flex items-center gap-1 text-[11px]"
+                          >
+                            <FaUserPlus className="w-3 h-3" />
+                            <span>Create Account</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -1160,28 +1262,15 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                 </div>
               )}
 
-              {/* Login / Register buttons (When NOT Logged In) */}
+              {/* Login & Register buttons (When NOT Logged In) */}
               <div suppressHydrationWarning>
                 {!mounted ? (
                   <div className="mt-3 flex flex-col gap-2" suppressHydrationWarning>
-                    <div className="w-full h-11 bg-gray-100 animate-pulse rounded-lg"></div>
-                    <div className="w-full h-11 bg-gray-100 animate-pulse rounded-lg"></div>
+                    <div className="w-full h-11 bg-gray-100 animate-pulse rounded-xl"></div>
                   </div>
                 ) : (
                   !isLoggedIn && (
-                    <div className="mt-3 flex flex-col gap-2" suppressHydrationWarning>
-                      <button
-                        type="button"
-                        suppressHydrationWarning
-                        onClick={(e) => {
-                          toggleSideBar();
-                          handleOpenSignup(e);
-                        }}
-                        className="inline-flex items-center justify-center w-full px-4 py-2.5 border border-[#0067A1] text-sm font-semibold rounded-lg text-[#0067A1] bg-white hover:bg-[#F6F8FA] focus:outline-none focus:ring-1 focus:ring-[#0067A1]"
-                      >
-                        <FaUserPlus className="mr-2 h-4 w-4" />
-                        Register
-                      </button>
+                    <div className="mt-3 space-y-2" suppressHydrationWarning>
                       <button
                         type="button"
                         suppressHydrationWarning
@@ -1189,11 +1278,60 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                           toggleSideBar();
                           handleRoleLogin("patient");
                         }}
-                        className="inline-flex items-center justify-center w-full px-4 py-2.5 border border-transparent text-sm font-semibold rounded-lg text-white bg-[#0067A1] hover:bg-[#004F7C] focus:outline-none focus:ring-1 focus:ring-[#0067A1]"
+                        className="inline-flex items-center justify-center w-full px-4 py-2.5 text-sm font-semibold rounded-lg text-white bg-[#0067A1] hover:bg-[#004F7C] active:scale-[0.98] transition-all cursor-pointer shadow-xs gap-2"
                       >
-                        <FaUser className="mr-2 h-4 w-4" />
-                        Login
+                        <FaUser className="h-4 w-4" />
+                        <span>Login</span>
                       </button>
+                      <button
+                        type="button"
+                        suppressHydrationWarning
+                        onClick={(e) => {
+                          toggleSideBar();
+                          handleOpenSignup(e);
+                        }}
+                        className="inline-flex items-center justify-center w-full px-4 py-2 text-xs font-semibold rounded-lg text-[#0067A1] bg-sky-50 hover:bg-sky-100 border border-sky-150 transition-colors cursor-pointer gap-1.5"
+                      >
+                        <FaUserPlus className="h-3.5 w-3.5" />
+                        <span>Create Account</span>
+                      </button>
+
+                      {/* Partner login quick links */}
+                      <div className="pt-2 text-center">
+                        <span className="text-xs text-slate-400">Doctors & Partners: </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            toggleSideBar();
+                            handleRoleLogin("doctor");
+                          }}
+                          className="text-xs font-semibold text-[#0067A1] hover:underline cursor-pointer"
+                        >
+                          Doctor
+                        </button>
+                        <span className="text-slate-300 mx-1.5">|</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            toggleSideBar();
+                            router.push("/lab/login");
+                          }}
+                          className="text-xs font-semibold text-[#0067A1] hover:underline cursor-pointer"
+                        >
+                          Lab
+                        </button>
+                        <span className="text-slate-300 mx-1.5">|</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            toggleSideBar();
+                            router.push("/chemist/login");
+                          }}
+                          className="text-xs font-semibold text-[#0067A1] hover:underline cursor-pointer"
+                        >
+                          Chemist
+                        </button>
+                      </div>
                     </div>
                   )
                 )}
