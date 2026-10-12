@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Home,
@@ -298,8 +299,13 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
 
         {/* Header */}
         <div className={`p-5 flex items-center h-20 shrink-0 border-b border-white/10 ${open ? "justify-between" : "justify-center relative"}`}>
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/20 shrink-0">
+          <Link
+            href="/"
+            onClick={onCloseMobile}
+            title="Go to website homepage"
+            className="flex items-center gap-3 overflow-hidden cursor-pointer group"
+          >
+            <div className="w-10 h-10 bg-white/10 group-hover:bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/20 shrink-0 transition-colors">
               <Stethoscope className="w-5 h-5 text-white" />
             </div>
             {open && (
@@ -307,7 +313,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
                 MediConnect
               </span>
             )}
-          </div>
+          </Link>
 
           <button
             onClick={onToggle}

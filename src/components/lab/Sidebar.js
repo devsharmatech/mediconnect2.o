@@ -135,9 +135,10 @@ export default function LabSidebar({
         {/* Brand Header */}
         <div className="p-4 h-20 flex items-center justify-between shrink-0 border-b border-white/10">
           <Link
-            href="/lab/dashboard"
+            href="/"
             onClick={onCloseMobile}
-            className="flex items-center gap-3 overflow-hidden group"
+            title="Go to website homepage"
+            className="flex items-center gap-3 overflow-hidden group cursor-pointer"
           >
             <div className="w-10 h-10 bg-white rounded-lg p-1.5 flex items-center justify-center shadow-md border border-white/20 shrink-0 overflow-hidden group-hover:scale-105 transition-transform">
               <img

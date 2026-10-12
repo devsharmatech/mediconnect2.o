@@ -361,37 +361,40 @@ function PublicLabsContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="min-h-screen bg-[#F7FAFC]">
       {/* 1. COMPACT, FRIENDLY HERO & SEARCH (DESIGNED FOR FIRST SCREEN ACCESSIBILITY) */}
-      <section className="bg-white border-b border-slate-200/80 pt-3 pb-4 sm:pt-6 sm:pb-6 px-3 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
+      <section className="bg-gradient-to-b from-[#F7FAFC] to-white border-b border-[#DCE6EB] pt-6 pb-6 sm:pt-8 sm:pb-8 px-3 sm:px-6 lg:px-8">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           {/* Top Back Link & Trust Badge */}
-          <div className="flex items-center justify-between gap-2 mb-2 sm:mb-3">
+          <div className="flex items-center justify-between gap-2 mb-3">
             <Link
               href="/services"
-              className="inline-flex items-center text-xs font-semibold text-[#0067A1] hover:text-[#004F7C] transition-colors"
+              className="inline-flex items-center text-xs font-semibold text-[#1677A8] hover:text-[#0B3A5B] transition-colors"
             >
               <FaArrowLeft className="mr-1.5 w-3 h-3" /> Back to Services
             </Link>
 
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-100/80 border border-sky-200/60 text-[#0067A1] text-[11px] font-bold">
-              <FaShieldAlt className="w-3 h-3 text-[#0067A1]" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F2F7] border border-[#DCE6EB] text-[#1677A8] text-[11px] font-bold">
+              <FaShieldAlt className="w-3 h-3 text-[#1677A8]" />
               <span>NABL Certified Labs</span>
             </div>
           </div>
 
           {/* Clean, Friendly Title */}
-          <div className="text-left sm:text-center max-w-2xl mx-auto mb-3">
-            <h1 className="text-lg sm:text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <div className="text-left sm:text-center max-w-2xl mx-auto mb-4">
+            <p className="text-[11px] sm:text-xs font-bold tracking-widest text-[#1677A8] uppercase mb-1">
+              DIAGNOSTIC NETWORK
+            </p>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[#0B3A5B] tracking-tight">
               Book Lab Tests & Health Checkups
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Search tests, compare lab prices, or get samples collected at home.
+            <p className="text-xs sm:text-sm text-[#607580] mt-1">
+              Search tests, compare certified lab prices, or schedule verified home sample collection.
             </p>
           </div>
 
           {/* SEARCH & FILTER BOX (IMMEDIATELY VISIBLE ON FIRST SCREEN) */}
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-slate-200 p-3 sm:p-4 max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-2xs border border-[#DCE6EB] p-3 sm:p-4 max-w-4xl mx-auto">
             <form onSubmit={handleSearchSubmit} className="space-y-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                 {/* Search Input */}
@@ -402,7 +405,7 @@ function PublicLabsContent() {
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search test (e.g. CBC, Sugar, Thyroid) or Lab..."
-                    className="w-full pl-9 pr-8 py-2.5 text-xs sm:text-sm rounded-lg bg-slate-50/90 border border-slate-200 focus:bg-white focus:border-[#0067A1] focus:ring-2 focus:ring-sky-100 text-slate-900 placeholder-slate-400 outline-none transition-all font-medium"
+                    className="w-full pl-9 pr-8 py-2.5 text-xs sm:text-sm rounded-xl bg-[#F7FAFC] border border-[#DCE6EB] focus:bg-white focus:border-[#1677A8] focus:ring-2 focus:ring-[#1677A8]/20 text-[#18303D] placeholder:text-[#607580]/60 outline-none transition-all font-medium"
                   />
                   {search && (
                     <button
@@ -429,7 +432,7 @@ function PublicLabsContent() {
                       setPage(1);
                       fetchLabs({ city: newCity, page: 1 });
                     }}
-                    className="w-full pl-8 pr-7 py-2.5 text-xs sm:text-sm rounded-lg bg-slate-50/90 border border-slate-200 focus:bg-white focus:border-[#0067A1] focus:ring-2 focus:ring-sky-100 text-slate-900 outline-none transition-all cursor-pointer appearance-none font-medium"
+                    className="w-full pl-8 pr-7 py-2.5 text-xs sm:text-sm rounded-xl bg-[#F7FAFC] border border-[#DCE6EB] focus:bg-white focus:border-[#1677A8] focus:ring-2 focus:ring-[#1677A8]/20 text-[#18303D] outline-none transition-all cursor-pointer appearance-none font-medium"
                   >
                     <option value="">All Cities</option>
                     <option value="New Delhi">New Delhi</option>
@@ -447,7 +450,7 @@ function PublicLabsContent() {
                 <div className="sm:col-span-4">
                   <button
                     type="submit"
-                    className="w-full py-2.5 px-4 rounded-lg bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+                    className="w-full py-2.5 px-4 rounded-xl bg-[#0B3A5B] hover:bg-[#1677A8] text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-2xs"
                   >
                     <FaSearch className="w-3.5 h-3.5" />
                     <span>Find Tests & Labs</span>
@@ -563,8 +566,8 @@ function PublicLabsContent() {
                     }}
                     className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] sm:text-xs transition-all cursor-pointer whitespace-nowrap select-none ${
                       isActive
-                        ? "bg-[#0067A1] text-white font-bold shadow-xs hover:bg-[#005B8E]"
-                        : "bg-white text-slate-700 hover:bg-slate-100 hover:border-slate-300 border border-slate-200 font-medium shadow-2xs"
+                        ? "bg-[#0B3A5B] text-white font-bold shadow-xs hover:bg-[#1677A8]"
+                        : "bg-white text-[#607580] hover:bg-[#F7FAFC] hover:text-[#0B3A5B] hover:border-[#1677A8]/40 border border-[#DCE6EB] font-medium shadow-2xs"
                     }`}
                   >
                     {IconComponent && (
@@ -598,7 +601,7 @@ function PublicLabsContent() {
       </section>
 
       {/* 3. SMALL LAB CARDS GRID */}
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-28 sm:pb-16">
+      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 pb-28 sm:pb-16">
         {loading ? (
           /* Loading skeleton */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -656,12 +659,12 @@ function PublicLabsContent() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(idx * 0.04, 0.4) }}
                     onClick={() => router.push(`/services/lab-tests/${lab.id}`)}
-                    className="bg-white rounded-xl border border-slate-200 hover:border-[#0067A1]/50 hover:shadow-md transition-all duration-200 p-3.5 flex flex-col justify-between group cursor-pointer relative shadow-2xs"
+                    className="bg-white rounded-2xl border border-[#DCE6EB] hover:border-[#1677A8]/50 hover:shadow-sm transition-all duration-200 p-4 flex flex-col justify-between group cursor-pointer relative shadow-2xs"
                   >
                     <div>
                       {/* Top Row: Logo + Name + Verified Badge */}
                       <div className="flex items-start gap-2.5 mb-2.5">
-                        <div className="w-11 h-11 rounded-xl bg-white text-[#0067A1] flex items-center justify-center shrink-0 border border-slate-200/90 shadow-2xs overflow-hidden p-0.5">
+                        <div className="w-11 h-11 rounded-xl bg-white text-[#1677A8] flex items-center justify-center shrink-0 border border-[#DCE6EB] shadow-2xs overflow-hidden p-0.5">
                           {labLogo ? (
                             <img
                               src={labLogo}
@@ -669,7 +672,7 @@ function PublicLabsContent() {
                               className="w-full h-full object-contain"
                             />
                           ) : (
-                            <div className="w-full h-full rounded-lg bg-sky-50 flex items-center justify-center text-[#0067A1]">
+                            <div className="w-full h-full rounded-lg bg-[#E8F2F7] flex items-center justify-center text-[#1677A8]">
                               <FaFlask className="w-4 h-4" />
                             </div>
                           )}
@@ -677,18 +680,18 @@ function PublicLabsContent() {
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1">
-                            <h3 className="text-xs sm:text-[13px] font-bold text-slate-900 group-hover:text-[#0067A1] transition-colors truncate leading-snug">
+                            <h3 className="text-xs sm:text-[13px] font-bold text-[#0B3A5B] group-hover:text-[#1677A8] transition-colors truncate leading-snug">
                               {labName}
                             </h3>
                             <FaCheckCircle
-                              className="w-3 h-3 text-[#0067A1] shrink-0"
+                              className="w-3 h-3 text-[#1677A8] shrink-0"
                               title="Verified Diagnostic Lab"
                             />
                           </div>
 
                           <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                             {ownerName && (
-                              <p className="text-[11px] text-slate-500 truncate">
+                              <p className="text-[11px] text-[#607580] truncate">
                                 {ownerName}
                               </p>
                             )}
@@ -704,13 +707,13 @@ function PublicLabsContent() {
 
                       {/* Location & Distance Row */}
                       {lab.address && (
-                        <div className="mb-2 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 flex items-center justify-between gap-1 text-[11px] text-slate-600">
+                        <div className="mb-2 bg-[#F7FAFC] px-2.5 py-1 rounded-lg border border-[#DCE6EB]/60 flex items-center justify-between gap-1 text-[11px] text-[#607580]">
                           <span className="truncate flex items-center gap-1">
-                            <FaMapMarkerAlt className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                            <FaMapMarkerAlt className="w-2.5 h-2.5 text-[#607580] shrink-0" />
                             <span className="truncate">{lab.address}</span>
                           </span>
                           {lab.distance !== null && (
-                            <span className="shrink-0 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                            <span className="shrink-0 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
                               {lab.distance} km
                             </span>
                           )}
@@ -721,9 +724,9 @@ function PublicLabsContent() {
                       {lab.matched_tests &&
                         Array.isArray(lab.matched_tests) &&
                         lab.matched_tests.length > 0 && (
-                          <div className="mb-2 p-1.5 bg-sky-50/70 border border-sky-100 rounded-lg">
-                            <div className="flex items-center justify-between text-[11px] text-slate-800">
-                              <span className="truncate font-semibold text-[#0067A1]">
+                          <div className="mb-2 p-2 bg-[#E8F2F7]/50 border border-[#DCE6EB] rounded-lg">
+                            <div className="flex items-center justify-between text-[11px] text-[#18303D]">
+                              <span className="truncate font-semibold text-[#1677A8]">
                                 • {lab.matched_tests[0].test_name}
                               </span>
                               <span className="font-bold text-emerald-700 shrink-0 ml-1">
@@ -742,8 +745,8 @@ function PublicLabsContent() {
                         )}
 
                         {hours && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                            <FaClock className="w-2.5 h-2.5 text-slate-400" />
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#607580] bg-[#F7FAFC] border border-[#DCE6EB]/60 px-1.5 py-0.5 rounded">
+                            <FaClock className="w-2.5 h-2.5 text-[#607580]" />
                             {hours}
                           </span>
                         )}
@@ -758,13 +761,13 @@ function PublicLabsContent() {
                     </div>
 
                     {/* Bottom Action Row */}
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between mt-1">
+                    <div className="pt-2.5 border-t border-[#DCE6EB]/60 flex items-center justify-between mt-1">
                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/80">
                         <FaShieldAlt className="w-2.5 h-2.5 text-emerald-600" />
                         <span>Verified Lab</span>
                       </span>
 
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-[#0067A1] group-hover:text-[#004F7C] transition-colors">
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-[#1677A8] group-hover:text-[#0B3A5B] transition-colors">
                         View Tests <FaArrowRight className="w-2.5 h-2.5 group-hover:translate-x-0.5 transition-transform" />
                       </span>
                     </div>

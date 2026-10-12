@@ -1,188 +1,214 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  FaUserMd,
-  FaClinicMedical,
-  FaFlask,
-  FaPills,
-  FaHandHoldingHeart,
-  FaBed,
-  FaStethoscope,
-  FaHeartbeat,
-  FaPlusSquare,
-  FaSyringe
-} from "react-icons/fa";
+import React, { useRef, useState, useEffect } from "react";
 import Link from "next/link";
+import { 
+  FaUserMd, 
+  FaFlask, 
+  FaPills, 
+  FaHandHoldingHeart, 
+  FaBed, 
+  FaFileMedical, 
+  FaHeartbeat,
+  FaChevronLeft, 
+  FaChevronRight 
+} from "react-icons/fa";
 
-const fallbackServices = [
+const defaultServices = [
   {
-    icon: 'FaUserMd',
+    id: "consult",
+    icon: FaUserMd,
     title: "Doctor Consultations",
     description: "HD video consultations and in-clinic visits with verified specialists across key specialties.",
-    link: "/website/services/doctor-consultations",
+    buttonText: "Book Slot",
+    link: "/website/doctors",
   },
   {
-    icon: 'FaFlask',
+    id: "diagnostics",
+    icon: FaFlask,
     title: "Lab Tests",
     description: "Book diagnostic lab tests with digital reports. Sample collection available where applicable.",
+    buttonText: "Book Test",
     link: "/website/services/lab-tests",
   },
   {
-    icon: 'FaPills',
+    id: "pharmacy",
+    icon: FaPills,
     title: "Medicine Delivery",
     description: "Order prescribed medicines from trusted pharmacy partners with convenient delivery options.",
-    link: "/website/services/pharmacy",
+    buttonText: "Order Now",
+    link: "/medicine-order",
   },
   {
-    icon: 'FaClinicMedical',
-    title: "Digital Health Records",
-    description: "Organised, ABHA-supportive storage for prescriptions, reports and medical records.",
-    link: "/website/digital-health-records",
-  },
-  {
-    icon: 'FaHandHoldingHeart',
-    title: "Nursing & Home Care",
-    description: "Essential nursing and support services at home for ongoing care.",
+    id: "nursing",
+    icon: FaHandHoldingHeart,
+    title: "Nursing Care",
+    description: "Home nursing services including elder care and post-hospital recovery support.",
+    buttonText: "Explore Care",
     link: "/website/services/home-care",
   },
   {
-    icon: 'FaBed',
+    id: "equipment",
+    icon: FaBed,
     title: "Medical Equipment",
-    description: "Access medical equipment for safe and comfortable home use.",
-    link: "/website/services/medical-equipment",
+    description: "Rent or purchase essential medical equipment for home care including oxygen, beds, and more.",
+    buttonText: "View Equipment",
+    link: "/website/services/home-care",
+  },
+  {
+    id: "digilocker",
+    icon: FaFileMedical,
+    title: "MediConnect DigiLocker",
+    description: "Keep your medical records, prescriptions, and ABHA-linked health summaries organised and accessible.",
+    buttonText: "Open Locker",
+    link: "/website/digital-health-records",
+    isLive: true,
+  },
+  {
+    id: "wellness",
+    icon: FaHeartbeat,
+    title: "Wellness Modules",
+    description: "Specialized health monitoring programs including LungConnect and CardioConnect for ongoing wellness.",
+    buttonText: "View Programs",
+    link: "#specialized-programs",
   },
 ];
 
-const iconMap = {
-  FaUserMd: <FaUserMd className="text-xl text-white" />,
-  FaClinicMedical: <FaClinicMedical className="text-xl text-white" />,
-  FaFlask: <FaFlask className="text-xl text-white" />,
-  FaPills: <FaPills className="text-xl text-white" />,
-  FaHandHoldingHeart: <FaHandHoldingHeart className="text-xl text-white" />,
-  FaBed: <FaBed className="text-xl text-white" />,
-  FaStethoscope: <FaStethoscope className="text-xl text-white" />,
-  FaHeartbeat: <FaHeartbeat className="text-xl text-white" />,
-  FaPlusSquare: <FaPlusSquare className="text-xl text-white" />,
-  FaSyringe: <FaSyringe className="text-xl text-white" />
-};
+export default function HealthServices() {
+  const scrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
 
-const HealthServices = () => {
-  const [services, setServices] = useState(fallbackServices);
-  const [headerData, setHeaderData] = useState({
-    title: "Available Now",
-    heading: "Access Care, Anytime You Need It",
-    subheading: "These services are live and available on mediconnect.fit.",
-  });
+  const checkScroll = () => {
+    if (scrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+      setCanScrollLeft(scrollLeft > 10);
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
+    }
+  };
 
   useEffect(() => {
-    async function fetchServices() {
-      try {
-        const res = await fetch("/api/cms/services");
-        const json = await res.json();
-        if (json.success && json.data && json.data.length > 0) {
-           const active = json.data.filter(s => s.status === "active").sort((a,b)=>a.display_order - b.display_order);
-           if (active.length > 0) {
-             setServices(active.map(s => ({
-               icon: s.icon_name || 'FaUserMd',
-               title: s.title,
-               description: s.description,
-               link: s.link || '#',
-               img: s.image
-             })));
-           }
-        }
-      } catch (e) {
-        console.error("Failed to load CMS services", e);
-      }
-    }
-    async function fetchHeaders() {
-      try {
-        const res = await fetch("/api/cms/section-headers?page=services");
-        const json = await res.json();
-        if (json.success && json.data && json.data.heading) {
-            setHeaderData({
-               title: json.data.title || "Available Now",
-               heading: json.data.heading,
-               subheading: json.data.subheading || "These services are live and available on mediconnect.fit."
-            });
-        }
-      } catch (e) {
-        console.error("Failed to load CMS headers", e);
-      }
-    }
-    fetchServices();
-    fetchHeaders();
+    checkScroll();
+    window.addEventListener("resize", checkScroll);
+    return () => window.removeEventListener("resize", checkScroll);
   }, []);
 
+  const scroll = (direction) => {
+    if (scrollRef.current) {
+      const card = scrollRef.current.querySelector(".service-card-item");
+      const cardWidth = card ? card.offsetWidth + 20 : 300;
+      const scrollAmount = direction === "left" ? -cardWidth : cardWidth;
+      scrollRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
+      setTimeout(checkScroll, 350);
+    }
+  };
+
   return (
-    <section className="py-8 bg-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-8">
-          {headerData.title && (
-            <p className="text-sm font-semibold tracking-wide text-[#0067A1] uppercase mb-2">
-              {headerData.title}
+    <section id="services" className="w-full bg-[#FFFFFF] py-10 sm:py-14 border-b border-[#DCE6EB]">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-8 sm:mb-10 gap-4">
+          <div className="text-center sm:text-left">
+            <p className="text-[11px] sm:text-xs font-bold tracking-widest text-[#1677A8] uppercase mb-1.5">
+              OUR SERVICES & CARE ECOSYSTEM
             </p>
-          )}
-          <h2 className="text-3xl font-extrabold text-[#0067A1] sm:text-4xl">
-            {headerData.heading}
-          </h2>
-          {headerData.subheading && (
-            <p className="mt-4 text-lg text-gray-600">
-              {headerData.subheading}
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#0B3A5B] tracking-tight">
+              Healthcare services, connected in one place.
+            </h2>
+            <p className="text-xs sm:text-sm text-[#607580] mt-1.5 max-w-2xl mx-auto sm:mx-0 leading-relaxed">
+              From your first consultation to diagnostics, medicines, nursing, and continuing care — all organized clearly with verified partners.
             </p>
-          )}
+          </div>
+
+          <div className="flex items-center justify-center sm:justify-end gap-3 shrink-0">
+            {/* Slider Navigation Buttons */}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => scroll("left")}
+                disabled={!canScrollLeft}
+                className={`w-9 h-9 rounded-full border border-[#DCE6EB] bg-white flex items-center justify-center transition-all ${
+                  canScrollLeft
+                    ? "text-[#0B3A5B] hover:border-[#1677A8] hover:text-[#1677A8] cursor-pointer shadow-2xs hover:scale-105 active:scale-95"
+                    : "text-slate-300 opacity-40 cursor-not-allowed"
+                }`}
+                aria-label="Previous services"
+              >
+                <FaChevronLeft className="w-3 h-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scroll("right")}
+                disabled={!canScrollRight}
+                className={`w-9 h-9 rounded-full border border-[#DCE6EB] bg-white flex items-center justify-center transition-all ${
+                  canScrollRight
+                    ? "text-[#0B3A5B] hover:border-[#1677A8] hover:text-[#1677A8] cursor-pointer shadow-2xs hover:scale-105 active:scale-95"
+                    : "text-slate-300 opacity-40 cursor-not-allowed"
+                }`}
+                aria-label="Next services"
+              >
+                <FaChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            <Link 
+              href="/website/services" 
+              className="inline-flex items-center text-xs sm:text-sm font-semibold text-[#1677A8] hover:text-[#0B3A5B] transition-colors ml-1"
+            >
+              <span>View all services</span>
+              <FaChevronRight className="w-3 h-3 ml-1" />
+            </Link>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {services.map((service, index) => {
-            const isComingSoon = service.title.toLowerCase().includes("abha") || service.title.toLowerCase().includes("digital health");
-            let actualLink = isComingSoon ? "/coming-soon" : service.link;
-            if (!isComingSoon) {
-              if (actualLink.includes("nursing-care") || actualLink.includes("home-care")) {
-                actualLink = "/nursing-care";
-              } else if (actualLink.startsWith("/website")) {
-                actualLink = actualLink.replace("/website", "");
-              }
-            }
-            
+        {/* Responsive Slider with Exact Card Width Calculation (Zero Side Cutoff) */}
+        <div
+          ref={scrollRef}
+          onScroll={checkScroll}
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          className="flex overflow-x-auto gap-5 pt-2.5 pb-3 px-1 no-scrollbar hide-scrollbar scrollbar-none snap-x snap-mandatory scroll-smooth w-full [&::-webkit-scrollbar]:hidden [&::-webkit-scrollbar]:w-0 [&::-webkit-scrollbar]:h-0"
+        >
+          {defaultServices.map((service) => {
+            const Icon = service.icon;
             return (
-              <Link
-                key={index}
-                href={actualLink}
-                className="relative rounded-xl border border-gray-200 bg-white p-6 text-left flex flex-col h-full hover:shadow-lg hover:border-[#0067A1]/30 transition-all cursor-pointer"
+              <div
+                key={service.id}
+                className="service-card-item group flex flex-col justify-between p-5 sm:p-6 rounded-2xl bg-white border border-[#DCE6EB] hover:border-[#1677A8]/50 hover:shadow-md transition-all duration-200 snap-start shrink-0 w-full sm:w-[calc((100%-20px)/2)] md:w-[calc((100%-40px)/3)] lg:w-[calc((100%-60px)/4)]"
               >
-                {isComingSoon && (
-                  <div className="absolute top-4 right-4 bg-orange-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full animate-pulse uppercase tracking-wider">
-                    Coming Soon
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-11 h-11 rounded-xl bg-[#F7FAFC] group-hover:bg-[#1677A8]/10 text-[#1677A8] border border-[#DCE6EB] flex items-center justify-center transition-colors">
+                      <Icon className="w-5 h-5 text-[#1677A8]" />
+                    </div>
+                    {service.isLive && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Live
+                      </span>
+                    )}
                   </div>
-                )}
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-4 bg-[#0067A1] overflow-hidden">
-                  {service.img ? (
-                    <img src={service.img} className="w-full h-full object-cover" alt={service.title} />
-                  ) : (
-                    iconMap[service.icon] || <FaUserMd className="text-xl text-white" />
-                  )}
+
+                  <h3 className="text-base font-bold text-[#0B3A5B] mb-2 leading-snug group-hover:text-[#1677A8] transition-colors">
+                    {service.title}
+                  </h3>
+                  <p className="text-xs text-[#607580] leading-relaxed mb-6 line-clamp-3">
+                    {service.description}
+                  </p>
                 </div>
-                <h3 className="text-xl font-semibold text-[#003358] mb-2">
-                  {service.title}
-                </h3>
-                <p className="mt-1 text-gray-600 text-sm flex-grow">
-                  {service.description}
-                </p>
-                <span className="mt-4 inline-flex items-center text-sm font-semibold text-[#0067A1]">
-                  Learn more
-                  <span aria-hidden="true" className="ml-1">
-                    &rarr;
-                  </span>
-                </span>
-              </Link>
+
+                <div className="pt-2 border-t border-[#DCE6EB]/60">
+                  <Link
+                    href={service.link}
+                    className="inline-flex items-center text-xs font-bold text-[#1677A8] group-hover:text-[#0B3A5B] transition-colors"
+                  >
+                    <span>{service.buttonText}</span>
+                    <FaChevronRight className="w-2.5 h-2.5 ml-1 transform group-hover:translate-x-0.5 transition-transform" />
+                  </Link>
+                </div>
+              </div>
             );
           })}
         </div>
       </div>
     </section>
   );
-};
-
-export default HealthServices;
+}

@@ -1,4 +1,4 @@
-import { uploadToS3 } from "@/lib/s3";
+import { uploadToS3, getPresignedUploadUrl } from "@/lib/s3";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -8,6 +8,20 @@ export async function OPTIONS() {
 
 export async function POST(req) {
   try {
+    const contentTypeHeader = req.headers.get("content-type") || "";
+
+    // Presigned S3 upload mode (JSON payload)
+    if (contentTypeHeader.includes("application/json")) {
+      const body = await req.json().catch(() => ({}));
+      const fileName = body.fileName || "prescription.jpg";
+      const fileType = body.contentType || "image/jpeg";
+      const ext = fileName.split(".").pop().toLowerCase() || "jpg";
+      const key = `prescriptions/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${ext}`;
+
+      const { signedUrl, publicUrl } = await getPresignedUploadUrl(key, fileType, 300);
+      return success("Presigned upload URL generated", { signedUrl, url: publicUrl, key }, 200, { headers: corsHeaders });
+    }
+
     const formData = await req.formData();
     const file = formData.get("file") || formData.get("prescription");
 

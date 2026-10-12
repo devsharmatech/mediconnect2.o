@@ -853,9 +853,10 @@ export default function DoctorDashboardLayout({ children }) {
             {/* Header */}
             <div className="p-5 flex items-center justify-between h-20 shrink-0 border-b border-white/10">
               <Link
-                href="/doctor"
+                href="/"
                 onClick={() => setIsSidebarOpen(false)}
-                className="flex items-center gap-3"
+                title="Go to website homepage"
+                className="flex items-center gap-3 cursor-pointer group"
               >
                 <div className="w-10 h-10 rounded-xl bg-white p-1.5 flex items-center justify-center shadow-md border border-white/20 shrink-0 overflow-hidden">
                   <img
@@ -960,8 +961,9 @@ export default function DoctorDashboardLayout({ children }) {
           {/* Header */}
           <div className={`p-4 flex items-center h-16 shrink-0 border-b border-white/10 ${isSidebarCollapsed ? "justify-center relative" : "justify-between"}`}>
             <Link
-              href="/doctor"
-              className="flex items-center gap-3 overflow-hidden"
+              href="/"
+              title="Go to website homepage"
+              className="flex items-center gap-3 overflow-hidden cursor-pointer group"
             >
               <div className="w-9 h-9 rounded-md bg-white p-1 flex items-center justify-center border border-white/20 shrink-0 overflow-hidden">
                 <img

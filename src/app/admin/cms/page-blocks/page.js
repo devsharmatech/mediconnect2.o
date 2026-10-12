@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { Edit2, Save, X, Image as ImageIcon, LayoutTemplate } from "lucide-react";
 import RichTextEditor from "@/components/ui/RichTextEditor";
+import { uploadCmsMedia } from "@/lib/cmsUpload";
 
 export default function PageBlocksCMS() {
   const [items, setItems] = useState([]);
@@ -58,12 +59,8 @@ export default function PageBlocksCMS() {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
     try {
-      const res = await fetch("/api/cms/upload", { method: "POST", body: formData });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error);
+      const result = await uploadCmsMedia(file);
       setEditingItem({ ...editingItem, image: result.url });
       toast.success("Image uploaded!");
     } catch (err) { 

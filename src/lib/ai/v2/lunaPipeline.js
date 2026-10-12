@@ -44,6 +44,27 @@ export async function runLunaPipeline({ userMessage, history = [], requestId }) 
     const liveState = (routeObj || GENERAL_NAVIGATION).live_state;
     const approvedCta = routeObj ? routeObj.cta_id : null;
 
+    if (routeId === "OUT_OF_SCOPE_ANIMAL") {
+        return {
+            response: {
+                status: "refusal",
+                route_id: "NONE",
+                message: "MediConnect केवल मानव स्वास्थ्य (Human Healthcare) सेवाओं और डॉक्टरों के परामर्श के लिए है। हम पशुओं (Animals / Pets) का उपचार या परामर्श प्रदान नहीं करते हैं। कृपया अपने पेट या जानवर के स्वास्थ्य के लिए किसी योग्य पशु चिकित्सक (Veterinary Doctor / Vet Clinic) से संपर्क करें।",
+                next_step: "NONE",
+                cta_id: null,
+                safety_note: "Please consult a qualified veterinary doctor for pet/animal health concerns.",
+                is_animal_query: true,
+            },
+            lineage: {
+                request_id: requestId,
+                route_id: "OUT_OF_SCOPE_ANIMAL",
+                route_decision: routing.decision,
+                outcome: "refusal",
+                latency_ms: Date.now() - startedAt,
+            },
+        };
+    }
+
     const lineage = {
         request_id: requestId,
         route_id: routeId,

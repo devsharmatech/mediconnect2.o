@@ -143,7 +143,11 @@ export default function PartnerLayout({ children }) {
         
         {/* Brand Header */}
         <div className="p-5 flex items-center justify-between h-20 shrink-0 border-b border-white/10">
-          <Link href="/partner/dashboard" className="flex items-center gap-3 group">
+          <Link
+            href="/"
+            title="Go to website homepage"
+            className="flex items-center gap-3 group cursor-pointer"
+          >
             <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/20 group-hover:bg-white/20 transition-all shadow-sm">
               <Heart className="w-5 h-5 text-white" />
             </div>
@@ -258,8 +262,13 @@ export default function PartnerLayout({ children }) {
           <aside className="relative w-72 max-w-[85vw] bg-[#003358] flex flex-col h-full shadow-2xl z-50">
             {/* Header */}
             <div className="p-5 flex items-center justify-between h-20 shrink-0 border-b border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/20">
+              <Link
+                href="/"
+                onClick={() => setMobileOpen(false)}
+                title="Go to website homepage"
+                className="flex items-center gap-3 cursor-pointer group"
+              >
+                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/20 group-hover:bg-white/20 transition-all">
                   <Heart className="w-5 h-5 text-white" />
                 </div>
                 <div>
@@ -268,7 +277,7 @@ export default function PartnerLayout({ children }) {
                   </span>
                   <p className="text-[11px] text-sky-200/70 font-medium">Partner Portal</p>
                 </div>
-              </div>
+              </Link>
               <button
                 onClick={() => setMobileOpen(false)}
                 className="p-1.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10"

@@ -327,7 +327,7 @@ export default function AuditLogsPage() {
             <div>
               <h3 className="text-base font-bold text-slate-900 mb-1 tracking-tight">Immutable Compliance Ledger</h3>
               <p className="text-sm text-slate-500 leading-relaxed max-w-2xl">
-                These logs fulfill legal requirements under medical privacy laws (GDPR / DPDP Act 2023).
+                These logs fulfill legal requirements under Indian medical data protection laws (DPDP Act 2023 & DISHA Guidelines).
                 Every data access event is permanently recorded to provide an auditable clinical chain of custody.
               </p>
             </div>

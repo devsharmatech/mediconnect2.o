@@ -150,26 +150,26 @@ const FAQ = () => {
   const activeFaqs = faqs.find(f => f.category === activeCategory)?.questions || [];
 
   return (
-    <section className="py-8 lg:py-10 pt-2 bg-[#F6F8FA]">
+    <section className="py-12 sm:py-16 bg-[#F7FAFC] border-t border-[#DCE6EB]">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center mb-8 sm:mb-10">
-          <p className="text-xs sm:text-sm font-semibold tracking-wider text-[#0067A1] uppercase mb-2">
+          <p className="text-[11px] sm:text-xs font-bold tracking-widest text-[#1677A8] uppercase mb-1.5">
             {headerData.title || "GOT QUESTIONS?"}
           </p>
-          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 mb-3 tracking-tight">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#0B3A5B] mb-3 tracking-tight">
             {headerData.heading || "Frequently Asked Questions"}
           </h2>
-          <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl mx-auto">
+          <p className="text-sm sm:text-base text-[#607580] leading-relaxed max-w-2xl mx-auto">
             {headerData.subheading}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Category Sidebar */}
           <div className="lg:col-span-3">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sticky top-24">
-              <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 px-2">Categories</h3>
+            <div className="bg-white rounded-2xl shadow-2xs border border-[#DCE6EB] p-3 sm:p-4 sticky top-24">
+              <h3 className="text-xs font-bold text-[#607580] uppercase tracking-wider mb-3 px-2">Categories</h3>
               <nav className="space-y-1">
                 {faqs.map((category) => (
                   <button
@@ -179,14 +179,14 @@ const FAQ = () => {
                       setActiveCategory(category.category);
                       setOpenIndex(null);
                     }}
-                    className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium ${
+                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
                       activeCategory === category.category
-                        ? 'bg-[#0067A1] text-white'
-                        : 'text-gray-600 hover:bg-gray-100'
+                        ? 'bg-[#0B3A5B] text-white shadow-xs'
+                        : 'text-[#607580] hover:bg-[#F7FAFC] hover:text-[#0B3A5B]'
                     }`}
                   >
                     {category.category}
-                    <span className={`ml-2 text-xs ${activeCategory === category.category ? 'text-blue-100' : 'text-gray-400'}`}>
+                    <span className={`ml-2 text-xs ${activeCategory === category.category ? 'text-blue-200' : 'text-[#607580]'}`}>
                       ({category.questions.length})
                     </span>
                   </button>
@@ -197,25 +197,25 @@ const FAQ = () => {
 
           {/* FAQ Accordion */}
           <div className="lg:col-span-6">
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               {activeFaqs.map((faq, index) => (
                 <div
                   key={index}
-                  className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+                  className="bg-white rounded-2xl shadow-2xs border border-[#DCE6EB] overflow-hidden transition-all hover:border-[#1677A8]/40"
                 >
                   <button
                     suppressHydrationWarning
                     onClick={() => toggleQuestion(index)}
-                    className="w-full px-6 py-5 text-left flex items-center justify-between gap-4"
+                    className="w-full px-5 py-4 text-left flex items-center justify-between gap-4"
                   >
-                    <span className="text-base font-semibold text-gray-900">{faq.q}</span>
-                    <div className={`w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 ${openIndex === index ? 'rotate-180 bg-[#0067A1]' : ''}`}>
-                      <FaChevronDown className={`w-4 h-4 ${openIndex === index ? 'text-white' : 'text-gray-400'}`} />
+                    <span className="text-sm sm:text-base font-bold text-[#0B3A5B]">{faq.q}</span>
+                    <div className={`w-7 h-7 bg-[#F7FAFC] rounded-lg flex items-center justify-center flex-shrink-0 transition-transform ${openIndex === index ? 'rotate-180 bg-[#0B3A5B]' : ''}`}>
+                      <FaChevronDown className={`w-3.5 h-3.5 ${openIndex === index ? 'text-white' : 'text-[#607580]'}`} />
                     </div>
                   </button>
                   
-                  <div className={`${openIndex === index ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'} overflow-hidden transition-all delay-100`}>
-                    <div className="px-6 pb-5 text-gray-600 text-sm leading-relaxed border-t border-gray-100 pt-4">
+                  <div className={`${openIndex === index ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'} overflow-hidden transition-all duration-200`}>
+                    <div className="px-5 pb-5 text-[#607580] text-sm leading-relaxed border-t border-[#DCE6EB]/60 pt-3.5">
                       {isClient && faq.a}
                     </div>
                   </div>
@@ -226,40 +226,40 @@ const FAQ = () => {
 
           {/* Support Card */}
           <div className="lg:col-span-3">
-            <div className="bg-[#003358] rounded-2xl p-6 text-white sticky top-24">
-              <div className="">
-                <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
-                  <HiSparkles className="w-6 h-6 text-white" />
+            <div className="bg-[#0B3A5B] rounded-2xl p-6 text-white sticky top-24 shadow-xs">
+              <div>
+                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center mb-4 text-[#1677A8]">
+                  <HiSparkles className="w-5 h-5 text-white" />
                 </div>
                 
-                <h3 className="text-lg font-bold mb-2 ">Still Have Questions?</h3>
-                <p className="text-blue-100 text-sm mb-6">
-                  Our support team is here to help you.
+                <h3 className="text-base font-bold mb-1.5 text-white">Still Have Questions?</h3>
+                <p className="text-white/80 text-xs sm:text-sm mb-4 leading-relaxed">
+                  Our healthcare coordinators are ready to help you anytime.
                 </p>
-                <p className="text-xs text-blue-200 mb-4">
-                  Support Hours: 9:00 AM - 9:00 PM (All Days)
+                <p className="text-[11px] text-white/70 mb-4 pb-3 border-b border-white/10">
+                  Hours: 9:00 AM - 9:00 PM (All Days)
                 </p>
                 
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   <a
                     href="tel:+917289043888"
-                    className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 hover:bg-white/20 transition-colors"
+                    className="flex items-center gap-3 bg-white/10 hover:bg-white/15 rounded-xl px-3.5 py-2.5 transition-colors"
                   >
-                    <FaHeadset className="w-5 h-5" />
+                    <FaHeadset className="w-4 h-4 text-emerald-300" />
                     <div>
-                      <div className="text-xs text-blue-100">Call Us</div>
-                      <div className="text-sm font-semibold">+91 72890-43888</div>
+                      <div className="text-[10px] text-white/70">Call Helpline</div>
+                      <div className="text-xs font-bold text-white">+91 72890-43888</div>
                     </div>
                   </a>
                   
                   <a
                     href="mailto:info@mediconnect.fit"
-                    className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl px-4 py-3 hover:bg-white/20 transition-colors"
+                    className="flex items-center gap-3 bg-white/10 hover:bg-white/15 rounded-xl px-3.5 py-2.5 transition-colors"
                   >
-                    <FaEnvelope className="w-5 h-5" />
+                    <FaEnvelope className="w-4 h-4 text-sky-300" />
                     <div>
-                      <div className="text-xs text-blue-100">Email Us</div>
-                      <div className="text-sm font-semibold">info@mediconnect.fit</div>
+                      <div className="text-[10px] text-white/70">Email Us</div>
+                      <div className="text-xs font-bold text-white">info@mediconnect.fit</div>
                     </div>
                   </a>
                 </div>

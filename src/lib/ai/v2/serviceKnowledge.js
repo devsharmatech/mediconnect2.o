@@ -13,7 +13,7 @@ export const SERVICE_KNOWLEDGE = {
     state_source: "application runtime",
     conflict_policy: "UNKNOWN/CONFLICT -> fallback",
     routes: {
-        CONSULT: { route_id: "CONSULT", label: "Doctor Consultations", live_state: "LIVE", destination_key: "consultation", cta_id: "CTA_CONSULT", capability_summary: "Doctor and dentist consultations on MediConnect. MediConnect has verified doctors and dental specialists across specialties including Dentistry (Dentists for dental checkups, tooth pain, dental cleanings, root canals & oral care), General Physician, Pulmonology, Cardiology, Dermatology, Pediatrics, Orthopedics, Gynecology, ENT, Neurology, Psychiatry, Urology, and Gastroenterology. Patients can filter by specialty and book appointments." },
+        CONSULT: { route_id: "CONSULT", label: "Doctor Consultations", live_state: "LIVE", destination_key: "consultation", cta_id: "CTA_CONSULT", capability_summary: "Doctor consultations on MediConnect. MediConnect has verified doctors across specialties including General Physician (for fever, infections, cold, cough, weakness, body pain, general medical concerns), Pulmonology, Cardiology, Dermatology, Pediatrics, Orthopedics, Gynecology, ENT, Dentistry (only for dental checkups, tooth pain, dental cleanings, root canals & oral care), Neurology, Psychiatry, Urology, and Gastroenterology. Patients can filter by specialty and book appointments." },
         LAB: { route_id: "LAB", label: "Lab Tests", live_state: "LIVE", destination_key: "lab_booking", cta_id: "CTA_LAB", capability_summary: "Lab booking/navigation" },
         MEDICINE: { route_id: "MEDICINE", label: "Medicine Delivery", live_state: "LIVE", destination_key: "medicine_delivery", cta_id: "CTA_MEDICINE", capability_summary: "Ordering already-prescribed medicines from partner pharmacies with a valid doctor prescription. Never take medicines without consulting a doctor first." },
         DIGILOCKER: { route_id: "DIGILOCKER", label: "MediConnect DigiLocker", live_state: "LIVE", destination_key: "digilocker", cta_id: "CTA_DIGILOCKER", capability_summary: "Store/access approved health records" },
@@ -44,5 +44,5 @@ export const GENERAL_NAVIGATION = {
     live_state: "LIVE",
     cta_id: null,
     capability_summary:
-        "MediConnect offers: Doctor & Dentist Consultations, Lab Tests, Medicine Delivery, MediConnect DigiLocker, Nursing & Home Care, Medical Equipment, CardioConnect, LungConnect, ABHA / ABDM (Coming Soon)",
+        "MediConnect offers: Doctor Consultations, Lab Tests, Medicine Delivery, MediConnect DigiLocker, Nursing & Home Care, Medical Equipment, CardioConnect, LungConnect, ABHA / ABDM (Coming Soon)",
 };

@@ -135,9 +135,25 @@ export async function getDoctorsAction({
             "specialization.ilike.%pulmon%,specialization.ilike.%chest%,specialization.ilike.%respirat%,specialization.ilike.%lung%"
           );
         } else {
-          detailsQuery = detailsQuery.or(
-            `full_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%,specialization.ilike.%${cleanSearch}%,license_number.ilike.%${cleanSearch}%,clinic_name.ilike.%${cleanSearch}%`
-          );
+          const strippedSearch = cleanSearch.replace(/^(dr\.|dr\s+|doctor\s+)/i, "").trim();
+          const searchTokens = Array.from(new Set([cleanSearch, strippedSearch, ...strippedSearch.split(/\s+/)].filter(Boolean)))
+            .map((t) => t.replace(/[,()]/g, "").trim())
+            .filter((t) => t.length >= 2);
+
+          const orClauses = [];
+          for (const token of searchTokens) {
+            orClauses.push(
+              `full_name.ilike.%${token}%`,
+              `specialization.ilike.%${token}%`,
+              `clinic_name.ilike.%${token}%`,
+              `clinic_address.ilike.%${token}%`
+            );
+          }
+          if (orClauses.length > 0) {
+            detailsQuery = detailsQuery.or(orClauses.join(","));
+          } else {
+            detailsQuery = detailsQuery.or(`full_name.ilike.%${cleanSearch}%,specialization.ilike.%${cleanSearch}%`);
+          }
         }
       }
 

@@ -177,7 +177,8 @@ export default function MobileFooterBar() {
           <Link
             key={item.label}
             href={item.href}
-            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all ${
+            aria-current={active ? "page" : undefined}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl active:scale-95 transition-all ${
               active
                 ? "text-[#0067A1] font-bold"
                 : "text-slate-500 hover:text-slate-800"
@@ -208,7 +209,8 @@ export default function MobileFooterBar() {
         suppressHydrationWarning
         href={getDashboardHref()}
         onClick={handleProfileClick}
-        className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all ${
+        aria-current={dashboardActive ? "page" : undefined}
+        className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl active:scale-95 transition-all ${
           dashboardActive
             ? "text-[#0067A1] font-bold"
             : "text-slate-500 hover:text-slate-800"

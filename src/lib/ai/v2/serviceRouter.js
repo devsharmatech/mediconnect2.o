@@ -25,6 +25,12 @@ const ROUTE_RULES = [
 export function selectPrimaryRoute(userMessage) {
     const text = String(userMessage || "");
 
+    // Veterinary / Animal Check: MediConnect is strictly for human healthcare.
+    const isAnimalOrPet = /(dog|dogs|puppy|puppies|cat|cats|kitten|kittens|pet|pets|animal|animals|kutta|kuta|kutti|kutte|billi|billian|jaanwar|janwar|pashu|pashuon|gay|gaay|bhains|bakri|bakra|veterinary|veterinarian|vet doctor|vet clinic|doggy|कुत्ता|कुत्ते|बिल्ली|जानवर|पशु|गाय|भैंस|बकरी|वेटरनरी)/i.test(text);
+    if (isAnimalOrPet) {
+        return { route_id: "OUT_OF_SCOPE_ANIMAL", route: null, decision: "matched:OUT_OF_SCOPE_ANIMAL (animals/pets query out of scope for human health platform)" };
+    }
+
     // Clinical Safety Rule: If the user has symptoms or asks for medication/prescription advice,
     // this MUST route to CONSULT (Doctor Consultation), NEVER to medicine ordering.
     const hasSymptoms = /\b(bukhar|fever|pain|dard|cough|khasi|khansi|cold|sardi|zukham|jukham|headache|sir dard|sar dard|vomit|rash|sick|bimar|ill|swelling|throat|pet dard|infection|allergy)\b/i.test(text);

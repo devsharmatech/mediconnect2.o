@@ -114,7 +114,7 @@ export default function LabLogin() {
               {[
                 { icon: <FlaskConical className="w-3.5 h-3.5" />, text: "Test Catalog" },
                 { icon: <Activity className="w-3.5 h-3.5" />, text: "Order Tracking" },
-                { icon: <ShieldCheck className="w-3.5 h-3.5" />, text: "HIPAA Secure" },
+                { icon: <ShieldCheck className="w-3.5 h-3.5" />, text: "DPDP Act Secure" },
               ].map(({ icon, text }) => (
                 <div
                   key={text}
@@ -292,7 +292,7 @@ export default function LabLogin() {
           {/* Trust strip */}
           <div className="mt-10 pt-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500 font-medium">
             <Lock className="w-3.5 h-3.5" />
-            Secure laboratory access portal &nbsp;·&nbsp; HIPAA compliant &nbsp;·&nbsp; 256-bit encrypted
+            Secure laboratory access portal &nbsp;·&nbsp; DPDP & DISHA Compliant &nbsp;·&nbsp; 256-bit encrypted
           </div>
         </div>
       </div>

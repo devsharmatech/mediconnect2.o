@@ -18,9 +18,11 @@ import {
   FaCheckCircle,
   FaChevronLeft,
   FaChevronRight,
+  FaArrowRight,
 } from "react-icons/fa";
 import { HiOutlineBadgeCheck } from "react-icons/hi";
 import dynamic from "next/dynamic";
+import HowItWorksSteps from "@/components/public-site/ui/HowItWorksSteps";
 
 
 const LoginModal = dynamic(
@@ -215,7 +217,7 @@ const DoctorCard = ({ doctor, isHighlighted, onSelect, onOpenProfile }) => {
           className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#0067A1] hover:bg-[#005585] text-white text-xs font-bold rounded-lg transition-all shadow-md hover:shadow-lg active:scale-95 shrink-0"
         >
           <FaVideo className="h-3 w-3" />
-          <span>Book Appointment</span>
+          <span>Book Now</span>
         </button>
       </div>
     </div>
@@ -470,7 +472,8 @@ function DoctorsContent() {
   
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSignupOpen, setIsSignupOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const initialSearch = searchParams?.get("search") || searchParams?.get("q") || "";
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
   
   const initialSpecialty = searchParams.get("specialty") || "All Specialties";
   const [selectedSpecialty, setSelectedSpecialty] = useState(initialSpecialty);
@@ -668,6 +671,10 @@ function DoctorsContent() {
     if (specialtyParam) {
       setSelectedSpecialty(specialtyParam);
     }
+    const searchParam = searchParams?.get("search") ?? searchParams?.get("q");
+    if (searchParam !== null && searchParam !== undefined) {
+      setSearchQuery(searchParam);
+    }
   }, [searchParams]);
 
   useEffect(() => {
@@ -720,7 +727,7 @@ function DoctorsContent() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div id="doctors-list" className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 scroll-mt-6">
         {/* Mobile Toolbar: Search + Quick Filter Drawer Trigger */}
         <div className="lg:hidden space-y-3 mb-6">
           {/* Mobile Search Bar */}
@@ -796,6 +803,7 @@ function DoctorsContent() {
                       setFeeFilter("all");
                       setSearchQuery("");
                       setSortBy("recommended");
+                      router.replace("/doctors", { scroll: false });
                     }}
                     className="text-xs font-semibold text-rose-600 hover:underline"
                   >
@@ -910,7 +918,7 @@ function DoctorsContent() {
             {!searchQuery && (
               <ConditionsStrip
                 conditions={conditions}
-                onSelectCondition={(slug) => router.push(`/website/problem/${slug}`)}
+                onSelectCondition={(slug) => router.push(`/problem/${slug}`)}
               />
             )}
 
@@ -936,6 +944,7 @@ function DoctorsContent() {
                       setFeeFilter("all");
                       setSearchQuery("");
                       setSortBy("recommended");
+                      router.replace("/doctors", { scroll: false });
                       setPage(1);
                       loadDoctorsFromApi(1, true);
                     }}
@@ -1074,6 +1083,7 @@ function DoctorsContent() {
                   setFeeFilter("all");
                   setSearchQuery("");
                   setSortBy("recommended");
+                  router.replace("/doctors", { scroll: false });
                   setIsMobileFilterOpen(false);
                 }}
                 className="flex-1 py-2.5 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
@@ -1092,102 +1102,34 @@ function DoctorsContent() {
         </div>
       )}
 
-      {/* How It Works Section */}
-      <div className="bg-white py-16">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              How It <span className="text-[#0067A1]">Works</span>
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Get started with doctor consultations in 3 simple steps
-            </p>
-          </div>
+      {/* How It Works Section - Animated Lottie & Interactive Steps */}
+      <HowItWorksSteps />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="relative mb-6">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#0067A1] shadow-sm">
-                  <FaFilter className="h-8 w-8 text-white" />
-                </div>
-                <div className="absolute -top-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#0067A1] bg-white text-sm font-bold text-[#0067A1]">
-                  1
-                </div>
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Choose Doctor Specialty
-              </h3>
-              <p className="text-gray-600">
-                Select the medical specialty relevant to your health concern
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="relative mb-6">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#0067A1] shadow-sm">
-                  <FaUserMd className="h-8 w-8 text-white" />
-                </div>
-                <div className="absolute -top-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#0067A1] bg-white text-sm font-bold text-[#0067A1]">
-                  2
-                </div>
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Choose Your Doctor
-              </h3>
-              <p className="text-gray-600">
-                Browse verified doctors and pick the one that suits your needs
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="relative mb-6">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#0067A1] shadow-sm">
-                  <FaCalendarCheck className="h-8 w-8 text-white" />
-                </div>
-                <div className="absolute -top-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#0067A1] bg-white text-sm font-bold text-[#0067A1]">
-                  3
-                </div>
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Choose Time & Book Appointment
-              </h3>
-              <p className="text-gray-600">
-                Pick a convenient time slot and book your appointment instantly
-              </p>
-            </div>
+      {/* CTA Section - Home page aligned */}
+      <section className="w-full bg-[#0B3A5B] py-10 sm:py-14 text-white">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center max-w-3xl">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2 tracking-tight">
+            When You&apos;re Ready to Consult
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-200 mb-6 leading-relaxed">
+            Organise your healthcare journey with verified doctors and continuing care support on MediConnect.fit.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <button
+              onClick={handleSignupClick}
+              className="w-full sm:w-auto px-7 py-2.5 rounded-xl bg-white text-[#0B3A5B] hover:bg-slate-100 text-xs sm:text-sm font-bold transition-all shadow-sm cursor-pointer"
+            >
+              Sign Up
+            </button>
+            <button
+              onClick={handleLoginClick}
+              className="w-full sm:w-auto px-7 py-2.5 rounded-xl border border-white/40 text-white hover:bg-white/10 text-xs sm:text-sm font-semibold transition-all cursor-pointer"
+            >
+              Login
+            </button>
           </div>
         </div>
-      </div>
-
-      {/* CTA Section */}
-      <div className="bg-[#003358] py-5">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div>
-            <h2 className="mb-4 text-3xl md:text-4xl font-bold text-white">
-              When You&apos;re Ready to Consult
-            </h2>
-            <p className="mb-8 max-w-2xl mx-auto text-base text-gray-200">
-              You can use mediconnect.fit to organise consultations responsibly.
-              Availability of doctors and services may vary by location and over
-              time.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button
-                onClick={handleSignupClick}
-                className="rounded-lg bg-white px-8 py-3 text-sm font-semibold text-[#0067A1] shadow-md hover:shadow-lg transition-all"
-              >
-                Sign Up Now
-              </button>
-              <button
-                onClick={handleLoginClick}
-                className="rounded-lg border border-white/70 px-8 py-3 text-sm font-semibold text-white shadow-md hover:shadow-lg hover:bg-white/10 transition-all"
-              >
-                Login
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      </section>
 
       {/* Modals */}
       {isLoginOpen && (

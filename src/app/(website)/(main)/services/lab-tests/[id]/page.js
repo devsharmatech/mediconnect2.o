@@ -215,15 +215,15 @@ export default function PublicLabTestsPage({ params }) {
             />
 
             {/* ─── Lab Identity Card (Compact & Responsive on Mobile) ─── */}
-            <div className="bg-white border-b border-gray-100 shadow-2xs">
-                <div className="container mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8 pt-3 sm:pt-4">
+            <div className="bg-white border-b border-[#DCE6EB] shadow-2xs">
+                <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-4">
                     <Link href="/services/lab-tests"
-                        className="inline-flex items-center gap-1.5 text-[#0067A1] text-xs sm:text-sm font-semibold hover:underline group">
+                        className="inline-flex items-center gap-1.5 text-[#1677A8] hover:text-[#0B3A5B] text-xs sm:text-sm font-semibold transition-colors group">
                         <FaArrowLeft className="w-2.5 h-2.5 sm:w-3 sm:h-3 group-hover:-translate-x-1 transition-transform" />
                         All Diagnostic Labs
                     </Link>
                 </div>
-                <div className="container mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8 py-3 sm:py-5">
+                <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3.5 sm:py-5">
                     {lab ? (
                         <div className="flex items-center gap-3 sm:gap-5">
                             {/* Logo */}
@@ -289,7 +289,7 @@ export default function PublicLabTestsPage({ params }) {
                 </div>
             </div>
 
-            <div className="container mx-auto max-w-7xl px-3.5 sm:px-6 lg:px-8 py-4 sm:py-6">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
                 {/* Search */}
                 <div className="relative mb-3.5 sm:mb-5">
                     <FaSearch className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 w-3.5 h-3.5 sm:w-4 sm:h-4" />

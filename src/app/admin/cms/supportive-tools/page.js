@@ -6,6 +6,7 @@ import { Plus, Trash2, Edit2, Save, X, Image as ImageIcon } from "lucide-react";
 
 import RichTextEditor from "@/components/ui/RichTextEditor";
 import * as FaIcons from "react-icons/fa";
+import { uploadCmsMedia } from "@/lib/cmsUpload";
 
 const AVAILABLE_ICONS = [
   "FaHeartbeat", "FaStethoscope", "FaUserMd", "FaHospital", "FaAmbulance", 
@@ -109,12 +110,8 @@ export default function SupportiveToolsCMS() {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
     try {
-      const res = await fetch("/api/cms/upload", { method: "POST", body: formData });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error);
+      const result = await uploadCmsMedia(file);
       setEditingItem({ ...editingItem, [field]: result.url });
       toast.success("Uploaded successfully");
     } catch (err) { toast.error("Upload failed: " + err.message); }

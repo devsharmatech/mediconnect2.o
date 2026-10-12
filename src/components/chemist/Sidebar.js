@@ -124,9 +124,10 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
           {/* Header */}
           <div className="p-4 flex items-center justify-between h-16 shrink-0 border-b border-white/10">
             <Link
-              href="/chemist/dashboard"
+              href="/"
               onClick={onCloseMobile}
-              className="flex items-center gap-3 overflow-hidden"
+              title="Go to website homepage"
+              className="flex items-center gap-3 overflow-hidden cursor-pointer group"
             >
               <div className="w-10 h-10 rounded-md bg-white p-1 flex items-center justify-center border border-white/20 shrink-0 overflow-hidden">
                 <img
@@ -220,8 +221,9 @@ export default function ChemistSidebar({ open, mobileOpen, onToggle, onCloseMobi
           {/* Header */}
           <div className="p-4 flex items-center h-16 shrink-0 border-b border-white/10 justify-between">
             <Link
-              href="/chemist/dashboard"
-              className="flex items-center gap-3 overflow-hidden"
+              href="/"
+              title="Go to website homepage"
+              className="flex items-center gap-3 overflow-hidden cursor-pointer group"
             >
               <div className="w-10 h-10 rounded-md bg-white p-1 flex items-center justify-center border border-white/20 shrink-0 overflow-hidden">
                 <img

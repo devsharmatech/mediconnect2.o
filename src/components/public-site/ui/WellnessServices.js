@@ -167,7 +167,7 @@ function CardioVitalsPreview() {
                         <FaShieldAlt className="w-3 h-3 text-rose-600 shrink-0" />
                         <span>AHA Aligned Protocols</span>
                     </span>
-                    <span className="font-medium text-slate-600">DISHA & HIPAA Standard</span>
+                    <span className="font-medium text-slate-600">DISHA & DPDP Compliant</span>
                 </div>
             </div>
         </div>
@@ -421,15 +421,15 @@ const WellnessServices = ({ onLoginClick }) => {
                             
                             {/* Text / Feature Details Column */}
                             <div className="lg:col-span-7 order-1 lg:order-2 space-y-5">
-                                <div>
-                                    <p className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                <div className="text-center lg:text-left">
+                                    <p className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-2 flex items-center justify-center lg:justify-start gap-1.5">
                                         <FaHeartbeat className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
                                         <span>Cardiovascular Health</span>
                                     </p>
                                     <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                                         CardioConnect
                                     </h3>
-                                    <p className="text-slate-600 text-sm sm:text-base leading-relaxed mt-2.5">
+                                    <p className="text-slate-600 text-sm sm:text-base leading-relaxed mt-2.5 max-w-xl mx-auto lg:mx-0">
                                         A standardized longitudinal routine for cardiovascular monitoring. Log resting pulse and blood pressure, monitor daily exertion, and export structured records for doctor review.
                                     </p>
                                 </div>
@@ -493,15 +493,15 @@ const WellnessServices = ({ onLoginClick }) => {
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center">
                             {/* Text / Feature Details Column */}
                             <div className="lg:col-span-7 order-1 lg:order-1 space-y-5">
-                                <div>
-                                    <p className="text-xs font-bold text-teal-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                <div className="text-center lg:text-left">
+                                    <p className="text-xs font-bold text-teal-600 uppercase tracking-wider mb-2 flex items-center justify-center lg:justify-start gap-1.5">
                                         <FaLungs className="w-3.5 h-3.5 text-teal-500" />
                                         <span>Pulmonary Wellness</span>
                                     </p>
                                     <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
                                         LungConnect
                                     </h3>
-                                    <p className="text-slate-600 text-sm sm:text-base leading-relaxed mt-2.5">
+                                    <p className="text-slate-600 text-sm sm:text-base leading-relaxed mt-2.5 max-w-xl mx-auto lg:mx-0">
                                         A guided respiratory wellness assessment and breathwork monitor. Complete standard pulmonary evaluations, practice box breathing routines, and monitor oxygen saturation.
                                     </p>
                                 </div>

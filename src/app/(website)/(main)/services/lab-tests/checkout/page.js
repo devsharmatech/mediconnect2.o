@@ -365,11 +365,11 @@ export default function PublicCheckoutPage() {
                 onSuccess={handleAuthSuccess}
             />
 
-            <div className="max-w-6xl mx-auto px-4 sm:px-6">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
 
                 {/* Header Banner */}
-                <div className="bg-[#0067A1] text-white rounded-xl px-4 sm:px-6 py-4 mb-4 border border-[#005585]">
-                    <div className="flex flex-col gap-1.5">
+                <div className="bg-[#0B3A5B] text-white rounded-2xl px-5 sm:px-7 py-5 mb-6 shadow-2xs">
+                    <div className="flex flex-col gap-2">
                         {step !== 5 && (
                             <button
                                 type="button"
@@ -381,11 +381,11 @@ export default function PublicCheckoutPage() {
                             </button>
                         )}
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 sm:w-9 sm:h-9 bg-white/15 rounded-lg border border-white/20 flex items-center justify-center shrink-0">
-                                <FaLock className="w-3.5 h-3.5 text-white" />
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-white/10 rounded-xl border border-white/15 flex items-center justify-center shrink-0">
+                                <FaLock className="w-4 h-4 text-white" />
                             </div>
                             <div className="min-w-0">
-                                <h1 className="text-base sm:text-xl font-black text-white tracking-tight leading-tight truncate">
+                                <h1 className="text-base sm:text-xl font-extrabold text-white tracking-tight leading-tight truncate">
                                     {step === 5 ? "Booking Confirmed" : "Complete Lab Test Order"}
                                 </h1>
                                 <p className="text-white/80 text-[11px] sm:text-xs font-medium truncate">
@@ -401,10 +401,10 @@ export default function PublicCheckoutPage() {
                     <motion.div
                         initial={{ opacity: 0, y: -6 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="bg-amber-50 border border-amber-200 rounded-xl p-3 sm:p-3.5 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5"
+                        className="bg-amber-50 border border-amber-200/80 rounded-2xl p-4 mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
                     >
-                        <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
                                 <FaSignInAlt className="w-3.5 h-3.5" />
                             </div>
                             <div>
@@ -416,14 +416,14 @@ export default function PublicCheckoutPage() {
                             <button
                                 type="button"
                                 onClick={() => setShowLoginModal(true)}
-                                className="flex-1 sm:flex-initial px-3.5 py-1.5 bg-[#0067A1] text-white text-xs font-bold rounded-lg hover:bg-[#004F7C] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                                className="flex-1 sm:flex-initial px-4 py-2 bg-[#0B3A5B] text-white text-xs font-bold rounded-xl hover:bg-[#1677A8] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                             >
                                 <FaSignInAlt className="w-3 h-3" /> Login
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setShowSignupModal(true)}
-                                className="flex-1 sm:flex-initial px-3.5 py-1.5 bg-white text-[#0067A1] border border-[#0067A1] text-xs font-bold rounded-lg hover:bg-[#0067A1]/5 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                                className="flex-1 sm:flex-initial px-4 py-2 bg-white text-[#0B3A5B] border border-[#0B3A5B] text-xs font-bold rounded-xl hover:bg-[#F7FAFC] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                             >
                                 <FaUserPlus className="w-3 h-3" /> Register
                             </button>

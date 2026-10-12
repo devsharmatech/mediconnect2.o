@@ -5,6 +5,7 @@ import { dirname } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig = {
+  devIndicators: false,
   turbopack: {
     root: __dirname,
   },

@@ -1,8 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FaChevronLeft, FaChevronRight, FaCalendarCheck } from 'react-icons/fa';
-import Button from './Button';
+import Link from 'next/link';
+import { 
+  FaChevronLeft, 
+  FaChevronRight, 
+  FaUserMd, 
+  FaShieldAlt, 
+  FaLock, 
+  FaHeart 
+} from 'react-icons/fa';
 
 const heroImagesFallback = [
   {
@@ -19,7 +26,7 @@ const heroImagesFallback = [
   },
 ];
 
-const Hero = ({ onLoginClick }) => {
+export default function Hero({ onLoginClick }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [cmsData, setCmsData] = useState(null);
   const [images, setImages] = useState(heroImagesFallback);
@@ -31,19 +38,17 @@ const Hero = ({ onLoginClick }) => {
         const json = await res.json();
         if (json.success && json.data) {
           setCmsData(json.data);
-          if (json.data) {
-            const loadedImages = [];
-            if (json.data.hero_image) loadedImages.push({ src: json.data.hero_image, alt: 'Hero CMS Image 1' });
-            if (json.data.hero_image2) loadedImages.push({ src: json.data.hero_image2, alt: 'Hero CMS Image 2' });
-            if (json.data.hero_image3) loadedImages.push({ src: json.data.hero_image3, alt: 'Hero CMS Image 3' });
-            if (json.data.hero_image4) loadedImages.push({ src: json.data.hero_image4, alt: 'Hero CMS Image 4' });
-            if (loadedImages.length > 0) {
-              setImages(loadedImages);
-            }
+          const loadedImages = [];
+          if (json.data.hero_image) loadedImages.push({ src: json.data.hero_image, alt: 'Hero CMS Image 1' });
+          if (json.data.hero_image2) loadedImages.push({ src: json.data.hero_image2, alt: 'Hero CMS Image 2' });
+          if (json.data.hero_image3) loadedImages.push({ src: json.data.hero_image3, alt: 'Hero CMS Image 3' });
+          if (json.data.hero_image4) loadedImages.push({ src: json.data.hero_image4, alt: 'Hero CMS Image 4' });
+          if (loadedImages.length > 0) {
+            setImages(loadedImages);
           }
         }
       } catch (e) {
-        console.error(e);
+        console.error("Failed to load hero CMS data", e);
       }
     }
     fetchHome();
@@ -67,119 +72,206 @@ const Hero = ({ onLoginClick }) => {
   };
 
   const headline = cmsData?.headline || "Online Doctor Consultation in India";
-  const base_headline = cmsData?.base_headline || "- Verified, Ethical & Doctor-Led";
-  const subheadline = cmsData?.subheadline || "Consult verified doctors online through video consultations, prescriptions, lab coordination, and follow-ups - delivered responsibly and in line with medical guidelines.";
-  const description = cmsData?.description || "Doctor-led care • Guideline-compliant • No sponsored recommendations • Patient-first";
+  const subheadline = cmsData?.subheadline || "Consult verified doctors online through video consultations, prescriptions, lab coordination, and follow-ups — delivered responsibly and in line with medical guidelines.";
 
-  const primaryText = cmsData?.primary_button_text || "Book a Consultation";
+  const primaryText = cmsData?.primary_button_text 
+    ? (cmsData.primary_button_text.toLowerCase().includes("book a consultation") ? "Book Consultation" : cmsData.primary_button_text)
+    : "Book Consultation";
   const secondaryText = cmsData?.secondary_button_text || "How It Works";
 
+  const microTrust = [
+    { label: "Doctor-led Care", icon: FaUserMd },
+    { label: "Verified Specialists", icon: FaShieldAlt },
+    { label: "100% Private & Secure", icon: FaLock },
+    { label: "Patient-First Support", icon: FaHeart },
+  ];
+
+  // Helper to split headline into balanced two lines
+  const renderTwoLineHeadline = (text) => {
+    if (!text) return "Online Doctor Consultation in India";
+
+    // 1. If explicit newline is present
+    if (text.includes("\n")) {
+      const lines = text.split("\n");
+      return (
+        <>
+          <span>{lines[0]}</span>
+          <span className="block mt-1 sm:mt-1.5">{lines.slice(1).join(" ")}</span>
+        </>
+      );
+    }
+
+    // 2. Pattern: "... in India" or "... across India"
+    const lower = text.toLowerCase();
+    if (lower.includes(" in india")) {
+      const idx = lower.indexOf(" in india");
+      const part1 = text.substring(0, idx).trim();
+      const part2 = text.substring(idx).trim();
+      return (
+        <>
+          <span>{part1}</span>
+          <span className="block mt-1 sm:mt-1.5">{part2}</span>
+        </>
+      );
+    }
+
+    if (lower.includes(" across india")) {
+      const idx = lower.indexOf(" across india");
+      const part1 = text.substring(0, idx).trim();
+      const part2 = text.substring(idx).trim();
+      return (
+        <>
+          <span>{part1}</span>
+          <span className="block mt-1 sm:mt-1.5">{part2}</span>
+        </>
+      );
+    }
+
+    // 3. Pattern: contains hyphen or colon separator
+    if (text.includes(" - ")) {
+      const [part1, ...rest] = text.split(" - ");
+      return (
+        <>
+          <span>{part1}</span>
+          <span className="block mt-1 sm:mt-1.5">{rest.join(" - ")}</span>
+        </>
+      );
+    }
+
+    // 4. Default 4+ words: split neatly into two lines
+    const words = text.split(" ");
+    if (words.length >= 4) {
+      const mid = Math.ceil(words.length / 2);
+      return (
+        <>
+          <span>{words.slice(0, mid).join(" ")}</span>
+          <span className="block mt-1 sm:mt-1.5">{words.slice(mid).join(" ")}</span>
+        </>
+      );
+    }
+
+    return text;
+  };
+
   return (
-    <div className="bg-[#F6F8FA] w-full max-w-full overflow-hidden">
-      {/* Hero Section */}
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-10">
-        <div className="grid md:grid-cols-2 gap-10 lg:gap-16 items-center">
-          {/* Left: Text */}
-          <div className="text-center md:text-left">
-            <h1 className="text-[22px] sm:text-[30px] lg:text-[48px] leading-tight font-bold text-[#0067A1] mb-3">
-              {headline}
+    <div className="bg-[#F7FAFC] w-full max-w-full border-b border-[#DCE6EB] overflow-hidden">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 lg:py-16">
+        <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 xl:gap-16 items-center">
+          
+          {/* Left: Authority Messaging with Two-Line Headline */}
+          <div className="lg:col-span-7 text-center lg:text-left">
+            <p className="text-[11px] sm:text-xs font-bold tracking-widest text-[#1677A8] uppercase mb-2">
+              DOCTOR-LED · CONNECTED HEALTHCARE
+            </p>
+
+            <h1 className="text-[26px] sm:text-3xl lg:text-[44px] xl:text-[48px] leading-[1.2] font-extrabold text-[#0B3A5B] mb-3.5 tracking-tight">
+              {renderTwoLineHeadline(headline)}
             </h1>
-            <h4 className="text-[16px] sm:text-[20px] lg:text-[28px] leading-tight font-semibold text-[#0067A1] mb-3">
-              {base_headline}
-            </h4>
-            <p className="text-[16px] sm:text-[18px] leading-relaxed text-[#2D3748] mb-2 max-w-xl mx-auto md:mx-0">
+
+            <p className="text-sm sm:text-base lg:text-[17px] text-[#607580] leading-relaxed mb-6 max-w-2xl mx-auto lg:mx-0">
               {subheadline}
             </p>
-            <p className="text-[13px] sm:text-[14px] leading-relaxed text-[#6B7280] mb-6 max-w-xl mx-auto md:mx-0">
-              {description}
-            </p>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-2 justify-center md:justify-start w-full sm:w-auto">
-              <Button
-                type="button"
-                onClick={() => {
-                  if (cmsData?.primary_button_link && !cmsData.primary_button_link.includes('/login')) {
-                    window.location.href = cmsData.primary_button_link;
-                    return;
-                  }
-                  const section = document.getElementById('book-consultation') || document.getElementById('doctors-section');
-                  if (section) {
-                    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  } else {
-                    window.location.href = '/website/doctors';
-                  }
-                }}
-                className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 text-sm font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0067A1]"
+            {/* Concise CTAs */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-7 justify-center lg:justify-start">
+              <Link
+                href="/doctors"
+                className="inline-flex items-center justify-center px-6 py-3.5 text-sm font-bold rounded-xl bg-[#0B3A5B] text-white hover:bg-[#1677A8] transition-all shadow-xs hover:shadow-sm group"
               >
-                <FaCalendarCheck className="mr-2 h-4 w-4" />
-                {primaryText}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 text-sm font-semibold rounded-lg border border-[#0067A1] text-[#0067A1] bg-white hover:bg-[#F3F4F6]"
-                onClick={() => {
-                  const section = document.getElementById('how-it-works');
-                  if (section) {
-                    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  } else if (cmsData?.secondary_button_link) {
-                    window.location.href = cmsData.secondary_button_link;
-                  }
-                }}
+                <span>{primaryText}</span>
+                <span className="ml-1.5 transform group-hover:translate-x-1 transition-transform">&rarr;</span>
+              </Link>
+              <Link
+                href="#how-it-works"
+                className="inline-flex items-center justify-center px-6 py-3.5 text-sm font-semibold rounded-xl border border-[#DCE6EB] text-[#0B3A5B] bg-white hover:bg-[#F7FAFC] hover:border-[#1677A8]/50 transition-all shadow-2xs"
               >
                 {secondaryText}
-              </Button>
+              </Link>
             </div>
-            <p className="text-[11px] sm:text-xs text-[#6B7280] max-w-md mx-auto md:mx-0">
-              Takes 2–3 minutes • No obligation • Follow-up supported based on medical advice
-            </p>
+
+            {/* Micro Trust Strip */}
+            <div className="flex flex-wrap items-center gap-x-5 sm:gap-x-7 gap-y-2.5 pt-5 border-t border-[#DCE6EB] justify-center lg:justify-start">
+              {microTrust.map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <div key={idx} className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full bg-[#E8F2F7] text-[#1677A8] flex items-center justify-center shrink-0">
+                      <Icon className="w-2.5 h-2.5" />
+                    </div>
+                    <span className="text-xs font-semibold text-[#18303D]">
+                      {item.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Right: Hero Image Slider (Indian doctors) */}
-          <div className="w-full flex justify-center md:justify-end">
-            <div className="w-full max-w-md md:max-w-lg lg:max-w-xl rounded-xl border border-[#E2E8F0] bg-white overflow-hidden flex flex-col">
+          {/* Right: Doctor Slider with Refined Shadows */}
+          <div className="lg:col-span-5 flex justify-center lg:justify-end w-full">
+            <div className="w-full max-w-md lg:max-w-lg rounded-2xl border border-[#DCE6EB] bg-white overflow-hidden shadow-sm flex flex-col">
               <div className="relative aspect-[4/3] w-full bg-[#EFF3F6] overflow-hidden">
                 {images.map((image, index) => (
                   <img
                     key={index}
                     src={image.src}
                     alt={image.alt}
-                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in-out ${index === currentIndex ? 'opacity-100' : 'opacity-0'
-                      }`}
+                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ease-in-out ${
+                      index === currentIndex ? 'opacity-100' : 'opacity-0'
+                    }`}
                   />
                 ))}
-                {/* Left/right icon buttons over image */}
+                
+                {/* Left/right navigation buttons */}
                 {images.length > 1 && (
                   <>
                     <button
-                      suppressHydrationWarning
                       type="button"
                       onClick={handlePrev}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[#0067A1] shadow-md hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#0067A1]/70"
+                      className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 z-10 inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-white/95 text-[#0B3A5B] shadow-md border border-slate-200/60 hover:bg-white hover:text-[#1677A8] hover:scale-105 focus:outline-none transition-all cursor-pointer"
                       aria-label="Previous image"
                     >
-                      <FaChevronLeft className="w-4 h-4" />
+                      <FaChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     </button>
                     <button
-                      suppressHydrationWarning
                       type="button"
                       onClick={handleNext}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[#0067A1] shadow-md hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#0067A1]/70"
+                      className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 z-10 inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-white/95 text-[#0B3A5B] shadow-md border border-slate-200/60 hover:bg-white hover:text-[#1677A8] hover:scale-105 focus:outline-none transition-all cursor-pointer"
                       aria-label="Next image"
                     >
-                      <FaChevronRight className="w-4 h-4" />
+                      <FaChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     </button>
                   </>
                 )}
+
+                {/* Dot indicator indicators */}
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
+                  {images.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentIndex(idx)}
+                      className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                        idx === currentIndex ? 'w-5 bg-[#0B3A5B]' : 'w-1.5 bg-white/80'
+                      }`}
+                      aria-label={`Go to slide ${idx + 1}`}
+                    />
+                  ))}
+                </div>
               </div>
 
+              {/* Slider caption footer */}
+              <div className="p-3 bg-white border-t border-[#DCE6EB] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-semibold text-[#0B3A5B]">Verified Consultations Live</span>
+                </div>
+                <span className="text-[11px] text-[#607580] font-medium">Online & In-Clinic</span>
+              </div>
             </div>
           </div>
+
         </div>
       </div>
-
     </div>
   );
-};
-
-export default Hero;
+}

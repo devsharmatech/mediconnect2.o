@@ -8,7 +8,7 @@ const CTASection = ({ onSignupClick }) => {
   return (
     <section className="relative py-20 bg-[#F6F8FA]">
       {/* Main CTA */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="relative rounded-3xl bg-[#0067A1] text-white">
           <div className="relative z-10 px-8 py-16 md:px-16 md:py-20">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">

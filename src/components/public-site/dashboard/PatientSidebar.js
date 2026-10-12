@@ -363,8 +363,10 @@ export default function PatientSidebar({
         {/* Header / Logo */}
         <div className="px-4 flex items-center h-16 shrink-0 border-b border-white/10 justify-between">
           <Link
-            href="/website/dashboard"
-            className="flex items-center gap-3 overflow-hidden group"
+            href="/"
+            onClick={onClose}
+            title="Go to website homepage"
+            className="flex items-center gap-3 overflow-hidden group cursor-pointer"
           >
             <div className="w-9 h-9 rounded-md bg-white p-1 flex items-center justify-center border border-white/20 shrink-0 overflow-hidden">
               <img

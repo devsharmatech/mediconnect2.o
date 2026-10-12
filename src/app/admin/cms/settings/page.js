@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { Save, Image as ImageIcon } from "lucide-react";
+import { uploadCmsMedia } from "@/lib/cmsUpload";
 
 export default function SettingsCMS() {
   const [data, setData] = useState({
@@ -74,17 +75,8 @@ export default function SettingsCMS() {
     if (!file) return;
 
     setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      const res = await fetch("/api/cms/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error);
-      
+      const result = await uploadCmsMedia(file);
       setData({ ...data, logo: result.url });
       toast.success("Logo uploaded successfully");
     } catch (err) {

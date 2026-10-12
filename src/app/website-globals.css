@@ -3,6 +3,18 @@
 
 :root {
   --font-poppins: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  
+  /* MediConnect.fit Frozen Color System Design Tokens */
+  --color-deep-navy: #0B3A5B;
+  --color-medical-blue: #1677A8;
+  --color-primary-text: #18303D;
+  --color-secondary-text: #607580;
+  --color-teal: #159A8A;
+  --color-green: #2FA36B;
+  --color-gold: #C9A227;
+  --color-bg: #F7FAFC;
+  --color-white: #FFFFFF;
+  --color-border: #DCE6EB;
 }
 
 /* Apply Poppins everywhere across the website and dashboard with crisp antialiasing */
@@ -216,3 +228,15 @@ textarea {
   transform: translateX(-250px) !important;
   transition: left 0.3s ease, transform 0.3s ease !important;
 }
+
+/* Smooth anchor scrolling for in-page section links */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Hide Next.js dev indicator badge from obstructing mobile navigation */
+nextjs-portal [data-nextjs-dev-indicator],
+nextjs-portal [data-nextjs-toast-wrapper],
+[data-nextjs-dev-indicator] {
+  display: none !important;
+}

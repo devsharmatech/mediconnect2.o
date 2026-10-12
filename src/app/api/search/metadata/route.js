@@ -7,16 +7,48 @@ export async function GET(req) {
     const q = (searchParams.get("q") || "").trim();
 
     if (q) {
-      const searchPattern = `%${q}%`;
+      const cleanQ = q.trim();
+      const strippedQ = cleanQ.replace(/^(dr\.?|doctor)\s+/i, "").trim();
+      const searchPattern = `%${cleanQ}%`;
+      const strippedPattern = strippedQ ? `%${strippedQ}%` : searchPattern;
+      
+      const words = (strippedQ || cleanQ).split(/\s+/).filter(w => w.length > 1);
+      const word1Pattern = words[0] ? `%${words[0]}%` : strippedPattern;
+      const word2Pattern = words[1] ? `%${words[1]}%` : null;
+
       let matchedDoctors = [];
       try {
-        matchedDoctors = await sql`
-          SELECT id, full_name, specialization, clinic_name, experience_years, rating
-          FROM doctor_details
-          WHERE (full_name ILIKE ${searchPattern} OR specialization ILIKE ${searchPattern} OR clinic_name ILIKE ${searchPattern})
-          ORDER BY rating DESC NULLS LAST
-          LIMIT 6
-        `;
+        if (word2Pattern) {
+          matchedDoctors = await sql`
+            SELECT id, full_name, specialization, clinic_name, experience_years, rating
+            FROM doctor_details
+            WHERE (
+              (full_name ILIKE ${searchPattern} OR specialization ILIKE ${searchPattern} OR clinic_name ILIKE ${searchPattern})
+              OR (full_name ILIKE ${strippedPattern} OR specialization ILIKE ${strippedPattern} OR clinic_name ILIKE ${strippedPattern})
+              OR (
+                (full_name ILIKE ${word1Pattern} OR specialization ILIKE ${word1Pattern} OR clinic_name ILIKE ${word1Pattern})
+                AND (full_name ILIKE ${word2Pattern} OR specialization ILIKE ${word2Pattern} OR clinic_name ILIKE ${word2Pattern})
+              )
+            )
+            ORDER BY rating DESC NULLS LAST
+            LIMIT 6
+          `;
+        } else {
+          matchedDoctors = await sql`
+            SELECT id, full_name, specialization, clinic_name, experience_years, rating
+            FROM doctor_details
+            WHERE (
+              full_name ILIKE ${searchPattern} 
+              OR full_name ILIKE ${strippedPattern} 
+              OR specialization ILIKE ${searchPattern} 
+              OR specialization ILIKE ${strippedPattern} 
+              OR clinic_name ILIKE ${searchPattern}
+              OR clinic_name ILIKE ${strippedPattern}
+            )
+            ORDER BY rating DESC NULLS LAST
+            LIMIT 6
+          `;
+        }
       } catch (e) {
         console.warn("Doctor search query error:", e.message);
       }

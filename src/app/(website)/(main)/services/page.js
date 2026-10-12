@@ -45,43 +45,35 @@ const ServiceCard = ({ icon: Icon, title, description, delay, link, img }) => {
   }
 
   return (
-    <AnimateIn delay={delay} className="w-full">
-      <Link href={actualLink} className="block h-full">
-        <div className="relative h-full rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-[#0067A1]/30 transition-all duration-200">
+    <AnimateIn delay={delay} className="w-full h-full">
+      <Link href={actualLink} className="block h-full group">
+        <div className="relative h-full rounded-2xl border border-[#DCE6EB] bg-white p-6 sm:p-7 shadow-2xs hover:border-[#1677A8]/50 hover:shadow-xs transition-all duration-200 flex flex-col justify-between">
           {isComingSoon && (
-            <div className="absolute top-4 right-4 bg-orange-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full animate-pulse uppercase tracking-wider">
+            <div className="absolute top-4 right-4 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
               Coming Soon
             </div>
           )}
-          <div className="mb-6">
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-[#0067A1] overflow-hidden">
-              {img ? (
-                 <img src={img} className="w-full h-full object-cover" alt={title} />
-              ) : (
-                 Icon ? <Icon className="h-8 w-8 text-white" /> : <FaUserMd className="h-8 w-8 text-white" />
-              )}
+          <div>
+            <div className="mb-5">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#F7FAFC] border border-[#DCE6EB] text-[#1677A8] overflow-hidden group-hover:scale-105 transition-transform">
+                {img ? (
+                  <img src={img} className="w-full h-full object-cover" alt={title} />
+                ) : (
+                  Icon ? <Icon className="h-6 w-6 text-[#1677A8]" /> : <FaUserMd className="h-6 w-6 text-[#1677A8]" />
+                )}
+              </div>
             </div>
+            <h3 className="mb-2 text-lg sm:text-xl font-bold text-[#0B3A5B] group-hover:text-[#1677A8] transition-colors leading-snug">
+              {title}
+            </h3>
+            <p className="mb-4 text-xs sm:text-sm leading-relaxed text-[#607580]">
+              {description}
+            </p>
           </div>
-          <h3 className="mb-3 text-xl font-bold text-[#003358]">{title}</h3>
-          <p className="mb-4 text-sm leading-relaxed text-gray-600">
-            {description}
-          </p>
-          <div className="mt-4 border-t border-gray-100 pt-4 mt-auto">
-            <span className="inline-flex items-center text-sm font-semibold text-[#0067A1]">
-              Explore Service
-              <svg
-                className="ml-2 h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M14 5l7 7m0 0l-7 7m7-7H3"
-                />
-              </svg>
+
+          <div className="mt-auto border-t border-[#DCE6EB]/60 pt-4 flex items-center justify-between">
+            <span className="inline-flex items-center text-xs font-bold text-[#1677A8] group-hover:translate-x-0.5 transition-transform">
+              Explore Service &rarr;
             </span>
           </div>
         </div>
@@ -91,14 +83,12 @@ const ServiceCard = ({ icon: Icon, title, description, delay, link, img }) => {
 };
 
 const FeatureHighlight = ({ icon: Icon, title, description }) => (
-  <div className="relative">
-    <div className="relative rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-[#0067A1] text-white">
-        <Icon className="h-6 w-6" />
-      </div>
-      <h4 className="mb-2 text-lg font-semibold text-[#003358]">{title}</h4>
-      <p className="text-sm text-gray-600">{description}</p>
+  <div className="rounded-2xl border border-[#DCE6EB] bg-white p-5 sm:p-6 shadow-2xs">
+    <div className="mb-3.5 flex h-10 w-10 items-center justify-center rounded-xl bg-[#F7FAFC] border border-[#DCE6EB] text-[#1677A8]">
+      <Icon className="h-5 w-5 text-[#1677A8]" />
     </div>
+    <h4 className="mb-1 text-base font-bold text-[#0B3A5B]">{title}</h4>
+    <p className="text-xs text-[#607580] leading-relaxed">{description}</p>
   </div>
 );
 
@@ -107,43 +97,43 @@ const fallbackMainServices = [
     icon: FaUserMd,
     title: "Doctor Consultations",
     description:
-      "HD video consultations and in-clinic visits with verified specialists across key specialties.",
-    link: "/website/services/doctor-consultations",
+      "HD video consultations and in-clinic visits with verified specialists across 15+ specialties.",
+    link: "/website/doctors",
   },
   {
-    icon: FaSearch,
-    title: "Lab Tests",
+    icon: FaFlask,
+    title: "Lab Tests & Diagnostics",
     description:
-      "Book diagnostic lab tests with digital reports. Sample collection available where applicable.",
+      "Book verified lab packages and individual tests with digital reports delivered directly to your account.",
     link: "/website/services/lab-tests",
   },
   {
-    icon: FaShoppingCart,
+    icon: FaPills,
     title: "Medicine Delivery",
     description:
-      "Order prescribed medicines from trusted pharmacy partners with convenient delivery options.",
+      "Order prescribed medications from trusted licensed pharmacy partners with reliable door delivery.",
     link: "/website/services/pharmacy",
   },
   {
     icon: FaPrescriptionBottle,
     title: "Digital Health Records",
     description:
-      "ABHA-supportive storage for prescriptions, reports and medical records so everything stays organised.",
+      "Secure, ABHA-integrated record storage for your prescriptions, diagnostic reports, and medical history.",
     link: "/website/coming-soon",
   },
   {
     icon: FaCalendarCheck,
     title: "Appointments & Follow-Ups",
     description:
-      "Scheduling, reminders and simple follow-up management across your care journey.",
+      "Automated reminders, timely follow-up coordination, and seamless scheduling across your care journey.",
     link: "/website/coming-soon",
   },
   {
     icon: FaHeadset,
-    title: "Patient Support",
+    title: "24/7 Care Support",
     description:
-      "Help with bookings, basic questions and navigation across your services.",
-    link: "/website/coming-soon",
+      "Multi-channel support via phone, WhatsApp, and email for assistance with appointments and orders.",
+    link: "/website/contact",
   },
 ];
 
@@ -151,9 +141,9 @@ export default function ServicesPage() {
   const [mainServices, setMainServices] = useState(fallbackMainServices);
   const [supportiveTools, setSupportiveTools] = useState([]);
   const [headerData, setHeaderData] = useState({
-     title: "COMPLETE CARE ECOSYSTEM",
-     heading: "Practical Care, Organised Clearly",
-     subheading: "Doctor consultations, lab tests, medicines, records and support services that patients and families use most often."
+    title: "COMPLETE CARE ECOSYSTEM",
+    heading: "Practical Care, Organised Clearly",
+    subheading: "From doctor consultations and diagnostics to medicines, records, and ongoing support — all connected in one place."
   });
 
   useEffect(() => {
@@ -162,16 +152,16 @@ export default function ServicesPage() {
         const res = await fetch("/api/cms/services");
         const json = await res.json();
         if (json.success && json.data && json.data.length > 0) {
-           const active = json.data.filter(s => s.status === "active").sort((a,b)=>a.display_order - b.display_order);
-           if (active.length > 0) {
-             setMainServices(active.map(s => ({
-               icon: iconMap[s.icon_name] || FaUserMd,
-               title: s.title,
-               description: s.description,
-               link: s.link || `/website/services/${s.slug}`,
-               img: s.image || s.icon
-             })));
-           }
+          const active = json.data.filter(s => s.status === "active").sort((a,b)=>a.display_order - b.display_order);
+          if (active.length > 0) {
+            setMainServices(active.map(s => ({
+              icon: iconMap[s.icon_name] || FaUserMd,
+              title: s.title,
+              description: s.description,
+              link: s.link || `/website/services/${s.slug}`,
+              img: s.image || s.icon
+            })));
+          }
         }
       } catch (e) {
         console.error("Failed to load CMS services", e);
@@ -182,15 +172,15 @@ export default function ServicesPage() {
         const res = await fetch("/api/cms/supportive-tools");
         const json = await res.json();
         if (json.success && json.data && json.data.length > 0) {
-           const active = json.data.filter(s => s.status === "active").sort((a,b)=>a.display_order - b.display_order);
-           setSupportiveTools(active.map(s => ({
-             id: s.id,
-             icon: iconMap[s.icon_name] || FaHeartbeat,
-             title: s.title,
-             description: s.description,
-             link: `/website/supportive-tools/${s.slug}`,
-             img: s.image
-           })));
+          const active = json.data.filter(s => s.status === "active").sort((a,b)=>a.display_order - b.display_order);
+          setSupportiveTools(active.map(s => ({
+            id: s.id,
+            icon: iconMap[s.icon_name] || FaHeartbeat,
+            title: s.title,
+            description: s.description,
+            link: `/website/supportive-tools/${s.slug}`,
+            img: s.image
+          })));
         }
       } catch (e) {
         console.error("Failed to load generic tools", e);
@@ -201,11 +191,11 @@ export default function ServicesPage() {
         const res = await fetch("/api/cms/section-headers?page=services");
         const json = await res.json();
         if (json.success && json.data && json.data.heading) {
-            setHeaderData({
-               title: json.data.title || "COMPLETE CARE ECOSYSTEM",
-               heading: json.data.heading,
-               subheading: json.data.subheading || ""
-            });
+          setHeaderData({
+            title: json.data.title || "COMPLETE CARE ECOSYSTEM",
+            heading: json.data.heading,
+            subheading: json.data.subheading || ""
+          });
         }
       } catch (e) {
         console.error("Failed to load CMS headers", e);
@@ -216,20 +206,19 @@ export default function ServicesPage() {
     fetchHeaders();
   }, []);
 
-  // Fallback Supportive tools if none loaded
   const displayTools = supportiveTools.length > 0 ? supportiveTools : [
     {
       icon: FaHeartbeat,
       title: "Guided Symptom Check",
       description:
-        "A guided way to describe your concern and understand which doctor or service may be relevant.",
+        "A guided tool to organize your symptoms before consulting a certified doctor.",
       link: "/website/coming-soon",
     },
     {
       icon: FaChartLine,
       title: "Health Insights & Trends",
       description:
-        "Contextual summaries and trends around your reports to support doctor-led decisions.",
+        "Contextual summaries and diagnostic trends to support doctor-led clinical decisions.",
       link: "/website/coming-soon",
     },
   ];
@@ -237,108 +226,107 @@ export default function ServicesPage() {
   const features = [
     {
       icon: FaShieldAlt,
-      title: "Secure & Private",
+      title: "Secure & Encrypted",
       description:
-        "End-to-end encryption for all your health data and communications.",
+        "Bank-grade security and ABDM compliance to protect sensitive clinical data.",
     },
     {
       icon: FaMobileAlt,
-      title: "Mobile First",
+      title: "Mobile Optimized",
       description:
-        "Access all services on-the-go with our mobile-optimized platform.",
+        "Seamless access across smartphones, tablets, and desktop browsers.",
     },
     {
       icon: SiAntdesign,
-      title: "Intuitive Design",
+      title: "Doctor-Led Workflow",
       description:
-        "User-friendly interface that makes healthcare management simple.",
+        "Clear care pathways verified by registered medical practitioners.",
     },
     {
       icon: FaBrain,
-      title: "Smart Technology",
+      title: "Continuous Care",
       description:
-        "Advanced algorithms for personalized health recommendations.",
+        "Longitudinal health records that keep every doctor visit context-aware.",
     },
   ];
 
   return (
-    <div className="min-h-screen bg-[#F6F8FA]">
-      {/* Hero Section (compact, primary background) */}
-      <div className="mb-12 md:mb-16  bg-[#0067A1] px-6 py-10 md:px-10 md:py-12 text-center text-white">
-        <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-white/10">
-          <FaHeartbeat className="h-9 w-9 text-white" />
+    <div className="min-h-screen bg-white pb-20 w-full overflow-x-hidden">
+      {/* 1. HERO HEADER */}
+      <section className="bg-[#F7FAFC] border-b border-[#DCE6EB] py-12 sm:py-16">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-[11px] sm:text-xs font-bold tracking-widest text-[#1677A8] uppercase mb-2">
+            {headerData.title || "COMPLETE CARE ECOSYSTEM"}
+          </p>
+          <h1 className="text-3xl sm:text-4xl lg:text-[44px] font-bold text-[#0B3A5B] tracking-tight mb-3">
+            {headerData.heading || "Practical Care, Organised Clearly"}
+          </h1>
+          <p className="text-sm sm:text-base text-[#607580] max-w-2xl mx-auto leading-relaxed">
+            {headerData.subheading || "From doctor consultations and lab tests to medicines and health records, mediconnect.fit helps you access essential care in one connected place."}
+          </p>
         </div>
-        <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-3">
-          Complete Healthcare Services, Organised Clearly
-        </h1>
-        <p className="mt-2 text-sm md:text-base text-white/80 max-w-2xl mx-auto">
-          From doctor consultations and lab tests to medicines and health
-          records, mediconnect.fit helps you access essential care in one connected
-          place.
-        </p>
-      </div>
-      <div className="relative container mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-10">
-        {/* Main Services Grid - Practical care first (Layer 1) */}
-        <div className="mb-20">
-          <div className="text-center mb-12">
-            <div className="mb-4 inline-block rounded-full bg-[#0067A1]/5 px-6 py-2">
-              <span className="text-sm font-semibold text-[#0067A1]">
-                {headerData.title}
-              </span>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              {headerData.heading}
+      </section>
+
+      {/* 2. MAIN SERVICES CONTAINER */}
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16 space-y-16">
+        {/* Main Core Services Grid */}
+        <div>
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <p className="text-[11px] sm:text-xs font-bold tracking-widest text-[#1677A8] uppercase mb-1.5">
+              PRIMARY HEALTHCARE SERVICES
+            </p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#0B3A5B] tracking-tight">
+              Essential Care You Can Rely On
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              {headerData.subheading}
+            <p className="text-xs sm:text-sm text-[#607580] mt-1.5 leading-relaxed">
+              Transparent, accessible medical services delivered with verified practitioners.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {mainServices.map((service, index) => (
-              <ServiceCard key={index} {...service} delay={200 + index * 100} />
+              <ServiceCard key={index} {...service} delay={150 + index * 50} />
             ))}
           </div>
         </div>
 
-        {/* Supportive Tools Grid - grouped separately */}
-        <div className="mb-20">
-          <div className="text-center mb-12">
-            <div className="inline-block px-6 py-2 rounded-full bg-[#0067A1]/5 mb-4">
-              <span className="text-sm font-semibold text-[#0067A1]">
-                SUPPORTIVE TOOLS
-              </span>
-            </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
-              Helpful tools around your care
+        {/* Supportive Tools Grid */}
+        <div className="pt-6 border-t border-[#DCE6EB]">
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <p className="text-[11px] sm:text-xs font-bold tracking-widest text-[#1677A8] uppercase mb-1.5">
+              SUPPORTIVE CLINICAL TOOLS
+            </p>
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#0B3A5B] tracking-tight">
+              Helpful Tools Around Your Care
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Features like guided symptom checks and health insights
-              are designed as helpers around doctor-led care.
+            <p className="text-xs sm:text-sm text-[#607580] mt-1.5 leading-relaxed">
+              Guided symptom checks and diagnostic trends designed to assist doctor consultations.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {displayTools.map((tool, index) => (
-              <ServiceCard key={tool.id || index} {...tool} delay={200 + index * 100} />
+              <ServiceCard key={tool.id || index} {...tool} delay={150 + index * 50} />
             ))}
           </div>
         </div>
 
-        {/* Features Section */}
-        <AnimateIn delay={400} className="mb-20">
-          <div className="rounded-2xl border border-gray-200 bg-white p-8 md:p-12">
-            <div className="text-center mb-10">
-              <h2 className="text-3xl font-bold text-gray-900 mb-3">
-                Why Choose <span className="text-[#0067A1]">Our Platform</span>
+        {/* Platform Advantages */}
+        <AnimateIn delay={300}>
+          <div className="rounded-3xl border border-[#DCE6EB] bg-[#F7FAFC] p-8 md:p-12 shadow-2xs">
+            <div className="text-center max-w-2xl mx-auto mb-10">
+              <p className="text-[11px] sm:text-xs font-bold tracking-widest text-[#1677A8] uppercase mb-1.5">
+                PLATFORM CAPABILITIES
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-[#0B3A5B] tracking-tight">
+                Why Choose MediConnect.fit
               </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                We combine innovative technology with healthcare expertise for
-                exceptional service
+              <p className="text-xs sm:text-sm text-[#607580] mt-1.5 leading-relaxed">
+                Combining digital accessibility with strict medical standards and patient safety.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {features.map((feature, index) => (
                 <FeatureHighlight key={index} {...feature} />
               ))}
@@ -346,14 +334,11 @@ export default function ServicesPage() {
           </div>
         </AnimateIn>
 
-        {/* Institutional note instead of marketing stats/CTA */}
-        <AnimateIn delay={600} className="mb-12">
-          <div className="max-w-3xl mx-auto text-center text-sm md:text-base text-gray-600">
-            <p>
-              mediconnect.fit is being introduced in phases. Service availability,
-              partners and operating hours may vary by location and over time.
-              Patients should always rely on medical advice and local healthcare
-              services where needed.
+        {/* Institutional Medical Notice */}
+        <AnimateIn delay={400}>
+          <div className="max-w-3xl mx-auto text-center p-6 rounded-2xl bg-white border border-[#DCE6EB] shadow-2xs">
+            <p className="text-xs text-[#607580] leading-relaxed">
+              MediConnect.fit services are governed by Indian medical regulations and the NMC Telemedicine Practice Guidelines. Diagnostic tests and medicine dispensing are fulfilled through licensed partner diagnostic centers and certified pharmacies.
             </p>
           </div>
         </AnimateIn>

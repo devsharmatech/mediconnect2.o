@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Home, Users, ClipboardList, Settings, Menu, X,
@@ -77,14 +78,19 @@ export default function StaffSidebar({ open, mobileOpen, onToggle, onCloseMobile
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 py-7 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <div className={`flex items-center space-x-3 transition-all duration-300 ${!open && "hidden w-0"}`}>
-            <div className="w-8 h-8 bg-[#0067A1] rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
+          <Link
+            href="/"
+            onClick={onCloseMobile}
+            title="Go to website homepage"
+            className={`flex items-center space-x-3 transition-all duration-300 cursor-pointer group ${!open && "hidden w-0"}`}
+          >
+            <div className="w-8 h-8 bg-[#0067A1] rounded-xl flex items-center justify-center shadow-lg flex-shrink-0 group-hover:scale-105 transition-transform">
               <Stethoscope className="w-5 h-5 text-white" />
             </div>
             <div className="flex flex-col min-w-0">
-              <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200 truncate">Staff Panel</h2>
+              <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200 truncate group-hover:text-[#0067A1] transition-colors">Staff Panel</h2>
             </div>
-          </div>
+          </Link>
           <button
             onClick={onToggle}
             className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200 cursor-pointer flex-shrink-0"

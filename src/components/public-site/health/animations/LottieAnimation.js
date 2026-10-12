@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import dynamic from "next/dynamic";
 
 // Dynamically import Lottie from lottie-react to prevent SSR issues
-const Lottie = dynamic(() => import("lottie-react"), { ssr: false });
+const Lottie = dynamic(() => import("lottie-react").then((m) => ({ default: m.Lottie || m.default })), { ssr: false });
 
 /**
  * Lightweight Built-in Lottie Bodymovin Presets

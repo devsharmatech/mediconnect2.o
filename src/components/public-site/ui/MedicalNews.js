@@ -76,47 +76,42 @@ const MedicalNews = () => {
     }
 
     return (
-        <section className="py-8 lg:py-10 bg-white border-y border-gray-100 medical-news-section w-full max-w-full overflow-hidden">
+        <section className="py-10 sm:py-14 bg-white border-b border-[#DCE6EB] medical-news-section w-full max-w-full overflow-hidden">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="p-1.5 bg-[#0067A1]/10 rounded-md text-[#0067A1]">
-                                <FaHeartbeat className="w-4 h-4" />
-                            </span>
-                            <p className="text-xs font-semibold tracking-wide text-[#0067A1] uppercase">
-                                Health Insights
-                            </p>
-                        </div>
-                        <h2 className="text-3xl font-bold text-[#003358]">
-                            Today's Top Medical News
+                <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+                    <div className="text-center md:text-left">
+                        <p className="text-[11px] sm:text-xs font-bold tracking-widest text-[#1677A8] uppercase mb-1.5">
+                            HEALTH INSIGHTS
+                        </p>
+                        <h2 className="text-2xl sm:text-3xl font-bold text-[#0B3A5B] tracking-tight">
+                            Today&apos;s Top Medical News
                         </h2>
-                        <p className="mt-2 text-gray-600 max-w-2xl">
+                        <p className="text-xs sm:text-sm text-[#607580] mt-1.5 max-w-2xl mx-auto md:mx-0 leading-relaxed">
                             Daily curated summaries of the latest in public health, nutrition, and medical research.
                         </p>
                     </div>
 
                     {/* Custom Navigation Buttons for Swiper */}
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-center md:justify-end gap-4">
                         <div className="flex gap-2">
                             <button
                                 suppressHydrationWarning
-                                className="custom-swiper-prev w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-[#0067A1] hover:text-white hover:border-[#0067A1] transition-all cursor-pointer z-10"
+                                className="custom-swiper-prev w-9 h-9 rounded-full border border-[#DCE6EB] bg-white flex items-center justify-center text-[#0B3A5B] hover:text-[#1677A8] hover:border-[#1677A8] transition-all cursor-pointer z-10 shadow-2xs"
                                 aria-label="Previous slide"
                             >
-                                <FaChevronLeft className="w-4 h-4" />
+                                <FaChevronLeft className="w-3.5 h-3.5" />
                             </button>
                             <button
                                 suppressHydrationWarning
-                                className="custom-swiper-next w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-[#0067A1] hover:text-white hover:border-[#0067A1] transition-all cursor-pointer z-10"
+                                className="custom-swiper-next w-9 h-9 rounded-full border border-[#DCE6EB] bg-white flex items-center justify-center text-[#0B3A5B] hover:text-[#1677A8] hover:border-[#1677A8] transition-all cursor-pointer z-10 shadow-2xs"
                                 aria-label="Next slide"
                             >
-                                <FaChevronRight className="w-4 h-4" />
+                                <FaChevronRight className="w-3.5 h-3.5" />
                             </button>
                         </div>
-                        <div className="text-right hidden md:block border-l border-gray-200 pl-4 ml-2">
-                            <p className="text-sm font-medium text-gray-500 flex items-center justify-end gap-2">
-                                <FaClock className="w-4 h-4" />
+                        <div className="text-right hidden md:block border-l border-[#DCE6EB] pl-4 ml-2">
+                            <p className="text-xs font-semibold text-[#607580] flex items-center justify-end gap-1.5">
+                                <FaClock className="w-3.5 h-3.5 text-[#1677A8]" />
                                 Updated Daily
                             </p>
                         </div>

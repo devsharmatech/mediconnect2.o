@@ -79,12 +79,12 @@ const Footer = () => {
     { name: "Refund Policy", href: "/website/refund-policy" },
     { name: "Grievance Redressal", href: "/website/grievance-redressal" },
     {
-      name: "ISO Certificates 2015",
+      name: "ISO 9001:2015 Certified",
       href: "/iso-certifications.pdf",
       external: true,
     },
     {
-      name: "ISO Certificates 27001",
+      name: "ISO 27001:2022 Certified",
       href: "/iso-iec-27001-2022.pdf",
       external: true,
     },
@@ -107,7 +107,7 @@ const Footer = () => {
     <footer className="relative bg-[#003358] text-white overflow-hidden">
       {/* Newsletter Section */}
       <div className="relative border-b border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="bg-[#0067A1] rounded-2xl p-8 md:p-12 relative">
             <div className="relative flex flex-col lg:flex-row items-center justify-between gap-6">
               <div className="text-center lg:text-left">
