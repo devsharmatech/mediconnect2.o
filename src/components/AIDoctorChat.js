@@ -195,14 +195,15 @@ const RecommendedDoctorsModal = ({
     return slotDate < new Date();
   };
 
-  const confirmBooking = async (patientId, paymentDetails = null, careEpisodeId = null, idempotencyKey = null) => {
+  const confirmBooking = async (patientId, paymentDetails = null, careEpisodeId = null, idempotencyKey = null, bookingFee = 0) => {
     try {
       setBooking(true);
       console.log("[DEBUG BOOKING - AIDoctorChat] confirmBooking called with:", {
         patientId,
         paymentDetails,
         careEpisodeId,
-        idempotencyKey
+        idempotencyKey,
+        bookingFee
       });
       const requestPayload = {
         doctor_id: selectedDoctor.id,
@@ -213,6 +214,7 @@ const RecommendedDoctorsModal = ({
         appointment_type: appointmentType,
         care_episode_id: careEpisodeId,
         idempotency_key: idempotencyKey,
+        fee: bookingFee,
         payment_id: paymentDetails ? paymentDetails.payment_id : null,
         consents: {
           data_sharing: dataSharingConsent,
@@ -314,7 +316,7 @@ const RecommendedDoctorsModal = ({
               payment_id: response.razorpay_payment_id,
               order_id: response.razorpay_order_id,
               signature: response.razorpay_signature,
-            }, careEpisodeId, `${idempotencyKey}-book`);
+            }, careEpisodeId, `${idempotencyKey}-book`, fee);
           },
           prefill: { name: "", email: "", contact: "" },
           theme: { color: "#0067A1" },
@@ -322,7 +324,7 @@ const RecommendedDoctorsModal = ({
             ondismiss: () => {
               setBooking(false);
               setError(
-                "Payment was cancelled. Please try again to complete your booking.",
+                 "Payment was cancelled. Please try again to complete your booking.",
               );
             },
           },
@@ -334,7 +336,7 @@ const RecommendedDoctorsModal = ({
       } else {
         // --- Free consultation ---
         const idempotencyKey = crypto.randomUUID();
-        await confirmBooking(patientId, null, null, idempotencyKey);
+        await confirmBooking(patientId, null, null, idempotencyKey, 0);
       }
     } catch (e) {
       console.error("Booking error:", e);

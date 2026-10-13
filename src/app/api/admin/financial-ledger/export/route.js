@@ -35,11 +35,13 @@ export async function POST(req) {
           SELECT * 
           FROM financial_transaction_log 
           WHERE service_type = ${service_type}
+            AND status != 'initiated'
           ORDER BY created_at DESC
         `
       : await sql`
           SELECT * 
           FROM financial_transaction_log 
+          WHERE status != 'initiated'
           ORDER BY created_at DESC
         `;
 
@@ -63,6 +65,70 @@ export async function POST(req) {
           log.patient_details = pMap[log.patient_id] || null;
         });
       }
+
+      // Pharmacy / Chemist resolution
+      const pharmacyLogs = logs.filter(l => l.service_type === "pharmacy");
+      const chemistMap = {};
+      if (pharmacyLogs.length > 0) {
+        const orderIds = pharmacyLogs.map(l => l.reference_id).filter(Boolean);
+        if (orderIds.length > 0) {
+          const orders = await sql`
+            SELECT m.id, c.pharmacy_name
+            FROM medicine_orders m
+            LEFT JOIN chemist_details c ON m.chemist_id = c.id
+            WHERE m.id = ANY(${orderIds})
+          `;
+          orders.forEach(o => { chemistMap[o.id] = o.pharmacy_name || "Pharmacy"; });
+        }
+      }
+
+      // Doctor / Consultation resolution
+      const consultationLogs = logs.filter(l => l.service_type === "consultation");
+      const doctorMap = {};
+      if (consultationLogs.length > 0) {
+        const apptIds = consultationLogs.map(l => l.reference_id).filter(Boolean);
+        if (apptIds.length > 0) {
+          const appts = await sql`
+            SELECT a.id, d.full_name
+            FROM appointments a
+            LEFT JOIN doctor_details d ON a.doctor_id = d.id
+            WHERE a.id = ANY(${apptIds})
+          `;
+          appts.forEach(a => {
+            doctorMap[a.id] = a.full_name ? (a.full_name.startsWith("Dr.") ? a.full_name : `Dr. ${a.full_name}`) : "Doctor";
+          });
+        }
+      }
+
+      // Lab resolution
+      const labLogs = logs.filter(l => l.service_type === "lab");
+      const labMap = {};
+      if (labLogs.length > 0) {
+        const labOrderIds = labLogs.map(l => l.reference_id).filter(Boolean);
+        if (labOrderIds.length > 0) {
+          const labOrders = await sql`
+            SELECT l.id, ld.lab_name
+            FROM lab_test_orders l
+            LEFT JOIN lab_details ld ON l.lab_id = ld.id
+            WHERE l.id = ANY(${labOrderIds})
+          `;
+          labOrders.forEach(lo => { labMap[lo.id] = lo.lab_name || "Diagnostic Lab"; });
+        }
+      }
+
+      logs.forEach(log => {
+        let provider = "—";
+        if (log.service_type === "pharmacy") {
+          provider = chemistMap[log.reference_id] || log.metadata?.pharmacy_name || "Pharmacy";
+        } else if (log.service_type === "consultation") {
+          provider = doctorMap[log.reference_id] || log.metadata?.doctor_name || "Doctor";
+        } else if (log.service_type === "lab") {
+          provider = labMap[log.reference_id] || log.metadata?.lab_name || "Diagnostic Lab";
+        } else {
+          provider = log.metadata?.provider_name || log.metadata?.doctor_name || log.metadata?.pharmacy_name || log.metadata?.lab_name || "—";
+        }
+        log.provider_name = provider;
+      });
     }
 
     // 4. Flatten & Format the financial dataset
@@ -72,6 +138,7 @@ export async function POST(req) {
       "Time": new Date(log.created_at).toLocaleTimeString("en-IN"),
       "Patient Name": log.patient_details?.full_name || "N/A",
       "Patient ID": log.patient_id || "N/A",
+      "Provider / Vendor": log.provider_name || "—",
       "Service Module": log.service_type || "N/A",
       "Flow": log.debit_credit === "credit" ? "Inflow" : "Outflow",
       "Amount (INR)": Number(log.amount) || 0,

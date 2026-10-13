@@ -80,6 +80,7 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
     consents,
     clinic_name,
     clinic_address,
+    fee: requestedFee,
   } = payload;
 
   if (!doctor_id || !patient_id || !appointment_date || !appointment_time) {
@@ -92,19 +93,51 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
 
   // Verify doctor fee
   const doctorRows = await sql`
-    SELECT consultation_fee, meta, full_name
+    SELECT consultation_fee, video_consultation_fee, clinic_consultation_fee, home_visit_fee, meta, full_name
     FROM doctor_details
     WHERE id = ${doctor_id}
     LIMIT 1
   `;
   const doctorDetails = doctorRows[0];
 
-  const meta = doctorDetails?.meta || {};
-  const fee = appointment_type === "video" || appointment_type === "video_consultation"
-    ? (meta?.video_consultation_fee ?? doctorDetails?.consultation_fee ?? 0)
-    : appointment_type === "clinic_visit"
-      ? (meta?.clinic_consultation_fee ?? doctorDetails?.consultation_fee ?? 0)
-      : (meta?.home_visit_fee ?? doctorDetails?.consultation_fee ?? 0);
+  const meta = (typeof doctorDetails?.meta === "string"
+    ? JSON.parse(doctorDetails?.meta || "{}")
+    : doctorDetails?.meta) || {};
+
+  // If client explicitly passed requestedFee, parse it safely
+  const parsedRequestedFee = requestedFee !== undefined && requestedFee !== null && requestedFee !== ""
+    ? Number(requestedFee)
+    : null;
+
+  const parseFeeVal = (val) => {
+    if (val === undefined || val === null || val === "") return null;
+    const num = Number(val);
+    return Number.isFinite(num) ? num : null;
+  };
+
+  let doctorCalculatedFee = 0;
+  if (appointment_type === "video" || appointment_type === "video_consultation" || appointment_type === "video_call") {
+    doctorCalculatedFee = parseFeeVal(meta?.video_consultation_fee)
+      ?? parseFeeVal(doctorDetails?.video_consultation_fee)
+      ?? parseFeeVal(doctorDetails?.consultation_fee)
+      ?? 0;
+  } else if (appointment_type === "home_visit") {
+    doctorCalculatedFee = parseFeeVal(meta?.home_visit_fee)
+      ?? parseFeeVal(doctorDetails?.home_visit_fee)
+      ?? parseFeeVal(doctorDetails?.consultation_fee)
+      ?? 0;
+  } else {
+    // clinic_visit or default
+    doctorCalculatedFee = parseFeeVal(meta?.clinic_consultation_fee)
+      ?? parseFeeVal(doctorDetails?.clinic_consultation_fee)
+      ?? parseFeeVal(doctorDetails?.consultation_fee)
+      ?? 0;
+  }
+
+  // If requestedFee is explicitly 0, consultation is free; otherwise use the minimum of requestedFee or doctor fee
+  const fee = parsedRequestedFee === 0
+    ? 0
+    : (parsedRequestedFee !== null ? parsedRequestedFee : doctorCalculatedFee);
 
   // Prevent duplicate booking for the same slot
   const existingAppts = await sql`
@@ -264,7 +297,10 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
   }
 
   // Financial Ledger recording
-  if (fee > 0) {
+  // ONLY record a success ledger credit if a real payment was made.
+  // If payment_id exists, status is success. If fee > 0 but unpaid, status is pending.
+  // Free consultations (fee === 0) do NOT create a positive credit inflow.
+  if (fee > 0 && payment_id) {
     await createLedgerEntry({
       patient_id,
       care_episode_id: careEpisodeId,
@@ -273,9 +309,22 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
       debit_credit: "credit",
       amount: fee,
       status: "success",
-      payment_mode: payment_id ? "Razorpay" : "Free/Other",
-      payment_gateway_id: payment_id || null,
+      payment_mode: "Razorpay",
+      payment_gateway_id: payment_id,
       description: `Consultation fee for appointment on ${appointment_date}`
+    });
+  } else if (fee > 0 && !payment_id) {
+    await createLedgerEntry({
+      patient_id,
+      care_episode_id: careEpisodeId,
+      service_type: "consultation",
+      reference_id: appointment.id,
+      debit_credit: "credit",
+      amount: fee,
+      status: "pending",
+      payment_mode: "Pending Payment",
+      payment_gateway_id: null,
+      description: `Unpaid consultation fee for appointment on ${appointment_date}`
     });
   }
 

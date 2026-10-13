@@ -8,19 +8,41 @@ export function getPayUConfig() {
   const env = (process.env.PAYU_ENV || "test").toLowerCase().trim();
   const isProduction = env === "prod" || env === "production" || env === "live";
 
-  const key =
-    process.env.PAYU_MERCHANT_KEY ||
-    process.env.PAYU_KEY ||
-    process.env.NEXT_PUBLIC_PAYU_KEY ||
-    (isProduction ? "" : "Kx7dGD");
+  // Mode-aware Key resolution (Live vs Test)
+  const key = isProduction
+    ? (process.env.PAYU_LIVE_KEY ||
+       process.env.PAYU_MERCHANT_KEY ||
+       process.env.PAYU_KEY ||
+       process.env.NEXT_PUBLIC_PAYU_KEY ||
+       "")
+    : (process.env.PAYU_TEST_KEY ||
+       process.env.PAYU_MERCHANT_KEY ||
+       process.env.PAYU_KEY ||
+       process.env.NEXT_PUBLIC_PAYU_KEY ||
+       "Kx7dGD");
 
-  const salt =
-    process.env.PAYU_MERCHANT_SALT ||
-    process.env.PAYU_SALT ||
-    (isProduction ? "" : "r9JFFpORnzyk7jU1tIv3OEx31wvSZnMD");
+  // Mode-aware Salt resolution
+  const salt = isProduction
+    ? (process.env.PAYU_LIVE_SALT ||
+       process.env.PAYU_MERCHANT_SALT ||
+       process.env.PAYU_SALT ||
+       "")
+    : (process.env.PAYU_TEST_SALT ||
+       process.env.PAYU_MERCHANT_SALT ||
+       process.env.PAYU_SALT ||
+       "r9JFFpORnzyk7jU1tIv3OEx31wvSZnMD");
 
-  const clientId = process.env.PAYU_CLIENT_ID || "";
-  const clientSecret = process.env.PAYU_CLIENT_SECRET || "";
+  // Mode-aware Client ID resolution (OAuth / Split API)
+  const clientId = isProduction
+    ? (process.env.PAYU_LIVE_CLIENT_ID || process.env.PAYU_CLIENT_ID || "")
+    : (process.env.PAYU_TEST_CLIENT_ID || process.env.PAYU_CLIENT_ID || "");
+
+  // Mode-aware Client Secret resolution (OAuth / Split API)
+  const clientSecret = isProduction
+    ? (process.env.PAYU_LIVE_CLIENT_SECRET || process.env.PAYU_CLIENT_SECRET || "")
+    : (process.env.PAYU_TEST_CLIENT_SECRET || process.env.PAYU_CLIENT_SECRET || "");
+
+  const mid = process.env.PAYU_MID || process.env.PAYU_MERCHANT_ID || (isProduction ? "13799851" : "");
 
   const actionUrl =
     process.env.PAYU_ACTION_URL ||
@@ -45,6 +67,7 @@ export function getPayUConfig() {
     salt,
     clientId,
     clientSecret,
+    mid,
     env: isProduction ? "prod" : "test",
     isProduction,
     actionUrl,

@@ -36,7 +36,7 @@ export default function FinancialLedgerPage() {
   const [serviceType, setServiceType] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [chemistFilter, setChemistFilter] = useState("");
+  const [vendorFilter, setVendorFilter] = useState("");
   const LIMIT = 15;
 
   const handleExport = async () => {
@@ -89,7 +89,7 @@ export default function FinancialLedgerPage() {
       if (serviceType) url += `&service_type=${serviceType}`;
       if (dateFilter) url += `&date_filter=${dateFilter}`;
       if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
-      if (chemistFilter) url += `&chemist_name=${encodeURIComponent(chemistFilter)}`;
+      if (vendorFilter) url += `&vendor_name=${encodeURIComponent(vendorFilter)}`;
 
       const res = await fetch(url);
       const data = await res.json();
@@ -107,7 +107,7 @@ export default function FinancialLedgerPage() {
 
   useEffect(() => {
     fetchLedger(page);
-  }, [page, serviceType, dateFilter, searchQuery, chemistFilter]);
+  }, [page, serviceType, dateFilter, searchQuery, vendorFilter]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/70 p-4 sm:p-6 lg:p-8">
@@ -179,7 +179,7 @@ export default function FinancialLedgerPage() {
               {["", "consultation", "pharmacy", "lab"].map((type) => (
                 <button
                   key={type}
-                  onClick={() => setServiceType(type)}
+                  onClick={() => { setServiceType(type); setPage(1); }}
                   className={`px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
                     serviceType === type 
                       ? "bg-[#0067A1] text-white shadow-sm shadow-[#0067A1]/20" 
@@ -201,25 +201,28 @@ export default function FinancialLedgerPage() {
                 <option value="weeks">Last 7 Days</option>
                 <option value="month">Last 30 Days</option>
               </select>
-              {serviceType === "pharmacy" && (
-                <div className="relative group w-full sm:w-auto">
-                  <input 
-                    type="text" 
-                    value={chemistFilter}
-                    onChange={(e) => { setChemistFilter(e.target.value); setPage(1); }}
-                    placeholder="Filter by Chemist..."
-                    className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#0067A1]/20 w-full sm:w-48"
-                  />
-                </div>
-              )}
+              <div className="relative group w-full sm:w-auto">
+                <input 
+                  type="text" 
+                  value={vendorFilter}
+                  onChange={(e) => { setVendorFilter(e.target.value); setPage(1); }}
+                  placeholder={
+                    serviceType === "pharmacy" ? "Filter by Chemist..." :
+                    serviceType === "consultation" ? "Filter by Doctor..." :
+                    serviceType === "lab" ? "Filter by Lab..." :
+                    "Filter by Provider..."
+                  }
+                  className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#0067A1]/20 w-full sm:w-44"
+                />
+              </div>
               <div className="relative group w-full sm:w-auto">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#0067A1] transition-colors" />
                 <input 
                   type="text" 
                   value={searchQuery}
                   onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-                  placeholder="Search TxID, Patient, or Tx details..."
-                  className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#0067A1]/20 w-full sm:w-64"
+                  placeholder="Search TxID, Patient, or Details..."
+                  className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#0067A1]/20 w-full sm:w-60"
                 />
               </div>
             </div>
@@ -249,6 +252,7 @@ export default function FinancialLedgerPage() {
                 ) : (
                   logs.map((log) => {
                     const svc = SERVICE_CONFIG[log.service_type] || SERVICE_CONFIG.default;
+                    const provider = log.provider_name || log.chemist_name || log.doctor_name || log.lab_name || "—";
                     return (
                       <tr key={log.id} className="hover:bg-slate-50 transition-colors group">
                         <td className="px-8 py-5">
@@ -257,10 +261,13 @@ export default function FinancialLedgerPage() {
                         </td>
                         <td className="px-4 py-5">
                           <p className="text-sm font-bold text-slate-800">{log.patient_details?.full_name || "N/A"}</p>
-                          <p className="text-[10px] text-slate-400 font-mono mt-0.5 uppercase">ID: {log.patient_id.slice(0, 8)}</p>
+                          <p className="text-[10px] text-slate-400 font-mono mt-0.5 uppercase">ID: {log.patient_id?.slice(0, 8)}</p>
                         </td>
                         <td className="px-4 py-5">
-                          <p className="text-sm font-bold text-slate-800">{log.chemist_name || "—"}</p>
+                          <p className="text-sm font-bold text-slate-800">{provider}</p>
+                          {log.metadata?.specialization && (
+                            <p className="text-[10px] text-slate-400 font-medium">{log.metadata.specialization}</p>
+                          )}
                         </td>
                         <td className="px-4 py-5">
                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${svc.color}`}>
@@ -300,6 +307,64 @@ export default function FinancialLedgerPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card List View */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {loading ? (
+              [...Array(4)].map((_, i) => (
+                <div key={i} className="p-4 space-y-2">
+                  <div className="h-5 bg-slate-100 rounded w-1/3 animate-pulse" />
+                  <div className="h-10 bg-slate-100 rounded animate-pulse" />
+                </div>
+              ))
+            ) : logs.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">
+                No entries found
+              </div>
+            ) : (
+              logs.map((log) => {
+                const svc = SERVICE_CONFIG[log.service_type] || SERVICE_CONFIG.default;
+                const provider = log.provider_name || log.chemist_name || log.doctor_name || log.lab_name || "—";
+                return (
+                  <div key={log.id} className="p-4 space-y-3 bg-white">
+                    <div className="flex items-center justify-between">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${svc.color}`}>
+                        {svc.label}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                        ['completed', 'success', 'paid'].includes(String(log.status).toLowerCase()) ? 'bg-emerald-100 text-emerald-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {log.status}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-slate-400 font-medium">
+                          {new Date(log.created_at).toLocaleDateString('en-IN')} {new Date(log.created_at).toLocaleTimeString('en-IN')}
+                        </p>
+                        <p className="text-sm font-bold text-slate-900 mt-0.5">
+                          {log.patient_details?.full_name || "Patient"}
+                        </p>
+                        <p className="text-xs text-slate-600 font-medium">
+                          Provider: <span className="font-semibold text-slate-800">{provider}</span>
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-base font-black text-slate-900">
+                          ₹{Number(log.amount).toLocaleString('en-IN')}
+                        </p>
+                        <p className="text-[10px] font-bold text-emerald-600 uppercase">
+                          {log.debit_credit === 'credit' ? 'Inflow' : 'Outflow'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
 
           {/* Pagination */}

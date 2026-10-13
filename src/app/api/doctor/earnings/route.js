@@ -37,10 +37,11 @@ export async function GET(req) {
       console.warn("[Doctor Earnings] Could not fetch doctor details:", e.message);
     }
 
-    const videoFee = Number(doctor?.video_consultation_fee) || Number(doctor?.consultation_fee) || 500;
-    const clinicFee = Number(doctor?.clinic_consultation_fee) || Number(doctor?.consultation_fee) || 800;
-    const homeFee = Number(doctor?.home_visit_fee) || 1000;
-    const defaultFee = Number(doctor?.consultation_fee) || videoFee || 500;
+    const parseVal = (v) => (v !== null && v !== undefined && v !== "" && !isNaN(Number(v)) ? Number(v) : null);
+    const videoFee = parseVal(doctor?.video_consultation_fee) ?? parseVal(doctor?.consultation_fee) ?? 0;
+    const clinicFee = parseVal(doctor?.clinic_consultation_fee) ?? parseVal(doctor?.consultation_fee) ?? 0;
+    const homeFee = parseVal(doctor?.home_visit_fee) ?? parseVal(doctor?.consultation_fee) ?? 0;
+    const defaultFee = parseVal(doctor?.consultation_fee) ?? videoFee ?? 0;
 
     // Parse bank details
     let rawBank = doctor?.bank_account_details;

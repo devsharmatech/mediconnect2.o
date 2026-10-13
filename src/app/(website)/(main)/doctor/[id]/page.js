@@ -488,7 +488,7 @@ export default function DoctorProfilePage() {
               payment_id: response.razorpay_payment_id,
               order_id: response.razorpay_order_id,
               signature: response.razorpay_signature,
-            }, careEpisodeId, `${idempotencyKey}-book`, attemptId);
+            }, careEpisodeId, `${idempotencyKey}-book`, attemptId, fee);
           },
           prefill: {
             name: "", // Can fetch from patient details if available
@@ -530,7 +530,7 @@ export default function DoctorProfilePage() {
         }
 
         const idempotencyKey = crypto.randomUUID();
-        await confirmBooking(patientId, null, null, idempotencyKey, attemptId);
+        await confirmBooking(patientId, null, null, idempotencyKey, attemptId, fee);
       }
     } catch (e) {
       console.error("Booking initiation error:", e);
@@ -539,7 +539,7 @@ export default function DoctorProfilePage() {
     }
   };
 
-  const confirmBooking = async (patientId, paymentDetails = null, careEpisodeId = null, idempotencyKey = null, attemptId = null) => {
+  const confirmBooking = async (patientId, paymentDetails = null, careEpisodeId = null, idempotencyKey = null, attemptId = null, bookingFee = 0) => {
     try {
       setBooking(true);
       const details = doctor?.doctor_details || {};
@@ -560,7 +560,8 @@ export default function DoctorProfilePage() {
         paymentDetails,
         careEpisodeId,
         idempotencyKey,
-        attemptId
+        attemptId,
+        bookingFee,
       });
       const requestPayload = {
         doctor_id: doctorId,
@@ -571,6 +572,7 @@ export default function DoctorProfilePage() {
         appointment_type: appointmentType,
         care_episode_id: careEpisodeId,
         idempotency_key: idempotencyKey,
+        fee: bookingFee,
         consents: {
           data_sharing: dataSharingConsent,
           teleconsultation: teleconsultConsent,

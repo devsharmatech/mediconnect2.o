@@ -25,7 +25,9 @@ export async function GET(req) {
     `;
 
     const doctor = doctorRows[0];
-    const fee = doctor?.consultation_fee ? Number(doctor.consultation_fee) : 500;
+    const fee = doctor?.consultation_fee !== null && doctor?.consultation_fee !== undefined && !isNaN(Number(doctor.consultation_fee))
+      ? Number(doctor.consultation_fee)
+      : 0;
 
     const completedCount = appointments.filter((a) => a.status === "completed").length;
     const pendingCount = appointments.filter((a) =>

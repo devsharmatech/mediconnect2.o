@@ -28,6 +28,7 @@ export async function POST(req) {
       attempt_id,
       clinic_name,
       clinic_address,
+      fee,
     } = body || {};
 
     // 1. Basic Validation
@@ -83,6 +84,7 @@ export async function POST(req) {
         consents,
         clinic_name,
         clinic_address,
+        fee,
       }
     });
 

@@ -1,5 +1,4 @@
 import Razorpay from "razorpay";
-import { createLedgerEntry } from "@/lib/layer1/financialLedger";
 import { success, failure } from "@/lib/response";
 import { acquireIdempotencyLock, releaseIdempotencyLock } from "@/lib/layer1/idempotencyService";
 import { createCareEpisode } from "@/lib/layer1/careEpisodeService";
@@ -68,22 +67,6 @@ export async function POST(req) {
         };
 
         const order = await instance.orders.create(options);
-
-        // ✅ Create "initiated" financial log immediately
-        if (patient_id) {
-            await createLedgerEntry({
-                patient_id,
-                care_episode_id: resolvedCareEpisodeId,
-                service_type: "consultation",
-                debit_credit: "debit",
-                amount: amount,
-                payment_mode: "Razorpay",
-                payment_gateway_id: order.id,
-                status: "initiated",
-                description: `Payment initiated for ${appointment_type || 'consultation'}`,
-                metadata: { doctor_id, order_id: order.id }
-            });
-        }
 
         const successData = { 
             order, 

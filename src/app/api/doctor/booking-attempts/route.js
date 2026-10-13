@@ -25,9 +25,10 @@ async function handleGetAttempts(doctorId) {
     `;
     if (docRows.length > 0) {
       const doc = docRows[0];
-      doctorVideoFee = Number(doc.video_consultation_fee) || Number(doc.consultation_fee) || 500;
-      doctorClinicFee = Number(doc.clinic_consultation_fee) || Number(doc.consultation_fee) || 800;
-      doctorDefaultFee = Number(doc.consultation_fee) || doctorVideoFee || 500;
+      const parseVal = (v) => (v !== null && v !== undefined && v !== "" && !isNaN(Number(v)) ? Number(v) : null);
+      doctorVideoFee = parseVal(doc.video_consultation_fee) ?? parseVal(doc.consultation_fee) ?? 0;
+      doctorClinicFee = parseVal(doc.clinic_consultation_fee) ?? parseVal(doc.consultation_fee) ?? 0;
+      doctorDefaultFee = parseVal(doc.consultation_fee) ?? doctorVideoFee ?? 0;
     }
   } catch (err) {
     console.warn("[Doctor Booking Attempts] Could not fetch doctor fees:", err.message);
@@ -82,8 +83,8 @@ async function handleGetAttempts(doctorId) {
       fallbackFee = doctorClinicFee;
     }
 
-    const rawFeeNum = attempt.fee !== null && attempt.fee !== undefined ? Number(attempt.fee) : NaN;
-    const resolvedFee = (!isNaN(rawFeeNum) && rawFeeNum > 0) ? rawFeeNum : fallbackFee;
+    const rawFeeNum = attempt.fee !== null && attempt.fee !== undefined && attempt.fee !== "" ? Number(attempt.fee) : NaN;
+    const resolvedFee = !isNaN(rawFeeNum) ? rawFeeNum : fallbackFee;
 
     return {
       id: attempt.id,
