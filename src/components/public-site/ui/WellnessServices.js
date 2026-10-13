@@ -14,7 +14,9 @@ import {
     FaArrowRight,
     FaTint
 } from "react-icons/fa";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 
 // Dynamic Animated CardioConnect Vitals Monitor
 function CardioVitalsPreview() {
@@ -174,8 +176,85 @@ function CardioVitalsPreview() {
     );
 }
 
-// Dynamic Animated LungConnect Vitals Monitor
+// Dynamic Animated LungConnect Vitals Monitor with Living Inhale/Hold/Exhale Pumping Lungs
 function LungVitalsPreview() {
+    const [phaseIndex, setPhaseIndex] = useState(0); // 0: inhale, 1: hold, 2: exhale, 3: rest
+    const [secondsLeft, setSecondsLeft] = useState(4);
+
+    const PHASES = [
+        {
+            key: "inhale",
+            title: "INHALE (4s)",
+            action: "Inhaling Airway (4s)",
+            status: "Expanding lung capacity • Drawing fresh O₂",
+            badge: "bg-cyan-100 text-cyan-800 border-cyan-300",
+            dot: "bg-cyan-500",
+            ringBorder: "border-cyan-400",
+            ringBg: "bg-cyan-100/50",
+            haloBg: "bg-cyan-200/40",
+            iconColor: "text-cyan-600",
+            pillColor: "bg-cyan-600 text-white border-cyan-700",
+            barColor: "bg-gradient-to-r from-teal-400 via-cyan-400 to-sky-500",
+        },
+        {
+            key: "hold",
+            title: "HOLD (4s)",
+            action: "Holding Breath (4s)",
+            status: "Alveolar gas diffusion • Oxygen uptake",
+            badge: "bg-amber-100 text-amber-800 border-amber-300",
+            dot: "bg-amber-500",
+            ringBorder: "border-amber-400",
+            ringBg: "bg-amber-100/50",
+            haloBg: "bg-amber-200/40",
+            iconColor: "text-amber-600",
+            pillColor: "bg-amber-600 text-white border-amber-700",
+            barColor: "bg-gradient-to-r from-amber-400 to-yellow-500",
+        },
+        {
+            key: "exhale",
+            title: "EXHALE (4s)",
+            action: "Exhaling Smoothly (4s)",
+            status: "Thoracic relaxation • Releasing residual CO₂",
+            badge: "bg-emerald-100 text-emerald-800 border-emerald-300",
+            dot: "bg-emerald-500",
+            ringBorder: "border-emerald-400",
+            ringBg: "bg-emerald-100/50",
+            haloBg: "bg-emerald-200/40",
+            iconColor: "text-emerald-600",
+            pillColor: "bg-emerald-600 text-white border-emerald-700",
+            barColor: "bg-gradient-to-r from-emerald-400 to-teal-500",
+        },
+        {
+            key: "rest",
+            title: "REST (4s)",
+            action: "Airway Rest (4s)",
+            status: "Baseline reset • Preparing next inhalation",
+            badge: "bg-slate-100 text-slate-700 border-slate-300",
+            dot: "bg-slate-400",
+            ringBorder: "border-slate-300",
+            ringBg: "bg-slate-100/40",
+            haloBg: "bg-slate-200/30",
+            iconColor: "text-slate-500",
+            pillColor: "bg-slate-600 text-white border-slate-700",
+            barColor: "bg-slate-300",
+        },
+    ];
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setSecondsLeft((prev) => {
+                if (prev <= 1) {
+                    setPhaseIndex((p) => (p + 1) % 4);
+                    return 4;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const cur = PHASES[phaseIndex];
+
     return (
         <div className="w-full rounded-2xl border border-teal-200/90 bg-white overflow-hidden shadow-xs hover:border-teal-300 transition-all">
             {/* Clinical Interface Header */}
@@ -197,69 +276,76 @@ function LungVitalsPreview() {
 
             {/* Dashboard Vitals Content */}
             <div className="p-3 sm:p-5 space-y-2.5 sm:space-y-3.5 bg-white">
-                {/* Guided Breathing Visualizer Tile with Animated SVG Lungs */}
-                <div className="rounded-xl border border-teal-100 p-2.5 sm:p-3.5 bg-teal-50/30 relative overflow-hidden flex items-center justify-between gap-2">
-                    <div className="space-y-1 min-w-0">
-                        <div className="text-[9px] sm:text-[10px] font-bold text-teal-800 uppercase tracking-wider truncate">
-                            Box Breathing Exercise (4s)
+                {/* Guided Breathing Visualizer Tile with Library FaLungs Animation */}
+                <div className="rounded-xl border border-teal-200/90 p-2.5 sm:p-3.5 bg-gradient-to-r from-teal-50/80 via-cyan-50/40 to-teal-50/40 relative overflow-hidden flex items-center justify-between gap-2.5 shadow-2xs">
+                    <div className="space-y-1 sm:space-y-1.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider border ${cur.badge}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${cur.dot} animate-pulse`} />
+                                <span>{cur.title}</span>
+                            </span>
                         </div>
-                        <div className="text-[11px] sm:text-xs font-bold text-slate-900 truncate">
-                            Inhale (4s) • Hold • Exhale (4s)
+                        <div className="text-[12px] sm:text-sm font-black text-slate-900 truncate tracking-tight">
+                            {cur.action}
                         </div>
-                        <div className="text-[10px] sm:text-[11px] text-slate-500 truncate">
-                            5 mins completed • Airway stabilized
+                        <div className="text-[10px] sm:text-[11px] text-slate-600 truncate font-medium">
+                            {cur.status}
+                        </div>
+
+                        {/* Real-time Breathing Progress Gauge Bar */}
+                        <div className="w-full bg-slate-200/80 rounded-full h-1.5 overflow-hidden mt-1.5 sm:mt-2">
+                            <div 
+                                className={`h-full rounded-full transition-all duration-1000 ease-linear ${cur.barColor}`}
+                                style={{
+                                    width: phaseIndex === 0
+                                        ? `${((5 - secondsLeft) / 4) * 100}%`
+                                        : phaseIndex === 1
+                                        ? '100%'
+                                        : phaseIndex === 2
+                                        ? `${(secondsLeft / 4) * 100}%`
+                                        : '0%'
+                                }}
+                            />
                         </div>
                     </div>
 
-                    {/* Stylized Animated Lungs Vector */}
-                    <div className="relative w-13 h-13 sm:w-16 sm:h-16 flex items-center justify-center shrink-0">
-                        {/* Outer breathing ring pulse */}
-                        <div className="absolute inset-0 rounded-full border-2 border-teal-300 animate-ping opacity-25"></div>
-                        <div className="absolute inset-1 rounded-full bg-teal-100/70 border border-teal-200"></div>
+                    {/* Official Library Icon FaLungs Animated Breathing Tile */}
+                    <div className="relative w-18 h-18 sm:w-20 sm:h-20 flex items-center justify-center shrink-0">
+                        {/* Dynamic Multi-Ring Inhale / Exhale Breathing Aura */}
+                        <motion.div 
+                            animate={{
+                                scale: phaseIndex === 0 ? [1, 1.25] : phaseIndex === 1 ? [1.25, 1.28, 1.25] : phaseIndex === 2 ? [1.25, 0.95] : 1,
+                                opacity: phaseIndex === 0 ? [0.4, 0.8] : phaseIndex === 1 ? [0.8, 0.9, 0.8] : phaseIndex === 2 ? [0.8, 0.35] : 0.4
+                            }}
+                            transition={{
+                                duration: phaseIndex === 1 ? 2 : 4,
+                                repeat: phaseIndex === 1 ? Infinity : 0,
+                                ease: "easeInOut"
+                            }}
+                            className={`absolute inset-0 rounded-full border-2 ${cur.ringBorder} ${cur.ringBg}`}
+                        />
+                        
+                        {/* Soft Ambient Inner Halo */}
+                        <div className={`absolute inset-1.5 rounded-full ${cur.haloBg} blur-2xs transition-colors duration-700`} />
 
-                        {/* Animated Vector Lungs SVG */}
-                        <svg className="w-8 h-8 sm:w-10 sm:h-10 relative z-10 lung-animated-svg" viewBox="0 0 64 64" fill="none">
-                            {/* Trachea Windpipe */}
-                            <path 
-                                d="M32 10 L32 26 M30 14 L34 14 M30 18 L34 18 M30 22 L34 22" 
-                                stroke="#0f766e" 
-                                strokeWidth="2.5" 
-                                strokeLinecap="round" 
-                            />
-                            {/* Left Bronchial Tree & Lung Lobe */}
-                            <path 
-                                d="M32 26 C26 26 20 28 17 34 C14 40 15 48 20 52 C24 55 28 51 30 45 C31 40 31 32 32 26 Z" 
-                                fill="#14b8a6" 
-                                stroke="#0d9488" 
-                                strokeWidth="2" 
-                                strokeLinejoin="round" 
-                            />
-                            {/* Right Bronchial Tree & Lung Lobe */}
-                            <path 
-                                d="M32 26 C38 26 44 28 47 34 C50 40 49 48 44 52 C40 55 36 51 34 45 C33 40 33 32 32 26 Z" 
-                                fill="#06b6d4" 
-                                stroke="#0284c7" 
-                                strokeWidth="2" 
-                                strokeLinejoin="round" 
-                            />
-                            {/* Internal Airway Branches */}
-                            <path 
-                                d="M32 26 L24 35 M24 35 L20 42 M24 35 L27 43" 
-                                stroke="#ffffff" 
-                                strokeWidth="1.2" 
-                                strokeLinecap="round" 
-                            />
-                            <path 
-                                d="M32 26 L40 35 M40 35 L44 42 M40 35 L37 43" 
-                                stroke="#ffffff" 
-                                strokeWidth="1.2" 
-                                strokeLinecap="round" 
-                            />
-                        </svg>
+                        {/* Official Library Icon FaLungs with Smooth Paced Inhale/Exhale Expansion */}
+                        <motion.div
+                            animate={{
+                                scale: phaseIndex === 0 ? [1, 1.3] : phaseIndex === 1 ? [1.3, 1.33, 1.3] : phaseIndex === 2 ? [1.3, 0.92] : 1,
+                            }}
+                            transition={{
+                                duration: phaseIndex === 1 ? 2 : 4,
+                                repeat: phaseIndex === 1 ? Infinity : 0,
+                                ease: phaseIndex === 0 ? [0.25, 1, 0.5, 1] : phaseIndex === 2 ? [0.4, 0, 0.2, 1] : "easeInOut"
+                            }}
+                            className="relative z-10 flex items-center justify-center"
+                        >
+                            <FaLungs className={`w-8 h-8 sm:w-9 sm:h-9 ${cur.iconColor} transition-colors duration-700 drop-shadow-xs`} />
+                        </motion.div>
 
-                        {/* Small Floating 4s Tag */}
-                        <span className="absolute -bottom-1 -right-1 text-[9px] font-black text-teal-800 bg-white border border-teal-300 rounded-full px-1.5 py-0.2 shadow-xs">
-                            4s
+                        {/* Live Countdown Second Badge */}
+                        <span className={`absolute -bottom-1 -right-1 text-[9px] sm:text-[10px] font-black rounded-full px-1.5 sm:px-2 py-0.2 sm:py-0.5 shadow-xs border transition-all z-20 ${cur.pillColor}`}>
+                            {secondsLeft}s
                         </span>
                     </div>
                 </div>

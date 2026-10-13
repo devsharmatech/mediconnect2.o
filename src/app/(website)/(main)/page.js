@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Hero from "@/components/public-site/ui/Hero";
 import TrustCertificationStrip from "@/components/public-site/ui/TrustCertificationStrip";
 import HowItWorksSteps from "@/components/public-site/ui/HowItWorksSteps";
 import FeaturedDoctorsHome from "@/components/public-site/ui/FeaturedDoctorsHome";
 import HealthServices from "@/components/public-site/ui/HealthServices";
 import ConnectedJourney from "@/components/public-site/ui/ConnectedJourney";
-import CareApproachSections from "@/components/public-site/ui/CareApproachSections";
 import WellnessServices from "@/components/public-site/ui/WellnessServices";
 import WhyChooseUs from "@/components/public-site/ui/WhyChooseUs";
 import SupportChannels from "@/components/public-site/ui/SupportChannels";
@@ -15,28 +13,8 @@ import AppShowcase from "@/components/public-site/ui/AppShowcase";
 import FAQ from "@/components/public-site/ui/FAQ";
 import NewsletterAndFinalCTA from "@/components/public-site/ui/NewsletterAndFinalCTA";
 import MedicalNews from "@/components/public-site/ui/MedicalNews";
-import Testimonials from "@/components/public-site/ui/Testimonials";
 
 export default function Home() {
-  const [pageBlocks, setPageBlocks] = useState({});
-  const [isLoadingBlocks, setIsLoadingBlocks] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/cms/page-blocks?page=home')
-      .then(res => res.json())
-      .then(json => {
-        if (json.success && json.data) {
-          const blocksMap = {};
-          json.data.forEach(block => {
-            blocksMap[block.block_key] = block;
-          });
-          setPageBlocks(blocksMap);
-        }
-      })
-      .catch(console.error)
-      .finally(() => setIsLoadingBlocks(false));
-  }, []);
-
   const handleLoginClick = () => {
     window.dispatchEvent(new CustomEvent("open-login-modal", { detail: { userType: "patient" } }));
   };
@@ -68,9 +46,6 @@ export default function Home() {
         {/* SECTIONS 7 & 8: One Connected Healthcare Journey & Care Episode */}
         <ConnectedJourney />
 
-        {/* REDESIGNED CORE CARE APPROACHES & ABHA INTEGRATION */}
-        <CareApproachSections pageBlocks={pageBlocks} isLoadingBlocks={isLoadingBlocks} />
-
         {/* SECTION 9: Specialized Health Programs (CardioConnect & LungConnect Interactive Vitals) */}
         <section id="specialized-programs">
           <WellnessServices onLoginClick={handleLoginClick} />
@@ -87,9 +62,6 @@ export default function Home() {
 
         {/* MEDICAL NEWS BRIEFINGS */}
         <MedicalNews />
-
-        {/* PATIENT & DOCTOR STORIES */}
-        <Testimonials />
 
         {/* SECTION 14: Frequently Asked Questions */}
         <FAQ />

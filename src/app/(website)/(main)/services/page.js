@@ -139,7 +139,6 @@ const fallbackMainServices = [
 
 export default function ServicesPage() {
   const [mainServices, setMainServices] = useState(fallbackMainServices);
-  const [supportiveTools, setSupportiveTools] = useState([]);
   const [headerData, setHeaderData] = useState({
     title: "COMPLETE CARE ECOSYSTEM",
     heading: "Practical Care, Organised Clearly",
@@ -167,61 +166,26 @@ export default function ServicesPage() {
         console.error("Failed to load CMS services", e);
       }
     }
-    async function fetchSupportiveTools() {
-      try {
-        const res = await fetch("/api/cms/supportive-tools");
-        const json = await res.json();
-        if (json.success && json.data && json.data.length > 0) {
-          const active = json.data.filter(s => s.status === "active").sort((a,b)=>a.display_order - b.display_order);
-          setSupportiveTools(active.map(s => ({
-            id: s.id,
-            icon: iconMap[s.icon_name] || FaHeartbeat,
-            title: s.title,
-            description: s.description,
-            link: `/website/supportive-tools/${s.slug}`,
-            img: s.image
-          })));
-        }
-      } catch (e) {
-        console.error("Failed to load generic tools", e);
-      }
-    }
+
     async function fetchHeaders() {
       try {
         const res = await fetch("/api/cms/section-headers?page=services");
         const json = await res.json();
-        if (json.success && json.data && json.data.heading) {
-          setHeaderData({
-            title: json.data.title || "COMPLETE CARE ECOSYSTEM",
-            heading: json.data.heading,
-            subheading: json.data.subheading || ""
-          });
+        if (json.success && json.data) {
+          setHeaderData(prev => ({
+            title: json.data.title || prev.title,
+            heading: json.data.heading || prev.heading,
+            subheading: json.data.subheading || prev.subheading
+          }));
         }
       } catch (e) {
         console.error("Failed to load CMS headers", e);
       }
     }
+
     fetchServices();
-    fetchSupportiveTools();
     fetchHeaders();
   }, []);
-
-  const displayTools = supportiveTools.length > 0 ? supportiveTools : [
-    {
-      icon: FaHeartbeat,
-      title: "Guided Symptom Check",
-      description:
-        "A guided tool to organize your symptoms before consulting a certified doctor.",
-      link: "/coming-soon",
-    },
-    {
-      icon: FaChartLine,
-      title: "Health Insights & Trends",
-      description:
-        "Contextual summaries and diagnostic trends to support doctor-led clinical decisions.",
-      link: "/coming-soon",
-    },
-  ];
 
   const features = [
     {
@@ -290,26 +254,6 @@ export default function ServicesPage() {
           </div>
         </div>
 
-        {/* Supportive Tools Grid */}
-        <div className="pt-6 border-t border-[#DCE6EB]">
-          <div className="text-center max-w-2xl mx-auto mb-10">
-            <p className="text-[11px] sm:text-xs font-bold tracking-widest text-[#1677A8] uppercase mb-1.5">
-              SUPPORTIVE CLINICAL TOOLS
-            </p>
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#0B3A5B] tracking-tight">
-              Helpful Tools Around Your Care
-            </h2>
-            <p className="text-xs sm:text-sm text-[#607580] mt-1.5 leading-relaxed">
-              Guided symptom checks and diagnostic trends designed to assist doctor consultations.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {displayTools.map((tool, index) => (
-              <ServiceCard key={tool.id || index} {...tool} delay={150 + index * 50} />
-            ))}
-          </div>
-        </div>
 
         {/* Platform Advantages */}
         <AnimateIn delay={300}>

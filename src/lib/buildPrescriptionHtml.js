@@ -246,7 +246,29 @@ export const buildPrescriptionHtml = (rec, options = {}) => {
   );
 
   // Patient Details safe fallback
-  const pDetails = rec.patient_details || {};
+  const pDetails = {
+    ...(rec.appointments?.patient || {}),
+    ...(rec.patient || {}),
+    ...(rec.patient_details || {}),
+  };
+
+  const calculatePatientAge = (dob, explicitAge) => {
+    if (explicitAge) {
+      const str = String(explicitAge).trim();
+      return str.toLowerCase().includes("yr") ? str : `${str} yrs`;
+    }
+    if (!dob) return "—";
+    const birthDate = dayjs(dob);
+    if (!birthDate.isValid()) return "—";
+    const today = dayjs();
+    const age = today.diff(birthDate, "year");
+    return age >= 0 ? `${age} yrs` : "—";
+  };
+
+  const patientAge = calculatePatientAge(
+    pDetails.date_of_birth || pDetails.dob,
+    pDetails.age
+  );
 
   const displayPid = (() => {
     const docUnId = rec.doctor_details?.un_id || rec.doc_un_id || null;
@@ -446,7 +468,7 @@ ${vitalsHtml}
 <div class="field">Name: <span class="value">${escapeHtml(pDetails.full_name || "-")}</span></div>
 <div class="field">Gender: <span class="value">${escapeHtml(pDetails.gender || "-")}</span></div>
 <div class="field">Blood Group: <span class="value">${escapeHtml(pDetails.blood_group || "-")}</span></div>
-<div class="field">DOB: <span class="value">${escapeHtml(pDetails.date_of_birth ? dayjs(pDetails.date_of_birth).format("DD MMM YYYY") : "-")}</span></div>
+<div class="field">Age: <span class="value">${escapeHtml(patientAge)}</span></div>
 <div class="field">Address: <span class="value">${escapeHtml(pDetails.address || "-")}</span></div>
 
 <div class="badge">${isLabView ? 'DIAGNOSTIC TEST REQUISITION' : (isChemistView ? 'PHARMACY DISPENSING COPY' : 'PRESCRIPTION')}</div>

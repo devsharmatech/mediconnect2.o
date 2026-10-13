@@ -1,5 +1,5 @@
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
 
 export async function POST(req) {
   try {
@@ -10,19 +10,14 @@ export async function POST(req) {
       return failure("doctor_id is required", null, 400);
     }
 
-    // 1. Fetch appointments for this doctor
-    const { data: appointments, error: aptError } = await supabase
-      .from("appointments")
-      .select("id, patient_id, appointment_date, appointment_time, status, created_at")
-      .eq("doctor_id", doctor_id)
-      .neq("status", "cancelled")
-      .neq("status", "rejected")
-      .order("appointment_date", { ascending: false });
-
-    if (aptError) {
-      console.error("[Doctor Patients API] DB Error:", aptError);
-      return failure("Failed to fetch appointments", aptError.message, 500);
-    }
+    // 1. Fetch appointments for this doctor from AWS RDS PostgreSQL
+    const appointments = await sql`
+      SELECT id, patient_id, appointment_date, appointment_time, status, created_at
+      FROM appointments
+      WHERE doctor_id = ${doctor_id}::uuid
+        AND status NOT IN ('cancelled', 'rejected')
+      ORDER BY appointment_date DESC
+    `;
 
     if (!appointments || appointments.length === 0) {
       return success("No patients found", [], 200);
@@ -30,15 +25,29 @@ export async function POST(req) {
 
     // 2. Extract unique patient IDs
     const patientIds = [...new Set(appointments.map(a => a.patient_id).filter(Boolean))];
+    if (patientIds.length === 0) {
+      return success("No patients found", [], 200);
+    }
 
-    // 3. Fetch Patient Details
-    const [patientsRes, usersRes] = await Promise.all([
-      supabase.from("patient_details").select("id, full_name, email, gender, date_of_birth, blood_group").in("id", patientIds),
-      supabase.from("users").select("id, phone_number").in("id", patientIds)
+    // 3. Fetch Patient Details and user phone numbers from AWS RDS
+    const [patientRows, userRows] = await Promise.all([
+      sql`
+        SELECT id, full_name, email, gender, date_of_birth, blood_group
+        FROM patient_details
+        WHERE id = ANY(${patientIds}::uuid[])
+      `,
+      sql`
+        SELECT id, phone_number
+        FROM users
+        WHERE id = ANY(${patientIds}::uuid[])
+      `
     ]);
 
-    const patients = patientsRes.data || [];
-    const users = usersRes.data || [];
+    const patientLookup = new Map();
+    patientRows.forEach(p => patientLookup.set(p.id, p));
+
+    const userLookup = new Map();
+    userRows.forEach(u => userLookup.set(u.id, u));
 
     // 4. Group by patient
     const patientMap = {};
@@ -48,16 +57,30 @@ export async function POST(req) {
       if (!patId) return;
 
       if (!patientMap[patId]) {
-        const pInfo = patients.find(p => p.id === patId);
-        const uInfo = users.find(u => u.id === patId);
+        const pInfo = patientLookup.get(patId) || {};
+        const uInfo = userLookup.get(patId) || {};
+
+        let calculatedAge = null;
+        if (pInfo.date_of_birth) {
+          const birthDate = new Date(pInfo.date_of_birth);
+          if (!isNaN(birthDate.getTime())) {
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const m = today.getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+            if (age >= 0) calculatedAge = age;
+          }
+        }
+
         patientMap[patId] = {
           id: patId,
-          full_name: pInfo?.full_name || "Unknown Patient",
-          email: pInfo?.email || "",
-          phone: uInfo?.phone_number || "",
-          gender: pInfo?.gender || "Unknown",
-          date_of_birth: pInfo?.date_of_birth || "",
-          blood_group: pInfo?.blood_group || "",
+          full_name: pInfo.full_name || "Unknown Patient",
+          email: pInfo.email || "",
+          phone: uInfo.phone_number || "",
+          gender: pInfo.gender || "Unknown",
+          date_of_birth: pInfo.date_of_birth || "",
+          age: calculatedAge,
+          blood_group: pInfo.blood_group || "",
           visit_count: 0,
           last_visit_date: apt.appointment_date,
           last_visit_time: apt.appointment_time,

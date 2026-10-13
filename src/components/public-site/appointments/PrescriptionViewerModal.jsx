@@ -197,8 +197,13 @@ export default function PrescriptionViewerModal({
   }, [data?.id]);
 
   const doc = data.doctor_details || {};
-  const pat = data.patient_details || {};
   const appt = data.appointments || {};
+  const pat = {
+    ...(data.patient || {}),
+    ...(appt.patient || {}),
+    ...(appt.patient_details || {}),
+    ...(data.patient_details || {}),
+  };
   const medicines = Array.isArray(data.medicines) ? data.medicines : [];
   const td = safeJsonParse(data.template_data, {});
 
@@ -564,10 +569,14 @@ export default function PrescriptionViewerModal({
   const isDateVal = followUpDateVal && !isNaN(Date.parse(followUpDateVal));
 
   const calculateAge = (dob, explicitAge) => {
-    if (explicitAge) return `${explicitAge} yrs`;
-    if (!dob) return "—";
-    const birthDate = new Date(dob);
-    if (isNaN(birthDate)) return "—";
+    if (explicitAge) {
+      const str = String(explicitAge).trim();
+      return str.toLowerCase().includes("yr") ? str : `${str} yrs`;
+    }
+    const dobVal = dob || pat.date_of_birth || pat.dob || pat.birth_date;
+    if (!dobVal) return "—";
+    const birthDate = new Date(dobVal);
+    if (isNaN(birthDate.getTime())) return "—";
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const m = today.getMonth() - birthDate.getMonth();

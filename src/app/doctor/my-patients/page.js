@@ -122,6 +122,26 @@ export default function DoctorMyPatientsPage() {
                     <h3 className="text-lg font-bold text-slate-800">{patient.full_name}</h3>
                     <div className="flex items-center gap-3 text-sm text-slate-500 mt-1">
                       <span className="flex items-center gap-1.5"><FaVenusMars className="text-slate-400" /> {patient.gender || 'N/A'}</span>
+                      {(() => {
+                        let age = patient.age;
+                        if (!age && patient.date_of_birth) {
+                          const dob = new Date(patient.date_of_birth);
+                          if (!isNaN(dob.getTime())) {
+                            const today = new Date();
+                            let a = today.getFullYear() - dob.getFullYear();
+                            const m = today.getMonth() - dob.getMonth();
+                            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) a--;
+                            if (a >= 0) age = a;
+                          }
+                        }
+                        if (!age) return null;
+                        return (
+                          <>
+                            <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                            <span className="font-medium text-slate-700">{age} yrs</span>
+                          </>
+                        );
+                      })()}
                       {patient.blood_group && (
                         <>
                           <span className="w-1 h-1 bg-slate-300 rounded-full"></span>

@@ -144,8 +144,10 @@ export default function DoctorAppointmentsPage() {
       if (!apt.appointment_date || !apt.appointment_time) continue;
       if (!["booked", "approved"].includes(apt.status)) continue;
 
-      const dt = new Date(apt.appointment_date + "T" + apt.appointment_time);
-      if (dt < now) continue;
+      const dateOnly = String(apt.appointment_date).slice(0, 10);
+      const timeOnly = String(apt.appointment_time).slice(0, 5);
+      const dt = new Date(dateOnly + "T" + timeOnly);
+      if (isNaN(dt.getTime()) || dt < now) continue;
 
       if (!next || dt < next.time) {
         next = { id: apt.id, time: dt };
@@ -395,10 +397,14 @@ export default function DoctorAppointmentsPage() {
         return haystack.includes(query);
       });
 
+    // Normalize date value to YYYY-MM-DD regardless of whether DB returns
+    // a plain date string or an ISO timestamp (e.g. 2026-10-13T00:00:00.000Z)
+    const normDate = (d) => (d ? String(d).slice(0, 10) : "");
+
     // Prioritize Today & Upcoming first, then Past (most recent past first)
     return filtered.sort((a, b) => {
-      const dateA = a.appointment_date || "";
-      const dateB = b.appointment_date || "";
+      const dateA = normDate(a.appointment_date);
+      const dateB = normDate(b.appointment_date);
       const timeA = a.appointment_time || "";
       const timeB = b.appointment_time || "";
 
@@ -793,7 +799,7 @@ export default function DoctorAppointmentsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
               {filteredAppointments.map((apt) => {
                 const isNext = nextUpcomingId && apt.id === nextUpcomingId;
-                const isToday = apt.appointment_date === todayStr;
+                const isToday = apt.appointment_date && String(apt.appointment_date).slice(0, 10) === todayStr;
                 const isExpired = isAppointmentExpired(apt, currentTime);
                 const withinSlot = isWithinSlot(apt, currentTime) && !isExpired;
 
@@ -902,13 +908,13 @@ export default function DoctorAppointmentsPage() {
 
                       {/* Schedule & Notes Strip */}
                       <div className="bg-slate-50/80 border border-slate-100/90 rounded-lg p-2 space-y-1 my-2">
-                        <div className="flex items-center justify-between text-[11px] text-slate-700 font-medium">
+                        <div className="flex items-center gap-3 text-[11px] text-slate-700 font-medium flex-wrap">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <Calendar className="w-3 h-3 text-[#0067A1] shrink-0" />
                             <span className="truncate">{apt.appointment_date}</span>
                           </div>
-                          <div className="flex items-center gap-1 text-slate-600 font-semibold text-[10.5px] shrink-0 bg-white/90 px-1.5 py-0.5 rounded border border-slate-200/60">
-                            <Clock className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                          <div className="flex items-center gap-1 text-slate-600 font-semibold text-[10.5px] bg-white/90 px-1.5 py-0.5 rounded border border-slate-200/60">
+                            <Clock className="w-2.5 h-2.5 text-[#0067A1] shrink-0" />
                             <span>{formatTime(apt.appointment_time)}</span>
                           </div>
                         </div>
@@ -1151,9 +1157,22 @@ export default function DoctorAppointmentsPage() {
                     {selectedAppointment.patient?.gender && (
                       <span className="capitalize">• {selectedAppointment.patient.gender}</span>
                     )}
-                    {selectedAppointment.patient?.age && (
-                      <span>• {selectedAppointment.patient.age} years</span>
-                    )}
+                    {(() => {
+                      let displayAge = selectedAppointment.patient?.age;
+                      if (!displayAge && selectedAppointment.patient?.date_of_birth) {
+                        const dob = new Date(selectedAppointment.patient.date_of_birth);
+                        if (!isNaN(dob.getTime())) {
+                          const today = new Date();
+                          let a = today.getFullYear() - dob.getFullYear();
+                          const m = today.getMonth() - dob.getMonth();
+                          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) a--;
+                          if (a >= 0) displayAge = `${a} years`;
+                        }
+                      }
+                      if (!displayAge) return null;
+                      const str = String(displayAge);
+                      return <span>• {str.includes("year") ? str : `${str} years`}</span>;
+                    })()}
                     {selectedAppointment.patient?.blood_group && (
                       <span className="inline-flex items-center gap-1.5 font-medium text-red-600">
                         <Droplet className="w-4 h-4" />

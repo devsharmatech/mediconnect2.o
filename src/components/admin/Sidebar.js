@@ -34,6 +34,7 @@ import {
   RotateCcw,
   Wallet,
   Database,
+  LifeBuoy,
 } from "lucide-react";
 
 import { getLoggedInUser, logoutUser } from "@/lib/authHelpers";
@@ -205,6 +206,11 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
       name: "Subscribers",
       icon: <Mail />,
       path: `/admin/subscribers`,
+    },
+    {
+      name: "Help & Support",
+      icon: <LifeBuoy />,
+      path: `/admin/support`,
     },
     {
       name: "Staff",

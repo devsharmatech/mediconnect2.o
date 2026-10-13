@@ -104,7 +104,7 @@ export default function ResourcesPage() {
 
   const ResourceCard = ({ item }) => (
     <Link 
-      href={`/website/resources/${item.slug}`} 
+      href={`/resources/${item.slug}`} 
       className="group h-full flex flex-col bg-white rounded-2xl border border-[#DCE6EB] shadow-2xs hover:shadow-xs hover:border-[#1677A8]/50 transition-all duration-200 overflow-hidden"
     >
       {item.image && (

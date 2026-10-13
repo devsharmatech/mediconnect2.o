@@ -32,6 +32,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
   const [safetyFlags, setSafetyFlags] = useState([]);
   const [isOffline, setIsOffline] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [isSigned, setIsSigned] = useState(false); // set true immediately after successful complete
 
   // Clinical Payload State
   const [clinicalData, setClinicalData] = useState({
@@ -68,6 +69,27 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
 
   const isRejectedOrCancelled = ["rejected", "cancelled", "REJECTED", "CANCELLED"].includes(appointment?.status);
   const isCompleted = appointment?.status === "COMPLETED" || appointment?.status === "CLOSED_RESOLVED" || appointment?.status === "completed";
+  // isLocked = true either when appointment is already completed (from DB) OR when doctor just signed it this session
+  const isLocked = isCompleted || isSigned;
+
+  // Patient info & age calculation for clinician context
+  const patientObj = appointment?.patient || appointment?.patient_details || null;
+  const patientAge = (() => {
+    if (!patientObj) return null;
+    if (patientObj.age) {
+      const a = String(patientObj.age).trim();
+      return a.toLowerCase().includes("yr") ? a : `${a} yrs`;
+    }
+    const dob = patientObj.date_of_birth || patientObj.dob;
+    if (!dob) return null;
+    const b = new Date(dob);
+    if (isNaN(b.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - b.getFullYear();
+    const m = today.getMonth() - b.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+    return age >= 0 ? `${age} yrs` : null;
+  })();
 
   // Load existing data if any (from DRAFT)
   useEffect(() => {
@@ -156,14 +178,14 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
       }
     };
     
-    if (!isCompleted) {
+    if (!isLocked) {
       fetchHelpers();
     }
   }, [isCompleted]);
 
   // CLINICAL DATASET: Dynamic Complaint Mapping for Symptoms
   useEffect(() => {
-    if (!clinicalData.symptoms || isCompleted) return;
+    if (!clinicalData.symptoms || isLocked) return;
     const firstSymptom = clinicalData.symptoms.split(",")[0]?.trim();
     if (!firstSymptom || firstSymptom.length < 2) return;
 
@@ -192,7 +214,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
 
   // CLINICAL DATASET: Fetch Clinical Protocol when Diagnosis is selected
   const fetchProtocolForDiagnosis = async (diagNameOrId) => {
-    if (!diagNameOrId || isCompleted) return;
+    if (!diagNameOrId || isLocked) return;
     const cleanId = diagNameOrId.trim().toLowerCase().replace(/\s+/g, "-");
     setLoadingProtocol(true);
     try {
@@ -229,7 +251,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
 
   // F8: AUTO-SAVE ENGINE (Every 5 seconds as per PDF)
   useEffect(() => {
-    if (isCompleted || loading || completing) return;
+    if (isLocked || loading || completing) return;
 
     const timer = setInterval(() => {
         // Trigger save if there's any content
@@ -239,7 +261,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
     }, 5000); 
 
     return () => clearInterval(timer);
-  }, [clinicalData, isCompleted, loading, completing, lastSavedPayload, isOffline]);
+  }, [clinicalData, isLocked, loading, completing, lastSavedPayload, isOffline]);
 
   // NETWORK DETECTION & AUTO-SYNC
   useEffect(() => {
@@ -447,10 +469,12 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
         if (!silent) toast.success("Draft saved successfully.");
         setLastSavedPayload(currentPayloadString);
       } else if (actionType === "complete") {
+        // Lock the workspace immediately — no need to wait for a page reload
+        setIsSigned(true);
         if (data.data?.validation_warnings?.length > 0) {
-           toast.success("Consultation Completed (With Warnings)");
+           toast.success("Prescription Signed & Locked (With Warnings)");
         } else {
-           toast.success("Consultation Completed!");
+           toast.success("Prescription Signed & Locked!");
         }
         if (onConsultationUpdate) onConsultationUpdate();
       }
@@ -526,7 +550,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
             <span className={`text-[10px] font-bold uppercase tracking-wider ${quickMode ? 'text-slate-400' : 'text-indigo-600'}`}>Standard</span>
             <button 
               onClick={() => {
-                if (isCompleted) return;
+                if (isLocked) return;
                 const newMode = !quickMode;
                 setQuickMode(newMode);
                 if (newMode) {
@@ -542,7 +566,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
                   }));
                 }
               }}
-              disabled={isCompleted}
+              disabled={isLocked}
               className={`w-10 h-5 rounded-full relative transition-all duration-200 ${quickMode ? 'bg-indigo-600' : 'bg-slate-300'}`}
             >
               <div className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-200 ${quickMode ? 'left-6' : 'left-1'}`} />
@@ -552,7 +576,30 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
         </div>
       </div>
 
-      {quickMode && !isCompleted && (
+      {patientObj?.full_name && (
+        <div className="bg-slate-50 border border-slate-200/80 rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-[#0067A1]/10 text-[#0067A1] font-bold text-xs flex items-center justify-center">
+              {patientObj.full_name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-800">{patientObj.full_name}</p>
+              <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                {patientObj.gender && <span className="capitalize">{patientObj.gender}</span>}
+                {patientAge && <span className="font-semibold text-[#0067A1]">• Age: {patientAge}</span>}
+                {patientObj.blood_group && <span className="text-rose-600 font-semibold">• {patientObj.blood_group}</span>}
+              </div>
+            </div>
+          </div>
+          {appointment.appointment_type && (
+            <span className="text-[10px] font-bold uppercase tracking-wider bg-white border border-slate-200 px-2.5 py-1 rounded-full text-slate-600">
+              {appointment.appointment_type.replace(/_/g, " ")}
+            </span>
+          )}
+        </div>
+      )}
+
+      {quickMode && !isLocked && (
         <div className="bg-indigo-50/50 border border-indigo-100 p-3 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
           <Sparkles className="w-5 h-5 text-indigo-600" />
           <p className="text-xs font-medium text-indigo-900">
@@ -580,7 +627,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
       )}
 
       {/* Safety Override Block */}
-      {overrideRequired && !isCompleted && (
+      {overrideRequired && !isLocked && (
         <div className="bg-amber-50 border-l-4 border-amber-500 p-5 rounded-r-xl shadow-sm animate-in fade-in slide-in-from-top-4">
           <div className="flex items-start gap-4">
             <AlertTriangle className="w-6 h-6 text-amber-500 flex-shrink-0 mt-1" />
@@ -620,10 +667,13 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
         </div>
       )}
 
-      {isCompleted && (
+      {isLocked && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl flex items-center gap-3">
           <CheckCircle className="w-5 h-5 text-emerald-600" />
-          <p className="text-sm font-medium">This consultation is completed and locked. No further modifications allowed.</p>
+          <FolderLock className="w-5 h-5 text-emerald-600" />
+          <p className="text-sm font-semibold">
+            {isSigned ? "Prescription signed & locked. No further edits allowed." : "This consultation is completed and locked. No further modifications allowed."}
+          </p>
         </div>
       )}
 
@@ -637,7 +687,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
             <label className="block text-xs font-medium text-slate-600 mb-1">Symptoms (comma separated)</label>
             <input
               type="text"
-              disabled={isCompleted}
+              disabled={isLocked}
               list="symptoms-list"
               value={clinicalData.symptoms}
               onChange={(e) => setClinicalData({ ...clinicalData, symptoms: e.target.value })}
@@ -649,7 +699,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
             <label className="block text-xs font-medium text-slate-600 mb-1">Primary Diagnosis</label>
             <input
               type="text"
-              disabled={isCompleted}
+              disabled={isLocked}
               list="diagnosis-list"
               value={clinicalData.diagnosis}
               onChange={(e) => {
@@ -660,7 +710,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
               placeholder="Enter diagnosis..."
               className="w-full text-sm border-slate-200 rounded-xl focus:border-[#0067A1] focus:ring-[#0067A1] disabled:bg-slate-100 px-3 py-2 border"
             />
-            {diagnosisSuggestions.length > 0 && !isCompleted && (
+            {diagnosisSuggestions.length > 0 && !isLocked && (
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold text-slate-400 flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5 text-[#0067A1]" /> Dataset & AI Suggestions:
@@ -683,7 +733,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
             )}
 
             {/* CLINICAL PROTOCOL GUIDANCE CARD FROM DATASET */}
-            {datasetProtocol && !isCompleted && (
+            {datasetProtocol && !isLocked && (
               <div className="mt-3 p-4 bg-sky-50/70 border border-sky-200/80 rounded-xl">
                 <div className="flex items-center justify-between gap-2 mb-2.5">
                   <div className="flex items-center gap-2">
@@ -773,7 +823,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
               <label className="block text-xs font-medium text-slate-600 mb-1">Investigations / Lab Tests (comma separated)</label>
               <input
                 type="text"
-                disabled={isCompleted}
+                disabled={isLocked}
                 list="labs-list"
                 value={clinicalData.investigations || ""}
                 onChange={(e) => setClinicalData({ ...clinicalData, investigations: e.target.value })}
@@ -785,7 +835,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
               <label className="block text-xs font-medium text-slate-600 mb-1">Follow-up</label>
               <input
                 type="text"
-                disabled={isCompleted}
+                disabled={isLocked}
                 list="followup-list"
                 value={clinicalData.follow_up || ""}
                 onChange={(e) => setClinicalData({ ...clinicalData, follow_up: e.target.value })}
@@ -798,7 +848,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
             <label className="block text-xs font-medium text-slate-600 mb-1">Clinical Notes (Treatment / Advice)</label>
             <textarea
               rows={3}
-              disabled={isCompleted}
+              disabled={isLocked}
               list="notes-list"
               value={clinicalData.notes}
               onChange={(e) => setClinicalData({ ...clinicalData, notes: e.target.value })}
@@ -820,7 +870,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
             <input
               type="text"
               name="blood_pressure"
-              disabled={isCompleted}
+              disabled={isLocked}
               value={clinicalData.vitals.blood_pressure}
               onChange={handleVitalChange}
               placeholder="120/80"
@@ -832,7 +882,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
             <input
               type="text"
               name="heart_rate"
-              disabled={isCompleted}
+              disabled={isLocked}
               value={clinicalData.vitals.heart_rate}
               onChange={handleVitalChange}
               placeholder="72"
@@ -844,7 +894,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
             <input
               type="text"
               name="temperature"
-              disabled={isCompleted}
+              disabled={isLocked}
               value={clinicalData.vitals.temperature}
               onChange={handleVitalChange}
               placeholder="98.6"
@@ -856,7 +906,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
             <input
               type="text"
               name="spo2"
-              disabled={isCompleted}
+              disabled={isLocked}
               value={clinicalData.vitals.spo2}
               onChange={handleVitalChange}
               placeholder="98"
@@ -872,7 +922,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
           <h4 className="text-sm font-semibold text-[#0067A1] flex items-center gap-2">
             <Pill className="w-4 h-4" /> E-Prescription
           </h4>
-          {!isCompleted &&(
+          {!isLocked &&(
             <button
               onClick={addMedicine}
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0067A1] border border-[#0067A1]/20 bg-white px-3 py-1.5 rounded-lg hover:bg-[#0067A1]/5 transition-colors"
@@ -882,7 +932,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
           )}
         </div>
 
-        {favoriteMeds.length > 0 && !isCompleted && (
+        {favoriteMeds.length > 0 && !isLocked && (
           <div className="mb-4 pb-4 border-b border-slate-100 flex items-center gap-2 overflow-x-auto no-scrollbar">
             <span className="text-xs font-semibold text-slate-500 whitespace-nowrap flex items-center gap-1">
               <Star className="w-3.5 h-3.5 text-amber-400" /> Quick Add:
@@ -917,7 +967,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
                     <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Medicine Name</label>
                     <input
                       type="text"
-                      disabled={isCompleted}
+                      disabled={isLocked}
                       list="medicines-list"
                       value={med.medicine_name}
                       onChange={(e) => updateMedicine(idx, "medicine_name", e.target.value)}
@@ -929,7 +979,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
                     <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Dosage/Freq</label>
                     <input
                       type="text"
-                      disabled={isCompleted}
+                      disabled={isLocked}
                       list="dosage-list"
                       value={med.frequency}
                       onChange={(e) => updateMedicine(idx, "frequency", e.target.value)}
@@ -941,7 +991,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
                     <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Duration</label>
                     <input
                       type="text"
-                      disabled={isCompleted}
+                      disabled={isLocked}
                       list="duration-list"
                       value={med.duration_days}
                       onChange={(e) => updateMedicine(idx, "duration_days", e.target.value)}
@@ -953,7 +1003,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
                     <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Notes</label>
                     <input
                       type="text"
-                      disabled={isCompleted}
+                      disabled={isLocked}
                       list="med-instructions-list"
                       value={med.instructions}
                       onChange={(e) => updateMedicine(idx, "instructions", e.target.value)}
@@ -962,7 +1012,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
                     />
                   </div>
                 </div>
-                {!isCompleted && (
+                {!isLocked && (
                   <button
                     onClick={() => removeMedicine(idx)}
                     className="absolute -top-2 -right-2 w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center border border-white opacity-0 group-hover:opacity-100 transition-opacity"
@@ -977,7 +1027,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
       </div>
 
       {/* Action Buttons */}
-      {!isCompleted && (
+      {!isLocked && (
         <div className="flex flex-col sm:flex-row items-center gap-3 pt-4 border-t border-slate-100">
           <p className="flex-1 text-xs text-slate-500 flex items-center gap-1.5">
             <AlertTriangle className="w-4 h-4 text-amber-500" />

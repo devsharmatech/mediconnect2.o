@@ -65,6 +65,7 @@ export async function POST(req) {
         p.full_name AS patient_full_name,
         p.email AS patient_email,
         p.gender AS patient_gender,
+        p.date_of_birth AS patient_date_of_birth,
         p.blood_group AS patient_blood_group,
         p.address AS patient_address,
         u.phone_number AS patient_phone,
@@ -133,12 +134,26 @@ export async function POST(req) {
         ? screenings.find((s) => s.id === a.screening_id) || null
         : null;
 
+      let patientAge = null;
+      if (a.patient_date_of_birth) {
+        const dob = new Date(a.patient_date_of_birth);
+        if (!isNaN(dob.getTime())) {
+          const today = new Date();
+          let ageDiff = today.getFullYear() - dob.getFullYear();
+          const m = today.getMonth() - dob.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) ageDiff--;
+          if (ageDiff >= 0) patientAge = ageDiff;
+        }
+      }
+
       const simplePatient = {
         id: a.patient_id,
         phone: a.patient_phone || null,
         full_name: a.patient_full_name || null,
         email: a.patient_email || null,
         gender: a.patient_gender || null,
+        date_of_birth: a.patient_date_of_birth || null,
+        age: patientAge,
         blood_group: a.patient_blood_group || null,
         address: a.patient_address || null,
       };

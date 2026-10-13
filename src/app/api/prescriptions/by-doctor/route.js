@@ -79,10 +79,25 @@ export async function POST(req) {
       const careEpisodeCode = p.care_episode_code || 
         (p.care_episode_id ? `EP-${String(p.care_episode_id).slice(0, 8).toUpperCase()}` : (appt.care_episode_id ? `EP-${String(appt.care_episode_id).slice(0, 8).toUpperCase()}` : null));
 
+      let patAge = null;
+      if (pat.date_of_birth) {
+        const dob = new Date(pat.date_of_birth);
+        if (!isNaN(dob.getTime())) {
+          const today = new Date();
+          let age = today.getFullYear() - dob.getFullYear();
+          const m = today.getMonth() - dob.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+          if (age >= 0) patAge = age;
+        }
+      }
+
       return {
         ...p,
         doctor_details: doctorDetails,
-        patient_details: pat,
+        patient_details: {
+          ...pat,
+          age: patAge !== null ? patAge : pat.age,
+        },
         appointments: appt,
         episode_id: careEpisodeCode,
       };

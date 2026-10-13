@@ -58,6 +58,18 @@ export default function Prescriptions() {
     }
   }, [showNewPrescription]);
 
+  const calculatePatientAgeHelper = (dob, explicitAge) => {
+    if (explicitAge) return explicitAge;
+    if (!dob) return null;
+    const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    return age >= 0 ? age : null;
+  };
+
   const handleSelectPatient = async (patient) => {
     setSelectedPatient(patient);
     setShowPatientDropdown(false);
@@ -69,11 +81,21 @@ export default function Prescriptions() {
         consultation_mode: 'CLINIC_VISIT'
       });
       if (res.success && res.data) {
+        const patientAgeVal = calculatePatientAgeHelper(patient.date_of_birth, patient.age);
         setMockAppointment({
           id: res.data.consultation_id,
           patient_id: patient.id,
           care_episode_id: res.data.care_episode_id,
-          patient: { full_name: patient.full_name },
+          patient: {
+            id: patient.id,
+            full_name: patient.full_name,
+            gender: patient.gender,
+            date_of_birth: patient.date_of_birth,
+            age: patientAgeVal,
+            blood_group: patient.blood_group,
+            phone: patient.phone,
+            email: patient.email,
+          },
           status: 'ACTIVE'
         });
       } else {
@@ -711,7 +733,7 @@ export default function Prescriptions() {
                             >
                               <div>
                                 <p className="font-semibold text-slate-800">{p.full_name}</p>
-                                <p className="text-xs text-slate-500">{p.phone} • {p.gender} • {p.email}</p>
+                                <p className="text-xs text-slate-500">{p.phone} • {p.gender}{calculatePatientAgeHelper(p.date_of_birth, p.age) ? ` • ${calculatePatientAgeHelper(p.date_of_birth, p.age)} yrs` : ''}{p.blood_group ? ` • ${p.blood_group}` : ''}</p>
                               </div>
                               <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">{p.visit_count} Visits</span>
                             </button>
@@ -732,6 +754,13 @@ export default function Prescriptions() {
                       <div>
                         <span className="text-xs font-semibold text-slate-400 uppercase">Consulting Patient</span>
                         <h4 className="font-bold text-slate-800 text-base">{selectedPatient?.full_name}</h4>
+                        <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                          {selectedPatient?.gender && <span>{selectedPatient.gender}</span>}
+                          {calculatePatientAgeHelper(selectedPatient?.date_of_birth, selectedPatient?.age) && (
+                            <span>• Age: {calculatePatientAgeHelper(selectedPatient?.date_of_birth, selectedPatient?.age)} yrs</span>
+                          )}
+                          {selectedPatient?.blood_group && <span className="text-rose-600 font-semibold">• {selectedPatient.blood_group}</span>}
+                        </div>
                       </div>
                       <button
                         onClick={() => { setMockAppointment(null); setSelectedPatient(null); }}
