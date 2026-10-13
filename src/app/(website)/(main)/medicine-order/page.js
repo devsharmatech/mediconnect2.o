@@ -542,15 +542,11 @@ function MedicineOrderContent() {
 
       toast.dismiss(tid);
 
-      let actionUrl = payuData.action_url || "https://test.payu.in/_payment";
+      const actionUrl = payuData.action_url || "https://secure.payu.in/_payment";
       const params = payuData.payment_params;
 
       if (!params || !params.hash) {
         throw new Error("PayU payment parameters or hash missing. Please contact support.");
-      }
-
-      if (params.key === "Kx7dGD") {
-        actionUrl = "https://test.payu.in/_payment";
       }
 
       // Submit dynamic hidden form to PayU Hosted Checkout

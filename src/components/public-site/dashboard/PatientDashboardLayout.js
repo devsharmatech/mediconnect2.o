@@ -310,63 +310,6 @@ const PatientDashboardLayout = ({ children }) => {
           isSidebarCollapsed={isCollapsed}
         />
 
-        {/* Professional Persona Banner (when Doctor, Chemist, Lab, Staff, or Admin is viewing Patient Panel) */}
-        {(() => {
-          if (typeof window === "undefined") return null;
-          let role = localStorage.getItem("userRole");
-          if (!role || role === "patient") {
-            if (localStorage.getItem("doctorUser")) role = "doctor";
-            else if (localStorage.getItem("chemistUser")) role = "chemist";
-            else if (localStorage.getItem("labUser")) role = "lab";
-            else if (localStorage.getItem("adminUser")) role = "admin";
-            else if (localStorage.getItem("staffUser")) role = "staff";
-            else if (localStorage.getItem("partnerUser")) role = "partner";
-          }
-          if (!role || role === "patient") return null;
-
-          const destination =
-            role === "doctor"
-              ? "/doctor"
-              : role === "chemist"
-              ? "/chemist/dashboard"
-              : role === "lab"
-              ? "/lab/dashboard"
-              : role === "staff"
-              ? "/staff/dashboard"
-              : role === "partner"
-              ? "/partner/dashboard"
-              : "/admin/dashboard";
-
-          const buttonLabel =
-            role === "doctor"
-              ? "Doctor Panel"
-              : role === "chemist"
-              ? "Chemist Panel"
-              : role === "lab"
-              ? "Lab Panel"
-              : role === "staff"
-              ? "Staff Panel"
-              : role === "partner"
-              ? "Partner Panel"
-              : "Admin Panel";
-
-          return (
-            <div className="bg-gradient-to-r from-teal-50 via-sky-50 to-indigo-50 border-b border-teal-200/80 px-4 py-2 flex items-center justify-between text-xs font-medium text-gray-700 shadow-xs">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
-                <span>
-                  You are in <strong>Patient View</strong> (Logged in as {role.toUpperCase()})
-                </span>
-              </div>
-              <Link
-                href={destination}
-                className="inline-flex items-center gap-1.5 px-3 py-1 bg-white text-teal-700 hover:bg-teal-700 hover:text-white rounded-lg border border-teal-300 font-semibold transition-all shadow-xs"
-              >
-                <span>{buttonLabel} →</span>
-              </Link>
-            </div>
-          );
-        })()}
 
         {/* Mandatory Patient UI Disclaimer */}
         {showDisclaimer && (

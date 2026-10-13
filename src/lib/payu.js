@@ -5,35 +5,40 @@ import crypto from "crypto";
  * Exclusively configured for Chemist / Pharmacy Medicine Orders
  */
 export function getPayUConfig() {
+  const env = (process.env.PAYU_ENV || "test").toLowerCase().trim();
+  const isProduction = env === "prod" || env === "production" || env === "live";
+
   const key =
     process.env.PAYU_MERCHANT_KEY ||
     process.env.PAYU_KEY ||
     process.env.NEXT_PUBLIC_PAYU_KEY ||
-    "Kx7dGD";
+    (isProduction ? "" : "Kx7dGD");
+
   const salt =
     process.env.PAYU_MERCHANT_SALT ||
     process.env.PAYU_SALT ||
-    "r9JFFpORnzyk7jU1tIv3OEx31wvSZnMD";
-  const clientId =
-    process.env.PAYU_CLIENT_ID ||
-    "37c8819f56b678b43316c3abfffdf5b1034d1074d8418db8c97b53a3c974881e";
-  const clientSecret =
-    process.env.PAYU_CLIENT_SECRET ||
-    "f963c29d7030c2b4e208d9872b99f0d0bbe08eb44d713a5b12a48a20626a4c81";
-  const env = (process.env.PAYU_ENV || (key === "Kx7dGD" ? "test" : "prod")).toLowerCase();
-  const isProduction = (env === "prod" || env === "production" || env === "live") && key !== "Kx7dGD";
+    (isProduction ? "" : "r9JFFpORnzyk7jU1tIv3OEx31wvSZnMD");
 
-  const actionUrl = isProduction
-    ? "https://secure.payu.in/_payment"
-    : "https://test.payu.in/_payment";
+  const clientId = process.env.PAYU_CLIENT_ID || "";
+  const clientSecret = process.env.PAYU_CLIENT_SECRET || "";
 
-  const apiBaseUrl = isProduction
-    ? "https://api.payu.in"
-    : "https://test.payu.in";
+  const actionUrl =
+    process.env.PAYU_ACTION_URL ||
+    (isProduction
+      ? "https://secure.payu.in/_payment"
+      : "https://test.payu.in/_payment");
 
-  const authUrl = isProduction
-    ? "https://accounts.payu.in/oauth/token"
-    : "https://test-accounts.payu.in/oauth/token";
+  const apiBaseUrl =
+    process.env.PAYU_API_BASE_URL ||
+    (isProduction
+      ? "https://api.payu.in"
+      : "https://test.payu.in");
+
+  const authUrl =
+    process.env.PAYU_AUTH_URL ||
+    (isProduction
+      ? "https://accounts.payu.in/oauth/token"
+      : "https://test-accounts.payu.in/oauth/token");
 
   return {
     key,

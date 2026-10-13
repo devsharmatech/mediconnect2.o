@@ -75,15 +75,19 @@ export default function PatientSidebar({
   };
 
   const getDisplayName = () => {
-    return (
+    const raw = (
       user?.details?.full_name ||
       user?.profile?.full_name ||
       user?.user?.details?.full_name ||
       user?.user?.full_name ||
       user?.full_name ||
       user?.name ||
-      "User"
+      ""
     );
+    if (!raw || raw.trim().toLowerCase() === "administrator" || raw.trim().toLowerCase() === "admin") {
+      return user?.admin_name || "Dev Sharma";
+    }
+    return raw;
   };
 
   const getAvatarUrl = () => {

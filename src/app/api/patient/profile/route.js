@@ -67,7 +67,13 @@ export async function GET(req) {
           resolvedEmail = labRows[0].email;
         }
       } else if (user.role === "admin") {
-        resolvedName = "Administrator";
+        const adminRows = await sql`SELECT full_name, email FROM admin_details WHERE id = ${id} LIMIT 1`;
+        if (adminRows[0]) {
+          resolvedName = adminRows[0].full_name;
+          resolvedEmail = adminRows[0].email;
+        } else {
+          resolvedName = "Dev Sharma";
+        }
       }
 
       if (resolvedName) {
@@ -102,10 +108,15 @@ export async function GET(req) {
       cleanPic = `https://ui-avatars.com/api/?name=${encodeURIComponent(pName.trim())}&background=0067A1&color=fff&bold=true`;
     }
 
+    let finalFullName = profile?.full_name;
+    if (!finalFullName || finalFullName.trim().toLowerCase() === "administrator" || finalFullName.trim().toLowerCase() === "admin") {
+      finalFullName = "Dev Sharma";
+    }
+
     const mergedProfile = {
       ...(profile || {}),
       id: id,
-      full_name: profile?.full_name || "Patient",
+      full_name: finalFullName,
       email: profile?.email || null,
       phone_number: user?.phone_number || profile?.phone_number || "",
       profile_picture: cleanPic,

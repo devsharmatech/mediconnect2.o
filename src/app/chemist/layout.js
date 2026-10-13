@@ -17,6 +17,8 @@ export default function ChemistLayout({ children }) {
   const router = useRouter();
 
   const isLoginPage = pathname === "/chemist/login";
+  const isOnboardingPage = pathname?.startsWith("/chemist/onboarding");
+  const isPublicPage = isLoginPage || isOnboardingPage;
 
   const checkLogin = () => {
     const user = getLoggedInUser("chemist");
@@ -31,12 +33,12 @@ export default function ChemistLayout({ children }) {
     setMounted(true);
     const loggedIn = checkLogin();
 
-    // If not logged in and not on login page → redirect
-    if (!loggedIn && !isLoginPage) {
+    // If not logged in and on a protected route → redirect to login
+    if (!loggedIn && !isPublicPage) {
       router.replace("/chemist/login");
     }
-    // If logged in and on login page → redirect to dashboard
-    if (loggedIn && isLoginPage) {
+    // If logged in and on login or onboarding page → redirect to dashboard
+    if (loggedIn && (isLoginPage || isOnboardingPage)) {
       router.replace("/chemist/dashboard");
     }
   }, [pathname]);
@@ -69,8 +71,8 @@ export default function ChemistLayout({ children }) {
     setMobileSidebarOpen(false);
   };
 
-  // On login page — render clean (no sidebar/navbar)
-  if (isLoginPage) {
+  // On public pages (login or onboarding) — render clean (no sidebar/navbar)
+  if (isPublicPage) {
     return <>{children}</>;
   }
 

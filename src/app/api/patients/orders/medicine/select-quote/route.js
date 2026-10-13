@@ -396,18 +396,7 @@ export async function POST(req) {
       }
     }
 
-    // 9. Notifications
-    try {
-      await sendPushAndInAppNotification({
-        userId: quote.chemist_id,
-        title: "Offer Selected 🎉",
-        message: `Your offer of ₹${finalAmount} was selected by patient! Order #${nextUnid} created.`,
-        type: "medicine_order_accepted",
-        metadata: { order_id: order.id, broadcast_id },
-      });
-    } catch (notifErr) {
-      console.warn("Chemist notification warning:", notifErr.message);
-    }
+    // 9. Chemist notification is deferred until payment is confirmed via PayU callback or verification
 
     return success("Offer selected and payment initiated", {
       order,

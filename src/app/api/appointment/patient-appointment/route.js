@@ -62,7 +62,13 @@ export async function POST(req) {
         const [lab] = await sql`SELECT owner_name, lab_name, email FROM lab_details WHERE id = ${patient_id} LIMIT 1`;
         if (lab) { resolvedName = lab.owner_name || lab.lab_name || "Lab"; resolvedEmail = lab.email; }
       } else if (patientUser.role === "admin") {
-        resolvedName = "Administrator";
+        const [adminRow] = await sql`SELECT full_name, email FROM admin_details WHERE id = ${patient_id} LIMIT 1`;
+        if (adminRow) {
+          resolvedName = adminRow.full_name;
+          resolvedEmail = adminRow.email;
+        } else {
+          resolvedName = "Dev Sharma";
+        }
       }
       try {
         await sql`

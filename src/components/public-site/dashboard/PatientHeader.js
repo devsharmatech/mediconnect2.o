@@ -625,15 +625,29 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
   };
 
   const getDisplayName = () => {
-    return (
+    const raw = (
       user?.details?.full_name ||
       user?.profile?.full_name ||
       user?.user?.details?.full_name ||
       user?.user?.full_name ||
       user?.full_name ||
       user?.name ||
-      "User"
+      ""
     );
+    if (!raw || raw.trim().toLowerCase() === "administrator" || raw.trim().toLowerCase() === "admin") {
+      return user?.admin_name || "Dev Sharma";
+    }
+    return raw;
+  };
+
+  const getDisplayRole = () => {
+    if (typeof window !== "undefined") {
+      const storedRole = localStorage.getItem("userRole");
+      if (storedRole && storedRole.toLowerCase() === "doctor") return "Doctor";
+      if (storedRole && storedRole.toLowerCase() === "chemist") return "Chemist";
+      if (storedRole && storedRole.toLowerCase() === "lab") return "Lab Partner";
+    }
+    return "Patient";
   };
 
   const getDisplayEmail = () => {
@@ -934,9 +948,13 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
                   </span>
                 )}
               </div>
-              <div className="hidden md:block text-left">
-                <p className="text-sm font-medium text-slate-700 truncate max-w-[150px]">
+              <div className="hidden md:flex flex-col text-left leading-tight">
+                <p className="text-sm font-semibold text-slate-800 truncate max-w-[150px]">
                   {getDisplayName()}
+                </p>
+                <p className="text-[11px] font-medium text-[#0067A1] flex items-center gap-1 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  {getDisplayRole()}
                 </p>
               </div>
               <FaChevronDown
@@ -964,10 +982,14 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-800 truncate">
+                      <p className="text-sm font-semibold text-slate-800 truncate">
                         {getDisplayName()}
                       </p>
-                      <p className="text-xs text-gray-500 truncate">
+                      <p className="text-xs text-[#0067A1] font-medium flex items-center gap-1 mt-0.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        {getDisplayRole()}
+                      </p>
+                      <p className="text-[11px] text-gray-500 truncate mt-0.5">
                         {getDisplayEmail()}
                       </p>
                     </div>

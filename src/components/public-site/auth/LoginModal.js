@@ -271,17 +271,26 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
         setStep('success');
         const { user_id, role, user } = response.data || {};
         if (typeof window !== 'undefined') {
-          // Clear stale conflicting role session keys
-          const allRoles = ['doctorUser', 'chemistUser', 'labUser', 'adminUser', 'patientUser', 'staffUser', 'partnerUser'];
-          allRoles.forEach((k) => {
-            if (k !== `${role}User`) localStorage.removeItem(k);
-          });
-
+          const activeRole = role === 'admin' ? 'patient' : (role || 'patient');
           if (response.data?.token) localStorage.setItem('authToken', response.data.token);
           if (user_id) localStorage.setItem('userId', String(user_id));
-          if (role) localStorage.setItem('userRole', role);
-          if (user) localStorage.setItem('userData', JSON.stringify(user));
-          if (role) {
+          localStorage.setItem('userRole', activeRole);
+
+          const sanitizedName = user?.details?.full_name && !user.details.full_name.toLowerCase().includes("administrator") 
+            ? user.details.full_name 
+            : (user?.name || "Dev Sharma");
+          const userWithPatientDetails = {
+            ...user,
+            full_name: sanitizedName,
+            details: {
+              ...(user?.details || {}),
+              full_name: sanitizedName,
+            }
+          };
+
+          localStorage.setItem('userData', JSON.stringify(userWithPatientDetails));
+          localStorage.setItem('patientUser', JSON.stringify(userWithPatientDetails));
+          if (role && role !== 'patient') {
             localStorage.setItem(`${role}User`, JSON.stringify(user));
           }
           if (user_id) {

@@ -60,7 +60,7 @@ const ProfileDropdown = ({ user, userRole, onLogout, className = "" }) => {
 
   // Get display name
   const getRawName = () => {
-    return (
+    const raw = (
       // Doctor / Patient
       user?.details?.full_name ||
       user?.profile?.full_name ||
@@ -74,8 +74,12 @@ const ProfileDropdown = ({ user, userRole, onLogout, className = "" }) => {
       // Lab
       user?.details?.lab_name ||
       user?.details?.lab_owner_name ||
-      "User"
+      ""
     );
+    if (!raw || raw.trim().toLowerCase() === "administrator" || raw.trim().toLowerCase() === "admin") {
+      return "Dev Sharma";
+    }
+    return raw;
   };
 
   const rawName = getRawName();

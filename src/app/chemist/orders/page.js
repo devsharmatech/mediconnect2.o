@@ -508,7 +508,7 @@ export default function ChemistOrdersPage() {
     ["payment_submitted", "payment_verification_pending"].includes(o.status)
   );
   const activeProcessingOrders = orders.filter((o) =>
-    ["payment_pending", "approved", "packing", "ready_for_dispatch", "out_for_delivery"].includes(o.status)
+    ["approved", "packing", "ready_for_dispatch", "out_for_delivery"].includes(o.status)
   );
   const completedOrders = orders.filter((o) =>
     ["delivered", "completed"].includes(o.status)
@@ -1186,7 +1186,7 @@ export default function ChemistOrdersPage() {
                   orders
                     .filter((o) => {
                       if (activeTab === "active") {
-                        return ["payment_pending", "approved", "packing", "ready_for_dispatch", "out_for_delivery"].includes(o.status);
+                        return ["approved", "packing", "ready_for_dispatch", "out_for_delivery"].includes(o.status);
                       }
                       return true;
                     })

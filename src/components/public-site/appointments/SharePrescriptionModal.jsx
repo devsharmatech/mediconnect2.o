@@ -262,7 +262,7 @@ function SharePrescriptionModal({
       return;
     }
     const params = payuData.payment_params;
-    let actionUrl = payuData.action_url || (params.key === "Kx7dGD" ? "https://test.payu.in/_payment" : "https://secure.payu.in/_payment");
+    const actionUrl = payuData.action_url || "https://secure.payu.in/_payment";
 
     const form = document.createElement("form");
     form.method = "POST";
