@@ -35,7 +35,7 @@ export const getLoggedInUser = (role) => {
         user.details.pharmacy_name = "Apex Healthcare & Medicos";
       }
       localStorage.setItem(`${role}User`, JSON.stringify(user));
-      document.cookie = `session_id=${user.id}; path=/; max-age=86400; SameSite=Lax`;
+      document.cookie = `session_id=${user.id}; path=/; max-age=2592000; SameSite=Lax`;
     } else if (user?.id === "10000000-0000-4000-8000-000000000002") {
       user.id = "e8d2491a-7b3f-4e92-bc10-7299a9a3f821";
       if (user.details) {
@@ -43,7 +43,7 @@ export const getLoggedInUser = (role) => {
         user.details.lab_name = "Apex Diagnostic & Pathology Lab";
       }
       localStorage.setItem(`${role}User`, JSON.stringify(user));
-      document.cookie = `session_id=${user.id}; path=/; max-age=86400; SameSite=Lax`;
+      document.cookie = `session_id=${user.id}; path=/; max-age=2592000; SameSite=Lax`;
     }
 
     return user;
@@ -69,7 +69,7 @@ export const setLoggedInUser = (role, user) => {
     localStorage.setItem("userId", String(user.id));
     localStorage.setItem("userRole", role);
     localStorage.setItem("userData", JSON.stringify(user));
-    document.cookie = `session_id=${user.id}; path=/; max-age=86400; SameSite=Lax`;
+    document.cookie = `session_id=${user.id}; path=/; max-age=2592000; SameSite=Lax`;
   }
 };
 

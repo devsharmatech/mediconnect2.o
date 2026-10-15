@@ -18,6 +18,7 @@ import { insertOutboxEvent } from "./eventOutbox";
 import { evaluateCTA, updateEngagementProfile, trackSignal } from "./engagementEngine";
 import { sendAppointmentUpdateAlert } from "@/lib/sms";
 import { sendPushAndInAppNotification } from "../notificationHelper";
+import { calculateBookingFinancialQuote, freezeBookingFinancialSnapshot, postAppointmentCompletionLedger } from "../doctorFinancialEngine";
 
 
 /**
@@ -119,25 +120,91 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
   let followUpParentId = payload.follow_up_parent_id || null;
   const doctorMigrationCode = payload.doctor_migration_code ? String(payload.doctor_migration_code).trim() : null;
 
-  // Auto-detect follow-up if not explicitly flagged: check for valid prior consultation within 15 days
-  if (!isFollowUp && patient_id && doctor_id) {
+  // Strictly validate or auto-detect follow-up:
+  // Follow-up is ONLY allowed if the doctor previously prescribed a follow-up date and today is within that window.
+  if (patient_id && doctor_id) {
     try {
-      const priorAppts = await sql`
-        SELECT id, appointment_date, created_at
-        FROM appointments
+      const rxRows = await sql`
+        SELECT id, appointment_id, follow_up, template_data, created_at
+        FROM prescriptions
         WHERE patient_id = ${patient_id}
           AND doctor_id = ${doctor_id}
-          AND status NOT IN ('cancelled', 'rejected')
-        ORDER BY appointment_date DESC, created_at DESC
-        LIMIT 1;
+          AND (is_draft IS NULL OR is_draft = false)
+        ORDER BY created_at DESC
+        LIMIT 5;
       `;
-      if (priorAppts.length > 0) {
-        const priorDate = new Date(priorAppts[0].appointment_date || priorAppts[0].created_at);
-        const diffDays = Math.floor((Date.now() - priorDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays >= 0 && diffDays <= 15) {
-          isFollowUp = true;
-          if (!followUpParentId) followUpParentId = priorAppts[0].id;
+      let hasActivePrescriptionFollowUp = false;
+      let validParentId = null;
+
+      for (const rx of rxRows) {
+        let followUpObj = rx.follow_up;
+        if (typeof followUpObj === "string") {
+          try { followUpObj = JSON.parse(followUpObj); } catch { followUpObj = null; }
         }
+        let templateData = rx.template_data;
+        if (typeof templateData === "string") {
+          try { templateData = JSON.parse(templateData); } catch { templateData = null; }
+        }
+
+        const rawDateStr = 
+          followUpObj?.date || 
+          followUpObj?.return_after || 
+          followUpObj?.next_appointment_date || 
+          followUpObj?.review_after ||
+          templateData?.['FOLLOW-UP__return_after'] ||
+          templateData?.['FOLLOW-UP__date'] ||
+          templateData?.['FOLLOW-UP:__return_after'] ||
+          null;
+
+        if (!rawDateStr) continue;
+
+        let targetDate = null;
+        const trimmedStr = String(rawDateStr).trim();
+
+        if (/^\d{4}-\d{2}-\d{2}/.test(trimmedStr)) {
+          const d = new Date(trimmedStr);
+          if (!isNaN(d.getTime())) targetDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+        } else if (/^\d{1,2}[\/-]\d{1,2}[\/-]\d{4}/.test(trimmedStr)) {
+          const parts = trimmedStr.split(/[\/-]/);
+          if (parts.length === 3) {
+            const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]), 23, 59, 59, 999);
+            if (!isNaN(d.getTime())) targetDate = d;
+          }
+        } else {
+          const matchDays = trimmedStr.match(/(\d+)\s*(day|days|din)/i);
+          if (matchDays) {
+            const days = parseInt(matchDays[1], 10);
+            const rxCreated = new Date(rx.created_at || Date.now());
+            targetDate = new Date(rxCreated.getTime() + days * 24 * 60 * 60 * 1000);
+            targetDate.setHours(23, 59, 59, 999);
+          }
+        }
+
+        if (targetDate && !isNaN(targetDate.getTime()) && Date.now() <= targetDate.getTime()) {
+          // Check if already used
+          const existingFu = await sql`
+            SELECT id FROM appointments
+            WHERE patient_id = ${patient_id}
+              AND doctor_id = ${doctor_id}
+              AND follow_up_parent_id = ${rx.appointment_id}
+              AND status NOT IN ('cancelled', 'rejected')
+            LIMIT 1;
+          `;
+          if (existingFu.length === 0) {
+            hasActivePrescriptionFollowUp = true;
+            validParentId = rx.appointment_id;
+            break;
+          }
+        }
+      }
+
+      if (isFollowUp && !hasActivePrescriptionFollowUp) {
+        console.warn("[BOOK_APPOINTMENT] Follow-up requested but patient has no active prescription follow-up date. Resetting to regular visit.");
+        isFollowUp = false;
+        followUpParentId = null;
+      } else if (!isFollowUp && hasActivePrescriptionFollowUp) {
+        isFollowUp = true;
+        if (!followUpParentId) followUpParentId = validParentId;
       }
     } catch (fErr) {
       console.warn("[BOOK_APPOINTMENT] Follow-up detection warning:", fErr.message);
@@ -296,6 +363,34 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
   `;
   const appointment = apptRows[0];
   if (!appointment) throw new Error("Failed to insert appointment into AWS RDS.");
+
+  // Freeze immutable financial snapshot for Doctor Financial Engine
+  try {
+    const quoteRes = await calculateBookingFinancialQuote({
+      doctor_id,
+      patient_id,
+      appointment_type: appointment_type || "clinic_visit",
+      professional_fee: fee,
+      doctor_migration_code: doctorMigrationCode || null,
+    });
+    if (quoteRes.success && quoteRes.data) {
+      await freezeBookingFinancialSnapshot(appointment.id, quoteRes.data);
+      appointment.financial_snapshot = quoteRes.data;
+      appointment.commission_rate = quoteRes.data.commission_rate;
+      appointment.commission_amount = quoteRes.data.commission_amount;
+    }
+  } catch (finErr) {
+    console.warn("[Doctor Financial Engine] Snapshot freezing warning:", finErr.message);
+  }
+
+  // Automatically post to doctor ledger if paid
+  if (payment_id || appointment.payment_status === "paid" || (fee > 0 && appointment.payment_status !== "pending")) {
+    try {
+      await postAppointmentCompletionLedger(appointment.id);
+    } catch (ledgErr) {
+      console.warn("[Doctor Financial Engine] Post appointment ledger warning:", ledgErr.message);
+    }
+  }
 
   // Log consents FIRST so DPDP consent checks pass for notifications
   await logConsent({

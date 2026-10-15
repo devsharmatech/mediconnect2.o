@@ -329,9 +329,17 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
         const { user_id, role, user } = response.data || {};
         if (typeof window !== 'undefined') {
           if (response.data?.token) localStorage.setItem('authToken', response.data.token);
-          if (user_id) localStorage.setItem('userId', String(user_id));
+          if (user_id) {
+            localStorage.setItem('userId', String(user_id));
+            try {
+              document.cookie = `session_id=${user_id}; path=/; max-age=2592000; SameSite=Lax`;
+            } catch (_) {}
+          }
           if (role) localStorage.setItem('userRole', role);
-          if (user) localStorage.setItem('userData', JSON.stringify(user));
+          if (user) {
+            localStorage.setItem('userData', JSON.stringify(user));
+            if (role) localStorage.setItem(`${role}User`, JSON.stringify(user));
+          }
         }
 
         setTimeout(() => {
@@ -339,7 +347,7 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
           if (onSuccess) {
             onSuccess(response.data);
           } else {
-            router.push('/website/dashboard');
+            router.push('/dashboard');
           }
         }, 1000);
       } else {

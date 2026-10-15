@@ -143,7 +143,7 @@ export async function executeOrchestration({
           idempotency_key, event_sequence, state_version, input_payload, status
         ) VALUES (
           ${targetCareEpisodeId}, ${actionType}, ${actorId}, ${actorType},
-          ${idempotencyKey}, ${nextSeq}, ${nextVer}, ${inputPayloadJson}::jsonb, 'RUNNING'
+          ${idempotencyKey}, ${nextSeq}, ${nextVer}, ${inputPayloadJson}::jsonb, 'PROCESSING'
         )
         RETURNING id
       `;

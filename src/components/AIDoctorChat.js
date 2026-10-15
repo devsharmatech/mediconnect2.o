@@ -243,11 +243,17 @@ const RecommendedDoctorsModal = ({
       console.log("[DEBUG BOOKING - AIDoctorChat] Booking API responded with:", json);
       if (!json.success) throw new Error(json.message || "Failed to book");
 
-      console.log("[DEBUG BOOKING - AIDoctorChat] Booking confirmed! Redirecting to /website/appointments for patient:", patientId);
+      console.log("[DEBUG BOOKING - AIDoctorChat] Booking confirmed! Redirecting to /appointments for patient:", patientId);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("userId", String(patientId));
+          document.cookie = `session_id=${patientId}; path=/; max-age=2592000; SameSite=Lax`;
+        } catch (_) {}
+      }
       setBookingSuccess(true);
       setTimeout(() => {
         onClose();
-        router.push("/website/appointments");
+        router.push("/appointments");
       }, 1200);
     } catch (e) {
       console.error("[DEBUG BOOKING - AIDoctorChat] Booking error:", e);

@@ -14,6 +14,7 @@ import {
   FaFileMedical,
   FaUser,
   FaUsers,
+  FaWallet,
   FaSignOutAlt,
   FaBars,
   FaChevronRight,
@@ -754,6 +755,12 @@ export default function DoctorDashboardLayout({ children }) {
       label: "My Patients",
       icon: FaUsers,
       description: "Patient directory & visits",
+    },
+    {
+      href: "/doctor/revenue",
+      label: "Revenue",
+      icon: FaWallet,
+      description: "Financial earnings & settlements",
     },
     {
       href: "/doctor/profile-settings",
@@ -1551,6 +1558,20 @@ export default function DoctorDashboardLayout({ children }) {
                 <FaUsers className="w-4 h-4" />
               </div>
               <span className="text-[10px] mt-0.5">Patients</span>
+            </Link>
+
+            <Link
+              href="/doctor/revenue"
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-md transition-colors ${
+                pathname?.startsWith("/doctor/revenue")
+                  ? "text-[#0067A1] font-semibold"
+                  : "text-slate-500 hover:text-slate-800 font-medium"
+              }`}
+            >
+              <div className={`p-1 rounded-md ${pathname?.startsWith("/doctor/revenue") ? "bg-sky-50 text-[#0067A1]" : ""}`}>
+                <FaWallet className="w-4 h-4" />
+              </div>
+              <span className="text-[10px] mt-0.5">Revenue</span>
             </Link>
 
             <Link

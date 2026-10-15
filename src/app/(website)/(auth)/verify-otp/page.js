@@ -198,7 +198,7 @@ function VerifyOtpContent() {
             localStorage.setItem(`${role}User`, JSON.stringify(user));
           }
           if (user_id) {
-            document.cookie = `session_id=${user_id}; path=/; max-age=86400; SameSite=Lax`;
+            document.cookie = `session_id=${user_id}; path=/; max-age=2592000; SameSite=Lax`;
           }
           sessionStorage.removeItem('loginPhoneNumber');
           sessionStorage.removeItem('loginEmail');
@@ -211,7 +211,7 @@ function VerifyOtpContent() {
           window.dispatchEvent(new CustomEvent('userProfileUpdated', { detail: user }));
         }
         setTimeout(() => {
-          const redirectPath = role === 'doctor' ? '/doctor' : '/website/dashboard';
+          const redirectPath = role === 'doctor' ? '/doctor' : '/dashboard';
           router.push(redirectPath);
         }, 1200);
       } else {

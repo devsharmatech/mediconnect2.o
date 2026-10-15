@@ -6,6 +6,7 @@ import { logAudit } from "@/lib/layer1/auditLogger";
 import { logActivity } from "@/lib/layer1/activityLogger";
 import crypto from "crypto";
 import sql from "@/lib/db";
+import { postAppointmentCompletionLedger } from "@/lib/doctorFinancialEngine";
 
 // Helper: treat zero-UUID as missing
 const isValidUUID = (id) => id && id !== '00000000-0000-0000-0000-000000000000';
@@ -241,6 +242,8 @@ export async function POST(req) {
           SET status = 'completed', completed_at = ${now}, updated_at = ${now}
           WHERE id = ${appointment_id}
         `;
+        // Post immutable financial ledger entries for Doctor Financial Engine
+        await postAppointmentCompletionLedger(appointment_id);
       } catch (sqlErr) {
         console.warn("[Prescription Update] RDS direct appointment update warning:", sqlErr.message);
       }

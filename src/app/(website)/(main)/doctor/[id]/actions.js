@@ -107,11 +107,12 @@ export async function checkDoctorFollowupAndPricingAction({ patient_id, doctor_i
 
     let isInFollowUp = false;
     let followUpParentId = null;
+    let followUpDate = null;
     let lastAppointmentDate = null;
     let previousAppointmentsCount = 0;
 
     if (patient_id) {
-      // Check past non-cancelled appointments between this patient and doctor
+      // 1. Fetch appointments count between this patient and doctor
       const apptRows = await sql`
         SELECT id, appointment_date, appointment_type, status, created_at
         FROM appointments
@@ -122,33 +123,89 @@ export async function checkDoctorFollowupAndPricingAction({ patient_id, doctor_i
         LIMIT 5;
       `;
       previousAppointmentsCount = apptRows.length;
-
       if (apptRows.length > 0) {
-        const latestAppt = apptRows[0];
-        lastAppointmentDate = latestAppt.appointment_date;
-        const apptDate = new Date(latestAppt.appointment_date || latestAppt.created_at);
-        const diffDays = Math.floor((Date.now() - apptDate.getTime()) / (1000 * 60 * 60 * 24));
+        lastAppointmentDate = apptRows[0].appointment_date;
+      }
 
-        // Follow-up window: within 15 days of last appointment
-        if (diffDays >= 0 && diffDays <= 15) {
-          isInFollowUp = true;
-          followUpParentId = latestAppt.id;
-        } else {
-          // Check prescription follow_up
-          const rxRows = await sql`
-            SELECT id, appointment_id, follow_up, created_at
-            FROM prescriptions
-            WHERE patient_id = ${patient_id}
-              AND doctor_id = ${doctor_id}
-            ORDER BY created_at DESC
-            LIMIT 1;
-          `;
-          if (rxRows.length > 0 && rxRows[0].follow_up?.date) {
-            const rxDate = new Date(rxRows[0].follow_up.date);
-            const rxDiff = Math.floor((Date.now() - rxDate.getTime()) / (1000 * 60 * 60 * 24));
-            if (rxDiff <= 7) {
-              isInFollowUp = true;
-              followUpParentId = rxRows[0].appointment_id || latestAppt.id;
+      // 2. Strict Follow-up Rule:
+      // A patient is in follow-up ONLY IF the doctor has created a prescription
+      // with a specific follow-up date, and the patient is booking within that follow-up window!
+      const rxRows = await sql`
+        SELECT id, appointment_id, follow_up, template_data, created_at, status
+        FROM prescriptions
+        WHERE patient_id = ${patient_id}
+          AND doctor_id = ${doctor_id}
+          AND (is_draft IS NULL OR is_draft = false)
+        ORDER BY created_at DESC
+        LIMIT 5;
+      `;
+
+      if (rxRows.length > 0) {
+        for (const rx of rxRows) {
+          let followUpObj = rx.follow_up;
+          if (typeof followUpObj === "string") {
+            try { followUpObj = JSON.parse(followUpObj); } catch { followUpObj = null; }
+          }
+          let templateData = rx.template_data;
+          if (typeof templateData === "string") {
+            try { templateData = JSON.parse(templateData); } catch { templateData = null; }
+          }
+
+          const rawDateStr = 
+            followUpObj?.date || 
+            followUpObj?.return_after || 
+            followUpObj?.next_appointment_date || 
+            followUpObj?.review_after ||
+            templateData?.['FOLLOW-UP__return_after'] ||
+            templateData?.['FOLLOW-UP__date'] ||
+            templateData?.['FOLLOW-UP:__return_after'] ||
+            null;
+
+          if (!rawDateStr) continue;
+
+          let targetDate = null;
+          const trimmedStr = String(rawDateStr).trim();
+
+          if (/^\d{4}-\d{2}-\d{2}/.test(trimmedStr)) {
+            const d = new Date(trimmedStr);
+            if (!isNaN(d.getTime())) {
+              targetDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+            }
+          } else if (/^\d{1,2}[\/-]\d{1,2}[\/-]\d{4}/.test(trimmedStr)) {
+            const parts = trimmedStr.split(/[\/-]/);
+            if (parts.length === 3) {
+              const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]), 23, 59, 59, 999);
+              if (!isNaN(d.getTime())) targetDate = d;
+            }
+          } else {
+            const matchDays = trimmedStr.match(/(\d+)\s*(day|days|din)/i);
+            if (matchDays) {
+              const days = parseInt(matchDays[1], 10);
+              const rxCreated = new Date(rx.created_at || Date.now());
+              targetDate = new Date(rxCreated.getTime() + days * 24 * 60 * 60 * 1000);
+              targetDate.setHours(23, 59, 59, 999);
+            }
+          }
+
+          if (targetDate && !isNaN(targetDate.getTime())) {
+            const now = new Date();
+            // Patient must book on or before the follow-up date
+            if (now.getTime() <= targetDate.getTime()) {
+              // Ensure this follow-up has not already been used for this prescription appointment
+              const existingFu = await sql`
+                SELECT id FROM appointments
+                WHERE patient_id = ${patient_id}
+                  AND doctor_id = ${doctor_id}
+                  AND follow_up_parent_id = ${rx.appointment_id}
+                  AND status NOT IN ('cancelled', 'rejected')
+                LIMIT 1;
+              `;
+              if (existingFu.length === 0) {
+                isInFollowUp = true;
+                followUpParentId = rx.appointment_id;
+                followUpDate = targetDate.toISOString().split("T")[0];
+                break;
+              }
             }
           }
         }
@@ -204,6 +261,7 @@ export async function checkDoctorFollowupAndPricingAction({ patient_id, doctor_i
       data: {
         is_logged_in: !!patient_id,
         is_in_followup: isInFollowUp,
+        follow_up_date: followUpDate,
         follow_up_parent_id: followUpParentId,
         last_appointment_date: lastAppointmentDate,
         previous_appointments_count: previousAppointmentsCount,
@@ -400,5 +458,27 @@ export async function getDoctorSlotsAction({ doctor_id, date, appointment_type =
   } catch (error) {
     console.error("Error in getDoctorSlotsAction:", error);
     return { success: false, error: error.message, data: [] };
+  }
+}
+
+export async function getBookingFinancialQuoteAction({
+  doctor_id,
+  patient_id,
+  appointment_type = "clinic_visit",
+  professional_fee = 0,
+  doctor_migration_code = null,
+}) {
+  try {
+    const { calculateBookingFinancialQuote } = await import("@/lib/doctorFinancialEngine");
+    return await calculateBookingFinancialQuote({
+      doctor_id,
+      patient_id,
+      appointment_type,
+      professional_fee,
+      doctor_migration_code,
+    });
+  } catch (error) {
+    console.error("Error in getBookingFinancialQuoteAction:", error);
+    return { success: false, error: error.message };
   }
 }

@@ -103,6 +103,11 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
       path: `/admin/payouts`,
     },
     {
+      name: "Doctor Settlements",
+      icon: <Wallet />,
+      path: `/admin/doctor-settlements`,
+    },
+    {
       name: "Operations",
       icon: <Zap />,
       path: `/admin/operations`,

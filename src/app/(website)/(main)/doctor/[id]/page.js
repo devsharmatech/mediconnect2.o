@@ -56,7 +56,7 @@ function DoctorProfileSkeleton() {
   return (
     <div className="animate-pulse space-y-6">
       {/* Summary Header Panel Skeleton */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row items-center md:items-start gap-5">
+      <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-xs flex flex-col md:flex-row items-center md:items-start gap-5">
         <div className="h-28 w-28 md:h-32 md:w-32 rounded-lg bg-slate-200 shrink-0"></div>
         <div className="flex-1 space-y-3 text-center md:text-left w-full">
           <div className="h-6 bg-slate-200 rounded w-48 mx-auto md:mx-0"></div>
@@ -73,7 +73,7 @@ function DoctorProfileSkeleton() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column Skeleton */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
             <div className="flex border-b border-slate-200 bg-slate-50">
               <div className="flex-1 py-3.5 px-4"><div className="h-4 bg-slate-200 rounded w-28 mx-auto"></div></div>
               <div className="flex-1 py-3.5 px-4"><div className="h-4 bg-slate-200 rounded w-28 mx-auto"></div></div>
@@ -102,7 +102,7 @@ function DoctorProfileSkeleton() {
 
         {/* Right Column Skeleton */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-5">
+          <div className="bg-white rounded-lg border border-slate-200 p-5 shadow-xs space-y-5">
             <div className="flex justify-between items-center pb-4 border-b border-slate-100">
               <div className="space-y-1">
                 <div className="h-3 bg-slate-200 rounded w-24"></div>
@@ -174,6 +174,8 @@ export default function DoctorProfilePage() {
     whatsapp_message: "Hello MediConnect, I need help booking a doctor appointment",
     consultation_support_text: "Need help booking?",
   });
+  const [slotSessionFilter, setSlotSessionFilter] = useState("all");
+  const [showPastSlots, setShowPastSlots] = useState(false);
 
   const scrollToBooking = () => {
     const el = document.getElementById("booking-panel");
@@ -190,7 +192,7 @@ export default function DoctorProfilePage() {
   const getQuickDates = () => {
     const result = [];
     const now = new Date();
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       const d = new Date(now);
       d.setDate(now.getDate() + i);
       const yyyy = d.getFullYear();
@@ -219,16 +221,21 @@ export default function DoctorProfilePage() {
         });
         if (res.success && res.data) {
           setDiscountDetails(res.data);
-          // If patient is logged in and followup hasn't been checked yet, auto-set follow-up
+          // If patient has an active prescription follow-up, enable follow-up
           if (!followUpChecked && patientId && res.data.is_in_followup) {
             setIsFollowUp(true);
             setFollowUpParentId(res.data.follow_up_parent_id);
             setFollowUpChecked(true);
-          } else if (!followUpChecked) {
+          } else if (!res.data.is_in_followup) {
+            // Patient does NOT have an active prescription follow-up
+            setIsFollowUp(false);
+            setFollowUpParentId(null);
             setFollowUpChecked(true);
           }
         } else {
           setDiscountDetails(null);
+          setIsFollowUp(false);
+          setFollowUpParentId(null);
         }
       } catch (err) {
         console.warn("Failed to check followup/pricing via Server Action:", err);
@@ -247,15 +254,32 @@ export default function DoctorProfilePage() {
     setIsSignupOpen(true);
   };
 
-  const isPastSlot = (dateStr, timeStr) => {
-    if (!dateStr || !timeStr) return false;
+  const formatTimeDisplay = (timeStr) => {
+    if (!timeStr) return "";
     const [hStr, mStr] = timeStr.split(":");
     const hNum = parseInt(hStr, 10);
-    const mNum = parseInt(mStr, 10);
-    if (Number.isNaN(hNum) || Number.isNaN(mNum)) return false;
-    const slotDate = new Date(dateStr);
-    slotDate.setHours(hNum, mNum, 0, 0);
-    return slotDate < new Date();
+    if (Number.isNaN(hNum)) return timeStr;
+    const suffix = hNum >= 12 ? "PM" : "AM";
+    const displayHour = ((hNum + 11) % 12) + 1;
+    return `${displayHour}:${mStr} ${suffix}`;
+  };
+
+  const isPastSlot = (dateStr, timeStr) => {
+    if (!dateStr || !timeStr) return false;
+    try {
+      const [yStr, moStr, dStr] = dateStr.split("-");
+      const [hStr, mStr] = timeStr.split(":");
+      const y = parseInt(yStr, 10);
+      const mo = parseInt(moStr, 10) - 1;
+      const d = parseInt(dStr, 10);
+      const h = parseInt(hStr, 10);
+      const m = parseInt(mStr, 10);
+      if (Number.isNaN(y) || Number.isNaN(h)) return false;
+      const slotTime = new Date(y, mo, d, h, m, 0, 0);
+      return slotTime < new Date();
+    } catch {
+      return false;
+    }
   };
 
   useEffect(() => {
@@ -310,6 +334,7 @@ export default function DoctorProfilePage() {
         setSlotsLoading(true);
         setSlots([]);
         setSelectedSlot(null);
+        setSlotSessionFilter("all");
 
         const slotType = isFollowUp 
           ? (appointmentType === "video_consultation" ? "video_follow_up" : appointmentType === "home_visit" ? "home_follow_up" : "clinic_follow_up")
@@ -414,11 +439,40 @@ export default function DoctorProfilePage() {
   const rating = details.rating || 0;
   const reviews = details.total_reviews || 0;
 
+  const resolveCurrentUserId = () => {
+    if (typeof window === "undefined") return null;
+    let uid = localStorage.getItem("userId") || localStorage.getItem("user_id");
+    if (!uid || uid === "undefined" || uid === "null") {
+      try {
+        const u = JSON.parse(localStorage.getItem("userData") || "{}");
+        uid = u?.id || u?.user?.id || u?.user_id || null;
+      } catch (_) {}
+    }
+    if (!uid || uid === "undefined" || uid === "null") {
+      const roles = ["patientUser", "doctorUser", "chemistUser", "labUser", "adminUser"];
+      for (const r of roles) {
+        try {
+          const u = JSON.parse(localStorage.getItem(r) || "{}");
+          if (u?.id) {
+            uid = u.id;
+            break;
+          }
+        } catch (_) {}
+      }
+    }
+    if (uid) {
+      try {
+        localStorage.setItem("userId", String(uid));
+        document.cookie = `session_id=${uid}; path=/; max-age=2592000; SameSite=Lax`;
+      } catch (_) {}
+    }
+    return uid;
+  };
+
   const handleBook = async () => {
     if (!doctorId || !selectedDate || !selectedSlot) return;
 
-    const patientId =
-      typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+    const patientId = resolveCurrentUserId();
     const userRole =
       typeof window !== "undefined" ? localStorage.getItem("userRole") : null;
 
@@ -452,8 +506,7 @@ export default function DoctorProfilePage() {
   };
 
   const proceedToPaymentOrBooking = async () => {
-    const patientId =
-      typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+    const patientId = resolveCurrentUserId();
     if (!patientId) return;
 
     try {
@@ -675,11 +728,17 @@ export default function DoctorProfilePage() {
       console.log("[DEBUG BOOKING] Booking API responded with:", json);
       if (!json.success) throw new Error(json.message || "Failed to book");
 
-      console.log("[DEBUG BOOKING] Booking confirmed successfully! Navigating to /website/appointments for patientId:", patientId);
+      console.log("[DEBUG BOOKING] Booking confirmed successfully! Navigating to /appointments for patientId:", patientId);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("userId", String(patientId));
+          document.cookie = `session_id=${patientId}; path=/; max-age=2592000; SameSite=Lax`;
+        } catch (_) {}
+      }
       setBookingSuccess(true);
       setTimeout(() => {
-        router.push("/website/appointments");
-      }, 2000);
+        router.push("/appointments");
+      }, 1500);
     } catch (e) {
       console.error("[DEBUG BOOKING] Booking confirmation error:", e);
       setError(e.message || "Failed to confirm booking");
@@ -692,7 +751,7 @@ export default function DoctorProfilePage() {
     <div className="min-h-screen bg-slate-50 pb-28 lg:pb-12">
       {/* Top Header Navigation */}
       <div className="bg-white border-b border-slate-200/80 py-3 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
           <button
             onClick={() => router.back()}
             className="flex items-center gap-1.5 text-xs font-medium text-[#0067A1] hover:text-[#004F7C] transition-colors"
@@ -703,10 +762,10 @@ export default function DoctorProfilePage() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-6">
         {/* Doctor Summary Header Panel */}
         {!loading && !error && doctor && (
-          <div className="bg-white rounded-xl border border-slate-200/80 p-4 sm:p-5 shadow-xs flex flex-col md:flex-row items-center md:items-start gap-4 sm:gap-5">
+          <div className="bg-white rounded-lg border border-slate-200/80 p-4 sm:p-5 shadow-xs flex flex-col md:flex-row items-center md:items-start gap-4 sm:gap-5">
             <div className="relative shrink-0">
               <div className="h-24 w-24 md:h-28 md:w-28 rounded-lg border border-slate-200/70 bg-slate-50 overflow-hidden flex items-center justify-center">
                 <img
@@ -811,19 +870,19 @@ export default function DoctorProfilePage() {
         {loading ? (
           <DoctorProfileSkeleton />
         ) : error ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+          <div className="bg-white rounded-lg border border-slate-200 p-12 text-center shadow-xs">
             <p className="text-red-500 font-medium text-sm">{error}</p>
           </div>
         ) : !doctor ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+          <div className="bg-white rounded-lg border border-slate-200 p-12 text-center shadow-xs">
             <p className="text-slate-500 text-sm">Doctor not found.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
             {/* Left Column Content */}
-            <div className="lg:col-span-2 space-y-5">
+            <div className="lg:col-span-7 space-y-6">
               {/* Navigation Tabs */}
-              <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
+              <div className="bg-white rounded-lg border border-slate-200/80 shadow-xs overflow-hidden">
                 <div className="flex border-b border-slate-200/70">
                   <button
                     onClick={() => setActiveTab("overview")}
@@ -872,8 +931,8 @@ export default function DoctorProfilePage() {
                                 Video Consultation
                               </span>
                               <div className="flex items-center gap-1.5">
-                                <span className="font-medium text-slate-800">
-                                  ₹{videoFee}
+                                <span className={`font-semibold ${videoFee > 0 ? "text-slate-800" : "text-emerald-700 font-bold"}`}>
+                                  {videoFee > 0 ? `₹${videoFee}` : "Free"}
                                 </span>
                                 {videoFollowUpFee > 0 && (
                                   <span className="text-[11px] font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 whitespace-nowrap">
@@ -888,8 +947,8 @@ export default function DoctorProfilePage() {
                                 Clinic Visit
                               </span>
                               <div className="flex items-center gap-1.5">
-                                <span className="font-medium text-slate-800">
-                                  ₹{clinicFee}
+                                <span className={`font-semibold ${clinicFee > 0 ? "text-slate-800" : "text-emerald-700 font-bold"}`}>
+                                  {clinicFee > 0 ? `₹${clinicFee}` : "Free"}
                                 </span>
                                 {clinicFollowUpFee > 0 && (
                                   <span className="text-[11px] font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 whitespace-nowrap">
@@ -905,7 +964,7 @@ export default function DoctorProfilePage() {
                                   Home Visit
                                 </span>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="font-medium text-slate-800">
+                                  <span className="font-semibold text-slate-800">
                                     ₹{homeFee}
                                   </span>
                                   {homeFollowUpFee > 0 && (
@@ -966,17 +1025,17 @@ export default function DoctorProfilePage() {
             </div>
 
             {/* Right Column: Appointment Booking Panel */}
-            <div className="lg:col-span-1" id="booking-panel">
-              <div className="bg-white rounded-xl border border-slate-200/80 p-4 sm:p-5 shadow-xs space-y-4 transition-all">
+            <div className="lg:col-span-5" id="booking-panel">
+              <div className="bg-white rounded-lg border border-slate-200/90 shadow-sm p-4 sm:p-6 space-y-4 sm:space-y-5 transition-all">
                 {/* Panel Title & Fee */}
                 <div className="pb-3 border-b border-slate-100">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-md bg-sky-50 text-[#0067A1] flex items-center justify-center">
+                      <div className="w-7 h-7 rounded-lg bg-sky-50 text-[#0067A1] flex items-center justify-center">
                         <FaCalendarCheck className="w-3.5 h-3.5" />
                       </div>
                       <div>
-                        <h2 className="text-sm font-semibold text-slate-800 leading-tight">
+                        <h2 className="text-sm font-bold text-slate-800 leading-tight">
                           Book Appointment
                         </h2>
                         <span className="text-[11px] text-slate-400 block leading-tight font-normal">
@@ -989,7 +1048,7 @@ export default function DoctorProfilePage() {
                     </span>
                   </div>
 
-                  <div className="bg-slate-50/70 p-2.5 rounded-lg border border-slate-200/70 flex items-center justify-between">
+                  <div className="bg-slate-50/80 p-3 rounded-lg border border-slate-200/80 flex items-center justify-between">
                     <div>
                       <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wide block leading-none mb-1">
                         {isFollowUp ? "Follow-up Fee" : "Consultation Fee"}
@@ -1035,17 +1094,17 @@ export default function DoctorProfilePage() {
                 {/* Step 1: Consultation Mode Selection */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                      <span className="w-4 h-4 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-[10px] font-bold inline-flex items-center justify-center">1</span>
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-[11px] font-bold inline-flex items-center justify-center">1</span>
                       <span>Consultation Mode</span>
                     </label>
-                    <div className="inline-flex rounded-md p-0.5 bg-slate-100 border border-slate-200 shrink-0">
+                    <div className="inline-flex rounded-lg p-0.5 bg-slate-100 border border-slate-200/80 shrink-0">
                       <button
                         type="button"
                         onClick={() => setIsFollowUp(false)}
-                        className={`px-2.5 py-1 text-xs transition-all cursor-pointer whitespace-nowrap rounded ${
+                        className={`px-3 py-1 text-xs transition-all cursor-pointer whitespace-nowrap rounded-md ${
                           !isFollowUp
-                            ? "bg-white text-slate-800 font-semibold shadow-2xs"
+                            ? "bg-white text-slate-900 font-bold shadow-2xs"
                             : "text-slate-500 hover:text-slate-800 font-medium"
                         }`}
                       >
@@ -1053,17 +1112,33 @@ export default function DoctorProfilePage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setIsFollowUp(true)}
-                        className={`px-2.5 py-1 text-xs transition-all cursor-pointer whitespace-nowrap rounded ${
+                        onClick={() => {
+                          if (!discountDetails?.is_in_followup) {
+                            toast.error("Follow-up rate is applicable only if prescribed by the doctor in your previous prescription.");
+                            return;
+                          }
+                          setIsFollowUp(true);
+                        }}
+                        className={`px-3 py-1 text-xs transition-all cursor-pointer whitespace-nowrap rounded-md ${
                           isFollowUp
-                            ? "bg-[#0067A1] text-white font-semibold shadow-2xs"
-                            : "text-slate-500 hover:text-slate-800 font-medium"
+                            ? "bg-[#0067A1] text-white font-bold shadow-2xs"
+                            : discountDetails?.is_in_followup
+                            ? "text-slate-500 hover:text-slate-800 font-medium"
+                            : "text-slate-400 font-normal hover:text-slate-600"
                         }`}
+                        title={!discountDetails?.is_in_followup ? "Follow-up rate is valid only within the follow-up date given in your doctor prescription" : "Switch to Follow-up"}
                       >
                         Follow-up
                       </button>
                     </div>
                   </div>
+
+                  {discountDetails?.is_in_followup && discountDetails?.follow_up_date && (
+                    <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded text-[11px] font-medium flex items-center gap-1.5">
+                      <FaCheckCircle className="text-emerald-600 text-xs shrink-0" />
+                      <span>Prescription follow-up valid until {discountDetails.follow_up_date}</span>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-3 gap-2">
                     {[
@@ -1095,19 +1170,24 @@ export default function DoctorProfilePage() {
                           key={type.id}
                           type="button"
                           onClick={() => setAppointmentType(type.id)}
-                          className={`flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-md border text-center transition-all cursor-pointer ${
+                          className={`flex flex-col items-center justify-between p-2.5 rounded-lg border text-center transition-all cursor-pointer relative ${
                             isSelected
-                              ? "border-[#0067A1] bg-sky-50/80 text-[#0067A1] shadow-2xs ring-1 ring-[#0067A1]"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/80"
+                              ? "border-[#0067A1] bg-sky-50/80 text-[#0067A1] shadow-2xs ring-2 ring-[#0067A1]/20"
+                              : "border-slate-200/90 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/80"
                           }`}
                         >
-                          <span className={`mb-1 ${isSelected ? "text-[#0067A1]" : "text-slate-400"}`}>
+                          {isSelected && (
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#0067A1]" />
+                          )}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 transition-colors ${
+                            isSelected ? "bg-[#0067A1] text-white" : "bg-slate-100 text-slate-500"
+                          }`}>
                             {type.icon}
-                          </span>
-                          <span className={`text-xs leading-tight whitespace-nowrap ${isSelected ? "font-semibold text-slate-900" : "font-medium text-slate-700"}`}>
+                          </div>
+                          <span className={`text-xs leading-tight whitespace-nowrap ${isSelected ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}>
                             {type.title}
                           </span>
-                          <span className={`text-[11px] font-bold mt-0.5 leading-tight ${isSelected ? "text-[#0067A1]" : "text-slate-800"}`}>
+                          <span className={`text-xs font-extrabold mt-1 leading-none ${isSelected ? "text-[#0067A1]" : "text-slate-900"}`}>
                             {type.fee > 0 ? `₹${type.fee}` : "Free"}
                           </span>
                           <span className={`text-[10px] mt-0.5 leading-tight truncate max-w-full ${isSelected ? "text-[#0067A1] font-medium" : "text-slate-400 font-normal"}`}>
@@ -1128,7 +1208,7 @@ export default function DoctorProfilePage() {
                     <select
                       value={selectedClinicIndex}
                       onChange={(e) => setSelectedClinicIndex(parseInt(e.target.value, 10))}
-                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-xs bg-white text-slate-700 font-normal focus:outline-none focus:border-[#0067A1]"
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-slate-700 font-normal focus:outline-none focus:border-[#0067A1]"
                     >
                       <option value={0}>{details.clinic_name || "Primary Clinic"} ({details.clinic_address})</option>
                       {(details.meta.additional_clinics).map((c, cIdx) => (
@@ -1140,20 +1220,20 @@ export default function DoctorProfilePage() {
                   </div>
                 )}
 
-                {/* Step 2: Date Picker with 1-Tap Quick Dates */}
+                {/* Step 2: Date Picker with 4-Column Responsive Day Strip */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                      <span className="w-4 h-4 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-[10px] font-bold inline-flex items-center justify-center">2</span>
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-[11px] font-bold inline-flex items-center justify-center">2</span>
                       <span>Select Date</span>
                     </label>
-                    <span className="text-[11px] font-medium text-[#0067A1]">
-                      {selectedDate ? new Date(selectedDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : ""}
+                    <span className="text-[11px] font-bold text-[#0067A1] bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">
+                      {selectedDate ? new Date(selectedDate).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : ""}
                     </span>
                   </div>
 
-                  {/* Quick Date Chips */}
-                  <div className="grid grid-cols-3 gap-2">
+                  {/* 4 Quick Date Cards */}
+                  <div className="grid grid-cols-4 gap-1.5">
                     {getQuickDates().map((q) => {
                       const isSelected = selectedDate === q.dateStr;
                       return (
@@ -1161,16 +1241,16 @@ export default function DoctorProfilePage() {
                           key={q.dateStr}
                           type="button"
                           onClick={() => setSelectedDate(q.dateStr)}
-                          className={`py-2 px-1 rounded-md border text-center transition-all flex flex-col items-center justify-center cursor-pointer ${
+                          className={`py-2 px-1 rounded-lg border text-center transition-all flex flex-col items-center justify-center cursor-pointer ${
                             isSelected
-                              ? "border-[#0067A1] bg-sky-50/80 text-[#0067A1] shadow-2xs ring-1 ring-[#0067A1]"
-                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                              ? "border-[#0067A1] bg-[#0067A1] text-white shadow-xs font-bold ring-2 ring-[#0067A1]/20 scale-[1.02]"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                           }`}
                         >
-                          <span className={`text-xs leading-tight ${isSelected ? "font-semibold text-slate-900" : "font-medium text-slate-700"}`}>
+                          <span className={`text-[11px] leading-tight ${isSelected ? "text-sky-100 font-semibold" : "text-slate-500 font-medium"}`}>
                             {q.label}
                           </span>
-                          <span className={`text-[10px] mt-0.5 leading-tight ${isSelected ? "text-[#0067A1] font-medium" : "text-slate-400 font-normal"}`}>
+                          <span className={`text-xs mt-0.5 leading-tight ${isSelected ? "text-white font-extrabold" : "text-slate-900 font-bold"}`}>
                             {q.dateNum}
                           </span>
                         </button>
@@ -1178,11 +1258,11 @@ export default function DoctorProfilePage() {
                     })}
                   </div>
 
-                  {/* Compact Custom Date Row */}
-                  <div className="flex items-center gap-2 pt-0.5">
-                    <label htmlFor="customDatePicker" className="text-[11px] text-slate-500 whitespace-nowrap flex items-center gap-1 cursor-pointer">
-                      <FaCalendarAlt className="w-3 h-3 text-slate-400" />
-                      <span>Other date:</span>
+                  {/* Custom Date Input Row */}
+                  <div className="flex items-center justify-between pt-0.5">
+                    <label htmlFor="customDatePicker" className="text-[11px] text-slate-500 flex items-center gap-1.5 cursor-pointer">
+                      <FaCalendarAlt className="w-3 h-3 text-[#0067A1]" />
+                      <span>Choose other date</span>
                     </label>
                     <input
                       type="date"
@@ -1190,86 +1270,271 @@ export default function DoctorProfilePage() {
                       value={selectedDate}
                       min={todayStr}
                       onChange={(e) => setSelectedDate(e.target.value)}
-                      className="flex-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700 font-medium focus:outline-none focus:border-[#0067A1] transition-colors"
+                      className="text-xs font-semibold text-[#0067A1] bg-slate-100 hover:bg-slate-200/60 border border-slate-200 rounded-lg px-2.5 py-1 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#0067A1] transition-colors"
                     />
                   </div>
                 </div>
 
                 {/* Step 3: Available Slots */}
-                <div id="time-slots-section" className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-                      <span className="w-4 h-4 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-[10px] font-bold inline-flex items-center justify-center">3</span>
-                      <span>Available Time Slots</span>
-                    </label>
-                    {selectedSlot && (
-                      <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 flex items-center gap-1">
-                        <FaCheckCircle className="text-emerald-500 text-[10px]" /> {selectedSlot}
-                      </span>
-                    )}
-                  </div>
+                <div id="time-slots-section" className="space-y-2.5">
+                  {(() => {
+                    const isToday = selectedDate === todayStr;
 
-                  {slotsLoading ? (
-                    <div className="text-center py-5 bg-slate-50/60 rounded-md border border-slate-100">
-                      <div className="animate-spin h-5 w-5 border-2 border-[#0067A1] border-t-transparent rounded-full mx-auto mb-1.5"></div>
-                      <p className="text-xs text-slate-500 font-normal">Checking doctor slots...</p>
-                    </div>
-                  ) : slots.length === 0 ? (
-                    <div className="text-center py-4 bg-slate-50/60 rounded-md border border-slate-100 p-3">
-                      <p className="text-xs text-slate-700 font-medium mb-0.5">
-                        No slots available for this date.
-                      </p>
-                      <p className="text-[11px] text-slate-400">
-                        Please select another date above.
-                      </p>
-                    </div>
-                  ) : (
-                    <div 
-                      style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-                      className="grid grid-cols-3 gap-2 max-h-44 overflow-y-auto no-scrollbar hide-scrollbar scrollbar-none p-0.5"
-                    >
-                      {slots.map((slot) => {
-                        const isBooked =
-                          slot.slot_booked ||
-                          [
-                            "booked",
-                            "approved",
-                            "completed",
-                            "freezed",
-                          ].includes(slot.status);
-                        const rawTime = slot.time?.slice(0, 5) || slot.time;
-                        const [hStr, mStr] = (rawTime || "").split(":");
-                        const hNum = parseInt(hStr || "", 10);
-                        const suffix =
-                          !Number.isNaN(hNum) && hNum >= 12 ? "PM" : "AM";
-                        const displayHour = !Number.isNaN(hNum)
-                          ? ((hNum + 11) % 12) + 1
-                          : rawTime;
-                        const label = `${displayHour}:${mStr} ${suffix}`;
-                        const isPast = isPastSlot(selectedDate, rawTime);
-                        const disabled = isBooked || isPast;
-                        const isSelected = selectedSlot === rawTime;
+                    const processedSlots = slots.map((slot) => {
+                      const rawTime = slot.time?.slice(0, 5) || slot.time;
+                      const isBooked =
+                        slot.slot_booked ||
+                        ["booked", "approved", "completed", "freezed"].includes(slot.status);
+                      const isPast = isPastSlot(selectedDate, rawTime);
+                      const isAvailable = !isBooked && !isPast;
 
-                        return (
-                          <button
-                            key={slot.time}
-                            disabled={disabled}
-                            onClick={() => setSelectedSlot(rawTime)}
-                            className={`text-xs py-2 px-1 rounded-md border font-medium transition-all cursor-pointer ${
-                              disabled
-                                ? "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed"
-                                : isSelected
-                                  ? "border-[#0067A1] bg-[#0067A1] text-white shadow-2xs font-semibold"
-                                  : "bg-white text-slate-700 border-slate-200 hover:border-[#0067A1] hover:bg-sky-50/50"
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                      const [hStr] = (rawTime || "").split(":");
+                      const hNum = parseInt(hStr || "0", 10);
+
+                      let session = "morning";
+                      if (hNum >= 12 && hNum < 17) session = "afternoon";
+                      else if (hNum >= 17) session = "evening";
+
+                      return {
+                        ...slot,
+                        rawTime,
+                        isBooked,
+                        isPast,
+                        isAvailable,
+                        session,
+                        label: formatTimeDisplay(rawTime),
+                      };
+                    });
+
+                    const availableSlotsCount = processedSlots.filter((s) => s.isAvailable).length;
+                    const passedSlotsCount = processedSlots.filter((s) => s.isPast).length;
+                    const morningCount = processedSlots.filter((s) => s.session === "morning" && s.isAvailable).length;
+                    const afternoonCount = processedSlots.filter((s) => s.session === "afternoon" && s.isAvailable).length;
+                    const eveningCount = processedSlots.filter((s) => s.session === "evening" && s.isAvailable).length;
+
+                    // Filter by session
+                    let displayedSlots = processedSlots;
+                    if (slotSessionFilter !== "all") {
+                      displayedSlots = displayedSlots.filter((s) => s.session === slotSessionFilter);
+                    }
+
+                    // On today, filter out past slots unless showPastSlots is true
+                    if (isToday && !showPastSlots) {
+                      displayedSlots = displayedSlots.filter((s) => !s.isPast);
+                    }
+
+                    const quickDates = getQuickDates();
+                    const tomorrowDate = quickDates[1]?.dateStr;
+
+                    return (
+                      <div className="space-y-2.5">
+                        {/* Section Header with Available Count Badge */}
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-[11px] font-bold inline-flex items-center justify-center">3</span>
+                            <span>Available Time Slots</span>
+                            {availableSlotsCount > 0 ? (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                {availableSlotsCount} Available
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                                No slots left today
+                              </span>
+                            )}
+                          </label>
+                        </div>
+
+                        {/* Selected Slot Banner */}
+                        {selectedSlot && (
+                          <div className="bg-sky-50/90 border border-sky-200 rounded-lg p-2.5 flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2 text-slate-800">
+                              <div className="w-6 h-6 rounded-full bg-[#0067A1] text-white flex items-center justify-center shrink-0">
+                                <FaCheckCircle className="w-3.5 h-3.5" />
+                              </div>
+                              <div>
+                                <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wide block leading-none">
+                                  Selected Time Slot
+                                </span>
+                                <span className="font-bold text-[#0067A1] text-xs leading-tight mt-0.5 block">
+                                  {formatTimeDisplay(selectedSlot)} • {new Date(selectedDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                                </span>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedSlot(null)}
+                              className="text-[11px] text-slate-500 hover:text-slate-800 font-medium px-2 py-1 rounded cursor-pointer"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Session Filter Tabs: Only show sessions with available slots */}
+                        {slots.length > 0 && !slotsLoading && (
+                          <div className="flex items-center gap-1.5 p-1.5 bg-slate-100 rounded-lg text-xs">
+                            <button
+                              type="button"
+                              onClick={() => setSlotSessionFilter("all")}
+                              className={`flex-1 py-1.5 px-2 rounded-md font-bold transition cursor-pointer text-center text-xs flex items-center justify-center gap-1.5 ${
+                                slotSessionFilter === "all"
+                                  ? "bg-white text-slate-900 shadow-2xs"
+                                  : "text-slate-500 hover:text-slate-800"
+                              }`}
+                            >
+                              <span>All</span>
+                              <span className="text-[10px] font-semibold text-slate-500 bg-slate-200/70 px-1.5 py-0.5 rounded-full">
+                                {availableSlotsCount}
+                              </span>
+                            </button>
+                            {morningCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setSlotSessionFilter("morning")}
+                                className={`flex-1 py-1.5 px-2 rounded-md font-bold transition cursor-pointer text-center text-xs flex items-center justify-center gap-1.5 ${
+                                  slotSessionFilter === "morning"
+                                    ? "bg-white text-[#0067A1] shadow-2xs ring-1 ring-[#0067A1]/20"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                <span>Morning</span>
+                                <span className="text-[10px] font-semibold text-[#0067A1] bg-sky-100/70 px-1.5 py-0.5 rounded-full">
+                                  {morningCount}
+                                </span>
+                              </button>
+                            )}
+                            {afternoonCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setSlotSessionFilter("afternoon")}
+                                className={`flex-1 py-1.5 px-2 rounded-md font-bold transition cursor-pointer text-center text-xs flex items-center justify-center gap-1.5 ${
+                                  slotSessionFilter === "afternoon"
+                                    ? "bg-white text-[#0067A1] shadow-2xs ring-1 ring-[#0067A1]/20"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                <span>Afternoon</span>
+                                <span className="text-[10px] font-semibold text-[#0067A1] bg-sky-100/70 px-1.5 py-0.5 rounded-full">
+                                  {afternoonCount}
+                                </span>
+                              </button>
+                            )}
+                            {eveningCount > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setSlotSessionFilter("evening")}
+                                className={`flex-1 py-1.5 px-2 rounded-md font-bold transition cursor-pointer text-center text-xs flex items-center justify-center gap-1.5 ${
+                                  slotSessionFilter === "evening"
+                                    ? "bg-white text-[#0067A1] shadow-2xs ring-1 ring-[#0067A1]/20"
+                                    : "text-slate-500 hover:text-slate-800"
+                                }`}
+                              >
+                                <span>Evening</span>
+                                <span className="text-[10px] font-semibold text-[#0067A1] bg-sky-100/70 px-1.5 py-0.5 rounded-full">
+                                  {eveningCount}
+                                </span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Passed slots helper on Today - single line without wrapping */}
+                        {isToday && passedSlotsCount > 0 && (
+                          <div className="flex items-center justify-between py-1 px-1 text-[11px] text-slate-500 border-t border-slate-100">
+                            <span className="text-emerald-700 font-medium flex items-center gap-1.5 truncate">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse shrink-0" />
+                              <span className="truncate">Upcoming available slots</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setShowPastSlots(!showPastSlots)}
+                              className="text-[#0067A1] hover:underline font-semibold cursor-pointer shrink-0 ml-2"
+                            >
+                              {showPastSlots ? "Hide passed" : `Show ${passedSlotsCount} passed`}
+                            </button>
+                          </div>
+                        )}
+
+                        {slotsLoading ? (
+                          <div className="text-center py-6 bg-slate-50/60 rounded-lg border border-slate-100">
+                            <div className="animate-spin h-5 w-5 border-2 border-[#0067A1] border-t-transparent rounded-full mx-auto mb-1.5"></div>
+                            <p className="text-xs text-slate-500 font-normal">Checking doctor slots...</p>
+                          </div>
+                        ) : slots.length === 0 ? (
+                          <div className="text-center py-5 bg-slate-50/60 rounded-lg border border-slate-100 p-3">
+                            <p className="text-xs text-slate-700 font-semibold mb-0.5">
+                              No slots available for this date.
+                            </p>
+                            <p className="text-[11px] text-slate-400">
+                              Please select another date above.
+                            </p>
+                          </div>
+                        ) : isToday && availableSlotsCount === 0 && !showPastSlots ? (
+                          <div className="text-center py-4 bg-amber-50/60 rounded-lg border border-amber-200/80 p-3 space-y-2">
+                            <p className="text-xs font-semibold text-amber-900">
+                              All slots for Today have passed or are booked.
+                            </p>
+                            <p className="text-[11px] text-amber-700">
+                              Select Tomorrow or check upcoming dates.
+                            </p>
+                            {tomorrowDate && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDate(tomorrowDate)}
+                                className="bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-2xs transition cursor-pointer"
+                              >
+                                View Tomorrow
+                              </button>
+                            )}
+                          </div>
+                        ) : displayedSlots.length === 0 ? (
+                          <div className="text-center py-4 bg-slate-50/60 rounded-lg border border-slate-100 p-3">
+                            <p className="text-xs text-slate-600 font-medium">
+                              No available slots in {slotSessionFilter} session.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setSlotSessionFilter("all")}
+                              className="text-xs text-[#0067A1] font-semibold hover:underline mt-1 cursor-pointer"
+                            >
+                              Show all available slots
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-80 overflow-y-auto pr-1.5 p-1 [scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-50">
+                            {displayedSlots.map((slot) => {
+                              const disabled = !slot.isAvailable;
+                              const isSelected = selectedSlot === slot.rawTime;
+
+                              return (
+                                <button
+                                  key={slot.time}
+                                  type="button"
+                                  disabled={disabled}
+                                  onClick={() => setSelectedSlot(slot.rawTime)}
+                                  className={`text-xs sm:text-[13px] py-2.5 px-1.5 rounded-lg border transition-all cursor-pointer text-center relative font-semibold ${
+                                    disabled
+                                      ? "bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed opacity-60"
+                                      : isSelected
+                                        ? "border-[#0067A1] bg-[#0067A1] text-white shadow-sm font-bold ring-2 ring-[#0067A1]/20 scale-[1.02]"
+                                        : "bg-white text-slate-800 border-slate-200 hover:border-[#0067A1] hover:bg-sky-50/70 hover:text-[#0067A1] shadow-2xs"
+                                  }`}
+                                >
+                                  <span>{slot.label}</span>
+                                  {slot.isBooked && (
+                                    <span className="block text-[9px] font-normal text-rose-500 leading-none mt-0.5">Booked</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
+
 
                 {/* Doctor Migration Code (Optional) */}
                 <div className="space-y-1 pt-1 border-t border-slate-100">
@@ -1345,10 +1610,10 @@ export default function DoctorProfilePage() {
                       !dataSharingConsent ||
                       !teleconsultConsent
                     }
-                    className={`w-full py-2.5 px-4 rounded-md font-medium text-xs sm:text-sm transition-all shadow-2xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                    className={`w-full py-3 px-4 rounded-lg font-bold text-sm tracking-wide transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                       !selectedSlot
-                        ? "bg-amber-500 hover:bg-amber-600 text-white"
-                        : "bg-[#0067A1] hover:bg-[#005585] active:bg-[#004870] text-white"
+                        ? "bg-slate-200 text-slate-700 hover:bg-slate-300 active:scale-[0.99]"
+                        : "bg-[#0067A1] hover:bg-[#005585] active:bg-[#004870] text-white active:scale-[0.99] shadow-md hover:shadow-lg"
                     }`}
                   >
                     {booking ? (
@@ -1358,12 +1623,12 @@ export default function DoctorProfilePage() {
                       </>
                     ) : !selectedSlot ? (
                       <>
-                        <FaClock className="w-3.5 h-3.5" />
-                        <span>Select Slot</span>
+                        <FaClock className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Select a Slot</span>
                       </>
                     ) : (
                       <>
-                        <FaCalendarCheck className="w-3.5 h-3.5 text-sky-200" />
+                        <FaCalendarCheck className="w-4 h-4 text-sky-200" />
                         <span>Book Slot • {fee > 0 ? `₹${fee}` : "Free"}</span>
                       </>
                     )}
@@ -1440,11 +1705,46 @@ export default function DoctorProfilePage() {
             </div>
             <button
               type="button"
-              onClick={scrollToBooking}
-              className="flex-1 max-w-[200px] inline-flex items-center justify-center gap-1.5 bg-[#0067A1] active:bg-[#004F7C] text-white py-2 px-3 rounded-md font-medium text-xs shadow-2xs active:scale-95 transition-all cursor-pointer"
+              disabled={
+                booking ||
+                (selectedSlot && (!dataSharingConsent || !teleconsultConsent))
+              }
+              onClick={() => {
+                if (selectedSlot) {
+                  handleBook();
+                } else {
+                  scrollToBooking();
+                }
+              }}
+              className={`flex-1 max-w-[200px] inline-flex items-center justify-center gap-1.5 text-white py-2.5 px-3 rounded-lg font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                booking
+                  ? "bg-[#005585] cursor-not-allowed"
+                  : !selectedSlot
+                    ? "bg-slate-700 hover:bg-slate-800 active:scale-95"
+                    : "bg-[#0067A1] hover:bg-[#005585] active:bg-[#004F7C] active:scale-95"
+              }`}
             >
-              <FaCalendarCheck className="w-3.5 h-3.5 text-sky-200" />
-              <span>Book Slot</span>
+              {booking ? (
+                <>
+                  <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Booking...</span>
+                </>
+              ) : bookingSuccess ? (
+                <>
+                  <FaCheckCircle className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>Booked!</span>
+                </>
+              ) : !selectedSlot ? (
+                <>
+                  <FaClock className="w-3.5 h-3.5 text-slate-300" />
+                  <span>Select Slot</span>
+                </>
+              ) : (
+                <>
+                  <FaCalendarCheck className="w-3.5 h-3.5 text-sky-200" />
+                  <span>Book Slot</span>
+                </>
+              )}
             </button>
           </div>
         )}

@@ -56,29 +56,6 @@ export function middleware(req) {
     }
   }
 
-  // Protected Patient routes
-  const isPatientRoute =
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/medicine-order") ||
-    (pathname.startsWith("/appointments") && !pathname.includes("/video") && !pathname.includes("/legal-record")) ||
-    pathname.startsWith("/lab-reports") ||
-    pathname.startsWith("/digital-locker") ||
-    pathname.startsWith("/profile") ||
-    pathname.startsWith("/settings") ||
-    pathname.startsWith("/cardio-connect") ||
-    pathname.startsWith("/lung-connect") ||
-    pathname.startsWith("/lung-assessment") ||
-    pathname.startsWith("/lung-activities") ||
-    pathname.startsWith("/lung-health") ||
-    pathname.startsWith("/heart-health") ||
-    pathname.startsWith("/respiratory-history");
-
-  if (isPatientRoute) {
-    if (!sessionToken) {
-      return NextResponse.redirect(new URL(`/?auth=login&redirect=${encodeURIComponent(pathname)}`, req.url));
-    }
-  }
-
   return NextResponse.next();
 }
 
@@ -87,19 +64,5 @@ export const config = {
     "/admin/:path*",
     "/chemist/:path*",
     "/lab/:path*",
-    "/dashboard/:path*",
-    "/dashboard",
-    "/medicine-order/:path*",
-    "/medicine-order",
-    "/appointments/:path*",
-    "/appointments",
-    "/lab-reports/:path*",
-    "/lab-reports",
-    "/digital-locker/:path*",
-    "/digital-locker",
-    "/profile/:path*",
-    "/profile",
-    "/settings/:path*",
-    "/settings",
   ],
 };

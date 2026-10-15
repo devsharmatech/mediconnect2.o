@@ -65,25 +65,29 @@ const Dashboard = () => {
         console.error("Failed to parse user data:", e);
       }
     }
+    if (!parsed) {
+      const allRoles = ["patientUser", "doctorUser", "chemistUser", "labUser", "adminUser"];
+      for (const r of allRoles) {
+        try {
+          const u = JSON.parse(localStorage.getItem(r) || "{}");
+          if (u?.id) {
+            parsed = u;
+            break;
+          }
+        } catch (_) {}
+      }
+    }
     if (!parsed && localStorage.getItem("userId")) {
-      const activeRole = localStorage.getItem("userRole");
-      if (activeRole) {
-        const rawRoleUser = localStorage.getItem(`${activeRole}User`);
-        if (rawRoleUser) {
-          try {
-            parsed = JSON.parse(rawRoleUser);
-          } catch (e) {}
-        }
-      }
-      if (!parsed) {
-        parsed = { id: localStorage.getItem("userId") };
-      }
+      parsed = { id: localStorage.getItem("userId") };
     }
     if (parsed) {
       setUser(parsed);
       const uid = parsed.id || parsed.user_id || parsed.user?.id;
-      if (uid && !localStorage.getItem("userId")) {
+      if (uid) {
         localStorage.setItem("userId", String(uid));
+        try {
+          document.cookie = `session_id=${uid}; path=/; max-age=2592000; SameSite=Lax`;
+        } catch (_) {}
       }
     }
   }, []);
@@ -202,16 +206,16 @@ const Dashboard = () => {
   })();
 
   const quickActions = [
-    { label: "Appointments", sub: "Book & manage", href: "/website/appointments", image: "/images/dashboard-icons/appointments.png", gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50/80", text: "text-[#004F7C]" },
-    { label: "Video Consult", sub: "Talk to doctors", href: "/website/appointments", image: "/images/dashboard-icons/video-consult.png", gradient: "from-sky-500 to-blue-600", bg: "bg-sky-50/80", text: "text-sky-600" },
+    { label: "Appointments", sub: "Book & manage", href: "/appointments", image: "/images/dashboard-icons/appointments.png", gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50/80", text: "text-[#004F7C]" },
+    { label: "Video Consult", sub: "Talk to doctors", href: "/appointments", image: "/images/dashboard-icons/video-consult.png", gradient: "from-sky-500 to-blue-600", bg: "bg-sky-50/80", text: "text-sky-600" },
     { label: "LungConnect", sub: "Breathe better", href: "/lung-connect", image: "/images/dashboard-icons/lung-connect.png", gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50/80", text: "text-[#0067A1]" },
-    { label: "CardioConnect", sub: "Heart vitals & care", href: "/website/cardio-connect", image: "/images/dashboard-icons/cardio-connect.png", gradient: "from-rose-500 to-pink-600", bg: "bg-rose-50/80", text: "text-rose-600" },
-    { label: "Medicines", sub: "Order online", href: "/website/medicine-order", image: "/images/dashboard-icons/medicines.png", gradient: "from-amber-500 to-orange-600", bg: "bg-amber-50/80", text: "text-amber-700" },
-    { label: "Lab Reports", sub: "Records & tests", href: "/website/lab-reports", image: "/images/dashboard-icons/medical-records.png", gradient: "from-purple-500 to-violet-600", bg: "bg-purple-50/80", text: "text-purple-700" },
-    { label: "Nursing Care", sub: "Home nurse care", href: "/website/nursing-care/status", image: "/images/dashboard-icons/nursing-care.png", gradient: "from-fuchsia-500 to-purple-600", bg: "bg-fuchsia-50/80", text: "text-fuchsia-700" },
-    { label: "Digital Locker", sub: "Secure health vault", href: "/website/digital-locker", image: "/images/dashboard-icons/digilocker.png", gradient: "from-slate-500 to-gray-700", bg: "bg-slate-50/80", text: "text-slate-700" },
-    { label: "Lab Tests", sub: "Sample collection", href: "/website/dashboard/lab-booking", image: "/images/dashboard-icons/lab-tests.png", gradient: "from-blue-500 to-indigo-600", bg: "bg-blue-50/80", text: "text-[#004F7C]" },
-    { label: "Home Doctor", sub: "Doctor at home", href: "/website/appointments", image: "/images/dashboard-icons/home-visit.png", gradient: "from-rose-500 to-red-600", bg: "bg-rose-50/80", text: "text-rose-700" },
+    { label: "CardioConnect", sub: "Heart vitals & care", href: "/cardio-connect", image: "/images/dashboard-icons/cardio-connect.png", gradient: "from-rose-500 to-pink-600", bg: "bg-rose-50/80", text: "text-rose-600" },
+    { label: "Medicines", sub: "Order online", href: "/medicine-order", image: "/images/dashboard-icons/medicines.png", gradient: "from-amber-500 to-orange-600", bg: "bg-amber-50/80", text: "text-amber-700" },
+    { label: "Lab Reports", sub: "Records & tests", href: "/lab-reports", image: "/images/dashboard-icons/medical-records.png", gradient: "from-purple-500 to-violet-600", bg: "bg-purple-50/80", text: "text-purple-700" },
+    { label: "Nursing Care", sub: "Home nurse care", href: "/nursing-care/status", image: "/images/dashboard-icons/nursing-care.png", gradient: "from-fuchsia-500 to-purple-600", bg: "bg-fuchsia-50/80", text: "text-fuchsia-700" },
+    { label: "Digital Locker", sub: "Secure health vault", href: "/digital-locker", image: "/images/dashboard-icons/digilocker.png", gradient: "from-slate-500 to-gray-700", bg: "bg-slate-50/80", text: "text-slate-700" },
+    { label: "Lab Tests", sub: "Sample collection", href: "/dashboard/lab-booking", image: "/images/dashboard-icons/lab-tests.png", gradient: "from-blue-500 to-indigo-600", bg: "bg-blue-50/80", text: "text-[#004F7C]" },
+    { label: "Home Doctor", sub: "Doctor at home", href: "/appointments", image: "/images/dashboard-icons/home-visit.png", gradient: "from-rose-500 to-red-600", bg: "bg-rose-50/80", text: "text-rose-700" },
     { label: "Breathing", sub: "Relax & exercise", href: "/lung-connect?action=breathing", image: "/images/dashboard-icons/lung-connect.png", gradient: "from-emerald-400 to-teal-500", bg: "bg-emerald-50/80", text: "text-emerald-700" },
     { label: "Health Assistant", sub: "24/7 AI guide", onClick: () => window.dispatchEvent(new CustomEvent("open-dr-mediconnect-chat")), image: "/images/dashboard-icons/consultation.png", gradient: "from-emerald-500 to-teal-600", bg: "bg-emerald-50/80", text: "text-emerald-700" },
   ];
@@ -264,18 +268,18 @@ const Dashboard = () => {
                     if (nextActionData.next_action === "CONSENT_REQUIRED") {
                       setShowConsentModal(true);
                     }
-                    else if (nextActionData.next_action === "ORDER_PHARMACY") router.push("/website/medicine-order");
-                    else if (nextActionData.next_action === "BOOK_LAB") router.push("/website/dashboard/lab-booking");
-                    else if (nextActionData.next_action === "BOOK_FOLLOWUP") router.push("/website/appointments");
-                    else if (nextActionData.next_action === "VIEW_PRESCRIPTION") router.push("/website/appointments");
-                    else if (nextActionData.next_action === "COMPLETE_PAYMENT") router.push("/website/appointments");
+                    else if (nextActionData.next_action === "ORDER_PHARMACY") router.push("/medicine-order");
+                    else if (nextActionData.next_action === "BOOK_LAB") router.push("/dashboard/lab-booking");
+                    else if (nextActionData.next_action === "BOOK_FOLLOWUP") router.push("/appointments");
+                    else if (nextActionData.next_action === "VIEW_PRESCRIPTION") router.push("/appointments");
+                    else if (nextActionData.next_action === "COMPLETE_PAYMENT") router.push("/appointments");
                     else if (nextActionData.next_action === "START_CONSULTATION") {
                       if (nextActionData.consultation_id) {
                         router.push(`/appointments/${nextActionData.consultation_id}/video?userId=${user?.id}&role=patient`);
                       } else if (nextActionData.appointment_id) {
                         router.push(`/appointments/${nextActionData.appointment_id}/video?userId=${user?.id}&role=patient`);
                       } else {
-                        router.push("/website/appointments");
+                        router.push("/appointments");
                       }
                     }
                     else if (nextActionData.next_action === "RESUME_SESSION" && nextActionData.consultation_id) {
@@ -337,7 +341,7 @@ const Dashboard = () => {
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-gray-800">Today&apos;s & Upcoming Appointments</h2>
-            <Link href="/website/appointments" className="text-sm text-[#0067A1] hover:text-[#004F7C] font-semibold">
+            <Link href="/appointments" className="text-sm text-[#0067A1] hover:text-[#004F7C] font-semibold">
               View All
             </Link>
           </div>
@@ -386,7 +390,7 @@ const Dashboard = () => {
                       </button>
                     ) : (
                       <Link
-                        href="/website/appointments"
+                        href="/appointments"
                         className="text-xs text-[#0067A1] hover:text-[#004F7C] font-semibold flex items-center gap-1"
                       >
                         Details →
@@ -408,7 +412,7 @@ const Dashboard = () => {
                 <h3 className="text-sm font-bold text-gray-800">No Appointments Today</h3>
                 <p className="text-xs text-gray-900 mt-1 max-w-xs mx-auto">Schedule a consultation with our experienced specialists for personalized care.</p>
               </div>
-              <Link href="/website/appointments" className="px-4 py-2 bg-[#0067A1] text-white rounded-[5px] text-xs font-semibold hover:bg-[#004F7C] transition-colors mt-1">
+              <Link href="/appointments" className="px-4 py-2 bg-[#0067A1] text-white rounded-[5px] text-xs font-semibold hover:bg-[#004F7C] transition-colors mt-1">
                 Book Appointment
               </Link>
             </motion.div>

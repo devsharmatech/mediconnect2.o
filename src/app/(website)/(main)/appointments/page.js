@@ -393,9 +393,22 @@ export default function AppointmentsPage() {
         } catch (_) {}
       }
       if (!patientId || patientId === "undefined" || patientId === "null") {
+        const roles = ["patientUser", "doctorUser", "chemistUser", "labUser", "adminUser"];
+        for (const r of roles) {
+          try {
+            const u = JSON.parse(localStorage.getItem(r) || "{}");
+            if (u?.id) {
+              patientId = u.id;
+              break;
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (patientId) {
         try {
-          const docUser = JSON.parse(localStorage.getItem("doctorUser") || "{}");
-          patientId = docUser?.id || null;
+          localStorage.setItem("userId", String(patientId));
+          document.cookie = `session_id=${patientId}; path=/; max-age=2592000; SameSite=Lax`;
         } catch (_) {}
       }
 

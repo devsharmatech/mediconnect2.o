@@ -294,7 +294,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
             localStorage.setItem(`${role}User`, JSON.stringify(user));
           }
           if (user_id) {
-            document.cookie = `session_id=${user_id}; path=/; max-age=86400; SameSite=Lax`;
+            document.cookie = `session_id=${user_id}; path=/; max-age=2592000; SameSite=Lax`;
           }
           sessionStorage.removeItem('loginPhoneNumber');
           sessionStorage.removeItem('loginEmail');
@@ -318,7 +318,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
               sessionStorage.removeItem("post_login_redirect");
               router.push(storedRedirect);
             } else {
-              const redirectPath = role === 'doctor' ? '/doctor' : '/website/dashboard';
+              const redirectPath = role === 'doctor' ? '/doctor' : '/dashboard';
               router.push(redirectPath);
             }
           }

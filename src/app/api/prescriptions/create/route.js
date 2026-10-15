@@ -6,6 +6,7 @@ import { logAudit } from "@/lib/layer1/auditLogger";
 import { syncClinicalData } from "@/lib/layer1/consultationSync";
 import crypto from "crypto";
 import sql from "@/lib/db";
+import { postAppointmentCompletionLedger } from "@/lib/doctorFinancialEngine";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -413,6 +414,8 @@ export async function POST(req) {
           SET status = 'completed', completed_at = ${now}, updated_at = ${now}
           WHERE id = ${appointment_id}
         `;
+        // Post immutable financial ledger entries for Doctor Financial Engine
+        await postAppointmentCompletionLedger(appointment_id);
       } catch (sqlErr) {
         console.warn("[Prescription Create] RDS direct appointment update warning:", sqlErr.message);
       }

@@ -182,9 +182,13 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
         setUserRole(role);
         setIsLoggedIn(true);
 
-        // Keep localStorage synced for consistent reads across modules
-        if (!localStorage.getItem("userId") && parsedUser?.id) {
-          localStorage.setItem("userId", String(parsedUser.id));
+        // Keep localStorage and cookies synced for consistent reads across modules
+        const uid = parsedUser?.id || (typeof window !== "undefined" ? localStorage.getItem("userId") : null);
+        if (uid) {
+          localStorage.setItem("userId", String(uid));
+          try {
+            document.cookie = `session_id=${uid}; path=/; max-age=2592000; SameSite=Lax`;
+          } catch (_) {}
         }
       } catch {
         setIsLoggedIn(false);
@@ -282,11 +286,18 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
 
   // Handle auto-opening login modal if directed with ?auth=login
   useEffect(() => {
-    if (!mounted || typeof window === "undefined" || isLoggedIn) return;
+    if (!mounted || typeof window === "undefined") return;
     try {
       const params = new URLSearchParams(window.location.search);
       if (params.get("auth") === "login") {
         const redirectTarget = params.get("redirect");
+        if (isLoggedIn) {
+          window.history.replaceState({}, "", window.location.pathname);
+          if (redirectTarget) {
+            router.push(redirectTarget);
+          }
+          return;
+        }
         if (redirectTarget) {
           sessionStorage.setItem("post_login_redirect", redirectTarget);
         }
@@ -294,7 +305,7 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
         window.history.replaceState({}, "", window.location.pathname);
       }
     } catch (_) {}
-  }, [mounted, isLoggedIn, handleOpenLogin]);
+  }, [mounted, isLoggedIn, handleOpenLogin, router]);
 
   // Auto-show Login/Register modal after a few seconds if visitor is not logged in
   useEffect(() => {

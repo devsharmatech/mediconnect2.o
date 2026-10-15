@@ -49,15 +49,41 @@ const PatientDashboardLayout = ({ children }) => {
     }
 
     // Check if user is logged in
-    const userId = localStorage.getItem("userId") || localStorage.getItem("user_id");
+    let userId = localStorage.getItem("userId") || localStorage.getItem("user_id");
     const userRole = localStorage.getItem("userRole");
     const userData = localStorage.getItem("userData");
+
+    if (!userId || userId === "undefined" || userId === "null") {
+      try {
+        const parsed = JSON.parse(userData || "{}");
+        userId = parsed?.id || parsed?.user?.id || parsed?.user_id || null;
+      } catch (_) {}
+    }
+
+    if (!userId || userId === "undefined" || userId === "null") {
+      const allRoles = ["patientUser", "doctorUser", "chemistUser", "labUser", "adminUser"];
+      for (const r of allRoles) {
+        try {
+          const u = JSON.parse(localStorage.getItem(r) || "{}");
+          if (u?.id) {
+            userId = u.id;
+            break;
+          }
+        } catch (_) {}
+      }
+    }
 
     if (!userId) {
       const target = typeof window !== "undefined" ? window.location.pathname : (pathname || "/");
       window.location.replace(`/?auth=login&redirect=${encodeURIComponent(target)}`);
       return;
     }
+
+    // Keep session synchronized in localStorage and cookies (30 days max-age)
+    try {
+      localStorage.setItem("userId", String(userId));
+      document.cookie = `session_id=${userId}; path=/; max-age=2592000; SameSite=Lax`;
+    } catch (_) {}
 
     // Verify session is active and valid against backend
     fetch(`/api/auth/verify-session?token=${encodeURIComponent(userId)}`)

@@ -410,9 +410,9 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
       type === "appointment_reschedule" ||
       type === "appointment_booked"
     ) {
-      router.push("/website/appointments");
+      router.push("/appointments");
     } else if (type === "prescription" || type === "document_shared") {
-      router.push("/website/digital-locker");
+      router.push("/digital-locker");
     } else if (
       type === "medicine_order" ||
       type === "order" ||
@@ -425,16 +425,16 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
         orderId = meta?.order_id || meta?.orderId;
       } catch {}
       if (orderId) {
-        router.push(`/website/medicine-order?order_id=${encodeURIComponent(orderId)}`);
+        router.push(`/medicine-order?order_id=${encodeURIComponent(orderId)}`);
       } else {
-        router.push("/website/medicine-order");
+        router.push("/medicine-order");
       }
     } else if (
       type === "payment" ||
       type === "payment_success" ||
       type === "payment_failure"
     ) {
-      router.push("/website/billing");
+      router.push("/billing");
     } else if (
       type === "video_call_started" ||
       type === "consultation" ||
@@ -451,9 +451,9 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
           return;
         }
       } catch { }
-      router.push("/website/appointments");
+      router.push("/appointments");
     } else {
-      router.push("/website/appointments");
+      router.push("/appointments");
     }
   };
 
