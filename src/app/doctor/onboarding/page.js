@@ -56,8 +56,12 @@ const defaultFormData = {
   doctor_registration_no: "",
   years_experience: "",
   video_consultation_fee: "",
+  video_follow_up_fee: "",
   clinic_consultation_fee: "",
+  clinic_follow_up_fee: "",
   home_visit_fee: "",
+  home_follow_up_fee: "",
+  follow_up_fee: "",
   speciality: [],
   super_speciality: [],
   clinic_address: "",
@@ -467,8 +471,12 @@ function DoctorOnboardingForm({
     doctor_registration_no: initialTokenData.license_number || "",
     years_experience: initialTokenData.experience_years || "",
     video_consultation_fee: initialTokenData.video_consultation_fee || "",
+    video_follow_up_fee: initialTokenData.video_follow_up_fee || initialTokenData.meta?.video_follow_up_fee || initialTokenData.follow_up_fee || "",
     clinic_consultation_fee: initialTokenData.clinic_consultation_fee || "",
+    clinic_follow_up_fee: initialTokenData.clinic_follow_up_fee || initialTokenData.meta?.clinic_follow_up_fee || initialTokenData.follow_up_fee || "",
     home_visit_fee: initialTokenData.home_visit_fee || "",
+    home_follow_up_fee: initialTokenData.home_follow_up_fee || initialTokenData.meta?.home_follow_up_fee || initialTokenData.follow_up_fee || "",
+    follow_up_fee: initialTokenData.follow_up_fee || "",
     speciality: parseListField(initialTokenData.specialization, specialityOptions),
     super_speciality: parseListField(initialTokenData.meta?.super_speciality, superSpecialityOptions),
     clinic_address: initialTokenData.clinic_address || "",
@@ -2169,6 +2177,24 @@ function DoctorOnboardingForm({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Video Follow-up Fee (₹)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₹</span>
+                        <input
+                          type="number"
+                          placeholder="e.g. 300"
+                          value={formData.video_follow_up_fee}
+                          onChange={(e) =>
+                            handleInputChange("video_follow_up_fee", e.target.value)
+                          }
+                          className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Clinic Consultation Fee (₹)
                       </label>
                       <div className="relative">
@@ -2186,6 +2212,24 @@ function DoctorOnboardingForm({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Clinic Follow-up Fee (₹)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₹</span>
+                        <input
+                          type="number"
+                          placeholder="e.g. 500"
+                          value={formData.clinic_follow_up_fee}
+                          onChange={(e) =>
+                            handleInputChange("clinic_follow_up_fee", e.target.value)
+                          }
+                          className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
                         Home Visit Fee (₹)
                       </label>
                       <div className="relative">
@@ -2196,6 +2240,23 @@ function DoctorOnboardingForm({
                           value={formData.home_visit_fee}
                           onChange={(e) =>
                             handleInputChange("home_visit_fee", e.target.value)
+                          }
+                          className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] transition-all"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Home Visit Follow-up Fee (₹)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₹</span>
+                        <input
+                          type="number"
+                          placeholder="e.g. 1000"
+                          value={formData.home_follow_up_fee}
+                          onChange={(e) =>
+                            handleInputChange("home_follow_up_fee", e.target.value)
                           }
                           className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] transition-all"
                         />

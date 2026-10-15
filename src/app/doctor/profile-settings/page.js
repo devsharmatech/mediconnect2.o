@@ -1,16 +1,19 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { 
+  useState,
+  useEffect,
+  useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { 
-  FaUserMd, 
-  FaEnvelope, 
-  FaPhone, 
-  FaMapMarkerAlt, 
-  FaGraduationCap, 
-  FaBriefcaseMedical, 
-  FaSave, 
+  FaUserMd,
+  FaEnvelope,
+  FaPhone,
+  FaMapMarkerAlt,
+  FaGraduationCap,
+  FaBriefcaseMedical,
+  FaSave,
   FaEdit,
   FaUser,
   FaStethoscope,
@@ -23,7 +26,18 @@ import {
   FaStar,
   FaCalendarAlt,
   FaLock,
-  FaTimes
+  FaTimes,
+  FaTrashAlt,
+  FaClinicMedical,
+  FaPercentage,
+  FaRupeeSign,
+  FaPlus,
+  FaBolt,
+  FaCopy,
+  FaCheck,
+  FaChevronDown,
+  FaChevronUp,
+  FaVideo
 } from "react-icons/fa";
 import api from "@/utils/websiteApi";
 
@@ -207,6 +221,23 @@ const Field = ({
   </div>
 );
 
+// Format 24-hr time (e.g. "09:00", "17:00") into clean 12-hr display ("09:00 AM", "05:00 PM")
+const formatTime12 = (timeStr) => {
+  if (!timeStr) return "";
+  const trimmed = String(timeStr).trim();
+  if (trimmed.includes("AM") || trimmed.includes("PM") || trimmed.includes("am") || trimmed.includes("pm")) {
+    return trimmed;
+  }
+  const parts = trimmed.split(":");
+  if (parts.length < 2) return trimmed;
+  const hour = parseInt(parts[0], 10);
+  const min = parts[1].slice(0, 2);
+  if (isNaN(hour)) return trimmed;
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 || 12;
+  return `${String(hour12).padStart(2, "0")}:${min} ${ampm}`;
+};
+
 export default function DoctorProfile() {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
@@ -221,8 +252,12 @@ export default function DoctorProfile() {
     hospital: "",
     address: "",
     videoConsultationFee: "",
+    videoFollowUpFee: "",
     clinicConsultationFee: "",
+    clinicFollowUpFee: "",
     homeVisitFee: "",
+    homeFollowUpFee: "",
+    followUpFee: "",
     about: "",
     licenseNumber: "",
     languages: "",
@@ -258,6 +293,20 @@ export default function DoctorProfile() {
     video_slots: {},
     home_slots: {},
   });
+  const [quickSetupOpen, setQuickSetupOpen] = useState(false);
+  const [quickClinic, setQuickClinic] = useState({ start: "09:00", end: "13:00" });
+  const [quickVideo, setQuickVideo] = useState({ start: "17:00", end: "20:00" });
+  const [quickHome, setQuickHome] = useState({ start: "", end: "" });
+  const [quickScope, setQuickScope] = useState("weekdays");
+  const [quickDays, setQuickDays] = useState([
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+  ]);
+  const [scheduleViewMode, setScheduleViewMode] = useState("cards"); // 'cards' | 'table'
+  const [scheduleFilterService, setScheduleFilterService] = useState("all"); // 'all' | 'clinic' | 'video' | 'home'
   const [selectedSpecialities, setSelectedSpecialities] = useState([]);
   const [selectedQualifications, setSelectedQualifications] = useState([]);
   const [newSpeciality, setNewSpeciality] = useState("");
@@ -507,14 +556,44 @@ export default function DoctorProfile() {
           details.video_consultation_fee !== null && details.video_consultation_fee !== undefined && !Number.isNaN(Number(details.video_consultation_fee))
             ? `₹${Number(details.video_consultation_fee)}`
             : "",
+        videoFollowUpFee:
+          details.video_follow_up_fee !== null && details.video_follow_up_fee !== undefined && !Number.isNaN(Number(details.video_follow_up_fee))
+            ? `₹${Number(details.video_follow_up_fee)}`
+            : (details.meta?.video_follow_up_fee !== undefined && !Number.isNaN(Number(details.meta.video_follow_up_fee))
+                ? `₹${Number(details.meta.video_follow_up_fee)}`
+                : (details.follow_up_fee !== null && details.follow_up_fee !== undefined && !Number.isNaN(Number(details.follow_up_fee))
+                    ? `₹${Number(details.follow_up_fee)}`
+                    : "")),
         clinicConsultationFee:
           details.clinic_consultation_fee !== null && details.clinic_consultation_fee !== undefined && !Number.isNaN(Number(details.clinic_consultation_fee))
             ? `₹${Number(details.clinic_consultation_fee)}`
             : "",
+        clinicFollowUpFee:
+          details.clinic_follow_up_fee !== null && details.clinic_follow_up_fee !== undefined && !Number.isNaN(Number(details.clinic_follow_up_fee))
+            ? `₹${Number(details.clinic_follow_up_fee)}`
+            : (details.meta?.clinic_follow_up_fee !== undefined && !Number.isNaN(Number(details.meta.clinic_follow_up_fee))
+                ? `₹${Number(details.meta.clinic_follow_up_fee)}`
+                : (details.follow_up_fee !== null && details.follow_up_fee !== undefined && !Number.isNaN(Number(details.follow_up_fee))
+                    ? `₹${Number(details.follow_up_fee)}`
+                    : "")),
         homeVisitFee:
           details.home_visit_fee !== null && details.home_visit_fee !== undefined && !Number.isNaN(Number(details.home_visit_fee))
             ? `₹${Number(details.home_visit_fee)}`
             : "",
+        homeFollowUpFee:
+          details.home_follow_up_fee !== null && details.home_follow_up_fee !== undefined && !Number.isNaN(Number(details.home_follow_up_fee))
+            ? `₹${Number(details.home_follow_up_fee)}`
+            : (details.meta?.home_follow_up_fee !== undefined && !Number.isNaN(Number(details.meta.home_follow_up_fee))
+                ? `₹${Number(details.meta.home_follow_up_fee)}`
+                : (details.follow_up_fee !== null && details.follow_up_fee !== undefined && !Number.isNaN(Number(details.follow_up_fee))
+                    ? `₹${Number(details.follow_up_fee)}`
+                    : "")),
+        followUpFee:
+          details.follow_up_fee !== null && details.follow_up_fee !== undefined && !Number.isNaN(Number(details.follow_up_fee))
+            ? `₹${Number(details.follow_up_fee)}`
+            : (details.meta?.follow_up_fee !== undefined && !Number.isNaN(Number(details.meta.follow_up_fee))
+                ? `₹${Number(details.meta.follow_up_fee)}`
+                : ""),
         about:
           details.about_me || "",
         licenseNumber: details.license_number || "",
@@ -528,9 +607,19 @@ export default function DoctorProfile() {
             ? String(details.total_reviews)
             : "",
         availability: availabilityLabel,
-        secondBookingDiscountType: details.second_booking_discount_type || "none",
-        secondBookingDiscountValue: Number(details.second_booking_discount_value || 0),
-        additionalClinics: details.meta?.additional_clinics || [],
+        secondBookingDiscountType: details.second_booking_discount_type || details.meta?.second_booking_discount_type || "none",
+        secondBookingDiscountValue: Number(details.second_booking_discount_value ?? details.meta?.second_booking_discount_value ?? 0),
+        additionalClinics: (() => {
+          if (Array.isArray(details.additional_clinics) && details.additional_clinics.length > 0) return details.additional_clinics;
+          if (Array.isArray(details.meta?.additional_clinics) && details.meta.additional_clinics.length > 0) return details.meta.additional_clinics;
+          if (typeof details.additional_clinics === "string") {
+            try { return JSON.parse(details.additional_clinics); } catch {}
+          }
+          if (typeof details.meta?.additional_clinics === "string") {
+            try { return JSON.parse(details.meta.additional_clinics); } catch {}
+          }
+          return [];
+        })(),
       });
 
       setProfilePicture(parsed.profile_picture || "");
@@ -685,6 +774,186 @@ export default function DoctorProfile() {
         },
       };
     });
+  };
+
+  const handleCopyDayToAll = (sourceDay) => {
+    if (!isEditing) setIsEditing(true);
+
+    const sClinic = weeklyAvailability.clinic_slots?.[sourceDay] || { start: "", end: "" };
+    const sVideo = weeklyAvailability.video_slots?.[sourceDay] || { start: "", end: "" };
+    const sHome = weeklyAvailability.home_slots?.[sourceDay] || { start: "", end: "" };
+
+    const hasAnyTime = sClinic.start || sClinic.end || sVideo.start || sVideo.end || sHome.start || sHome.end;
+
+    if (!hasAnyTime) {
+      toast.error(`Please set hours for ${sourceDay} first.`);
+      return;
+    }
+
+    setWeeklyAvailability((prev) => {
+      const c = { ...(prev.clinic_slots || {}) };
+      const v = { ...(prev.video_slots || {}) };
+      const h = { ...(prev.home_slots || {}) };
+      let updatedLeave = [...(prev.leave_days || [])];
+
+      daysOfWeek.forEach((day) => {
+        if (day !== sourceDay) {
+          c[day] = { ...sClinic };
+          v[day] = { ...sVideo };
+          h[day] = { ...sHome };
+          // Keep Sunday as leave if it was leave, otherwise activate
+          if (day !== "Sunday") {
+            updatedLeave = updatedLeave.filter((d) => d !== day);
+          }
+        }
+      });
+
+      return {
+        ...prev,
+        clinic_slots: c,
+        video_slots: v,
+        home_slots: h,
+        leave_days: updatedLeave,
+      };
+    });
+
+    toast.success(`${sourceDay} hours copied to all days!`);
+  };
+
+  const handleClearDay = (targetDay) => {
+    if (!isEditing) setIsEditing(true);
+    setWeeklyAvailability((prev) => {
+      const c = { ...(prev.clinic_slots || {}) };
+      const v = { ...(prev.video_slots || {}) };
+      const h = { ...(prev.home_slots || {}) };
+      c[targetDay] = { start: "", end: "" };
+      v[targetDay] = { start: "", end: "" };
+      h[targetDay] = { start: "", end: "" };
+      return {
+        ...prev,
+        clinic_slots: c,
+        video_slots: v,
+        home_slots: h,
+      };
+    });
+    toast.success(`Cleared ${targetDay} timings.`);
+  };
+
+  const handleApplyPreset = (type) => {
+    if (!isEditing) setIsEditing(true);
+
+    if (type === "mon_fri") {
+      setQuickScope("weekdays");
+      setQuickDays(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]);
+      setWeeklyAvailability((prev) => {
+        const c = { ...(prev.clinic_slots || {}) };
+        const v = { ...(prev.video_slots || {}) };
+        const h = { ...(prev.home_slots || {}) };
+        const workDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+        workDays.forEach((day) => {
+          c[day] = { start: "09:00", end: "13:00" };
+          v[day] = { start: "17:00", end: "20:00" };
+          h[day] = { start: "", end: "" };
+        });
+        return {
+          ...prev,
+          clinic_slots: c,
+          video_slots: v,
+          home_slots: h,
+          leave_days: ["Saturday", "Sunday"],
+        };
+      });
+      toast.success("Mon - Fri standard schedule applied!");
+    } else if (type === "mon_sat") {
+      setQuickScope("mon_sat");
+      setQuickDays(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]);
+      setWeeklyAvailability((prev) => {
+        const c = { ...(prev.clinic_slots || {}) };
+        const v = { ...(prev.video_slots || {}) };
+        const h = { ...(prev.home_slots || {}) };
+        const workDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        workDays.forEach((day) => {
+          c[day] = { start: "09:00", end: "13:00" };
+          v[day] = { start: "17:00", end: "20:00" };
+          h[day] = { start: "", end: "" };
+        });
+        return {
+          ...prev,
+          clinic_slots: c,
+          video_slots: v,
+          home_slots: h,
+          leave_days: ["Sunday"],
+        };
+      });
+      toast.success("Mon - Sat regular schedule applied!");
+    } else if (type === "sunday_off") {
+      setWeeklyAvailability((prev) => {
+        const hasSun = prev.leave_days.includes("Sunday");
+        return {
+          ...prev,
+          leave_days: hasSun
+            ? prev.leave_days.filter((d) => d !== "Sunday")
+            : [...prev.leave_days, "Sunday"],
+        };
+      });
+      toast.success("Sunday leave updated!");
+    } else if (type === "clear_all") {
+      setWeeklyAvailability({
+        leave_days: ["Sunday"],
+        clinic_slots: {},
+        video_slots: {},
+        home_slots: {},
+      });
+      toast.success("Schedule cleared.");
+    }
+  };
+
+  const handleApplyBatchSchedule = () => {
+    if (!isEditing) setIsEditing(true);
+
+    if (quickDays.length === 0) {
+      toast.error("Select at least 1 day to apply.");
+      return;
+    }
+
+    const hasClinic = Boolean(quickClinic.start && quickClinic.end);
+    const hasVideo = Boolean(quickVideo.start && quickVideo.end);
+    const hasHome = Boolean(quickHome.start && quickHome.end);
+
+    if (!hasClinic && !hasVideo && !hasHome) {
+      toast.error("Please enter hours for at least one service.");
+      return;
+    }
+
+    setWeeklyAvailability((prev) => {
+      const c = { ...(prev.clinic_slots || {}) };
+      const v = { ...(prev.video_slots || {}) };
+      const h = { ...(prev.home_slots || {}) };
+      let updatedLeave = [...(prev.leave_days || [])];
+
+      quickDays.forEach((day) => {
+        if (hasClinic) c[day] = { start: quickClinic.start, end: quickClinic.end };
+        if (hasVideo) v[day] = { start: quickVideo.start, end: quickVideo.end };
+        if (hasHome) h[day] = { start: quickHome.start, end: quickHome.end };
+        // Reactivate day if it was marked as leave
+        updatedLeave = updatedLeave.filter((d) => d !== day);
+      });
+
+      // If weekdays scope, mark Sunday as leave if not already
+      if (quickScope === "weekdays" && !updatedLeave.includes("Sunday")) {
+        updatedLeave.push("Sunday");
+      }
+
+      return {
+        ...prev,
+        clinic_slots: c,
+        video_slots: v,
+        home_slots: h,
+        leave_days: updatedLeave,
+      };
+    });
+
+    toast.success(`Hours applied to ${quickDays.length} day(s)!`);
   };
 
   const handleSpecialityAdd = (value) => {
@@ -846,8 +1115,12 @@ export default function DoctorProfile() {
         qualification: selectedQualifications,
         experience_years: experienceYears,
         video_consultation_fee: parseFee(profile.videoConsultationFee),
+        video_follow_up_fee: parseFee(profile.videoFollowUpFee),
         clinic_consultation_fee: parseFee(profile.clinicConsultationFee),
+        clinic_follow_up_fee: parseFee(profile.clinicFollowUpFee),
         home_visit_fee: parseFee(profile.homeVisitFee),
+        home_follow_up_fee: parseFee(profile.homeFollowUpFee),
+        follow_up_fee: parseFee(profile.followUpFee || profile.videoFollowUpFee || profile.clinicFollowUpFee),
         clinic_name: profile.hospital,
         clinic_address: profile.address,
         license_number: profile.licenseNumber,
@@ -913,10 +1186,10 @@ export default function DoctorProfile() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50 py-4 px-3 sm:px-6">
-      <div className="max-w-7xl mx-auto space-y-5">
+    <div className="min-h-screen bg-slate-50/50 py-2 sm:py-5 px-1 sm:px-4 md:px-6 pb-16 sm:pb-8">
+      <div className="max-w-7xl mx-auto space-y-3 sm:space-y-5">
         {/* Top Action Header Bar */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Doctor Profile & Settings</h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Manage your medical credentials, practice fees, opening hours & contact details</p>
@@ -927,17 +1200,17 @@ export default function DoctorProfile() {
               <button
                 type="button"
                 onClick={() => setIsEditing(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#0067A1] text-white text-sm font-medium rounded-lg hover:bg-[#004F7C] transition-colors"
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0067A1] text-white text-xs sm:text-sm font-semibold rounded-md hover:bg-[#004F7C] transition-colors shadow-2xs"
               >
-                <FaEdit className="w-3.5 h-3.5" />
-                Edit Profile
+                <FaEdit className="w-3 h-3" />
+                Edit
               </button>
             ) : (
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setIsEditing(false)}
-                  className="px-3.5 py-2 bg-white text-slate-700 text-sm font-medium rounded-lg border border-slate-300 hover:bg-slate-50 transition-colors"
+                  className="px-3 py-1.5 bg-white text-slate-700 text-xs sm:text-sm font-semibold rounded-md border border-slate-300 hover:bg-slate-50 transition-colors shadow-2xs"
                 >
                   Cancel
                 </button>
@@ -945,7 +1218,7 @@ export default function DoctorProfile() {
                   type="button"
                   onClick={handleSubmit}
                   disabled={isLoading}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#0067A1] text-white text-sm font-medium rounded-lg hover:bg-[#004F7C] transition-colors disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0067A1] text-white text-xs sm:text-sm font-semibold rounded-md hover:bg-[#004F7C] transition-colors disabled:opacity-50 shadow-2xs"
                 >
                   {isLoading ? (
                     <>
@@ -954,8 +1227,8 @@ export default function DoctorProfile() {
                     </>
                   ) : (
                     <>
-                      <FaSave className="w-3.5 h-3.5" />
-                      Save Changes
+                      <FaSave className="w-3 h-3" />
+                      Save
                     </>
                   )}
                 </button>
@@ -965,11 +1238,11 @@ export default function DoctorProfile() {
         </div>
 
         {/* Main 2-Column Responsive Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-5">
           {/* Left Main Form Column */}
-          <div className="lg:col-span-2 space-y-5">
+          <div className="lg:col-span-2 space-y-3 sm:space-y-5">
             {/* Personal Information */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 space-y-3 sm:space-y-4">
               <div className="border-b border-slate-100 pb-3">
                 <h2 className="text-base font-bold text-slate-900">Personal Information</h2>
                 <p className="text-xs text-slate-500">Contact details and identity information</p>
@@ -1020,7 +1293,7 @@ export default function DoctorProfile() {
             </div>
 
             {/* Speciality & Qualifications */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 space-y-3 sm:space-y-4">
               <div className="border-b border-slate-100 pb-3">
                 <h2 className="text-base font-bold text-slate-900">Specialities & Qualifications</h2>
                 <p className="text-xs text-slate-500">Medical degrees and clinical specializations</p>
@@ -1155,7 +1428,7 @@ export default function DoctorProfile() {
             </div>
 
             {/* Fees & Practice Details */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 space-y-3 sm:space-y-4">
               <div className="border-b border-slate-100 pb-3">
                 <h2 className="text-base font-bold text-slate-900">Consultation Fees & Experience</h2>
                 <p className="text-xs text-slate-500">Pricing and hospital affiliation</p>
@@ -1169,6 +1442,13 @@ export default function DoctorProfile() {
                   name="experience"
                   onChange={handleInputChange}
                 />
+                <Field
+                  label="Primary Hospital / Clinic Name"
+                  value={profile.hospital}
+                  isEditing={isEditing}
+                  name="hospital"
+                  onChange={handleInputChange}
+                />
                 
                 <Field
                   label="Video Consultation Fee (₹)"
@@ -1178,6 +1458,14 @@ export default function DoctorProfile() {
                   onChange={handleInputChange}
                 />
                 <Field
+                  label="Video Follow-up Fee (₹)"
+                  value={profile.videoFollowUpFee}
+                  isEditing={isEditing}
+                  name="videoFollowUpFee"
+                  onChange={handleInputChange}
+                />
+
+                <Field
                   label="Clinic Visit Fee (₹)"
                   value={profile.clinicConsultationFee}
                   isEditing={isEditing}
@@ -1185,70 +1473,121 @@ export default function DoctorProfile() {
                   onChange={handleInputChange}
                 />
                 <Field
+                  label="Clinic Follow-up Fee (₹)"
+                  value={profile.clinicFollowUpFee}
+                  isEditing={isEditing}
+                  name="clinicFollowUpFee"
+                  onChange={handleInputChange}
+                />
+
+                <Field
                   label="Home Visit Fee (₹)"
                   value={profile.homeVisitFee}
                   isEditing={isEditing}
                   name="homeVisitFee"
                   onChange={handleInputChange}
                 />
-                
                 <Field
-                  label="Primary Hospital / Clinic Name"
-                  value={profile.hospital}
+                  label="Home Visit Follow-up Fee (₹)"
+                  value={profile.homeFollowUpFee}
                   isEditing={isEditing}
-                  name="hospital"
+                  name="homeFollowUpFee"
                   onChange={handleInputChange}
                 />
               </div>
             </div>
 
             {/* Discounts & Additional Clinics */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-              <div className="border-b border-slate-100 pb-3">
-                <h2 className="text-base font-bold text-slate-900">Discounts & Practice Locations</h2>
-                <p className="text-xs text-slate-500">Follow-up discounts and secondary clinic addresses</p>
+            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-5">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Discounts & Practice Locations</h2>
+                  <p className="text-xs text-slate-500">Follow-up discounts and secondary clinic addresses</p>
+                </div>
+                <span className="text-[10px] font-semibold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200 shrink-0 whitespace-nowrap">
+                  Optional
+                </span>
               </div>
 
+              {/* Discount Section */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-700">
                     Follow-up Discount Type
                   </label>
-                  <select
-                    value={profile.secondBookingDiscountType}
-                    disabled={!isEditing}
-                    name="secondBookingDiscountType"
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-[#0067A1] disabled:bg-slate-50"
-                  >
-                    <option value="none">No Discount</option>
-                    <option value="percentage">Percentage (%)</option>
-                    <option value="flat">Flat Amount (₹)</option>
-                  </select>
+                  {isEditing ? (
+                    <select
+                      value={profile.secondBookingDiscountType}
+                      name="secondBookingDiscountType"
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-colors"
+                    >
+                      <option value="none">No Discount</option>
+                      <option value="percentage">Percentage (%)</option>
+                      <option value="flat">Flat Amount (₹)</option>
+                    </select>
+                  ) : (
+                    <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200/80 text-slate-800 text-sm min-h-[38px] flex items-center">
+                      {profile.secondBookingDiscountType === "percentage" ? (
+                        <span className="inline-flex items-center gap-1 font-medium text-emerald-700">
+                          <FaPercentage className="w-3 h-3 text-emerald-600" /> Percentage Discount
+                        </span>
+                      ) : profile.secondBookingDiscountType === "flat" ? (
+                        <span className="inline-flex items-center gap-1 font-medium text-emerald-700">
+                          <FaRupeeSign className="w-3 h-3 text-emerald-600" /> Flat Amount Discount
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-normal">No discount configured</span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {profile.secondBookingDiscountType !== "none" && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Discount Value
+                {profile.secondBookingDiscountType !== "none" ? (
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      {profile.secondBookingDiscountType === "percentage" ? "Discount Percentage (%)" : "Discount Amount (₹)"}
                     </label>
-                    <input
-                      type="number"
-                      value={profile.secondBookingDiscountValue}
-                      disabled={!isEditing}
-                      name="secondBookingDiscountValue"
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:border-[#0067A1] disabled:bg-slate-50"
-                      placeholder="Enter value"
-                    />
+                    {isEditing ? (
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-xs">
+                          {profile.secondBookingDiscountType === "percentage" ? "%" : "₹"}
+                        </span>
+                        <input
+                          type="number"
+                          value={profile.secondBookingDiscountValue}
+                          name="secondBookingDiscountValue"
+                          onChange={handleInputChange}
+                          className="w-full pl-7 pr-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-colors"
+                          placeholder={profile.secondBookingDiscountType === "percentage" ? "e.g. 20" : "e.g. 200"}
+                          min="0"
+                          max={profile.secondBookingDiscountType === "percentage" ? "100" : undefined}
+                        />
+                      </div>
+                    ) : (
+                      <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200/80 text-slate-800 text-sm font-semibold min-h-[38px] flex items-center">
+                        {profile.secondBookingDiscountType === "percentage"
+                          ? `${profile.secondBookingDiscountValue}% Off on 2nd Booking`
+                          : `₹${profile.secondBookingDiscountValue} Flat Off on 2nd Booking`}
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  <div className="hidden sm:block"></div>
                 )}
               </div>
 
-              {/* Additional Clinics */}
-              <div className="pt-3 border-t border-slate-100 space-y-3">
+              {/* Additional Clinics Section */}
+              <div className="pt-4 border-t border-slate-100 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-semibold text-slate-700">Additional Clinic Locations</span>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                      Additional Clinic Locations
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      Add other branches or consulting clinics where patients can visit you
+                    </p>
+                  </div>
                   {isEditing && (
                     <button
                       type="button"
@@ -1257,130 +1596,937 @@ export default function DoctorProfile() {
                         list.push({ name: "", address: "" });
                         setProfile(prev => ({ ...prev, additionalClinics: list }));
                       }}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-md border border-slate-200 transition-colors"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold rounded-md shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
                     >
-                      + Add Location
+                      <FaPlus className="w-2.5 h-2.5" />
+                      Add
                     </button>
                   )}
                 </div>
 
-                {(profile.additionalClinics || []).length === 0 && (
-                  <p className="text-xs text-slate-400 font-normal italic">No additional clinic locations added.</p>
-                )}
-
-                {(profile.additionalClinics || []).map((clinic, idx) => (
-                  <div key={idx} className="p-3 border border-slate-200 rounded-lg bg-slate-50/50 space-y-2 relative">
-                    {isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const list = (profile.additionalClinics || []).filter((_, i) => i !== idx);
-                          setProfile(prev => ({ ...prev, additionalClinics: list }));
-                        }}
-                        className="absolute top-2 right-2 text-slate-400 hover:text-rose-500"
-                      >
-                        <FaTimes className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        value={clinic.name || ""}
-                        disabled={!isEditing}
-                        onChange={(e) => {
-                          const list = [...profile.additionalClinics];
-                          list[idx].name = e.target.value;
-                          setProfile(prev => ({ ...prev, additionalClinics: list }));
-                        }}
-                        className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 bg-white"
-                        placeholder="Clinic Name"
-                      />
-                      <input
-                        type="text"
-                        value={clinic.address || ""}
-                        disabled={!isEditing}
-                        onChange={(e) => {
-                          const list = [...profile.additionalClinics];
-                          list[idx].address = e.target.value;
-                          setProfile(prev => ({ ...prev, additionalClinics: list }));
-                        }}
-                        className="px-2.5 py-1.5 text-xs rounded-md border border-slate-200 bg-white"
-                        placeholder="Clinic Address"
-                      />
-                    </div>
+                {(profile.additionalClinics || []).length === 0 ? (
+                  <div className="text-center py-6 px-4 border border-dashed border-slate-200 rounded-xl bg-slate-50/60">
+                    <FaClinicMedical className="w-7 h-7 text-slate-300 mx-auto mb-1.5" />
+                    <p className="text-xs font-medium text-slate-600">No additional clinic locations added yet</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {isEditing ? "Click \"Add Location\" above to add your other consulting addresses." : "Doctor has not configured secondary clinic locations."}
+                    </p>
                   </div>
-                ))}
+                ) : (
+                  <div className="space-y-3">
+                    {(profile.additionalClinics || []).map((clinic, idx) => (
+                      <div
+                        key={idx}
+                        className="p-4 border border-slate-200 rounded-xl bg-white shadow-2xs hover:border-slate-300 transition-all space-y-3"
+                      >
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-full bg-sky-50 text-[#0067A1] flex items-center justify-center text-[10px] font-bold">
+                              {idx + 1}
+                            </span>
+                            Additional Clinic #{idx + 1}
+                          </span>
+                          {isEditing && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const list = (profile.additionalClinics || []).filter((_, i) => i !== idx);
+                                setProfile(prev => ({ ...prev, additionalClinics: list }));
+                              }}
+                              className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                              title="Remove clinic location"
+                            >
+                              <FaTrashAlt className="w-3 h-3" />
+                              Remove
+                            </button>
+                          )}
+                        </div>
+
+                        {isEditing ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="block text-[11px] font-semibold text-slate-600">
+                                Clinic / Hospital Name
+                              </label>
+                              <input
+                                type="text"
+                                value={clinic.name || ""}
+                                onChange={(e) => {
+                                  const list = [...profile.additionalClinics];
+                                  list[idx] = { ...list[idx], name: e.target.value };
+                                  setProfile(prev => ({ ...prev, additionalClinics: list }));
+                                }}
+                                className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-colors"
+                                placeholder="e.g. MediConnect Polyclinic"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="block text-[11px] font-semibold text-slate-600">
+                                Clinic Address & Landmark
+                              </label>
+                              <input
+                                type="text"
+                                value={clinic.address || ""}
+                                onChange={(e) => {
+                                  const list = [...profile.additionalClinics];
+                                  list[idx] = { ...list[idx], address: e.target.value };
+                                  setProfile(prev => ({ ...prev, additionalClinics: list }));
+                                }}
+                                className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-colors"
+                                placeholder="e.g. 2nd Floor, Sector 14, Gurugram"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1 text-xs">
+                            <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                              <FaClinicMedical className="w-3.5 h-3.5 text-[#0067A1]" />
+                              {clinic.name || "Clinic Name Not Specified"}
+                            </div>
+                            <div className="text-slate-500 pl-5">
+                              {clinic.address || "No address specified"}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Weekly Timings */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-              <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <div className="bg-white rounded-xl border border-slate-200 p-2.5 sm:p-5 space-y-3 sm:space-y-4">
+              {/* Header */}
+              <div className="border-b border-slate-100 pb-2.5 sm:pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
                 <div>
-                  <h2 className="text-base font-bold text-slate-900">Weekly Schedule & Hours</h2>
-                  <p className="text-xs text-slate-500">Configure clinic, video consultation, and home visit availability</p>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-slate-900">Weekly Schedule & Hours</h2>
+                    <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md bg-blue-50 text-[#0067A1] border border-blue-200">
+                      Weekly OPD
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">Configure clinic, video consultation, and home visit availability</p>
                 </div>
-                <span className="text-xs text-amber-600 font-medium">Select at least 1 active day</span>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-amber-600 font-medium hidden md:inline">Select at least 1 active day</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isEditing) setIsEditing(true);
+                      setQuickSetupOpen((prev) => !prev);
+                    }}
+                    className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs ${
+                      quickSetupOpen
+                        ? "bg-[#0067A1] text-white ring-2 ring-[#0067A1]/20 shadow-blue-100"
+                        : "bg-blue-50 text-[#0067A1] hover:bg-blue-100 border border-blue-200"
+                    }`}
+                  >
+                    <FaBolt className="w-3 h-3 text-amber-500" />
+                    Quick Setup
+                    {quickSetupOpen ? <FaChevronUp className="w-2.5 h-2.5 ml-0.5" /> : <FaChevronDown className="w-2.5 h-2.5 ml-0.5" />}
+                  </button>
+                </div>
               </div>
 
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th className="p-2.5">Day</th>
-                      <th className="p-2.5 text-center">Leave</th>
-                      <th className="p-2.5">Clinic Visit</th>
-                      <th className="p-2.5">Video Consultation</th>
-                      <th className="p-2.5">Home Visit</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {daysOfWeek.map((day) => (
-                      <tr key={day} className="hover:bg-slate-50/50">
-                        <td className="p-2.5 font-semibold text-slate-800">{day}</td>
-                        <td className="p-2.5 text-center">
+              {/* Quick Setup Panel */}
+              {quickSetupOpen && (
+                <div className="p-2.5 sm:p-4 rounded-xl bg-gradient-to-br from-blue-50/70 via-slate-50 to-indigo-50/50 border border-blue-200/80 space-y-3 animate-in fade-in duration-200">
+                  {/* Presets Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-blue-100">
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        <FaBolt className="text-amber-500 w-3.5 h-3.5" />
+                        Quick Batch Availability
+                      </h3>
+                      <p className="text-[11px] text-slate-500">Apply hours across selected days in one click</p>
+                    </div>
+
+                    {/* Presets */}
+                    <div className="flex items-center flex-wrap gap-1.5">
+                      <span className="text-[11px] font-semibold text-slate-500 mr-1">Presets:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset("mon_fri")}
+                        className="px-2.5 py-1 text-xs font-semibold rounded-md bg-white border border-slate-200 text-slate-700 hover:border-[#0067A1] hover:text-[#0067A1] shadow-2xs transition-colors"
+                      >
+                        Mon - Fri
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset("mon_sat")}
+                        className="px-2.5 py-1 text-xs font-semibold rounded-md bg-white border border-slate-200 text-slate-700 hover:border-[#0067A1] hover:text-[#0067A1] shadow-2xs transition-colors"
+                      >
+                        Mon - Sat
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset("sunday_off")}
+                        className={`px-2.5 py-1 text-xs font-semibold rounded-md border shadow-2xs transition-colors ${
+                          weeklyAvailability.leave_days.includes("Sunday")
+                            ? "bg-amber-50 border-amber-300 text-amber-700"
+                            : "bg-white border-slate-200 text-slate-700 hover:border-amber-400"
+                        }`}
+                      >
+                        {weeklyAvailability.leave_days.includes("Sunday") ? "Sunday: Off ✓" : "Sunday Off"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPreset("clear_all")}
+                        className="px-2.5 py-1 text-xs font-semibold rounded-md bg-white border border-red-200 text-red-600 hover:bg-red-50 shadow-2xs transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Batch Inputs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {/* Clinic Visit */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <FaClinicMedical className="w-3.5 h-3.5 text-[#0067A1]" />
+                          Clinic Visit
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setQuickClinic({ start: "", end: "" })}
+                          className="text-[10px] text-slate-400 hover:text-red-500 font-medium"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-400 block mb-1">Start</span>
                           <input
-                            type="checkbox"
-                            checked={weeklyAvailability.leave_days.includes(day)}
-                            onChange={() => isEditing && handleWeeklyLeaveToggle(day)}
-                            disabled={!isEditing}
-                            className="w-3.5 h-3.5 rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1]"
+                            type="time"
+                            value={quickClinic.start}
+                            onChange={(e) => setQuickClinic((p) => ({ ...p, start: e.target.value }))}
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold bg-slate-50 focus:bg-white focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1]"
                           />
-                        </td>
-                        {["clinic_slots", "video_slots", "home_slots"].map((type) => (
-                          <td key={type} className="p-2.5">
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="time"
-                                value={weeklyAvailability[type]?.[day]?.start || ""}
-                                onChange={(e) =>
-                                  handleWeeklySlotChange(type, day, "start", e.target.value)
-                                }
-                                disabled={!isEditing || weeklyAvailability.leave_days.includes(day)}
-                                className="border border-slate-200 rounded px-1.5 py-1 text-xs disabled:bg-slate-100 disabled:text-slate-400"
-                              />
-                              <span className="text-slate-400">-</span>
-                              <input
-                                type="time"
-                                value={weeklyAvailability[type]?.[day]?.end || ""}
-                                onChange={(e) =>
-                                  handleWeeklySlotChange(type, day, "end", e.target.value)
-                                }
-                                disabled={!isEditing || weeklyAvailability.leave_days.includes(day)}
-                                className="border border-slate-200 rounded px-1.5 py-1 text-xs disabled:bg-slate-100 disabled:text-slate-400"
-                              />
-                            </div>
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-400 block mb-1">End</span>
+                          <input
+                            type="time"
+                            value={quickClinic.end}
+                            onChange={(e) => setQuickClinic((p) => ({ ...p, end: e.target.value }))}
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold bg-slate-50 focus:bg-white focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Video Consultation */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2 shadow-2xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <FaVideo className="w-3.5 h-3.5 text-purple-600" />
+                          Video Consultation
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setQuickVideo({ start: "", end: "" })}
+                          className="text-[10px] text-slate-400 hover:text-red-500 font-medium"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-400 block mb-1">Start</span>
+                          <input
+                            type="time"
+                            value={quickVideo.start}
+                            onChange={(e) => setQuickVideo((p) => ({ ...p, start: e.target.value }))}
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold bg-slate-50 focus:bg-white focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1]"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-400 block mb-1">End</span>
+                          <input
+                            type="time"
+                            value={quickVideo.end}
+                            onChange={(e) => setQuickVideo((p) => ({ ...p, end: e.target.value }))}
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold bg-slate-50 focus:bg-white focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Home Visit */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2 shadow-2xs sm:col-span-2 md:col-span-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <FaMapMarkerAlt className="w-3.5 h-3.5 text-emerald-600" />
+                          Home Visit (Optional)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setQuickHome({ start: "", end: "" })}
+                          className="text-[10px] text-slate-400 hover:text-red-500 font-medium"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-400 block mb-1">Start</span>
+                          <input
+                            type="time"
+                            value={quickHome.start}
+                            onChange={(e) => setQuickHome((p) => ({ ...p, start: e.target.value }))}
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold bg-slate-50 focus:bg-white focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1]"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-semibold text-slate-400 block mb-1">End</span>
+                          <input
+                            type="time"
+                            value={quickHome.end}
+                            onChange={(e) => setQuickHome((p) => ({ ...p, end: e.target.value }))}
+                            className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold bg-slate-50 focus:bg-white focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1]"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Apply Controls */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                    <div className="flex items-center flex-wrap gap-1.5">
+                      <span className="text-xs font-semibold text-slate-700 mr-1">Apply To:</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickScope("weekdays");
+                          setQuickDays(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]);
+                        }}
+                        className={`px-2.5 py-1 text-xs rounded-md font-semibold transition-colors ${
+                          quickScope === "weekdays"
+                            ? "bg-[#0067A1] text-white shadow-2xs"
+                            : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        Mon - Fri
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickScope("mon_sat");
+                          setQuickDays(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]);
+                        }}
+                        className={`px-2.5 py-1 text-xs rounded-md font-semibold transition-colors ${
+                          quickScope === "mon_sat"
+                            ? "bg-[#0067A1] text-white shadow-2xs"
+                            : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        Mon - Sat
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickScope("all");
+                          setQuickDays([...daysOfWeek]);
+                        }}
+                        className={`px-2.5 py-1 text-xs rounded-md font-semibold transition-colors ${
+                          quickScope === "all"
+                            ? "bg-[#0067A1] text-white shadow-2xs"
+                            : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        All Days
+                      </button>
+
+                      {/* Day Toggles */}
+                      <div className="flex items-center gap-1 sm:ml-2">
+                        {daysOfWeek.map((d) => {
+                          const isSel = quickDays.includes(d);
+                          return (
+                            <button
+                              key={d}
+                              type="button"
+                              onClick={() => {
+                                setQuickScope("custom");
+                                setQuickDays((prev) =>
+                                  prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
+                                );
+                              }}
+                              className={`w-6 h-6 rounded text-[10px] font-bold transition-all ${
+                                isSel
+                                  ? "bg-[#0067A1] text-white shadow-2xs"
+                                  : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-100"
+                              }`}
+                              title={d}
+                            >
+                              {d.slice(0, 1)}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleApplyBatchSchedule}
+                      className="px-3.5 py-1.5 rounded-md bg-[#0067A1] hover:bg-[#005282] text-white text-xs font-semibold shadow-2xs transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <FaCheck className="w-3 h-3" />
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* View Mode & Filter Controls */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+                {/* Service Filter Tabs */}
+                <div className="flex items-center flex-wrap gap-1 bg-slate-100/90 p-0.5 sm:p-1 rounded-lg border border-slate-200/60">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleFilterService("all")}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                      scheduleFilterService === "all"
+                        ? "bg-white text-slate-900 shadow-2xs font-bold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleFilterService("clinic")}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                      scheduleFilterService === "clinic"
+                        ? "bg-[#0067A1] text-white shadow-2xs font-bold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <FaClinicMedical className="w-3 h-3" />
+                    Clinic
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleFilterService("video")}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                      scheduleFilterService === "video"
+                        ? "bg-purple-600 text-white shadow-2xs font-bold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <FaVideo className="w-3 h-3" />
+                    Video
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleFilterService("home")}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                      scheduleFilterService === "home"
+                        ? "bg-emerald-600 text-white shadow-2xs font-bold"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <FaMapMarkerAlt className="w-3 h-3" />
+                    Home
+                  </button>
+                </div>
+
+                {/* View Switcher: Cards vs Table */}
+                <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-lg border border-slate-200/60 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleViewMode("cards")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                      scheduleViewMode === "cards"
+                        ? "bg-white text-[#0067A1] shadow-2xs font-bold"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Cards
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleViewMode("table")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                      scheduleViewMode === "table"
+                        ? "bg-white text-[#0067A1] shadow-2xs font-bold"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    Table
+                  </button>
+                </div>
               </div>
+
+              {/* View 1: 100% Responsive Cards View (Default) */}
+              {scheduleViewMode === "cards" ? (
+                <div className="space-y-3">
+                  {daysOfWeek.map((day) => {
+                    const isLeave = weeklyAvailability.leave_days.includes(day);
+                    const clinicSlot = weeklyAvailability.clinic_slots?.[day] || { start: "", end: "" };
+                    const videoSlot = weeklyAvailability.video_slots?.[day] || { start: "", end: "" };
+                    const homeSlot = weeklyAvailability.home_slots?.[day] || { start: "", end: "" };
+
+                    return (
+                      <div
+                        key={day}
+                        className={`rounded-xl border transition-all duration-200 overflow-hidden ${
+                          isLeave
+                            ? "bg-slate-50/70 border-slate-200"
+                            : "bg-white border-slate-200 hover:border-slate-300 shadow-2xs"
+                        }`}
+                      >
+                        {/* Day Card Header */}
+                        <div className="px-3.5 py-2.5 bg-slate-50/90 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5">
+                            <span className={`text-xs sm:text-sm font-bold ${isLeave ? "text-slate-400 line-through" : "text-slate-800"}`}>
+                              {day}
+                            </span>
+
+                            {isEditing ? (
+                              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={isLeave}
+                                  onChange={() => handleWeeklyLeaveToggle(day)}
+                                  className="w-3.5 h-3.5 rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1] cursor-pointer"
+                                />
+                                <span className={`text-[11px] font-medium ${isLeave ? "text-amber-700 font-semibold" : "text-slate-500"}`}>
+                                  {isLeave ? "Off (Leave)" : "Active"}
+                                </span>
+                              </label>
+                            ) : (
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${
+                                isLeave
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              }`}>
+                                {isLeave ? "Off" : "Active"}
+                              </span>
+                            )}
+                          </div>
+
+                          {isEditing && (
+                            <div className="flex items-center gap-1.5">
+                              {!isLeave && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyDayToAll(day)}
+                                  title={`Copy ${day}'s hours to other active days`}
+                                  className="px-2.5 py-1 rounded text-xs font-semibold bg-white hover:bg-[#0067A1] text-[#0067A1] hover:text-white border border-blue-200 hover:border-[#0067A1] transition-all shadow-2xs flex items-center gap-1"
+                                >
+                                  <FaCopy className="w-2.5 h-2.5" />
+                                  Copy
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleClearDay(day)}
+                                title={`Clear ${day} timings`}
+                                className="px-2 py-1 rounded text-xs text-slate-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition-colors"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Day Card Body */}
+                        <div className="p-3 sm:p-3.5">
+                          {isLeave ? (
+                            <div className="py-2 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                              <span>🏖️ Day marked as leave. No appointments scheduled.</span>
+                              {isEditing && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleWeeklyLeaveToggle(day)}
+                                  className="text-xs font-semibold text-[#0067A1] hover:underline"
+                                >
+                                  Activate
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                              {/* Clinic Visit */}
+                              {(scheduleFilterService === "all" || scheduleFilterService === "clinic") && (
+                                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/60 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                      <FaClinicMedical className="w-3.5 h-3.5 text-[#0067A1]" />
+                                      Clinic Visit
+                                    </span>
+                                    {clinicSlot.start && clinicSlot.end ? (
+                                      <span className="text-[10px] font-semibold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.2 rounded-md">
+                                        Set
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400">Not set</span>
+                                    )}
+                                  </div>
+
+                                  {isEditing ? (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 block mb-1">Start</span>
+                                        <input
+                                          type="time"
+                                          value={clinicSlot.start || ""}
+                                          onChange={(e) => handleWeeklySlotChange("clinic_slots", day, "start", e.target.value)}
+                                          className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold bg-white text-slate-800 focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1]"
+                                        />
+                                      </div>
+                                      <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 block mb-1">End</span>
+                                        <input
+                                          type="time"
+                                          value={clinicSlot.end || ""}
+                                          onChange={(e) => handleWeeklySlotChange("clinic_slots", day, "end", e.target.value)}
+                                          className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold bg-white text-slate-800 focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1]"
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    clinicSlot.start && clinicSlot.end ? (
+                                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 bg-white border border-slate-200/90 rounded-lg px-2.5 py-1.5 shadow-2xs">
+                                        <FaClock className="w-3.5 h-3.5 text-[#0067A1] shrink-0" />
+                                        <span>{formatTime12(clinicSlot.start)}</span>
+                                        <span className="text-slate-300 font-bold">—</span>
+                                        <span>{formatTime12(clinicSlot.end)}</span>
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-slate-400 italic bg-white/70 border border-dashed border-slate-200 rounded-lg px-2.5 py-1.5">
+                                        Not configured
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Video Consultation */}
+                              {(scheduleFilterService === "all" || scheduleFilterService === "video") && (
+                                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/60 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                      <FaVideo className="w-3.5 h-3.5 text-purple-600" />
+                                      Video Consultation
+                                    </span>
+                                    {videoSlot.start && videoSlot.end ? (
+                                      <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.2 rounded-md">
+                                        Set
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400">Not set</span>
+                                    )}
+                                  </div>
+
+                                  {isEditing ? (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 block mb-1">Start</span>
+                                        <input
+                                          type="time"
+                                          value={videoSlot.start || ""}
+                                          onChange={(e) => handleWeeklySlotChange("video_slots", day, "start", e.target.value)}
+                                          className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold bg-white text-slate-800 focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1]"
+                                        />
+                                      </div>
+                                      <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 block mb-1">End</span>
+                                        <input
+                                          type="time"
+                                          value={videoSlot.end || ""}
+                                          onChange={(e) => handleWeeklySlotChange("video_slots", day, "end", e.target.value)}
+                                          className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold bg-white text-slate-800 focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1]"
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    videoSlot.start && videoSlot.end ? (
+                                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 bg-white border border-slate-200/90 rounded-lg px-2.5 py-1.5 shadow-2xs">
+                                        <FaClock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                                        <span>{formatTime12(videoSlot.start)}</span>
+                                        <span className="text-slate-300 font-bold">—</span>
+                                        <span>{formatTime12(videoSlot.end)}</span>
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-slate-400 italic bg-white/70 border border-dashed border-slate-200 rounded-lg px-2.5 py-1.5">
+                                        Not configured
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Home Visit */}
+                              {(scheduleFilterService === "all" || scheduleFilterService === "home") && (
+                                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/60 space-y-2 sm:col-span-2 md:col-span-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                      <FaMapMarkerAlt className="w-3.5 h-3.5 text-emerald-600" />
+                                      Home Visit
+                                    </span>
+                                    {homeSlot.start && homeSlot.end ? (
+                                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                                        Set
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400">Optional</span>
+                                    )}
+                                  </div>
+
+                                  {isEditing ? (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 block mb-1">Start</span>
+                                        <input
+                                          type="time"
+                                          value={homeSlot.start || ""}
+                                          onChange={(e) => handleWeeklySlotChange("home_slots", day, "start", e.target.value)}
+                                          className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold bg-white text-slate-800 focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1]"
+                                        />
+                                      </div>
+                                      <div>
+                                        <span className="text-[10px] font-semibold text-slate-400 block mb-1">End</span>
+                                        <input
+                                          type="time"
+                                          value={homeSlot.end || ""}
+                                          onChange={(e) => handleWeeklySlotChange("home_slots", day, "end", e.target.value)}
+                                          className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold bg-white text-slate-800 focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1]"
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    homeSlot.start && homeSlot.end ? (
+                                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 bg-white border border-slate-200/90 rounded-lg px-2.5 py-1.5 shadow-2xs">
+                                        <FaClock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                        <span>{formatTime12(homeSlot.start)}</span>
+                                        <span className="text-slate-300 font-bold">—</span>
+                                        <span>{formatTime12(homeSlot.end)}</span>
+                                      </div>
+                                    ) : (
+                                      <div className="text-xs text-slate-400 italic bg-white/70 border border-dashed border-slate-200 rounded-lg px-2.5 py-1.5">
+                                        Not configured
+                                      </div>
+                                    )
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* View 2: Table View with STICKY Day Column so it NEVER cuts off */
+                <div className="overflow-x-auto rounded-lg border border-slate-200 shadow-2xs">
+                  <table className="w-full text-xs text-left min-w-[640px]">
+                    <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                      <tr>
+                        {/* Sticky Day Column */}
+                        <th className="p-2.5 sticky left-0 bg-slate-100 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200 min-w-[130px]">
+                          Day / Status
+                        </th>
+                        {(scheduleFilterService === "all" || scheduleFilterService === "clinic") && (
+                          <th className="p-2.5 min-w-[210px]">Clinic Visit</th>
+                        )}
+                        {(scheduleFilterService === "all" || scheduleFilterService === "video") && (
+                          <th className="p-2.5 min-w-[210px]">Video Consultation</th>
+                        )}
+                        {(scheduleFilterService === "all" || scheduleFilterService === "home") && (
+                          <th className="p-2.5 min-w-[210px]">Home Visit</th>
+                        )}
+                        {isEditing && <th className="p-2.5 text-right min-w-[110px]">Action</th>}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {daysOfWeek.map((day) => {
+                        const isLeave = weeklyAvailability.leave_days.includes(day);
+                        return (
+                          <tr key={day} className={`hover:bg-slate-50/50 transition-colors ${isLeave ? "bg-slate-50/60" : ""}`}>
+                            {/* Sticky Left Day Cell */}
+                            <td className="p-2.5 sticky left-0 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] border-r border-slate-200">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`font-bold ${isLeave ? "text-slate-400 line-through" : "text-slate-800"}`}>
+                                  {day}
+                                </span>
+                                {isEditing ? (
+                                  <label className="flex items-center gap-1 cursor-pointer" title="Toggle Leave">
+                                    <input
+                                      type="checkbox"
+                                      checked={isLeave}
+                                      onChange={() => handleWeeklyLeaveToggle(day)}
+                                      className="w-3.5 h-3.5 rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1]"
+                                    />
+                                    <span className="text-[10px] text-slate-500">Off</span>
+                                  </label>
+                                ) : (
+                                  isLeave && (
+                                    <span className="text-[9px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                      Off
+                                    </span>
+                                  )
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Clinic */}
+                            {(scheduleFilterService === "all" || scheduleFilterService === "clinic") && (
+                              <td className="p-2.5">
+                                {isEditing ? (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="time"
+                                      value={weeklyAvailability.clinic_slots?.[day]?.start || ""}
+                                      onChange={(e) => handleWeeklySlotChange("clinic_slots", day, "start", e.target.value)}
+                                      disabled={isLeave}
+                                      className={`w-[110px] border border-slate-200 rounded px-1.5 py-1 text-xs ${
+                                        isLeave ? "bg-slate-100 text-slate-300" : "bg-white text-slate-800"
+                                      } disabled:bg-slate-100 disabled:text-slate-400`}
+                                    />
+                                    <span className="text-slate-400">-</span>
+                                    <input
+                                      type="time"
+                                      value={weeklyAvailability.clinic_slots?.[day]?.end || ""}
+                                      onChange={(e) => handleWeeklySlotChange("clinic_slots", day, "end", e.target.value)}
+                                      disabled={isLeave}
+                                      className={`w-[110px] border border-slate-200 rounded px-1.5 py-1 text-xs ${
+                                        isLeave ? "bg-slate-100 text-slate-300" : "bg-white text-slate-800"
+                                      } disabled:bg-slate-100 disabled:text-slate-400`}
+                                    />
+                                  </div>
+                                ) : (
+                                  weeklyAvailability.clinic_slots?.[day]?.start && weeklyAvailability.clinic_slots?.[day]?.end ? (
+                                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-800 bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                                      <FaClock className="w-3 h-3 text-[#0067A1]" />
+                                      {formatTime12(weeklyAvailability.clinic_slots[day].start)} – {formatTime12(weeklyAvailability.clinic_slots[day].end)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-xs">—</span>
+                                  )
+                                )}
+                              </td>
+                            )}
+
+                            {/* Video */}
+                            {(scheduleFilterService === "all" || scheduleFilterService === "video") && (
+                              <td className="p-2.5">
+                                {isEditing ? (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="time"
+                                      value={weeklyAvailability.video_slots?.[day]?.start || ""}
+                                      onChange={(e) => handleWeeklySlotChange("video_slots", day, "start", e.target.value)}
+                                      disabled={isLeave}
+                                      className={`w-[110px] border border-slate-200 rounded px-1.5 py-1 text-xs ${
+                                        isLeave ? "bg-slate-100 text-slate-300" : "bg-white text-slate-800"
+                                      } disabled:bg-slate-100 disabled:text-slate-400`}
+                                    />
+                                    <span className="text-slate-400">-</span>
+                                    <input
+                                      type="time"
+                                      value={weeklyAvailability.video_slots?.[day]?.end || ""}
+                                      onChange={(e) => handleWeeklySlotChange("video_slots", day, "end", e.target.value)}
+                                      disabled={isLeave}
+                                      className={`w-[110px] border border-slate-200 rounded px-1.5 py-1 text-xs ${
+                                        isLeave ? "bg-slate-100 text-slate-300" : "bg-white text-slate-800"
+                                      } disabled:bg-slate-100 disabled:text-slate-400`}
+                                    />
+                                  </div>
+                                ) : (
+                                  weeklyAvailability.video_slots?.[day]?.start && weeklyAvailability.video_slots?.[day]?.end ? (
+                                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-800 bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                                      <FaClock className="w-3 h-3 text-purple-600" />
+                                      {formatTime12(weeklyAvailability.video_slots[day].start)} – {formatTime12(weeklyAvailability.video_slots[day].end)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-xs">—</span>
+                                  )
+                                )}
+                              </td>
+                            )}
+
+                            {/* Home */}
+                            {(scheduleFilterService === "all" || scheduleFilterService === "home") && (
+                              <td className="p-2.5">
+                                {isEditing ? (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="time"
+                                      value={weeklyAvailability.home_slots?.[day]?.start || ""}
+                                      onChange={(e) => handleWeeklySlotChange("home_slots", day, "start", e.target.value)}
+                                      disabled={isLeave}
+                                      className={`w-[110px] border border-slate-200 rounded px-1.5 py-1 text-xs ${
+                                        isLeave ? "bg-slate-100 text-slate-300" : "bg-white text-slate-800"
+                                      } disabled:bg-slate-100 disabled:text-slate-400`}
+                                    />
+                                    <span className="text-slate-400">-</span>
+                                    <input
+                                      type="time"
+                                      value={weeklyAvailability.home_slots?.[day]?.end || ""}
+                                      onChange={(e) => handleWeeklySlotChange("home_slots", day, "end", e.target.value)}
+                                      disabled={isLeave}
+                                      className={`w-[110px] border border-slate-200 rounded px-1.5 py-1 text-xs ${
+                                        isLeave ? "bg-slate-100 text-slate-300" : "bg-white text-slate-800"
+                                      } disabled:bg-slate-100 disabled:text-slate-400`}
+                                    />
+                                  </div>
+                                ) : (
+                                  weeklyAvailability.home_slots?.[day]?.start && weeklyAvailability.home_slots?.[day]?.end ? (
+                                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-800 bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                                      <FaClock className="w-3 h-3 text-emerald-600" />
+                                      {formatTime12(weeklyAvailability.home_slots[day].start)} – {formatTime12(weeklyAvailability.home_slots[day].end)}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 text-xs">—</span>
+                                  )
+                                )}
+                              </td>
+                            )}
+
+                            {/* Actions */}
+                            {isEditing && (
+                              <td className="p-2.5 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  {!isLeave && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyDayToAll(day)}
+                                      title={`Copy ${day}'s timings to all days`}
+                                      className="px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-[#0067A1] hover:bg-[#0067A1] hover:text-white border border-blue-200 transition-colors flex items-center gap-1"
+                                    >
+                                      <FaCopy className="w-2.5 h-2.5" />
+                                      Copy
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleClearDay(day)}
+                                    title={`Clear ${day} hours`}
+                                    className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                  >
+                                    <FaTimes className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* Address & Bio */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 space-y-3 sm:space-y-4">
               <div className="border-b border-slate-100 pb-3">
                 <h2 className="text-base font-bold text-slate-900">Address & Professional Bio</h2>
                 <p className="text-xs text-slate-500">Physical address and summary for patients</p>
@@ -1407,13 +2553,44 @@ export default function DoctorProfile() {
                   onChange={handleInputChange}
                 />
               </div>
+
+              {isEditing && (
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold rounded-md border border-slate-200 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={isLoading}
+                    className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs sm:text-sm font-semibold rounded-md transition-colors disabled:opacity-50 shadow-2xs cursor-pointer"
+                  >
+                    {isLoading ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FaSave className="w-3.5 h-3.5" />
+                        <span>Save</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
+
           </div>
 
           {/* Right Summary Column */}
-          <div className="space-y-5">
+          <div className="space-y-3 sm:space-y-5">
             {/* Profile Avatar Card */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 text-center space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 text-center space-y-3 sm:space-y-4">
               <div className="relative w-28 h-28 mx-auto">
                 <div className="w-28 h-28 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden">
                   {profilePicture ? (
@@ -1440,11 +2617,6 @@ export default function DoctorProfile() {
               <div>
                 <h3 className="text-lg font-bold text-slate-900">{profile.name || "Doctor Profile"}</h3>
                 <p className="text-xs font-semibold text-[#0067A1] mt-0.5">{profile.specialization || "General Physician"}</p>
-                <div className="flex items-center justify-center gap-1 mt-2 text-xs text-slate-600">
-                  <FaStar className="w-3.5 h-3.5 text-amber-500" />
-                  <span className="font-medium text-slate-800">{profile.rating || "5.0"}</span>
-                  <span className="text-slate-400">({profile.patientsTreated || 0} consultations)</span>
-                </div>
               </div>
 
               <div className="pt-3 border-t border-slate-100 text-xs space-y-2 text-left">
@@ -1488,6 +2660,7 @@ export default function DoctorProfile() {
           </div>
         </div>
       </div>
+
     </div>
   );
 }

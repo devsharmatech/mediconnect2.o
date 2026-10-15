@@ -433,7 +433,9 @@ export default function ComingSoonPage() {
             <span className="flex items-center gap-1.5 font-medium">
               <Phone className="w-3.5 h-3.5 text-[#1677A8]" />
               <span>Call: </span>
-              <span className="text-[#0B3A5B] font-semibold">+91 1800 123 4567</span>
+              <a href="tel:+917289043888" className="text-[#0B3A5B] font-semibold hover:underline">
+                +91 7289 043888
+              </a>
             </span>
           </div>
         </section>

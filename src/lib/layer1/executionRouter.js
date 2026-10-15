@@ -115,26 +115,112 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
     return Number.isFinite(num) ? num : null;
   };
 
+  let isFollowUp = payload.is_follow_up === true || String(appointment_type || "").toLowerCase().includes("follow");
+  let followUpParentId = payload.follow_up_parent_id || null;
+  const doctorMigrationCode = payload.doctor_migration_code ? String(payload.doctor_migration_code).trim() : null;
+
+  // Auto-detect follow-up if not explicitly flagged: check for valid prior consultation within 15 days
+  if (!isFollowUp && patient_id && doctor_id) {
+    try {
+      const priorAppts = await sql`
+        SELECT id, appointment_date, created_at
+        FROM appointments
+        WHERE patient_id = ${patient_id}
+          AND doctor_id = ${doctor_id}
+          AND status NOT IN ('cancelled', 'rejected')
+        ORDER BY appointment_date DESC, created_at DESC
+        LIMIT 1;
+      `;
+      if (priorAppts.length > 0) {
+        const priorDate = new Date(priorAppts[0].appointment_date || priorAppts[0].created_at);
+        const diffDays = Math.floor((Date.now() - priorDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays >= 0 && diffDays <= 15) {
+          isFollowUp = true;
+          if (!followUpParentId) followUpParentId = priorAppts[0].id;
+        }
+      }
+    } catch (fErr) {
+      console.warn("[BOOK_APPOINTMENT] Follow-up detection warning:", fErr.message);
+    }
+  }
+
   let doctorCalculatedFee = 0;
-  if (appointment_type === "video" || appointment_type === "video_consultation" || appointment_type === "video_call") {
-    doctorCalculatedFee = parseFeeVal(meta?.video_consultation_fee)
+  let originalBaseFee = 0;
+
+  if (appointment_type === "video" || appointment_type === "video_consultation" || appointment_type === "video_call" || appointment_type === "video_follow_up") {
+    const regFee = parseFeeVal(meta?.video_consultation_fee)
       ?? parseFeeVal(doctorDetails?.video_consultation_fee)
       ?? parseFeeVal(doctorDetails?.consultation_fee)
       ?? 0;
-  } else if (appointment_type === "home_visit") {
-    doctorCalculatedFee = parseFeeVal(meta?.home_visit_fee)
+    const fuFee = parseFeeVal(meta?.video_follow_up_fee)
+      ?? parseFeeVal(doctorDetails?.video_follow_up_fee)
+      ?? parseFeeVal(meta?.follow_up_fee)
+      ?? parseFeeVal(doctorDetails?.follow_up_fee)
+      ?? regFee;
+
+    originalBaseFee = isFollowUp ? fuFee : regFee;
+    doctorCalculatedFee = originalBaseFee;
+  } else if (appointment_type === "home_visit" || appointment_type === "home_follow_up") {
+    const regFee = parseFeeVal(meta?.home_visit_fee)
       ?? parseFeeVal(doctorDetails?.home_visit_fee)
       ?? parseFeeVal(doctorDetails?.consultation_fee)
       ?? 0;
-  } else {
-    // clinic_visit or default
-    doctorCalculatedFee = parseFeeVal(meta?.clinic_consultation_fee)
+    const fuFee = parseFeeVal(meta?.home_follow_up_fee)
+      ?? parseFeeVal(doctorDetails?.home_follow_up_fee)
+      ?? parseFeeVal(meta?.follow_up_fee)
+      ?? parseFeeVal(doctorDetails?.follow_up_fee)
+      ?? regFee;
+
+    originalBaseFee = isFollowUp ? fuFee : regFee;
+    doctorCalculatedFee = originalBaseFee;
+  } else if (appointment_type === "follow_up" || appointment_type === "followup") {
+    isFollowUp = true;
+    originalBaseFee = parseFeeVal(meta?.follow_up_fee)
+      ?? parseFeeVal(doctorDetails?.follow_up_fee)
+      ?? parseFeeVal(meta?.clinic_follow_up_fee)
+      ?? parseFeeVal(doctorDetails?.clinic_follow_up_fee)
+      ?? parseFeeVal(meta?.video_follow_up_fee)
+      ?? parseFeeVal(doctorDetails?.video_follow_up_fee)
+      ?? parseFeeVal(meta?.clinic_consultation_fee)
       ?? parseFeeVal(doctorDetails?.clinic_consultation_fee)
       ?? parseFeeVal(doctorDetails?.consultation_fee)
       ?? 0;
+    doctorCalculatedFee = originalBaseFee;
+  } else {
+    // clinic_visit, clinic_follow_up or default
+    const regFee = parseFeeVal(meta?.clinic_consultation_fee)
+      ?? parseFeeVal(doctorDetails?.clinic_consultation_fee)
+      ?? parseFeeVal(doctorDetails?.consultation_fee)
+      ?? 0;
+    const fuFee = parseFeeVal(meta?.clinic_follow_up_fee)
+      ?? parseFeeVal(doctorDetails?.clinic_follow_up_fee)
+      ?? parseFeeVal(meta?.follow_up_fee)
+      ?? parseFeeVal(doctorDetails?.follow_up_fee)
+      ?? regFee;
+
+    originalBaseFee = isFollowUp ? fuFee : regFee;
+    doctorCalculatedFee = originalBaseFee;
   }
 
-  // If requestedFee is explicitly 0, consultation is free; otherwise use the minimum of requestedFee or doctor fee
+  // Calculate discount (Rule: Discount does NOT apply on follow-up!)
+  let discountAmount = 0;
+  if (!isFollowUp) {
+    const discountType = doctorDetails?.second_booking_discount_type;
+    const discountVal = Number(doctorDetails?.second_booking_discount_value || 0);
+    if (discountType && discountType !== "none" && discountVal > 0) {
+      if (discountType === "percentage") {
+        discountAmount = originalBaseFee * (discountVal / 100);
+      } else if (discountType === "flat" || discountType === "fixed") {
+        discountAmount = discountVal;
+      }
+      discountAmount = Math.max(0, Math.min(originalBaseFee, discountAmount));
+      doctorCalculatedFee = Math.max(0, originalBaseFee - discountAmount);
+    }
+  } else {
+    discountAmount = 0; // Strictly no discount on follow-up
+  }
+
+  // If requestedFee is explicitly 0, consultation is free; otherwise use requestedFee or calculated fee
   const fee = parsedRequestedFee === 0
     ? 0
     : (parsedRequestedFee !== null ? parsedRequestedFee : doctorCalculatedFee);
@@ -153,7 +239,7 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
     throw new Error("This appointment slot is already booked. Please choose a different time.");
   }
 
-  // Insert appointment
+  // Insert appointment with follow-up, pricing, and migration code tracking
   const diseaseInfoVal = disease_info
     ? (typeof disease_info === 'string' ? disease_info : JSON.stringify(disease_info))
     : null;
@@ -174,6 +260,12 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
       care_episode_id,
       clinic_name,
       clinic_address,
+      is_follow_up,
+      follow_up_parent_id,
+      doctor_migration_code,
+      original_fee,
+      discount_amount,
+      final_fee,
       created_at,
       updated_at
     ) VALUES (
@@ -191,6 +283,12 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
       ${careEpisodeId},
       ${clinic_name || null},
       ${clinic_address || null},
+      ${isFollowUp},
+      ${followUpParentId || null},
+      ${doctorMigrationCode || null},
+      ${originalBaseFee},
+      ${discountAmount},
+      ${fee},
       NOW(),
       NOW()
     )

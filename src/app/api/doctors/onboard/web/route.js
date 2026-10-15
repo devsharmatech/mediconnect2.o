@@ -260,8 +260,12 @@ export async function POST(req) {
       leave_days: parseJSON(fields.leave_days),
       speciality_tags: parseJSON(fields.speciality_tags),
       video_consultation_fee: parseFloat(fields.video_consultation_fee || 0),
+      video_follow_up_fee: parseFloat(fields.video_follow_up_fee || fields.follow_up_fee || 0),
       clinic_consultation_fee: parseFloat(fields.clinic_consultation_fee || 0),
+      clinic_follow_up_fee: parseFloat(fields.clinic_follow_up_fee || fields.follow_up_fee || 0),
       home_visit_fee: parseFloat(fields.home_visit_fee || 0),
+      home_follow_up_fee: parseFloat(fields.home_follow_up_fee || fields.follow_up_fee || 0),
+      follow_up_fee: parseFloat(fields.follow_up_fee || 0),
       indemnity_insurance: parseFloat(fields.insurance || 0),
       dmc_mci_certificate: dmc,
       aadhaar_pan_license: aadhaarPan,
@@ -290,6 +294,10 @@ export async function POST(req) {
         driving_license: fields.driving_license,
         address: fields.address,
         additional_clinics: parseJSON(fields.additional_clinics),
+        video_follow_up_fee: parseFloat(fields.video_follow_up_fee || fields.follow_up_fee || 0),
+        clinic_follow_up_fee: parseFloat(fields.clinic_follow_up_fee || fields.follow_up_fee || 0),
+        home_follow_up_fee: parseFloat(fields.home_follow_up_fee || fields.follow_up_fee || 0),
+        follow_up_fee: parseFloat(fields.follow_up_fee || 0),
       },
     };
 

@@ -28,6 +28,11 @@ export async function POST(req) {
       clinic_name,
       clinic_address,
       fee,
+      is_follow_up,
+      follow_up_parent_id,
+      doctor_migration_code,
+      original_fee,
+      discount_amount,
     } = body || {};
 
     // 1. Basic Validation
@@ -87,6 +92,11 @@ export async function POST(req) {
         clinic_name,
         clinic_address,
         fee,
+        is_follow_up,
+        follow_up_parent_id,
+        doctor_migration_code,
+        original_fee,
+        discount_amount,
       }
     });
 

@@ -153,14 +153,19 @@ const AppointmentDetailsModal = ({
     const meta = typeof doc.meta === 'string' ? JSON.parse(doc.meta || '{}') : (doc.meta || {});
     
     const videoFee = meta?.video_consultation_fee ?? doc.video_consultation_fee ?? doc.consultation_fee ?? 0;
+    const videoFollowUpFee = meta?.video_follow_up_fee ?? doc.video_follow_up_fee ?? meta?.follow_up_fee ?? doc.follow_up_fee ?? 0;
     const clinicFee = meta?.clinic_consultation_fee ?? doc.clinic_consultation_fee ?? doc.consultation_fee ?? 0;
+    const clinicFollowUpFee = meta?.clinic_follow_up_fee ?? doc.clinic_follow_up_fee ?? meta?.follow_up_fee ?? doc.follow_up_fee ?? 0;
     const homeFee = meta?.home_visit_fee ?? doc.home_visit_fee ?? doc.consultation_fee ?? 0;
+    const homeFollowUpFee = meta?.home_follow_up_fee ?? doc.home_follow_up_fee ?? meta?.follow_up_fee ?? doc.follow_up_fee ?? 0;
     const instantFee = meta?.instant_consultation_fee ?? doc.instant_consultation_fee ?? 0;
+    const followUpFee = meta?.follow_up_fee ?? doc.follow_up_fee ?? 0;
 
     if (type.includes("instant")) return Number(instantFee);
-    if (type.includes("video")) return Number(videoFee);
-    if (type.includes("clinic")) return Number(clinicFee);
-    if (type.includes("home")) return Number(homeFee);
+    if (type.includes("video")) return Number(type.includes("follow") ? (videoFollowUpFee || videoFee) : videoFee);
+    if (type.includes("clinic")) return Number(type.includes("follow") ? (clinicFollowUpFee || clinicFee) : clinicFee);
+    if (type.includes("home")) return Number(type.includes("follow") ? (homeFollowUpFee || homeFee) : homeFee);
+    if (type.includes("follow")) return Number(followUpFee || videoFollowUpFee || clinicFollowUpFee || videoFee);
     return Number(doc.consultation_fee ?? 0);
   };
   const feePaid = getFee();

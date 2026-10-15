@@ -1340,6 +1340,16 @@ export default function DoctorDashboardLayout({ children }) {
                 )}
               </div>
 
+              {/* Mobile Shared Records */}
+              <button
+                type="button"
+                onClick={() => setShowSharedDocsModal(true)}
+                className="md:hidden p-1.5 rounded-md text-[#0067A1] bg-sky-50 border border-sky-100 hover:bg-sky-100 transition-colors"
+                title="Shared Records"
+              >
+                <FaFolderOpen className="w-3.5 h-3.5" />
+              </button>
+
               {/* Mobile logout */}
               <button
                 onClick={handleLogout}
@@ -1450,18 +1460,11 @@ export default function DoctorDashboardLayout({ children }) {
             </div>
           </header>
 
-          {/* Assistive Tool Disclaimer Banner */}
-          <div className="bg-sky-50/60 border-b border-sky-100 px-4 py-1.5 text-center">
-            <p className="text-[11px] font-medium text-[#0067A1] flex items-center justify-center gap-1.5 tracking-normal">
-              <FaUserMd className="w-3 h-3 text-[#0067A1] shrink-0" />
-              <span>AI Clinical Assistant Enabled — Final clinical decisions are made by attending physicians</span>
-            </p>
-          </div>
 
           {/* Page content */}
-          <main className="flex-1 overflow-y-auto px-3 py-3 sm:px-2 sm:py-6 lg:px-4 lg:py-4 bg-[#F8FAFC] pb-20 md:pb-4">
+          <main className="flex-1 overflow-y-auto px-1 sm:px-4 py-2 sm:py-4 bg-[#F8FAFC] pb-20 md:pb-4">
             <div className="w-full mx-auto">
-              <div className=" md:min-h-[calc(100vh-12rem)] p-2 sm:p-2 lg:p-2">
+              <div className=" md:min-h-[calc(100vh-12rem)] p-0 sm:p-2">
                 {children}
               </div>
             </div>
@@ -1722,7 +1725,7 @@ export default function DoctorDashboardLayout({ children }) {
       )}
 
       {/* --- Floating Shared Records Button (Layer-111) --- */}
-      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-[40]">
+      <div className="hidden md:block fixed right-0 top-1/2 -translate-y-1/2 z-[40]">
         <button
           onClick={() => setShowSharedDocsModal(true)}
           className="flex flex-col items-center gap-2 px-3 py-6 bg-[#0067A1] text-white rounded-l-3xl shadow-2xl hover:translate-x-[-4px] transition-all group border-y border-l border-[#0067A1]/20"

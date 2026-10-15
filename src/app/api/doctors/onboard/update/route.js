@@ -132,11 +132,23 @@ export async function PUT(request) {
     const rawVideoFee = formData.get("video_consultation_fee");
     const video_consultation_fee = rawVideoFee ? parseFloat(String(rawVideoFee)) : undefined;
 
+    const rawVideoFollowUpFee = formData.get("video_follow_up_fee");
+    const video_follow_up_fee = rawVideoFollowUpFee ? parseFloat(String(rawVideoFollowUpFee)) : undefined;
+
     const rawClinicFee = formData.get("clinic_consultation_fee");
     const clinic_consultation_fee = rawClinicFee ? parseFloat(String(rawClinicFee)) : undefined;
 
+    const rawClinicFollowUpFee = formData.get("clinic_follow_up_fee");
+    const clinic_follow_up_fee = rawClinicFollowUpFee ? parseFloat(String(rawClinicFollowUpFee)) : undefined;
+
     const rawHomeFee = formData.get("home_visit_fee");
     const home_visit_fee = rawHomeFee ? parseFloat(String(rawHomeFee)) : undefined;
+
+    const rawHomeFollowUpFee = formData.get("home_follow_up_fee");
+    const home_follow_up_fee = rawHomeFollowUpFee ? parseFloat(String(rawHomeFollowUpFee)) : undefined;
+
+    const rawFollowUpFee = formData.get("follow_up_fee");
+    const follow_up_fee = rawFollowUpFee ? parseFloat(String(rawFollowUpFee)) : undefined;
 
     const rawInsurance =
       formData.get("insurance") || formData.get("indemnity_insurance");
@@ -233,8 +245,12 @@ export async function PUT(request) {
       leave_days,
       speciality_tags,
       video_consultation_fee,
+      video_follow_up_fee,
       clinic_consultation_fee,
+      clinic_follow_up_fee,
       home_visit_fee,
+      home_follow_up_fee,
+      follow_up_fee,
       qualification,
       indemnity_insurance,
       updated_at: new Date().toISOString(),
@@ -314,6 +330,10 @@ export async function PUT(request) {
     if (additional_clinics !== undefined) {
       metaUpdate.additional_clinics = parseJSON(additional_clinics);
     }
+    if (video_follow_up_fee !== undefined) metaUpdate.video_follow_up_fee = video_follow_up_fee;
+    if (clinic_follow_up_fee !== undefined) metaUpdate.clinic_follow_up_fee = clinic_follow_up_fee;
+    if (home_follow_up_fee !== undefined) metaUpdate.home_follow_up_fee = home_follow_up_fee;
+    if (follow_up_fee !== undefined) metaUpdate.follow_up_fee = follow_up_fee;
 
     if (Object.keys(metaUpdate).length > 0) {
       updateData.meta = {

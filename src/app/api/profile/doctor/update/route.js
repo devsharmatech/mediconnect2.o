@@ -19,8 +19,12 @@ export async function PUT(req) {
     const clinic_name = formData.get("clinic_name");
     const clinic_address = formData.get("clinic_address");
     const video_consultation_fee = formData.get("video_consultation_fee");
+    const video_follow_up_fee = formData.get("video_follow_up_fee");
     const clinic_consultation_fee = formData.get("clinic_consultation_fee");
+    const clinic_follow_up_fee = formData.get("clinic_follow_up_fee");
     const home_visit_fee = formData.get("home_visit_fee");
+    const home_follow_up_fee = formData.get("home_follow_up_fee");
+    const follow_up_fee = formData.get("follow_up_fee");
     const qualification = formData.get("qualification");
     const indemnity_insurance = formData.get("indemnity_insurance");
     const bank_account_details = formData.get("bank_account_details");
@@ -117,7 +121,7 @@ export async function PUT(req) {
     await sql`
       INSERT INTO doctor_details (
         id, full_name, email, specialization, experience_years, license_number, clinic_name, clinic_address,
-        video_consultation_fee, clinic_consultation_fee, home_visit_fee, qualification, indemnity_insurance,
+        video_consultation_fee, video_follow_up_fee, clinic_consultation_fee, clinic_follow_up_fee, home_visit_fee, home_follow_up_fee, follow_up_fee, qualification, indemnity_insurance,
         dmc_mci_certificate, aadhaar_pan_license, address_proof, passport_photo,
         bank_account_details, digital_consent, onboarding_status, available_days, available_time, updated_at
       )
@@ -125,8 +129,12 @@ export async function PUT(req) {
         ${user_id}, ${full_name}, ${email}, ${specialization}, ${experience_years ? Number(experience_years) : null},
         ${license_number}, ${clinic_name}, ${clinic_address},
         ${video_consultation_fee ? Number(video_consultation_fee) : 0},
+        ${video_follow_up_fee ? Number(video_follow_up_fee) : (follow_up_fee ? Number(follow_up_fee) : 0)},
         ${clinic_consultation_fee ? Number(clinic_consultation_fee) : 0},
+        ${clinic_follow_up_fee ? Number(clinic_follow_up_fee) : (follow_up_fee ? Number(follow_up_fee) : 0)},
         ${home_visit_fee ? Number(home_visit_fee) : 0},
+        ${home_follow_up_fee ? Number(home_follow_up_fee) : (follow_up_fee ? Number(follow_up_fee) : 0)},
+        ${follow_up_fee ? Number(follow_up_fee) : 0},
         ${qualification},
         ${indemnity_insurance ? Number(indemnity_insurance) : null},
         ${dmc_mci_certificate_val ? sql.json(dmc_mci_certificate_val) : null},
@@ -149,8 +157,12 @@ export async function PUT(req) {
         clinic_name = EXCLUDED.clinic_name,
         clinic_address = EXCLUDED.clinic_address,
         video_consultation_fee = EXCLUDED.video_consultation_fee,
+        video_follow_up_fee = EXCLUDED.video_follow_up_fee,
         clinic_consultation_fee = EXCLUDED.clinic_consultation_fee,
+        clinic_follow_up_fee = EXCLUDED.clinic_follow_up_fee,
         home_visit_fee = EXCLUDED.home_visit_fee,
+        home_follow_up_fee = EXCLUDED.home_follow_up_fee,
+        follow_up_fee = EXCLUDED.follow_up_fee,
         qualification = EXCLUDED.qualification,
         indemnity_insurance = EXCLUDED.indemnity_insurance,
         dmc_mci_certificate = COALESCE(EXCLUDED.dmc_mci_certificate, doctor_details.dmc_mci_certificate),
