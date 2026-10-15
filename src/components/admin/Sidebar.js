@@ -56,217 +56,184 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
     return () => window.removeEventListener("adminProfileUpdated", loadUser);
   }, []);
 
-  const menuItems = [
+  const menuGroups = [
     {
-      name: "Dashboard",
-      icon: <Home />,
-      path: `/admin/dashboard`,
+      title: "Core",
+      items: [
+        {
+          name: "Dashboard",
+          icon: <Home className="w-4 h-4" />,
+          path: `/admin/dashboard`,
+        },
+        {
+          name: "Operations",
+          icon: <Zap className="w-4 h-4" />,
+          path: `/admin/operations`,
+        },
+      ],
     },
     {
-      name: "Patients",
-      icon: <Users />,
-      path: `/admin/patients`,
+      title: "Clinical Practice",
+      items: [
+        {
+          name: "Patients & Bookings",
+          icon: <Users className="w-4 h-4" />,
+          submenu: true,
+          subItems: [
+            { name: "All Patients", path: `/admin/patients` },
+            { name: "Appointments", path: `/admin/appointments` },
+            { name: "Booking Attempts", path: `/admin/booking-attempts` },
+            { name: "BPL Requests", path: `/admin/bpl-requests` },
+          ],
+        },
+        {
+          name: "Clinical Records",
+          icon: <ClipboardList className="w-4 h-4" />,
+          submenu: true,
+          subItems: [
+            { name: "Prescriptions", path: `/admin/prescriptions` },
+            { name: "Prescription Templates", path: `/admin/cms/prescription-templates` },
+            { name: "Diagnosis Master", path: `/admin/cms/diagnosis` },
+            { name: "Clinical Repository", path: `/admin/clinical-repository` },
+          ],
+        },
+        {
+          name: "Drug Master",
+          icon: <Pill className="w-4 h-4" />,
+          submenu: true,
+          subItems: [
+            { name: "All Drugs", path: `/admin/drugs` },
+            { name: "Categories", path: `/admin/drugs/categories` },
+          ],
+        },
+      ],
     },
     {
-      name: "BPL Requests",
-      icon: <Users />,
-      path: `/admin/bpl-requests`,
+      title: "Partner Network",
+      items: [
+        {
+          name: "Doctors",
+          icon: <Stethoscope className="w-4 h-4" />,
+          path: `/admin/doctors`,
+        },
+        {
+          name: "Diagnostic Labs",
+          icon: <Microscope className="w-4 h-4" />,
+          submenu: true,
+          subItems: [
+            { name: "All Labs", path: `/admin/labs` },
+            { name: "Lab Test Orders", path: `/admin/labs/orders` },
+            { name: "Commission Categories", path: `/admin/labs/categories` },
+            { name: "Lab Tests Master", path: `/admin/cms/lab-tests` },
+          ],
+        },
+        {
+          name: "Chemists",
+          icon: <Pill className="w-4 h-4" />,
+          path: `/admin/chemists`,
+        },
+        {
+          name: "Allied Partners",
+          icon: <Hospital className="w-4 h-4" />,
+          submenu: true,
+          subItems: [
+            { name: "Hospitals", path: `/admin/hospitals` },
+            { name: "Insurance Partners", path: `/admin/insurance-partners` },
+            { name: "Nursing Leads", path: `/admin/nursing` },
+            { name: "Nursing Partners", path: `/admin/nursing/partners` },
+          ],
+        },
+      ],
     },
     {
-      name: "Doctors",
-      icon: <Stethoscope />,
-      path: `/admin/doctors`,
+      title: "Finance & Accounts",
+      items: [
+        {
+          name: "Finance Master",
+          icon: <IndianRupee className="w-4 h-4" />,
+          submenu: true,
+          subItems: [
+            { name: "Doctor Ledger", path: `/admin/finance/doctor-ledger` },
+            { name: "Lab Ledger", path: `/admin/finance/lab-ledger` },
+            { name: "Chemist Ledger", path: `/admin/finance/chemist-ledger` },
+            { name: "Refunds", path: `/admin/refunds` },
+          ],
+        },
+      ],
     },
     {
-      name: "Appointments",
-      icon: <Calendar />,
-      path: `/admin/appointments`,
+      title: "Governance & Quality",
+      items: [
+        {
+          name: "Clinical Governance",
+          icon: <ShieldAlert className="w-4 h-4" />,
+          submenu: true,
+          subItems: [
+            { name: "Clinical Risks", path: `/admin/clinical-risks` },
+            { name: "Data Quality & DLQ", path: `/admin/data-quality` },
+            { name: "Clinical Intervention", path: `/admin/intervention` },
+            { name: "Privacy Audit Logs", path: `/admin/audit-logs` },
+            { name: "Clinical Analytics", path: `/admin/clinical-analytics` },
+          ],
+        },
+      ],
     },
     {
-      name: "Booking Attempts",
-      icon: <Activity />,
-      path: `/admin/booking-attempts`,
-    },
-    {
-      name: "Financial Ledger",
-      icon: <IndianRupee />,
-      path: `/admin/ledger`,
-    },
-    {
-      name: "Refunds",
-      icon: <RotateCcw />,
-      path: `/admin/refunds`,
-    },
-    {
-      name: "Payouts",
-      icon: <Wallet />,
-      path: `/admin/payouts`,
-    },
-    {
-      name: "Doctor Settlements",
-      icon: <Wallet />,
-      path: `/admin/doctor-settlements`,
-    },
-    {
-      name: "Operations",
-      icon: <Zap />,
-      path: `/admin/operations`,
-    },
-    {
-      name: "Clinical Risks",
-      icon: <Shield />,
-      path: `/admin/clinical-risks`,
-    },
-    {
-      name: "Data Quality",
-      icon: <Activity />,
-      path: `/admin/data-quality`,
-    },
-    {
-      name: "Intervention",
-      icon: <ShieldAlert />,
-      path: `/admin/intervention`,
-    },
-    {
-      name: "Privacy Audit",
-      icon: <ShieldCheck />,
-      path: `/admin/audit-logs`,
-    },
-    {
-      name: "Clinical Excellence",
-      icon: <Activity />,
-      path: `/admin/clinical-analytics`,
-    },
-    {
-      name: "Prescriptions",
-      icon: <ClipboardList />,
-      path: `/admin/prescriptions`,
-    },
-    {
-      name: "Drug Master",
-      icon: <Pill />,
-      submenu: true,
-      subItems: [
-        { name: "All Drugs", path: `/admin/drugs` },
-        { name: "Categories", path: `/admin/drugs/categories` }
-      ]
-    },
-    {
-      name: "Clinical Masters",
-      icon: <ClipboardList />,
-      submenu: true,
-      subItems: [
-        { name: "Prescription Templates", path: `/admin/cms/prescription-templates` },
-        { name: "Diagnosis Master", path: `/admin/cms/diagnosis` }
-      ]
-    },
-    {
-      name: "Clinical Repository",
-      icon: <Database />,
-      path: `/admin/clinical-repository`,
-    },
-    {
-      name: "Chemists",
-      icon: <Pill />,
-      path: `/admin/chemists`,
-    },
-
-    {
-      name: "Labs Manager",
-      icon: <Microscope />,
-      submenu: true,
-      subItems: [
-        { name: "All Labs", path: `/admin/labs` },
-        { name: "Lab Test Orders", path: `/admin/labs/orders` },
-        { name: "Commission Categories", path: `/admin/labs/categories` },
-        { name: "Lab Tests Master", path: `/admin/cms/lab-tests` }
-      ]
-    },
-    {
-      name: "Hospitals",
-      icon: <Hospital />,
-      path: `/admin/hospitals`,
-    },
-    {
-      name: "Insurance",
-      icon: <Shield />,
-      path: `/admin/insurance-partners`,
-    },
-    {
-      name: "Nursing Care",
-      icon: <Heart />,
-      submenu: true,
-      subItems: [
-        { name: "Nursing Leads", path: `/admin/nursing` },
-        { name: "Partners", path: `/admin/nursing/partners` },
-      ]
-    },
-
-    {
-      name: "Notifications",
-      icon: <Bell />,
-      path: `/admin/notifications`,
-    },
-    {
-      name: "Subscribers",
-      icon: <Mail />,
-      path: `/admin/subscribers`,
-    },
-    {
-      name: "Help & Support",
-      icon: <LifeBuoy />,
-      path: `/admin/support`,
-    },
-    {
-      name: "Staff",
-      icon: <Users />,
-      path: `/admin/staff`,
-    },
-    {
-      name: "Add Staff",
-      icon: <UserPlus />,
-      path: `/admin/staff/create`,
-    },
-    {
-      name: "Roles",
-      icon: <Key />,
-      path: `/admin/staff/roles`,
-    },
-    {
-      name: "Activity Logs",
-      icon: <FileText />,
-      path: `/admin/staff/logs`,
-    },
-    {
-      name: "Website CMS",
-      icon: <LayoutDashboard />,
-      submenu: true,
-      subItems: [
-        { name: "Homepage", path: `/admin/cms/homepage` },
-        { name: "Static Page Sections", path: `/admin/cms/page-blocks` },
-        { name: "Services", path: `/admin/cms/services` },
-        { name: "Specialties", path: `/admin/cms/specialties` },
-        { name: "Testimonials", path: `/admin/cms/testimonials` },
-        { name: "Resources", path: `/admin/cms/resources` },
-        { name: "FAQs", path: `/admin/cms/faqs` },
-        { name: "Supportive Tools", path: `/admin/cms/supportive-tools` },
-        { name: "Conditions", path: `/admin/cms/conditions` },
-        { name: "About Page", path: `/admin/cms/about` },
-        { name: "Contact Page", path: `/admin/cms/contact` },
-        { name: "Legal Pages", path: `/admin/cms/legal` },
-        { name: "Compliance Logos", path: `/admin/cms/compliance-logos` },
-        { name: "Website Settings", path: `/admin/cms/settings` }
-      ]
-    },
-    {
-      name: "Settings",
-      icon: <Settings />,
-      path: `/admin/settings`,
-    },
-    {
-      name: "Patient View",
-      icon: <Heart />,
-      path: `/dashboard`,
+      title: "Administration & CMS",
+      items: [
+        {
+          name: "Staff & Access",
+          icon: <Users className="w-4 h-4" />,
+          submenu: true,
+          subItems: [
+            { name: "All Staff", path: `/admin/staff` },
+            { name: "Add Staff", path: `/admin/staff/create` },
+            { name: "Roles & Permissions", path: `/admin/staff/roles` },
+            { name: "Staff Activity Logs", path: `/admin/staff/logs` },
+          ],
+        },
+        {
+          name: "Communications",
+          icon: <Bell className="w-4 h-4" />,
+          submenu: true,
+          subItems: [
+            { name: "Notifications", path: `/admin/notifications` },
+            { name: "Subscribers", path: `/admin/subscribers` },
+            { name: "Help & Support", path: `/admin/support` },
+          ],
+        },
+        {
+          name: "Website CMS",
+          icon: <LayoutDashboard className="w-4 h-4" />,
+          submenu: true,
+          subItems: [
+            { name: "Homepage", path: `/admin/cms/homepage` },
+            { name: "Static Page Sections", path: `/admin/cms/page-blocks` },
+            { name: "Services", path: `/admin/cms/services` },
+            { name: "Specialties", path: `/admin/cms/specialties` },
+            { name: "Testimonials", path: `/admin/cms/testimonials` },
+            { name: "Resources", path: `/admin/cms/resources` },
+            { name: "FAQs", path: `/admin/cms/faqs` },
+            { name: "Supportive Tools", path: `/admin/cms/supportive-tools` },
+            { name: "Conditions", path: `/admin/cms/conditions` },
+            { name: "About Page", path: `/admin/cms/about` },
+            { name: "Contact Page", path: `/admin/cms/contact` },
+            { name: "Legal Pages", path: `/admin/cms/legal` },
+            { name: "Compliance Logos", path: `/admin/cms/compliance-logos` },
+            { name: "Website Settings", path: `/admin/cms/settings` },
+          ],
+        },
+        {
+          name: "Settings",
+          icon: <Settings className="w-4 h-4" />,
+          path: `/admin/settings`,
+        },
+        {
+          name: "Patient View",
+          icon: <Heart className="w-4 h-4" />,
+          path: `/dashboard`,
+        },
+      ],
     },
   ];
 
@@ -347,86 +314,102 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
 
         {/* Navigation Menu - Scrollable */}
         <nav
-          className="flex-1 overflow-y-auto py-4 px-3 space-y-1.5 custom-scrollbar admin-sidebar-scroll min-h-0"
+          className="flex-1 overflow-y-auto py-3 px-3 space-y-3 custom-scrollbar admin-sidebar-scroll min-h-0"
           style={{
             scrollbarWidth: 'thin',
             scrollbarColor: 'rgba(255, 255, 255, 0.2) transparent',
             pointerEvents: 'auto',
           }}
         >
-          {menuItems.map((item, idx) => {
-            const isActive = pathname === item.path || (item.submenu && item.subItems.some(sub => pathname === sub.path || pathname.startsWith(`${sub.path}/`)));
-            
-            return (
-              <div key={idx} className="space-y-1">
-                <button
-                  onClick={() => {
-                    if (item.submenu) {
-                      toggleSubmenu(item.name);
-                    } else {
-                      handleNavigation(item.path);
-                    }
-                  }}
-                  title={!open ? item.name : undefined}
-                  className={`
-                    relative w-full flex items-center gap-3.5 px-3 py-3 rounded-xl transition-all duration-200 group text-sm font-medium text-left
-                    ${open ? "" : "justify-center"}
-                    ${isActive
-                      ? "bg-white text-[#0067A1] shadow-md"
-                      : "text-white/70 hover:bg-white/10 hover:text-white"
-                    }
-                  `}
-                  style={{ pointerEvents: 'auto' }}
-                >
-                  <div className={`flex-shrink-0 transition-colors ${isActive ? "text-[#0067A1]" : "text-white/60 group-hover:text-white"} ${!open ? "w-6 h-6" : "w-5 h-5"} flex items-center justify-center`}>
-                    {item.icon}
-                  </div>
+          {menuGroups.map((group, gIdx) => (
+            <div key={gIdx} className="space-y-1">
+              {open ? (
+                <div className="pt-2 pb-1 px-3 text-[10px] font-bold tracking-wider text-white/40 uppercase select-none">
+                  {group.title}
+                </div>
+              ) : (
+                gIdx > 0 && <div className="my-2 border-t border-white/10 mx-2" />
+              )}
 
-                  {open && (
-                    <span className="whitespace-nowrap flex-1">
-                      {item.name}
-                    </span>
-                  )}
+              {group.items.map((item, idx) => {
+                const isActive = pathname === item.path || (item.submenu && item.subItems.some(sub => pathname === sub.path || pathname.startsWith(`${sub.path}/`)));
+                const isExpanded = expandedMenus[item.name] !== undefined ? expandedMenus[item.name] : isActive;
 
-                  {/* Submenu Chevron */}
-                  {open && item.submenu && (
-                    <svg
-                      className={`w-3 h-3 transition-transform duration-200 ${expandedMenus[item.name] ? 'rotate-90' : ''} text-white/50`}
-                      fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                return (
+                  <div key={idx} className="space-y-1">
+                    <button
+                      onClick={() => {
+                        if (item.submenu) {
+                          toggleSubmenu(item.name);
+                        } else {
+                          handleNavigation(item.path);
+                        }
+                      }}
+                      title={!open ? item.name : undefined}
+                      className={`
+                        relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group text-xs font-medium text-left cursor-pointer
+                        ${open ? "" : "justify-center"}
+                        ${isActive
+                          ? "bg-white text-[#0067A1] shadow-md font-semibold"
+                          : "text-white/70 hover:bg-white/10 hover:text-white"
+                        }
+                      `}
+                      style={{ pointerEvents: 'auto' }}
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  )}
-                  
-                  {/* Active indicator for minimized sidebar */}
-                  {!open && isActive && (
-                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 w-1.5 h-1.5 bg-white rounded-full"></div>
-                  )}
-                </button>
+                      <div className={`flex-shrink-0 transition-colors ${isActive ? "text-[#0067A1]" : "text-white/60 group-hover:text-white"} ${!open ? "w-6 h-6" : "w-4 h-4"} flex items-center justify-center`}>
+                        {item.icon}
+                      </div>
 
-                {/* Submenu Items */}
-                {open && item.submenu && expandedMenus[item.name] && (
-                  <div className="mt-1 ml-5 pl-3.5 space-y-1 border-l border-white/10">
-                    {item.subItems.map((sub, sIdx) => (
-                      <button
-                        key={sIdx}
-                        onClick={() => handleNavigation(sub.path)}
-                        className={`
-                          flex items-center gap-3 w-full px-3 py-2 rounded-lg text-xs font-medium transition-all text-left
-                          ${pathname === sub.path
-                            ? "text-white bg-white/10"
-                            : "text-white/50 hover:text-white hover:bg-white/5"
-                          }
-                        `}
-                      >
-                        <span className="whitespace-nowrap">{sub.name}</span>
-                      </button>
-                    ))}
+                      {open && (
+                        <span className="whitespace-nowrap flex-1 truncate">
+                          {item.name}
+                        </span>
+                      )}
+
+                      {/* Submenu Chevron */}
+                      {open && item.submenu && (
+                        <svg
+                          className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''} text-white/50 shrink-0`}
+                          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      )}
+                      
+                      {/* Active indicator for minimized sidebar */}
+                      {!open && isActive && (
+                        <div className="absolute right-2 top-1/2 transform -translate-y-1/2 w-1.5 h-1.5 bg-white rounded-full"></div>
+                      )}
+                    </button>
+
+                    {/* Submenu Items */}
+                    {open && item.submenu && isExpanded && (
+                      <div className="mt-1 ml-4 pl-3 space-y-0.5 border-l border-white/15">
+                        {item.subItems.map((sub, sIdx) => {
+                          const isSubActive = pathname === sub.path || pathname.startsWith(`${sub.path}/`);
+                          return (
+                            <button
+                              key={sIdx}
+                              onClick={() => handleNavigation(sub.path)}
+                              className={`
+                                flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all text-left cursor-pointer
+                                ${isSubActive
+                                  ? "text-white bg-white/15 font-semibold"
+                                  : "text-white/60 hover:text-white hover:bg-white/5"
+                                }
+                              `}
+                            >
+                              <span className="whitespace-nowrap truncate">{sub.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         {/* User Profile & Logout Section - Fixed */}
