@@ -12,6 +12,7 @@ export const metadata = {
     apple: "/real-logo.png",
   },
   verification: {
+    google: "googlec807c6b998562cae",
     other: {
       "facebook-domain-verification": "co3uw7usq90ci14nl52zcbodnbn5qu",
     }, 
