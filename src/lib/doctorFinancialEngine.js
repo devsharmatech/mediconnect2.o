@@ -698,6 +698,14 @@ export async function getDoctorRevenueSummary(doctorId, { startDate = null, endD
   let totalSettled = 0;
   let pendingPayout = 0;
 
+  const modeBreakdown = {
+    clinic: { key: 'clinic', label: 'Clinic Visit', count: 0, gross: 0, commission: 0, tds: 0, gst: 0, net: 0 },
+    video: { key: 'video', label: 'Video Consultation', count: 0, gross: 0, commission: 0, tds: 0, gst: 0, net: 0 },
+    home_visit: { key: 'home_visit', label: 'Home Visit', count: 0, gross: 0, commission: 0, tds: 0, gst: 0, net: 0 },
+  };
+
+  const paidCompleted = [];
+
   completed.forEach(r => {
     let snap = r.financial_snapshot;
     if (typeof snap === 'string') {
@@ -708,6 +716,11 @@ export async function getDoctorRevenueSummary(doctorId, { startDate = null, endD
     const tds = Number(snap?.doctor_tds_amount ?? (r.doctor_tds_amount || (fee - comm) * 0.10));
     const gst = Number(snap?.commission_gst_amount ?? (r.commission_gst_amount || 0));
     const net = Number(snap?.doctor_net_payable ?? (r.doctor_net_payable || (fee - comm - tds)));
+
+    // User rule: Exclude 0 or free consultations from financial earnings and transactions
+    if (fee <= 0 && net <= 0) return;
+
+    paidCompleted.push(r);
 
     grossFees += fee;
     totalCommission += comm;
@@ -720,7 +733,30 @@ export async function getDoctorRevenueSummary(doctorId, { startDate = null, endD
     } else {
       pendingPayout += net;
     }
+
+    const typeStr = String(r.appointment_type || '').toLowerCase();
+    let modeKey = 'video';
+    if (typeStr.includes('clinic') || typeStr.includes('person') || typeStr.includes('offline') || typeStr.includes('in_clinic')) {
+      modeKey = 'clinic';
+    } else if (typeStr.includes('home')) {
+      modeKey = 'home_visit';
+    }
+
+    modeBreakdown[modeKey].count += 1;
+    modeBreakdown[modeKey].gross += fee;
+    modeBreakdown[modeKey].commission += comm;
+    modeBreakdown[modeKey].tds += tds;
+    modeBreakdown[modeKey].gst += gst;
+    modeBreakdown[modeKey].net += net;
   });
+
+  for (const k of ['clinic', 'video', 'home_visit']) {
+    modeBreakdown[k].gross = toFixed2(modeBreakdown[k].gross);
+    modeBreakdown[k].commission = toFixed2(modeBreakdown[k].commission);
+    modeBreakdown[k].tds = toFixed2(modeBreakdown[k].tds);
+    modeBreakdown[k].gst = toFixed2(modeBreakdown[k].gst);
+    modeBreakdown[k].net = toFixed2(modeBreakdown[k].net);
+  }
 
   // Fetch recent payout batches for this doctor
   const batches = await sql`
@@ -784,18 +820,19 @@ export async function getDoctorRevenueSummary(doctorId, { startDate = null, endD
         net_accrued_balance: toFixed2(netAccrued),
         total_settled_paid: toFixed2(totalSettled),
         pending_payout_balance: toFixed2(pendingPayout),
-        total_completed_consultations: completed.length,
+        total_completed_consultations: paidCompleted.length,
+        mode_breakdown: modeBreakdown,
       },
       payout_batches: batches,
       recent_ledger_entries: ledgerEntries,
       total_ledger_count: totalLedgerCount,
-      recent_bookings: completed.slice(0, 50),
+      recent_bookings: paidCompleted.slice(0, 50),
     },
   };
 }
 
 /**
- * Get role-restricted admin platform financial report.
+ * Get role-restricted admin platform financial report with 3-mode audit breakdown.
  */
 export async function getAdminFinancialReport({
   startDate = null,
@@ -812,7 +849,7 @@ export async function getAdminFinancialReport({
       d.full_name as doctor_name, d.specialization as doctor_specialization
     FROM appointments a
     LEFT JOIN doctor_details d ON d.id = a.doctor_id
-    WHERE a.status = 'completed'
+    WHERE (a.status = 'completed' OR a.payment_status = 'paid')
       AND (${doctorId ? sql`a.doctor_id = ${doctorId}` : sql`1=1`})
       AND (${startDate ? sql`a.appointment_date >= ${startDate}::date` : sql`1=1`})
       AND (${endDate ? sql`a.appointment_date <= ${endDate}::date` : sql`1=1`})
@@ -826,6 +863,14 @@ export async function getAdminFinancialReport({
   let totalDoctorPayable = 0;
   let totalSettled = 0;
   let totalOutstanding = 0;
+  let totalPaidConsultations = 0;
+
+  // 3-Mode Audit Module: Clinic Visit, Video Consultation, Home Visit
+  const modeAudit = {
+    clinic: { key: 'clinic', label: 'Clinic Visit', count: 0, gross: 0, commission: 0, gst: 0, tds: 0, net: 0 },
+    video: { key: 'video', label: 'Video Consultation', count: 0, gross: 0, commission: 0, gst: 0, tds: 0, net: 0 },
+    home_visit: { key: 'home_visit', label: 'Home Visit', count: 0, gross: 0, commission: 0, tds: 0, gst: 0, net: 0 },
+  };
 
   appts.forEach(r => {
     let snap = r.financial_snapshot;
@@ -838,6 +883,10 @@ export async function getAdminFinancialReport({
     const tds = Number(snap?.doctor_tds_amount ?? ((fee - comm) * 0.10));
     const net = Number(snap?.doctor_net_payable ?? (fee - comm - tds));
 
+    // Exclude ₹0 / free appointments from paid financial audit calculations
+    if (fee <= 0 && net <= 0) return;
+
+    totalPaidConsultations += 1;
     totalGross += fee;
     totalCommission += comm;
     totalGst += gst;
@@ -849,9 +898,44 @@ export async function getAdminFinancialReport({
     } else {
       totalOutstanding += net;
     }
+
+    const typeStr = String(r.appointment_type || '').toLowerCase();
+    let modeKey = 'video';
+    if (typeStr.includes('clinic') || typeStr.includes('person') || typeStr.includes('offline') || typeStr.includes('in_clinic')) {
+      modeKey = 'clinic';
+    } else if (typeStr.includes('home')) {
+      modeKey = 'home_visit';
+    }
+
+    modeAudit[modeKey].count += 1;
+    modeAudit[modeKey].gross += fee;
+    modeAudit[modeKey].commission += comm;
+    modeAudit[modeKey].gst += gst;
+    modeAudit[modeKey].tds += tds;
+    modeAudit[modeKey].net += net;
   });
 
-  // Fetch batches
+  // Precise 2-decimal rounding for audit
+  for (const k of ['clinic', 'video', 'home_visit']) {
+    modeAudit[k].gross = toFixed2(modeAudit[k].gross);
+    modeAudit[k].commission = toFixed2(modeAudit[k].commission);
+    modeAudit[k].gst = toFixed2(modeAudit[k].gst);
+    modeAudit[k].tds = toFixed2(modeAudit[k].tds);
+    modeAudit[k].net = toFixed2(modeAudit[k].net);
+  }
+
+  // Exact paisa audit reconciliation: Gross Volume = Platform Commission + GST (if charged on comm) + TDS + Doctor Net
+  const auditReconciliation = {
+    total_gross: toFixed2(totalGross),
+    total_commission: toFixed2(totalCommission),
+    total_gst: toFixed2(totalGst),
+    total_tds: toFixed2(totalTds),
+    total_net_payable: toFixed2(totalDoctorPayable),
+    reconciled_sum: toFixed2(totalDoctorPayable + totalCommission + totalTds),
+    variance_amount: toFixed2(totalGross - (totalDoctorPayable + totalCommission + totalTds)),
+  };
+
+  // Fetch batches with settlement proof details
   const batches = await sql`
     SELECT b.*, d.full_name as doctor_name
     FROM doctor_payout_batches b
@@ -873,10 +957,12 @@ export async function getAdminFinancialReport({
         total_doctor_payable: toFixed2(totalDoctorPayable),
         total_settled_paid: toFixed2(totalSettled),
         total_outstanding_payable: toFixed2(totalOutstanding),
-        total_consultations: appts.length,
+        total_consultations: totalPaidConsultations,
       },
+      mode_audit: modeAudit,
+      audit_reconciliation: auditReconciliation,
       batches,
-      transactions: appts.slice(0, 50),
+      transactions: appts.filter(a => Number(a.final_fee || 0) > 0).slice(0, 50),
     },
   };
 }

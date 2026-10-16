@@ -217,21 +217,35 @@ export async function generate10DayChemistPayoutBatches({ periodBounds = null, c
 /**
  * Execute a Chemist Payout Batch.
  */
-export async function executeChemistPayoutBatch({ batchId, payout_reference, payout_notes } = {}) {
+export async function executeChemistPayoutBatch({
+  batchId,
+  payout_reference,
+  utr_number,
+  payment_mode = 'NEFT',
+  proof_url = null,
+  settled_by = 'Admin',
+  payout_notes,
+} = {}) {
   const [batch] = await sql`
     SELECT * FROM chemist_payout_batches WHERE id = ${batchId} LIMIT 1;
   `;
   if (!batch) throw new Error("Chemist payout batch not found");
   if (batch.status === 'paid') throw new Error("Batch is already marked as paid");
 
-  const ref = payout_reference || `CHEM-PAY-${Date.now()}`;
-  const notes = payout_notes || "Approved and settled via Admin Finance Master";
+  const utr = (utr_number || payout_reference || '').trim();
+  if (!utr) throw new Error("Mandatory settlement proof required: Valid Bank UTR / Transaction ID is required.");
+
+  const notes = payout_notes || `Disbursed via ${payment_mode}. UTR: ${utr}`;
 
   const [updated] = await sql`
     UPDATE chemist_payout_batches
     SET
       status = 'paid',
-      payout_reference = ${ref},
+      payout_reference = ${utr},
+      utr_number = ${utr},
+      payment_mode = ${payment_mode},
+      proof_url = ${proof_url},
+      settled_by = ${settled_by},
       payout_notes = ${notes},
       completed_at = NOW(),
       updated_at = NOW()

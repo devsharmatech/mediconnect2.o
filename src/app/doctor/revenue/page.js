@@ -379,6 +379,92 @@ export default function DoctorRevenuePage() {
         </div>
       </div>
 
+      {/* ── 3-MODE CONSULTATION EARNING BREAKDOWN ─────────────────────── */}
+      {metrics?.mode_breakdown && (
+        <div className="bg-white rounded-lg p-4 sm:p-5 border border-slate-200 shadow-2xs space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#0067A1]" />
+              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                Consultation Mode Earnings Breakdown
+              </h3>
+            </div>
+            <span className="text-[11px] text-slate-400">Exact take-home earned per mode</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            {/* Clinic Visit */}
+            <div className="p-3 bg-slate-50/80 rounded-md border border-slate-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-slate-700 font-semibold">
+                  <FaBuilding className="text-emerald-600 w-3 h-3" />
+                  <span>Clinic Visits</span>
+                </div>
+                <span className="font-mono text-[11px] bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-600">
+                  {metrics.mode_breakdown.clinic?.count || 0} visits
+                </span>
+              </div>
+              <div className="flex justify-between items-baseline pt-1">
+                <span className="text-slate-500 text-[11px]">Net Earnings:</span>
+                <span className="font-mono font-bold text-emerald-700 text-sm">
+                  {formatCurrency(metrics.mode_breakdown.clinic?.net || 0)}
+                </span>
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-400">
+                <span>Gross: {formatCurrency(metrics.mode_breakdown.clinic?.gross || 0)}</span>
+                <span>Comm: -{formatCurrency(metrics.mode_breakdown.clinic?.commission || 0)}</span>
+              </div>
+            </div>
+
+            {/* Video Consultation */}
+            <div className="p-3 bg-slate-50/80 rounded-md border border-slate-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-slate-700 font-semibold">
+                  <FaVideo className="text-sky-600 w-3 h-3" />
+                  <span>Video Consultations</span>
+                </div>
+                <span className="font-mono text-[11px] bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-600">
+                  {metrics.mode_breakdown.video?.count || 0} calls
+                </span>
+              </div>
+              <div className="flex justify-between items-baseline pt-1">
+                <span className="text-slate-500 text-[11px]">Net Earnings:</span>
+                <span className="font-mono font-bold text-sky-700 text-sm">
+                  {formatCurrency(metrics.mode_breakdown.video?.net || 0)}
+                </span>
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-400">
+                <span>Gross: {formatCurrency(metrics.mode_breakdown.video?.gross || 0)}</span>
+                <span>Comm: -{formatCurrency(metrics.mode_breakdown.video?.commission || 0)}</span>
+              </div>
+            </div>
+
+            {/* Home Visit */}
+            <div className="p-3 bg-slate-50/80 rounded-md border border-slate-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-slate-700 font-semibold">
+                  <FaHome className="text-amber-600 w-3 h-3" />
+                  <span>Home Visits</span>
+                </div>
+                <span className="font-mono text-[11px] bg-white border border-slate-200 px-2 py-0.5 rounded text-slate-600">
+                  {metrics.mode_breakdown.home_visit?.count || 0} visits
+                </span>
+              </div>
+              <div className="flex justify-between items-baseline pt-1">
+                <span className="text-slate-500 text-[11px]">Net Earnings:</span>
+                <span className="font-mono font-bold text-amber-700 text-sm">
+                  {formatCurrency(metrics.mode_breakdown.home_visit?.net || 0)}
+                </span>
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-400">
+                <span>Gross: {formatCurrency(metrics.mode_breakdown.home_visit?.gross || 0)}</span>
+                <span>Comm: -{formatCurrency(metrics.mode_breakdown.home_visit?.commission || 0)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── SETTLEMENT POLICY BANNER ──────────────────────────────────── */}
       <div className="bg-sky-50 border border-sky-100 rounded-lg p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
         <div className="flex items-start gap-2.5">

@@ -15,8 +15,18 @@ export async function POST(req, { params }) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const payoutRef = body.payout_reference || `PAYOUT-MANUAL-${Date.now()}`;
-    const notes = body.notes || "10-day settlement approved and executed by admin";
+    const utrNumber = (body.utr_number || body.transaction_id || body.payout_reference || '').trim();
+    if (!utrNumber) {
+      return NextResponse.json({
+        success: false,
+        error: "Mandatory settlement proof required: Please enter a valid Bank UTR / Transaction ID.",
+      }, { status: 400 });
+    }
+
+    const paymentMode = body.payment_mode || 'NEFT';
+    const proofUrl = body.proof_url || null;
+    const notes = body.notes || `10-day settlement disbursed via ${paymentMode}. UTR: ${utrNumber}`;
+    const settledBy = caller?.name || caller?.email || "Admin";
 
     const batchRows = await sql`
       SELECT * FROM doctor_payout_batches WHERE id = ${id} LIMIT 1;
@@ -30,12 +40,16 @@ export async function POST(req, { params }) {
       return NextResponse.json({ success: false, error: "Batch is already marked as paid" }, { status: 400 });
     }
 
-    // 1. Update batch to paid
+    // 1. Update batch to paid with verified proof audit
     const updatedRows = await sql`
       UPDATE doctor_payout_batches
       SET
         status = 'paid',
-        payout_reference = ${payoutRef},
+        payout_reference = ${utrNumber},
+        utr_number = ${utrNumber},
+        payment_mode = ${paymentMode},
+        proof_url = ${proofUrl},
+        settled_by = ${settledBy},
         payout_notes = ${notes},
         completed_at = NOW(),
         updated_at = NOW()

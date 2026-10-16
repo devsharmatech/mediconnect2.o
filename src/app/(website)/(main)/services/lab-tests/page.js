@@ -25,10 +25,22 @@ import {
   FaMicroscope,
   FaChevronLeft,
   FaChevronRight,
+  FaSpinner,
 } from "react-icons/fa";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import toast from "react-hot-toast";
+
+const ICON_MAP = {
+  FaFlask,
+  FaTint,
+  FaHeartbeat,
+  FaVial,
+  FaBolt,
+  FaMicroscope,
+  FaBuilding,
+  FaTruck,
+};
 
 const COMMON_CITIES = [
   "All Cities",
@@ -41,15 +53,16 @@ const COMMON_CITIES = [
   "Chennai",
 ];
 
-const POPULAR_QUICK_TESTS = [
-  { label: "All Tests", query: "", icon: FaFlask, iconColor: "text-[#0067A1]" },
-  { label: "CBC Blood Test", query: "CBC", icon: FaTint, iconColor: "text-rose-500" },
-  { label: "Blood Sugar / Diabetes", query: "Sugar", icon: FaHeartbeat, iconColor: "text-red-500" },
-  { label: "Thyroid Profile (TSH)", query: "Thyroid", icon: FaVial, iconColor: "text-sky-500" },
-  { label: "Lipid / Cholesterol", query: "Lipid", icon: FaHeartbeat, iconColor: "text-rose-600" },
-  { label: "Vitamin D & B12", query: "Vitamin", icon: FaBolt, iconColor: "text-amber-500" },
-  { label: "Liver (LFT)", query: "Liver", icon: FaFlask, iconColor: "text-emerald-500" },
-  { label: "Kidney (KFT)", query: "Kidney", icon: FaMicroscope, iconColor: "text-purple-500" },
+const DEFAULT_FALLBACK_FILTERS = [
+  { id: "all", type: "all", label: "All Tests", query: "", icon: "FaFlask", iconColor: "text-[#0067A1]" },
+  { id: "cbc", type: "test", label: "CBC Blood Test", query: "CBC", min_price: 300, icon: "FaTint", iconColor: "text-rose-500" },
+  { id: "sugar", type: "test", label: "Blood Sugar / Diabetes", query: "Sugar", min_price: 50, icon: "FaHeartbeat", iconColor: "text-red-500" },
+  { id: "thyroid", type: "test", label: "Thyroid Profile (TSH)", query: "Thyroid", min_price: 250, icon: "FaVial", iconColor: "text-sky-500" },
+  { id: "lipid", type: "test", label: "Lipid / Cholesterol", query: "Lipid", min_price: 150, icon: "FaHeartbeat", iconColor: "text-rose-600" },
+  { id: "vitamin", type: "test", label: "Vitamin D & B12", query: "Vitamin", min_price: 1000, icon: "FaBolt", iconColor: "text-amber-500" },
+  { id: "liver", type: "test", label: "Liver (LFT)", query: "Liver", min_price: 700, icon: "FaFlask", iconColor: "text-emerald-500" },
+  { id: "kidney", type: "test", label: "Kidney (KFT)", query: "Kidney", min_price: 50, icon: "FaMicroscope", iconColor: "text-purple-500" },
+  { id: "urine", type: "test", label: "Urine Routine", query: "Urine", min_price: 150, icon: "FaFlask", iconColor: "text-teal-500" },
 ];
 
 function getLabLogo(lab) {
@@ -76,7 +89,6 @@ function getLabLogo(lab) {
   }
   return "/images/labs/default-lab-logo.svg";
 }
-
 
 // Haversine formula to compute distance in km between two GPS coordinates
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -108,15 +120,29 @@ function PublicLabsContent() {
   const initialHomeCollection = searchParams?.get("home_collection") === "true";
   const initialCity = searchParams?.get("city") || "";
   const initialSearch = searchParams?.get("search") || "";
+  const initialCategoryId = searchParams?.get("category_id") || null;
 
   const [labs, setLabs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(initialSearch);
+  const [selectedCategory, setSelectedCategory] = useState(
+    initialCategoryId ? { category_id: initialCategoryId } : null
+  );
   const [city, setCity] = useState(initialCity);
   const [area, setArea] = useState("");
   const [homeCollection, setHomeCollection] = useState(initialHomeCollection);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  // Dynamic Quick Search filters from AWS RDS
+  const [quickFilters, setQuickFilters] = useState(DEFAULT_FALLBACK_FILTERS);
+  const [networkStats, setNetworkStats] = useState({ total_tests: 0, total_labs: 0 });
+
+  // Autocomplete test suggestions state
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false);
+  const searchBoxRef = useRef(null);
 
   // Geolocation state
   const [userLocation, setUserLocation] = useState(null);
@@ -127,6 +153,66 @@ function PublicLabsContent() {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const isDraggingRef = useRef(false);
+
+  // Fetch dynamic quick filters from AWS RDS on mount
+  useEffect(() => {
+    const fetchQuickFilters = async () => {
+      try {
+        const res = await fetch("/api/patient/lab/quick-search");
+        const data = await res.json();
+        if (data.success && data.data?.quick_filters) {
+          setQuickFilters(data.data.quick_filters);
+          if (data.data.total_tests) {
+            setNetworkStats({
+              total_tests: data.data.total_tests,
+              total_labs: data.data.total_labs,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch quick filters:", err);
+      }
+    };
+    fetchQuickFilters();
+  }, []);
+
+  // Fetch test autocomplete suggestions when typing
+  useEffect(() => {
+    if (!search || search.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearchingSuggestions(true);
+        const res = await fetch(
+          `/api/patient/lab/tests/search?q=${encodeURIComponent(search.trim())}`
+        );
+        const data = await res.json();
+        if (data.success && data.data?.tests) {
+          setSuggestions(data.data.tests);
+        }
+      } catch (err) {
+        console.warn("Suggestion fetch error:", err);
+      } finally {
+        setIsSearchingSuggestions(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Click outside listener for suggestions dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const checkQuickScroll = useCallback(() => {
     const el = quickSearchRef.current;
@@ -143,7 +229,7 @@ function PublicLabsContent() {
     const handleResize = () => checkQuickScroll();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [checkQuickScroll]);
+  }, [checkQuickScroll, quickFilters]);
 
   // Convert vertical mouse wheel into horizontal scroll when hovering Quick Search pills
   useEffect(() => {
@@ -169,7 +255,6 @@ function PublicLabsContent() {
     let scrollStart = 0;
 
     const onMouseDown = (e) => {
-      // Don't drag if clicking buttons directly with intent
       isDown = true;
       isDraggingRef.current = false;
       startX = e.pageX - el.offsetLeft;
@@ -221,9 +306,11 @@ function PublicLabsContent() {
       const c = override.city !== undefined ? override.city : city;
       const a = override.area !== undefined ? override.area : area;
       const h = override.homeCollection !== undefined ? override.homeCollection : homeCollection;
+      const cat = override.selectedCategory !== undefined ? override.selectedCategory : selectedCategory;
 
       const params = new URLSearchParams({ page: p.toString(), limit: "24" });
-      if (s.trim()) params.set("search", s.trim());
+      if (s && s.trim()) params.set("search", s.trim());
+      if (cat?.category_id) params.set("category_id", cat.category_id);
       if (c.trim() && c !== "All Cities") params.set("city", c.trim());
       if (a.trim()) params.set("area", a.trim());
       if (h) params.set("home_collection", "true");
@@ -243,16 +330,47 @@ function PublicLabsContent() {
   };
 
   const handleSearchSubmit = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    setShowSuggestions(false);
     setPage(1);
     fetchLabs({ page: 1 });
   };
 
-  const handleQuickFilter = (query) => {
-    const nextQuery = search.toLowerCase() === query.toLowerCase() ? "" : query;
+  const handleQuickFilter = (item) => {
+    setShowSuggestions(false);
+    if (!item || item.type === "all") {
+      setSearch("");
+      setSelectedCategory(null);
+      setPage(1);
+      fetchLabs({ search: "", selectedCategory: null, page: 1 });
+      return;
+    }
+
+    if (item.type === "category") {
+      const isAlreadyActive = selectedCategory?.category_id === item.category_id;
+      const nextCategory = isAlreadyActive ? null : item;
+      setSelectedCategory(nextCategory);
+      setSearch("");
+      setPage(1);
+      fetchLabs({ search: "", selectedCategory: nextCategory, page: 1 });
+      return;
+    }
+
+    // item.type === 'test'
+    const isAlreadyActive = search.toLowerCase() === (item.query || "").toLowerCase();
+    const nextQuery = isAlreadyActive ? "" : item.query;
     setSearch(nextQuery);
+    setSelectedCategory(null);
     setPage(1);
-    fetchLabs({ search: nextQuery, page: 1 });
+    fetchLabs({ search: nextQuery, selectedCategory: null, page: 1 });
+  };
+
+  const handleSelectSuggestion = (test) => {
+    setSearch(test.test_name);
+    setSelectedCategory(null);
+    setShowSuggestions(false);
+    setPage(1);
+    fetchLabs({ search: test.test_name, selectedCategory: null, page: 1 });
   };
 
   const handleGetLocation = () => {
@@ -311,16 +429,19 @@ function PublicLabsContent() {
 
   const handleResetFilters = () => {
     setSearch("");
+    setSelectedCategory(null);
     setCity("");
     setArea("");
     setHomeCollection(false);
     setUserLocation(null);
+    setShowSuggestions(false);
     setPage(1);
-    fetchLabs({ search: "", city: "", area: "", homeCollection: false, page: 1 });
+    fetchLabs({ search: "", selectedCategory: null, city: "", area: "", homeCollection: false, page: 1 });
   };
 
   const hasActiveFilters = Boolean(
     search.trim() ||
+      selectedCategory ||
       (city && city !== "All Cities") ||
       area.trim() ||
       homeCollection ||
@@ -362,7 +483,7 @@ function PublicLabsContent() {
 
   return (
     <div className="min-h-screen bg-[#F7FAFC]">
-      {/* 1. COMPACT, FRIENDLY HERO & SEARCH (DESIGNED FOR FIRST SCREEN ACCESSIBILITY) */}
+      {/* 1. COMPACT HERO & SEARCH BAR */}
       <section className="bg-gradient-to-b from-[#F7FAFC] to-white border-b border-[#DCE6EB] pt-6 pb-6 sm:pt-8 sm:pb-8 px-3 sm:px-6 lg:px-8">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           {/* Top Back Link & Trust Badge */}
@@ -376,11 +497,11 @@ function PublicLabsContent() {
 
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F2F7] border border-[#DCE6EB] text-[#1677A8] text-[11px] font-bold">
               <FaShieldAlt className="w-3 h-3 text-[#1677A8]" />
-              <span>NABL Certified Labs</span>
+              <span>NABL Certified Diagnostic Labs</span>
             </div>
           </div>
 
-          {/* Clean, Friendly Title */}
+          {/* Clean Title */}
           <div className="text-left sm:text-center max-w-2xl mx-auto mb-4">
             <p className="text-[11px] sm:text-xs font-bold tracking-widest text-[#1677A8] uppercase mb-1">
               DIAGNOSTIC NETWORK
@@ -393,31 +514,73 @@ function PublicLabsContent() {
             </p>
           </div>
 
-          {/* SEARCH & FILTER BOX (IMMEDIATELY VISIBLE ON FIRST SCREEN) */}
-          <div className="bg-white rounded-2xl shadow-2xs border border-[#DCE6EB] p-3 sm:p-4 max-w-4xl mx-auto">
+          {/* SEARCH & FILTER BOX */}
+          <div className="bg-white rounded-xl shadow-xs border border-[#DCE6EB] p-3 sm:p-4 max-w-4xl mx-auto">
             <form onSubmit={handleSearchSubmit} className="space-y-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                {/* Search Input */}
-                <div className="sm:col-span-5 relative">
-                  <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
+                {/* Search Input with Autocomplete Dropdown */}
+                <div className="sm:col-span-5 relative" ref={searchBoxRef}>
+                  <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5 z-10" />
                   <input
                     type="text"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onFocus={() => {
+                      if (suggestions.length > 0) setShowSuggestions(true);
+                    }}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setShowSuggestions(true);
+                    }}
                     placeholder="Search test (e.g. CBC, Sugar, Thyroid) or Lab..."
-                    className="w-full pl-9 pr-8 py-2.5 text-xs sm:text-sm rounded-xl bg-[#F7FAFC] border border-[#DCE6EB] focus:bg-white focus:border-[#1677A8] focus:ring-2 focus:ring-[#1677A8]/20 text-[#18303D] placeholder:text-[#607580]/60 outline-none transition-all font-medium"
+                    className="w-full pl-9 pr-8 py-2.5 text-xs sm:text-sm rounded-lg bg-[#F7FAFC] border border-[#DCE6EB] focus:bg-white focus:border-[#1677A8] focus:ring-2 focus:ring-[#1677A8]/20 text-[#18303D] placeholder:text-[#607580]/60 outline-none transition-all font-medium"
                   />
                   {search && (
                     <button
                       type="button"
                       onClick={() => {
                         setSearch("");
+                        setSuggestions([]);
+                        setShowSuggestions(false);
                         fetchLabs({ search: "", page: 1 });
                       }}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 z-10 cursor-pointer"
                     >
                       <FaTimes className="w-3 h-3" />
                     </button>
+                  )}
+
+                  {/* Autocomplete Suggestions Dropdown */}
+                  {showSuggestions && suggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-xl shadow-lg border border-[#DCE6EB] z-50 overflow-hidden divide-y divide-slate-100">
+                      <div className="px-3 py-1.5 bg-[#F7FAFC] flex items-center justify-between text-[11px] font-bold text-[#607580]">
+                        <span>Matching Lab Tests</span>
+                        <span>Starting Price</span>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto">
+                        {suggestions.map((item, sIdx) => (
+                          <div
+                            key={`${item.test_name}-${sIdx}`}
+                            onClick={() => handleSelectSuggestion(item)}
+                            className="px-3 py-2 hover:bg-[#E8F2F7]/50 flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-[#0B3A5B] truncate">
+                                {item.test_name}
+                              </p>
+                              <div className="flex items-center gap-1.5 text-[10px] text-[#607580]">
+                                {item.test_code && <span>{item.test_code}</span>}
+                                <span>• Available in {item.labs_count} labs</span>
+                                {item.category_name && <span>• {item.category_name}</span>}
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-xs font-bold text-emerald-700">₹{item.min_price}</span>
+                              <span className="block text-[9px] text-slate-400">from</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -432,14 +595,13 @@ function PublicLabsContent() {
                       setPage(1);
                       fetchLabs({ city: newCity, page: 1 });
                     }}
-                    className="w-full pl-8 pr-7 py-2.5 text-xs sm:text-sm rounded-xl bg-[#F7FAFC] border border-[#DCE6EB] focus:bg-white focus:border-[#1677A8] focus:ring-2 focus:ring-[#1677A8]/20 text-[#18303D] outline-none transition-all cursor-pointer appearance-none font-medium"
+                    className="w-full pl-8 pr-7 py-2.5 text-xs sm:text-sm rounded-lg bg-[#F7FAFC] border border-[#DCE6EB] focus:bg-white focus:border-[#1677A8] focus:ring-2 focus:ring-[#1677A8]/20 text-[#18303D] outline-none transition-all cursor-pointer appearance-none font-medium"
                   >
-                    <option value="">All Cities</option>
-                    <option value="New Delhi">New Delhi</option>
-                    <option value="Kochi">Kochi</option>
-                    <option value="Rohtak">Rohtak</option>
-                    <option value="Mumbai">Mumbai</option>
-                    <option value="Bangalore">Bangalore</option>
+                    {COMMON_CITIES.map((c) => (
+                      <option key={c} value={c === "All Cities" ? "" : c}>
+                        {c}
+                      </option>
+                    ))}
                   </select>
                   <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-[10px]">
                     ▼
@@ -450,7 +612,7 @@ function PublicLabsContent() {
                 <div className="sm:col-span-4">
                   <button
                     type="submit"
-                    className="w-full py-2.5 px-4 rounded-xl bg-[#0B3A5B] hover:bg-[#1677A8] text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-2xs"
+                    className="w-full py-2.5 px-4 rounded-lg bg-[#0B3A5B] hover:bg-[#1677A8] text-white font-bold text-xs sm:text-sm transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-xs"
                   >
                     <FaSearch className="w-3.5 h-3.5" />
                     <span>Find Tests & Labs</span>
@@ -466,7 +628,7 @@ function PublicLabsContent() {
                     <button
                       type="button"
                       onClick={handleClearLocation}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 transition-colors cursor-pointer shadow-2xs"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 transition-colors cursor-pointer shadow-xs"
                       title="Click to clear location filter"
                     >
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -481,7 +643,9 @@ function PublicLabsContent() {
                       disabled={isLocating}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100 hover:text-[#0067A1] transition-colors cursor-pointer"
                     >
-                      <FaLocationArrow className={`w-2.5 h-2.5 text-[#0067A1] ${isLocating ? "animate-spin" : ""}`} />
+                      <FaLocationArrow
+                        className={`w-2.5 h-2.5 text-[#0067A1] ${isLocating ? "animate-spin" : ""}`}
+                      />
                       <span>{isLocating ? "Detecting Area & GPS..." : "Labs Near Me"}</span>
                     </button>
                   )}
@@ -506,6 +670,24 @@ function PublicLabsContent() {
                     {homeCollection && <FaTimes className="w-2.5 h-2.5 ml-0.5" />}
                   </button>
 
+                  {/* Category Filter Indicator */}
+                  {selectedCategory && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold bg-[#E8F2F7] text-[#1677A8] border border-[#DCE6EB]">
+                      <span>Category: {selectedCategory.label || "Selected"}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCategory(null);
+                          setPage(1);
+                          fetchLabs({ selectedCategory: null, page: 1 });
+                        }}
+                        className="ml-1 text-[#1677A8] hover:text-[#0B3A5B]"
+                      >
+                        <FaTimes className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  )}
+
                   {/* Reset Filters */}
                   {hasActiveFilters && (
                     <button
@@ -525,8 +707,8 @@ function PublicLabsContent() {
             </form>
           </div>
 
-          {/* QUICK TAP TEST CATEGORY PILLS (With Scroll Arrows, Wheel & Drag Scroll) */}
-          <div className="mt-2.5 max-w-4xl mx-auto relative group">
+          {/* 2. DYNAMIC QUICK SEARCH PILLS (DRIVEN FROM AWS RDS DATABASE) */}
+          <div className="mt-3 max-w-4xl mx-auto relative group">
             {/* Left Chevron Button */}
             {canScrollLeft && (
               <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10 flex items-center">
@@ -553,16 +735,24 @@ function PublicLabsContent() {
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1 hidden sm:inline select-none">
                 Quick Search:
               </span>
-              {POPULAR_QUICK_TESTS.map((test) => {
-                const isActive = (test.query === "" && !search) || (test.query !== "" && search.toLowerCase() === test.query.toLowerCase());
-                const IconComponent = test.icon;
+              {quickFilters.map((item) => {
+                const isCategory = item.type === "category";
+                const isAll = item.type === "all";
+                const isActive = isAll
+                  ? !search && !selectedCategory
+                  : isCategory
+                  ? selectedCategory?.category_id === item.category_id
+                  : search && item.query && search.toLowerCase() === item.query.toLowerCase();
+
+                const IconComponent = ICON_MAP[item.icon] || FaFlask;
+
                 return (
                   <button
-                    key={test.label}
+                    key={item.id || item.label}
                     type="button"
                     onClick={() => {
                       if (isDraggingRef.current) return;
-                      handleQuickFilter(test.query);
+                      handleQuickFilter(item);
                     }}
                     className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] sm:text-xs transition-all cursor-pointer whitespace-nowrap select-none ${
                       isActive
@@ -572,10 +762,19 @@ function PublicLabsContent() {
                   >
                     {IconComponent && (
                       <IconComponent
-                        className={`w-3 h-3 shrink-0 ${isActive ? "text-white" : test.iconColor}`}
+                        className={`w-3 h-3 shrink-0 ${isActive ? "text-white" : item.iconColor || "text-[#1677A8]"}`}
                       />
                     )}
-                    <span>{test.label}</span>
+                    <span>{item.label}</span>
+                    {item.min_price !== undefined && item.min_price !== null && (
+                      <span
+                        className={`text-[10px] font-bold ${
+                          isActive ? "text-sky-200" : "text-emerald-700"
+                        }`}
+                      >
+                        ₹{item.min_price}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -600,7 +799,7 @@ function PublicLabsContent() {
         </div>
       </section>
 
-      {/* 3. SMALL LAB CARDS GRID */}
+      {/* 3. LAB CARDS GRID WITH REAL MATCHED TESTS FROM AWS RDS */}
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 pb-28 sm:pb-16">
         {loading ? (
           /* Loading skeleton */
@@ -608,7 +807,7 @@ function PublicLabsContent() {
             {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
               <div
                 key={i}
-                className="bg-white rounded-xl border border-slate-200 p-4 h-48 animate-pulse flex flex-col justify-between"
+                className="bg-white rounded-xl border border-slate-200 p-4 h-56 animate-pulse flex flex-col justify-between shadow-xs"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-slate-200 rounded-lg shrink-0" />
@@ -627,8 +826,8 @@ function PublicLabsContent() {
           </div>
         ) : processedLabs.length === 0 ? (
           /* Empty state */
-          <div className="bg-white rounded-2xl border border-slate-200/90 p-12 text-center max-w-lg mx-auto shadow-xs">
-            <div className="w-16 h-16 bg-sky-50 text-[#0067A1] rounded-2xl flex items-center justify-center mx-auto mb-4 border border-sky-100">
+          <div className="bg-white rounded-xl border border-slate-200/90 p-12 text-center max-w-lg mx-auto shadow-xs">
+            <div className="w-16 h-16 bg-sky-50 text-[#0067A1] rounded-xl flex items-center justify-center mx-auto mb-4 border border-sky-100 shadow-xs">
               <FaFlask className="w-7 h-7" />
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-1.5">No Labs Match Your Search</h3>
@@ -637,14 +836,14 @@ function PublicLabsContent() {
             </p>
             <button
               onClick={handleResetFilters}
-              className="px-4 py-2 bg-[#0067A1] text-white text-xs font-semibold rounded-lg hover:bg-[#004F7C] transition-colors cursor-pointer"
+              className="px-4 py-2 bg-[#0B3A5B] text-white text-xs font-semibold rounded-lg hover:bg-[#1677A8] transition-colors cursor-pointer shadow-xs"
             >
-              Reset Filters & Show All Labs
+              Reset Filters
             </button>
           </div>
         ) : (
           <>
-            {/* Small Lab Cards Grid */}
+            {/* Lab Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {processedLabs.map((lab, idx) => {
                 const labName = lab.lab_name || lab.name || "MediConnect Partner Lab";
@@ -659,12 +858,12 @@ function PublicLabsContent() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: Math.min(idx * 0.04, 0.4) }}
                     onClick={() => router.push(`/services/lab-tests/${lab.id}`)}
-                    className="bg-white rounded-2xl border border-[#DCE6EB] hover:border-[#1677A8]/50 hover:shadow-sm transition-all duration-200 p-4 flex flex-col justify-between group cursor-pointer relative shadow-2xs"
+                    className="bg-white rounded-xl border border-[#DCE6EB] hover:border-[#1677A8]/50 hover:shadow-md transition-all duration-200 p-4 flex flex-col justify-between group cursor-pointer relative shadow-xs"
                   >
                     <div>
                       {/* Top Row: Logo + Name + Verified Badge */}
                       <div className="flex items-start gap-2.5 mb-2.5">
-                        <div className="w-11 h-11 rounded-xl bg-white text-[#1677A8] flex items-center justify-center shrink-0 border border-[#DCE6EB] shadow-2xs overflow-hidden p-0.5">
+                        <div className="w-11 h-11 rounded-lg bg-white text-[#1677A8] flex items-center justify-center shrink-0 border border-[#DCE6EB] shadow-xs overflow-hidden p-0.5">
                           {labLogo ? (
                             <img
                               src={labLogo}
@@ -672,7 +871,7 @@ function PublicLabsContent() {
                               className="w-full h-full object-contain"
                             />
                           ) : (
-                            <div className="w-full h-full rounded-lg bg-[#E8F2F7] flex items-center justify-center text-[#1677A8]">
+                            <div className="w-full h-full rounded-md bg-[#E8F2F7] flex items-center justify-center text-[#1677A8]">
                               <FaFlask className="w-4 h-4" />
                             </div>
                           )}
@@ -720,21 +919,27 @@ function PublicLabsContent() {
                         </div>
                       )}
 
-                      {/* Matched Test Snippet (if user searched for a specific test) */}
-                      {lab.matched_tests &&
-                        Array.isArray(lab.matched_tests) &&
-                        lab.matched_tests.length > 0 && (
-                          <div className="mb-2 p-2 bg-[#E8F2F7]/50 border border-[#DCE6EB] rounded-lg">
-                            <div className="flex items-center justify-between text-[11px] text-[#18303D]">
-                              <span className="truncate font-semibold text-[#1677A8]">
-                                • {lab.matched_tests[0].test_name}
-                              </span>
-                              <span className="font-bold text-emerald-700 shrink-0 ml-1">
-                                ₹{lab.matched_tests[0].price}
-                              </span>
-                            </div>
-                          </div>
+                      {/* Tests Count & Starting Price Row */}
+                      <div className="mb-2 flex items-center justify-between text-[11px]">
+                        <span className="font-semibold text-slate-700">
+                          {lab.total_tests_count ? `${lab.total_tests_count.toLocaleString()} Tests Available` : "Tests Available"}
+                        </span>
+                        {lab.min_test_price !== null && lab.min_test_price !== undefined && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            Starts at ₹{lab.min_test_price}
+                          </span>
                         )}
+                      </div>
+
+                      {/* Comma-Separated Tests List (Compact) */}
+                      {lab.matched_tests && Array.isArray(lab.matched_tests) && lab.matched_tests.length > 0 && (
+                        <p className="text-[11px] text-[#607580] line-clamp-2 mb-2.5 leading-snug">
+                          <strong className="font-semibold text-[#0B3A5B]">
+                            {lab.has_search_match ? "Matching: " : "Tests: "}
+                          </strong>
+                          {lab.matched_tests.map((t) => t.test_name).join(", ")}
+                        </p>
+                      )}
 
                       {/* Badges Row (Home collection, Hours, Turnaround) */}
                       <div className="flex flex-wrap items-center gap-1 mb-2.5">
@@ -760,7 +965,7 @@ function PublicLabsContent() {
                       </div>
                     </div>
 
-                    {/* Bottom Action Row */}
+                    {/* Bottom Action Row with Short Buttons */}
                     <div className="pt-2.5 border-t border-[#DCE6EB]/60 flex items-center justify-between mt-1">
                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/80">
                         <FaShieldAlt className="w-2.5 h-2.5 text-emerald-600" />
@@ -782,7 +987,7 @@ function PublicLabsContent() {
                 <button
                   disabled={page <= 1}
                   onClick={() => setPage(page - 1)}
-                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-xs"
                 >
                   Previous
                 </button>
@@ -792,7 +997,7 @@ function PublicLabsContent() {
                 <button
                   disabled={page >= totalPages}
                   onClick={() => setPage(page + 1)}
-                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs"
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-xs"
                 >
                   Next
                 </button>
@@ -802,7 +1007,7 @@ function PublicLabsContent() {
         )}
       </main>
 
-      {/* 4. HOW IT WORKS IN 3 STEPS (Cleanly placed at the bottom so it never crowds the first screen) */}
+      {/* 4. HOW IT WORKS IN 3 STEPS */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 border-t border-slate-200/80 mt-2 mb-6">
         <div className="text-center max-w-xl mx-auto mb-6">
           <h2 className="text-base sm:text-lg font-bold text-slate-900">
@@ -814,7 +1019,7 @@ function PublicLabsContent() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 max-w-4xl mx-auto">
-          <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs flex items-start gap-3">
+          <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-xs flex items-start gap-3">
             <div className="w-8 h-8 rounded-lg bg-sky-50 text-[#0067A1] flex items-center justify-center font-bold text-xs shrink-0 border border-sky-100">
               1
             </div>
@@ -826,7 +1031,7 @@ function PublicLabsContent() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs flex items-start gap-3">
+          <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-xs flex items-start gap-3">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-xs shrink-0 border border-emerald-100">
               2
             </div>
@@ -838,7 +1043,7 @@ function PublicLabsContent() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs flex items-start gap-3">
+          <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-xs flex items-start gap-3">
             <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0 border border-indigo-100">
               3
             </div>

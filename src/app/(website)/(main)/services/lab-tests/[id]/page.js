@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, Suspense } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
     FaFlask, FaSearch, FaArrowLeft, FaMapMarkerAlt, FaShoppingCart,
     FaPlus, FaTrash, FaClock, FaCheckCircle, FaTimes,
@@ -14,6 +14,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import { expandLabSearchTerms } from "@/lib/labSearchHelper";
 
 import LoginModal from "@/components/public-site/auth/LoginModal";
 import SignupModal from "@/components/public-site/auth/SignupModal";
@@ -60,15 +61,15 @@ function getLabLogo(lab) {
     return "/images/labs/default-lab-logo.svg";
 }
 
-
-export default function PublicLabTestsPage({ params }) {
-    const { id: labId } = use(params);
+function PublicLabTestsContent({ labId }) {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const initialSearch = searchParams?.get("search") || "";
 
     const [lab, setLab] = useState(null);
     const [tests, setTests] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState("");
+    const [search, setSearch] = useState(initialSearch);
     const [cart, setCart] = useState([]);
     const [showCartDrawer, setShowCartDrawer] = useState(false);
     const [viewMode, setViewMode] = useState("grid"); // "grid" | "list"
@@ -87,7 +88,7 @@ export default function PublicLabTestsPage({ params }) {
     useEffect(() => {
         const user = getLoggedInUser();
         setIsLoggedIn(!!user);
-        fetchLabAndTests();
+        fetchLabAndTests(initialSearch);
         const existingCart = getCart();
         if (existingCart && existingCart.lab_id === labId) {
             setCart(existingCart.tests || []);
@@ -106,12 +107,13 @@ export default function PublicLabTestsPage({ params }) {
         };
     }, [showCartDrawer]);
 
-    const fetchLabAndTests = async () => {
+    const fetchLabAndTests = async (searchQuery = search) => {
         setLoading(true);
         try {
+            const queryParam = searchQuery?.trim() ? `?search=${encodeURIComponent(searchQuery.trim())}` : "";
             const [labRes, testsRes] = await Promise.all([
                 fetch(`/api/patient/lab/labs/${labId}`),
-                fetch(`/api/patient/lab/labs/${labId}/tests`),
+                fetch(`/api/patient/lab/labs/${labId}/tests${queryParam}`),
             ]);
             const labData = await labRes.json();
             const testsData = await testsRes.json();
@@ -126,10 +128,14 @@ export default function PublicLabTestsPage({ params }) {
         }
     };
 
-    const filtered = tests.filter(t =>
-        t.test_name?.toLowerCase().includes(search.toLowerCase()) ||
-        (t.test_code && t.test_code.toLowerCase().includes(search.toLowerCase()))
-    );
+    const searchTerms = search ? expandLabSearchTerms(search) : [];
+    const filtered = tests.filter(t => {
+        if (!search.trim()) return true;
+        const name = (t.test_name || "").toLowerCase();
+        const code = (t.test_code || "").toLowerCase();
+        if (name.includes(search.toLowerCase()) || code.includes(search.toLowerCase())) return true;
+        return searchTerms.some(term => name.includes(term) || code.includes(term));
+    });
 
     const isInCart = (testId) => cart.some(t => t.test_id === testId);
 
@@ -963,3 +969,22 @@ export default function PublicLabTestsPage({ params }) {
         </div>
     );
 }
+
+export default function PublicLabTestsPage({ params }) {
+    const { id: labId } = use(params);
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen bg-slate-50 flex items-center justify-center py-20">
+                    <div className="flex flex-col items-center gap-3 text-slate-500 text-xs">
+                        <div className="w-8 h-8 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin" />
+                        <span>Loading tests...</span>
+                    </div>
+                </div>
+            }
+        >
+            <PublicLabTestsContent labId={labId} />
+        </Suspense>
+    );
+}
+

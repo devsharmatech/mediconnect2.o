@@ -25,34 +25,80 @@ export async function GET(req) {
 
     const summary = await getChemistRevenueSummary({ chemistId });
 
-    // Orders query
+    // Orders query with itemized medicines and financial audit calculation
     const searchPattern = search ? `%${search}%` : null;
 
     const [countRow] = await sql`
       SELECT COUNT(*)::int AS total
       FROM medicine_orders o
       LEFT JOIN chemist_details c ON c.id = o.chemist_id
+      LEFT JOIN patient_details p ON p.id = o.patient_id
       WHERE (${chemistId ? sql`o.chemist_id = ${chemistId}` : sql`1=1`})
         AND (${status ? sql`o.status = ${status}` : sql`1=1`})
-        AND (${searchPattern ? sql`(o.id::text ILIKE ${searchPattern} OR c.pharmacy_name ILIKE ${searchPattern})` : sql`1=1`});
+        AND (${searchPattern ? sql`(o.id::text ILIKE ${searchPattern} OR c.pharmacy_name ILIKE ${searchPattern} OR p.full_name ILIKE ${searchPattern})` : sql`1=1`});
     `;
 
     const total = countRow?.total || 0;
 
-    const orders = await sql`
+    const rawOrders = await sql`
       SELECT
         o.id, o.chemist_id, o.patient_id, o.status, o.payment_status, o.total_amount,
         o.chemist_payout_amount, o.platform_commission_amount, o.settlement_status,
         o.created_at, o.delivery_type, o.actual_delivery_at,
-        c.pharmacy_name, c.mobile as chemist_phone
+        c.pharmacy_name, c.mobile as chemist_phone,
+        p.full_name as patient_name,
+        (
+          SELECT COALESCE(json_agg(json_build_object(
+            'id', mi.id,
+            'medicine_name', mi.medicine_name,
+            'dosage', mi.dosage,
+            'frequency', mi.frequency,
+            'duration', mi.duration,
+            'quantity', mi.quantity,
+            'price', mi.price,
+            'category', 'Prescription Rx'
+          )), '[]'::json)
+          FROM medicine_order_items mi
+          WHERE mi.order_id = o.id
+        ) as items
       FROM medicine_orders o
       LEFT JOIN chemist_details c ON c.id = o.chemist_id
+      LEFT JOIN patient_details p ON p.id = o.patient_id
       WHERE (${chemistId ? sql`o.chemist_id = ${chemistId}` : sql`1=1`})
         AND (${status ? sql`o.status = ${status}` : sql`1=1`})
-        AND (${searchPattern ? sql`(o.id::text ILIKE ${searchPattern} OR c.pharmacy_name ILIKE ${searchPattern})` : sql`1=1`})
+        AND (${searchPattern ? sql`(o.id::text ILIKE ${searchPattern} OR c.pharmacy_name ILIKE ${searchPattern} OR p.full_name ILIKE ${searchPattern})` : sql`1=1`})
       ORDER BY o.created_at DESC
       LIMIT ${limit} OFFSET ${offset};
     `;
+
+    // Calculate audit breakdown per order down to exact paisa
+    const orders = rawOrders.map(o => {
+      const grossAmount = Number(o.total_amount || 0);
+      let items = o.items || [];
+      if (typeof items === 'string') {
+        try { items = JSON.parse(items); } catch { items = []; }
+      }
+
+      // Platform commission 10% standard on medicine orders
+      const commissionRate = 10.00;
+      const commissionAmount = Math.round((grossAmount * (commissionRate / 100)) * 100) / 100;
+      const gstOnCommission = Math.round((commissionAmount * 0.18) * 100) / 100;
+      const tdsRate = 1.00; // Section 194-O e-commerce TDS (1%)
+      const tdsAmount = Math.round((grossAmount * (tdsRate / 100)) * 100) / 100;
+      const chemistNetPayout = Math.max(0, Math.round((grossAmount - commissionAmount - tdsAmount) * 100) / 100);
+
+      return {
+        ...o,
+        items,
+        calculated_gross: grossAmount,
+        commission_rate: commissionRate,
+        commission_amount: commissionAmount,
+        gst_on_commission: gstOnCommission,
+        tds_rate: tdsRate,
+        tds_amount: tdsAmount,
+        calculated_chemist_payout: chemistNetPayout,
+      };
+    });
 
     return NextResponse.json({
       success: true,

@@ -1,12 +1,13 @@
 import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+import { expandLabSearchTerms } from "@/lib/labSearchHelper";
 
 export async function OPTIONS() {
     return new Response("OK", { headers: corsHeaders });
 }
 
-// GET — All active tests for a specific lab (patient/public view)
+// GET — All active tests for a specific lab (patient/public view) with synonym-aware search
 export async function GET(req, { params }) {
     try {
         const { id } = await params;
@@ -17,7 +18,7 @@ export async function GET(req, { params }) {
 
         const { searchParams } = new URL(req.url);
         const search = (searchParams.get("search") || "").trim();
-        const category_id = searchParams.get("category_id");
+        const category_id = (searchParams.get("category_id") || "").trim();
 
         // Verify the lab is approved (or exists)
         const labRows = await sql`
@@ -33,9 +34,14 @@ export async function GET(req, { params }) {
 
         const labData = labRows[0];
 
+        // Expand medical synonyms (e.g. Sugar -> Glucose, CBC, LFT, etc.)
+        const terms = search ? expandLabSearchTerms(search) : [];
+        const likeConditions = terms.length > 0 ? terms.map((t) => `%${t}%`) : null;
+        const exactPattern = search ? `%${search}%` : null;
+
         // Fetch active tests for this lab
         let tests = [];
-        if (search && category_id) {
+        if (likeConditions && category_id) {
             tests = await sql`
                 SELECT 
                     lt.id,
@@ -57,10 +63,19 @@ export async function GET(req, { params }) {
                 WHERE lt.lab_id = ${id}
                   AND lt.is_active = true
                   AND lt.category_id = ${category_id}
-                  AND (lt.test_name ILIKE ${'%' + search + '%'} OR lt.test_code ILIKE ${'%' + search + '%'})
-                ORDER BY lt.test_name ASC
+                  AND (
+                      lt.test_name ILIKE ANY(${likeConditions})
+                      OR lt.test_code ILIKE ANY(${likeConditions})
+                  )
+                ORDER BY 
+                  CASE 
+                    WHEN lt.test_name ILIKE ${exactPattern} THEN 1
+                    ELSE 2
+                  END,
+                  lt.price ASC,
+                  lt.test_name ASC
             `;
-        } else if (search) {
+        } else if (likeConditions) {
             tests = await sql`
                 SELECT 
                     lt.id,
@@ -81,8 +96,17 @@ export async function GET(req, { params }) {
                 LEFT JOIN lab_test_categories c ON c.id = lt.category_id
                 WHERE lt.lab_id = ${id}
                   AND lt.is_active = true
-                  AND (lt.test_name ILIKE ${'%' + search + '%'} OR lt.test_code ILIKE ${'%' + search + '%'})
-                ORDER BY lt.test_name ASC
+                  AND (
+                      lt.test_name ILIKE ANY(${likeConditions})
+                      OR lt.test_code ILIKE ANY(${likeConditions})
+                  )
+                ORDER BY 
+                  CASE 
+                    WHEN lt.test_name ILIKE ${exactPattern} THEN 1
+                    ELSE 2
+                  END,
+                  lt.price ASC,
+                  lt.test_name ASC
             `;
         } else if (category_id) {
             tests = await sql`
@@ -106,7 +130,7 @@ export async function GET(req, { params }) {
                 WHERE lt.lab_id = ${id}
                   AND lt.is_active = true
                   AND lt.category_id = ${category_id}
-                ORDER BY lt.test_name ASC
+                ORDER BY lt.price ASC, lt.test_name ASC
             `;
         } else {
             tests = await sql`
@@ -147,9 +171,9 @@ export async function GET(req, { params }) {
             categories,
             tests,
             total: tests.length,
-        }, 200, { headers: corsHeaders });
+        }, 200);
     } catch (error) {
         console.error("Patient lab tests error:", error);
-        return failure("Failed to fetch lab tests", error.message, 500, { headers: corsHeaders });
+        return failure("Failed to fetch lab tests", error.message, 500);
     }
 }
