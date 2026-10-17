@@ -154,3 +154,52 @@ export async function POST(req) {
         return failure("Failed to create test", error.message, 500, { headers: corsHeaders });
     }
 }
+
+// PATCH toggle or update test properties (like is_nabl_accredited)
+export async function PATCH(req) {
+    try {
+        const body = await req.json();
+        const { test_id, test_ids, is_nabl_accredited, nabl_scope_notes } = body;
+
+        if (Array.isArray(test_ids) && test_ids.length > 0) {
+            const cleanIds = test_ids.map(safeUuid).filter(Boolean);
+            if (cleanIds.length === 0) {
+                return failure("No valid test IDs provided", null, 400, { headers: corsHeaders });
+            }
+            await sql`
+                UPDATE lab_tests
+                SET 
+                    is_nabl_accredited = ${is_nabl_accredited !== undefined ? !!is_nabl_accredited : false},
+                    nabl_scope_notes = COALESCE(${nabl_scope_notes}, nabl_scope_notes),
+                    updated_at = NOW()
+                WHERE id = ANY(${cleanIds})
+            `;
+            return success(`Updated ${cleanIds.length} tests NABL scope status`, { count: cleanIds.length }, 200, { headers: corsHeaders });
+        }
+
+        const cleanTestId = safeUuid(test_id);
+        if (!cleanTestId) {
+            return failure("Valid test_id or test_ids array is required", null, 400, { headers: corsHeaders });
+        }
+
+        const [updated] = await sql`
+            UPDATE lab_tests
+            SET
+                is_nabl_accredited = ${is_nabl_accredited !== undefined ? !!is_nabl_accredited : false},
+                nabl_scope_notes = COALESCE(${nabl_scope_notes}, nabl_scope_notes),
+                updated_at = NOW()
+            WHERE id = ${cleanTestId}
+            RETURNING *
+        `;
+
+        if (!updated) {
+            return failure("Test not found", null, 404, { headers: corsHeaders });
+        }
+
+        return success("Test NABL accreditation status updated", updated, 200, { headers: corsHeaders });
+    } catch (error) {
+        console.error("Error updating test NABL status:", error);
+        return failure("Failed to update test NABL status", error.message, 500, { headers: corsHeaders });
+    }
+}
+

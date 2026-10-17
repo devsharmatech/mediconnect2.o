@@ -133,9 +133,45 @@ export async function generate10DayLabPayoutBatches({ periodBounds = null, labId
     }
     const totalOrders = groupOrders.length;
     gross = toFixed2(gross);
-    // Platform commission standard 20%, TDS 2% or 5%
-    const totalCommission = toFixed2(gross * 0.20);
-    const totalGst = toFixed2(totalCommission * 0.18);
+    // Check if lab has a custom commercial policy in lab_commercial_policies
+    const activePolicies = await sql`
+      SELECT commission_percentage 
+      FROM lab_commercial_policies
+      WHERE lab_id = ${lId} AND is_active = true
+        AND (effective_from <= ${periodEnd}::date)
+        AND (effective_to IS NULL OR effective_to >= ${periodStart}::date)
+      ORDER BY created_at DESC
+      LIMIT 1;
+    `;
+
+    let totalCommission = 0;
+    if (activePolicies.length > 0) {
+      // Contractual partner override applies
+      const commPct = Number(activePolicies[0].commission_percentage);
+      totalCommission = toFixed2(gross * (commPct / 100));
+    } else {
+      // Calculate true itemized commission from each test's category (all 11 categories: 50%, 40%, 30%, 5%, etc.)
+      const orderIds = groupOrders.map(o => o.id);
+      const items = await sql`
+        SELECT oi.price, COALESCE(cat.commission_percentage, 20.00) as commission_percentage
+        FROM lab_test_order_items oi
+        JOIN lab_tests lt ON lt.id = oi.test_id
+        LEFT JOIN lab_test_categories cat ON cat.id = lt.category_id
+        WHERE oi.order_id = ANY(${orderIds});
+      `;
+      if (items.length > 0) {
+        let calcComm = 0;
+        for (const it of items) {
+          const itemPrice = Number(it.price || 0);
+          const catRate = Number(it.commission_percentage || 20.00);
+          calcComm += Math.round((itemPrice * (catRate / 100)) * 100) / 100;
+        }
+        totalCommission = toFixed2(calcComm);
+      } else {
+        totalCommission = toFixed2(gross * 0.20);
+      }
+    }
+
     const totalTds = toFixed2(gross * 0.02);
     const netPayout = toFixed2(gross - totalCommission - totalTds);
 
@@ -146,11 +182,22 @@ export async function generate10DayLabPayoutBatches({ periodBounds = null, labId
       WHERE id = ${lId};
     `;
 
+    // Check if lab has verified bank proof in lab_partner_documents
+    const bankProofRows = await sql`
+      SELECT id, document_url, verification_status
+      FROM lab_partner_documents
+      WHERE lab_id = ${lId} AND document_type = 'bank_proof' AND verification_status = 'VERIFIED'
+      LIMIT 1;
+    `;
+    const isBankVerified = bankProofRows.length > 0;
+
     const bankSnapshot = {
       lab_name: labRow?.lab_name || "Unknown Lab",
       gst_number: labRow?.gst_number || null,
       pan_number: labRow?.pan_number || null,
       phone: labRow?.phone_number || null,
+      bank_verified: isBankVerified,
+      bank_proof_id: bankProofRows[0]?.id || null,
     };
 
     // Insert or update batch
@@ -203,7 +250,51 @@ export async function generate10DayLabPayoutBatches({ periodBounds = null, labId
 }
 
 /**
- * Execute a Lab Payout Batch.
+ * Maker step: Review a Lab Payout Batch.
+ */
+export async function reviewLabPayoutBatch({ batchId, reviewerName = 'Finance Admin', reviewNotes = null } = {}) {
+  const [batch] = await sql`SELECT * FROM lab_payout_batches WHERE id = ${batchId} LIMIT 1;`;
+  if (!batch) throw new Error("Lab payout batch not found");
+  if (batch.status === 'paid') throw new Error("Paid batch cannot be reviewed");
+
+  const [updated] = await sql`
+    UPDATE lab_payout_batches
+    SET
+      status = 'reviewed',
+      reviewed_by = ${reviewerName},
+      reviewed_at = NOW(),
+      review_notes = ${reviewNotes || 'Reconciled and reviewed by Finance Admin'},
+      updated_at = NOW()
+    WHERE id = ${batchId}
+    RETURNING *;
+  `;
+  return updated;
+}
+
+/**
+ * Checker step: Authorize / Approve a Lab Payout Batch before disbursement.
+ */
+export async function approveLabPayoutBatch({ batchId, approverName = 'Super Admin', approvalNotes = null } = {}) {
+  const [batch] = await sql`SELECT * FROM lab_payout_batches WHERE id = ${batchId} LIMIT 1;`;
+  if (!batch) throw new Error("Lab payout batch not found");
+  if (batch.status === 'paid') throw new Error("Paid batch cannot be modified");
+
+  const [updated] = await sql`
+    UPDATE lab_payout_batches
+    SET
+      status = 'approved',
+      approved_by = ${approverName},
+      approved_at = NOW(),
+      approval_notes = ${approvalNotes || 'Authorized and approved for bank disbursement'},
+      updated_at = NOW()
+    WHERE id = ${batchId}
+    RETURNING *;
+  `;
+  return updated;
+}
+
+/**
+ * Execute a Lab Payout Batch (with mandatory UTR, proof, and bank proof verification).
  */
 export async function executeLabPayoutBatch({
   batchId,
@@ -213,6 +304,7 @@ export async function executeLabPayoutBatch({
   proof_url = null,
   settled_by = 'Admin',
   payout_notes,
+  skip_bank_check = false,
 } = {}) {
   const [batch] = await sql`
     SELECT * FROM lab_payout_batches WHERE id = ${batchId} LIMIT 1;
@@ -222,6 +314,23 @@ export async function executeLabPayoutBatch({
 
   const utr = (utr_number || payout_reference || '').trim();
   if (!utr) throw new Error("Mandatory settlement proof required: Valid Bank UTR / Transaction ID is required.");
+
+  // Section 7, Rule 7: Settlement must be blocked while bank proof is unverified
+  if (!skip_bank_check) {
+    const bankProofRows = await sql`
+      SELECT id, verification_status
+      FROM lab_partner_documents
+      WHERE lab_id = ${batch.lab_id} AND document_type = 'bank_proof' AND verification_status = 'VERIFIED'
+      LIMIT 1;
+    `;
+    if (bankProofRows.length === 0) {
+      // Check if bank_snapshot has verified flag or legacy bank account
+      const snapshot = typeof batch.bank_snapshot === 'object' ? batch.bank_snapshot : {};
+      if (!snapshot.bank_verified) {
+        throw new Error("Settlement blocked: Partner bank proof has not been verified in the Compliance Registry. Please verify bank proof before disbursing payout.");
+      }
+    }
+  }
 
   const notes = payout_notes || `Disbursed via ${payment_mode}. UTR: ${utr}`;
 
@@ -262,7 +371,7 @@ export async function executeLabPayoutBatch({
         'LAB_PAYABLE',
         ${netPayout},
         0.00,
-        ${`Disbursed payout for ${batch.batch_period} (Ref: ${ref})`},
+        ${`Disbursed payout for ${batch.batch_period} (Ref: ${utr})`},
         ${`lab_payout_exec_${batch.id}`}
       )
       ON CONFLICT (idempotency_key) DO NOTHING;
@@ -271,3 +380,42 @@ export async function executeLabPayoutBatch({
 
   return updated;
 }
+
+/**
+ * Fetch full itemized settlement statement / voucher for a batch.
+ */
+export async function getLabBatchStatement({ batchId }) {
+  const [batch] = await sql`
+    SELECT b.*, l.lab_name, l.owner_name, l.email as lab_email, l.phone_number as lab_phone,
+           l.address, l.operating_address, l.cin, l.pan_number, l.license_number, l.partner_agreement_id
+    FROM lab_payout_batches b
+    LEFT JOIN lab_details l ON l.id = b.lab_id
+    WHERE b.id = ${batchId}
+    LIMIT 1;
+  `;
+  if (!batch) throw new Error("Settlement batch not found");
+
+  // Fetch orders included in this batch period
+  const orders = await sql`
+    SELECT
+      o.id, o.created_at, o.total_amount, o.status, o.payment_status, o.settlement_status,
+      p.full_name as patient_name,
+      (
+        SELECT COALESCE(json_agg(json_build_object(
+          'test_name', COALESCE(oi.test_name, lt.test_name, 'Diagnostic Investigation'),
+          'price', COALESCE(oi.price::numeric, lt.price::numeric, 0)
+        )), '[]'::json)
+        FROM lab_test_order_items oi
+        LEFT JOIN lab_tests lt ON lt.id = oi.test_id
+        WHERE oi.order_id = o.id
+      ) as items
+    FROM lab_test_orders o
+    LEFT JOIN patient_details p ON p.id = o.patient_id
+    WHERE o.lab_id = ${batch.lab_id}
+      AND (o.created_at::date >= ${batch.period_start}::date AND o.created_at::date <= ${batch.period_end}::date)
+    ORDER BY o.created_at ASC;
+  `;
+
+  return { batch, orders };
+}
+

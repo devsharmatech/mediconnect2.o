@@ -67,7 +67,11 @@ const DEFAULT_FALLBACK_FILTERS = [
 
 function getLabLogo(lab) {
   if (!lab) return "/images/labs/default-lab-logo.svg";
+  if (lab.logo_url) return lab.logo_url;
   const name = (lab.lab_name || lab.name || "").toLowerCase();
+  if (name.includes("prl")) {
+    return "/images/labs/prl-logo.svg";
+  }
   if (name.includes("medplus")) {
     return "/images/labs/medplus-logo.svg";
   }
@@ -868,6 +872,10 @@ function PublicLabsContent() {
                             <img
                               src={labLogo}
                               alt={labName}
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = "/images/labs/default-lab-logo.svg";
+                              }}
                               className="w-full h-full object-contain"
                             />
                           ) : (
@@ -924,9 +932,9 @@ function PublicLabsContent() {
                         <span className="font-semibold text-slate-700">
                           {lab.total_tests_count ? `${lab.total_tests_count.toLocaleString()} Tests Available` : "Tests Available"}
                         </span>
-                        {lab.min_test_price !== null && lab.min_test_price !== undefined && (
+                        {Boolean(lab.min_test_price && Number(lab.min_test_price) > 0) && (
                           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                            Starts at ₹{lab.min_test_price}
+                            Starts at ₹{Number(lab.min_test_price).toLocaleString()}
                           </span>
                         )}
                       </div>

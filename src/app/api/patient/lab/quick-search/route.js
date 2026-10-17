@@ -85,9 +85,10 @@ export async function GET() {
                     MIN(price)::numeric as min_price
                 FROM lab_tests
                 WHERE is_active = true
+                  AND price > 0
                   AND (test_name ILIKE ANY(${group.patterns}) OR test_code ILIKE ANY(${group.patterns}))
             `;
-            if (stats[0]?.count > 0) {
+            if (stats[0]?.count > 0 && stats[0]?.min_price) {
                 quickTests.push({
                     id: group.id,
                     type: "test",
@@ -110,7 +111,7 @@ export async function GET() {
                 COUNT(lt.id)::int as count,
                 MIN(lt.price)::numeric as min_price
             FROM lab_test_categories c
-            JOIN lab_tests lt ON lt.category_id = c.id AND lt.is_active = true
+            JOIN lab_tests lt ON lt.category_id = c.id AND lt.is_active = true AND lt.price > 0
             WHERE c.name NOT ILIKE 'Category %'
             GROUP BY c.id, c.name, c.slug
             HAVING COUNT(lt.id) > 0

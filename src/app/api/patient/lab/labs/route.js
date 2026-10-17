@@ -83,7 +83,7 @@ export async function GET(req) {
                 u.profile_picture,
                 u.role,
                 (SELECT COUNT(*)::int FROM lab_tests lt WHERE lt.lab_id = ld.id AND lt.is_active = true) as total_tests_count,
-                (SELECT MIN(price)::numeric FROM lab_tests lt WHERE lt.lab_id = ld.id AND lt.is_active = true) as min_test_price,
+                (SELECT MIN(price)::numeric FROM lab_tests lt WHERE lt.lab_id = ld.id AND lt.is_active = true AND lt.price > 0) as min_test_price,
                 ${likeConditions ? sql`
                     COALESCE((
                         SELECT json_agg(json_build_object(

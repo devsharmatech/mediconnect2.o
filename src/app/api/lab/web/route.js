@@ -250,8 +250,13 @@ export async function POST(req) {
         phone_number,
         contact_person,
         address,
+        operating_address,
         license_number,
         registration_number,
+        cin,
+        partner_agreement_id,
+        agreement_effective_from,
+        agreement_effective_to,
         gst_number,
         pan_number,
         latitude,
@@ -262,6 +267,7 @@ export async function POST(req) {
         accepts_home_collection,
         general_turnaround,
         onboarding_status,
+        document_verified,
         pan_card_url,
         aadhaar_card_url,
         lab_license_url,
@@ -279,17 +285,24 @@ export async function POST(req) {
         ${phone_number},
         ${fields.contact_person || null},
         ${fields.address || null},
+        ${fields.operating_address || null},
         ${fields.license_number || null},
         ${fields.registration_number || null},
+        ${fields.cin || null},
+        ${fields.partner_agreement_id || null},
+        ${fields.agreement_effective_from || null},
+        ${fields.agreement_effective_to || null},
         ${fields.gst_number || null},
         ${fields.pan_number || null},
         ${fields.latitude ? Number(fields.latitude) : null},
+        ${fields.longitude ? Number(fields.longitude) : null},
         ${json("opening_hours") ? sql.json(json("opening_hours")) : null},
         ${sql.json(parseJSON(fields.kyc_data || []))},
         ${sql.json(Array.isArray(json("services")) ? json("services") : [])},
         ${fields.accepts_home_collection === "true" || fields.accepts_home_collection === true},
         ${fields.general_turnaround || null},
-        'pending',
+        ${fields.onboarding_status || 'approved'},
+        ${fields.document_verified === "true" || fields.document_verified === true || false},
         ${pan_card_url},
         ${aadhaar_card_url},
         ${lab_license_url},
@@ -303,7 +316,90 @@ export async function POST(req) {
       RETURNING *
     `;
 
-    return success("Lab created successfully.", createdLabs[0], 201, { headers: corsHeaders });
+    // Auto-assign tests: either all master catalog tests, or selected test codes
+    const rawSelectedTestCodes = fields.selected_test_codes;
+    let selectedTestCodes = null;
+    if (rawSelectedTestCodes) {
+      try {
+        selectedTestCodes = typeof rawSelectedTestCodes === 'string' ? JSON.parse(rawSelectedTestCodes) : rawSelectedTestCodes;
+      } catch {
+        selectedTestCodes = null;
+      }
+    }
+    const hasSpecificSelection = Array.isArray(selectedTestCodes) && selectedTestCodes.length > 0;
+
+    const shouldAssignTests = hasSpecificSelection ||
+      fields.auto_assign_tests === undefined || 
+      fields.auto_assign_tests === "true" || 
+      fields.auto_assign_tests === true || 
+      fields.auto_assign_tests === "1";
+
+    let assignedTestsCount = 0;
+    if (shouldAssignTests && createdUserId) {
+      try {
+        const assignedResult = await sql`
+          INSERT INTO lab_tests (
+            id,
+            lab_id,
+            category_id,
+            test_code,
+            test_name,
+            price,
+            specimen_type,
+            container,
+            temperature,
+            remarks,
+            schedule,
+            reporting_schedule,
+            requires_fasting,
+            collection_type,
+            commission_category,
+            discount_percentage,
+            offer_price,
+            department,
+            is_package,
+            is_active,
+            created_at,
+            updated_at
+          )
+          SELECT
+            gen_random_uuid(),
+            ${createdUserId},
+            c.id,
+            m.test_code,
+            m.test_name,
+            COALESCE(NULLIF(REGEXP_REPLACE(m.mrp, '[^0-9.]', '', 'g'), '')::numeric, 0),
+            m.sample_type,
+            m.container,
+            m.temp,
+            m.remarks,
+            m.schedule,
+            m.reporting_schedule,
+            COALESCE(m.requires_fasting, false),
+            'lab',
+            m.category,
+            COALESCE(m.discount_percentage, 0),
+            m.offer_price,
+            m.department,
+            COALESCE(m.is_package, false),
+            true,
+            NOW(),
+            NOW()
+          FROM lab_test_master m
+          LEFT JOIN lab_test_categories c ON LOWER(TRIM(c.name)) = LOWER(TRIM(m.category))
+          WHERE (${hasSpecificSelection ? sql`m.test_code = ANY(${selectedTestCodes})` : sql`1=1`})
+            AND NOT EXISTS (
+              SELECT 1 FROM lab_tests lt WHERE lt.lab_id = ${createdUserId} AND lt.test_code = m.test_code
+            )
+        `;
+        assignedTestsCount = assignedResult.count;
+        console.log(`[Lab Onboarding] Auto-assigned ${assignedTestsCount} master tests to lab ${createdUserId}`);
+      } catch (testErr) {
+        console.error("[Lab Onboarding] Error auto-assigning master tests:", testErr);
+      }
+    }
+
+    return success("Lab created successfully.", { ...createdLabs[0], assigned_tests_count: assignedTestsCount }, 201, { headers: corsHeaders });
   } catch (error) {
     console.error("Create Lab Error:", error);
     if (createdUserId) {

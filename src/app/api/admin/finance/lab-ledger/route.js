@@ -25,11 +25,15 @@ export async function GET(req) {
 
     const summary = await getLabRevenueSummary({ labId });
 
-    // Fetch active test categories with their commission rates
+    // Fetch active test categories with their commission rates and unique master catalog test counts
     const categories = await sql`
-      SELECT id, name, slug, description, commission_percentage
-      FROM lab_test_categories
-      ORDER BY name ASC;
+      SELECT 
+        c.id, c.name, c.slug, c.description, c.commission_percentage,
+        COUNT(DISTINCT t.test_code)::int as test_count
+      FROM lab_test_categories c
+      LEFT JOIN lab_tests t ON t.category_id = c.id
+      GROUP BY c.id, c.name, c.slug, c.description, c.commission_percentage
+      ORDER BY c.commission_percentage DESC, c.name ASC;
     `;
 
     // Orders query with items, category, and commission % breakdown

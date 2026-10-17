@@ -39,6 +39,9 @@ function getLabLogo(lab) {
     if (!lab) return "/images/labs/default-lab-logo.svg";
     if (lab.logo_url) return lab.logo_url;
     const name = (lab.lab_name || lab.name || "").toLowerCase();
+    if (name.includes("prl")) {
+        return "/images/labs/prl-logo.svg";
+    }
     if (name.includes("medplus")) {
         return "/images/labs/medplus-logo.svg";
     }

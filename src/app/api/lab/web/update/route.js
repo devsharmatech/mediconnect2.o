@@ -31,18 +31,6 @@ export async function POST(req) {
       return failure("Valid lab ID is required.", "validation_error", 400, { headers: corsHeaders });
     }
 
-    // Required field validation
-    const required = ["lab_name", "owner_name", "phone_number", "email"];
-    for (const f of required) {
-      if (!formData.get(f)) {
-        return failure(`Missing required field: ${f}`, "validation_error", 400, { headers: corsHeaders });
-      }
-    }
-
-    const raw_phone = formData.get("phone_number") || "";
-    const phone_number = String(raw_phone).replace(/\D/g, "").slice(-10);
-    const email = String(formData.get("email") || "").trim();
-
     // Check if lab exists in RDS
     const existingLabs = await sql`
       SELECT * FROM lab_details WHERE id = ${cleanId} LIMIT 1
@@ -53,6 +41,10 @@ export async function POST(req) {
     }
 
     const existingLab = existingLabs[0];
+
+    const raw_phone = formData.get("phone_number") || existingLab.phone_number || "";
+    const phone_number = String(raw_phone).replace(/\D/g, "").slice(-10);
+    const email = String(formData.get("email") || existingLab.email || "").trim();
 
     // Helper: upload documents
     async function upload(file, field) {
@@ -157,6 +149,8 @@ export async function POST(req) {
         services = ${sql.json(servicesArray)},
         accepts_home_collection = ${acceptsHomeCollection},
         general_turnaround = ${formData.get("general_turnaround") || existingLab.general_turnaround},
+        onboarding_status = ${formData.get("onboarding_status") || existingLab.onboarding_status || 'approved'},
+        document_verified = ${formData.get("document_verified") !== null && formData.get("document_verified") !== undefined ? (formData.get("document_verified") === "true" || formData.get("document_verified") === true) : existingLab.document_verified},
         pan_card_url = ${pan_card_url || existingLab.pan_card_url},
         aadhaar_card_url = ${aadhaar_card_url || existingLab.aadhaar_card_url},
         lab_license_url = ${lab_license_url || existingLab.lab_license_url},
@@ -164,16 +158,103 @@ export async function POST(req) {
         owner_photo_url = ${owner_photo_url || existingLab.owner_photo_url},
         signature_url = ${signature_url || existingLab.signature_url},
         logo_url = ${logo_url || existingLab.logo_url || null},
+        operating_address = ${formData.get("operating_address") !== null && formData.get("operating_address") !== undefined ? formData.get("operating_address") : existingLab.operating_address},
+        cin = ${formData.get("cin") !== null && formData.get("cin") !== undefined ? formData.get("cin") : existingLab.cin},
+        partner_agreement_id = ${formData.get("partner_agreement_id") !== null && formData.get("partner_agreement_id") !== undefined ? formData.get("partner_agreement_id") : existingLab.partner_agreement_id},
+        agreement_effective_from = ${formData.get("agreement_effective_from") ? formData.get("agreement_effective_from") : existingLab.agreement_effective_from},
+        agreement_effective_to = ${formData.get("agreement_effective_to") ? formData.get("agreement_effective_to") : existingLab.agreement_effective_to},
         updated_at = NOW()
       WHERE id = ${cleanId}
       RETURNING *
     `;
 
+    // Auto-assign tests: either all master catalog tests, or selected test codes
+    const rawSelectedCodes = formData.get("selected_test_codes");
+    let selectedTestCodes = null;
+    if (rawSelectedCodes) {
+      try {
+        selectedTestCodes = typeof rawSelectedCodes === 'string' ? JSON.parse(rawSelectedCodes) : rawSelectedCodes;
+      } catch {
+        selectedTestCodes = null;
+      }
+    }
+    const hasSpecificSelection = Array.isArray(selectedTestCodes) && selectedTestCodes.length > 0;
+
+    const shouldAssignTests = hasSpecificSelection ||
+      formData.get("auto_assign_tests") === "true" || 
+      formData.get("auto_assign_tests") === true || 
+      formData.get("auto_assign_tests") === "1";
+
+    let assignedTestsCount = 0;
+    if (shouldAssignTests) {
+      try {
+        const assignedResult = await sql`
+          INSERT INTO lab_tests (
+            id,
+            lab_id,
+            category_id,
+            test_code,
+            test_name,
+            price,
+            specimen_type,
+            container,
+            temperature,
+            remarks,
+            schedule,
+            reporting_schedule,
+            requires_fasting,
+            collection_type,
+            commission_category,
+            discount_percentage,
+            offer_price,
+            department,
+            is_package,
+            is_active,
+            created_at,
+            updated_at
+          )
+          SELECT
+            gen_random_uuid(),
+            ${cleanId},
+            c.id,
+            m.test_code,
+            m.test_name,
+            COALESCE(NULLIF(REGEXP_REPLACE(m.mrp, '[^0-9.]', '', 'g'), '')::numeric, 0),
+            m.sample_type,
+            m.container,
+            m.temp,
+            m.remarks,
+            m.schedule,
+            m.reporting_schedule,
+            COALESCE(m.requires_fasting, false),
+            'lab',
+            m.category,
+            COALESCE(m.discount_percentage, 0),
+            m.offer_price,
+            m.department,
+            COALESCE(m.is_package, false),
+            true,
+            NOW(),
+            NOW()
+          FROM lab_test_master m
+          LEFT JOIN lab_test_categories c ON LOWER(TRIM(c.name)) = LOWER(TRIM(m.category))
+          WHERE (${hasSpecificSelection ? sql`m.test_code = ANY(${selectedTestCodes})` : sql`1=1`})
+            AND NOT EXISTS (
+              SELECT 1 FROM lab_tests lt WHERE lt.lab_id = ${cleanId} AND lt.test_code = m.test_code
+            )
+        `;
+        assignedTestsCount = assignedResult.count;
+        console.log(`[Lab Update] Auto-assigned ${assignedTestsCount} master tests to lab ${cleanId}`);
+      } catch (testErr) {
+        console.error("[Lab Update] Error auto-assigning master tests:", testErr);
+      }
+    }
+
     const u = await sql`
       SELECT id, phone_number, profile_picture, role FROM users WHERE id = ${cleanId} LIMIT 1
     `;
 
-    return success("Lab updated successfully.", { ...updated[0], users: u[0] || null }, 200, {
+    return success("Lab updated successfully.", { ...updated[0], users: u[0] || null, assigned_tests_count: assignedTestsCount }, 200, {
       headers: corsHeaders,
     });
   } catch (error) {

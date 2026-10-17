@@ -54,9 +54,12 @@ import {
   Pill,
   Home,
   Image as ImageIcon,
+  Database,
 } from "lucide-react";
 import Papa from "papaparse";
 import Link from "next/link";
+import LabComplianceDocumentsTab from "@/components/admin/labs/LabComplianceDocumentsTab";
+import MasterTestSelectorModal from "@/components/admin/labs/MasterTestSelectorModal";
 
 // Terms and Conditions Modal Component
 function TermsModal({ isOpen, onClose, onAccept }) {
@@ -305,16 +308,27 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
     registration_number: "",
     gst_number: "",
     pan_number: "",
-    general_turnaround: "",
+    general_turnaround: "24 hours",
     accepts_home_collection: false,
     opening_hours: { open: "09:00", close: "18:00" },
     services: [],
+    onboarding_status: "approved",
+    document_verified: false,
+    auto_assign_tests: true,
+    assign_test_mode: "all",
+    selected_test_codes: [],
+    operating_address: "",
+    cin: "",
+    partner_agreement_id: "",
+    agreement_effective_from: "",
+    agreement_effective_to: "",
   });
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [isSelectorModalOpen, setIsSelectorModalOpen] = useState(false);
 
   // File states
   const [logo_file, setLogoFile] = useState(null);
@@ -369,10 +383,18 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
         registration_number: lab.registration_number || "",
         gst_number: lab.gst_number || "",
         pan_number: lab.pan_number || "",
-        general_turnaround: lab.general_turnaround || "",
+        general_turnaround: lab.general_turnaround || "24 hours",
         accepts_home_collection: lab.accepts_home_collection || false,
         opening_hours: parsedOpeningHours,
         services: parsedServices,
+        onboarding_status: lab.onboarding_status || "approved",
+        document_verified: lab.document_verified || false,
+        auto_assign_tests: false,
+        operating_address: lab.operating_address || "",
+        cin: lab.cin || "",
+        partner_agreement_id: lab.partner_agreement_id || "",
+        agreement_effective_from: lab.agreement_effective_from ? lab.agreement_effective_from.split('T')[0] : "",
+        agreement_effective_to: lab.agreement_effective_to ? lab.agreement_effective_to.split('T')[0] : "",
       });
     } else {
       setFormData({
@@ -388,10 +410,18 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
         registration_number: "",
         gst_number: "",
         pan_number: "",
-        general_turnaround: "",
+        general_turnaround: "24 hours",
         accepts_home_collection: false,
         opening_hours: { open: "09:00", close: "18:00" },
         services: [],
+        onboarding_status: "approved",
+        document_verified: false,
+        auto_assign_tests: true,
+        operating_address: "Sector 19, Dwarka, New Delhi",
+        cin: "",
+        partner_agreement_id: "",
+        agreement_effective_from: "",
+        agreement_effective_to: "",
       });
       setLogoFile(null);
       setLogoPreview(null);
@@ -551,20 +581,21 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
           submitFormData.append(key, JSON.stringify(sArray));
         } else if (key === 'opening_hours') {
           submitFormData.append(key, JSON.stringify(formData[key] || { open: "09:00", close: "18:00" }));
-        } else if (key === 'accepts_home_collection') {
+        } else if (key === 'accepts_home_collection' || key === 'document_verified' || key === 'auto_assign_tests') {
           submitFormData.append(key, formData[key] ? "true" : "false");
+        } else if (key === 'selected_test_codes') {
+          submitFormData.append(key, JSON.stringify(formData[key] || []));
         } else {
           submitFormData.append(key, formData[key] !== undefined && formData[key] !== null ? formData[key] : "");
         }
       });
 
-      // Append files
+      // Append files (all optional)
       const fileFields = [
         { field: "logo", file: logo_file },
         { field: "pan_card", file: pan_card_file },
         { field: "aadhaar_card", file: aadhaar_card_file },
         { field: "lab_license", file: lab_license_file },
-        { field: "gst_certificate", file: gst_certificate_file },
         { field: "owner_photo", file: owner_photo_file },
         { field: "signature", file: signature_file },
       ];
@@ -616,20 +647,34 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
     label,
     file,
     setFile,
+    existingUrl = null,
     accept = ".jpg,.jpeg,.png,.pdf",
   }) => (
     <div>
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-        {label}
-      </label>
+      <div className="flex items-center justify-between mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          {label} <span className="text-xs font-normal text-gray-400 dark:text-gray-500">(Optional)</span>
+        </label>
+        {existingUrl && !file && (
+          <a
+            href={existingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-[#0067A1] dark:text-sky-400 hover:underline flex items-center gap-1 font-semibold"
+          >
+            <Eye size={12} />
+            <span>View Current File</span>
+          </a>
+        )}
+      </div>
       {!file ? (
-        <div className="relative border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center hover:border-gray-400 dark:hover:border-gray-500 transition-colors cursor-pointer">
-          <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-            Click to upload or drag and drop
+        <div className="relative border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-5 text-center hover:border-gray-400 dark:hover:border-gray-500 transition-colors cursor-pointer bg-white dark:bg-gray-850">
+          <Upload className="w-6 h-6 text-gray-400 mx-auto mb-1.5" />
+          <p className="text-xs text-gray-600 dark:text-gray-400 mb-1 font-medium">
+            {existingUrl ? "Click to replace existing document" : "Click to upload (Optional)"}
           </p>
-          <p className="text-xs text-gray-500 dark:text-gray-500">
-            JPEG, PNG, PDF
+          <p className="text-[11px] text-gray-400 dark:text-gray-500">
+            JPEG, PNG, PDF (Up to 5MB)
           </p>
           <input
             type="file"
@@ -639,15 +684,15 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
           />
         </div>
       ) : (
-        <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/50">
+        <div className="border border-emerald-300 dark:border-emerald-700 rounded-lg p-3 bg-emerald-50/50 dark:bg-emerald-950/20">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <FileText className="w-5 h-5 text-green-600 dark:text-green-400" />
-              <div>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
+              <FileCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <div className="overflow-hidden">
+                <p className="text-xs font-medium text-gray-900 dark:text-white truncate max-w-[200px]">
                   {file.name}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-[10px] text-gray-500 dark:text-gray-400">
                   {(file.size / 1024 / 1024).toFixed(2)} MB
                 </p>
               </div>
@@ -655,7 +700,8 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
             <button
               type="button"
               onClick={() => removeFile(setFile)}
-              className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
+              className="text-red-500 hover:text-red-700 p-1 transition-colors cursor-pointer"
+              title="Remove"
             >
               <X size={16} />
             </button>
@@ -846,9 +892,21 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
           <textarea
             value={formData.address}
             onChange={(e) => handleInputChange("address", e.target.value)}
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
-            placeholder="Enter full lab address"
+            rows={2}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+            placeholder="Enter full registered address"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Operating Site / Address (PRL Site)
+          </label>
+          <input
+            type="text"
+            value={formData.operating_address}
+            onChange={(e) => handleInputChange("operating_address", e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+            placeholder="e.g. Sector 19, Dwarka, New Delhi"
           />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -892,14 +950,14 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              GST Number
+              CIN (Corporate ID)
             </label>
             <input
               type="text"
-              value={formData.gst_number}
-              onChange={(e) => handleInputChange("gst_number", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
-              placeholder="07AABCU9603R1ZM"
+              value={formData.cin}
+              onChange={(e) => handleInputChange("cin", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+              placeholder="U85110DL2026PTC..."
             />
           </div>
           <div>
@@ -915,6 +973,31 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
             />
           </div>
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Partner Agreement ID
+            </label>
+            <input
+              type="text"
+              value={formData.partner_agreement_id}
+              onChange={(e) => handleInputChange("partner_agreement_id", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+              placeholder="AGR-PRL-2026-01"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Agreement Valid Till
+            </label>
+            <input
+              type="date"
+              value={formData.agreement_effective_to}
+              onChange={(e) => handleInputChange("agreement_effective_to", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent text-sm"
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -927,33 +1010,125 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
         </div>
         <div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Operations & Timings
+            Operations, Timings & Catalog Assignment
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Set turnaround timings, home collection availability, and daily operating hours
+            Set turnaround timings, home collection availability, auto-assign 1,964 catalog tests, and manage lab status
           </p>
         </div>
       </div>
 
-      {/* Info Notice about Lab Tests Catalog */}
-      <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-4 flex items-start space-x-3">
-        <div className="p-1.5 bg-blue-100 dark:bg-blue-900/60 rounded-lg mt-0.5 text-blue-600 dark:text-blue-300">
-          <Beaker className="w-4 h-4" />
+      {/* ── Master Catalog Test Assignment Options Card ─────────────────── */}
+      <div className="bg-gradient-to-r from-sky-50 via-blue-50 to-indigo-50 dark:from-sky-950/40 dark:via-blue-950/40 dark:to-indigo-950/40 border-2 border-[#0067A1]/40 dark:border-sky-600/50 rounded-xl p-5 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Database className="w-5 h-5 text-[#0067A1]" />
+            <h4 className="font-bold text-sm text-gray-900 dark:text-white">
+              Master Test Catalog Assignment
+            </h4>
+          </div>
+          <span className="text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 px-2.5 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700">
+            1,974 Master Tests
+          </span>
         </div>
-        <div className="text-sm">
-          <p className="font-medium text-blue-900 dark:text-blue-200">
-            Lab Tests Catalog Managed Separately
-          </p>
-          <p className="text-xs text-blue-700 dark:text-blue-300/80 mt-0.5 leading-relaxed">
-            All 1,450+ diagnostic tests, packages, and commission categories (Cat 1–4) are maintained through the dedicated <strong>Lab Tests Master</strong> catalog and CSV import. Manual service entry is not required here.
-          </p>
+
+        <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+          Choose whether to assign all 1,974 standardized master tests to this new lab or pick specific diagnostic investigations:
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          {/* Mode 1: All Tests */}
+          <div
+            onClick={() => {
+              handleInputChange("assign_test_mode", "all");
+              handleInputChange("auto_assign_tests", true);
+              handleInputChange("selected_test_codes", []);
+            }}
+            className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
+              formData.assign_test_mode === "all" || (!formData.assign_test_mode && formData.auto_assign_tests)
+                ? "border-[#0067A1] bg-white dark:bg-gray-800 shadow-xs"
+                : "border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 hover:border-gray-300"
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <input
+                type="radio"
+                name="test_assignment_mode"
+                checked={formData.assign_test_mode === "all" || (!formData.assign_test_mode && formData.auto_assign_tests)}
+                onChange={() => {
+                  handleInputChange("assign_test_mode", "all");
+                  handleInputChange("auto_assign_tests", true);
+                  handleInputChange("selected_test_codes", []);
+                }}
+                className="text-[#0067A1] focus:ring-[#0067A1]"
+              />
+              <span className="font-bold text-xs text-gray-900 dark:text-white">
+                Select All Master Tests (1,974)
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 pl-5 leading-normal">
+              Bulk assign all Pathology, Radiology (CT, X-Ray, USG, MRI), and specialized profiles.
+            </p>
+          </div>
+
+          {/* Mode 2: Custom Selection */}
+          <div
+            onClick={() => {
+              handleInputChange("assign_test_mode", "selected");
+              handleInputChange("auto_assign_tests", false);
+            }}
+            className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
+              formData.assign_test_mode === "selected"
+                ? "border-[#0067A1] bg-white dark:bg-gray-800 shadow-xs"
+                : "border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 hover:border-gray-300"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="test_assignment_mode"
+                  checked={formData.assign_test_mode === "selected"}
+                  onChange={() => {
+                    handleInputChange("assign_test_mode", "selected");
+                    handleInputChange("auto_assign_tests", false);
+                  }}
+                  className="text-[#0067A1] focus:ring-[#0067A1]"
+                />
+                <span className="font-bold text-xs text-gray-900 dark:text-white">
+                  Select Accordingly
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleInputChange("assign_test_mode", "selected");
+                  handleInputChange("auto_assign_tests", false);
+                  setIsSelectorModalOpen(true);
+                }}
+                className="px-2.5 py-1 text-[11px] font-semibold bg-[#0067A1] text-white rounded-md hover:bg-[#004F7C] shadow-xs cursor-pointer"
+              >
+                Choose Tests
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 pl-5 leading-normal">
+              {formData.selected_test_codes?.length > 0 ? (
+                <span className="text-emerald-600 font-bold">
+                  ✓ {formData.selected_test_codes.length} tests selected from master catalog
+                </span>
+              ) : (
+                "Filter by category, search, and check only desired tests."
+              )}
+            </p>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white dark:bg-gray-850 p-5 rounded-xl border border-gray-200 dark:border-gray-700">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            General Turnaround Time *
+            General Turnaround Time
           </label>
           <select
             value={formData.general_turnaround}
@@ -1012,6 +1187,42 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
             </div>
           </div>
         </div>
+
+        {/* Admin Status & Verification Controls */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Onboarding Status
+          </label>
+          <select
+            value={formData.onboarding_status}
+            onChange={(e) => handleInputChange("onboarding_status", e.target.value)}
+            className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent text-sm font-medium"
+          >
+            <option value="approved">Approved (Active & Ready to Book)</option>
+            <option value="pending">Pending (Under Review)</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+
+        <div className="flex items-center">
+          <label className="flex items-center space-x-3 p-3.5 border border-gray-300 dark:border-gray-600 rounded-lg w-full cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
+            <input
+              type="checkbox"
+              id="doc-verified"
+              checked={formData.document_verified}
+              onChange={(e) => handleInputChange("document_verified", e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-black focus:ring-black bg-white dark:bg-gray-700"
+            />
+            <div className="text-sm">
+              <span className="font-medium text-gray-900 dark:text-white block">
+                Documents Verified by Admin
+              </span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                Mark lab credentials as verified for trust badge
+              </span>
+            </div>
+          </label>
+        </div>
       </div>
     </div>
   );
@@ -1022,9 +1233,25 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
         <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
           <FileText className="w-5 h-5 text-gray-700 dark:text-white" />
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Documents & Certificates
-        </h3>
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Documents & Certificates (Optional)
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Upload KYC documents if available. All documents are optional.
+          </p>
+        </div>
+      </div>
+
+      {/* Prominent Info Notice */}
+      <div className="bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 flex items-start gap-3">
+        <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+        <div className="text-xs text-emerald-800 dark:text-emerald-200 space-y-0.5">
+          <p className="font-semibold text-sm">Documents are 100% Optional</p>
+          <p className="leading-relaxed">
+            GST Certificate is not required. You can onboard, approve, and activate this diagnostic lab immediately without uploading any documents.
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1032,32 +1259,32 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
           label="PAN Card"
           file={pan_card_file}
           setFile={setPanCardFile}
+          existingUrl={lab?.pan_card_url}
         />
         <FileUploadField
           label="Aadhaar Card"
           file={aadhaar_card_file}
           setFile={setAadhaarCardFile}
+          existingUrl={lab?.aadhaar_card_url}
         />
         <FileUploadField
           label="Lab License"
           file={lab_license_file}
           setFile={setLabLicenseFile}
-        />
-        <FileUploadField
-          label="GST Certificate"
-          file={gst_certificate_file}
-          setFile={setGstCertificateFile}
+          existingUrl={lab?.lab_license_url}
         />
         <FileUploadField
           label="Owner Photo"
           file={owner_photo_file}
           setFile={setOwnerPhotoFile}
+          existingUrl={lab?.owner_photo_url}
           accept=".jpg,.jpeg,.png"
         />
         <FileUploadField
           label="Signature"
           file={signature_file}
           setFile={setSignatureFile}
+          existingUrl={lab?.signature_url}
           accept=".jpg,.jpeg,.png,.pdf"
         />
       </div>
@@ -1163,6 +1390,23 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
           </div>
         </div>
       </div>
+
+      {/* Master Test Selector Modal for Custom Selection during Onboarding */}
+      <MasterTestSelectorModal
+        isOpen={isSelectorModalOpen}
+        onClose={() => setIsSelectorModalOpen(false)}
+        labName={formData.lab_name || "New Lab"}
+        initialSelectedCodes={formData.selected_test_codes || []}
+        onSelectionConfirmed={(codes) => {
+          setFormData((prev) => ({
+            ...prev,
+            assign_test_mode: "selected",
+            auto_assign_tests: false,
+            selected_test_codes: codes,
+          }));
+          toast.success(`${codes.length} tests selected from master catalog`);
+        }}
+      />
     </>
   );
 }
@@ -1642,6 +1886,10 @@ function AdminCsvUploadModal({ isOpen, onClose, preselectedLabId, onUploaded }) 
 function LabTestsContent({ labId, onOpenUploadCsv }) {
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [assigningMaster, setAssigningMaster] = useState(false);
+  const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
+  const [nablFilter, setNablFilter] = useState("all");
+  const [togglingId, setTogglingId] = useState(null);
 
   const fetchTests = async () => {
     try {
@@ -1660,6 +1908,52 @@ function LabTestsContent({ labId, onOpenUploadCsv }) {
     }
   };
 
+  const handleToggleNabl = async (testId, nextVal) => {
+    try {
+      setTogglingId(testId);
+      const res = await fetch("/api/lab/tests", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test_id: testId, is_nabl_accredited: nextVal }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(nextVal ? "Marked NABL In-Scope" : "Removed from NABL Scope");
+        setTests((prev) =>
+          prev.map((t) => (t.id === testId ? { ...t, is_nabl_accredited: nextVal } : t))
+        );
+      } else {
+        toast.error(data.message || "Failed to update NABL scope");
+      }
+    } catch {
+      toast.error("Error updating NABL scope");
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
+  const handleAssignMasterTests = async () => {
+    try {
+      setAssigningMaster(true);
+      const res = await fetch("/api/lab/web/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: labId, auto_assign_tests: true }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("1,964 Master catalog tests assigned successfully!");
+        fetchTests();
+      } else {
+        toast.error(data.message || "Failed to assign master tests");
+      }
+    } catch (err) {
+      toast.error("Error assigning master tests");
+    } finally {
+      setAssigningMaster(false);
+    }
+  };
+
   useEffect(() => {
     if (labId) {
       fetchTests();
@@ -1674,20 +1968,76 @@ function LabTestsContent({ labId, onOpenUploadCsv }) {
     );
   }
 
+  const nablCount = tests.filter((t) => t.is_nabl_accredited).length;
+  const filteredTests = tests.filter((t) => {
+    if (nablFilter === "nabl") return t.is_nabl_accredited;
+    if (nablFilter === "non_nabl") return !t.is_nabl_accredited;
+    return true;
+  });
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <div>
           <h4 className="text-base font-semibold text-gray-900 dark:text-white">Diagnostic Tests Catalog ({tests.length})</h4>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Available tests and collection options for this diagnostic center</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Available tests, NABL scope accreditation, and collection options</p>
         </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsMasterModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors shadow-sm cursor-pointer"
+            title="Choose individual tests or select all from master catalog"
+          >
+            <Database size={14} />
+            <span>Master Tests</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenUploadCsv && onOpenUploadCsv(labId)}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg transition-colors shadow-sm cursor-pointer"
+          >
+            <Upload size={14} />
+            Upload CSV Tests
+          </button>
+        </div>
+      </div>
+
+      {/* NABL Scope Filter Bar */}
+      <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-3">
         <button
           type="button"
-          onClick={() => onOpenUploadCsv && onOpenUploadCsv(labId)}
-          className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg transition-colors shadow-sm cursor-pointer"
+          onClick={() => setNablFilter("all")}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+            nablFilter === "all"
+              ? "bg-[#0067A1] text-white"
+              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
+          }`}
         >
-          <Upload size={14} />
-          Upload CSV Tests
+          All Tests ({tests.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setNablFilter("nabl")}
+          className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+            nablFilter === "nabl"
+              ? "bg-amber-600 text-white"
+              : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-300"
+          }`}
+        >
+          <Award size={13} />
+          NABL In-Scope ({nablCount})
+        </button>
+        <button
+          type="button"
+          onClick={() => setNablFilter("non_nabl")}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+            nablFilter === "non_nabl"
+              ? "bg-gray-700 text-white"
+              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
+          }`}
+        >
+          Non-NABL ({tests.length - nablCount})
         </button>
       </div>
 
@@ -1695,18 +2045,35 @@ function LabTestsContent({ labId, onOpenUploadCsv }) {
         <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700">
           <TestTube className="w-12 h-12 text-gray-400 mx-auto mb-3" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white">No Tests Found</h3>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 mb-4">This lab hasn't added any diagnostic tests yet.</p>
-          <button
-            type="button"
-            onClick={() => onOpenUploadCsv && onOpenUploadCsv(labId)}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg transition-colors cursor-pointer shadow-sm"
-          >
-            <Upload size={14} />
-            Upload CSV for this Lab
-          </button>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 mb-4 max-w-md mx-auto">
+            This lab hasn't added any diagnostic tests yet. You can auto-assign our standard 1,964+ test catalog or upload tests via CSV.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={handleAssignMasterTests}
+              disabled={assigningMaster}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors cursor-pointer shadow-sm disabled:opacity-50"
+            >
+              {assigningMaster ? (
+                <RefreshCw size={14} className="animate-spin" />
+              ) : (
+                <Plus size={14} />
+              )}
+              {assigningMaster ? "Assigning..." : "Assign Master Tests (1,964)"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onOpenUploadCsv && onOpenUploadCsv(labId)}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg transition-colors cursor-pointer shadow-sm"
+            >
+              <Upload size={14} />
+              Upload CSV for this Lab
+            </button>
+          </div>
         </div>
       ) : (
-        tests.map((test) => (
+        filteredTests.map((test) => (
           <div key={test.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start">
               <div>
@@ -1717,6 +2084,17 @@ function LabTestsContent({ labId, onOpenUploadCsv }) {
                   {test.category && (
                     <span className="text-xs font-medium bg-blue-50 dark:bg-blue-900/30 text-[#0067A1] dark:text-blue-400 px-2 py-0.5 rounded-full flex items-center">
                       {test.category.name}
+                    </span>
+                  )}
+                  {/* NABL Scope Badge */}
+                  {test.is_nabl_accredited ? (
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-200">
+                      <Award size={11} className="text-amber-600" />
+                      NABL In-Scope
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+                      Non-NABL
                     </span>
                   )}
                   {/* Collection Type Badge */}
@@ -1754,10 +2132,22 @@ function LabTestsContent({ labId, onOpenUploadCsv }) {
                   {test.test_name}
                 </h4>
               </div>
-              <div className="text-right">
+              <div className="flex flex-col items-end gap-2">
                 <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                   ₹{test.price}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleNabl(test.id, !test.is_nabl_accredited)}
+                  disabled={togglingId === test.id}
+                  className={`text-xs px-2.5 py-1 rounded-md font-semibold border transition-colors cursor-pointer disabled:opacity-50 ${
+                    test.is_nabl_accredited
+                      ? "border-amber-300 text-amber-700 hover:bg-amber-50 dark:text-amber-300"
+                      : "border-gray-300 text-gray-600 hover:bg-gray-100 dark:text-gray-300"
+                  }`}
+                >
+                  {test.is_nabl_accredited ? "Remove NABL" : "Mark NABL"}
+                </button>
               </div>
             </div>
 
@@ -1782,11 +2172,20 @@ function LabTestsContent({ labId, onOpenUploadCsv }) {
           </div>
         ))
       )}
+
+      {/* Master Test Selector Modal */}
+      <MasterTestSelectorModal
+        isOpen={isMasterModalOpen}
+        onClose={() => setIsMasterModalOpen(false)}
+        labId={labId}
+        labName="this lab"
+        onAssigned={() => fetchTests()}
+      />
     </div>
   );
 }
 
-function LabDetailsModal({ lab, isOpen, onClose, onOpenUploadCsv }) {
+function LabDetailsModal({ lab, isOpen, onClose, onEditLab, onOpenUploadCsv }) {
   if (!isOpen || !lab) {
     return null;
   }
@@ -1794,13 +2193,13 @@ function LabDetailsModal({ lab, isOpen, onClose, onOpenUploadCsv }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50">
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-6xl border border-gray-200 dark:border-gray-700">
-        <ModalContent lab={lab} onClose={onClose} onOpenUploadCsv={onOpenUploadCsv} />
+        <ModalContent lab={lab} onClose={onClose} onEditLab={onEditLab} onOpenUploadCsv={onOpenUploadCsv} />
       </div>
     </div>
   );
 }
 
-function ModalContent({ lab, onClose, onOpenUploadCsv }) {
+function ModalContent({ lab, onClose, onEditLab, onOpenUploadCsv }) {
   const [activeTab, setActiveTab] = useState("details");
   const [mapLoaded, setMapLoaded] = useState(false);
   const mapContainerRef = useRef(null);
@@ -2059,7 +2458,7 @@ function ModalContent({ lab, onClose, onOpenUploadCsv }) {
                         : "text-gray-500 dark:text-gray-500"
                         }`}
                     >
-                      {doc.value ? "Uploaded" : "Pending"}
+                      {doc.value ? "Uploaded" : "Not Provided (Optional)"}
                     </p>
                   </div>
                 </div>
@@ -2208,6 +2607,34 @@ function ModalContent({ lab, onClose, onOpenUploadCsv }) {
                 {lab.registration_number || "Not provided"}
               </span>
             </div>
+            {lab.cin && (
+              <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                  CIN (Corporate ID)
+                </span>
+                <span className="text-sm text-gray-900 dark:text-white font-mono font-medium">
+                  {lab.cin}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                Operating Site
+              </span>
+              <span className="text-sm text-gray-900 dark:text-white font-medium">
+                {lab.operating_address || "Sector 19, Dwarka, New Delhi"}
+              </span>
+            </div>
+            {lab.partner_agreement_id && (
+              <div className="flex justify-between items-center py-2">
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                  Agreement ID
+                </span>
+                <span className="text-sm text-gray-900 dark:text-white font-mono font-medium">
+                  {lab.partner_agreement_id}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -2413,8 +2840,8 @@ function ModalContent({ lab, onClose, onOpenUploadCsv }) {
               }`}
           >
             <div className="flex items-center space-x-2">
-              <FileText size={16} />
-              <span>Documents</span>
+              <ShieldCheck size={16} />
+              <span>Compliance & Docs</span>
             </div>
           </button>
           <button
@@ -2489,7 +2916,7 @@ function ModalContent({ lab, onClose, onOpenUploadCsv }) {
           {activeTab === "details" && renderDetailsContent()}
           {activeTab === "services" && renderServicesContent()}
           {activeTab === "location" && renderLocationContent()}
-          {activeTab === "documents" && renderDocumentsContent()}
+          {activeTab === "documents" && <LabComplianceDocumentsTab labId={lab.id} />}
           {activeTab === "tests" && <LabTestsContent labId={lab.id} onOpenUploadCsv={onOpenUploadCsv} />}
         </div>
       </div>
@@ -2501,10 +2928,23 @@ function ModalContent({ lab, onClose, onOpenUploadCsv }) {
               ? new Date(lab.created_at).toLocaleDateString()
               : "N/A"}
           </div>
-          <div className="flex space-x-3">
+          <div className="flex items-center space-x-3">
+            {onEditLab && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEditLab(lab);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+              >
+                <Edit size={16} />
+                Edit Lab
+              </button>
+            )}
             <button
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200"
+              className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 cursor-pointer"
             >
               Close
             </button>
@@ -3379,6 +3819,12 @@ export default function LabsPage() {
         onClose={() => {
           setDetailsModalOpen(false);
           setViewLab(null);
+        }}
+        onEditLab={(labToEdit) => {
+          setDetailsModalOpen(false);
+          setViewLab(null);
+          setEditLab(labToEdit);
+          setOnboardingOpen(true);
         }}
         onOpenUploadCsv={(labId) => handleOpenCsvModal(labId)}
       />
