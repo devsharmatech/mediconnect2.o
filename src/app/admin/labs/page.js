@@ -340,6 +340,18 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
   const [owner_photo_file, setOwnerPhotoFile] = useState(null);
   const [signature_file, setSignatureFile] = useState(null);
 
+  // Standard Partner Compliance Document states
+  const [incorporation_cin_file, setIncorporationCinFile] = useState(null);
+  const [nabl_certificate_file, setNablCertificateFile] = useState(null);
+  const [nabl_scope_file, setNablScopeFile] = useState(null);
+  const [bmw_agreement_file, setBmwAgreementFile] = useState(null);
+  const [dpcc_bmw_auth_file, setDpccBmwAuthFile] = useState(null);
+  const [dpcc_noise_report_file, setDpccNoiseReportFile] = useState(null);
+  const [dpcc_medical_waste_file, setDpccMedicalWasteFile] = useState(null);
+  const [iso_15189_file, setIso15189File] = useState(null);
+  const [partner_agreement_file, setPartnerAgreementFile] = useState(null);
+  const [bank_proof_file, setBankProofFile] = useState(null);
+
   const turnaroundOptions = [
     "Same day",
     "24 hours",
@@ -446,6 +458,16 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
     setGstCertificateFile(null);
     setOwnerPhotoFile(null);
     setSignatureFile(null);
+    setIncorporationCinFile(null);
+    setNablCertificateFile(null);
+    setNablScopeFile(null);
+    setBmwAgreementFile(null);
+    setDpccBmwAuthFile(null);
+    setDpccNoiseReportFile(null);
+    setDpccMedicalWasteFile(null);
+    setIso15189File(null);
+    setPartnerAgreementFile(null);
+    setBankProofFile(null);
   }, [lab, isOpen]);
 
   const formatFileSize = (bytes) => {
@@ -598,6 +620,16 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
         { field: "lab_license", file: lab_license_file },
         { field: "owner_photo", file: owner_photo_file },
         { field: "signature", file: signature_file },
+        { field: "incorporation_cin", file: incorporation_cin_file },
+        { field: "nabl_certificate", file: nabl_certificate_file },
+        { field: "nabl_scope", file: nabl_scope_file },
+        { field: "bmw_agreement", file: bmw_agreement_file },
+        { field: "dpcc_bmw_auth", file: dpcc_bmw_auth_file },
+        { field: "dpcc_noise_report", file: dpcc_noise_report_file },
+        { field: "dpcc_medical_waste", file: dpcc_medical_waste_file },
+        { field: "iso_15189", file: iso_15189_file },
+        { field: "partner_agreement", file: partner_agreement_file },
+        { field: "bank_proof", file: bank_proof_file },
       ];
 
       for (const { field, file } of fileFields) {
@@ -1235,10 +1267,10 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
         </div>
         <div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Documents & Certificates (Optional)
+            Documents & Compliance Certificates
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Upload KYC documents if available. All documents are optional.
+            Upload legal registration, NABL accreditation, waste consents, and agreement files. All documents are optional during onboarding.
           </p>
         </div>
       </div>
@@ -1247,46 +1279,129 @@ function OnboardingModal({ isOpen, onClose, lab, onSave }) {
       <div className="bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 flex items-start gap-3">
         <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
         <div className="text-xs text-emerald-800 dark:text-emerald-200 space-y-0.5">
-          <p className="font-semibold text-sm">Documents are 100% Optional</p>
+          <p className="font-semibold text-sm">Flexible Onboarding (All Documents Optional)</p>
           <p className="leading-relaxed">
-            GST Certificate is not required. You can onboard, approve, and activate this diagnostic lab immediately without uploading any documents.
+            You can upload documents now or manage, review, and verify them anytime later in the lab's <strong>Compliance & Documents</strong> tab.
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <FileUploadField
-          label="PAN Card"
-          file={pan_card_file}
-          setFile={setPanCardFile}
-          existingUrl={lab?.pan_card_url}
-        />
-        <FileUploadField
-          label="Aadhaar Card"
-          file={aadhaar_card_file}
-          setFile={setAadhaarCardFile}
-          existingUrl={lab?.aadhaar_card_url}
-        />
-        <FileUploadField
-          label="Lab License"
-          file={lab_license_file}
-          setFile={setLabLicenseFile}
-          existingUrl={lab?.lab_license_url}
-        />
-        <FileUploadField
-          label="Owner Photo"
-          file={owner_photo_file}
-          setFile={setOwnerPhotoFile}
-          existingUrl={lab?.owner_photo_url}
-          accept=".jpg,.jpeg,.png"
-        />
-        <FileUploadField
-          label="Signature"
-          file={signature_file}
-          setFile={setSignatureFile}
-          existingUrl={lab?.signature_url}
-          accept=".jpg,.jpeg,.png,.pdf"
-        />
+      {/* Section 1: Legal Registration & Quality Accreditations */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 border-b border-gray-200 dark:border-gray-700 pb-1.5">
+          <ShieldCheck className="w-4 h-4 text-[#0067A1]" />
+          <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
+            1. Legal Registration & Quality Accreditations
+          </h4>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FileUploadField
+            label="Incorporation Certificate / CIN"
+            file={incorporation_cin_file}
+            setFile={setIncorporationCinFile}
+          />
+          <FileUploadField
+            label="Lab Registration / Licence"
+            file={lab_license_file}
+            setFile={setLabLicenseFile}
+            existingUrl={lab?.lab_license_url}
+          />
+          <FileUploadField
+            label="NABL Accreditation Certificate"
+            file={nabl_certificate_file}
+            setFile={setNablCertificateFile}
+          />
+          <FileUploadField
+            label="NABL Scope of Accreditation"
+            file={nabl_scope_file}
+            setFile={setNablScopeFile}
+          />
+          <FileUploadField
+            label="ISO 15189:2022 Certificate"
+            file={iso_15189_file}
+            setFile={setIso15189File}
+          />
+          <FileUploadField
+            label="Entity PAN Card"
+            file={pan_card_file}
+            setFile={setPanCardFile}
+            existingUrl={lab?.pan_card_url}
+          />
+        </div>
+      </div>
+
+      {/* Section 2: Bio-Medical Waste & Environmental Authorizations */}
+      <div className="space-y-3 pt-2">
+        <div className="flex items-center gap-2 border-b border-gray-200 dark:border-gray-700 pb-1.5">
+          <FileCheck className="w-4 h-4 text-emerald-600" />
+          <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
+            2. Bio-Medical Waste & Environmental Consents
+          </h4>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FileUploadField
+            label="BMW Services Agreement / Renewal"
+            file={bmw_agreement_file}
+            setFile={setBmwAgreementFile}
+          />
+          <FileUploadField
+            label="DPCC Biomedical-Waste Authorization"
+            file={dpcc_bmw_auth_file}
+            setFile={setDpccBmwAuthFile}
+          />
+          <FileUploadField
+            label="DPCC Noise Monitoring Report"
+            file={dpcc_noise_report_file}
+            setFile={setDpccNoiseReportFile}
+          />
+          <FileUploadField
+            label="DPCC Medical-Waste Report"
+            file={dpcc_medical_waste_file}
+            setFile={setDpccMedicalWasteFile}
+          />
+        </div>
+      </div>
+
+      {/* Section 3: Commercial Agreement, Banking & Signatory */}
+      <div className="space-y-3 pt-2">
+        <div className="flex items-center gap-2 border-b border-gray-200 dark:border-gray-700 pb-1.5">
+          <FileText className="w-4 h-4 text-purple-600" />
+          <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
+            3. Commercial Agreement, Banking & Signatory
+          </h4>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FileUploadField
+            label="Executed Partner Agreement"
+            file={partner_agreement_file}
+            setFile={setPartnerAgreementFile}
+          />
+          <FileUploadField
+            label="Bank Proof (Cancelled Cheque / Letter)"
+            file={bank_proof_file}
+            setFile={setBankProofFile}
+          />
+          <FileUploadField
+            label="Aadhaar Card"
+            file={aadhaar_card_file}
+            setFile={setAadhaarCardFile}
+            existingUrl={lab?.aadhaar_card_url}
+          />
+          <FileUploadField
+            label="Owner Photo"
+            file={owner_photo_file}
+            setFile={setOwnerPhotoFile}
+            existingUrl={lab?.owner_photo_url}
+            accept=".jpg,.jpeg,.png"
+          />
+          <FileUploadField
+            label="Authorized Signature"
+            file={signature_file}
+            setFile={setSignatureFile}
+            existingUrl={lab?.signature_url}
+            accept=".jpg,.jpeg,.png,.pdf"
+          />
+        </div>
       </div>
     </div>
   );

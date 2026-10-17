@@ -68,6 +68,44 @@ export async function POST(req) {
     const signature_url = await upload(formData.get("signature"), "signature");
     const logo_url = await upload(formData.get("logo") || formData.get("profile_picture"), "logo");
 
+    // Sync any uploaded compliance documents into lab_partner_documents
+    const complianceDocMap = [
+      { field: "incorporation_cin", type: "incorporation_cin", name: "Incorporation Certificate / CIN", authority: "Ministry of Corporate Affairs (MCA)" },
+      { field: "pan_card", type: "pan_card", name: "Entity PAN Card", authority: "Income Tax Department" },
+      { field: "lab_license", type: "lab_license", name: "Applicable Lab Registration / Licence", authority: "Directorate of Health Services" },
+      { field: "bmw_agreement", type: "bmw_agreement", name: "BMW Services Agreement / Renewal", authority: "Authorized Waste Management Provider" },
+      { field: "dpcc_noise_report", type: "dpcc_noise_report", name: "DPCC Noise Monitoring Report", authority: "DPCC" },
+      { field: "dpcc_medical_waste", type: "dpcc_medical_waste", name: "DPCC Medical-Waste Management Report", authority: "DPCC" },
+      { field: "iso_15189", type: "iso_15189", name: "ISO 15189:2022 Certificate", authority: "Certification Body / Registrar" },
+      { field: "nabl_certificate", type: "nabl_certificate", name: "NABL Accreditation Certificate", authority: "NABL" },
+      { field: "nabl_scope", type: "nabl_scope", name: "NABL Scope of Accreditation", authority: "NABL" },
+      { field: "dpcc_bmw_auth", type: "dpcc_bmw_auth", name: "DPCC Biomedical-Waste Authorization", authority: "DPCC" },
+      { field: "partner_agreement", type: "partner_agreement", name: "Executed Partner Agreement", authority: "MediConnect & Partner" },
+      { field: "bank_proof", type: "bank_proof", name: "Bank Proof (Cancelled Cheque / Letter)", authority: "Partner Bank" },
+    ];
+
+    for (const doc of complianceDocMap) {
+      const docVal = formData.get(doc.field);
+      if (docVal) {
+        const docUrl = await upload(docVal, doc.field);
+        if (docUrl) {
+          try {
+            const existing = await sql`SELECT id FROM lab_partner_documents WHERE lab_id = ${cleanId} AND document_type = ${doc.type} LIMIT 1`;
+            if (existing.length > 0) {
+              await sql`UPDATE lab_partner_documents SET document_url = ${docUrl}, updated_at = NOW() WHERE id = ${existing[0].id}`;
+            } else {
+              await sql`
+                INSERT INTO lab_partner_documents (lab_id, document_type, document_name, document_url, issuing_authority, verification_status, created_at, updated_at)
+                VALUES (${cleanId}, ${doc.type}, ${doc.name}, ${docUrl}, ${doc.authority}, 'RECEIVED', NOW(), NOW())
+              `;
+            }
+          } catch (docErr) {
+            console.error(`Error syncing compliance doc ${doc.type}:`, docErr);
+          }
+        }
+      }
+    }
+
     // Extract and guarantee valid JSON array for services
     // CRITICAL: Must use sql.json(servicesArray) so postgres.js passes it as real JSONB array,
     // avoiding ${JSON.stringify()}::jsonb string scalar check constraint violation

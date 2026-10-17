@@ -5,7 +5,7 @@ import { corsHeaders } from "@/lib/cors";
 
 const safeUuid = (val) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val) ? val : null);
 
-export const STANDARD_COMPLIANCE_DOCS = [
+export const STANDARD_COMPLIANCE_DOCUMENTS = [
   {
     type: "incorporation_cin",
     title: "Incorporation Certificate / CIN",
@@ -103,6 +103,7 @@ export const STANDARD_COMPLIANCE_DOCS = [
     initial_status: "NOT_APPLICABLE",
   },
 ];
+export const STANDARD_COMPLIANCE_DOCS = STANDARD_COMPLIANCE_DOCUMENTS;
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });

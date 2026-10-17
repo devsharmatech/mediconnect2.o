@@ -181,7 +181,10 @@ export async function POST(req) {
         }
       }
 
-      const documentFields = ["pan_card", "aadhaar_card", "lab_license", "gst_certificate", "owner_photo", "signature", "logo", "profile_picture"];
+      const documentFields = [
+        "pan_card", "aadhaar_card", "lab_license", "gst_certificate", "owner_photo", "signature", "logo", "profile_picture",
+        "incorporation_cin", "nabl_certificate", "nabl_scope", "bmw_agreement", "dpcc_bmw_auth", "dpcc_noise_report", "dpcc_medical_waste", "iso_15189", "partner_agreement", "bank_proof"
+      ];
       async function uploadFileLegacy(fieldName, file) {
         if (!file || file.size === 0) return null;
         const fileExt = file.name.split(".").pop();
@@ -315,6 +318,58 @@ export async function POST(req) {
       )
       RETURNING *
     `;
+
+    // Save uploaded compliance documents into lab_partner_documents
+    const complianceDocMap = [
+      { field: "incorporation_cin", type: "incorporation_cin", name: "Incorporation Certificate / CIN", authority: "Ministry of Corporate Affairs (MCA)" },
+      { field: "pan_card", type: "pan_card", name: "Entity PAN Card", authority: "Income Tax Department" },
+      { field: "lab_license", type: "lab_license", name: "Applicable Lab Registration / Licence", authority: "Directorate of Health Services" },
+      { field: "bmw_agreement", type: "bmw_agreement", name: "BMW Services Agreement / Renewal", authority: "Authorized Waste Management Provider" },
+      { field: "dpcc_noise_report", type: "dpcc_noise_report", name: "DPCC Noise Monitoring Report", authority: "DPCC" },
+      { field: "dpcc_medical_waste", type: "dpcc_medical_waste", name: "DPCC Medical-Waste Management Report", authority: "DPCC" },
+      { field: "iso_15189", type: "iso_15189", name: "ISO 15189:2022 Certificate", authority: "Certification Body / Registrar" },
+      { field: "nabl_certificate", type: "nabl_certificate", name: "NABL Accreditation Certificate", authority: "NABL" },
+      { field: "nabl_scope", type: "nabl_scope", name: "NABL Scope of Accreditation", authority: "NABL" },
+      { field: "dpcc_bmw_auth", type: "dpcc_bmw_auth", name: "DPCC Biomedical-Waste Authorization", authority: "DPCC" },
+      { field: "partner_agreement", type: "partner_agreement", name: "Executed Partner Agreement", authority: "MediConnect & Partner" },
+      { field: "bank_proof", type: "bank_proof", name: "Bank Proof (Cancelled Cheque / Letter)", authority: "Partner Bank" },
+    ];
+
+    for (const doc of complianceDocMap) {
+      const docUrl = fields[doc.field] || null;
+      if (docUrl) {
+        try {
+          await sql`
+            INSERT INTO lab_partner_documents (
+              lab_id,
+              document_type,
+              document_name,
+              document_url,
+              issuing_authority,
+              verification_status,
+              verified_by,
+              verified_at,
+              created_at,
+              updated_at
+            ) VALUES (
+              ${createdUserId},
+              ${doc.type},
+              ${doc.name},
+              ${docUrl},
+              ${doc.authority},
+              ${fields.document_verified === 'true' || fields.document_verified === true ? 'VERIFIED' : 'RECEIVED'},
+              ${fields.document_verified === 'true' || fields.document_verified === true ? 'Admin' : null},
+              ${fields.document_verified === 'true' || fields.document_verified === true ? sql`NOW()` : null},
+              NOW(),
+              NOW()
+            )
+            ON CONFLICT DO NOTHING
+          `;
+        } catch (docErr) {
+          console.error(`Error saving compliance doc ${doc.type}:`, docErr);
+        }
+      }
+    }
 
     // Auto-assign tests: either all master catalog tests, or selected test codes
     const rawSelectedTestCodes = fields.selected_test_codes;
