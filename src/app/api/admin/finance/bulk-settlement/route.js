@@ -16,15 +16,22 @@ export async function POST(req) {
     const batchIds = Array.isArray(body.batch_ids) ? body.batch_ids : [];
     const utrNumber = (body.utr_number || body.transaction_id || body.payout_reference || '').trim();
     const paymentMode = body.payment_mode || 'NEFT';
-    const proofUrl = body.proof_url || null;
+    const proofUrl = (body.proof_url || body.proofUrl || '').trim();
     const notes = body.notes || `Bulk settlement executed via ${paymentMode}. Master UTR: ${utrNumber}`;
     const settledBy = caller?.name || caller?.email || "Admin";
 
-    // Enforce mandatory settlement proof
+    // Enforce mandatory settlement proof: BOTH UTR Number and Proof Document URL are strictly mandatory
     if (!utrNumber) {
       return NextResponse.json({
         success: false,
         error: "Mandatory settlement proof required: Please provide a valid Bank UTR / Transaction ID for the bulk disbursement.",
+      }, { status: 400 });
+    }
+
+    if (!proofUrl) {
+      return NextResponse.json({
+        success: false,
+        error: "Mandatory settlement proof required: Payment proof document (bank transfer advice / slip / PDF) must be uploaded before bulk settlement.",
       }, { status: 400 });
     }
 

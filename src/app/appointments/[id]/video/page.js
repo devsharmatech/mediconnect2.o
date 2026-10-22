@@ -48,6 +48,9 @@ import {
   Loader2,
   ArrowLeftRight,
   Mail,
+  Lock,
+  ShieldCheck,
+  FileText,
 } from "lucide-react";
 
 /* ─── Page Wrapper ──────────────────────────────────── */
@@ -740,7 +743,9 @@ function VideoCall({ appointmentId, userId, role }) {
 
   /* ── Patient: fetch prescription ─────────────── */
   const fetchPatientPrescription = async () => {
-    let patientId = userId || (typeof window !== "undefined" ? (localStorage.getItem("userId") || localStorage.getItem("user_id")) : null);
+    let patientId = role === "doctor"
+      ? (appointmentMeta?.patient_id || null)
+      : (userId || (typeof window !== "undefined" ? (localStorage.getItem("userId") || localStorage.getItem("user_id")) : null));
 
     setPrescriptionLoading(true);
     const tid = toast.loading("Fetching prescription…");
@@ -1132,7 +1137,7 @@ function VideoCall({ appointmentId, userId, role }) {
                 onClick={fetchPatientPrescription}
                 disabled={!joined || prescriptionLoading}
                 active
-                activeClass="bg-gradient-to-r from-[#0067A1] to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                activeClass="bg-[#0067A1] hover:bg-[#004F7C]"
                 inactiveClass="bg-gray-700"
                 title="Fetch & View Prescription"
               >
@@ -1164,6 +1169,7 @@ function VideoCall({ appointmentId, userId, role }) {
             meta={appointmentMeta}
             templates={prescriptionTemplates}
             onClose={() => setIsWriteRxOpen(false)}
+            onViewPrescription={fetchPatientPrescription}
             isSidebarPanel={true}
           />
         </div>
@@ -1284,6 +1290,7 @@ function VideoCall({ appointmentId, userId, role }) {
               meta={appointmentMeta}
               templates={prescriptionTemplates}
               onClose={() => setIsWriteRxOpen(false)}
+              onViewPrescription={fetchPatientPrescription}
             />
           </div>
         )}
@@ -2162,9 +2169,9 @@ function _UnusedLegacyPrescriptionModal({ userId, data, chemistOrder, chemistInf
           <div className="w-full">
             <div className={`grid grid-cols-1 ${labTests.length > 0 ? "sm:grid-cols-2" : ""} gap-3 w-full`}>
               {/* Chemist Order Card */}
-              <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-r from-blue-50/40 via-white to-slate-50/60 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-[#0067A1]/40 transition-all">
+              <div className="rounded-2xl border border-slate-200 bg-sky-50/40 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-[#0067A1]/40 transition-all">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0067A1] to-[#005282] text-white flex items-center justify-center shadow-xs shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-[#0067A1] text-white flex items-center justify-center shadow-xs shrink-0">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>
@@ -2173,8 +2180,18 @@ function _UnusedLegacyPrescriptionModal({ userId, data, chemistOrder, chemistInf
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Chemist Order</p>
                       {chemistOrder && (
-                        <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
-                          {chemistOrder.status || "Ordered"}
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          chemistOrder.status === "payment_submitted"
+                            ? "bg-blue-100 text-blue-700"
+                            : chemistOrder.status === "payment_pending"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-emerald-100 text-emerald-700"
+                        }`}>
+                          {chemistOrder.status === "payment_submitted"
+                            ? "Payment Submitted"
+                            : chemistOrder.status === "payment_pending"
+                            ? "Awaiting Payment"
+                            : chemistOrder.status || "Ordered"}
                         </span>
                       )}
                     </div>
@@ -2193,18 +2210,33 @@ function _UnusedLegacyPrescriptionModal({ userId, data, chemistOrder, chemistInf
                   type="button"
                   onClick={() => setShareTarget("chemist")}
                   className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-xs hover:shadow ${
-                    chemistOrder
+                    chemistOrder && chemistOrder.status === "payment_pending"
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      : chemistOrder
                       ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300/80"
-                      : "bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:from-[#005a8f] hover:to-[#006ea8] text-white"
+                      : "bg-[#0067A1] hover:bg-[#004F7C] text-white"
                   }`}
                 >
                   {chemistOrder ? (
-                    <>
-                      <span>Change</span>
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    </>
+                    chemistOrder.status === "payment_pending" ? (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                        </svg>
+                        <span>Pay QR</span>
+                      </>
+                    ) : chemistOrder.status === "payment_submitted" ? (
+                      <>
+                        <span>View / Edit</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Change</span>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </>
+                    )
                   ) : (
                     <>
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2218,9 +2250,9 @@ function _UnusedLegacyPrescriptionModal({ userId, data, chemistOrder, chemistInf
 
               {/* Lab Order Card */}
               {labTests.length > 0 && (
-                <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-r from-teal-50/40 via-white to-slate-50/60 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-teal-600/40 transition-all">
+                <div className="rounded-2xl border border-slate-200 bg-teal-50/40 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-teal-600/40 transition-all">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-600 to-teal-800 text-white flex items-center justify-center shadow-xs shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs shrink-0">
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                       </svg>
@@ -2251,7 +2283,7 @@ function _UnusedLegacyPrescriptionModal({ userId, data, chemistOrder, chemistInf
                     className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-xs hover:shadow ${
                       labOrder
                         ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300/80"
-                        : "bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white"
+                        : "bg-teal-600 hover:bg-teal-700 text-white"
                     }`}
                   >
                     {labOrder ? (
@@ -2394,7 +2426,7 @@ const COMPLAINT_SUGGESTIONS = [
 
 let cachedDrugMaster = null;
 
-function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, isSidebarPanel }) {
+function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, isSidebarPanel, onViewPrescription }) {
   const [templateStep, setTemplateStep] = useState(templates.length > 0 ? "select" : "write");
   const [diagnosis, setDiagnosis] = useState("");
   const [diagnosisNotes, setDiagnosisNotes] = useState("");
@@ -2413,6 +2445,8 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
   const [existingEpisodeId, setExistingEpisodeId] = useState(null);
   const [selectedTemplateSpec, setSelectedTemplateSpec] = useState("");
   const [isEditingExisting, setIsEditingExisting] = useState(false);
+  const [isPrescriptionSigned, setIsPrescriptionSigned] = useState(false);
+  const [signedPrescriptionUrl, setSignedPrescriptionUrl] = useState(null);
 
   const episodeCode = meta?.episode_id || existingEpisodeId || (meta?.care_episode_id ? `EP-${String(meta.care_episode_id).slice(0, 8).toUpperCase()}` : null);
 
@@ -3107,6 +3141,18 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
   const hydrateFromPrescription = (prescription) => {
     if (!prescription) return;
 
+    const isSigned = Boolean(
+      prescription.is_draft === false ||
+      prescription.status === "completed" ||
+      prescription.status === "signed" ||
+      prescription.signed_at ||
+      prescription.completed_at
+    );
+    setIsPrescriptionSigned(isSigned);
+    if (prescription.pdf_url) {
+      setSignedPrescriptionUrl(prescription.pdf_url);
+    }
+
     if (prescription.id) {
       setExistingPrescriptionId(prescription.id);
     }
@@ -3274,6 +3320,11 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
   };
 
   const handleSubmit = async (action = "sign") => {
+    if (isPrescriptionSigned) {
+      toast.error("This prescription is already signed and locked.");
+      return;
+    }
+
     const resolvedMeta = await resolveMeta();
     if (!resolvedMeta?.patient_id || !resolvedMeta?.doctor_id) {
       toast.error("Appointment details not loaded. Try again.");
@@ -3417,8 +3468,9 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
   };
 
   /* ── styles ── */
-  const inputClass =
-    "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 font-normal placeholder:text-slate-400 focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1] outline-none transition";
+  const inputClass = isPrescriptionSigned
+    ? "w-full rounded-md border border-slate-200 bg-slate-100/80 px-3 py-2 text-sm text-slate-800 font-normal cursor-not-allowed select-text outline-none"
+    : "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 font-normal placeholder:text-slate-400 focus:border-[#0067A1] focus:ring-1 focus:ring-[#0067A1] outline-none transition";
   const sectionTitle =
     "flex items-center gap-2 text-xs font-semibold text-[#0067A1] uppercase tracking-wider mb-2.5";
 
@@ -3454,22 +3506,28 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
   return wrapper(
     <>
         {/* ── Header ── */}
-        <div className="flex items-center justify-between px-6 py-4 bg-[#0067A1] shrink-0">
+        <div className={`flex items-center justify-between px-6 py-4 shrink-0 transition-colors ${isPrescriptionSigned ? "bg-slate-900 border-b border-slate-800" : "bg-[#0067A1]"}`}>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-semibold text-white">
-                {isEditingExisting ? "Edit Prescription" : "Write Prescription"}
+              <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                {isPrescriptionSigned && <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />}
+                {isPrescriptionSigned ? "Prescription (Signed & Finalized)" : isEditingExisting ? "Edit Prescription" : "Write Prescription"}
               </h3>
               {episodeCode && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-white/20 text-white border border-white/30 tracking-wide" title="Care Episode Tracking ID">
                   Episode: {episodeCode}
                 </span>
               )}
-              {isEditingExisting && (
+              {isPrescriptionSigned ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  <Lock className="w-3 h-3 text-emerald-400" />
+                  {existingPid ? `Rx #${existingPid} · Finalized` : "Signed"}
+                </span>
+              ) : isEditingExisting ? (
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-yellow-400/20 text-yellow-200 border border-yellow-400/30">
                   {existingPid ? `Rx #${existingPid}` : "Existing"}
                 </span>
-              )}
+              ) : null}
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
               {meta?.patient_name && (
@@ -3591,9 +3649,10 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                       <div className="mt-1">
                         <label className="text-[10px] text-slate-600 font-medium block">Active Specialization</label>
                         <select
+                          disabled={isPrescriptionSigned}
                           value={selectedTemplateSpec}
                           onChange={(e) => setSelectedTemplateSpec(e.target.value)}
-                          className="text-xs bg-white border border-slate-300 rounded p-1 text-[#0067A1] font-medium mt-0.5 focus:outline-none focus:ring-1 focus:ring-[#0067A1]"
+                          className={`text-xs ${isPrescriptionSigned ? "bg-slate-100 text-slate-600 cursor-not-allowed" : "bg-white text-[#0067A1]"} border border-slate-300 rounded p-1 font-medium mt-0.5 focus:outline-none focus:ring-1 focus:ring-[#0067A1]`}
                         >
                           {specList.map((spec) => (
                             <option key={spec} value={spec}>
@@ -3633,23 +3692,35 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-700">
                   <span className="font-normal text-slate-500">Prescription:</span>
                   <span className="font-medium text-slate-800">
-                    {isEditingExisting ? (existingPid ? `Rx #${existingPid}` : "Saved Draft") : "New Rx (Draft)"}
+                    {isPrescriptionSigned ? "Finalized (Signed)" : isEditingExisting ? (existingPid ? `Rx #${existingPid}` : "Saved Draft") : "New Rx (Draft)"}
                   </span>
                 </div>
               </div>
             </div>
           )}
           {/* ── Existing Prescription Notice ── */}
-          {isEditingExisting && (
+          {isPrescriptionSigned ? (
+            <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-950">
+              <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <p className="font-semibold text-emerald-900">
+                  Prescription Signed & Completed
+                </p>
+                <p className="text-emerald-800 text-[11px] leading-relaxed mt-0.5 font-normal">
+                  This prescription has been digitally signed by the doctor and legally recorded for the patient. In accordance with medical documentation compliance, signed clinical records cannot be edited or re-signed.
+                </p>
+              </div>
+            </div>
+          ) : isEditingExisting ? (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
               <svg className="w-4 h-4 shrink-0 text-amber-800" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
               <p className="text-xs font-medium text-amber-900">
-                You&apos;ve already written a prescription for this appointment. You can review and update it below.
+                You&apos;ve already written a draft prescription for this appointment. You can review and update it below.
               </p>
             </div>
-          )}
+          ) : null}
 
           {/* Dynamic rendering of sections */}
           <section>
@@ -3660,34 +3731,38 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                 </span>
                 Presenting Complaints
               </div>
-              <button
-                type="button"
-                onClick={addComplaint}
-                className="inline-flex items-center gap-1 text-xs text-[#0067A1] hover:text-[#004F7C] font-medium bg-[#0067A1]/5 hover:bg-[#0067A1]/10 px-2.5 py-1.5 rounded-md transition-colors"
-              >
-                <PlusIcon className="w-3.5 h-3.5" /> Add Row
-              </button>
+              {!isPrescriptionSigned && (
+                <button
+                  type="button"
+                  onClick={addComplaint}
+                  className="inline-flex items-center gap-1 text-xs text-[#0067A1] hover:text-[#004F7C] font-medium bg-[#0067A1]/5 hover:bg-[#0067A1]/10 px-2.5 py-1.5 rounded-md transition-colors"
+                >
+                  <PlusIcon className="w-3.5 h-3.5" /> Add Row
+                </button>
+              )}
             </div>
             <div className="space-y-3">
               {presentingComplaints.map((comp, idx) => (
                 <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
                   <span className="text-xs font-medium text-slate-500 shrink-0 w-5">#{idx + 1}</span>
                   <Autocomplete
+                    disabled={isPrescriptionSigned}
                     value={comp.complaint}
                     onChange={(val) => updateComplaint(idx, "complaint", val)}
                     onSelect={(opt) => updateComplaint(idx, "complaint", opt.name)}
                     options={complaintSuggestions.map(s => ({ name: s }))}
                     placeholder="Symptom / Complaint *"
-                    className={`${inputClass} flex-1 font-normal bg-white`}
+                    className={`${inputClass} flex-1 font-normal`}
                   />
                   <input
                     type="text"
+                    disabled={isPrescriptionSigned}
                     placeholder="Details (e.g. since 3 days, mild/severe)"
                     value={comp.details}
                     onChange={(e) => updateComplaint(idx, "details", e.target.value)}
-                    className={`${inputClass} flex-1 font-normal bg-white`}
+                    className={`${inputClass} flex-1 font-normal`}
                   />
-                  {presentingComplaints.length > 1 && (
+                  {!isPrescriptionSigned && presentingComplaints.length > 1 && (
                     <button
                       onClick={() => removeComplaint(idx)}
                       className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
@@ -3716,6 +3791,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     {sec.section || "Symptoms"}
                   </div>
                   <Autocomplete
+                    disabled={isPrescriptionSigned}
                     value={symptoms}
                     onChange={(val) => {
                       setSymptoms(val);
@@ -3756,6 +3832,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     {sec.section || "Conditions"}
                   </div>
                   <Autocomplete
+                    disabled={isPrescriptionSigned}
                     value={conditions}
                     onChange={(val) => {
                       setConditions(val);
@@ -3796,6 +3873,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     {sec.section || "Diagnosis"} *
                   </div>
                   <Autocomplete
+                    disabled={isPrescriptionSigned}
                     value={diagnosis}
                     onChange={(val) => setDiagnosis(val)}
                     onSelect={(opt) => {
@@ -3818,6 +3896,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     )}
                   />
                   <textarea
+                    disabled={isPrescriptionSigned}
                     placeholder="Clinical notes / history (optional)"
                     value={diagnosisNotes}
                     onChange={(e) => setDiagnosisNotes(e.target.value)}
@@ -3938,24 +4017,26 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                       </span>
                       <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wider">{sec.section || "Vitals"}</h4>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleSetAllNormal}
-                        className="px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors flex items-center gap-1.5 active:scale-95 cursor-pointer"
-                        title="Click to set standard healthy normal vitals"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Set Normal
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleClearVitals}
-                        className="px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                        title="Clear vitals"
-                      >
-                        Clear
-                      </button>
-                    </div>
+                    {!isPrescriptionSigned && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleSetAllNormal}
+                          className="px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                          title="Click to set standard healthy normal vitals"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Set Normal
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleClearVitals}
+                          className="px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                          title="Clear vitals"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className={`grid grid-cols-1 ${isSidebarPanel ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3"} gap-3`}>
@@ -3983,12 +4064,13 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           </div>
                           <input
                             type="range"
+                            disabled={isPrescriptionSigned}
                             min={70}
                             max={200}
                             step={1}
                             value={bpValues.sys}
                             onChange={(e) => updateVital("blood_pressure", `${e.target.value}/${bpValues.dia}`)}
-                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block disabled:cursor-not-allowed disabled:opacity-60"
                             style={{
                               background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(bpValues.sys, 70, 200, 120)}%, #E2E8F0 ${calcPct(bpValues.sys, 70, 200, 120)}%, #E2E8F0 100%)`
                             }}
@@ -4001,12 +4083,13 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           </div>
                           <input
                             type="range"
+                            disabled={isPrescriptionSigned}
                             min={40}
                             max={130}
                             step={1}
                             value={bpValues.dia}
                             onChange={(e) => updateVital("blood_pressure", `${bpValues.sys}/${e.target.value}`)}
-                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block disabled:cursor-not-allowed disabled:opacity-60"
                             style={{
                               background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(bpValues.dia, 40, 130, 80)}%, #E2E8F0 ${calcPct(bpValues.dia, 40, 130, 80)}%, #E2E8F0 100%)`
                             }}
@@ -4016,18 +4099,20 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
 
                       <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] pt-1.5 border-t border-slate-100">
                         <span className="text-slate-500 font-medium">Norm: 90–120 / 60–80</span>
-                        <div className="flex items-center gap-1.5">
-                          {["120/80", "130/85"].map((c) => (
-                            <button
-                              key={c}
-                              type="button"
-                              onClick={() => updateVital("blood_pressure", c)}
-                              className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
-                            >
-                              {c}
-                            </button>
-                          ))}
-                        </div>
+                        {!isPrescriptionSigned && (
+                          <div className="flex items-center gap-1.5">
+                            {["120/80", "130/85"].map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => updateVital("blood_pressure", c)}
+                                className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
+                              >
+                                {c}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -4048,12 +4133,13 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                       <div className="my-auto py-1 space-y-1.5">
                         <input
                           type="range"
+                          disabled={isPrescriptionSigned}
                           min={40}
                           max={180}
                           step={1}
                           value={pulseVal}
                           onChange={(e) => updateVital("pulse", e.target.value)}
-                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block disabled:cursor-not-allowed disabled:opacity-60"
                           style={{
                             background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(pulseVal, 40, 180, 72)}%, #E2E8F0 ${calcPct(pulseVal, 40, 180, 72)}%, #E2E8F0 100%)`
                           }}
@@ -4067,18 +4153,20 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
 
                       <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] pt-1.5 border-t border-slate-100">
                         <span className="text-slate-500 font-medium">Resting: 72</span>
-                        <div className="flex items-center gap-1.5">
-                          {["68", "72", "80"].map((c) => (
-                            <button
-                              key={c}
-                              type="button"
-                              onClick={() => updateVital("pulse", c)}
-                              className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
-                            >
-                              {c}
-                            </button>
-                          ))}
-                        </div>
+                        {!isPrescriptionSigned && (
+                          <div className="flex items-center gap-1.5">
+                            {["68", "72", "80"].map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => updateVital("pulse", c)}
+                                className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
+                              >
+                                {c}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -4099,12 +4187,13 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                       <div className="my-auto py-1 space-y-1.5">
                         <input
                           type="range"
+                          disabled={isPrescriptionSigned}
                           min={95.0}
                           max={105.0}
                           step={0.1}
                           value={tempVal}
                           onChange={(e) => updateVital("temperature", e.target.value)}
-                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block disabled:cursor-not-allowed disabled:opacity-60"
                           style={{
                             background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(tempVal, 95.0, 105.0, 98.6)}%, #E2E8F0 ${calcPct(tempVal, 95.0, 105.0, 98.6)}%, #E2E8F0 100%)`
                           }}
@@ -4118,18 +4207,20 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
 
                       <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] pt-1.5 border-t border-slate-100">
                         <span className="text-slate-500 font-medium">Baseline: 98.6°</span>
-                        <div className="flex items-center gap-1.5">
-                          {["98.4", "98.6", "100.4"].map((c) => (
-                            <button
-                              key={c}
-                              type="button"
-                              onClick={() => updateVital("temperature", c)}
-                              className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
-                            >
-                              {c}°
-                            </button>
-                          ))}
-                        </div>
+                        {!isPrescriptionSigned && (
+                          <div className="flex items-center gap-1.5">
+                            {["98.4", "98.6", "100.4"].map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => updateVital("temperature", c)}
+                                className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
+                              >
+                                {c}°
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -4150,12 +4241,13 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                       <div className="my-auto py-1 space-y-1.5">
                         <input
                           type="range"
+                          disabled={isPrescriptionSigned}
                           min={70}
                           max={100}
                           step={1}
                           value={spo2Val}
                           onChange={(e) => updateVital("spo2", e.target.value)}
-                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block disabled:cursor-not-allowed disabled:opacity-60"
                           style={{
                             background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(spo2Val, 70, 100, 98)}%, #E2E8F0 ${calcPct(spo2Val, 70, 100, 98)}%, #E2E8F0 100%)`
                           }}
@@ -4169,18 +4261,20 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
 
                       <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] pt-1.5 border-t border-slate-100">
                         <span className="text-slate-500 font-medium">Target: ≥95%</span>
-                        <div className="flex items-center gap-1.5">
-                          {["98", "96", "94"].map((c) => (
-                            <button
-                              key={c}
-                              type="button"
-                              onClick={() => updateVital("spo2", c)}
-                              className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
-                            >
-                              {c}%
-                            </button>
-                          ))}
-                        </div>
+                        {!isPrescriptionSigned && (
+                          <div className="flex items-center gap-1.5">
+                            {["98", "96", "94"].map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => updateVital("spo2", c)}
+                                className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
+                              >
+                                {c}%
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -4201,12 +4295,13 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                       <div className="my-auto py-1 space-y-1.5">
                         <input
                           type="range"
+                          disabled={isPrescriptionSigned}
                           min={8}
                           max={40}
                           step={1}
                           value={rrVal}
                           onChange={(e) => updateVital("respiratory_rate", e.target.value)}
-                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block disabled:cursor-not-allowed disabled:opacity-60"
                           style={{
                             background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(rrVal, 8, 40, 16)}%, #E2E8F0 ${calcPct(rrVal, 8, 40, 16)}%, #E2E8F0 100%)`
                           }}
@@ -4220,18 +4315,20 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
 
                       <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] pt-1.5 border-t border-slate-100">
                         <span className="text-slate-500 font-medium">Resting: 16</span>
-                        <div className="flex items-center gap-1.5">
-                          {["14", "16", "20"].map((c) => (
-                            <button
-                              key={c}
-                              type="button"
-                              onClick={() => updateVital("respiratory_rate", c)}
-                              className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
-                            >
-                              {c}
-                            </button>
-                          ))}
-                        </div>
+                        {!isPrescriptionSigned && (
+                          <div className="flex items-center gap-1.5">
+                            {["14", "16", "20"].map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => updateVital("respiratory_rate", c)}
+                                className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
+                              >
+                                {c}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -4252,12 +4349,13 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                       <div className="my-auto py-1 space-y-1.5">
                         <input
                           type="range"
+                          disabled={isPrescriptionSigned}
                           min={20}
                           max={180}
                           step={0.5}
                           value={weightVal}
                           onChange={(e) => updateVital("weight", e.target.value)}
-                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block"
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0067A1] block disabled:cursor-not-allowed disabled:opacity-60"
                           style={{
                             background: `linear-gradient(to right, #0067A1 0%, #0067A1 ${calcPct(weightVal, 20, 180, 70)}%, #E2E8F0 ${calcPct(weightVal, 20, 180, 70)}%, #E2E8F0 100%)`
                           }}
@@ -4271,18 +4369,20 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
 
                       <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] pt-1.5 border-t border-slate-100">
                         <span className="text-slate-500 font-medium">Adult</span>
-                        <div className="flex items-center gap-1.5">
-                          {["60", "70", "80"].map((c) => (
-                            <button
-                              key={c}
-                              type="button"
-                              onClick={() => updateVital("weight", c)}
-                              className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
-                            >
-                              {c} kg
-                            </button>
-                          ))}
-                        </div>
+                        {!isPrescriptionSigned && (
+                          <div className="flex items-center gap-1.5">
+                            {["60", "70", "80"].map((c) => (
+                              <button
+                                key={c}
+                                type="button"
+                                onClick={() => updateVital("weight", c)}
+                                className="px-1.5 py-0.5 font-medium rounded bg-slate-100 hover:bg-[#0067A1] hover:text-white text-slate-700 border border-slate-200/80 transition-colors cursor-pointer"
+                              >
+                                {c} kg
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -4298,13 +4398,15 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                       <span className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[11px] font-medium text-[#0067A1]">{displayIndex}</span>
                       {sec.section || "Medicines"} *
                     </div>
-                    <button
-                      type="button"
-                      onClick={addMedicine}
-                      className="inline-flex items-center gap-1 text-xs text-[#0067A1] hover:text-[#004F7C] font-medium bg-[#0067A1]/5 hover:bg-[#0067A1]/10 px-2.5 py-1.5 rounded-md transition-colors"
-                    >
-                      <PlusIcon className="w-3.5 h-3.5" /> Add Medicine
-                    </button>
+                    {!isPrescriptionSigned && (
+                      <button
+                        type="button"
+                        onClick={addMedicine}
+                        className="inline-flex items-center gap-1 text-xs text-[#0067A1] hover:text-[#004F7C] font-medium bg-[#0067A1]/5 hover:bg-[#0067A1]/10 px-2.5 py-1.5 rounded-md transition-colors"
+                      >
+                        <PlusIcon className="w-3.5 h-3.5" /> Add Medicine
+                      </button>
+                    )}
                   </div>
                   <div className="space-y-3">
                     {medicines.map((med, idx) => {
@@ -4340,6 +4442,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                             <span className="text-xs font-medium text-slate-500 shrink-0 w-5">#{idx + 1}</span>
                             <div className="flex-1 relative">
                               <Autocomplete
+                                disabled={isPrescriptionSigned}
                                 value={med.name}
                                 onChange={(val) => updateMedicine(idx, "name", val)}
                                 onSelect={(opt) => selectMedicine(idx, opt)}
@@ -4350,7 +4453,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                                 placeholder="Search medicine (e.g. Paracetamol, Volini Gel, Ascoril Syrup)..."
                                 className={`${inputClass} w-full font-medium text-slate-800`}
                                 renderOption={(opt) => (
-                                  <div className="flex flex-col py-0.5">
+                                   <div className="flex flex-col py-0.5">
                                     <div className="flex items-center justify-between gap-2">
                                       <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{opt.name}</span>
                                       {opt.category && (
@@ -4373,7 +4476,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                                 )}
                               />
                             </div>
-                            {medicines.length > 1 && (
+                            {!isPrescriptionSigned && medicines.length > 1 && (
                               <button
                                 onClick={() => removeMedicine(idx)}
                                 className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
@@ -4399,12 +4502,13 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                                 <button
                                   key={f.id}
                                   type="button"
+                                  disabled={isPrescriptionSigned}
                                   onClick={() => setMedicineForm(idx, f.id)}
                                   className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-all ${
                                     isActive
                                       ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
                                       : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                                  }`}
+                                  } ${isPrescriptionSigned ? "cursor-not-allowed opacity-80" : ""}`}
                                 >
                                   {f.label}
                                 </button>
@@ -4420,6 +4524,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                               </label>
                               <input
                                 type="text"
+                                disabled={isPrescriptionSigned}
                                 placeholder={
                                   detectedForm === "syrup" ? "e.g. 5ml, 10ml" :
                                   detectedForm === "gel" ? "e.g. Apply thin layer" :
@@ -4436,6 +4541,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                               <label className="text-xs font-medium text-slate-700 block mb-1">Frequency</label>
                               <input
                                 type="text"
+                                disabled={isPrescriptionSigned}
                                 placeholder="e.g. 1-0-1"
                                 value={med.frequency}
                                 onChange={(e) => updateMedicine(idx, "frequency", e.target.value)}
@@ -4446,6 +4552,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                               <label className="text-xs font-medium text-slate-700 block mb-1">Duration</label>
                               <input
                                 type="text"
+                                disabled={isPrescriptionSigned}
                                 placeholder="e.g. 5 days, 1 week"
                                 value={med.duration}
                                 onChange={(e) => updateMedicine(idx, "duration", e.target.value)}
@@ -4456,6 +4563,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                               <label className="text-xs font-medium text-slate-700 block mb-1">Quantity</label>
                               <input
                                 type="text"
+                                disabled={isPrescriptionSigned}
                                 placeholder={detectedForm === "gel" ? "1 tube" : detectedForm === "syrup" ? "1 bottle" : "Total"}
                                 value={med.quantity || ""}
                                 onChange={(e) => updateMedicine(idx, "quantity", e.target.value)}
@@ -4465,83 +4573,88 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           </div>
 
                           {/* Quick Dosage and Quick Frequency suggestions */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                            {/* Quick Frequency */}
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-xs font-medium text-slate-600 mr-0.5">Quick Freq:</span>
-                              {[
-                                { label: "1-0-1", tip: "Twice daily (Morning & Night)" },
-                                { label: "1-0-0", tip: "Once daily (Morning only)" },
-                                { label: "0-0-1", tip: "Once daily (Bedtime/Night)" },
-                                { label: "1-1-1", tip: "Thrice daily (Morning, Noon & Night)" },
-                                { label: "0-1-0", tip: "Once daily (Afternoon)" },
-                                { label: "SOS", tip: "As needed / In pain" },
-                              ].map((freq) => {
-                                const isSelected = (med.frequency || "").trim() === freq.label;
-                                return (
+                          {!isPrescriptionSigned && (
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                              {/* Quick Frequency */}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-xs font-medium text-slate-600 mr-0.5">Quick Freq:</span>
+                                {[
+                                  { label: "1-0-1", tip: "Twice daily (Morning & Night)" },
+                                  { label: "1-0-0", tip: "Once daily (Morning only)" },
+                                  { label: "0-0-1", tip: "Once daily (Bedtime/Night)" },
+                                  { label: "1-1-1", tip: "Thrice daily (Morning, Noon & Night)" },
+                                  { label: "0-1-0", tip: "Once daily (Afternoon)" },
+                                  { label: "SOS", tip: "As needed / In pain" },
+                                ].map((freq) => {
+                                  const isSelected = (med.frequency || "").trim() === freq.label;
+                                  return (
+                                    <button
+                                      key={freq.label}
+                                      type="button"
+                                      title={freq.tip}
+                                      onClick={() => updateMedicine(idx, "frequency", freq.label)}
+                                      className={`px-2 py-0.5 text-xs font-medium rounded border transition-colors ${
+                                        isSelected
+                                          ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
+                                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                                      }`}
+                                    >
+                                      {freq.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Quick Dose */}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-xs font-medium text-slate-600 mr-0.5">Quick Dose:</span>
+                                {dosagePresets.map((d) => (
                                   <button
-                                    key={freq.label}
+                                    key={d}
                                     type="button"
-                                    title={freq.tip}
-                                    onClick={() => updateMedicine(idx, "frequency", freq.label)}
-                                    className={`px-2 py-0.5 text-xs font-medium rounded border transition-colors ${
-                                      isSelected
-                                        ? "bg-[#0067A1] text-white border-[#0067A1] shadow-xs"
-                                        : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                                    onClick={() => updateMedicine(idx, "dosage", d)}
+                                    className={`px-2 py-0.5 text-xs rounded border transition-colors ${
+                                      (med.dosage || "").trim() === d
+                                        ? "bg-[#0067A1]/10 text-[#0067A1] border-[#0067A1]/30 font-medium"
+                                        : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50 font-normal"
                                     }`}
                                   >
-                                    {freq.label}
+                                    {d}
                                   </button>
-                                );
-                              })}
+                                ))}
+                              </div>
                             </div>
-
-                            {/* Quick Dose */}
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-xs font-medium text-slate-600 mr-0.5">Quick Dose:</span>
-                              {dosagePresets.map((d) => (
-                                <button
-                                  key={d}
-                                  type="button"
-                                  onClick={() => updateMedicine(idx, "dosage", d)}
-                                  className={`px-2 py-0.5 text-xs rounded border transition-colors ${
-                                    (med.dosage || "").trim() === d
-                                      ? "bg-[#0067A1]/10 text-[#0067A1] border-[#0067A1]/30 font-medium"
-                                      : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50 font-normal"
-                                  }`}
-                                >
-                                  {d}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
+                          )}
 
                           {/* Instructions & Timing Chips adapted to Form */}
                           <div className="space-y-1.5 pt-1 border-t border-slate-100">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <span className="text-xs font-medium text-slate-600 mr-0.5">
-                                {detectedForm === "gel" ? "Application Tips:" : "Instructions / Timing:"}
-                              </span>
-                              {timingPresets.map((timing) => (
-                                <button
-                                  key={timing}
-                                  type="button"
-                                  onClick={() => {
-                                    const current = (med.instructions || "").trim();
-                                    if (!current) {
-                                      updateMedicine(idx, "instructions", timing);
-                                    } else if (!current.toLowerCase().includes(timing.toLowerCase())) {
-                                      updateMedicine(idx, "instructions", `${current}, ${timing}`);
-                                    }
-                                  }}
-                                  className="px-2 py-0.5 text-xs font-normal rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
-                                >
-                                  + {timing}
-                                </button>
-                              ))}
-                            </div>
+                            {!isPrescriptionSigned && (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-xs font-medium text-slate-600 mr-0.5">
+                                  {detectedForm === "gel" ? "Application Tips:" : "Instructions / Timing:"}
+                                </span>
+                                {timingPresets.map((timing) => (
+                                  <button
+                                    key={timing}
+                                    type="button"
+                                    onClick={() => {
+                                      const current = (med.instructions || "").trim();
+                                      if (!current) {
+                                        updateMedicine(idx, "instructions", timing);
+                                      } else if (!current.toLowerCase().includes(timing.toLowerCase())) {
+                                        updateMedicine(idx, "instructions", `${current}, ${timing}`);
+                                      }
+                                    }}
+                                    className="px-2 py-0.5 text-xs font-normal rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+                                  >
+                                    + {timing}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                             <input
                               type="text"
+                              disabled={isPrescriptionSigned}
                               placeholder={
                                 detectedForm === "gel"
                                   ? "e.g. Apply gently on affected area twice daily. For external use only."
@@ -4570,19 +4683,22 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                       <span className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[11px] font-medium text-[#0067A1]">{displayIndex}</span>
                       {sec.section || "Lab Tests"}
                     </div>
-                    <button
-                      type="button"
-                      onClick={addLabTest}
-                      className="inline-flex items-center gap-1 text-xs text-[#0067A1] hover:text-[#004F7C] font-medium bg-[#0067A1]/5 hover:bg-[#0067A1]/10 px-2.5 py-1.5 rounded-md transition-colors"
-                    >
-                      <PlusIcon className="w-3.5 h-3.5" /> Add Test
-                    </button>
+                    {!isPrescriptionSigned && (
+                      <button
+                        type="button"
+                        onClick={addLabTest}
+                        className="inline-flex items-center gap-1 text-xs text-[#0067A1] hover:text-[#004F7C] font-medium bg-[#0067A1]/5 hover:bg-[#0067A1]/10 px-2.5 py-1.5 rounded-md transition-colors"
+                      >
+                        <PlusIcon className="w-3.5 h-3.5" /> Add Test
+                      </button>
+                    )}
                   </div>
                   <div className="space-y-2">
                     {labTests.map((test, idx) => (
                       <div key={idx} className="flex flex-col gap-2 p-2.5 rounded-lg border border-slate-200 relative group bg-white shadow-xs">
                         <div className="flex items-center gap-2">
                            <Autocomplete
+                            disabled={isPrescriptionSigned}
                             value={typeof test === "string" ? test : (test?.test_name || "")}
                             onChange={(val) => updateLabTestName(idx, val)}
                             onSelect={(opt) => selectLabTest(idx, opt)}
@@ -4606,7 +4722,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                               </div>
                             )}
                           />
-                          {labTests.length > 1 && (
+                          {!isPrescriptionSigned && labTests.length > 1 && (
                             <button
                               onClick={() => removeLabTest(idx)}
                               className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
@@ -4619,6 +4735,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                         <div>
                           <input
                             type="text"
+                            disabled={isPrescriptionSigned}
                             placeholder="Specific Instructions for patient (e.g. 10 hours fasting, Full bladder)"
                             value={typeof test === "string" ? "" : (test?.instructions || "")}
                             onChange={(e) => updateLabTestInstruction(idx, e.target.value)}
@@ -4678,35 +4795,37 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           </span>
                         )}
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { label: "Tomorrow", days: 1 },
-                          { label: "3 Days", days: 3 },
-                          { label: "5 Days", days: 5 },
-                          { label: "1 Week", days: 7 },
-                          { label: "2 Weeks", days: 14 },
-                          { label: "1 Month", days: 30 },
-                          { label: "SOS / As Needed", days: 0 },
-                        ].map((preset) => {
-                          const isMatch = preset.days === 0
-                            ? (!followUpDate && (followUpNotes || "").includes("SOS"))
-                            : followUpDate === getPresetDate(preset.days);
-                          return (
-                            <button
-                              key={preset.label}
-                              type="button"
-                              onClick={() => setQuickFollowUp(preset.days)}
-                              className={`px-3 py-1.5 text-xs rounded-md border transition-all ${
-                                isMatch
-                                  ? "bg-[#0067A1] text-white border-[#0067A1] font-medium shadow-xs"
-                                  : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-100/70 font-normal"
-                              }`}
-                            >
-                              {preset.label}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      {!isPrescriptionSigned && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            { label: "Tomorrow", days: 1 },
+                            { label: "3 Days", days: 3 },
+                            { label: "5 Days", days: 5 },
+                            { label: "1 Week", days: 7 },
+                            { label: "2 Weeks", days: 14 },
+                            { label: "1 Month", days: 30 },
+                            { label: "SOS / As Needed", days: 0 },
+                          ].map((preset) => {
+                            const isMatch = preset.days === 0
+                              ? (!followUpDate && (followUpNotes || "").includes("SOS"))
+                              : followUpDate === getPresetDate(preset.days);
+                            return (
+                              <button
+                                key={preset.label}
+                                type="button"
+                                onClick={() => setQuickFollowUp(preset.days)}
+                                className={`px-3 py-1.5 text-xs rounded-md border transition-all ${
+                                  isMatch
+                                    ? "bg-[#0067A1] text-white border-[#0067A1] font-medium shadow-xs"
+                                    : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-100/70 font-normal"
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     {/* Specific Date Row */}
@@ -4716,7 +4835,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                           <label className="text-xs font-medium text-slate-700">
                             Specific Date
                           </label>
-                          {followUpDate && (
+                          {!isPrescriptionSigned && followUpDate && (
                             <button
                               type="button"
                               onClick={() => setFollowUpDate("")}
@@ -4728,6 +4847,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                         </div>
                         <input
                           type="date"
+                          disabled={isPrescriptionSigned}
                           value={followUpDate}
                           onChange={(e) => setFollowUpDate(e.target.value)}
                           className={`${inputClass} font-normal`}
@@ -4742,6 +4862,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                       </label>
                       <textarea
                         rows={2}
+                        disabled={isPrescriptionSigned}
                         placeholder="e.g. Review after 3 days. Seek immediate medical attention if you experience high fever, severe breathlessness, or persistent pain."
                         value={followUpNotes}
                         onChange={(e) => setFollowUpNotes(e.target.value)}
@@ -4761,6 +4882,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     {sec.section || "Special Instructions / Advice"}
                   </div>
                   <textarea
+                    disabled={isPrescriptionSigned}
                     placeholder="Dietary advice, lifestyle changes, precautions…"
                     value={specialMessage}
                     onChange={(e) => setSpecialMessage(e.target.value)}
@@ -4790,6 +4912,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                         {isTextarea ? (
                           <textarea
                             rows={2}
+                            disabled={isPrescriptionSigned}
                             placeholder={field.placeholder || `Enter ${field.label || field.name}`}
                             value={customFields[fieldKey] || ""}
                             onChange={(e) => setCustomFields(prev => ({ ...prev, [fieldKey]: e.target.value }))}
@@ -4798,6 +4921,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                         ) : (
                           <input
                             type="text"
+                            disabled={isPrescriptionSigned}
                             placeholder={field.placeholder || `Enter ${field.label || field.name}`}
                             value={customFields[fieldKey] || ""}
                             onChange={(e) => setCustomFields(prev => ({ ...prev, [fieldKey]: e.target.value }))}
@@ -4819,7 +4943,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
         {templateStep === "write" && (
           <div className="flex items-center justify-between gap-3 px-6 py-3.5 border-t border-slate-200 bg-white shrink-0 shadow-xs">
             <div>
-              {templates.length > 0 && (
+              {templates.length > 0 && !isPrescriptionSigned && (
                 <button
                   onClick={() => setTemplateStep("select")}
                   className="text-xs text-slate-600 hover:text-[#0067A1] font-medium inline-flex items-center gap-1 transition-colors"
@@ -4828,29 +4952,62 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                   Back to Templates
                 </button>
               )}
+              {isPrescriptionSigned && (
+                <div className="inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                  <Lock className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Finalized Clinical Record</span>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2.5">
-              <button
-                onClick={onClose}
-                disabled={saving}
-                className="px-4 py-2 rounded-md text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-xs disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleSubmit("save")}
-                disabled={saving}
-                className="px-4 py-2 rounded-md text-sm font-medium border border-[#0067A1]/40 text-[#0067A1] bg-white hover:bg-[#0067A1]/5 transition-colors shadow-xs disabled:opacity-50"
-              >
-                {saving ? "Saving…" : "Save Draft"}
-              </button>
-              <button
-                onClick={() => handleSubmit("sign")}
-                disabled={saving}
-                className="px-5 py-2 rounded-md text-sm font-medium bg-[#0067A1] text-white hover:bg-[#005282] transition-colors shadow-xs flex items-center gap-1.5 disabled:opacity-50"
-              >
-                {saving ? <><Spinner size="w-4 h-4" />Processing…</> : "Sign & Complete"}
-              </button>
+              {isPrescriptionSigned ? (
+                <>
+                  {onViewPrescription && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onViewPrescription();
+                      }}
+                      className="px-4 py-2 rounded-md text-sm font-medium border border-[#0067A1]/40 text-[#0067A1] bg-white hover:bg-[#0067A1]/5 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4 text-[#0067A1]" />
+                      <span>View PDF</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-5 py-2 rounded-md text-sm font-medium bg-[#0067A1] text-white hover:bg-[#005282] transition-colors shadow-xs cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={onClose}
+                    disabled={saving}
+                    className="px-4 py-2 rounded-md text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleSubmit("save")}
+                    disabled={saving}
+                    className="px-4 py-2 rounded-md text-sm font-medium border border-[#0067A1]/40 text-[#0067A1] bg-white hover:bg-[#0067A1]/5 transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
+                  >
+                    {saving ? "Saving…" : "Save Draft"}
+                  </button>
+                  <button
+                    onClick={() => handleSubmit("sign")}
+                    disabled={saving}
+                    className="px-5 py-2 rounded-md text-sm font-medium bg-[#0067A1] text-white hover:bg-[#005282] transition-colors shadow-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    {saving ? <><Spinner size="w-4 h-4" />Processing…</> : "Sign & Complete"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}

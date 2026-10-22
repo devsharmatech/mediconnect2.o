@@ -256,7 +256,7 @@ export default function LungConnectFullReport({
   // Specialist Routing
   const primarySpecialist = isAbnormal ? "Pulmonologist" : "General Physician";
   const specialistRecommendation = isAbnormal
-    ? "Based on your recorded screening responses (wheezing symptoms / breathlessness / smoking history), consulting a Pulmonologist is recommended for formal spirometry, clinical auscultation, and personalized airway evaluation."
+    ? "Based on your recorded screening responses (wheezing symptoms / breathlessness / smoking history), consulting a Pulmonologist is recommended for formal spirometry, medical auscultation, and personalized airway evaluation."
     : "Based on recorded screening responses, no acute airway obstruction was noted. Routine preventive check-ins with your General Physician are recommended.";
 
   const hasEntRecommendation = hasCough;
@@ -282,7 +282,7 @@ export default function LungConnectFullReport({
           ? rawSteps.map((s) => String(s))
           : (practice.description
               ? [practice.description]
-              : ["Follow clinical breathing guidelines and consult your physician."]);
+              : ["Follow structured breathing guidelines and consult your physician."]);
         return {
           title: practice.title || `Wellness Practice ${pIdx + 1}`,
           category: practice.category || "Airway Comfort",
@@ -386,7 +386,7 @@ export default function LungConnectFullReport({
       ];
 
   const clinicalGuidanceText = aiObj.medical_attention ||
-    "Discuss persistent, recurring, or worsening symptoms with a qualified physician. Seek emergency clinical care immediately for severe acute shortness of breath or radiating chest tightness.";
+    "Discuss persistent, recurring, or worsening symptoms with a qualified physician. Seek emergency medical care immediately for severe acute shortness of breath or radiating chest tightness.";
 
   return (
     <div
@@ -436,7 +436,7 @@ export default function LungConnectFullReport({
                   <span style={{ fontSize: "13px", fontWeight: "600", color: "#0d3b66", letterSpacing: "1px", textTransform: "uppercase" }}>LUNGCONNECT</span>
                 </div>
                 <div style={{ fontSize: "16px", fontWeight: "700", color: "#0d3b66", letterSpacing: "0.5px", textTransform: "uppercase", marginTop: "1px" }}>
-                  CLINICAL REPORT
+                  HEALTH ASSESSMENT REPORT
                 </div>
                 <div style={{ fontSize: "11px", color: "#64748b", marginTop: "1px" }}>
                   Full Multi-Factor Assessment Matrix (Biomarkers, Symptoms, Action Plan)
@@ -445,7 +445,7 @@ export default function LungConnectFullReport({
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ display: "inline-block", backgroundColor: "#f0fdfa", border: "1px solid #99f6e4", color: "#0f766e", fontSize: "10.5px", fontWeight: "600", padding: "3px 8px", borderRadius: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                LC-FULL • CLINICAL
+                LC-FULL • HEALTH REPORT
               </div>
               <div style={{ fontSize: "10px", color: "#64748b", marginTop: "3px" }}>
                 {serialNo}
@@ -486,21 +486,21 @@ export default function LungConnectFullReport({
           {/* Executive Summary */}
           <div style={{ backgroundColor: "#f0f7f9", border: "1px solid #cbd5e1", borderRadius: "2px", padding: "10px 14px", marginBottom: "14px" }}>
             <div style={{ fontSize: "11px", fontWeight: "600", color: "#007a8c", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>
-              CLINICAL SYNTHESIS & FINDINGS SUMMARY
+              HEALTH SYNTHESIS & FINDINGS SUMMARY
             </div>
             <div style={{ fontSize: "11px", color: "#0f2d4a", lineHeight: "1.5" }}>
               Patient presented with {pefrNarrative}, {breathHoldNarrative}, and {rrNarrative}.
-              {hasWheezing ? " Wheezing was affirmatively recorded, which is an active clinical symptom requiring structured follow-up." : " No audible wheezing reported on check-in."}
+              {hasWheezing ? " Wheezing was affirmatively recorded, which is an active respiratory symptom requiring structured follow-up." : " No audible wheezing reported on check-in."}
               {hasCough ? ` Cough was reported (${coughText}).` : " No persistent cough reported."}
               {hasBreathless ? ` Breathlessness was recorded as ${breathlessnessText}.` : " No active dyspnea reported."}
               Local air quality of AQI {aqi} ({shortCity}) constitutes an environmental co-factor.
             </div>
           </div>
 
-          {/* Comprehensive Clinical Matrix Table */}
+          {/* Comprehensive Health Matrix Table */}
           <div style={{ marginBottom: "14px" }}>
             <div style={{ fontSize: "11px", fontWeight: "600", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "4px" }}>
-              RECORDED CLINICAL INDICATORS & VITAL SIGNS
+              RECORDED HEALTH INDICATORS & VITAL SIGNS
             </div>
             <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #cbd5e1", fontSize: "10.5px" }}>
               <thead>
@@ -579,10 +579,10 @@ export default function LungConnectFullReport({
           {/* Assistive Guidance Notice (LC-09) */}
           <div style={{ backgroundColor: "#fef3c7", border: "1px solid #fde68a", borderRadius: "2px", padding: "10px 14px", marginBottom: "14px" }}>
             <div style={{ fontSize: "10.5px", fontWeight: "600", color: "#92400e", textTransform: "uppercase", marginBottom: "3px" }}>
-              ASSISTIVE CLINICAL PRECEDENCE NOTICE (LC-09)
+              ASSISTIVE HEALTH & SAFETY ADVISORY (LC-09)
             </div>
             <div style={{ fontSize: "10.5px", color: "#78350f", lineHeight: "1.4" }}>
-              Under MediConnect clinical governance rules, subjective or active respiratory symptoms (e.g. wheezing or dyspnea) require prompt clinical evaluation. Patients experiencing new or worsening chest tightness or respiratory sounds should promptly consult a registered medical practitioner.
+              Under MediConnect health governance rules, subjective or active respiratory symptoms (e.g. wheezing or dyspnea) require prompt medical evaluation. Patients experiencing new or worsening chest tightness or respiratory sounds should promptly consult a registered medical practitioner.
             </div>
           </div>
 
@@ -611,13 +611,13 @@ export default function LungConnectFullReport({
         {/* Bottom Page 1 Footer */}
         <div>
           <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "8px", marginTop: "12px", fontSize: "9.5px", color: "#64748b", lineHeight: "1.4" }}>
-            <div>Keep this clinical assessment record with your permanent MediConnect health locker.</div>
+            <div>Keep this health assessment record with your permanent MediConnect health locker.</div>
             <div style={{ marginTop: "2px" }}>
               <span style={{ fontWeight: "600", color: "#0d3b66" }}>CARE & SAFETY</span> LungConnect is a digital wellness screening and symptom monitoring instrument; it does not constitute formal diagnostic spirometry or individualized medical prescription.
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "9.5px", color: "#94a3b8", marginTop: "6px" }}>
-            <span>MediConnect.fit • LungConnect • Full Clinical Assessment Report • Authoritative Record</span>
+            <span>MediConnect.fit • LungConnect • Full Health Assessment Report • Authoritative Record</span>
             <span>ISO A4 • Page 1 of 2</span>
           </div>
         </div>
@@ -655,10 +655,10 @@ export default function LungConnectFullReport({
                   <span style={{ fontSize: "12px", fontWeight: "600", color: "#0d3b66", letterSpacing: "0.8px", textTransform: "uppercase" }}>LUNGCONNECT</span>
                 </div>
                 <div style={{ fontSize: "15px", fontWeight: "700", color: "#0d3b66", letterSpacing: "0.3px", textTransform: "uppercase", marginTop: "1px" }}>
-                  CLINICAL GUIDANCE & RESPIRATORY WELLNESS PRACTICES
+                  HEALTH ADVISORY & RESPIRATORY WELLNESS PRACTICES
                 </div>
                 <div style={{ fontSize: "10.5px", color: "#64748b", marginTop: "1px" }}>
-                  Condition-tailored specialist consultation, breathing exercises, and clinical focus areas.
+                  Condition-tailored specialist consultation, breathing exercises, and health focus areas.
                 </div>
               </div>
             </div>
@@ -703,7 +703,7 @@ export default function LungConnectFullReport({
           <div style={{ marginBottom: "14px", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#ffffff", overflow: "hidden" }}>
             <div style={{ backgroundColor: isAbnormal ? "#eff6ff" : "#f0fdf4", borderBottom: "1px solid #cbd5e1", padding: "8px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ fontSize: "11px", fontWeight: "700", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-                SUGGESTED SPECIALIST CONSULTATION & CLINICAL GUIDANCE
+                SUGGESTED SPECIALIST CONSULTATION & HEALTH ADVISORY
               </div>
               <span style={{ fontSize: "10px", fontWeight: "700", color: isAbnormal ? "#1d4ed8" : "#15803d", backgroundColor: "#ffffff", padding: "2px 8px", borderRadius: "4px", border: `1px solid ${isAbnormal ? "#bfdbfe" : "#bbf7d0"}` }}>
                 {isAbnormal ? `Recommended: ${primarySpecialist}` : "Routine Care: General Physician"}
@@ -720,9 +720,9 @@ export default function LungConnectFullReport({
                 )}
               </div>
 
-              {/* Clinical Guidance Box */}
+              {/* Health Advisory Box */}
               <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: "4px", padding: "8px 12px", fontSize: "10.5px", color: "#92400e", lineHeight: "1.4" }}>
-                <strong style={{ color: "#78350f" }}>Clinical Guidance:</strong> {clinicalGuidanceText}
+                <strong style={{ color: "#78350f" }}>Health Advisory:</strong> {clinicalGuidanceText}
               </div>
             </div>
           </div>
@@ -803,10 +803,10 @@ export default function LungConnectFullReport({
             </div>
           </div>
 
-          {/* SECTION 3: Recorded Clinical Indicators & Focus Areas */}
+          {/* SECTION 3: Recorded Health Indicators & Focus Areas */}
           <div style={{ marginBottom: "12px", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#ffffff", padding: "10px 14px" }}>
             <div style={{ fontSize: "11px", fontWeight: "700", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "8px" }}>
-              RECORDED CLINICAL INDICATORS & ACTIONABLE INSIGHTS
+              RECORDED HEALTH INDICATORS & ACTIONABLE INSIGHTS
             </div>
 
             {/* Badges strip */}
@@ -862,7 +862,7 @@ export default function LungConnectFullReport({
 
         {/* Page 2 Footer */}
         <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "10px", marginTop: "14px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10px", color: "#94a3b8" }}>
-          <span>MediConnect.fit • LungConnect • Clinical Guidance & Wellness Practices</span>
+          <span>MediConnect.fit • LungConnect • Health Advisory & Wellness Practices</span>
           <span>ISO A4 • Page 2 of 2</span>
         </div>
       </div>

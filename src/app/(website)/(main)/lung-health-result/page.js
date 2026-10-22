@@ -579,7 +579,7 @@ export default function LungHealthResult() {
       setSelectedLungFormat(format);
       await new Promise((resolve) => setTimeout(resolve, 350));
       if (!reportRef.current) throw new Error("Report element not found");
-      const reportType = format === "lung-full" ? "Full_Clinical_Assessment" : "Health_Summary";
+      const reportType = format === "lung-full" ? "Full_Health_Assessment" : "Health_Summary";
       const cleanSerial = (formattedSerialNo || "LCN_REPORT").replace(/[^a-zA-Z0-9]/g, '_');
       const filename = `MediConnect_LungConnect_${reportType}_${cleanSerial}.pdf`;
       await generateClientPdf(reportRef.current, filename, { scale: 2, action: "download" });
@@ -693,7 +693,7 @@ export default function LungHealthResult() {
               type="button"
               onClick={() => setShowReportViewer(true)}
               className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-[#0b3b60] hover:bg-[#07243c] text-white rounded-md text-xs font-semibold transition-colors cursor-pointer shadow-xs"
-              title="Open Clinical Report Viewer"
+              title="Open Health Report Viewer"
             >
               <FileText className="w-3.5 h-3.5" /> View Report
             </button>
@@ -752,7 +752,7 @@ export default function LungHealthResult() {
         >
           <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
           <span>
-            <strong className="font-semibold text-amber-950">Clinical Notice:</strong> If experiencing acute breathlessness, chest tightness, or coughing blood, seek emergency care immediately.
+            <strong className="font-semibold text-amber-950">Health Advisory:</strong> If experiencing acute breathlessness, chest tightness, or coughing blood, seek emergency care immediately.
           </span>
         </motion.div>
 
@@ -919,7 +919,7 @@ export default function LungHealthResult() {
           {Array.isArray(parsedAi?.key_findings) && parsedAi.key_findings.length > 0 && (
             <div className="space-y-1.5">
               <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-                Recorded Clinical Indicators
+                Recorded Health Indicators
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {parsedAi.key_findings.map((finding, idx) => (
@@ -980,7 +980,7 @@ export default function LungHealthResult() {
             <div className="p-2.5 bg-amber-50/80 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
               <Stethoscope className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
               <span className="leading-relaxed">
-                <strong className="font-semibold text-amber-950">Clinical Guidance:</strong> {parsedAi.medical_attention}
+                <strong className="font-semibold text-amber-950">Health Advisory:</strong> {parsedAi.medical_attention}
               </span>
             </div>
           )}
@@ -1010,7 +1010,7 @@ export default function LungHealthResult() {
               <span className="font-semibold text-slate-900">
                 {suggestedSpecialties.map(s => s.shortName).join(" or ")}
               </span>{" "}
-              for personalized clinical guidance and evaluation.
+              for personalized health guidance and evaluation.
             </p>
 
             <div className="flex items-center gap-2 flex-wrap sm:pl-9 pt-0.5">
@@ -1138,7 +1138,7 @@ export default function LungHealthResult() {
                 </span>
                 <span className="text-xs font-bold text-slate-300">•</span>
                 <h2 className="text-sm sm:text-base font-bold text-slate-900">
-                  LungConnect Authoritative Clinical Report
+                  LungConnect Authoritative Health Report
                 </h2>
               </div>
               <button
@@ -1156,8 +1156,8 @@ export default function LungHealthResult() {
                 Official Format:
               </span>
               {[
-                { id: "lung-v9.9", label: "Health Summary", badge: "Clinical Summary" },
-                { id: "lung-full", label: "Full Clinical Assessment", badge: "Comprehensive Matrix" }
+                { id: "lung-v9.9", label: "Health Summary", badge: "Health Summary" },
+                { id: "lung-full", label: "Full Health Assessment", badge: "Comprehensive Matrix" }
               ].map((fmt) => (
                 <button
                   key={fmt.id}
@@ -1221,7 +1221,7 @@ export default function LungHealthResult() {
                   className="px-4 py-2 bg-[#007a8c] hover:bg-[#005e6c] text-white rounded-[5px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download {selectedLungFormat === "lung-full" ? "Full Clinical" : "Health Summary"} PDF</span>
+                  <span>Download {selectedLungFormat === "lung-full" ? "Full Health Assessment" : "Health Summary"} PDF</span>
                 </button>
               </div>
             </div>

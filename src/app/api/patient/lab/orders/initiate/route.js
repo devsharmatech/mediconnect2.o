@@ -95,9 +95,7 @@ export async function POST(req) {
         });
 
         let totalAmount = verifiedItems.reduce((sum, t) => sum + t.price, 0);
-        if (selectedVisitType === "home_collection") {
-            totalAmount += 150;
-        }
+        // Free sample collection for all visits (both home_collection and walk_in)
 
         if (totalAmount <= 0) {
             return failure("Order total must be greater than zero", null, 400);

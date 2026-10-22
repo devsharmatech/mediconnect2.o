@@ -122,9 +122,7 @@ export async function POST(req) {
         });
 
         let totalAmount = verifiedItems.reduce((sum, t) => sum + t.price, 0);
-        if (visit_type === "home_collection") {
-            totalAmount += 150;
-        }
+        // Free sample collection for all visits
 
         if (totalAmount <= 0) {
             return failure("Order total must be greater than zero", null, 400, { headers: corsHeaders });

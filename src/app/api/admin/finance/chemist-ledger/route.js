@@ -80,12 +80,13 @@ export async function GET(req) {
       }
 
       // Platform commission 10% standard on medicine orders
+      // Retail medicine supply is exempt from TDS (Section 194-O) and GST on platform disbursement under Indian Tax Law
       const commissionRate = 10.00;
       const commissionAmount = Math.round((grossAmount * (commissionRate / 100)) * 100) / 100;
-      const gstOnCommission = Math.round((commissionAmount * 0.18) * 100) / 100;
-      const tdsRate = 1.00; // Section 194-O e-commerce TDS (1%)
-      const tdsAmount = Math.round((grossAmount * (tdsRate / 100)) * 100) / 100;
-      const chemistNetPayout = Math.max(0, Math.round((grossAmount - commissionAmount - tdsAmount) * 100) / 100);
+      const gstOnCommission = 0.00;
+      const tdsRate = 0.00;
+      const tdsAmount = 0.00;
+      const chemistNetPayout = Math.max(0, Math.round((grossAmount - commissionAmount) * 100) / 100);
 
       return {
         ...o,
@@ -153,7 +154,7 @@ export async function POST(req) {
         month: m,
       };
     } else {
-      periodBounds = get10DayPeriodBounds();
+      periodBounds = null;
     }
 
     const result = await generate10DayChemistPayoutBatches({

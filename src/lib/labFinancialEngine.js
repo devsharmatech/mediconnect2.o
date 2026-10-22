@@ -29,15 +29,22 @@ export async function getLabRevenueSummary({ labId = null, periodBounds = null }
     `;
 
     const grossVolume = Number(stats?.gross_volume || 0);
-    // Platform standard commission for labs: 20% on gross volume, 80% lab payable
+    // Platform standard commission for labs: 20% on gross volume
+    // Under Indian GST Law (Notification 12/2017-CT Rate Entry 74, Heading 9993), clinical diagnostic services are EXEMPT from GST (0%).
+    // TDS is also exempt / not applicable on direct consumer diagnostic testing under Indian Income Tax Act.
     const platformRevenue = toFixed2(grossVolume * 0.20);
-    const labNetShare = toFixed2(grossVolume * 0.80);
+    const totalGstOnCommission = 0.00;
+    const totalTds = 0.00;
+    const labNetShare = toFixed2(grossVolume - platformRevenue);
 
     // 3. Batches statistics
     const [batchStats] = await sql`
       SELECT
         COALESCE(SUM(CASE WHEN status = 'paid' THEN net_payout ELSE 0 END), 0)::numeric AS total_paid,
-        COALESCE(SUM(CASE WHEN status = 'reconciled' THEN net_payout ELSE 0 END), 0)::numeric AS pending_payout
+        COALESCE(SUM(CASE WHEN status = 'reconciled' THEN net_payout ELSE 0 END), 0)::numeric AS pending_payout,
+        COALESCE(SUM(total_platform_commission), 0)::numeric AS total_batch_comm,
+        COALESCE(SUM(total_gst), 0)::numeric AS total_batch_gst,
+        COALESCE(SUM(total_tds), 0)::numeric AS total_batch_tds
       FROM lab_payout_batches
       WHERE (${labId ? sql`lab_id = ${labId}` : sql`1=1`});
     `;
@@ -71,9 +78,11 @@ export async function getLabRevenueSummary({ labId = null, periodBounds = null }
         metrics: {
           gross_volume: toFixed2(grossVolume),
           platform_revenue: platformRevenue,
+          total_gst_on_platform_fee: totalGstOnCommission,
+          total_tds_withheld: totalTds,
           lab_payable: labNetShare,
           total_settled_paid: toFixed2(totalPaid),
-          pending_payout_balance: toFixed2(pendingPayout > 0 ? pendingPayout : (labNetShare - totalPaid)),
+          pending_payout_balance: toFixed2(pendingPayout > 0 ? pendingPayout : Math.max(0, labNetShare - totalPaid)),
           total_orders: stats?.total_orders || 0,
           completed_orders: stats?.completed_orders || 0,
         },
@@ -172,8 +181,10 @@ export async function generate10DayLabPayoutBatches({ periodBounds = null, labId
       }
     }
 
-    const totalTds = toFixed2(gross * 0.02);
-    const netPayout = toFixed2(gross - totalCommission - totalTds);
+    // Under Indian GST Law (Heading 9993 / Notification 12/2017), diagnostic health services are EXEMPT (0% GST, 0% TDS)
+    const totalGst = 0.00;
+    const totalTds = 0.00;
+    const netPayout = toFixed2(gross - totalCommission);
 
     // Fetch lab bank/kyc info
     const [labRow] = await sql`
@@ -224,7 +235,7 @@ export async function generate10DayLabPayoutBatches({ periodBounds = null, labId
       `;
     }
 
-    // Ledger posting
+    // Ledger posting: Accrue LAB_PAYABLE, PLATFORM_REVENUE, GST_LIABILITY, TDS_PAYABLE_194C
     await sql`
       INSERT INTO lab_financial_ledger (
         order_id, lab_id, entry_type, account_code, debit, credit, description, idempotency_key
@@ -236,6 +247,48 @@ export async function generate10DayLabPayoutBatches({ periodBounds = null, labId
       )
       ON CONFLICT (idempotency_key) DO NOTHING;
     `;
+
+    if (totalCommission > 0) {
+      await sql`
+        INSERT INTO lab_financial_ledger (
+          order_id, lab_id, entry_type, account_code, debit, credit, description, idempotency_key
+        ) VALUES (
+          NULL, ${lId}, 'platform_commission_income', 'PLATFORM_REVENUE',
+          0.00, ${totalCommission},
+          ${`Platform commission revenue for batch ${batchPeriod}`},
+          ${`lab_batch_${batch.id}_comm`}
+        )
+        ON CONFLICT (idempotency_key) DO NOTHING;
+      `;
+    }
+
+    if (totalGst > 0) {
+      await sql`
+        INSERT INTO lab_financial_ledger (
+          order_id, lab_id, entry_type, account_code, debit, credit, description, idempotency_key
+        ) VALUES (
+          NULL, ${lId}, 'gst_liability', 'GST_LIABILITY',
+          0.00, ${totalGst},
+          ${`GST (18%) on lab platform fee for batch ${batchPeriod}`},
+          ${`lab_batch_${batch.id}_gst`}
+        )
+        ON CONFLICT (idempotency_key) DO NOTHING;
+      `;
+    }
+
+    if (totalTds > 0) {
+      await sql`
+        INSERT INTO lab_financial_ledger (
+          order_id, lab_id, entry_type, account_code, debit, credit, description, idempotency_key
+        ) VALUES (
+          NULL, ${lId}, 'tds_liability', 'TDS_PAYABLE_194C',
+          0.00, ${totalTds},
+          ${`TDS (2% u/s 194C) on lab batch for ${batchPeriod}`},
+          ${`lab_batch_${batch.id}_tds`}
+        )
+        ON CONFLICT (idempotency_key) DO NOTHING;
+      `;
+    }
 
     createdBatches.push(batch);
   }

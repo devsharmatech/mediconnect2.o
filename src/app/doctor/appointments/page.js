@@ -463,9 +463,9 @@ export default function DoctorAppointmentsPage() {
       }
       const start = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
 
-      // Call is available from 5 minutes before up to 40 minutes after start
+      // Call is available from 5 minutes before up to 30 minutes after start
       const earlyStart = new Date(start.getTime() - 5 * 60 * 1000);
-      const end = new Date(start.getTime() + 40 * 60 * 1000);
+      const end = new Date(start.getTime() + 30 * 60 * 1000);
 
       if (now < earlyStart) {
         return { isAvailable: false, label: "Opens 5m before", status: "early", earlyStart };
@@ -499,8 +499,8 @@ export default function DoctorAppointmentsPage() {
       if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
       const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
       const checkNow = now instanceof Date ? now : new Date();
-      // If appointment slot start was more than 40 mins ago, it's expired
-      return checkNow.getTime() > aptDateTime.getTime() + 40 * 60 * 1000;
+      // If appointment slot start was more than 30 mins ago, it's expired
+      return checkNow.getTime() > aptDateTime.getTime() + 30 * 60 * 1000;
     } catch {
       return false;
     }

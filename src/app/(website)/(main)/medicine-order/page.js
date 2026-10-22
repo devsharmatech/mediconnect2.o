@@ -514,64 +514,10 @@ function MedicineOrderContent() {
     }
   };
 
-  // Online Gateway Payment via PayU (Exclusively for Chemist/Pharmacy Orders)
-  const handlePayOnlineWithPayU = async (order, directPayuData = null) => {
-    if (!order?.id) return;
-    setPayingOrderId(order.id);
-    const tid = toast.loading("Launching PayU secure payment gateway...");
-    try {
-      let payuData = directPayuData;
-
-      if (!payuData?.action_url || !payuData?.payment_params) {
-        const initRes = await fetch("/api/patients/orders/medicine/payu/initiate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            order_id: order.id,
-            customer_name: typeof window !== "undefined" ? (localStorage.getItem("userName") || "") : "",
-            customer_email: typeof window !== "undefined" ? (localStorage.getItem("userEmail") || "") : "",
-            customer_phone: contactPhone || "",
-          }),
-        });
-        const initData = await initRes.json();
-        if (!initRes.ok || !initData?.success) {
-          throw new Error(initData?.message || "Failed to initiate PayU payment");
-        }
-        payuData = initData.data;
-      }
-
-      toast.dismiss(tid);
-
-      const actionUrl = payuData.action_url || "https://secure.payu.in/_payment";
-      const params = payuData.payment_params;
-
-      if (!params || !params.hash) {
-        throw new Error("PayU payment parameters or hash missing. Please contact support.");
-      }
-
-      // Submit dynamic hidden form to PayU Hosted Checkout
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.action = actionUrl;
-      form.style.display = "none";
-
-      Object.keys(params).forEach((key) => {
-        if (params[key] !== undefined && params[key] !== null) {
-          const input = document.createElement("input");
-          input.type = "hidden";
-          input.name = key;
-          input.value = String(params[key]);
-          form.appendChild(input);
-        }
-      });
-
-      document.body.appendChild(form);
-      HTMLFormElement.prototype.submit.call(form);
-    } catch (err) {
-      toast.dismiss(tid);
-      toast.error(err.message || "Failed to launch PayU payment checkout");
-      setPayingOrderId(null);
-    }
+  // Quick scroll to Chemist UPI QR
+  const handleScrollToQr = () => {
+    const el = document.getElementById("chemist-upi-qr-card");
+    if (el) el.scrollIntoView({ behavior: "smooth" });
   };
 
   // Select Chemist & Lock Order
@@ -597,21 +543,18 @@ function MedicineOrderContent() {
       const data = await res.json();
       if (data.success && data.data?.order) {
         const order = data.data.order;
-        const payuData = data.data.payu;
 
         setBidToSelect(null);
         setActiveBroadcastId(null);
         setActiveTab("orders");
         await fetchOrders();
         setSelectedOrder(order);
-
-        // If PayU gateway credentials exist, launch immediate checkout
-        if (payuData) {
-          toast.success("Quote Selected! Redirecting to PayU gateway...");
-          await handlePayOnlineWithPayU(order, payuData);
-        } else {
-          toast.success("Chemist Selected! Order Created. Proceed with payment.");
-        }
+        setSelectedOrderId(order.id);
+        toast.success("Quote Selected! Please scan the QR code to complete payment.", { duration: 6000 });
+        setTimeout(() => {
+          const el = document.getElementById("chemist-upi-qr-card");
+          if (el) el.scrollIntoView({ behavior: "smooth" });
+        }, 200);
       } else {
         toast.error(data.message || "Failed to select chemist");
       }
@@ -690,13 +633,8 @@ function MedicineOrderContent() {
       return;
     }
 
-    if (cleanUtr.length < 8) {
-      toast.error("UTR number must be at least 8-12 digits");
-      return;
-    }
-
-    if (!proofFile) {
-      toast.error("Please upload or take a screenshot photograph of your payment confirmation");
+    if (cleanUtr.length < 6) {
+      toast.error("UTR number must be at least 6-12 characters");
       return;
     }
 
@@ -704,7 +642,9 @@ function MedicineOrderContent() {
       setSubmittingProof(true);
       const fd = new FormData();
       fd.append("order_id", selectedOrder.id);
-      fd.append("payment_proof", proofFile);
+      if (proofFile) {
+        fd.append("payment_proof", proofFile);
+      }
       fd.append("utr_number", cleanUtr);
 
       const res = await fetch("/api/patients/orders/medicine/upload-payment-proof", {
@@ -714,11 +654,12 @@ function MedicineOrderContent() {
 
       const data = await res.json();
       if (data.success) {
-        toast.success("Payment Proof Submitted! The Chemist is verifying your transaction.");
+        toast.success("Payment Details Submitted! Chemist has been alerted to verify your payment and start packing.", { duration: 6000 });
         setUtrNumber("");
         setProofFile(null);
         setProofPreview(null);
         await fetchOrders();
+        setSelectedOrder((prev) => prev ? { ...prev, status: "payment_submitted", utr_number: cleanUtr, payment_declaration_by_patient: true } : prev);
       } else {
         toast.error(data.message || "Failed to submit payment proof");
       }
@@ -984,13 +925,16 @@ function MedicineOrderContent() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handlePayOnlineWithPayU(order);
+                              handleSelectOrder(order);
+                              setTimeout(() => {
+                                const el = document.getElementById("chemist-upi-qr-card");
+                                if (el) el.scrollIntoView({ behavior: "smooth" });
+                              }, 100);
                             }}
-                            disabled={payingOrderId === order.id}
                             className="mt-2 w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-md text-[11px] font-semibold flex items-center justify-center gap-1 cursor-pointer transition-colors shadow-xs"
                           >
-                            <CreditCard className="w-3 h-3" />
-                            <span>Pay ₹{order.total_amount} via PayU</span>
+                            <QrCode className="w-3 h-3" />
+                            <span>{order.status === "payment_submitted" ? "View UTR / QR" : `Pay ₹${order.total_amount} via QR`}</span>
                           </button>
                         )}
                       </div>
@@ -1050,21 +994,14 @@ function MedicineOrderContent() {
                             {!orderPaid ? (
                               <button
                                 type="button"
-                                disabled={payingOrderId === selectedOrder.id}
-                                onClick={() => handlePayOnlineWithPayU(selectedOrder)}
-                                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all shrink-0"
+                                onClick={() => {
+                                  const el = document.getElementById("chemist-upi-qr-card");
+                                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                                }}
+                                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer transition-all shrink-0"
                               >
-                                {payingOrderId === selectedOrder.id ? (
-                                  <>
-                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                    <span>Opening PayU...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <CreditCard className="w-3.5 h-3.5" />
-                                    <span>Pay ₹{selectedOrder.total_amount} via PayU</span>
-                                  </>
-                                )}
+                                <QrCode className="w-3.5 h-3.5" />
+                                <span>{selectedOrder.status === "payment_submitted" ? "View UTR / QR" : `Pay ₹${selectedOrder.total_amount}`}</span>
                               </button>
                             ) : (
                               <span className="px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center gap-1 shrink-0">
@@ -1077,44 +1014,310 @@ function MedicineOrderContent() {
 
                         {/* Top Payment Pending Action Box (If Not Paid) */}
                         {!orderPaid && (
-                          <div className="p-3 sm:p-4 rounded-xl bg-gradient-to-r from-amber-50 via-emerald-50/60 to-sky-50 border border-amber-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                          <div className="p-3.5 sm:p-4 rounded-xl bg-emerald-50 border border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
                             <div className="flex items-start gap-2.5">
                               <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                                <CreditCard className="w-4 h-4" />
+                                <QrCode className="w-4 h-4" />
                               </div>
                               <div>
                                 <div className="flex items-center gap-2">
                                   <h4 className="text-xs sm:text-sm font-bold text-slate-900">
-                                    Payment Pending: ₹{selectedOrder.total_amount}
+                                    {selectedOrder.status === "payment_submitted"
+                                      ? "Payment Submitted — Verification in Progress"
+                                      : `Scan QR to Pay: ₹${selectedOrder.total_amount}`}
                                   </h4>
-                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                                    Action Required
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${selectedOrder.status === "payment_submitted" ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-emerald-100 text-emerald-800 border border-emerald-200"}`}>
+                                    {selectedOrder.status === "payment_submitted" ? "Verification Pending" : "Action Required"}
                                   </span>
                                 </div>
                                 <p className="text-[11px] text-slate-600 mt-0.5">
-                                  Pay securely via UPI (GPay, PhonePe, Paytm), Cards, or NetBanking to initiate medicine packaging and dispatch.
+                                  {selectedOrder.status === "payment_submitted"
+                                    ? `UTR: ${selectedOrder.utr_number || "Submitted"} recorded. Chemist will verify and start packing.`
+                                    : "Chemist UPI QR code is generated directly below. Scan with GPay, PhonePe, or Paytm and submit your 12-digit UTR number."}
                                 </p>
                               </div>
                             </div>
 
                             <button
                               type="button"
-                              disabled={payingOrderId === selectedOrder.id}
-                              onClick={() => handlePayOnlineWithPayU(selectedOrder)}
-                              className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all shrink-0"
+                              onClick={() => {
+                                const el = document.getElementById("chemist-upi-qr-card");
+                                if (el) el.scrollIntoView({ behavior: "smooth" });
+                              }}
+                              className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all shrink-0"
                             >
-                              {payingOrderId === selectedOrder.id ? (
-                                <>
-                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                  <span>Opening PayU...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <CreditCard className="w-3.5 h-3.5" />
-                                  <span>Pay ₹{selectedOrder.total_amount} via PayU</span>
-                                </>
-                              )}
+                              <QrCode className="w-3.5 h-3.5" />
+                              <span>{selectedOrder.status === "payment_submitted" ? "View UTR / QR" : `Pay ₹${selectedOrder.total_amount}`}</span>
                             </button>
+                          </div>
+                        )}
+
+                        {/* Chemist UPI QR & UTR Verification Section - Positioned at Top for Immediate Visibility */}
+                        {!orderPaid && (
+                          <div id="chemist-upi-qr-card" className="bg-white rounded-xl border border-emerald-300 shadow-sm overflow-hidden scroll-mt-24 ring-2 ring-emerald-500/20">
+                            {/* Card Header (Solid color - NO gradient) */}
+                            <div className="bg-[#0067A1] p-3.5 sm:p-4 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white shrink-0 border border-white/25">
+                                  <QrCode className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <h3 className="font-bold text-sm sm:text-base flex items-center gap-1.5">
+                                    <span>Chemist Direct UPI Payment</span>
+                                    <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-medium">Verified Pharmacy</span>
+                                  </h3>
+                                  <p className="text-[11px] text-sky-100 font-normal">
+                                    Pay directly to {selectedOrder.chemist_details?.pharmacy_name || selectedOrder.pharmacy_name || "Partner Pharmacy"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="text-left sm:text-right bg-white/10 sm:bg-transparent p-2 sm:p-0 rounded-lg border border-white/10 sm:border-0">
+                                <span className="text-[10px] uppercase font-bold text-sky-100 tracking-wider block">Payable Amount</span>
+                                <span className="text-xl sm:text-2xl font-black text-white">₹{selectedOrder.total_amount || 0}</span>
+                              </div>
+                            </div>
+
+                            <div className="p-4 sm:p-5 space-y-4 bg-slate-50/50">
+                              {/* QR & UPI Link Layout */}
+                              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                                {/* QR Code Container */}
+                                <div className="md:col-span-5 flex flex-col items-center justify-center p-3.5 bg-white rounded-xl border-2 border-emerald-200 text-center shadow-xs">
+                                  {(() => {
+                                    const chemistUpi = selectedOrder.chemist_details?.upi_id || selectedOrder.chemist_details?.payment_qr_payload || selectedOrder.chemist_upi_id || selectedOrder.payment_qr_payload || "mediconnect@upi";
+                                    const pharmacyName = selectedOrder.chemist_details?.pharmacy_name || selectedOrder.pharmacy_name || "Partner Pharmacy";
+                                    const amount = selectedOrder.total_amount || 0;
+                                    const upiLink = `upi://pay?pa=${encodeURIComponent(chemistUpi)}&pn=${encodeURIComponent(pharmacyName)}&am=${amount}&cu=INR&tn=Order-${selectedOrder.unid || selectedOrder.id.slice(0, 8)}`;
+                                    const qrUrl = selectedOrder.payment_qr_url || `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(upiLink)}`;
+
+                                    return (
+                                      <>
+                                        <div className="relative p-2 bg-white rounded-lg border border-slate-200">
+                                          <img
+                                            src={qrUrl}
+                                            alt="Chemist UPI QR Code"
+                                            className="w-40 h-40 object-contain rounded"
+                                          />
+                                        </div>
+                                        <div className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                                          <ShieldCheck className="w-3.5 h-3.5" />
+                                          <span>Amount ₹{amount} Pre-filled</span>
+                                        </div>
+                                        <span className="text-[10px] text-slate-500 mt-1">
+                                          Scan with GPay, PhonePe, Paytm, or BHIM
+                                        </span>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+
+                                {/* Chemist UPI ID & 1-Tap App Links */}
+                                <div className="md:col-span-7 space-y-3">
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                      Chemist UPI ID
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex-1 px-3 py-2 rounded-lg bg-white border border-slate-200 text-xs font-mono font-bold text-slate-800 truncate shadow-2xs">
+                                        {selectedOrder.chemist_details?.upi_id || selectedOrder.chemist_details?.payment_qr_payload || selectedOrder.chemist_upi_id || selectedOrder.payment_qr_payload || "mediconnect@upi"}
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCopyUpi(selectedOrder.chemist_details?.upi_id || selectedOrder.chemist_details?.payment_qr_payload || selectedOrder.chemist_upi_id || selectedOrder.payment_qr_payload || "mediconnect@upi")}
+                                        className="px-3 py-2 bg-[#0067A1] text-white rounded-lg text-xs font-semibold hover:bg-[#004F7C] transition-colors flex items-center gap-1 shrink-0 cursor-pointer shadow-xs"
+                                      >
+                                        {copiedUpi ? (
+                                          <>
+                                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                                            <span>Copied!</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy className="w-3.5 h-3.5" />
+                                            <span>Copy UPI</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Quick 1-Tap App Links */}
+                                  <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                      1-Tap Pay via App (Mobile)
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {(() => {
+                                        const chemistUpi = selectedOrder.chemist_details?.upi_id || selectedOrder.chemist_details?.payment_qr_payload || selectedOrder.chemist_upi_id || selectedOrder.payment_qr_payload || "mediconnect@upi";
+                                        const pharmacyName = selectedOrder.chemist_details?.pharmacy_name || selectedOrder.pharmacy_name || "Partner Pharmacy";
+                                        const amount = selectedOrder.total_amount || 0;
+                                        const upiLink = `upi://pay?pa=${encodeURIComponent(chemistUpi)}&pn=${encodeURIComponent(pharmacyName)}&am=${amount}&cu=INR&tn=Order-${selectedOrder.unid || selectedOrder.id.slice(0, 8)}`;
+                                        return (
+                                          <>
+                                            <a
+                                              href={upiLink}
+                                              className="py-2 px-3 text-center bg-white border border-slate-200 hover:border-emerald-600 hover:text-emerald-700 text-slate-700 font-semibold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                                            >
+                                              <span>Google Pay</span>
+                                              <ExternalLink className="w-3 h-3 text-slate-400" />
+                                            </a>
+                                            <a
+                                              href={upiLink}
+                                              className="py-2 px-3 text-center bg-white border border-slate-200 hover:border-emerald-600 hover:text-emerald-700 text-slate-700 font-semibold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                                            >
+                                              <span>PhonePe / Paytm</span>
+                                              <ExternalLink className="w-3 h-3 text-slate-400" />
+                                            </a>
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
+
+                                  <div className="p-2.5 rounded-lg bg-sky-50 border border-sky-200 text-[11px] text-sky-800 flex items-start gap-2">
+                                    <Info className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
+                                    <span>
+                                      Payment goes directly to the pharmacy. Once paid, please submit your 12-digit UTR number below so the chemist can immediately verify and start packing.
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* UTR Submission / Status Card */}
+                              {selectedOrder.status === "payment_submitted" || selectedOrder.payment_declaration_by_patient ? (
+                                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 space-y-2">
+                                  <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs sm:text-sm">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                    <span>Payment Submitted (UTR: {selectedOrder.utr_number || "Recorded"})</span>
+                                  </div>
+                                  <p className="text-xs text-emerald-700 leading-relaxed">
+                                    We have notified <strong>{selectedOrder.chemist_details?.pharmacy_name || selectedOrder.pharmacy_name || "the chemist"}</strong> to verify this transaction. They will verify and immediately start packing your order.
+                                  </p>
+                                  <div className="pt-2 border-t border-emerald-200/60 flex items-center justify-between text-[11px]">
+                                    <span className="text-emerald-600 font-medium">Status: Verification in progress</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setUtrNumber(selectedOrder.utr_number || "");
+                                        // Force allow editing
+                                        setSelectedOrder((prev) => prev ? { ...prev, status: "payment_pending", payment_declaration_by_patient: false } : prev);
+                                      }}
+                                      className="text-[#0067A1] hover:underline font-semibold cursor-pointer"
+                                    >
+                                      Edit UTR
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="pt-3 border-t border-slate-200/80 space-y-3">
+                                  <div>
+                                    <h4 className="font-bold text-slate-800 text-xs sm:text-sm">Submit UTR for Chemist Verification</h4>
+                                    <p className="text-[11px] text-slate-500">
+                                      Enter the 12-digit UTR/Reference number from your UPI payment app. Screenshot is optional.
+                                    </p>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                                        12-Digit UTR / Ref Number <span className="text-rose-500">*</span>
+                                      </label>
+                                      <input
+                                        type="text"
+                                        maxLength={22}
+                                        value={utrNumber}
+                                        onChange={(e) => setUtrNumber(e.target.value.replace(/[^a-zA-Z0-9]/g, ""))}
+                                        placeholder="e.g. 427819203847"
+                                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none focus:border-emerald-600"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                                        Receipt Screenshot <span className="text-slate-400 font-normal">(Optional)</span>
+                                      </label>
+                                      <div className="flex items-center gap-2">
+                                        <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border border-dashed border-slate-300 hover:border-emerald-600 bg-white text-slate-700 text-xs font-semibold cursor-pointer transition-colors">
+                                          <Upload className="w-3.5 h-3.5 text-slate-400" />
+                                          <span>Choose File</span>
+                                          <input
+                                            type="file"
+                                            accept="image/*,.pdf"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) {
+                                                setProofFile(file);
+                                                setProofPreview(URL.createObjectURL(file));
+                                              }
+                                            }}
+                                          />
+                                        </label>
+                                        <button
+                                          type="button"
+                                          onClick={startCamera}
+                                          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border border-slate-200 hover:border-emerald-600 bg-white text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
+                                        >
+                                          <Camera className="w-3.5 h-3.5 text-slate-400" />
+                                          <span>Take Photo</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {proofPreview && (
+                                    <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <img
+                                          src={proofPreview}
+                                          alt="Proof Preview"
+                                          className="w-10 h-10 object-cover rounded-md border"
+                                        />
+                                        <span className="text-xs font-semibold text-slate-800 truncate max-w-xs">{proofFile?.name || "Payment_Proof.jpg"}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => setPreviewProofModal(proofPreview)}
+                                          className="p-1 text-slate-500 hover:text-[#0067A1]"
+                                        >
+                                          <Eye className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setProofFile(null);
+                                            setProofPreview(null);
+                                          }}
+                                          className="p-1 text-slate-400 hover:text-red-500"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    disabled={submittingProof || !utrNumber.trim() || utrNumber.trim().length < 6}
+                                    onClick={handleSubmitPaymentProof}
+                                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
+                                  >
+                                    {submittingProof ? (
+                                      <>
+                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Submitting...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Send className="w-3.5 h-3.5" />
+                                        <span>Submit Payment</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         )}
 
@@ -1346,232 +1549,7 @@ function MedicineOrderContent() {
                         </div>
                       )}
 
-                      {/* Direct Chemist UPI & Manual Proof (Collapsible Alternative when Unpaid) */}
-                      {!orderPaid && (
-                        <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
-                          <button
-                            type="button"
-                            onClick={() => setShowDirectUpiSection((prev) => !prev)}
-                            className="w-full p-3 sm:p-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <QrCode className="w-4 h-4 text-slate-500" />
-                              <div>
-                                <span className="font-semibold text-xs sm:text-sm text-slate-800">
-                                  Prefer Direct Chemist UPI Transfer?
-                                </span>
-                                <p className="text-[11px] text-slate-500">
-                                  Scan chemist QR code or upload manual UTR payment screenshot.
-                                </p>
-                              </div>
-                            </div>
-                            <span className="text-xs font-semibold text-[#0067A1]">
-                              {showDirectUpiSection ? "Hide QR ▴" : "Show QR ▾"}
-                            </span>
-                          </button>
 
-                          {showDirectUpiSection && (
-                            <div className="p-3.5 sm:p-5 border-t border-slate-100 space-y-4 bg-slate-50/40">
-                              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                                {/* QR Code */}
-                                <div className="md:col-span-5 flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-slate-200 text-center">
-                                  {(() => {
-                                    const chemistUpi = selectedOrder.chemist_details?.upi_id || selectedOrder.chemist_upi_id || "apexmedicos@upi";
-                                    const pharmacyName = selectedOrder.chemist_details?.pharmacy_name || selectedOrder.pharmacy_name || "Partner Pharmacy";
-                                    const amount = selectedOrder.total_amount || 0;
-                                    const upiLink = `upi://pay?pa=${encodeURIComponent(chemistUpi)}&pn=${encodeURIComponent(pharmacyName)}&am=${amount}&cu=INR&tn=Order-${selectedOrder.unid || selectedOrder.id.slice(0, 8)}`;
-                                    const qrUrl = selectedOrder.chemist_details?.payment_qr_url || selectedOrder.chemist_payment_qr_url || `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiLink)}`;
-
-                                    return (
-                                      <>
-                                        <img
-                                          src={qrUrl}
-                                          alt="Chemist UPI QR Code"
-                                          className="w-36 h-36 object-contain rounded-lg mb-2"
-                                        />
-                                        <span className="text-[10px] font-semibold text-slate-500">
-                                          Scan via GPay, PhonePe, Paytm, or BHIM
-                                        </span>
-                                      </>
-                                    );
-                                  })()}
-                                </div>
-
-                                {/* Chemist UPI ID & Quick App Links */}
-                                <div className="md:col-span-7 space-y-3">
-                                  <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                                      Chemist UPI ID
-                                    </label>
-                                    <div className="flex items-center gap-2">
-                                      <div className="flex-1 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-mono font-bold text-slate-800 truncate">
-                                        {selectedOrder.chemist_details?.upi_id || selectedOrder.chemist_upi_id || "apexmedicos@upi"}
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleCopyUpi(selectedOrder.chemist_details?.upi_id || selectedOrder.chemist_upi_id || "apexmedicos@upi")}
-                                        className="px-3 py-1.5 bg-[#0067A1] text-white rounded-lg text-xs font-semibold hover:bg-[#004F7C] transition-colors flex items-center gap-1 shrink-0 cursor-pointer"
-                                      >
-                                        {copiedUpi ? (
-                                          <>
-                                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                                            <span>Copied!</span>
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Copy className="w-3.5 h-3.5" />
-                                            <span>Copy UPI</span>
-                                          </>
-                                        )}
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  {/* Quick 1-Tap App Links */}
-                                  <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                                      1-Tap UPI Launch
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      {(() => {
-                                        const chemistUpi = selectedOrder.chemist_details?.upi_id || selectedOrder.chemist_upi_id || "apexmedicos@upi";
-                                        const pharmacyName = selectedOrder.chemist_details?.pharmacy_name || selectedOrder.pharmacy_name || "Partner Pharmacy";
-                                        const amount = selectedOrder.total_amount || 0;
-                                        const upiLink = `upi://pay?pa=${encodeURIComponent(chemistUpi)}&pn=${encodeURIComponent(pharmacyName)}&am=${amount}&cu=INR&tn=Order-${selectedOrder.unid || selectedOrder.id.slice(0, 8)}`;
-                                        return (
-                                          <>
-                                            <a
-                                              href={upiLink}
-                                              className="py-1.5 px-2.5 text-center bg-white border border-slate-200 hover:border-[#0067A1] text-slate-700 font-semibold rounded-lg text-[11px] transition-colors flex items-center justify-center gap-1 shadow-xs"
-                                            >
-                                              <span>Google Pay</span>
-                                              <ExternalLink className="w-3 h-3" />
-                                            </a>
-                                            <a
-                                              href={upiLink}
-                                              className="py-1.5 px-2.5 text-center bg-white border border-slate-200 hover:border-[#0067A1] text-slate-700 font-semibold rounded-lg text-[11px] transition-colors flex items-center justify-center gap-1 shadow-xs"
-                                            >
-                                              <span>PhonePe / Paytm</span>
-                                              <ExternalLink className="w-3 h-3" />
-                                            </a>
-                                          </>
-                                        );
-                                      })()}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Manual UTR Proof Submission Form */}
-                              <div className="pt-3 border-t border-slate-200/80 space-y-3">
-                                <div>
-                                  <h4 className="font-bold text-slate-800 text-xs">Submit Manual UTR Proof</h4>
-                                  <p className="text-[11px] text-slate-500">Attach screenshot and 12-digit UTR if paying outside PayU gateway.</p>
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">
-                                      12-Digit UTR Number <span className="text-rose-500">*</span>
-                                    </label>
-                                    <input
-                                      type="text"
-                                      maxLength={22}
-                                      value={utrNumber}
-                                      onChange={(e) => setUtrNumber(e.target.value.replace(/[^a-zA-Z0-9]/g, ""))}
-                                      placeholder="e.g. 427819203847"
-                                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs font-mono font-semibold text-slate-900 bg-white"
-                                    />
-                                  </div>
-
-                                  <div>
-                                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">
-                                      Receipt Screenshot <span className="text-rose-500">*</span>
-                                    </label>
-                                    <div className="flex items-center gap-2">
-                                      <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border border-dashed border-slate-300 hover:border-[#0067A1] bg-white text-slate-700 text-xs font-semibold cursor-pointer transition-colors">
-                                        <Upload className="w-3.5 h-3.5" />
-                                        <span>Upload File</span>
-                                        <input
-                                          type="file"
-                                          accept="image/*,.pdf"
-                                          className="hidden"
-                                          onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                              setProofFile(file);
-                                              setProofPreview(URL.createObjectURL(file));
-                                            }
-                                          }}
-                                        />
-                                      </label>
-                                      <button
-                                        type="button"
-                                        onClick={startCamera}
-                                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-semibold cursor-pointer transition-colors"
-                                      >
-                                        <Camera className="w-3.5 h-3.5" />
-                                        <span>Take Photo</span>
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {proofPreview && (
-                                  <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <img
-                                        src={proofPreview}
-                                        alt="Proof Preview"
-                                        className="w-10 h-10 object-cover rounded-md border"
-                                      />
-                                      <span className="text-xs font-semibold text-slate-800 truncate max-w-xs">{proofFile?.name || "Payment_Proof.jpg"}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => setPreviewProofModal(proofPreview)}
-                                        className="p-1 text-slate-500 hover:text-[#0067A1]"
-                                      >
-                                        <Eye className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setProofFile(null);
-                                          setProofPreview(null);
-                                        }}
-                                        className="p-1 text-slate-400 hover:text-red-500"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-
-                                <button
-                                  type="button"
-                                  disabled={submittingProof || !utrNumber.trim() || !proofFile}
-                                  onClick={handleSubmitPaymentProof}
-                                  className="w-full py-2 bg-[#0067A1] hover:bg-[#004F7C] disabled:bg-slate-300 text-white rounded-lg text-xs font-semibold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
-                                >
-                                  {submittingProof ? (
-                                    <>
-                                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                      <span>Submitting Proof...</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Send className="w-3.5 h-3.5" />
-                                      <span>Submit Proof for Chemist Verification</span>
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </>
                   );
                 })()

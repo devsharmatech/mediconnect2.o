@@ -229,7 +229,7 @@ export default function CardioConnectF4Report({
     : "Based on recorded screening responses, vitals and metabolic parameters are within expected baseline intervals. Routine annual check-ins with your General Physician are recommended for preventive wellness.";
 
   const clinicalGuidanceText = aiObj.medical_attention ||
-    "Discuss persistent, recurring, or worsening symptoms with a qualified physician. Seek emergency clinical care immediately for severe acute chest discomfort, shortness of breath, or radiating arm/jaw tightness.";
+    "Discuss persistent, recurring, or worsening symptoms with a qualified physician. Seek emergency medical care immediately for severe acute chest discomfort, shortness of breath, or radiating arm/jaw tightness.";
 
   // Dynamic Cardiovascular Recommendations from assessmentData or aiObj
   const dynamicRecs = (() => {
@@ -281,7 +281,7 @@ export default function CardioConnectF4Report({
         }
 
         const categoryTag = rec.category ? String(rec.category).toUpperCase() : "CARDIO WELLNESS";
-        const priorityTag = rec.priority || rec.priorityTag || (idx === 0 && hasChestPain ? "URGENT CLINICAL" : "EVIDENCE-BASED");
+        const priorityTag = rec.priority || rec.priorityTag || (idx === 0 && hasChestPain ? "URGENT MEDICAL" : "EVIDENCE-BASED");
         const timeframe = rec.timeframe || (idx === 0 && hasChestPain ? "Immediate Action" : "Daily Protocol");
 
         return {
@@ -456,7 +456,7 @@ export default function CardioConnectF4Report({
               {activityMin !== null ? `Physical activity recorded at ${activityMin} min/wk. ` : ""}
               {smoking !== "Not specified" ? `Smoking status: ${smoking}. ` : ""}
               {aqi !== null ? `Local environmental context: AQI ${aqi} (${shortCity}). ` : ""}
-              Follow structured lifestyle measures, maintain training cadence, and schedule routine clinical review.
+              Follow structured lifestyle measures, maintain training cadence, and schedule routine medical review.
             </div>
           </div>
 
@@ -470,7 +470,7 @@ export default function CardioConnectF4Report({
                 <tr style={{ backgroundColor: "#0b3b60", color: "#ffffff" }}>
                   <th style={{ padding: "4px 7px", textAlign: "left", fontWeight: "800", width: "30%" }}>FACTOR</th>
                   <th style={{ padding: "4px 7px", textAlign: "left", fontWeight: "800", width: "24%" }}>RECORDED VALUE</th>
-                  <th style={{ padding: "4px 7px", textAlign: "left", fontWeight: "800", width: "26%" }}>CLINICAL REFERENCE</th>
+                  <th style={{ padding: "4px 7px", textAlign: "left", fontWeight: "800", width: "26%" }}>HEALTH REFERENCE</th>
                   <th style={{ padding: "4px 7px", textAlign: "center", fontWeight: "800", width: "20%" }}>STATUS</th>
                 </tr>
               </thead>
@@ -636,10 +636,10 @@ export default function CardioConnectF4Report({
           {/* GOVERNED CARE LINKAGE STATEMENT */}
           <div style={{ border: "1px solid #e2e8f0", borderRadius: "3px", backgroundColor: "#f8fafc", padding: "7px 11px", marginBottom: "12px" }}>
             <div style={{ fontSize: "9.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>
-              GOVERNED CLINICAL CARE LINKAGE RULE
+              GOVERNED HEALTHCARE LINKAGE RULE
             </div>
             <div style={{ fontSize: "8.5px", color: "#334155", lineHeight: "1.32" }}>
-              Only approved clinical triggers create or link a <code>care_episode_id</code>; routine activity, Steps, AQI and ordinary WPT do not create clinical episodes. Care options appear strictly under governed safety and routing rules.
+              Only approved health triggers create or link a <code>care_episode_id</code>; routine activity, Steps, AQI and ordinary WPT do not create care episodes. Care options appear strictly under governed safety and routing rules.
             </div>
           </div>
         </div>
@@ -691,10 +691,10 @@ export default function CardioConnectF4Report({
                   <span style={{ fontSize: "12px", fontWeight: "800", color: "#0d3b66", letterSpacing: "1px", textTransform: "uppercase" }}>CARDIOCONNECT</span>
                 </div>
                 <div style={{ fontSize: "16px", fontWeight: "900", color: "#0d3b66", letterSpacing: "0.4px", textTransform: "uppercase", marginTop: "1px" }}>
-                  CLINICAL GUIDANCE & CARDIOVASCULAR WELLNESS PRACTICES
+                  HEALTH ADVISORY & CARDIOVASCULAR WELLNESS PRACTICES
                 </div>
                 <div style={{ fontSize: "10px", color: "#64748b", marginTop: "1px" }}>
-                  Condition-tailored specialist consultation, evidence-based practices, and clinical focus areas.
+                  Condition-tailored specialist consultation, evidence-based practices, and health focus areas.
                 </div>
               </div>
             </div>
@@ -739,7 +739,7 @@ export default function CardioConnectF4Report({
           <div style={{ marginBottom: "12px", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#ffffff", overflow: "hidden" }}>
             <div style={{ backgroundColor: isAbnormal ? "#eff6ff" : "#f0fdf4", borderBottom: "1px solid #cbd5e1", padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ fontSize: "10.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-                SUGGESTED SPECIALIST CONSULTATION & CLINICAL GUIDANCE
+                SUGGESTED SPECIALIST CONSULTATION & HEALTH ADVISORY
               </div>
               <span style={{ fontSize: "9.5px", fontWeight: "800", color: isAbnormal ? "#1d4ed8" : "#15803d", backgroundColor: "#ffffff", padding: "2px 8px", borderRadius: "3px", border: `1px solid ${isAbnormal ? "#bfdbfe" : "#bbf7d0"}` }}>
                 {isAbnormal ? `Recommended: ${primarySpecialist}` : "Routine Care: General Physician"}
@@ -751,9 +751,9 @@ export default function CardioConnectF4Report({
                 {specialistRecommendation}
               </div>
 
-              {/* Clinical Guidance Notice */}
+              {/* Health Advisory Notice */}
               <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: "3px", padding: "7px 11px", fontSize: "10px", color: "#92400e", lineHeight: "1.35" }}>
-                <strong style={{ color: "#78350f" }}>Clinical Guidance:</strong> {clinicalGuidanceText}
+                <strong style={{ color: "#78350f" }}>Health Advisory:</strong> {clinicalGuidanceText}
               </div>
             </div>
           </div>
@@ -834,10 +834,10 @@ export default function CardioConnectF4Report({
             </div>
           </div>
 
-          {/* SECTION 3: Recorded Clinical Indicators & Focus Areas */}
+          {/* SECTION 3: Recorded Health Indicators & Focus Areas */}
           <div style={{ marginBottom: "10px", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#ffffff", padding: "9px 12px" }}>
             <div style={{ fontSize: "10.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "6px" }}>
-              RECORDED CLINICAL INDICATORS & ACTIONABLE INSIGHTS
+              RECORDED HEALTH INDICATORS & ACTIONABLE INSIGHTS
             </div>
 
             {/* Badges strip */}
@@ -893,7 +893,7 @@ export default function CardioConnectF4Report({
 
         {/* Page 2 Footer */}
         <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "8px", marginTop: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "9px", color: "#94a3b8" }}>
-          <span>MediConnect.fit • CardioConnect • Clinical Guidance & Cardiovascular Wellness Practices</span>
+          <span>MediConnect.fit • CardioConnect • Health Advisory & Cardiovascular Wellness Practices</span>
           <span>ISO A4 • Page 2 of 2</span>
         </div>
       </div>

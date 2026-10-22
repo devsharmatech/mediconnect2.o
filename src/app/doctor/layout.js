@@ -206,11 +206,12 @@ export default function DoctorDashboardLayout({ children }) {
     const storedUser = localStorage.getItem("userData");
     const storedUserId = localStorage.getItem("userId");
 
-    // Allow doctors to access onboarding/KYC without an active session
+    // Allow doctors to access login and onboarding/KYC without an active session
+    const isLoginPage = pathname === "/doctor/login" || pathname.startsWith("/doctor/login");
     const isOnboardingPath = pathname.startsWith("/doctor/onboarding");
 
-    if (role !== "doctor" && !isOnboardingPath) {
-      router.replace("/website");
+    if (role !== "doctor" && !isOnboardingPath && !isLoginPage) {
+      router.replace("/doctor/login");
       return;
     }
 
@@ -783,9 +784,9 @@ export default function DoctorDashboardLayout({ children }) {
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
-  // Onboarding pages are accessed by unauthenticated doctors via invite links.
+  // Onboarding and login pages are accessed by unauthenticated doctors.
   // Render them without the dashboard shell (no sidebar, no session gate).
-  if (pathname.startsWith("/doctor/onboarding")) {
+  if (pathname.startsWith("/doctor/onboarding") || pathname.startsWith("/doctor/login")) {
     return <>{children}</>;
   }
 

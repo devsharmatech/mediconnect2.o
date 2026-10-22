@@ -156,6 +156,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
             { name: "Doctor Ledger", path: `/admin/finance/doctor-ledger` },
             { name: "Lab Ledger", path: `/admin/finance/lab-ledger` },
             { name: "Chemist Ledger", path: `/admin/finance/chemist-ledger` },
+            { name: "CA Profit & GST", path: `/admin/finance/profit-gst` },
             { name: "Refunds", path: `/admin/refunds` },
           ],
         },

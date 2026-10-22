@@ -15,8 +15,8 @@ export async function POST(req) {
     const file = formData.get("payment_proof");
     const utr = (formData.get("utr_number") || formData.get("utr") || "").trim();
 
-    if (!order_id || !file) {
-      return failure("order_id and payment_proof required", null, 400, {
+    if (!order_id) {
+      return failure("order_id is required", null, 400, {
         headers: corsHeaders,
       });
     }
@@ -61,12 +61,19 @@ export async function POST(req) {
       );
     }
 
-    // 2. Upload screenshot to AWS S3
-    const ext = file.name ? file.name.split(".").pop().toLowerCase() : "jpg";
-    const key = `payment_proofs/${order.id}/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
-    const contentType = file.type || "image/jpeg";
-
-    const { url: publicUrl } = await uploadToS3(file, key, contentType);
+    // 2. Upload screenshot to AWS S3 if provided (Optional)
+    let publicUrl = null;
+    if (file && typeof file === "object" && file.size && file.size > 0) {
+      try {
+        const ext = file.name ? file.name.split(".").pop().toLowerCase() : "jpg";
+        const key = `payment_proofs/${order.id}/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${ext}`;
+        const contentType = file.type || "image/jpeg";
+        const uploadRes = await uploadToS3(file, key, contentType);
+        publicUrl = uploadRes?.url || null;
+      } catch (uploadErr) {
+        console.warn("Screenshot upload warning (continuing with UTR):", uploadErr.message);
+      }
+    }
 
     // 3. Update medicine_orders in AWS RDS
     await sql`
@@ -74,9 +81,10 @@ export async function POST(req) {
       SET 
         status = 'payment_submitted',
         utr_number = ${utr},
-        payment_proof_url = ${publicUrl},
+        payment_proof_url = COALESCE(${publicUrl}, payment_proof_url),
         payment_declaration_by_patient = true,
         payment_failed_reason = NULL,
+        payment_method = 'upi_qr',
         updated_at = NOW()
       WHERE id = ${order.id}
     `;
@@ -97,7 +105,7 @@ export async function POST(req) {
           ${order.id},
           ${order.patient_id},
           ${order.total_amount || 0},
-          'upi',
+          'upi_qr',
           ${publicUrl},
           ${utr},
           'submitted',
@@ -108,7 +116,7 @@ export async function POST(req) {
       console.warn("Could not insert payment record (non-fatal):", e.message);
     }
 
-    // 5. Notify the Chemist
+    // 5. Notify the Chemist immediately to verify and proceed
     try {
       const patientRows = await sql`
         SELECT full_name FROM patient_details WHERE id = ${order.patient_id} LIMIT 1
@@ -117,22 +125,46 @@ export async function POST(req) {
 
       await sendPushAndInAppNotification({
         userId: order.chemist_id,
-        title: "Payment Proof Submitted 💳",
-        message: `${patientName} paid ₹${order.total_amount} via UPI (UTR: ${utr}). Please verify in your dashboard to release fulfillment!`,
+        title: "Payment Received! 💰",
+        message: `${patientName} paid ₹${order.total_amount} via UPI (UTR: ${utr}) for Order #${order.unid || order.id.slice(0, 8)}. Please verify and proceed to packing!`,
         type: "medicine_payment",
         metadata: {
           order_id: order.id,
+          unid: order.unid,
           utr,
           payment_proof_url: publicUrl,
           amount: order.total_amount,
         },
       });
+
+      // Audit log
+      await sql`
+        INSERT INTO activity_log (
+          patient_id,
+          actor_id,
+          reference_id,
+          module_type,
+          action_type,
+          description,
+          metadata,
+          created_at
+        ) VALUES (
+          ${order.patient_id},
+          ${order.patient_id},
+          ${order.id},
+          'pharmacy',
+          'PAYMENT_SUBMITTED',
+          ${`Payment of ₹${order.total_amount} submitted by patient with UTR: ${utr}. Waiting for chemist verification.`},
+          ${JSON.stringify({ order_id: order.id, utr, payment_proof_url: publicUrl })},
+          NOW()
+        )
+      `;
     } catch (notifErr) {
       console.warn("Chemist notification error:", notifErr?.message);
     }
 
     return success(
-      "Payment proof and UTR submitted successfully. The pharmacy is now verifying your transaction.",
+      "Payment details submitted successfully! The chemist has been notified to verify your payment and start packing.",
       {
         order_id: order.id,
         unid: order.unid,

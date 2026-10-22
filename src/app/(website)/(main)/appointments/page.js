@@ -89,19 +89,20 @@ const getAppointmentStart = (apt) => {
 const getAppointmentEnd = (apt) => {
   const start = getAppointmentStart(apt);
   if (!start) return null;
-  // Consultation window is active up to 40 minutes from start
-  return new Date(start.getTime() + 40 * 60 * 1000);
+  // Consultation window is active up to 30 minutes from start
+  return new Date(start.getTime() + 30 * 60 * 1000);
 };
 
 const getEffectiveStatus = (apt, now = new Date()) => {
   const base = normalizeStatus(apt.status);
+  if (base === "expired") return "expired";
   if (!["confirmed", "pending"].includes(base)) return base;
 
   const start = getAppointmentStart(apt);
   if (!start) return base;
 
-  // After 40 minutes past start time, appointment is expired
-  const end = new Date(start.getTime() + 40 * 60 * 1000);
+  // After 30 minutes past start time, appointment is expired
+  const end = new Date(start.getTime() + 30 * 60 * 1000);
   if (now > end) return "expired";
   return base;
 };
@@ -122,16 +123,18 @@ const getAppointmentBucket = (apt, now = new Date()) => {
   const effective = getEffectiveStatus(apt, now);
   if (effective === "completed" || effective === "expired") return "past";
 
+  const end = getAppointmentEnd(apt);
+  if (end && now > end) return "past";
+
   // Anything else that is not cancelled/completed/expired is considered active/upcoming
   return "active";
 };
 
-const canModifyAppointment = (apt) => {
-  const status = getEffectiveStatus(apt);
+const canModifyAppointment = (apt, now = new Date()) => {
+  const status = getEffectiveStatus(apt, now);
   if (!["confirmed", "pending"].includes(status)) return false;
   const start = getAppointmentStart(apt);
   if (!start) return false;
-  const now = new Date();
   const diffMs = start.getTime() - now.getTime();
   return diffMs >= 4 * 60 * 60 * 1000;
 };
@@ -159,7 +162,7 @@ const getVideoCallTiming = (apt, now = new Date()) => {
   const nowMs = now.getTime();
   const startMs = start.getTime();
   const windowStartMs = startMs - 5 * 60 * 1000; // Enabled 5 minutes before start
-  const windowEndMs = startMs + 40 * 60 * 1000;  // Disabled after 40 minutes
+  const windowEndMs = startMs + 30 * 60 * 1000;  // Disabled after 30 minutes
 
   if (nowMs < windowStartMs) {
     const diffMs = windowStartMs - nowMs;
@@ -180,9 +183,9 @@ const getVideoCallTiming = (apt, now = new Date()) => {
       isVideo: true,
       canJoin: false,
       isExpired: true,
-      label: "Call Ended",
+      label: "Expired",
       disabledReason: "expired",
-      tooltip: "Video call session has ended (40 minutes after appointment start time)",
+      tooltip: "Appointment time expired (30 minutes after appointment start time)",
     };
   }
 
@@ -635,7 +638,7 @@ export default function AppointmentsPage() {
     appointments.forEach((apt) => {
       const start = getAppointmentStart(apt);
       const end = getAppointmentEnd(apt);
-      const effectiveStatus = getEffectiveStatus(apt);
+      const effectiveStatus = getEffectiveStatus(apt, now);
       const { dateStr } = getDateTime(apt);
       const row = {
         apt,
@@ -643,7 +646,7 @@ export default function AppointmentsPage() {
         end,
         effectiveStatus,
         dateStr,
-        bucket: getAppointmentBucket(apt),
+        bucket: getAppointmentBucket(apt, now),
         isToday: isSameLocalDay(dateStr, todayStr),
       };
       if (start && end) withTime.push(row);
@@ -655,21 +658,21 @@ export default function AppointmentsPage() {
 
     if (dateFilter === "today") {
       return withTime
-        .filter((row) => row.isToday && row.bucket === "active")
+        .filter((row) => row.isToday && row.bucket === "active" && row.end >= now && row.effectiveStatus !== "expired")
         .sort(byStartAsc)
         .map((row) => row.apt);
     }
 
     if (dateFilter === "upcoming") {
       return withTime
-        .filter((row) => row.bucket === "active" && row.end >= now)
+        .filter((row) => row.bucket === "active" && row.end >= now && row.effectiveStatus !== "expired")
         .sort(byStartAsc)
         .map((row) => row.apt);
     }
 
     if (dateFilter === "past") {
       return withTime
-        .filter((row) => row.bucket === "past" || (row.bucket === "active" && row.end < now))
+        .filter((row) => row.bucket === "past" || row.effectiveStatus === "expired" || row.effectiveStatus === "completed" || row.end < now)
         .sort(byStartDesc)
         .map((row) => row.apt);
     }
@@ -679,9 +682,9 @@ export default function AppointmentsPage() {
     }
 
     // "all" — upcoming/today first (soonest first), then past (newest first), then cancelled, then no-time
-    const activeToday = withTime.filter((row) => row.bucket === "active" && row.isToday && row.end >= now);
-    const activeFuture = withTime.filter((row) => row.bucket === "active" && !row.isToday && row.end >= now);
-    const pastItems = withTime.filter((row) => row.bucket === "past" || (row.bucket === "active" && row.end < now));
+    const activeToday = withTime.filter((row) => row.bucket === "active" && row.isToday && row.end >= now && row.effectiveStatus !== "expired");
+    const activeFuture = withTime.filter((row) => row.bucket === "active" && !row.isToday && row.end >= now && row.effectiveStatus !== "expired");
+    const pastItems = withTime.filter((row) => row.bucket === "past" || row.effectiveStatus === "expired" || row.effectiveStatus === "completed" || row.end < now);
     const cancelledItems = appointments.filter((apt) => normalizeStatus(apt.status) === "cancelled");
     const noTimeItems = withoutTime.map((row) => row.apt);
 
@@ -1676,15 +1679,16 @@ const AppointmentCard = ({
 
   const effectiveStatus   = getEffectiveStatus(appointment, currentTime);
   const statusCfg         = getStatusConfig(effectiveStatus);
-  const canModify         = canModifyAppointment(appointment);
+  const canModify         = canModifyAppointment(appointment, currentTime);
   const timing            = getVideoCallTiming(appointment, currentTime);
   const appointmentTypeKey = getAppointmentTypeKey(appointment);
   const TypeIcon          = APPOINTMENT_TYPE_ICONS[appointmentTypeKey] || FaHospital;
-  const isPast            = effectiveStatus === "completed" || effectiveStatus === "expired";
+  const isExpired         = effectiveStatus === "expired" || normalizeStatus(appointment.status) === "expired";
+  const isPast            = effectiveStatus === "completed" || isExpired;
   const isCompleted       = effectiveStatus === "completed" || normalizeStatus(appointment.status) === "completed";
   const hasRx             = hasPrescription || appointment.has_prescription || !!appointment.prescription_id || isCompleted;
   const isDigiLockerSaved = !!(appointment.prescription_saved_in_digilocker || appointment.prescription?.is_saved_in_digilocker);
-  const showVideoButton   = timing.isVideo && !isCompleted && !isPast;
+  const showVideoButton   = timing.isVideo && !isCompleted && !isPast && !isExpired;
 
   // Doctor image resolution
   const doctorImageUrl = (() => {
@@ -1834,7 +1838,7 @@ const AppointmentCard = ({
         {/* Action Buttons Section */}
         <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
           {/* Primary Action Row */}
-          <div className={`grid gap-1.5 ${showVideoButton || hasRx ? "grid-cols-2" : "grid-cols-1"}`}>
+          <div className={`grid gap-1.5 ${showVideoButton || hasRx || (timing.isVideo && isExpired) ? "grid-cols-2" : "grid-cols-1"}`}>
             <button
               type="button"
               onClick={() => onViewDetails(appointment)}
@@ -1861,6 +1865,19 @@ const AppointmentCard = ({
               >
                 <FaVideo className={`h-3 w-3 shrink-0 ${!timing.canJoin ? "opacity-40" : "text-white"}`} />
                 <span className="truncate">{isActiveCall && timing.canJoin ? "Join" : timing.label}</span>
+              </button>
+            )}
+
+            {/* Expired Video Call Label (when video appointment expired and no prescription) */}
+            {timing.isVideo && isExpired && !hasRx && (
+              <button
+                type="button"
+                disabled
+                title="Appointment time expired (30 minutes after scheduled slot)"
+                className="h-8 w-full flex items-center justify-center gap-1 px-2 rounded-lg bg-slate-100 text-slate-400 border border-slate-200 text-[11px] font-semibold cursor-not-allowed select-none"
+              >
+                <FaVideo className="h-3 w-3 shrink-0 opacity-40" />
+                <span className="truncate">Expired</span>
               </button>
             )}
 

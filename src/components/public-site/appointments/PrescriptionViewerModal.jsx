@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { FaTimes, FaArrowsAltH, FaLock, FaCheck } from "react-icons/fa";
-import { Download, Loader2, Building2, FlaskConical, RotateCcw, ShoppingBag, CalendarCheck } from "lucide-react";
+import { Download, Loader2, Building2, FlaskConical, RotateCcw, ShoppingBag, CalendarCheck, QrCode } from "lucide-react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -1242,17 +1242,27 @@ export default function PrescriptionViewerModal({
           <div className="w-full">
             <div className={`grid grid-cols-1 ${uniqueLabs.length > 0 ? "sm:grid-cols-2" : ""} gap-3 w-full`}>
               {/* Chemist Order Card */}
-              <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-r from-blue-50/40 via-white to-slate-50/60 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-[#0067A1]/40 transition-all">
+              <div className="rounded-2xl border border-slate-200 bg-sky-50/40 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-[#0067A1]/40 transition-all">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0067A1] to-[#005282] text-white flex items-center justify-center shadow-xs shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-[#0067A1] text-white flex items-center justify-center shadow-xs shrink-0">
                     <Building2 className="w-5 h-5 text-white" />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Chemist Order</p>
                       {chemistOrder && (
-                        <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
-                          {chemistOrder.status || "Ordered"}
+                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          chemistOrder.status === "payment_submitted"
+                            ? "bg-blue-100 text-blue-700"
+                            : chemistOrder.status === "payment_pending"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-emerald-100 text-emerald-700"
+                        }`}>
+                          {chemistOrder.status === "payment_submitted"
+                            ? "Payment Submitted"
+                            : chemistOrder.status === "payment_pending"
+                            ? "Awaiting Payment"
+                            : chemistOrder.status || "Ordered"}
                         </span>
                       )}
                     </div>
@@ -1280,16 +1290,29 @@ export default function PrescriptionViewerModal({
                     type="button"
                     onClick={() => setShareTarget("chemist")}
                     className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-xs hover:shadow ${
-                      chemistOrder
+                      chemistOrder && chemistOrder.status === "payment_pending"
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                        : chemistOrder
                         ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300/80"
-                        : "bg-gradient-to-r from-[#0067A1] to-[#0080C6] hover:from-[#005a8f] hover:to-[#006ea8] text-white"
+                        : "bg-[#0067A1] hover:bg-[#004F7C] text-white"
                     }`}
                   >
                     {chemistOrder ? (
-                      <>
-                        <span>Change</span>
-                        <RotateCcw className="w-3.5 h-3.5" />
-                      </>
+                      chemistOrder.status === "payment_pending" ? (
+                        <>
+                          <QrCode className="w-3.5 h-3.5 text-white" />
+                          <span>Pay QR</span>
+                        </>
+                      ) : chemistOrder.status === "payment_submitted" ? (
+                        <>
+                          <span>View / Edit</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Change</span>
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </>
+                      )
                     ) : (
                       <>
                         <ShoppingBag className="w-3.5 h-3.5" />
@@ -1302,9 +1325,9 @@ export default function PrescriptionViewerModal({
 
               {/* Lab Order Card */}
               {uniqueLabs.length > 0 && (
-                <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-r from-teal-50/40 via-white to-slate-50/60 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-teal-600/40 transition-all">
+                <div className="rounded-2xl border border-slate-200 bg-teal-50/40 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-teal-600/40 transition-all">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-600 to-teal-800 text-white flex items-center justify-center shadow-xs shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs shrink-0">
                       <FlaskConical className="w-5 h-5 text-white" />
                     </div>
                     <div className="min-w-0">
@@ -1342,7 +1365,7 @@ export default function PrescriptionViewerModal({
                       className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-xs hover:shadow ${
                         labOrder
                           ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300/80"
-                          : "bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white"
+                          : "bg-teal-600 hover:bg-teal-700 text-white"
                       }`}
                     >
                       {labOrder ? (

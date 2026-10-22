@@ -6,8 +6,31 @@ import { FaCalendarAlt, FaClock, FaMapMarkerAlt, FaTimes, FaUserMd, FaIdCard, Fa
 const normalizeStatus = (status) => {
   if (!status) return "pending";
   const s = String(status).toLowerCase();
+  if (s === "expired") return "expired";
   if (["booked", "approved", "freezed"].includes(s)) return "confirmed";
   return s;
+};
+
+const isAppointmentExpired = (apt) => {
+  if (!apt) return false;
+  const s = String(apt.status || "").toLowerCase();
+  if (s === "expired") return true;
+  if (!["booked", "approved", "freezed", "confirmed", "pending"].includes(s)) return false;
+  
+  const rawDate = apt.date || apt.appointment_date;
+  const rawTime = apt.time || apt.appointment_time;
+  if (!rawDate) return false;
+
+  const dateStr = typeof rawDate === "string" ? rawDate.split("T")[0] : (rawDate instanceof Date ? rawDate.toISOString().split("T")[0] : "");
+  const timeStr = typeof rawTime === "string" ? rawTime.slice(0, 5) : "";
+  if (!dateStr || !timeStr) return false;
+
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const [hh, mm] = timeStr.split(":").map(Number);
+  if (isNaN(y) || isNaN(m) || isNaN(d) || isNaN(hh) || isNaN(mm)) return false;
+
+  const aptTime = new Date(y, m - 1, d, hh, mm, 0);
+  return Date.now() > aptTime.getTime() + 30 * 60 * 1000;
 };
 
 const getStatusColor = (status) => {
@@ -22,7 +45,7 @@ const getStatusColor = (status) => {
     case "cancelled":
       return "bg-red-100 text-red-800 border-red-200";
     case "expired":
-      return "bg-gray-200 text-gray-700 border-gray-300";
+      return "bg-gray-100 text-gray-700 border-gray-300";
     default:
       return "bg-gray-100 text-gray-800 border-gray-200";
   }
@@ -120,7 +143,7 @@ const AppointmentDetailsModal = ({
 }) => {
   if (!isOpen || !appointment) return null;
 
-  const status = normalizeStatus(appointment.status);
+  const status = isAppointmentExpired(appointment) ? "expired" : normalizeStatus(appointment.status);
 
   // Doctor Info
   const doctorName = appointment.doctor?.name || appointment.doctor?.full_name || "Doctor";

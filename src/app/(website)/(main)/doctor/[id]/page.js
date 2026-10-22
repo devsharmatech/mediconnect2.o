@@ -285,6 +285,18 @@ export default function DoctorProfilePage() {
   useEffect(() => {
     if (!doctorId) return;
 
+    if (doctorId === "login") {
+      router.replace("/doctor/login");
+      return;
+    }
+
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!UUID_REGEX.test(doctorId)) {
+      setError("Doctor not found");
+      setLoading(false);
+      return;
+    }
+
     const today = new Date().toISOString().split("T")[0];
     setSelectedDate(today);
 
@@ -293,8 +305,10 @@ export default function DoctorProfilePage() {
         setLoading(true);
         setError("");
         const res = await getDoctorDetailsAction(doctorId);
-        if (!res.success)
-          throw new Error(res.error || "Failed to load doctor");
+        if (!res.success) {
+          setError(res.error || "Doctor not found");
+          return;
+        }
         setDoctor(res.data);
         if (res.support_contact) {
           setSupportContact(res.support_contact);
@@ -308,7 +322,7 @@ export default function DoctorProfilePage() {
     };
 
     fetchDoctor();
-  }, [doctorId]);
+  }, [doctorId, router]);
 
   useEffect(() => {
     fetch("/api/cms/settings")

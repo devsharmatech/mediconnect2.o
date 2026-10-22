@@ -2,6 +2,9 @@
 
 import sql from "@/lib/db";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const isValidUUID = (id) => typeof id === "string" && UUID_REGEX.test(id.trim());
+
 export async function getPlatformSupportContactAction() {
   try {
     const [settingsRows, contactRows] = await Promise.all([
@@ -43,7 +46,9 @@ export async function getPlatformSupportContactAction() {
 
 export async function getDoctorDetailsAction(doctorId) {
   try {
-    if (!doctorId) return { success: false, error: "Doctor ID is required" };
+    if (!doctorId || !isValidUUID(doctorId)) {
+      return { success: false, error: "Invalid doctor ID" };
+    }
 
     const rows = await sql`
       SELECT 
@@ -72,7 +77,10 @@ export async function getDoctorDetailsAction(doctorId) {
 
 export async function checkDoctorFollowupAndPricingAction({ patient_id, doctor_id, appointment_type = "clinic_visit" }) {
   try {
-    if (!doctor_id) return { success: false, error: "doctor_id is required" };
+    if (!doctor_id || !isValidUUID(doctor_id)) {
+      return { success: false, error: "Invalid doctor ID" };
+    }
+    const cleanPatientId = isValidUUID(patient_id) ? patient_id : null;
 
     // Fetch doctor fees and details from AWS RDS PostgreSQL
     const docRows = await sql`
@@ -111,12 +119,12 @@ export async function checkDoctorFollowupAndPricingAction({ patient_id, doctor_i
     let lastAppointmentDate = null;
     let previousAppointmentsCount = 0;
 
-    if (patient_id) {
+    if (cleanPatientId) {
       // 1. Fetch appointments count between this patient and doctor
       const apptRows = await sql`
         SELECT id, appointment_date, appointment_type, status, created_at
         FROM appointments
-        WHERE patient_id = ${patient_id}
+        WHERE patient_id = ${cleanPatientId}
           AND doctor_id = ${doctor_id}
           AND status NOT IN ('cancelled', 'rejected')
         ORDER BY appointment_date DESC, created_at DESC
@@ -133,7 +141,7 @@ export async function checkDoctorFollowupAndPricingAction({ patient_id, doctor_i
       const rxRows = await sql`
         SELECT id, appointment_id, follow_up, template_data, created_at, status
         FROM prescriptions
-        WHERE patient_id = ${patient_id}
+        WHERE patient_id = ${cleanPatientId}
           AND doctor_id = ${doctor_id}
           AND (is_draft IS NULL OR is_draft = false)
         ORDER BY created_at DESC
@@ -371,7 +379,9 @@ function resolveIntervals(typeSlots, availableTime, fullWeekday, shortWeekday) {
 
 export async function getDoctorSlotsAction({ doctor_id, date, appointment_type = "video_consultation" }) {
   try {
-    if (!doctor_id || !date) return { success: false, error: "doctor_id and date required" };
+    if (!doctor_id || !isValidUUID(doctor_id) || !date) {
+      return { success: false, error: "Invalid doctor_id or date required" };
+    }
 
     const docRows = await sql`
       SELECT available_days, available_time, clinic_slots, video_slots, home_slots, leave_days, is_open, slot_interval_minutes

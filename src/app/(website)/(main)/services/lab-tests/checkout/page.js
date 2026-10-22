@@ -170,8 +170,8 @@ export default function PublicCheckoutPage() {
     if (!cart) return <LoadingScreen message="Preparing checkout..." submessage="Loading your order" />;
 
     const testsTotal = cart.tests.reduce((s, t) => s + (parseFloat(t.price) || 0), 0);
-    const collectionFee = visitType === "home_collection" ? 150 : 0;
-    const totalAmount = testsTotal + collectionFee;
+    const collectionFee = 0;
+    const totalAmount = testsTotal;
     const allConsentsGiven = Object.values(consents).every(Boolean);
 
     // Toggle All Consents
@@ -598,7 +598,7 @@ export default function PublicCheckoutPage() {
                                         </div>
                                         <div className="flex justify-between text-gray-500">
                                             <span>Sample Collection ({visitType === "home_collection" ? "Home Visit" : "Walk-in"})</span>
-                                            <span className="font-medium text-gray-800">{visitType === "home_collection" ? "₹150" : "Free"}</span>
+                                            <span className="font-semibold text-emerald-700">Free</span>
                                         </div>
                                         <div className="border-t border-slate-200 pt-1.5 flex justify-between items-center text-xs font-bold">
                                             <span className="text-gray-900">Total Payable</span>
@@ -640,6 +640,24 @@ export default function PublicCheckoutPage() {
                                                     <span className="text-xs sm:text-sm font-extrabold text-[#0067A1] shrink-0">₹{t.price}</span>
                                                 </div>
                                             ))}
+                                        </div>
+
+                                        {/* Step 1 Price Preview Notice */}
+                                        <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-gray-500 font-medium">Tests Subtotal:</span>
+                                                <span className="font-bold text-gray-900">₹{testsTotal.toLocaleString()}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-gray-500 font-medium">Sample Collection:</span>
+                                                <span className="font-bold text-emerald-700">
+                                                    Free
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-200">
+                                                <span className="text-gray-800 font-bold">Total:</span>
+                                                <span className="font-black text-[#0067A1]">₹{totalAmount.toLocaleString()}</span>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -798,7 +816,7 @@ export default function PublicCheckoutPage() {
                                                 <span className={`block font-bold text-xs sm:text-sm ${visitType === 'home_collection' ? 'text-[#0067A1]' : 'text-gray-900'}`}>
                                                     Home Sample Collection
                                                 </span>
-                                                <span className="text-[11px] text-gray-500">Technician visits home (+₹150)</span>
+                                                <span className="text-[11px] text-emerald-600 font-medium">Technician visits home (Free)</span>
                                             </div>
                                         </button>
 
@@ -1037,17 +1055,41 @@ export default function PublicCheckoutPage() {
                                         </div>
                                     </div>
 
-                                    {/* Compact Total Row */}
-                                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 flex items-center justify-between">
-                                        <div>
-                                            <p className="text-xs font-bold text-gray-800">Total Payable</p>
-                                            <p className="text-[11px] text-gray-500">
-                                                {cart.tests.length} {cart.tests.length === 1 ? "test" : "tests"} • {visitType === "home_collection" ? "Home Collection (₹150)" : "Free Walk-in"}
-                                            </p>
+                                    {/* Full Itemized Price Breakdown */}
+                                    <div className="bg-slate-50/80 rounded-xl p-4 border border-slate-200/90 space-y-2 text-xs">
+                                        <div className="flex justify-between text-gray-600">
+                                            <span>Laboratory</span>
+                                            <span className="font-bold text-gray-900">{cart.lab_name}</span>
                                         </div>
-                                        <span className="text-base sm:text-lg font-black text-[#0067A1]">
-                                            ₹{totalAmount.toLocaleString()}
-                                        </span>
+                                        <div className="flex justify-between text-gray-600">
+                                            <span>Tests Subtotal ({cart.tests.length} {cart.tests.length === 1 ? "test" : "tests"})</span>
+                                            <span className="font-semibold text-gray-900">₹{testsTotal.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between text-gray-600">
+                                            <span>Sample Collection ({visitType === "home_collection" ? "Home Visit" : "Walk-in at Lab"})</span>
+                                            <span className="font-semibold text-emerald-700">
+                                                Free
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between text-gray-600">
+                                            <span>Collection Address</span>
+                                            <span className="font-bold text-gray-900 text-right max-w-[220px] truncate">{address.full_address}, {address.city}</span>
+                                        </div>
+                                        {prescriptionUrl && (
+                                            <div className="flex justify-between text-gray-600">
+                                                <span>Prescription</span>
+                                                <span className="font-bold text-emerald-700">Attached ✓</span>
+                                            </div>
+                                        )}
+                                        <div className="border-t border-slate-200 pt-2 flex justify-between items-center text-xs">
+                                            <div>
+                                                <span className="font-extrabold text-gray-900 block text-sm">Total Payable</span>
+                                                <span className="text-[10px] text-gray-400">All taxes & clinical handling charges included</span>
+                                            </div>
+                                            <span className="text-lg sm:text-xl font-black text-[#0067A1]">
+                                                ₹{totalAmount.toLocaleString()}
+                                            </span>
+                                        </div>
                                     </div>
 
                                     {/* Auth Check Warning */}
@@ -1137,7 +1179,7 @@ export default function PublicCheckoutPage() {
                                     </div>
                                     <div className="flex justify-between text-gray-500">
                                         <span>Sample Collection</span>
-                                        <span className="font-semibold text-gray-900">{visitType === "home_collection" ? "₹150" : "Free"}</span>
+                                        <span className="font-semibold text-emerald-700">Free</span>
                                     </div>
                                     <div className="border-t border-slate-200 pt-2 flex justify-between items-center text-xs">
                                         <span className="font-extrabold text-gray-900">Total Payable</span>

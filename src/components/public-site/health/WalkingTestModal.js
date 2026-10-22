@@ -317,7 +317,7 @@ export default function WalkingTestModal({ isOpen, onClose, onTestSaved, userId,
       setIsSaving(false);
     }
 
-    toast.success("Walking test result saved to your clinical record!");
+    toast.success("Walking test result saved to your health record!");
     if (onTestSaved) onTestSaved(testRecord);
     handleReset();
     onClose();

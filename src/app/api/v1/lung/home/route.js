@@ -114,15 +114,18 @@ export async function GET(req) {
         }
 
         if (episodes && episodes.length > 0) {
-          const episode = episodes[0];
+          const rawId = episode.episode_id || episode.id;
+          const cleanCode = rawId
+            ? `LCE-${String(rawId).replace(/^LCE-/, "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`
+            : "LCE-ACTV";
           hubState.care_episode = {
             id: episode.id,
-            episode_id: episode.episode_id || `LCE-${episode.id}`,
+            episode_id: cleanCode,
             status: episode.status,
             created_at: episode.created_at,
           };
           hubState.my_care_services.has_active_episode = episode.status === "ACTIVE" || episode.status === "active";
-          hubState.my_care_services.care_episode_id = episode.episode_id || String(episode.id);
+          hubState.my_care_services.care_episode_id = cleanCode;
         }
       } catch (e) {
         console.warn("[Lung Home] Could not resolve care episode from RDS:", e.message);

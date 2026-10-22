@@ -30,6 +30,19 @@ export async function POST(req) {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const offset = (pageNum - 1) * perPage;
 
+    // Auto-expire appointments whose scheduled slot has passed by > 30 minutes
+    try {
+      await sql`
+        UPDATE appointments
+        SET status = 'expired', updated_at = NOW()
+        WHERE doctor_id = ${doctor_id}
+          AND status IN ('booked', 'approved', 'freezed')
+          AND (appointment_date + appointment_time + INTERVAL '30 minutes') < (NOW() AT TIME ZONE 'Asia/Kolkata')
+      `;
+    } catch (expErr) {
+      console.warn("[doctor-appointments-detailed] Auto-expire warning:", expErr.message);
+    }
+
     // Build date filter fragment for AWS RDS (Indian Standard Time)
     let dateCondition = sql``;
     if (date_filter === "today") {

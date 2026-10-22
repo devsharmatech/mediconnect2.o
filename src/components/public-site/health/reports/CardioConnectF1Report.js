@@ -108,7 +108,7 @@ export default function CardioConnectF1Report({
     : "Based on recorded screening responses, activity levels are progressing steadily. Routine preventive wellness check-ins with your General Physician are recommended.";
 
   const clinicalGuidanceText = aiObj.medical_attention ||
-    "Discuss persistent, recurring, or worsening symptoms with a qualified physician. Seek emergency clinical care immediately for severe acute chest discomfort, shortness of breath, or radiating arm/jaw tightness.";
+    "Discuss persistent, recurring, or worsening symptoms with a qualified physician. Seek emergency medical care immediately for severe acute chest discomfort, shortness of breath, or radiating arm/jaw tightness.";
 
   // Dynamic Cardiovascular Recommendations from assessmentData or aiObj
   const dynamicRecs = (() => {
@@ -160,7 +160,7 @@ export default function CardioConnectF1Report({
         }
 
         const categoryTag = rec.category ? String(rec.category).toUpperCase() : "CARDIO WELLNESS";
-        const priorityTag = rec.priority || rec.priorityTag || (isAbnormal ? "PRIORITY CLINICAL" : "EVIDENCE-BASED");
+        const priorityTag = rec.priority || rec.priorityTag || (isAbnormal ? "PRIORITY MEDICAL" : "EVIDENCE-BASED");
         const timeframe = rec.timeframe || (isAbnormal ? "Immediate Action" : "Daily Activity");
 
         return {
@@ -577,9 +577,9 @@ export default function CardioConnectF1Report({
                 {specialistRecommendation}
               </div>
 
-              {/* Clinical Guidance Notice */}
+              {/* Health Advisory Notice */}
               <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: "3px", padding: "7px 11px", fontSize: "10px", color: "#92400e", lineHeight: "1.35" }}>
-                <strong style={{ color: "#78350f" }}>Clinical Guidance:</strong> {clinicalGuidanceText}
+                <strong style={{ color: "#78350f" }}>Health Advisory:</strong> {clinicalGuidanceText}
               </div>
             </div>
           </div>

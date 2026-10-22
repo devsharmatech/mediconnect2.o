@@ -220,11 +220,11 @@ export default function CardioConnectF2Report({
 
   const primarySpecialist = isAbnormal ? "Cardiologist" : "General Physician";
   const specialistRecommendation = isAbnormal
-    ? "Based on your longitudinal cardiovascular trajectory and recorded parameters (blood pressure / lipid profile / symptoms), consulting a Cardiologist is recommended for structured clinical oversight and risk prevention."
+    ? "Based on your longitudinal cardiovascular trajectory and recorded parameters (blood pressure / lipid profile / symptoms), consulting a Cardiologist is recommended for structured medical oversight and risk prevention."
     : "Based on recorded screening responses, longitudinal factors remain stable within standard baseline bounds. Routine annual check-ins with your General Physician are recommended.";
 
   const clinicalGuidanceText = aiObj.medical_attention ||
-    "Discuss persistent, recurring, or worsening symptoms with a qualified physician. Seek emergency clinical care immediately for severe acute chest discomfort, shortness of breath, or radiating arm/jaw tightness.";
+    "Discuss persistent, recurring, or worsening symptoms with a qualified physician. Seek emergency medical care immediately for severe acute chest discomfort, shortness of breath, or radiating arm/jaw tightness.";
 
   // Dynamic Cardiovascular Recommendations from assessmentData or aiObj
   const dynamicRecs = (() => {
@@ -276,7 +276,7 @@ export default function CardioConnectF2Report({
         }
 
         const categoryTag = rec.category ? String(rec.category).toUpperCase() : "CARDIO WELLNESS";
-        const priorityTag = rec.priority || rec.priorityTag || (isAbnormal ? "PRIORITY CLINICAL" : "EVIDENCE-BASED");
+        const priorityTag = rec.priority || rec.priorityTag || (isAbnormal ? "PRIORITY MEDICAL" : "EVIDENCE-BASED");
         const timeframe = rec.timeframe || (isAbnormal ? "Immediate Action" : "Longitudinal Cadence");
 
         return {
@@ -353,7 +353,7 @@ export default function CardioConnectF2Report({
     ? aiObj.positive_aspects
     : [
         "Completed longitudinal cardiovascular health assessment",
-        "Documented baseline trends across clinical parameters",
+        "Documented baseline trends across health parameters",
         "Engagement with multi-point checkpoint trajectory"
       ];
 
@@ -480,7 +480,7 @@ export default function CardioConnectF2Report({
                   <th style={{ padding: "4px 7px", textAlign: "left", fontWeight: "800", width: "18%" }}>FACTOR</th>
                   <th style={{ padding: "4px 7px", textAlign: "center", fontWeight: "800", width: "19%" }}>CURRENT VALUE</th>
                   <th style={{ padding: "4px 7px", textAlign: "center", fontWeight: "800", width: "21%" }}>NORMAL RANGE</th>
-                  <th style={{ padding: "4px 7px", textAlign: "center", fontWeight: "800", width: "26%" }}>CLINICAL EVALUATION</th>
+                  <th style={{ padding: "4px 7px", textAlign: "center", fontWeight: "800", width: "26%" }}>HEALTH EVALUATION</th>
                   <th style={{ padding: "4px 7px", textAlign: "left", fontWeight: "800", width: "16%" }}>SOURCE</th>
                 </tr>
               </thead>
@@ -621,7 +621,7 @@ export default function CardioConnectF2Report({
           <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "8px", marginTop: "10px", fontSize: "8.5px", color: "#64748b", lineHeight: "1.3" }}>
             <div>Keep this record with your CardioConnect history so future checkpoints can be viewed alongside the current record.</div>
             <div style={{ marginTop: "1px" }}>
-              <span style={{ fontWeight: "800", color: "#0d3b66" }}>CARE & SAFETY</span> Engagement and recorded change are not clinical outcomes. Care options appear only under approved safety and routing rules.
+              <span style={{ fontWeight: "800", color: "#0d3b66" }}>CARE & SAFETY</span> Engagement and recorded change are not medical outcomes. Care options appear only under approved safety and routing rules.
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "8.5px", color: "#94a3b8", marginTop: "3px" }}>
@@ -663,7 +663,7 @@ export default function CardioConnectF2Report({
                   <span style={{ fontSize: "12px", fontWeight: "800", color: "#0d3b66", letterSpacing: "1px", textTransform: "uppercase" }}>CARDIOCONNECT</span>
                 </div>
                 <div style={{ fontSize: "16px", fontWeight: "900", color: "#0d3b66", letterSpacing: "0.4px", textTransform: "uppercase", marginTop: "1px" }}>
-                  LONGITUDINAL WELLNESS & CLINICAL GUIDANCE
+                  LONGITUDINAL WELLNESS & HEALTH ADVISORY
                 </div>
                 <div style={{ fontSize: "10px", color: "#64748b", marginTop: "1px" }}>
                   Condition-tailored specialist guidance, longitudinal wellness practices, and actionable health targets.
@@ -723,9 +723,9 @@ export default function CardioConnectF2Report({
                 {specialistRecommendation}
               </div>
 
-              {/* Clinical Guidance Notice */}
+              {/* Health Advisory Notice */}
               <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: "3px", padding: "7px 11px", fontSize: "10px", color: "#92400e", lineHeight: "1.35" }}>
-                <strong style={{ color: "#78350f" }}>Clinical Guidance:</strong> {clinicalGuidanceText}
+                <strong style={{ color: "#78350f" }}>Health Advisory:</strong> {clinicalGuidanceText}
               </div>
             </div>
           </div>
@@ -809,7 +809,7 @@ export default function CardioConnectF2Report({
           {/* SECTION 3: Recorded Indicators & Longitudinal Focus Areas */}
           <div style={{ marginBottom: "10px", border: "1px solid #cbd5e1", borderRadius: "4px", backgroundColor: "#ffffff", padding: "9px 12px" }}>
             <div style={{ fontSize: "10.5px", fontWeight: "800", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "6px" }}>
-              RECORDED CLINICAL INDICATORS & ACTIONABLE INSIGHTS
+              RECORDED HEALTH INDICATORS & ACTIONABLE INSIGHTS
             </div>
 
             {/* Badges strip */}
@@ -892,7 +892,7 @@ export default function CardioConnectF2Report({
 
         {/* Page 2 Footer */}
         <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "8px", marginTop: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "9px", color: "#94a3b8" }}>
-          <span>MediConnect.fit • CardioConnect • Longitudinal Wellness & Clinical Guidance</span>
+          <span>MediConnect.fit • CardioConnect • Longitudinal Wellness & Health Advisory</span>
           <span>ISO A4 • Page 2 of 2</span>
         </div>
       </div>

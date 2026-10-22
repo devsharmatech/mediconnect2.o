@@ -117,7 +117,7 @@ export async function POST(req) {
                 LEFT JOIN lab_test_categories c ON c.id = lt.category_id
                 WHERE oi.order_id = ${order.id}
             `;
-            const homeFee = order.visit_type === 'home_collection' ? 150 : 0;
+            const homeFee = 0; // Free collection for all orders
             for (const item of items) {
                 const itemPrice = parseFloat(item.price) || 0;
                 const commPct = parseFloat(item.commission_percentage) || 50;

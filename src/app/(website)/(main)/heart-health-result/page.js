@@ -450,7 +450,7 @@ export default function HeartHealthResult() {
       tailored.push({
         id: 'smoking-cessation',
         category: 'Lifestyle Cessation',
-        priorityTag: isSmoker ? 'High Clinical Priority' : 'Vascular Protection',
+        priorityTag: isSmoker ? 'High Health Priority' : 'Vascular Protection',
         timeframe: isSmoker ? 'Immediate Action · Next 1–2 Weeks' : 'Sustained Maintenance',
         title: 'Cardiovascular Smoking Cessation Protocol',
         description: isSmoker
@@ -520,7 +520,7 @@ export default function HeartHealthResult() {
         F1: 'Home_Activity',
         F2: 'Progress_Trends',
         F3: 'Walking_Performance',
-        F4: 'Clinical_Assessment'
+        F4: 'Health_Assessment'
       };
       const typeLabel = cardioFormatNames[format] || 'Health_Report';
       const cleanSerial = (formattedSerialNo || "CCN_REPORT").replace(/[^a-zA-Z0-9]/g, '_');
@@ -623,7 +623,7 @@ export default function HeartHealthResult() {
                 type="button"
                 onClick={() => setShowPreviewModal(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0b3b60] hover:bg-[#07243c] text-white rounded-[5px] text-xs font-bold transition-colors cursor-pointer"
-                title="Open Clinical Report Viewer"
+                title="Open Health Report Viewer"
               >
                 <FileText className="w-3.5 h-3.5" />
                 <span>View Report</span>
@@ -633,7 +633,7 @@ export default function HeartHealthResult() {
                 type="button"
                 onClick={() => setShowFormatModal(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-[5px] text-xs font-semibold transition-colors cursor-pointer"
-                title="Choose preferred clinical report format"
+                title="Choose preferred report format"
               >
                 <span>Report Format</span>
               </button>
@@ -643,7 +643,7 @@ export default function HeartHealthResult() {
                 onClick={() => handlePrintReport(selectedFormat)}
                 disabled={printingReport}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-[5px] text-xs font-semibold transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
-                title="Print Clinical Report"
+                title="Print Report"
               >
                 <Printer className="w-3.5 h-3.5 text-[#0067A1]" />
                 <span className="hidden sm:inline">{printingReport ? 'Preparing...' : 'Print'}</span>
@@ -677,7 +677,7 @@ export default function HeartHealthResult() {
         <div className="bg-amber-50/80 border border-amber-200/80 rounded-[5px] p-2.5 sm:p-3 flex items-start gap-2.5 text-[11px] sm:text-xs text-amber-900 leading-relaxed shadow-2xs">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
           <div>
-            <span className="font-semibold">Important Clinical Notice:</span> If you have severe chest pain, sudden breathlessness, fainting, or acute symptoms, seek immediate emergency medical care rather than relying on this wellness screening.
+            <span className="font-semibold">Important Health Advisory:</span> If you have severe chest pain, sudden breathlessness, fainting, or acute symptoms, seek immediate emergency medical care rather than relying on this wellness screening.
           </div>
         </div>
 
@@ -917,7 +917,7 @@ export default function HeartHealthResult() {
           <div className="mt-3 p-3 bg-slate-50 rounded-[5px] border border-slate-200 text-[11px] text-slate-950 leading-relaxed flex items-start gap-2">
             <Info className="w-3.5 h-3.5 text-slate-800 shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold text-slate-800">Blood pressure: {inputs.systolic_bp || 120}/{inputs.diastolic_bp || 80} mmHg.</span> This single reading does not diagnose hypertension. Blood-pressure classification depends on the guideline framework and repeated, properly measured clinical readings.
+              <span className="font-semibold text-slate-800">Blood pressure: {inputs.systolic_bp || 120}/{inputs.diastolic_bp || 80} mmHg.</span> This single reading does not diagnose hypertension. Blood-pressure classification depends on the guideline framework and repeated, properly measured health readings.
             </div>
           </div>
         </div>
@@ -940,7 +940,7 @@ export default function HeartHealthResult() {
           {Array.isArray(parsedAi?.key_findings) && parsedAi.key_findings.length > 0 && (
             <div className="space-y-1.5 pt-1">
               <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
-                Recorded Clinical Indicators
+                Recorded Health Indicators
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {parsedAi.key_findings.map((finding, idx) => (
@@ -1001,7 +1001,7 @@ export default function HeartHealthResult() {
             <div className="p-2.5 bg-amber-50/80 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-start gap-2">
               <Stethoscope className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
               <span className="leading-relaxed">
-                <strong className="font-semibold text-amber-950">Clinical Guidance:</strong> {parsedAi.medical_attention}
+                <strong className="font-semibold text-amber-950">Health Advisory:</strong> {parsedAi.medical_attention}
               </span>
             </div>
           )}
@@ -1031,7 +1031,7 @@ export default function HeartHealthResult() {
               <span className="font-semibold text-slate-900">
                 {suggestedSpecialties.map(s => s.shortName).join(" or ")}
               </span>{" "}
-              for personalized clinical guidance and evaluation.
+              for personalized health guidance and evaluation.
             </p>
 
             <div className="flex items-center gap-2 flex-wrap sm:pl-9 pt-0.5">
@@ -1094,7 +1094,7 @@ export default function HeartHealthResult() {
             </div>
 
             <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[10px] text-slate-800">
-              <span>Health education content version: V2.4 | Reviewed by: Clinical Team | Framework: 2024 ESC</span>
+              <span>Health education content version: V2.4 | Reviewed by: Medical Team | Framework: 2024 ESC</span>
               <span>Screening generated · Not individualized medical advice</span>
             </div>
           </div>
@@ -1128,8 +1128,8 @@ export default function HeartHealthResult() {
               {[
                 {
                   id: "F4",
-                  name: "Comprehensive Clinical Assessment",
-                  desc: "Complete clinical overview synthesizing recorded cardiovascular factors, vital markers, active training minutes, and care navigation.",
+                  name: "Comprehensive Health Assessment",
+                  desc: "Complete health overview synthesizing recorded cardiovascular factors, vital markers, active training minutes, and care navigation.",
                   tag: "Master Summary"
                 },
                 {
@@ -1214,7 +1214,7 @@ export default function HeartHealthResult() {
                   className="px-4 py-2 bg-[#0067A1] hover:bg-[#005282] text-white rounded-[5px] text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download {selectedFormat === 'F4' ? 'Clinical Assessment' : selectedFormat === 'F1' ? 'Home & Activity' : selectedFormat === 'F2' ? 'Progress & Trends' : 'Walking Test'} PDF</span>
+                  <span>Download {selectedFormat === 'F4' ? 'Health Assessment' : selectedFormat === 'F1' ? 'Home & Activity' : selectedFormat === 'F2' ? 'Progress & Trends' : 'Walking Test'} PDF</span>
                 </button>
               </div>
             </div>
@@ -1234,7 +1234,7 @@ export default function HeartHealthResult() {
                 </span>
                 <span className="text-xs font-bold text-slate-300">•</span>
                 <h2 className="text-sm sm:text-base font-bold text-slate-900">
-                  CardioConnect Authoritative Clinical Report
+                  CardioConnect Authoritative Health Report
                 </h2>
               </div>
               <button
@@ -1252,7 +1252,7 @@ export default function HeartHealthResult() {
                 Report Type:
               </span>
               {[
-                { id: "F4", label: "Clinical Assessment", badge: "Master" },
+                { id: "F4", label: "Health Assessment", badge: "Master" },
                 { id: "F1", label: "Home & Activity", badge: "Training" },
                 { id: "F2", label: "Progress & Trends", badge: "Spectrum" },
                 { id: "F3", label: "Walking Test", badge: "6-Min WPT" }

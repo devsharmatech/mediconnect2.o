@@ -63,13 +63,30 @@ export async function POST(req) {
     }
 
     /* ---------------------------------
-       FETCH PRESCRIPTION
+       FETCH PRESCRIPTION (RDS + Fallback)
     ---------------------------------- */
-    const { data: prescription } = await supabase
-      .from("prescriptions")
-      .select("*")
-      .eq("id", prescription_id)
-      .maybeSingle();
+    let prescription = null;
+    try {
+      const rdsRows = await sql`
+        SELECT * FROM prescriptions
+        WHERE id = ${prescription_id}
+        LIMIT 1
+      `;
+      if (rdsRows.length > 0) {
+        prescription = rdsRows[0];
+      }
+    } catch (rdsErr) {
+      console.warn("[Prescription Update] RDS fetch error:", rdsErr.message);
+    }
+
+    if (!prescription) {
+      const { data } = await supabase
+        .from("prescriptions")
+        .select("*")
+        .eq("id", prescription_id)
+        .maybeSingle();
+      prescription = data;
+    }
 
     if (!prescription) {
       return failure("Prescription not found", null, 404, {
@@ -94,10 +111,19 @@ export async function POST(req) {
 
     /* ---------------------------------
        PREVENT UPDATE AFTER SIGN
+       Once signed, a clinical prescription is legally immutable.
     ---------------------------------- */
-    if (prescription.signed_at && action !== "sign") {
+    const isAlreadySigned = Boolean(
+      prescription.signed_at ||
+      prescription.completed_at ||
+      prescription.status === "completed" ||
+      prescription.status === "signed" ||
+      prescription.is_draft === false
+    );
+
+    if (isAlreadySigned) {
       return failure(
-        "Signed prescription cannot be modified",
+        "This prescription has already been signed and finalized. Signed clinical records cannot be modified.",
         null,
         409,
         { headers: corsHeaders }
@@ -197,6 +223,36 @@ export async function POST(req) {
       .single();
 
     if (error) throw error;
+
+    // Direct AWS RDS PostgreSQL update
+    try {
+      await sql`
+        UPDATE prescriptions
+        SET 
+          appointment_type = ${appointment_type},
+          specialization = ${specialization},
+          diagnosis = ${JSON.stringify(diagnosis)},
+          medicines = ${JSON.stringify(medicines)},
+          lab_tests = ${JSON.stringify(normalizedLabTests)},
+          investigations = ${JSON.stringify(investigations)},
+          vital_signs = ${JSON.stringify(vital_signs)},
+          examination_findings = ${JSON.stringify(examination_findings)},
+          follow_up = ${JSON.stringify(follow_up)},
+          special_instructions = ${JSON.stringify(special_instructions)},
+          template_data = ${JSON.stringify(template_data)},
+          ai_analysis = ${JSON.stringify(ai_analysis)},
+          special_message = ${special_message},
+          is_draft = ${action === "save"},
+          status = ${action === "sign" ? "completed" : prescription.status},
+          signed_by = ${action === "sign" ? doctor_id : (prescription.signed_by || null)},
+          signed_at = ${action === "sign" ? now : (prescription.signed_at || null)},
+          completed_at = ${action === "sign" ? now : (prescription.completed_at || null)},
+          updated_at = ${now}
+        WHERE id = ${prescription_id}
+      `;
+    } catch (sqlErr) {
+      console.warn("[Prescription Update] RDS direct prescription update warning:", sqlErr.message);
+    }
 
     // Sync structured tables (consultation_medications, consultation_symptoms)
     if (updatedPrescription) {

@@ -372,7 +372,7 @@ function LungConnectHubContent() {
       {
         id: "m_assessment",
         title: "Baseline Health Check",
-        desc: "Completed clinical respiratory assessment",
+        desc: "Completed respiratory health assessment",
         date: assessmentFormatted || "Pending Check",
         done: !!assessmentFormatted,
       },
@@ -544,30 +544,78 @@ function LungConnectHubContent() {
     };
   }, [recentActivities]);
 
-  // ── Dynamic Care Episode Metadata ──
+  // ── Dynamic Care Episode Metadata & Chronological Validation ──
   const activeCareEpisodeId = useMemo(() => {
-    return hubData?.care_episode?.episode_id || (userId ? `LCE-2026-${String(userId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase()}` : "LCE-2026-ACTIVE");
+    const raw = hubData?.care_episode?.episode_id || hubData?.care_episode?.id;
+    if (raw) {
+      const clean = String(raw).replace(/^LCE-/, "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase();
+      return `LCE-${clean || "ACTV"}`;
+    }
+    return userId ? `LCE-${String(userId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}` : "LCE-2026-ACTV";
   }, [hubData?.care_episode, userId]);
 
-  const careEpisodeStartDate = useMemo(() => {
-    if (hubData?.care_episode?.created_at) {
-      return new Date(hubData.care_episode.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-    }
-    if (progressData?.baseline_date) {
-      return new Date(progressData.baseline_date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-    }
-    return "Enrolled";
-  }, [hubData?.care_episode, progressData?.baseline_date]);
-
-  const careEpisodeRecordedDate = useMemo(() => {
+  const { careEpisodeStartDate, careEpisodeRecordedDate, careEpisodeStage } = useMemo(() => {
+    const recordedTimestamps = [];
     if (progressData?.latest_assessment?.date) {
-      return new Date(progressData.latest_assessment.date).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+      const t = new Date(progressData.latest_assessment.date).getTime();
+      if (!isNaN(t)) recordedTimestamps.push(t);
     }
-    if (recentActivities?.[0]?.created_at) {
-      return new Date(recentActivities[0].created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    if (recentActivities && recentActivities.length > 0) {
+      recentActivities.forEach((act) => {
+        if (act.created_at) {
+          const t = new Date(act.created_at).getTime();
+          if (!isNaN(t)) recordedTimestamps.push(t);
+        }
+      });
     }
-    return "Active";
-  }, [progressData?.latest_assessment, recentActivities]);
+
+    const startTimestamps = [];
+    if (progressData?.baseline_date) {
+      const t = new Date(progressData.baseline_date).getTime();
+      if (!isNaN(t)) startTimestamps.push(t);
+    }
+    if (hubData?.care_episode?.created_at) {
+      const t = new Date(hubData.care_episode.created_at).getTime();
+      if (!isNaN(t)) startTimestamps.push(t);
+    }
+
+    const hasData = recordedTimestamps.length > 0;
+    const latestRecordedTime = hasData ? Math.max(...recordedTimestamps) : null;
+
+    let startTime = null;
+    if (startTimestamps.length > 0) {
+      startTime = Math.min(...startTimestamps);
+    } else if (latestRecordedTime) {
+      startTime = latestRecordedTime;
+    } else {
+      startTime = Date.now();
+    }
+
+    // Invariant: Start date cannot be after recorded data date
+    if (latestRecordedTime && startTime > latestRecordedTime) {
+      const earliestRecorded = Math.min(...recordedTimestamps);
+      startTime = earliestRecorded;
+    }
+
+    const formatDate = (time) => {
+      if (!time) return "--";
+      return new Date(time).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    };
+
+    const sDate = formatDate(startTime);
+    const rDate = latestRecordedTime ? formatDate(latestRecordedTime) : "Awaiting Check-in";
+    const stage = hasData ? 2 : 1;
+
+    return {
+      careEpisodeStartDate: sDate,
+      careEpisodeRecordedDate: rDate,
+      careEpisodeStage: stage,
+    };
+  }, [hubData?.care_episode, progressData?.baseline_date, progressData?.latest_assessment, recentActivities]);
 
   // URL-driven tab switcher: updates state and syncs URL query parameter silently
   const handleTabChange = (tabId) => {
@@ -1351,7 +1399,7 @@ function LungConnectHubContent() {
             {/* Care Episode Active Pill (B11) */}
             <div className="hidden sm:flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-xs px-2.5 py-1 rounded-[5px] border border-emerald-200 font-medium">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Episode: {hubData?.care_episode?.episode_id || (userId ? `LCE-2026-${String(userId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase()}` : "LCE-2026-ACTIVE")}</span>
+              <span>Episode: {activeCareEpisodeId}</span>
             </div>
 
             <Link
@@ -1519,7 +1567,7 @@ function LungConnectHubContent() {
                   </div>
                   <h2 className="text-base font-bold text-slate-950 mb-1">Historical Statistics & Trends</h2>
                   <p className="text-xs text-slate-800 leading-relaxed mb-4">
-                    Track recorded changes over time across validated checkpoints without clinical interpolation or missing period fabrication.
+                    Track recorded changes over time across validated checkpoints without artificial interpolation or missing period fabrication.
                   </p>
                 </div>
                 <Link
@@ -2250,7 +2298,7 @@ function LungConnectHubContent() {
             <div className="bg-blue-50/70 border border-blue-200 rounded-[5px] p-3 flex items-start gap-2.5 text-xs text-slate-900">
               <Info className="w-4 h-4 text-[#0067A1] shrink-0 mt-0.5" />
               <span>
-                <strong>Environmental Context Only:</strong> AQI and weather are public environmental measurements for awareness. They are not personal health measurements or clinical evaluations.
+                <strong>Environmental Context Only:</strong> AQI and weather are public environmental measurements for awareness. They are not personal health measurements or medical evaluations.
               </span>
             </div>
 
@@ -2798,7 +2846,7 @@ function LungConnectHubContent() {
               {/* Animated Care Episode Pulse Continuity Line (ui17.png B11-S01) */}
               <AnimatedCarePulse
                 episodeId={activeCareEpisodeId}
-                activeStage={2}
+                activeStage={careEpisodeStage}
                 startDate={careEpisodeStartDate}
                 recordedDate={careEpisodeRecordedDate}
               />
@@ -2808,7 +2856,7 @@ function LungConnectHubContent() {
                 <ul className="list-disc pl-4 space-y-1 text-[11px]">
                   <li>All your lung wellness activities and self-checks are synchronized in this Care Episode.</li>
                   <li>Helps downstream physicians review longitudinal trends if you seek consultation.</li>
-                  <li>This episode does not replace official clinical medical records or diagnostic reports.</li>
+                  <li>This episode does not replace official medical records or diagnostic reports.</li>
                 </ul>
               </div>
             </div>
@@ -2946,7 +2994,7 @@ function LungConnectHubContent() {
                 </div>
                 <h4 className="text-sm font-bold text-slate-950">Governed AI Gate</h4>
                 <div className="text-[11px] text-slate-800">
-                  Clinical AI models remain in future governance review. No autonomous diagnostic AI is active.
+                  Medical AI models remain in future governance review. No autonomous diagnostic AI is active.
                 </div>
                 <div className="text-[10px] text-slate-800 bg-slate-100 px-2 py-1 rounded-[5px] text-center font-bold">
                   FUTURE • RESERVED
@@ -3108,7 +3156,7 @@ function LungConnectHubContent() {
                   <Wind className="w-5 h-5 text-blue-300 shrink-0" />
                   <div className="min-w-0">
                     <h3 className="text-sm font-bold truncate">Guided Breathing Activity</h3>
-                    <p className="text-[11px] text-blue-200 truncate">Non-clinical wellness breathing exercise</p>
+                    <p className="text-[11px] text-blue-200 truncate">Wellness breathing exercise</p>
                   </div>
                 </div>
                 <button
@@ -3661,7 +3709,7 @@ function LungConnectHubContent() {
                   <div className="py-6 space-y-3">
                     <Clock className="w-8 h-8 text-amber-600 animate-pulse mx-auto" />
                     <h4 className="text-sm font-bold text-slate-950">In Progress</h4>
-                    <p className="text-slate-800 text-xs">Do not close this screen. Preparing secure clinical handoff bridge...</p>
+                    <p className="text-slate-800 text-xs">Do not close this screen. Preparing secure care handoff bridge...</p>
                   </div>
                 )}
 
@@ -4007,9 +4055,9 @@ function LungConnectHubContent() {
 
               <div className="p-4 sm:p-5 space-y-4 text-xs flex-1 overflow-y-auto overscroll-contain">
                 <div className="bg-slate-50 border border-slate-200 rounded-[5px] p-3">
-                  <h4 className="text-xs font-bold text-slate-950">Recorded Clinical Assessments Only</h4>
+                  <h4 className="text-xs font-bold text-slate-950">Recorded Health Assessments Only</h4>
                   <p className="text-[11px] text-slate-800 mt-0.5 leading-relaxed">
-                    MediConnect strictly records real, completed assessments. Intervals without assessment reflect truthful absence of data, never artificial curves or fabricated clinical trends.
+                    MediConnect strictly records real, completed assessments. Intervals without assessment reflect truthful absence of data, never artificial curves or fabricated health trends.
                   </p>
                 </div>
 
@@ -4050,7 +4098,7 @@ function LungConnectHubContent() {
 
                     <div className="text-[11px] text-slate-800 space-y-1">
                       <div><strong>Functional Status:</strong> Normal outdoor walking tolerance maintained</div>
-                      <div><strong>Status:</strong> Authoritative clinical assessment verified</div>
+                      <div><strong>Status:</strong> Authoritative health assessment verified</div>
                     </div>
                   </div>
 
@@ -4083,7 +4131,7 @@ function LungConnectHubContent() {
                       </div>
 
                       <div className="text-[11px] text-slate-800 space-y-1">
-                        <div><strong>Clinical Note:</strong> Initial clinical baseline established on enrolment</div>
+                        <div><strong>Health Note:</strong> Initial health baseline established on enrolment</div>
                       </div>
                     </div>
                   )}

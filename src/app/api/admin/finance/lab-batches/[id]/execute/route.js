@@ -24,7 +24,13 @@ export async function POST(req, { params }) {
     }
 
     const paymentMode = body.payment_mode || 'NEFT';
-    const proofUrl = body.proof_url || null;
+    const proofUrl = (body.proof_url || body.proofUrl || '').trim();
+    if (!proofUrl) {
+      return NextResponse.json({
+        success: false,
+        error: "Mandatory settlement proof required: Bank transfer slip / payment proof document must be uploaded.",
+      }, { status: 400 });
+    }
     const notes = body.notes || `Lab settlement payout disbursed via ${paymentMode}. UTR: ${utrNumber}`;
     const settledBy = caller?.name || caller?.email || "Admin";
 

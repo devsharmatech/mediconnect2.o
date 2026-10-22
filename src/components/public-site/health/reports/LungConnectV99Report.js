@@ -210,7 +210,7 @@ export default function LungConnectV99Report({
           ? rawSteps.map((s) => String(s))
           : (practice.description
               ? [practice.description]
-              : ["Follow clinical breathing guidelines and consult your physician."]);
+              : ["Follow structured breathing guidelines and consult your physician."]);
         return {
           title: practice.title || `Wellness Practice ${pIdx + 1}`,
           category: practice.category || "Airway Comfort",
@@ -320,10 +320,10 @@ export default function LungConnectV99Report({
                   <span style={{ fontSize: "11px", fontWeight: "700", color: "#0d3b66", letterSpacing: "0.8px", textTransform: "uppercase" }}>LUNGCONNECT</span>
                 </div>
                 <div style={{ fontSize: "15px", fontWeight: "700", color: "#0d3b66", letterSpacing: "0.3px", textTransform: "uppercase", marginTop: "1px", lineHeight: "1.2" }}>
-                  YOUR LUNGCONNECT CLINICAL HEALTH SUMMARY
+                  YOUR LUNGCONNECT HEALTH ASSESSMENT SUMMARY
                 </div>
                 <div style={{ fontSize: "10px", color: "#64748b", marginTop: "1px" }}>
-                  Authoritative respiratory screening, clinical observations, and vital capacity record.
+                  Authoritative respiratory screening, health observations, and vital capacity record.
                 </div>
               </div>
             </div>
@@ -363,18 +363,18 @@ export default function LungConnectV99Report({
                 </td>
                 <td style={{ backgroundColor: "#ffffff", padding: "5px 12px", color: "#0f2d4a" }}>
                   <span style={{ fontWeight: "700", color: isAbnormal ? "#b45309" : "#15803d" }}>
-                    {isAbnormal ? "Clinical Follow-up Recommended" : "Standard Monitoring Baseline"}
+                    {isAbnormal ? "Medical Follow-up Recommended" : "Standard Monitoring Baseline"}
                   </span>
                 </td>
               </tr>
             </tbody>
           </table>
 
-          {/* ════ SECTION 1: ASSESSMENT OBSERVATIONS & CLINICAL FINDINGS ════ */}
+          {/* ════ SECTION 1: ASSESSMENT OBSERVATIONS & HEALTH SUMMARY ════ */}
           <div style={{ border: "1px solid #cbd5e1", borderRadius: "3px", backgroundColor: "#ffffff", marginBottom: "12px", overflow: "hidden" }}>
             <div style={{ backgroundColor: "#f8fafc", padding: "6px 14px", borderBottom: "1px solid #cbd5e1", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: "11px", fontWeight: "700", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-                1. ASSESSMENT OBSERVATIONS & CLINICAL SUMMARY
+                1. ASSESSMENT OBSERVATIONS & HEALTH SUMMARY
               </span>
               <span style={{ fontSize: "9px", fontWeight: "700", color: "#007a8c", backgroundColor: "#eaf4f6", padding: "1px 6px", borderRadius: "3px" }}>
                 Recorded Telemetry
@@ -386,10 +386,10 @@ export default function LungConnectV99Report({
               {primaryAnalysisText}
             </div>
 
-            {/* Recorded Clinical Indicators Badges Strip */}
+            {/* Recorded Health Indicators Badges Strip */}
             <div style={{ padding: "8px 14px", borderBottom: "1px solid #f1f5f9", backgroundColor: "#ffffff" }}>
               <div style={{ fontSize: "9.5px", fontWeight: "700", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.3px", marginBottom: "5px" }}>
-                Recorded Clinical Indicators:
+                Recorded Health Indicators:
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
                 {clinicalIndicators.map((finding, idx) => (
@@ -444,9 +444,9 @@ export default function LungConnectV99Report({
               </div>
             </div>
 
-            {/* Clinical Guidance Warning Strip */}
+            {/* Health Advisory Warning Strip */}
             <div style={{ backgroundColor: "#fefce8", padding: "7px 14px", borderTop: "1px solid #fef08a", fontSize: "9.5px", color: "#854d0e", lineHeight: "1.4" }}>
-              <span style={{ fontWeight: "700", color: "#713f12" }}>CLINICAL GUIDANCE: </span>
+              <span style={{ fontWeight: "700", color: "#713f12" }}>HEALTH ADVISORY: </span>
               {clinicalGuidanceText}
             </div>
           </div>
@@ -538,7 +538,7 @@ export default function LungConnectV99Report({
               </span>
             </div>
             <p style={{ fontSize: "10px", color: "#334155", margin: 0, lineHeight: "1.4" }}>
-              Based on your recorded screening responses ({coughText} cough, {breathlessnessText} breathlessness, wheezing {wheezingText.toLowerCase()}, and former smoker history), consulting a <strong>{primarySpecialist}</strong> is suggested for professional clinical auscultation, formal spirometry, and personalized airway evaluation.
+              Based on your recorded screening responses ({coughText} cough, {breathlessnessText} breathlessness, wheezing {wheezingText.toLowerCase()}, and former smoker history), consulting a <strong>{primarySpecialist}</strong> is suggested for professional medical auscultation, formal spirometry, and personalized airway evaluation.
             </p>
           </div>
         </div>
@@ -549,7 +549,7 @@ export default function LungConnectV99Report({
             * AQI is shown as local air-quality context. It provides environmental reference for your recorded vitals. This report uses one authoritative result record.
           </div>
           <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "6px", marginTop: "6px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10px", color: "#94a3b8" }}>
-            <span>MediConnect.fit • LungConnect • Clinical Health Summary & Assessment Observations</span>
+            <span>MediConnect.fit • LungConnect • Health Summary & Assessment Observations</span>
             <span style={{ fontWeight: "600", color: "#64748b" }}>ISO A4 • Page 1 of 2</span>
           </div>
         </div>
@@ -585,7 +585,7 @@ export default function LungConnectV99Report({
                   <span style={{ fontSize: "11px", fontWeight: "700", color: "#0d3b66", letterSpacing: "0.8px", textTransform: "uppercase" }}>LUNGCONNECT</span>
                 </div>
                 <div style={{ fontSize: "15px", fontWeight: "700", color: "#0d3b66", letterSpacing: "0.3px", textTransform: "uppercase", marginTop: "1px", lineHeight: "1.2" }}>
-                  CLINICAL GUIDANCE & RESPIRATORY WELLNESS PRACTICES
+                  HEALTH ADVISORY & RESPIRATORY WELLNESS PRACTICES
                 </div>
                 <div style={{ fontSize: "10px", color: "#64748b", marginTop: "1px" }}>
                   Personalized airway comfort routines, action steps, and healthcare navigation.
@@ -680,7 +680,7 @@ export default function LungConnectV99Report({
           <div style={{ border: "1px solid #cbd5e1", borderRadius: "3px", backgroundColor: "#ffffff", overflow: "hidden", marginBottom: "6px" }}>
             <div style={{ backgroundColor: "#f8fafc", padding: "7px 14px", borderBottom: "1px solid #cbd5e1", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: "11px", fontWeight: "700", color: "#0d3b66", textTransform: "uppercase", letterSpacing: "0.4px" }}>
-                5. YOUR NEXT OPTIONS & CLINICAL NAVIGATION
+                5. YOUR NEXT OPTIONS & CARE NAVIGATION
               </span>
               <span style={{ fontSize: "9.5px", fontWeight: "700", color: "#007a8c" }}>
                 Suggested: {primarySpecialist}
@@ -749,7 +749,7 @@ export default function LungConnectV99Report({
 
         {/* Page 2 Footer */}
         <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "6px", marginTop: "6px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10px", color: "#94a3b8" }}>
-          <span>MediConnect.fit • LungConnect • Clinical Guidance & Wellness Practices</span>
+          <span>MediConnect.fit • LungConnect • Health Advisory & Wellness Practices</span>
           <span style={{ fontWeight: "600", color: "#64748b" }}>ISO A4 • Page 2 of 2</span>
         </div>
       </div>

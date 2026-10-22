@@ -30,6 +30,8 @@ import {
   Download,
   Settings,
   FileSpreadsheet,
+  Upload,
+  FileCheck,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -88,6 +90,7 @@ export default function LabLedgerAdminPage() {
   const [payoutMode, setPayoutMode] = useState("NEFT");
   const [payoutProofUrl, setPayoutProofUrl] = useState("");
   const [payoutNotes, setPayoutNotes] = useState("");
+  const [uploadingSingleProof, setUploadingSingleProof] = useState(false);
 
   // Bulk Settlement Modal
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
@@ -96,6 +99,7 @@ export default function LabLedgerAdminPage() {
   const [bulkProofUrl, setBulkProofUrl] = useState("");
   const [bulkNotes, setBulkNotes] = useState("");
   const [bulkExecuting, setBulkExecuting] = useState(false);
+  const [uploadingBulkProof, setUploadingBulkProof] = useState(false);
 
   // Order Itemized Audit Modal
   const [selectedOrderAudit, setSelectedOrderAudit] = useState(null);
@@ -167,12 +171,47 @@ export default function LabLedgerAdminPage() {
     }
   };
 
+  // Upload payment proof document (slip/PDF/image)
+  const handleProofUpload = async (file, isBulk = false) => {
+    if (!file) return;
+    try {
+      if (isBulk) setUploadingBulkProof(true);
+      else setUploadingSingleProof(true);
+
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload/settlement-proof", {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Failed to upload proof");
+      const url = json.url || json.publicUrl;
+      if (isBulk) {
+        setBulkProofUrl(url);
+      } else {
+        setPayoutProofUrl(url);
+      }
+      toast.success("Payment proof uploaded successfully!");
+    } catch (e) {
+      toast.error(e.message || "Failed to upload payment proof");
+    } finally {
+      if (isBulk) setUploadingBulkProof(false);
+      else setUploadingSingleProof(false);
+    }
+  };
+
   // Mark single payout as executed with mandatory proof
   const handleExecutePayout = async () => {
     if (!selectedBatchForPay) return;
     const cleanUtr = payoutUtr.trim();
     if (!cleanUtr) {
       toast.error("Please enter a valid Bank UTR / Transaction ID proof.");
+      return;
+    }
+    const cleanProof = payoutProofUrl.trim();
+    if (!cleanProof) {
+      toast.error("Mandatory proof required: Please upload the bank transfer slip / receipt.");
       return;
     }
 
@@ -185,7 +224,7 @@ export default function LabLedgerAdminPage() {
           utr_number: cleanUtr,
           payout_reference: cleanUtr,
           payment_mode: payoutMode,
-          proof_url: payoutProofUrl.trim() || null,
+          proof_url: cleanProof,
           notes: payoutNotes.trim() || `Lab payout disbursed via ${payoutMode}. UTR: ${cleanUtr}`,
         }),
       });
@@ -204,11 +243,16 @@ export default function LabLedgerAdminPage() {
     }
   };
 
-  // Bulk Settlement Execution
+  // Bulk Settlement Execution with mandatory proof
   const handleBulkSettlement = async () => {
     const cleanUtr = bulkUtr.trim();
     if (!cleanUtr) {
       toast.error("Please enter a valid Master Bank UTR / Transaction ID proof.");
+      return;
+    }
+    const cleanProof = bulkProofUrl.trim();
+    if (!cleanProof) {
+      toast.error("Mandatory proof required: Please upload the bank transfer advice / slip before bulk settlement.");
       return;
     }
 
@@ -221,7 +265,7 @@ export default function LabLedgerAdminPage() {
           module_type: "lab",
           utr_number: cleanUtr,
           payment_mode: bulkMode,
-          proof_url: bulkProofUrl.trim() || null,
+          proof_url: cleanProof,
           notes: bulkNotes.trim() || `Bulk lab disbursement via ${bulkMode}. Master UTR: ${cleanUtr}`,
         }),
       });
@@ -780,7 +824,7 @@ export default function LabLedgerAdminPage() {
                     <th className="py-2.5 px-4 text-center">Orders</th>
                     <th className="py-2.5 px-4 text-right">Gross Amount</th>
                     <th className="py-2.5 px-4 text-right">Commission</th>
-                    <th className="py-2.5 px-4 text-right">TDS (2%)</th>
+                    <th className="py-2.5 px-4 text-right">TDS (Exempt)</th>
                     <th className="py-2.5 px-4 text-right">Net Payout</th>
                     <th className="py-2.5 px-4">Status</th>
                     <th className="py-2.5 px-4">Disbursement Proof</th>
@@ -817,8 +861,8 @@ export default function LabLedgerAdminPage() {
                         <td className="py-2.5 px-4 text-right font-mono text-amber-700 font-medium tabular-nums">
                           -{formatCurrency(b.total_platform_commission)}
                         </td>
-                        <td className="py-2.5 px-4 text-right font-mono text-gray-600 dark:text-gray-300 tabular-nums">
-                          -{formatCurrency(b.total_tds)}
+                        <td className="py-2.5 px-4 text-right font-mono text-gray-400 tabular-nums">
+                          {Number(b.total_tds) > 0 ? `-${formatCurrency(b.total_tds)}` : "₹0"}
                         </td>
                         <td className="py-2.5 px-4 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
                           {formatCurrency(b.net_payout)}
@@ -1315,26 +1359,78 @@ export default function LabLedgerAdminPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">Proof URL / Slip:</label>
+                  <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">Audit Notes:</label>
                   <input
                     type="text"
-                    value={payoutProofUrl}
-                    onChange={(e) => setPayoutProofUrl(e.target.value)}
-                    placeholder="https://..."
+                    value={payoutNotes}
+                    onChange={(e) => setPayoutNotes(e.target.value)}
+                    placeholder="Approved via Finance Master"
                     className="w-full border border-gray-200 dark:border-gray-700 rounded-md p-2 bg-white dark:bg-gray-900 text-xs text-gray-800 dark:text-gray-200"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">Audit Notes:</label>
-                <input
-                  type="text"
-                  value={payoutNotes}
-                  onChange={(e) => setPayoutNotes(e.target.value)}
-                  placeholder="Approved & transferred via Finance Master"
-                  className="w-full border border-gray-200 dark:border-gray-700 rounded-md p-2 bg-white dark:bg-gray-900 text-xs text-gray-800 dark:text-gray-200"
-                />
+                <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">
+                  Payment Proof Document <span className="text-red-500">* (Mandatory)</span>:
+                </label>
+                {payoutProofUrl ? (
+                  <div className="flex items-center justify-between p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-md">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="text-xs text-emerald-800 dark:text-emerald-300 font-medium truncate">
+                        Proof Uploaded
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <a
+                        href={payoutProofUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-[#0067A1] hover:underline font-medium inline-flex items-center gap-0.5"
+                      >
+                        View <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setPayoutProofUrl("")}
+                        className="text-[11px] text-red-500 hover:text-red-700 font-medium cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className={`flex flex-col items-center justify-center p-3 border-2 border-dashed rounded-md cursor-pointer transition ${
+                      uploadingSingleProof
+                        ? "border-sky-300 bg-sky-50 dark:bg-sky-950/20"
+                        : "border-gray-300 dark:border-gray-600 hover:border-[#0067A1] bg-gray-50 dark:bg-gray-800/60"
+                    }`}>
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="hidden"
+                        disabled={uploadingSingleProof}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleProofUpload(file, false);
+                        }}
+                      />
+                      <Upload className={`w-4 h-4 mb-1 ${uploadingSingleProof ? "animate-bounce text-[#0067A1]" : "text-gray-400"}`} />
+                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
+                        {uploadingSingleProof ? "Uploading proof..." : "Upload Bank Transfer Slip (PDF or Image)"}
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={payoutProofUrl}
+                      onChange={(e) => setPayoutProofUrl(e.target.value)}
+                      placeholder="Or paste proof URL directly (https://...)"
+                      className="w-full border border-gray-200 dark:border-gray-700 rounded-md p-1.5 bg-white dark:bg-gray-900 text-xs text-gray-800 dark:text-gray-200"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1347,10 +1443,10 @@ export default function LabLedgerAdminPage() {
               </button>
               <button
                 onClick={handleExecutePayout}
-                disabled={executingId !== null || !payoutUtr.trim()}
+                disabled={executingId !== null || !payoutUtr.trim() || !payoutProofUrl.trim() || uploadingSingleProof}
                 className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-medium cursor-pointer disabled:opacity-50"
               >
-                {executingId ? "Processing..." : "Settle"}
+                {executingId ? "Processing..." : "Disburse"}
               </button>
             </div>
           </div>
@@ -1414,26 +1510,78 @@ export default function LabLedgerAdminPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">Proof URL / Slip:</label>
+                  <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">Disbursement Remarks:</label>
                   <input
                     type="text"
-                    value={bulkProofUrl}
-                    onChange={(e) => setBulkProofUrl(e.target.value)}
-                    placeholder="https://..."
+                    value={bulkNotes}
+                    onChange={(e) => setBulkNotes(e.target.value)}
+                    placeholder="Bulk lab disbursement via Finance Master"
                     className="w-full border border-gray-200 dark:border-gray-700 rounded-md p-2 bg-white dark:bg-gray-900 text-xs text-gray-800 dark:text-gray-200"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">Disbursement Remarks:</label>
-                <input
-                  type="text"
-                  value={bulkNotes}
-                  onChange={(e) => setBulkNotes(e.target.value)}
-                  placeholder="Bulk lab disbursement via Admin Finance Master"
-                  className="w-full border border-gray-200 dark:border-gray-700 rounded-md p-2 bg-white dark:bg-gray-900 text-xs text-gray-800 dark:text-gray-200"
-                />
+                <label className="block text-gray-700 dark:text-gray-300 font-medium mb-1">
+                  Master Transfer Slip / Proof Document <span className="text-red-500">* (Mandatory)</span>:
+                </label>
+                {bulkProofUrl ? (
+                  <div className="flex items-center justify-between p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-md">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="text-xs text-emerald-800 dark:text-emerald-300 font-medium truncate">
+                        Proof Uploaded
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <a
+                        href={bulkProofUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-[#0067A1] hover:underline font-medium inline-flex items-center gap-0.5"
+                      >
+                        View <ExternalLink className="w-3 h-3" />
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setBulkProofUrl("")}
+                        className="text-[11px] text-red-500 hover:text-red-700 font-medium cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className={`flex flex-col items-center justify-center p-3 border-2 border-dashed rounded-md cursor-pointer transition ${
+                      uploadingBulkProof
+                        ? "border-sky-300 bg-sky-50 dark:bg-sky-950/20"
+                        : "border-gray-300 dark:border-gray-600 hover:border-[#0067A1] bg-gray-50 dark:bg-gray-800/60"
+                    }`}>
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        className="hidden"
+                        disabled={uploadingBulkProof}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleProofUpload(file, true);
+                        }}
+                      />
+                      <Upload className={`w-4 h-4 mb-1 ${uploadingBulkProof ? "animate-bounce text-[#0067A1]" : "text-gray-400"}`} />
+                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
+                        {uploadingBulkProof ? "Uploading proof..." : "Upload Bank Transfer Slip / NEFT Advice (PDF/Image)"}
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={bulkProofUrl}
+                      onChange={(e) => setBulkProofUrl(e.target.value)}
+                      placeholder="Or paste proof URL directly (https://...)"
+                      className="w-full border border-gray-200 dark:border-gray-700 rounded-md p-1.5 bg-white dark:bg-gray-900 text-xs text-gray-800 dark:text-gray-200"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1446,7 +1594,7 @@ export default function LabLedgerAdminPage() {
               </button>
               <button
                 onClick={handleBulkSettlement}
-                disabled={bulkExecuting || !bulkUtr.trim()}
+                disabled={bulkExecuting || !bulkUtr.trim() || !bulkProofUrl.trim() || uploadingBulkProof}
                 className="px-4 py-1.5 bg-[#0067A1] hover:bg-[#005a8e] text-white rounded text-xs font-medium cursor-pointer disabled:opacity-50"
               >
                 {bulkExecuting ? "Disbursing..." : "Disburse"}
@@ -1661,8 +1809,8 @@ export default function LabLedgerAdminPage() {
                     <span className="font-mono">-{formatCurrency(voucherData.batch?.total_platform_commission)}</span>
                   </div>
                   <div className="flex justify-between text-gray-600 dark:text-gray-400 font-medium">
-                    <span>TDS Deducted (Section 194C/J 2%):</span>
-                    <span className="font-mono">-{formatCurrency(voucherData.batch?.total_tds)}</span>
+                    <span>TDS & GST Withholding:</span>
+                    <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold">{Number(voucherData.batch?.total_tds) > 0 ? `-${formatCurrency(voucherData.batch?.total_tds)}` : "Exempt (0%)"}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm font-bold text-emerald-800 dark:text-emerald-300 pt-2 border-t border-emerald-200 dark:border-emerald-800">
                     <span>Net Disbursed / Disbursable Payout:</span>

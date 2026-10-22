@@ -151,7 +151,7 @@ const Dashboard = () => {
         const list = data.data?.appointments || data.data || [];
         const now = new Date();
         const filtered = list.filter((a) => {
-          if (a.status === "rejected" || a.status === "cancelled") return false;
+          if (["rejected", "cancelled", "completed", "expired"].includes(String(a.status).toLowerCase())) return false;
           if (!a.appointment_date || !a.appointment_time) return true;
 
           const rawDateStr = typeof a.appointment_date === "string" 
@@ -164,9 +164,9 @@ const Dashboard = () => {
             : rawDateStr;
           const apptDateTime = new Date(`${datePart}T${a.appointment_time}`);
 
-          // Filter out appointments that started more than 1 hour in the past
+          // Filter out appointments that started more than 30 minutes in the past
           const diffMs = now.getTime() - apptDateTime.getTime();
-          return isNaN(diffMs) || diffMs <= 60 * 60 * 1000;
+          return isNaN(diffMs) || diffMs <= 30 * 60 * 1000;
         });
         setUpcomingAppointments(filtered.slice(0, 3));
       }

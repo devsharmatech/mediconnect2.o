@@ -26,14 +26,43 @@ export async function GET(req) {
     `;
 
     const orderRows = await sql`
-      SELECT mo.id, mo.unid, mo.status, mo.total_amount, mo.payment_method, mo.payu_status, cd.pharmacy_name
+      SELECT 
+        mo.id, 
+        mo.unid, 
+        mo.status, 
+        mo.total_amount, 
+        mo.payment_method, 
+        mo.payu_status,
+        mo.payment_qr_url,
+        mo.payment_qr_payload,
+        mo.utr_number,
+        mo.payment_declaration_by_patient,
+        cd.pharmacy_name,
+        cd.upi_id,
+        cd.payment_qr_url AS chemist_payment_qr_url,
+        cd.payment_qr_payload AS chemist_payment_qr_payload,
+        cd.address AS chemist_address,
+        cd.mobile AS chemist_mobile
       FROM medicine_orders mo
       LEFT JOIN chemist_details cd ON cd.id = mo.chemist_id
       WHERE mo.prescription_id = ${prescription_id}
       ORDER BY mo.created_at DESC
       LIMIT 1
     `;
-    const existingOrder = orderRows[0] || null;
+    let existingOrder = orderRows[0] || null;
+    if (existingOrder) {
+      const chemistUpi = existingOrder.payment_qr_payload || existingOrder.upi_id || "mediconnect@upi";
+      const pharmacyName = existingOrder.pharmacy_name || "Partner Pharmacy";
+      const finalAmount = parseFloat(existingOrder.total_amount || 0);
+      const upiLink = `upi://pay?pa=${encodeURIComponent(chemistUpi)}&pn=${encodeURIComponent(pharmacyName)}&am=${finalAmount}&cu=INR&tn=Order-${existingOrder.unid || existingOrder.id.slice(0, 8)}`;
+      const dynamicQrUrl = existingOrder.payment_qr_url || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(upiLink)}`;
+      existingOrder = {
+        ...existingOrder,
+        chemist_upi: chemistUpi,
+        dynamic_qr_url: dynamicQrUrl,
+        upi_link: upiLink,
+      };
+    }
 
     if (!broadcast) {
       return success("No broadcast found for this prescription", { broadcast: null, quotes: [], existing_order: existingOrder }, 200, {

@@ -27,6 +27,12 @@ import {
   RotateCcw,
   FlaskConical,
   CreditCard,
+  QrCode,
+  Copy,
+  Upload,
+  ExternalLink,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { loadRazorpayScript } from "@/lib/razorpay";
@@ -69,7 +75,7 @@ function SharePrescriptionModal({
   const [consentChecked, setConsentChecked] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [patientNotes, setPatientNotes] = useState("");
-  const [step, setStep] = useState(() => type === "chemist" ? "prompt" : "select"); // "prompt" | "select" | "review" | "consent" | "done" | "broadcast"
+  const [step, setStep] = useState(() => type === "chemist" ? "prompt" : "select"); // "prompt" | "select" | "review" | "consent" | "broadcast" | "payment" | "done"
   const [orderResult, setOrderResult] = useState(null);
   const [broadcastId, setBroadcastId] = useState(null);
   const [quotes, setQuotes] = useState([]);
@@ -79,6 +85,13 @@ function SharePrescriptionModal({
   }, [quotes]);
   const [timeLeft, setTimeLeft] = useState(120);
   const [visitType, setVisitType] = useState("home_collection"); // "home_collection" | "walk_in"
+
+  // In-modal UPI QR payment states
+  const [utrNumber, setUtrNumber] = useState("");
+  const [proofFile, setProofFile] = useState(null);
+  const [proofPreview, setProofPreview] = useState(null);
+  const [submittingProof, setSubmittingProof] = useState(false);
+  const [copiedUpi, setCopiedUpi] = useState(false);
 
   const patientId = userId || (typeof window !== "undefined" ? (localStorage.getItem("userId") || localStorage.getItem("user_id")) : null);
 
@@ -94,15 +107,34 @@ function SharePrescriptionModal({
         if (isMounted && data?.success) {
           if (data.data?.existing_order) {
             const o = data.data.existing_order;
+            const isPaid = o.payu_status === "success" || o.status === "confirmed";
+            const isSubmitted = o.status === "payment_submitted" || o.payment_declaration_by_patient || Boolean(o.utr_number);
+            const chemistUpi = o.chemist_upi || o.payment_qr_payload || o.upi_id || "mediconnect@upi";
+            const pharmacyName = o.pharmacy_name || "Partner Pharmacy";
+            const amt = o.total_amount || 0;
+            const upiLink = o.upi_link || `upi://pay?pa=${encodeURIComponent(chemistUpi)}&pn=${encodeURIComponent(pharmacyName)}&am=${amt}&cu=INR&tn=Order-${o.unid || (o.id ? o.id.slice(0, 8) : "")}`;
+            const qrUrl = o.dynamic_qr_url || o.payment_qr_url || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(upiLink)}`;
+
             setOrderResult({
               unid: o.unid || (o.id ? `ORD-${o.id.slice(0, 8).toUpperCase()}` : ""),
               id: o.id,
-              amount: o.total_amount,
-              pharmacy_name: o.pharmacy_name,
-              paid: o.payu_status === "success" || o.status === "confirmed",
+              order_id: o.id,
+              amount: amt,
+              pharmacy_name: pharmacyName,
+              paid: isPaid,
+              payment_submitted: isSubmitted,
+              utr_number: o.utr_number,
+              chemist_upi: chemistUpi,
+              dynamic_qr_url: qrUrl,
+              upi_link: upiLink,
               type: "medicine",
+              status: o.status,
             });
-            setStep("done");
+            if (isPaid || isSubmitted) {
+              setStep("done");
+            } else {
+              setStep("payment");
+            }
             return;
           }
           if (data?.data?.broadcast) {
@@ -128,7 +160,7 @@ function SharePrescriptionModal({
 
   const isChemist = type === "chemist";
   const title = isChemist ? "Order Medicines" : "Order Lab Tests";
-  const stepLabels = isChemist ? ["Prompt", "Review", "Broadcast"] : ["Select", "Review", "Consent"];
+  const stepLabels = isChemist ? ["Review", "Quotes", "Payment"] : ["Select", "Review", "Consent"];
 
   const origCleanNames = useMemo(() => {
     return labTests.map((t) => {
@@ -341,26 +373,35 @@ function SharePrescriptionModal({
         return;
       }
 
-      const { order, payu, razorpay_order_id, razorpay_key, amount, pharmacy_name } = data.data || {};
+      const { order, amount, pharmacy_name, chemist_upi, dynamic_qr_url, upi_link } = data.data || {};
+      const finalChemistUpi = chemist_upi || order?.payment_qr_payload || "mediconnect@upi";
+      const finalPharmacyName = pharmacy_name || order?.pharmacy_name || "Partner Pharmacy";
+      const finalAmt = amount || order?.total_amount || 0;
+      const finalUpiLink = upi_link || `upi://pay?pa=${encodeURIComponent(finalChemistUpi)}&pn=${encodeURIComponent(finalPharmacyName)}&am=${finalAmt}&cu=INR&tn=Order-${order?.unid || (order?.id ? order.id.slice(0, 8) : "")}`;
+      const finalQrUrl = dynamic_qr_url || order?.payment_qr_url || `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=${encodeURIComponent(finalUpiLink)}`;
 
-      // Launch PayU online payment gateway if payu payload is provided
-      if (payu && payu.payment_params && payu.payment_params.hash) {
-        setPendingPayUData(payu);
-        setOrderResult({
-          unid: order?.unid || (order?.id ? `ORD-${order.id.slice(0, 8).toUpperCase()}` : ""),
-          id: order?.id,
-          amount: amount || order?.total_amount,
-          pharmacy_name: pharmacy_name,
-          paid: false,
-          type: "medicine",
-        });
-        setStep("done");
-        toast.success("Redirecting to PayU secure payment gateway…");
-        setTimeout(() => {
-          submitPayUForm(payu);
-        }, 120);
-        return;
-      }
+      setOrderResult({
+        unid: order?.unid || (order?.id ? `ORD-${order.id.slice(0, 8).toUpperCase()}` : ""),
+        id: order?.id,
+        order_id: order?.id,
+        amount: finalAmt,
+        pharmacy_name: finalPharmacyName,
+        chemist_upi: finalChemistUpi,
+        dynamic_qr_url: finalQrUrl,
+        upi_link: finalUpiLink,
+        paid: false,
+        payment_submitted: false,
+        status: "payment_pending",
+        type: "medicine",
+      });
+
+      setUtrNumber("");
+      setProofFile(null);
+      setProofPreview(null);
+      setStep("payment");
+      toast.success(`Quote selected from ${finalPharmacyName}! Complete payment via QR below.`);
+      setSharing(false);
+      return;
 
       // Launch Razorpay online payment gateway if order was created with Razorpay
       if (razorpay_order_id && razorpay_key) {
@@ -484,6 +525,78 @@ function SharePrescriptionModal({
     } finally {
       setSharing(false);
       toast.dismiss(tid);
+    }
+  };
+
+  const handleCopyUpi = (upiId) => {
+    if (!upiId) return;
+    try {
+      navigator.clipboard.writeText(upiId);
+      setCopiedUpi(true);
+      toast.success("Chemist UPI ID copied!");
+      setTimeout(() => setCopiedUpi(false), 2500);
+    } catch (e) {
+      toast.error("Could not copy to clipboard");
+    }
+  };
+
+  const handleSubmitPaymentProof = async () => {
+    const targetOrderId = orderResult?.order_id || orderResult?.id;
+    if (!targetOrderId) {
+      toast.error("Order ID not found");
+      return;
+    }
+
+    const cleanUtr = utrNumber.trim();
+    if (!cleanUtr) {
+      toast.error("Please enter the 12-digit UTR / UPI Reference Number");
+      return;
+    }
+
+    if (cleanUtr.length < 6) {
+      toast.error("UTR number must be at least 6-12 characters");
+      return;
+    }
+
+    setSubmittingProof(true);
+    const tid = toast.loading("Submitting payment verification details...");
+    try {
+      const fd = new FormData();
+      fd.append("order_id", targetOrderId);
+      if (proofFile) {
+        fd.append("payment_proof", proofFile);
+      }
+      fd.append("utr_number", cleanUtr);
+
+      const res = await fetch("/api/patients/orders/medicine/upload-payment-proof", {
+        method: "POST",
+        body: fd,
+      });
+
+      const data = await res.json();
+      toast.dismiss(tid);
+
+      if (data?.success) {
+        toast.success("Payment details submitted! Chemist has been alerted to verify and start packing.", { duration: 5000 });
+        setOrderResult((prev) => ({
+          ...prev,
+          status: "payment_submitted",
+          utr_number: cleanUtr,
+          payment_submitted: true,
+          paid: false,
+        }));
+        if (typeof onOrdersUpdated === "function") {
+          await onOrdersUpdated(prescriptionId);
+        }
+        setStep("done");
+      } else {
+        toast.error(data?.message || "Failed to submit payment details");
+      }
+    } catch (err) {
+      toast.dismiss(tid);
+      toast.error("Network error while submitting payment verification");
+    } finally {
+      setSubmittingProof(false);
     }
   };
 
@@ -729,9 +842,8 @@ function SharePrescriptionModal({
 
   const calculatedTotal = useMemo(() => {
     if (isChemist) return 0;
-    const fee = (!isChemist && testsTotal > 0 && visitType === "home_collection") ? 150 : 0;
-    return testsTotal + fee;
-  }, [isChemist, testsTotal, visitType]);
+    return testsTotal;
+  }, [isChemist, testsTotal]);
 
   const hasOnRequestTests = (() => {
     if (isChemist || loadingCatalog) return false;
@@ -1049,7 +1161,9 @@ function SharePrescriptionModal({
     return parts.join(" • ");
   };
 
-  const currentStepIndex = step === "select" || step === "prompt" ? 0 : step === "review" ? 1 : 2;
+  const currentStepIndex = isChemist
+    ? (step === "prompt" || step === "review" ? 0 : step === "broadcast" ? 1 : 2)
+    : (step === "select" || step === "prompt" ? 0 : step === "review" ? 1 : 2);
 
   return (
     <div className="fixed inset-0 z-[10000] flex sm:items-center sm:justify-center p-0 sm:p-4 md:p-6 bg-black/60 backdrop-blur-xs overflow-hidden">
@@ -1064,15 +1178,17 @@ function SharePrescriptionModal({
         className="relative bg-white w-full h-[100dvh] sm:h-[88vh] sm:max-h-[760px] sm:max-w-2xl lg:max-w-3xl sm:rounded-2xl shadow-2xl border-0 sm:border sm:border-slate-200/80 flex flex-col overflow-hidden z-10"
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#005B8E] via-[#0067A1] to-[#007EA7] text-white shrink-0 shadow-sm sm:rounded-t-2xl">
+        <div className="bg-[#0067A1] text-white shrink-0 shadow-sm sm:rounded-t-2xl">
           <div className="flex items-center justify-between px-4 sm:px-6 py-3.5">
           <div className="flex items-center gap-2.5 min-w-0">
             <button
               type="button"
               onClick={() => {
                 if (isChemist) {
-                  if (step === "consent") setStep("review");
-                  else if (step === "broadcast") setStep("consent");
+                  if (step === "payment") setStep("broadcast");
+                  else if (step === "broadcast") setStep("review");
+                  else if (step === "consent") setStep("review");
+                  else if (step === "review") setStep("prompt");
                   else onClose();
                 } else {
                   if (step === "review") setStep("select");
@@ -1148,7 +1264,7 @@ function SharePrescriptionModal({
       <div className="flex-1 overflow-y-auto">
         {step === "prompt" ? (
           <div className="flex flex-col items-center justify-center p-6 sm:p-8 space-y-6 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0067A1]/10 to-teal-50 border border-teal-100 flex items-center justify-center text-[#0067A1] shadow-xs">
+            <div className="w-16 h-16 rounded-2xl bg-sky-50 border border-sky-100 flex items-center justify-center text-[#0067A1] shadow-xs">
               <Pill className="w-8 h-8 -rotate-45" />
             </div>
 
@@ -1186,14 +1302,231 @@ function SharePrescriptionModal({
                 onClick={() => setStep("review")}
                 className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-xl text-sm font-bold transition-all shadow-md flex items-center justify-center gap-2"
               >
-                <span>Yes, Find Pharmacies</span>
+                <span>Find Pharmacies</span>
               </button>
               <button
                 type="button"
                 onClick={onClose}
                 className="w-full py-2.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-semibold transition-colors"
               >
-                No, I'll Arrange Medicines Myself
+                Skip
+              </button>
+            </div>
+          </div>
+        ) : step === "payment" ? (
+          <div className="p-4 sm:p-6 max-w-2xl mx-auto w-full space-y-4 overflow-y-auto">
+            {/* Header banner */}
+            <div className="bg-[#0067A1] p-3.5 sm:p-4 rounded-2xl text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0 border border-white/25">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h4 className="font-bold text-sm sm:text-base truncate">
+                      {orderResult?.pharmacy_name || "Partner Pharmacy"}
+                    </h4>
+                    <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-medium">Verified Chemist</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-100 mt-0.5 truncate">
+                    Pay directly to chemist via UPI QR Code
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-left sm:text-right bg-white/10 sm:bg-transparent p-2 sm:p-0 rounded-xl border border-white/10 sm:border-0 shrink-0">
+                <span className="text-[10px] uppercase font-bold text-emerald-100 tracking-wider block">Payable Amount</span>
+                <span className="text-xl sm:text-2xl font-black text-white">₹{orderResult?.amount || 0}</span>
+              </div>
+            </div>
+
+            {/* QR Code and Payment Details */}
+            <div className="p-4 sm:p-5 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                {/* QR Code Container */}
+                <div className="md:col-span-5 flex flex-col items-center justify-center p-3.5 bg-white rounded-2xl border-2 border-emerald-200 text-center shadow-xs">
+                  <div className="relative p-2 bg-white rounded-xl border border-slate-200">
+                    <img
+                      src={orderResult?.dynamic_qr_url || `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=${encodeURIComponent(orderResult?.upi_link || "")}`}
+                      alt="Chemist UPI QR Code"
+                      className="w-40 h-40 object-contain rounded-lg"
+                    />
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Amount ₹{orderResult?.amount || 0} Pre-filled</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 mt-1">
+                    Scan with GPay, PhonePe, Paytm, BHIM
+                  </span>
+                </div>
+
+                {/* Chemist UPI ID & 1-Tap Links */}
+                <div className="md:col-span-7 space-y-3">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      Chemist UPI ID
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-mono font-bold text-slate-800 truncate shadow-2xs">
+                        {orderResult?.chemist_upi || "mediconnect@upi"}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyUpi(orderResult?.chemist_upi || "mediconnect@upi")}
+                        className="px-3 py-2 bg-[#0067A1] text-white rounded-xl text-xs font-semibold hover:bg-[#004F7C] transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer shadow-xs"
+                      >
+                        {copiedUpi ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copy UPI</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Quick 1-Tap App Links (on Mobile) */}
+                  {orderResult?.upi_link && (
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                        1-Tap Pay via App (Mobile)
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <a
+                          href={orderResult.upi_link}
+                          className="py-2 px-3 text-center bg-white border border-slate-200 hover:border-emerald-600 hover:text-emerald-700 text-slate-700 font-semibold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                        >
+                          <span>Google Pay</span>
+                          <ExternalLink className="w-3 h-3 text-slate-400" />
+                        </a>
+                        <a
+                          href={orderResult.upi_link}
+                          className="py-2 px-3 text-center bg-white border border-slate-200 hover:border-emerald-600 hover:text-emerald-700 text-slate-700 font-semibold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                        >
+                          <span>PhonePe / Paytm</span>
+                          <ExternalLink className="w-3 h-3 text-slate-400" />
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="p-2.5 rounded-xl bg-sky-50/80 border border-sky-100 text-[11px] text-sky-800 flex items-start gap-2">
+                    <Info className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
+                    <span>
+                      Pay directly to pharmacy. Once paid, please enter your 12-digit UTR number below so the chemist can immediately verify and start packing.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* UTR Submission Form */}
+              <div className="pt-3 border-t border-slate-200/80 space-y-3">
+                <div>
+                  <h5 className="font-bold text-slate-800 text-xs sm:text-sm">Submit UTR for Chemist Verification</h5>
+                  <p className="text-[11px] text-slate-500">
+                    Enter the 12-digit UTR/Reference number from your UPI payment app.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                      12-Digit UTR / Ref Number <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={22}
+                      value={utrNumber}
+                      onChange={(e) => setUtrNumber(e.target.value.replace(/[^a-zA-Z0-9]/g, ""))}
+                      placeholder="e.g. 427819203847"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                      Receipt Screenshot <span className="text-slate-400 font-normal">(Optional)</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-dashed border-slate-300 hover:border-emerald-600 bg-white text-slate-700 text-xs font-semibold cursor-pointer transition-colors truncate">
+                        <Upload className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{proofFile ? proofFile.name : "Choose File"}</span>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setProofFile(file);
+                              setProofPreview(URL.createObjectURL(file));
+                            }
+                          }}
+                        />
+                      </label>
+                      {proofFile && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProofFile(null);
+                            setProofPreview(null);
+                          }}
+                          className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Remove file"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Screenshot preview if available */}
+                {proofPreview && (
+                  <div className="p-2 bg-white rounded-xl border border-slate-200 inline-flex items-center gap-2">
+                    <img src={proofPreview} alt="Proof preview" className="w-12 h-12 object-cover rounded-lg" />
+                    <span className="text-xs text-slate-600 font-medium">Screenshot attached</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex items-center gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setStep("broadcast")}
+                className="px-4 py-2.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-medium transition-colors cursor-pointer"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                disabled={submittingProof || !utrNumber.trim()}
+                onClick={handleSubmitPaymentProof}
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 ${
+                  !submittingProof && utrNumber.trim()
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                    : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                }`}
+              >
+                {submittingProof ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Submitting</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>Submit Payment</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -1204,12 +1537,12 @@ function SharePrescriptionModal({
               animate={{ scale: 1 }}
               transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.1 }}
               className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg ${
-                orderResult?.paid
-                  ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-200"
-                  : "bg-gradient-to-br from-[#0067A1] to-[#004F7C] text-white shadow-sky-200"
+                orderResult?.paid || orderResult?.payment_submitted
+                  ? "bg-emerald-600 text-white shadow-emerald-200"
+                  : "bg-[#0067A1] text-white shadow-sky-200"
               }`}
             >
-              {orderResult?.paid ? (
+              {orderResult?.paid || orderResult?.payment_submitted ? (
                 <Check className="w-8 h-8 stroke-[3]" />
               ) : (
                 <ShieldCheck className="w-8 h-8" />
@@ -1217,20 +1550,28 @@ function SharePrescriptionModal({
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="space-y-1.5">
               <h4 className="text-lg sm:text-xl font-bold text-slate-900">
-                {orderResult?.paid ? "Payment Confirmed & Verified! 🎉" : "Order Placed Successfully"}
+                {orderResult?.paid
+                  ? "Payment Confirmed & Verified! 🎉"
+                  : orderResult?.payment_submitted
+                  ? "Payment Submitted & Order Placed! 🎉"
+                  : isChemist
+                  ? "Chemist Selected • Awaiting Payment"
+                  : "Order Placed Successfully"}
               </h4>
               <p className="text-xs text-slate-600 leading-relaxed max-w-sm mx-auto">
                 {orderResult?.paid
                   ? `Payment of ₹${orderResult.amount || ""} was securely received and audited. ${orderResult.pharmacy_name || "The pharmacy"} has been notified to pack and dispatch your medicines immediately.`
+                  : orderResult?.payment_submitted
+                  ? `Your order has been recorded and UTR (${orderResult.utr_number || "Submitted"}) shared with ${orderResult.pharmacy_name || "the chemist"}. They will verify and immediately begin packing.`
                   : isChemist
-                  ? "Your medicine order has been locked. You can complete payment or track fulfillment status anytime."
+                  ? `Please complete your UPI QR payment so ${orderResult.pharmacy_name || "the pharmacy"} can verify and dispatch your medicines.`
                   : `Your lab test order has been sent to ${getName(selected)}. They will contact you for sample collection.`}
               </p>
 
               {orderResult?.unid && (
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-mono text-xs font-bold mt-2">
                   <span>Order #{orderResult.unid}</span>
-                  {orderResult?.paid && (
+                  {(orderResult?.paid || orderResult?.payment_submitted) && (
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                   )}
                 </div>
@@ -1243,40 +1584,29 @@ function SharePrescriptionModal({
               transition={{ delay: 0.3 }}
               className="w-full flex flex-col sm:flex-row items-center gap-2 pt-3"
             >
-              {isChemist && !orderResult?.paid && (
+              {isChemist && !orderResult?.paid && !orderResult?.payment_submitted && (
                 <button
                   type="button"
-                  disabled={payingPayU}
-                  onClick={() => {
-                    if (pendingPayUData) {
-                      submitPayUForm(pendingPayUData);
-                    } else {
-                      handlePayWithPayUDirect(orderResult);
-                    }
-                  }}
+                  onClick={() => setStep("payment")}
                   className="w-full sm:flex-1 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <CreditCard className="w-3.5 h-3.5" />
-                  <span>{payingPayU ? "Opening PayU..." : `Pay ₹${orderResult?.amount || "150"} via PayU`}</span>
+                  <QrCode className="w-3.5 h-3.5" />
+                  <span>Pay ₹{orderResult?.amount || 0} via QR</span>
                 </button>
               )}
-              {isChemist && (
+              {isChemist && orderResult?.payment_submitted && !orderResult?.paid && (
                 <button
                   type="button"
-                  onClick={() => {
-                    onClose();
-                    window.location.href = `/website/medicine-order?prescription_id=${prescriptionId}`;
-                  }}
-                  className="w-full sm:w-auto py-2.5 px-3 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-medium transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+                  onClick={() => setStep("payment")}
+                  className="w-full sm:w-auto py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  <Truck className="w-3.5 h-3.5" />
-                  <span>Track Order</span>
+                  <span>Edit UTR</span>
                 </button>
               )}
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full sm:w-auto py-2.5 px-4 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                className="w-full sm:flex-1 py-2.5 px-4 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-medium transition-colors cursor-pointer shadow-xs"
               >
                 Done
               </button>
@@ -1285,8 +1615,7 @@ function SharePrescriptionModal({
         ) : step === "broadcast" ? (
           <div className="p-5 space-y-6">
             {/* Header: Animated Medicine Radar Scanner & Timer */}
-            <div className="flex flex-col items-center justify-center p-6 sm:p-7 bg-gradient-to-b from-sky-50/60 via-slate-50/50 to-white border border-sky-100/80 rounded-2xl sm:rounded-3xl relative overflow-hidden shadow-xs">
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#0067A1]/10 via-transparent to-transparent pointer-events-none" />
+            <div className="flex flex-col items-center justify-center p-6 sm:p-7 bg-sky-50/50 border border-sky-100 rounded-2xl sm:rounded-3xl relative overflow-hidden shadow-xs">
               
               {/* Animated Medicine & Pharmacy Radar */}
               <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center mb-4">
@@ -1331,7 +1660,7 @@ function SharePrescriptionModal({
 
                 {/* Central Hub: Glowing Medicine Pill with gentle pulse & tilt */}
                 <motion.div
-                  className="relative w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#005B8E] via-[#0067A1] to-[#00A896] flex items-center justify-center text-white shadow-lg shadow-sky-900/20 z-10"
+                  className="relative w-14 h-14 rounded-2xl bg-[#0067A1] flex items-center justify-center text-white shadow-lg shadow-sky-900/20 z-10"
                   animate={{ rotate: [-6, 6, -6], scale: [1, 1.05, 1] }}
                   transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
                 >
@@ -1440,7 +1769,7 @@ function SharePrescriptionModal({
                     </button>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-10 px-4 border-2 border-dashed border-sky-100 rounded-2xl bg-gradient-to-b from-sky-50/30 to-slate-50/40 text-center">
+                  <div className="flex flex-col items-center justify-center py-10 px-4 border-2 border-dashed border-sky-100 rounded-2xl bg-slate-50 text-center">
                     <div className="relative mb-3 flex items-center justify-center">
                       <div className="w-12 h-12 rounded-2xl bg-[#0067A1]/10 flex items-center justify-center text-[#0067A1]">
                         <Store className="w-6 h-6 animate-pulse" />
@@ -1466,7 +1795,7 @@ function SharePrescriptionModal({
                   {quotes.map((q) => (
                     <div key={q.id} className="p-4 border-2 border-slate-100 rounded-2xl bg-white hover:border-[#0067A1]/30 transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
                       <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-md shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-md shrink-0">
                           <Store className="w-5 h-5 text-white" />
                         </div>
                         <div>
@@ -1535,7 +1864,7 @@ function SharePrescriptionModal({
                   {/* Scrollable Content Body */}
                   <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5">
                     {/* Selected Offer Breakdown Card */}
-                    <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-blue-50/30 border border-slate-200/80 space-y-3">
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <h5 className="text-sm font-bold text-slate-900 truncate">
@@ -1638,10 +1967,10 @@ function SharePrescriptionModal({
         ) : step === "consent" ? (
           <div className="p-4 sm:p-6 space-y-4 max-w-2xl mx-auto w-full">
             {/* Order summary card */}
-            <div className="bg-gradient-to-br from-[#0067A1]/5 via-white to-slate-50 rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs">
+            <div className="bg-slate-50 rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-xs">
               {isChemist ? (
                 <div className="flex items-center gap-3.5 mb-3.5">
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
                     <Radio className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -1651,7 +1980,7 @@ function SharePrescriptionModal({
                 </div>
               ) : (
                 <div className="flex items-center gap-3.5 mb-3.5">
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0067A1] to-[#005282] text-white flex items-center justify-center shadow-xs shrink-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[#0067A1] text-white flex items-center justify-center shadow-xs shrink-0">
                     <FlaskConical className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -1683,7 +2012,7 @@ function SharePrescriptionModal({
                   <div className="flex items-center justify-between text-slate-600">
                     <span>Collection Method:</span>
                     <span className="font-semibold text-slate-900">
-                      {visitType === "home_collection" ? "Home Collection (+₹150)" : "Walk-in Lab Visit (FREE)"}
+                      {visitType === "home_collection" ? "Home Collection (FREE)" : "Walk-in Lab Visit (FREE)"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between font-bold text-sm text-[#0067A1] pt-2 border-t border-slate-100">
@@ -1778,7 +2107,7 @@ function SharePrescriptionModal({
                 type="button"
                 onClick={handleOrder}
                 disabled={sharing}
-                className="w-full py-3.5 px-6 rounded-2xl text-sm font-bold text-white bg-gradient-to-r from-[#0067A1] via-[#0074b7] to-[#0080C6] hover:brightness-105 active:scale-[0.99] transition-all shadow-md hover:shadow-lg shadow-[#0067A1]/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full py-3.5 px-6 rounded-2xl text-sm font-bold text-white bg-[#0067A1] hover:bg-[#004F7C] active:scale-[0.99] transition-all shadow-md hover:shadow-lg shadow-[#0067A1]/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {sharing ? (
                   <span className="flex items-center justify-center gap-2">
@@ -1798,8 +2127,8 @@ function SharePrescriptionModal({
           <div className="p-4 sm:p-6 space-y-4 max-w-2xl mx-auto w-full">
             {/* Selected provider */}
             {isChemist ? (
-              <div className="flex items-center gap-3.5 p-3.5 sm:p-4 bg-gradient-to-r from-amber-50/70 to-orange-50/50 rounded-2xl border border-amber-200/90 shadow-xs">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <div className="flex items-center gap-3.5 p-3.5 sm:p-4 bg-amber-50 rounded-2xl border border-amber-200/90 shadow-xs">
+                <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
                   <Radio className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1812,7 +2141,7 @@ function SharePrescriptionModal({
                 {/* Lab Card */}
                 <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:border-[#0067A1]/40 transition-all">
                   <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0067A1] to-[#005282] text-white flex items-center justify-center shadow-xs shrink-0">
+                    <div className="w-11 h-11 rounded-2xl bg-[#0067A1] text-white flex items-center justify-center shadow-xs shrink-0">
                       <FlaskConical className="w-5 h-5 text-white" />
                     </div>
                     <div className="min-w-0">
@@ -1866,8 +2195,8 @@ function SharePrescriptionModal({
                       <div className="flex-1 min-w-0 pr-5">
                         <p className="text-xs font-bold text-slate-900">Home Collection</p>
                         <p className="text-[11px] text-slate-500 mt-0.5">Sample collected at home</p>
-                        <span className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-50 text-amber-700 border border-amber-200">
-                          + ₹150
+                        <span className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          FREE
                         </span>
                       </div>
                       <div className={`absolute top-3.5 right-3.5 w-4 h-4 rounded-full border flex items-center justify-center ${
@@ -1943,7 +2272,7 @@ function SharePrescriptionModal({
                       className="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-white border border-slate-200/90 shadow-xs hover:border-[#0067A1]/30 transition-all"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#0067A1]/10 to-[#0067A1]/20 text-[#0067A1] flex items-center justify-center text-xs font-bold shrink-0">
+                        <div className="w-8 h-8 rounded-xl bg-sky-100 text-[#0067A1] flex items-center justify-center text-xs font-bold shrink-0">
                           {i + 1}
                         </div>
                         <div className="min-w-0">
@@ -2123,9 +2452,9 @@ function SharePrescriptionModal({
                   }
                   setStep("consent");
                 }}
-                className="w-full py-3.5 px-6 rounded-2xl text-sm font-bold text-white bg-gradient-to-r from-[#0067A1] via-[#0074b7] to-[#0080C6] hover:brightness-105 active:scale-[0.99] transition-all shadow-md hover:shadow-lg shadow-[#0067A1]/20 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3.5 px-6 rounded-2xl text-sm font-bold text-white bg-[#0067A1] hover:bg-[#004F7C] active:scale-[0.99] transition-all shadow-md hover:shadow-lg shadow-[#0067A1]/20 flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>Continue to Consent</span>
+                <span>Continue</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -2171,7 +2500,7 @@ function SharePrescriptionModal({
                     className="w-full text-left p-3.5 sm:p-4 rounded-2xl border border-slate-200 hover:border-[#0067A1] hover:bg-[#0067A1]/5 transition-all group flex items-center justify-between gap-3 cursor-pointer shadow-xs"
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#0067A1]/10 to-[#0067A1]/20 text-[#0067A1] flex items-center justify-center group-hover:bg-[#0067A1] group-hover:text-white transition-all shrink-0">
+                      <div className="w-11 h-11 rounded-2xl bg-sky-100 text-[#0067A1] flex items-center justify-center group-hover:bg-[#0067A1] group-hover:text-white transition-all shrink-0">
                         {isChemist ? <Building2 className="w-5 h-5" /> : <FlaskConical className="w-5 h-5" />}
                       </div>
                       <div className="min-w-0">

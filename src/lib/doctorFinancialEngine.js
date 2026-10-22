@@ -398,6 +398,22 @@ export async function postAppointmentCompletionLedger(appointment_id) {
       )
       ON CONFLICT (idempotency_key) DO NOTHING;
     `;
+
+    await sql`
+      INSERT INTO doctor_financial_ledger (
+        booking_id, doctor_id, entry_type, account_code, debit, credit, description, idempotency_key
+      ) VALUES (
+        ${appointment_id},
+        ${doctorId},
+        'platform_commission_income',
+        'PLATFORM_REVENUE',
+        0.00,
+        ${comm},
+        ${`Platform commission revenue (${snapshot.commission_rate}%)`},
+        ${`appt_${appointment_id}_platform_rev`}
+      )
+      ON CONFLICT (idempotency_key) DO NOTHING;
+    `;
   }
 
   // 3. Post GST on platform commission to separate GST_LIABILITY account
@@ -414,6 +430,41 @@ export async function postAppointmentCompletionLedger(appointment_id) {
         ${gst},
         ${`GST (${snapshot.commission_gst_rate}%) on platform fee`},
         ${`appt_${appointment_id}_gst`}
+      )
+      ON CONFLICT (idempotency_key) DO NOTHING;
+    `;
+  }
+
+  // 4. Post TDS Withholding (Section 194J - 10%)
+  if (tds > 0) {
+    await sql`
+      INSERT INTO doctor_financial_ledger (
+        booking_id, doctor_id, entry_type, account_code, debit, credit, description, idempotency_key
+      ) VALUES (
+        ${appointment_id},
+        ${doctorId},
+        'tds_withholding',
+        'DOCTOR_PAYABLE',
+        ${tds},
+        0.00,
+        ${`TDS withholding (10% u/s 194J) on consultation`},
+        ${`appt_${appointment_id}_tds_deduction`}
+      )
+      ON CONFLICT (idempotency_key) DO NOTHING;
+    `;
+
+    await sql`
+      INSERT INTO doctor_financial_ledger (
+        booking_id, doctor_id, entry_type, account_code, debit, credit, description, idempotency_key
+      ) VALUES (
+        ${appointment_id},
+        ${doctorId},
+        'tds_liability',
+        'TDS_PAYABLE_194J',
+        0.00,
+        ${tds},
+        ${`TDS liability (10% u/s 194J) for booking #${String(appointment_id).slice(0, 8)}`},
+        ${`appt_${appointment_id}_tds_liability`}
       )
       ON CONFLICT (idempotency_key) DO NOTHING;
     `;
@@ -501,7 +552,7 @@ export async function generate10DayPayoutBatches({ periodBounds = null, doctorId
         FROM appointments
         WHERE doctor_id = ${doctorId}
           AND (status = 'completed' OR payment_status = 'paid')
-          AND settlement_status IN ('unsettled', 'queued')
+          AND (settlement_status IS NULL OR settlement_status IN ('unsettled', 'queued'))
           AND (
             (completed_at IS NOT NULL AND completed_at::date >= ${periodStart}::date AND completed_at::date <= ${periodEnd}::date)
             OR
@@ -512,7 +563,7 @@ export async function generate10DayPayoutBatches({ periodBounds = null, doctorId
         SELECT *
         FROM appointments
         WHERE (status = 'completed' OR payment_status = 'paid')
-          AND settlement_status IN ('unsettled', 'queued')
+          AND (settlement_status IS NULL OR settlement_status IN ('unsettled', 'queued'))
           AND (
             (completed_at IS NOT NULL AND completed_at::date >= ${periodStart}::date AND completed_at::date <= ${periodEnd}::date)
             OR
@@ -554,10 +605,15 @@ export async function generate10DayPayoutBatches({ periodBounds = null, doctorId
       }
       if (!snap) {
         const fee = Number(a.final_fee || a.original_fee || 0);
+        const comm = fee * 0.18;
+        const gst = comm * 0.18;
+        const tds = (fee - comm) * 0.10;
+        const net = (fee - comm) - tds;
         grossFees += fee;
-        totalComm += fee * 0.18;
-        totalTds += (fee * 0.82) * 0.10;
-        netPayout += (fee * 0.82) * 0.90;
+        totalComm += comm;
+        totalGst += gst;
+        totalTds += tds;
+        netPayout += net;
       } else {
         grossFees += Number(snap.professional_fee || 0);
         totalComm += Number(snap.commission_amount || 0);

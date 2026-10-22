@@ -14,9 +14,21 @@ export default function AnimatedCarePulse({
   recordedDate = "Active Monitoring",
   className = "",
 }) {
+  // Invariant guard: ensure Stage 0 date is never chronologically after Stage 1 date
+  let effectiveStartDate = startDate;
+  let effectiveRecordedDate = recordedDate;
+
+  if (startDate && recordedDate && startDate !== "--" && recordedDate !== "--") {
+    const tStart = new Date(startDate).getTime();
+    const tRec = new Date(recordedDate).getTime();
+    if (!isNaN(tStart) && !isNaN(tRec) && tStart > tRec) {
+      effectiveStartDate = recordedDate;
+    }
+  }
+
   const stages = [
-    { title: "Episode Started", date: startDate, desc: "Episode created" },
-    { title: "Data Recorded", date: recordedDate, desc: "Activities synchronized" },
+    { title: "Episode Started", date: effectiveStartDate, desc: "Episode created" },
+    { title: "Data Recorded", date: effectiveRecordedDate, desc: "Activities synchronized" },
     { title: "Care In Progress", date: "Ongoing", desc: "Longitudinal monitoring" },
     { title: "Episode Resolved", date: "--", desc: "Formal resolution" },
   ];

@@ -389,14 +389,14 @@ export default function LungHealthStatisticsPage() {
       setSelectedAssessmentForPrint(raw);
       setSelectedLungFormat(format);
       setIsDownloading(true);
-      toast.loading(`Preparing ${format === "lung-full" ? "Full Clinical" : "Health Summary"} PDF...`, { id: "stats-pdf" });
+      toast.loading(`Preparing ${format === "lung-full" ? "Full Health Assessment" : "Health Summary"} PDF...`, { id: "stats-pdf" });
 
       await new Promise((resolve) => setTimeout(resolve, 350));
 
       if (!reportRef.current) throw new Error("Report element not found");
 
       const serial = record.serialNo || record.id || "LCN_REPORT";
-      const reportType = format === "lung-full" ? "Full_Clinical_Assessment" : "Health_Summary";
+      const reportType = format === "lung-full" ? "Full_Health_Assessment" : "Health_Summary";
       const cleanSerial = String(serial).replace(/[^a-zA-Z0-9]/g, "_");
       const filename = `MediConnect_LungConnect_${reportType}_${cleanSerial}.pdf`;
       await generateClientPdf(reportRef.current, filename, { scale: 2, action: "download" });
@@ -838,7 +838,7 @@ export default function LungHealthStatisticsPage() {
                 <div className="mt-3 p-2.5 bg-slate-50 rounded-[5px] border border-slate-200 text-[11px] text-slate-500 leading-relaxed flex items-start gap-2">
                   <Info className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Clinical Notice:</strong> Recorded movement does not by itself establish clinical improvement. Discuss persistent respiratory concerns with a qualified physician.
+                    <strong>Health Advisory:</strong> Recorded movement does not by itself establish health improvement. Discuss persistent respiratory concerns with a qualified physician.
                   </span>
                 </div>
               </div>
@@ -1063,7 +1063,7 @@ export default function LungHealthStatisticsPage() {
                                 type="button"
                                 onClick={() => handleOpenReportViewer(record, "lung-v9.9")}
                                 className="px-2.5 py-1.5 bg-[#0b3b60] hover:bg-[#07243c] text-white rounded-[5px] text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
-                                title="Open Full Clinical Report Viewer"
+                                title="Open Full Health Report Viewer"
                               >
                                 <FileText className="w-3.5 h-3.5" />
                                 <span>View Report</span>
@@ -1124,7 +1124,7 @@ export default function LungHealthStatisticsPage() {
                 </span>
                 <span className="text-xs font-bold text-slate-300">•</span>
                 <h2 className="text-sm sm:text-base font-bold text-slate-900">
-                  LungConnect Authoritative Clinical Report
+                  LungConnect Authoritative Health Report
                 </h2>
               </div>
               <button
@@ -1143,7 +1143,7 @@ export default function LungHealthStatisticsPage() {
               </span>
               {[
                 { id: "lung-v9.9", label: "Health Summary", badge: "1-Page Summary" },
-                { id: "lung-full", label: "Full Clinical Assessment", badge: "Comprehensive Matrix" }
+                { id: "lung-full", label: "Full Health Assessment", badge: "Comprehensive Matrix" }
               ].map((fmt) => (
                 <button
                   key={fmt.id}
@@ -1201,7 +1201,7 @@ export default function LungHealthStatisticsPage() {
                   className="px-4 py-2 bg-[#007a8c] hover:bg-[#005e6c] text-white rounded-[5px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download {selectedLungFormat === "lung-full" ? "Full Clinical" : "Health Summary"} PDF</span>
+                  <span>Download {selectedLungFormat === "lung-full" ? "Full Health Assessment" : "Health Summary"} PDF</span>
                 </button>
               </div>
             </div>

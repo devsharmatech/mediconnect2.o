@@ -13,7 +13,8 @@ export function Autocomplete({
   renderOption,
   preferredCategory = "",
   searchEndpoint = "",
-  emptyActionLabel = ""
+  emptyActionLabel = "",
+  disabled = false
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
@@ -215,13 +216,15 @@ export function Autocomplete({
         ref={inputRef}
         type="text"
         value={value}
+        disabled={disabled}
         onChange={(e) => {
+          if (disabled) return;
           onChange(e.target.value);
           setIsOpen(true);
           setHighlightIndex(-1);
         }}
         onFocus={() => {
-          setIsOpen(true);
+          if (!disabled) setIsOpen(true);
         }}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}

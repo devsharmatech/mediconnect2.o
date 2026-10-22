@@ -115,11 +115,11 @@ export default function CardioConnectF3Report({
   const isAbnormal = distanceM < 350 || rawInputs?.chest_pain === true || rawInputs?.breathlessness === true;
   const primarySpecialist = isAbnormal ? "Cardiologist" : "General Physician";
   const specialistRecommendation = isAbnormal
-    ? "Based on your 6-minute walking capacity test (< 350m functional threshold) or reported shortness of breath, clinical evaluation with a Cardiologist is suggested for cardiopulmonary exercise testing and cardiac assessment."
+    ? "Based on your 6-minute walking capacity test (< 350m functional threshold) or reported shortness of breath, medical evaluation with a Cardiologist is suggested for cardiopulmonary exercise testing and cardiac assessment."
     : "Based on recorded screening responses, 6-minute functional mobility is preserved above baseline reference benchmarks. Routine annual check-ins with your General Physician are recommended.";
 
   const clinicalGuidanceText = aiObj.medical_attention ||
-    "Discuss persistent, recurring, or worsening symptoms with a qualified physician. Seek emergency clinical care immediately for severe acute chest discomfort, shortness of breath, or radiating arm/jaw tightness.";
+    "Discuss persistent, recurring, or worsening symptoms with a qualified physician. Seek emergency medical care immediately for severe acute chest discomfort, shortness of breath, or radiating arm/jaw tightness.";
 
   // Dynamic Cardiovascular Recommendations from assessmentData or aiObj
   const dynamicRecs = (() => {
@@ -171,7 +171,7 @@ export default function CardioConnectF3Report({
         }
 
         const categoryTag = rec.category ? String(rec.category).toUpperCase() : "CARDIO WELLNESS";
-        const priorityTag = rec.priority || rec.priorityTag || (isAbnormal ? "PRIORITY CLINICAL" : "EVIDENCE-BASED");
+        const priorityTag = rec.priority || rec.priorityTag || (isAbnormal ? "PRIORITY MEDICAL" : "EVIDENCE-BASED");
         const timeframe = rec.timeframe || (isAbnormal ? "Immediate Action" : "Target Protocol");
 
         return {
@@ -434,7 +434,7 @@ export default function CardioConnectF3Report({
           <div style={{ borderTop: "1px solid #cbd5e1", paddingTop: "8px", marginTop: "12px", fontSize: "9.5px", color: "#64748b", lineHeight: "1.45" }}>
             <div>Keep this result with your CardioConnect history so a future like-for-like test can be viewed alongside it.</div>
             <div style={{ marginTop: "2px" }}>
-              <span style={{ fontWeight: "800", color: "#0d3b66" }}>ENERGY</span> Estimated kcal = MET × weight kg × active duration hours. CARDIO_MET_ESTIMATE v1.0 is server-authoritative and versioned; missing input = Unavailable. This is not a clinical 6-minute walk test, stress test or cardiac diagnostic test.
+              <span style={{ fontWeight: "800", color: "#0d3b66" }}>ENERGY</span> Estimated kcal = MET × weight kg × active duration hours. CARDIO_MET_ESTIMATE v1.0 is server-authoritative and versioned; missing input = Unavailable. This is not a diagnostic 6-minute walk test, stress test or cardiac diagnostic test.
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "9px", color: "#94a3b8", marginTop: "6px" }}>
@@ -536,9 +536,9 @@ export default function CardioConnectF3Report({
                 {specialistRecommendation}
               </div>
 
-              {/* Clinical Guidance Notice */}
+              {/* Health Advisory Notice */}
               <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: "3px", padding: "7px 11px", fontSize: "10px", color: "#92400e", lineHeight: "1.35" }}>
-                <strong style={{ color: "#78350f" }}>Clinical Guidance:</strong> {clinicalGuidanceText}
+                <strong style={{ color: "#78350f" }}>Health Advisory:</strong> {clinicalGuidanceText}
               </div>
             </div>
           </div>

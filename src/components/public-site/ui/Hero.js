@@ -30,6 +30,11 @@ export default function Hero({ onLoginClick }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [cmsData, setCmsData] = useState(null);
   const [images, setImages] = useState(heroImagesFallback);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     async function fetchHome() {
@@ -223,9 +228,10 @@ export default function Hero({ onLoginClick }) {
                 ))}
                 
                 {/* Left/right navigation buttons */}
-                {images.length > 1 && (
+                {mounted && images.length > 1 && (
                   <>
                     <button
+                      suppressHydrationWarning
                       type="button"
                       onClick={handlePrev}
                       className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 z-10 inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-white/95 text-[#0B3A5B] shadow-md border border-slate-200/60 hover:bg-white hover:text-[#1677A8] hover:scale-105 focus:outline-none transition-all cursor-pointer"
@@ -234,6 +240,7 @@ export default function Hero({ onLoginClick }) {
                       <FaChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     </button>
                     <button
+                      suppressHydrationWarning
                       type="button"
                       onClick={handleNext}
                       className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 z-10 inline-flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-white/95 text-[#0B3A5B] shadow-md border border-slate-200/60 hover:bg-white hover:text-[#1677A8] hover:scale-105 focus:outline-none transition-all cursor-pointer"
@@ -245,18 +252,21 @@ export default function Hero({ onLoginClick }) {
                 )}
 
                 {/* Dot indicator indicators */}
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
-                  {images.map((_, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setCurrentIndex(idx)}
-                      className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                        idx === currentIndex ? 'w-5 bg-[#0B3A5B]' : 'w-1.5 bg-white/80'
-                      }`}
-                      aria-label={`Go to slide ${idx + 1}`}
-                    />
-                  ))}
-                </div>
+                {mounted && (
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10">
+                    {images.map((_, idx) => (
+                      <button
+                        suppressHydrationWarning
+                        key={idx}
+                        onClick={() => setCurrentIndex(idx)}
+                        className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                          idx === currentIndex ? 'w-5 bg-[#0B3A5B]' : 'w-1.5 bg-white/80'
+                        }`}
+                        aria-label={`Go to slide ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Slider caption footer */}
