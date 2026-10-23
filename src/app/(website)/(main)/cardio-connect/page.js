@@ -7,7 +7,7 @@ import {
   Heart, Play, Pause, Footprints, Activity,
   ChevronRight, ChevronLeft, Info, Shield, AlertTriangle, CheckCircle2,
   X, RotateCcw, Clock, Award, Sparkles, RefreshCw,
-  TrendingUp, TrendingDown, Minus, MapPin, ArrowRight,
+  TrendingUp, TrendingDown, Minus, MapPin, ArrowRight, ArrowLeft,
   Calendar, WifiOff, Check, Settings, Navigation,
   Search, CloudSun, Wind, Droplets, Database, Compass, FileText,
   Gauge, Columns
@@ -57,8 +57,8 @@ export default function CardioConnectHome() {
   // CC-05: Session Completion
   // CC-08: Heart Health Spectrum Modal / View
   // CC-09: My Progress Modal / View
-  // CC-10..12: Walking Performance Test Flow
   const [activeModal, setActiveModal] = useState(null); // 'setup' | 'active_training' | 'completion' | 'spectrum' | 'progress' | 'walking_intro' | 'walking_active' | 'walking_result'
+  const [returnToModal, setReturnToModal] = useState(null);
 
   // Heart Training State (CC-02 -> CC-05)
   const [selectedPresetDuration, setSelectedPresetDuration] = useState(30); // 5, 10, 15, 20, 30, 45, 60
@@ -1934,15 +1934,37 @@ export default function CardioConnectHome() {
             
             {/* Sticky Header */}
             <div className="px-4 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
-              <div>
-                <span className="text-[10px] font-mono font-medium uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
-                  Heart Health Spectrum
-                </span>
-                <h2 className="text-base sm:text-lg font-semibold text-slate-900 mt-0.5">Heart Health Spectrum</h2>
+              <div className="flex items-center gap-2">
+                {returnToModal && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveModal(returnToModal);
+                      setReturnToModal(null);
+                    }}
+                    className="p-1 -ml-1 text-slate-600 hover:text-slate-900 rounded-[5px] hover:bg-slate-100 transition-colors cursor-pointer mr-1"
+                    title="Back"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                )}
+                <div>
+                  <span className="text-[10px] font-mono font-medium uppercase bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                    Heart Health Spectrum
+                  </span>
+                  <h2 className="text-base sm:text-lg font-semibold text-slate-900 mt-0.5">Heart Health Spectrum</h2>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => setActiveModal(null)}
+                onClick={() => {
+                  if (returnToModal) {
+                    setActiveModal(returnToModal);
+                    setReturnToModal(null);
+                  } else {
+                    setActiveModal(null);
+                  }
+                }}
                 className="p-1.5 text-slate-500 hover:text-slate-800 rounded-[5px] hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -2013,10 +2035,17 @@ export default function CardioConnectHome() {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveModal(null)}
+                onClick={() => {
+                  if (returnToModal) {
+                    setActiveModal(returnToModal);
+                    setReturnToModal(null);
+                  } else {
+                    setActiveModal(null);
+                  }
+                }}
                 className="w-full py-2 bg-slate-100 text-slate-700 font-medium text-xs rounded-[5px] hover:bg-slate-200 cursor-pointer"
               >
-                Close Spectrum
+                {returnToModal ? "Back" : "Close"}
               </button>
             </div>
           </div>
@@ -2148,7 +2177,10 @@ export default function CardioConnectHome() {
             <div className="shrink-0 p-4 sm:p-6 border-t border-slate-100 bg-white grid grid-cols-2 gap-2 z-20 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
               <button
                 type="button"
-                onClick={() => setActiveModal("spectrum")}
+                onClick={() => {
+                  setReturnToModal("progress");
+                  setActiveModal("spectrum");
+                }}
                 className="py-2.5 bg-[#0067A1] text-white font-semibold text-xs rounded-[5px] hover:bg-[#004F7C] cursor-pointer text-center"
               >
                 VIEW SPECTRUM

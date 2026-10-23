@@ -274,7 +274,10 @@ const Dashboard = () => {
                     else if (nextActionData.next_action === "VIEW_PRESCRIPTION") router.push("/appointments");
                     else if (nextActionData.next_action === "COMPLETE_PAYMENT") router.push("/appointments");
                     else if (nextActionData.next_action === "START_CONSULTATION") {
-                      if (nextActionData.consultation_id) {
+                      const apptType = String(nextActionData.appointment_type || "").toLowerCase();
+                      if (apptType === "home" || apptType === "clinic") {
+                        router.push("/appointments");
+                      } else if (nextActionData.consultation_id) {
                         router.push(`/appointments/${nextActionData.consultation_id}/video?userId=${user?.id}&role=patient`);
                       } else if (nextActionData.appointment_id) {
                         router.push(`/appointments/${nextActionData.appointment_id}/video?userId=${user?.id}&role=patient`);
@@ -283,10 +286,20 @@ const Dashboard = () => {
                       }
                     }
                     else if (nextActionData.next_action === "RESUME_SESSION" && nextActionData.consultation_id) {
-                      router.push(`/appointments/${nextActionData.consultation_id}/video?userId=${user?.id}&role=patient`);
+                      const apptType = String(nextActionData.appointment_type || "").toLowerCase();
+                      if (apptType === "home" || apptType === "clinic") {
+                        router.push("/appointments");
+                      } else {
+                        router.push(`/appointments/${nextActionData.consultation_id}/video?userId=${user?.id}&role=patient`);
+                      }
                     }
                     else if (nextActionData.consultation_id) {
-                      router.push(`/appointments/${nextActionData.consultation_id}/video?userId=${user?.id}&role=patient`);
+                      const apptType = String(nextActionData.appointment_type || "").toLowerCase();
+                      if (apptType === "home" || apptType === "clinic") {
+                        router.push("/appointments");
+                      } else {
+                        router.push(`/appointments/${nextActionData.consultation_id}/video?userId=${user?.id}&role=patient`);
+                      }
                     }
                   }}
                   className="px-6 py-2.5 bg-white text-gray-900 rounded-[5px] font-bold text-sm hover:bg-gray-50 transition-colors shrink-0"
@@ -380,7 +393,7 @@ const Dashboard = () => {
                       {formatTime12h(appt.appointment_time)}
                     </span>
 
-                    {activeCallAppointmentId === appt.id ? (
+                    {activeCallAppointmentId === appt.id && !["completed", "cancelled", "rejected", "expired"].includes(String(appt.status).toLowerCase()) ? (
                       <button
                         onClick={() => router.push(`/appointments/${appt.id}/video?userId=${user?.id}&role=patient`)}
                         className="flex items-center gap-1.5 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-[5px] animate-pulse shadow-md transition-all"

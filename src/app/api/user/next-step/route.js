@@ -47,21 +47,27 @@ export async function GET(req) {
             sql`SELECT consent_type, is_active FROM patient_consent_log WHERE patient_id = ${user_id}`,
             sql`SELECT service_type, priority FROM service_recommendation WHERE diagnosis_id = ${care_episode_id} OR problem_id = ${care_episode_id}`,
             sql`SELECT id, status FROM medicine_orders WHERE patient_id = ${user_id} AND created_at >= ${episode.created_at}`,
-            sql`SELECT id, status FROM lab_test_orders WHERE care_episode_id = ${care_episode_id}`,
-            sql`SELECT id, payment_status, status FROM appointments WHERE care_episode_id = ${care_episode_id}`
+            sql`SELECT id, payment_status, status, type, appointment_type FROM appointments WHERE care_episode_id = ${care_episode_id} ORDER BY created_at DESC`
         ]);
 
         const latestConsultation = consultations?.[0];
+        let linkedAppt = null;
         if (latestConsultation && appointments) {
-            const appt = appointments.find(a => a.id === latestConsultation.appointment_id);
-            const isFreeOrPaid = appt && ["paid", "completed", "free"].includes(String(appt.payment_status || "").toLowerCase());
-            latestConsultation.payment_status = isFreeOrPaid ? "paid" : (appt ? appt.payment_status : "pending");
+            linkedAppt = appointments.find(a => a.id === latestConsultation.appointment_id);
+            const isFreeOrPaid = linkedAppt && ["paid", "completed", "free"].includes(String(linkedAppt.payment_status || "").toLowerCase());
+            latestConsultation.payment_status = isFreeOrPaid ? "paid" : (linkedAppt ? linkedAppt.payment_status : "pending");
+        } else if (appointments && appointments.length > 0) {
+            linkedAppt = appointments[0];
         }
+
         const latestPayment = payments?.[0];
 
         let rawAction = "NONE";
         let priority = 10;
-        let responsePayload = { care_episode_id };
+        let responsePayload = { 
+            care_episode_id,
+            appointment_type: linkedAppt?.type || linkedAppt?.appointment_type || null
+        };
 
         // ── DETERMINISTIC STATE EVALUATION (Priority Ordered) ──
 
@@ -120,9 +126,14 @@ export async function GET(req) {
             else if (latestPayment && latestPayment.status === "success" && !latestConsultation) {
                 const paidAt = new Date(latestPayment.created_at);
                 if ((now - paidAt) > 120000) {
-                    rawAction = "START_CONSULTATION";
-                    responsePayload.appointment_id = latestPayment.reference_id;
-                    priority = 1;
+                    const apptType = String(responsePayload.appointment_type || "").toLowerCase();
+                    if (apptType === "home" || apptType === "clinic") {
+                        rawAction = "NONE";
+                    } else {
+                        rawAction = "START_CONSULTATION";
+                        responsePayload.appointment_id = latestPayment.reference_id;
+                        priority = 1;
+                    }
                 }
             }
 

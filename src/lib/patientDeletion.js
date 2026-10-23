@@ -112,7 +112,7 @@ export async function anonymizePatientAccount(userId, reason = "USER_REQUEST") {
       date_of_birth: "1970-01-01",
       emergency_contact: null,
       blood_group: null,
-      gender: "Other",
+      gender: "other",
       updated_at: nowIso,
     })
     .eq("id", userId);

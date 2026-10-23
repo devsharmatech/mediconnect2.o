@@ -59,6 +59,18 @@ const TYPE_COLORS = {
   home_visit: "bg-purple-50 text-purple-700",
 };
 
+const formatPatientPhone = (phone) => {
+  if (!phone) return "No phone";
+  if (String(phone).startsWith("ANONYMIZED_")) return "Account Deleted";
+  return phone;
+};
+
+const formatPatientEmail = (email) => {
+  if (!email) return null;
+  if (String(email).startsWith("deleted_") || String(email).startsWith("ANONYMIZED_")) return "Account Deleted";
+  return email;
+};
+
 export default function DoctorAppointmentsPage() {
   const [appointments, setAppointments] = useState([]);
   const [page, setPage] = useState(1);
@@ -485,6 +497,7 @@ export default function DoctorAppointmentsPage() {
 
   function isAppointmentExpired(apt, now = currentTime) {
     if (!apt?.appointment_date) return false;
+    if (["completed", "cancelled", "rejected"].includes(String(apt.status).toLowerCase())) return false;
     if (apt._forceExpired) return true;
     try {
       const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "23:59";
@@ -764,7 +777,7 @@ export default function DoctorAppointmentsPage() {
             <div>
               <h3 className="text-base sm:text-lg font-bold text-slate-800">Appointments</h3>
               <p className="text-xs sm:text-sm text-slate-500">
-                Showing {filteredAppointments.length} of {appointments.length} appointments • Prioritizing Today & Upcoming
+                Showing {filteredAppointments.length} of {pagination?.totalItems ?? pagination?.total ?? appointments.length} appointments • Prioritizing Today & Upcoming
               </p>
             </div>
             {isLoading && (
@@ -895,11 +908,11 @@ export default function DoctorAppointmentsPage() {
                             )}
                           </div>
                           <div className="flex items-center gap-2 text-[10.5px] text-slate-500 truncate mt-0.5">
-                            <span className="truncate">{apt.patient?.phone || "No phone"}</span>
-                            {apt.patient?.email && (
+                            <span className="truncate">{formatPatientPhone(apt.patient?.phone)}</span>
+                            {formatPatientEmail(apt.patient?.email) && (
                               <>
                                 <span>•</span>
-                                <span className="truncate">{apt.patient.email}</span>
+                                <span className="truncate">{formatPatientEmail(apt.patient.email)}</span>
                               </>
                             )}
                           </div>
@@ -1193,13 +1206,13 @@ export default function DoctorAppointmentsPage() {
                       </div>
                       <div>
                         <p className="text-xs text-slate-500">Phone Number</p>
-                        <p className="font-medium text-slate-800 text-sm">{selectedAppointment.patient.phone}</p>
+                        <p className="font-medium text-slate-800 text-sm">{formatPatientPhone(selectedAppointment.patient.phone)}</p>
                       </div>
                     </div>
                   </div>
                 )}
                 
-                {selectedAppointment.patient?.email && (
+                {formatPatientEmail(selectedAppointment.patient?.email) && (
                   <div className="bg-slate-50 rounded-md p-3.5 border border-slate-100">
                     <div className="flex items-center gap-3">
                       <div className="p-2 rounded-md bg-white border border-slate-200">
@@ -1207,7 +1220,7 @@ export default function DoctorAppointmentsPage() {
                       </div>
                       <div>
                         <p className="text-xs text-slate-500">Email Address</p>
-                        <p className="font-medium text-slate-800 text-sm break-all">{selectedAppointment.patient.email}</p>
+                        <p className="font-medium text-slate-800 text-sm break-all">{formatPatientEmail(selectedAppointment.patient.email)}</p>
                       </div>
                     </div>
                   </div>
@@ -1391,7 +1404,7 @@ export default function DoctorAppointmentsPage() {
                   Screening
                 </button>
               )}
-              {isVideoAppointment(selectedAppointment) && !["rejected", "cancelled"].includes(selectedAppointment.status) && !isAppointmentExpired(selectedAppointment, currentTime) && (() => {
+              {isVideoAppointment(selectedAppointment) && !["rejected", "cancelled", "completed"].includes(String(selectedAppointment.status).toLowerCase()) && !isAppointmentExpired(selectedAppointment, currentTime) && (() => {
                 const timing = getVideoCallTiming(selectedAppointment, currentTime);
                 return (
                   <button

@@ -2580,13 +2580,21 @@ function SharePrescriptionModal({
                 
                 <div className="mt-5 space-y-2">
                   <button
-                    onClick={startSecurePaymentCheckout}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startSecurePaymentCheckout();
+                    }}
                     className="w-full py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
                   >
                     Proceed to Pay
                   </button>
                   <button
-                    onClick={() => setShowPaymentConsentConfirm(false)}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowPaymentConsentConfirm(false);
+                    }}
                     className="w-full py-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-medium transition-colors cursor-pointer"
                   >
                     Cancel

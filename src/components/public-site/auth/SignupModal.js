@@ -197,6 +197,15 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
       return;
     }
 
+    // Date of Birth validation
+    if (formData.date_of_birth) {
+      const selected = new Date(formData.date_of_birth);
+      if (selected > new Date()) {
+        setError('Date of birth cannot be in the future');
+        return;
+      }
+    }
+
     // Address validation (Mandatory validation)
     const cleanAddress = String(formData.address || '').trim();
     if (!cleanAddress) {
@@ -602,6 +611,7 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
                     id="date_of_birth"
                     name="date_of_birth"
                     type="date"
+                    max={new Date().toISOString().split("T")[0]}
                     value={formData.date_of_birth}
                     onChange={handleChange}
                     className="block w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:border-[#0067A1] focus:ring-2 focus:ring-[#0067A1]/20 transition-all outline-none"

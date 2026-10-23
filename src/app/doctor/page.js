@@ -224,6 +224,7 @@ export default function DoctorDashboard() {
   };
 
   const isAppointmentExpired = (apt) => {
+    if (["completed", "cancelled", "rejected"].includes(String(apt?.status).toLowerCase())) return false;
     const dateStr = apt?.date || apt?.appointment_date;
     if (!dateStr) return false;
     try {

@@ -36,21 +36,21 @@ export function middleware(req) {
   }
 
   // Admin routes
-  if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
+  if ((pathname === "/admin" || pathname.startsWith("/admin/")) && !pathname.startsWith("/admin/login")) {
     if (!sessionToken) {
       return NextResponse.redirect(new URL("/admin/login", req.url));
     }
   }
 
   // Chemist routes
-  if (pathname.startsWith("/chemist") && !pathname.startsWith("/chemist/login")) {
+  if ((pathname === "/chemist" || pathname.startsWith("/chemist/")) && !pathname.startsWith("/chemist/login")) {
     if (!sessionToken) {
       return NextResponse.redirect(new URL("/chemist/login", req.url));
     }
   }
 
-  // Lab routes
-  if (pathname.startsWith("/lab") && !pathname.startsWith("/lab/login")) {
+  // Lab routes (ensure /lab-reports is not matched)
+  if ((pathname === "/lab" || pathname.startsWith("/lab/")) && !pathname.startsWith("/lab/login")) {
     if (!sessionToken) {
       return NextResponse.redirect(new URL("/lab/login", req.url));
     }

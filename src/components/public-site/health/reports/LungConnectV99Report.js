@@ -155,7 +155,7 @@ export default function LungConnectV99Report({
   })();
 
   const isSmoker = inputs?.smoking_status === "current" || inputs?.smoking_status === "former" || pkYears > 0;
-  const isAbnormal = hasWheezing || hasBreathless || (pefr < 350) || isSmoker;
+  const isAbnormal = hasWheezing || hasBreathless || (pefr < 350 || pefr > 600) || isSmoker;
 
   // Specialist Routing
   const primarySpecialist = isAbnormal ? "Pulmonologist or ENT Specialist" : "General Physician";

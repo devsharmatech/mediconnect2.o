@@ -178,6 +178,12 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
 
     if (!formData.date_of_birth) {
       newErrors.date_of_birth = "Date of birth is required";
+    } else {
+      const selected = new Date(formData.date_of_birth);
+      const today = new Date();
+      if (selected > today) {
+        newErrors.date_of_birth = "Date of birth cannot be in the future";
+      }
     }
 
     if (!formData.address.trim()) {
@@ -384,6 +390,7 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
                   value={formData.date_of_birth}
                   onChange={handleChange}
                   error={errors.date_of_birth}
+                  max={new Date().toISOString().split("T")[0]}
                 />
 
                 {/* Address */}
@@ -430,7 +437,7 @@ const EditProfileModal = ({ isOpen, onClose, userData, onSave }) => {
                     </svg>
                     Saving...
                   </>
-                ) : "Save Changes"}
+                ) : "Save"}
               </button>
             </div>
           </form>
@@ -451,6 +458,7 @@ const FormField = ({
   error,
   disabled,
   placeholder,
+  max,
 }) => (
   <div className="space-y-1.5">
     <label className="flex items-center text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -464,6 +472,7 @@ const FormField = ({
       onChange={onChange}
       disabled={disabled}
       placeholder={placeholder}
+      max={max}
       className={`w-full px-3.5 py-2.5 text-sm border ${error ? "border-red-300 bg-red-50" : "border-slate-300 bg-white"
         } rounded-[5px] focus:ring-2 focus:ring-[#0067A1] focus:border-transparent outline-none transition-all duration-200 text-slate-800 ${disabled ? "bg-slate-100 text-slate-400 cursor-not-allowed border-dashed" : ""
         }`}

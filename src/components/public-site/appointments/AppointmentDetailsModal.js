@@ -167,7 +167,9 @@ const AppointmentDetailsModal = ({
   
   // Fee Calculation
   const getFee = () => {
+    if (appointment.final_fee !== undefined && appointment.final_fee !== null) return Number(appointment.final_fee);
     if (appointment.amount !== undefined && appointment.amount !== null) return Number(appointment.amount);
+    if (appointment.is_free) return 0;
     if (!appointment.doctor) return 0;
     const doc = appointment.doctor;
     const type = String(appointment.appointment_type || appointment.type || "").toLowerCase();
@@ -179,7 +181,7 @@ const AppointmentDetailsModal = ({
     const videoFollowUpFee = meta?.video_follow_up_fee ?? doc.video_follow_up_fee ?? meta?.follow_up_fee ?? doc.follow_up_fee ?? 0;
     const clinicFee = meta?.clinic_consultation_fee ?? doc.clinic_consultation_fee ?? doc.consultation_fee ?? 0;
     const clinicFollowUpFee = meta?.clinic_follow_up_fee ?? doc.clinic_follow_up_fee ?? meta?.follow_up_fee ?? doc.follow_up_fee ?? 0;
-    const homeFee = meta?.home_visit_fee ?? doc.home_visit_fee ?? doc.consultation_fee ?? 0;
+    const homeFee = meta?.home_visit_fee ?? doc.home_visit_fee ?? 0;
     const homeFollowUpFee = meta?.home_follow_up_fee ?? doc.home_follow_up_fee ?? meta?.follow_up_fee ?? doc.follow_up_fee ?? 0;
     const instantFee = meta?.instant_consultation_fee ?? doc.instant_consultation_fee ?? 0;
     const followUpFee = meta?.follow_up_fee ?? doc.follow_up_fee ?? 0;
@@ -192,7 +194,7 @@ const AppointmentDetailsModal = ({
     return Number(doc.consultation_fee ?? 0);
   };
   const feePaid = getFee();
-  const paymentStatus = (feePaid === 0 || appointment.payment_status === "paid" || appointment.payment_status === "completed") ? "Paid" : capitalize(appointment.payment_status || "pending");
+  const paymentStatus = (feePaid === 0 || ["paid", "completed", "not_applicable", "free"].includes(String(appointment.payment_status).toLowerCase())) ? "Paid" : capitalize(appointment.payment_status || "pending");
 
   let diseaseInfo = null;
   if (appointment.disease_info) {
@@ -253,7 +255,7 @@ const AppointmentDetailsModal = ({
              <div className="flex items-center gap-4 text-right">
                 <div>
                   <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-0.5">Amount Paid</p>
-                  <p className="text-xl font-black text-gray-900">₹{feePaid}</p>
+                  <p className="text-xl font-black text-gray-900">{feePaid === 0 ? "Free (₹0)" : `₹${feePaid}`}</p>
                 </div>
                 <div className="h-10 w-px bg-gray-300"></div>
                 <div>

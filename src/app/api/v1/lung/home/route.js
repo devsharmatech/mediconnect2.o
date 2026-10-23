@@ -114,6 +114,7 @@ export async function GET(req) {
         }
 
         if (episodes && episodes.length > 0) {
+          const episode = episodes[0];
           const rawId = episode.episode_id || episode.id;
           const cleanCode = rawId
             ? `LCE-${String(rawId).replace(/^LCE-/, "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8).toUpperCase()}`

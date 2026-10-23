@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   FaUserMd,
   FaHeartbeat,
@@ -20,11 +21,22 @@ import {
   FaBed,
   FaStethoscope,
   FaPlusSquare,
-  FaSyringe
+  FaSyringe,
+  FaLock,
+  FaArrowRight,
 } from "react-icons/fa";
 import { SiAntdesign } from "react-icons/si";
 import AnimateIn from "@/components/ui/animations/AnimateIn";
-import Link from "next/link";
+import dynamic from "next/dynamic";
+
+const LoginModal = dynamic(
+  () => import("@/components/public-site/auth/LoginModal"),
+  { ssr: false }
+);
+const SignupModal = dynamic(
+  () => import("@/components/public-site/auth/SignupModal"),
+  { ssr: false }
+);
 
 const iconMap = {
   FaUserMd, FaHeartbeat, FaSearch, FaShoppingCart, FaHeadset, FaChartLine,
@@ -33,7 +45,16 @@ const iconMap = {
   FaPlusSquare, FaSyringe
 };
 
-const ServiceCard = ({ icon: Icon, title, description, delay, link, img }) => {
+const ServiceCard = ({
+  icon: Icon,
+  title,
+  description,
+  delay,
+  link,
+  img,
+  isLoggedIn,
+  onNavigate,
+}) => {
   const isComingSoon = link?.includes("coming-soon") || title.toLowerCase().includes("symptom check");
   let actualLink = isComingSoon ? "/coming-soon" : link;
   if (!isComingSoon && actualLink) {
@@ -44,15 +65,45 @@ const ServiceCard = ({ icon: Icon, title, description, delay, link, img }) => {
     }
   }
 
+  const isAuthRequired = Boolean(
+    actualLink &&
+    (actualLink.includes("/digital-locker") ||
+      actualLink.includes("/dashboard") ||
+      actualLink.includes("/medicine-order") ||
+      actualLink.includes("/appointments") ||
+      actualLink.includes("/lab-reports"))
+  );
+
+  const handleClick = (e) => {
+    e.preventDefault();
+    onNavigate(actualLink, isAuthRequired);
+  };
+
   return (
     <AnimateIn delay={delay} className="w-full h-full">
-      <Link href={actualLink} className="block h-full group">
+      <div
+        onClick={handleClick}
+        className="block h-full group cursor-pointer"
+        role="button"
+        tabIndex={0}
+      >
         <div className="relative h-full rounded-2xl border border-[#DCE6EB] bg-white p-6 sm:p-7 shadow-2xs hover:border-[#1677A8]/50 hover:shadow-xs transition-all duration-200 flex flex-col justify-between">
-          {isComingSoon && (
+          {isComingSoon ? (
             <div className="absolute top-4 right-4 bg-[#159A8A]/10 text-[#159A8A] border border-[#159A8A]/30 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
               Roadmap
             </div>
+          ) : isAuthRequired && (
+            <div
+              className={`absolute top-4 right-4 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                isLoggedIn
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-amber-50 text-amber-700 border-amber-200"
+              }`}
+            >
+              {isLoggedIn ? "Active" : "Login Required"}
+            </div>
           )}
+
           <div>
             <div className="mb-5">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#F7FAFC] border border-[#DCE6EB] text-[#1677A8] overflow-hidden group-hover:scale-105 transition-transform">
@@ -72,12 +123,14 @@ const ServiceCard = ({ icon: Icon, title, description, delay, link, img }) => {
           </div>
 
           <div className="mt-auto border-t border-[#DCE6EB]/60 pt-4 flex items-center justify-between">
-            <span className="inline-flex items-center text-xs font-bold text-[#1677A8] group-hover:translate-x-0.5 transition-transform">
-              Explore &rarr;
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#1677A8] group-hover:translate-x-0.5 transition-transform">
+              {isAuthRequired && !isLoggedIn && <FaLock className="w-3 h-3 text-amber-600" />}
+              <span>{isAuthRequired && !isLoggedIn ? "Login to Access" : "Explore"}</span>
+              <FaArrowRight className="w-3 h-3" />
             </span>
           </div>
         </div>
-      </Link>
+      </div>
     </AnimateIn>
   );
 };
@@ -138,12 +191,30 @@ const fallbackMainServices = [
 ];
 
 export default function ServicesPage() {
+  const router = useRouter();
   const [mainServices, setMainServices] = useState(fallbackMainServices);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showSignupModal, setShowSignupModal] = useState(false);
+  const [pendingRedirect, setPendingRedirect] = useState(null);
+
   const [headerData, setHeaderData] = useState({
     title: "COMPLETE CARE ECOSYSTEM",
     heading: "Practical Care, Organised Clearly",
     subheading: "From doctor consultations and diagnostics to medicines, records, and ongoing support — all connected in one place."
   });
+
+  useEffect(() => {
+    const checkAuth = () => {
+      if (typeof window !== "undefined") {
+        const userId = localStorage.getItem("userId");
+        setIsLoggedIn(Boolean(userId && userId !== "null" && userId !== "undefined"));
+      }
+    };
+    checkAuth();
+    window.addEventListener("storage", checkAuth);
+    return () => window.removeEventListener("storage", checkAuth);
+  }, []);
 
   useEffect(() => {
     async function fetchServices() {
@@ -186,6 +257,33 @@ export default function ServicesPage() {
     fetchServices();
     fetchHeaders();
   }, []);
+
+  const handleServiceNavigate = (targetLink, isAuthRequired) => {
+    if (!targetLink) return;
+
+    if (isAuthRequired) {
+      const userId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+      const userLogged = Boolean(userId && userId !== "null" && userId !== "undefined");
+      if (!userLogged) {
+        setPendingRedirect(targetLink);
+        setShowLoginModal(true);
+        return;
+      }
+    }
+
+    router.push(targetLink);
+  };
+
+  const handleAuthSuccess = () => {
+    setShowLoginModal(false);
+    setShowSignupModal(false);
+    setIsLoggedIn(true);
+    if (pendingRedirect) {
+      const nextUrl = pendingRedirect;
+      setPendingRedirect(null);
+      router.push(nextUrl);
+    }
+  };
 
   const features = [
     {
@@ -249,11 +347,16 @@ export default function ServicesPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {mainServices.map((service, index) => (
-              <ServiceCard key={index} {...service} delay={150 + index * 50} />
+              <ServiceCard
+                key={index}
+                {...service}
+                delay={150 + index * 50}
+                isLoggedIn={isLoggedIn}
+                onNavigate={handleServiceNavigate}
+              />
             ))}
           </div>
         </div>
-
 
         {/* Platform Advantages */}
         <AnimateIn delay={300}>
@@ -287,6 +390,38 @@ export default function ServicesPage() {
           </div>
         </AnimateIn>
       </div>
+
+      {/* Auth Modals for Services */}
+      {showLoginModal && (
+        <LoginModal
+          isOpen={showLoginModal}
+          onClose={() => {
+            setShowLoginModal(false);
+            setPendingRedirect(null);
+          }}
+          onSignupClick={() => {
+            setShowLoginModal(false);
+            setShowSignupModal(true);
+          }}
+          initialUserType="patient"
+          onSuccess={handleAuthSuccess}
+        />
+      )}
+
+      {showSignupModal && (
+        <SignupModal
+          isOpen={showSignupModal}
+          onClose={() => {
+            setShowSignupModal(false);
+            setPendingRedirect(null);
+          }}
+          onLoginClick={() => {
+            setShowSignupModal(false);
+            setShowLoginModal(true);
+          }}
+          onSuccess={handleAuthSuccess}
+        />
+      )}
     </div>
   );
 }

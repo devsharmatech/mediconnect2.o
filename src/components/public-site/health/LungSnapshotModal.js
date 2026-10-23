@@ -122,7 +122,7 @@ export default function LungSnapshotModal({
   // Condition-tailored Doctor Specialty Consultation Suggestions
   const suggestedSpecialties = (() => {
     const list = [];
-    if (hasWheezing || isShortOfBreath || (inputs.peak_flow && Number(inputs.peak_flow) < 350) || isSmoker) {
+    if (hasWheezing || isShortOfBreath || (inputs.peak_flow && (Number(inputs.peak_flow) < 350 || Number(inputs.peak_flow) > 600)) || isSmoker) {
       list.push({ shortName: "Pulmonologist", specialtyParam: "Pulmonology", btnLabel: "Consult Pulmonologist" });
     }
     if (hasCough) {

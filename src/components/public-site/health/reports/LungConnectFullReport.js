@@ -147,20 +147,17 @@ export default function LungConnectFullReport({
 
   const aqiCat = aqi !== "—" ? (aqi <= 50 ? "Good" : aqi <= 100 ? "Satisfactory" : aqi <= 200 ? "Moderate" : aqi <= 300 ? "Poor" : "Very Poor") : "Unspecified";
 
-  // Dynamic, non-hardcoded PEFR classification based on % of predicted and physiological feasibility
+  // Dynamic PEFR classification based on 400-600 L/min normal range and predicted values
   const getPefrStatus = (val) => {
     if (val === null) return { label: "Not Recorded", color: "#64748b", bg: "#f1f5f9", border: "#cbd5e1" };
+    if (val > 600 || val < 350) {
+      return { label: "Abnormal", color: "#b91c1c", bg: "#fef2f2", border: "#fecaca" };
+    }
     const ratio = val / predictedPefr;
-    if (ratio > 1.35 || (!isMale && val >= 700) || val >= 800) {
-      return { label: "Supra-Normal / Retest", color: "#b45309", bg: "#fffbeb", border: "#fde68a" };
-    }
-    if (ratio >= 0.80) {
-      return { label: "Normal", color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" };
-    }
-    if (ratio >= 0.60) {
+    if (ratio < 0.80 || val < 400) {
       return { label: "Borderline", color: "#b45309", bg: "#fffbeb", border: "#fde68a" };
     }
-    return { label: "Abnormal", color: "#b91c1c", bg: "#fef2f2", border: "#fecaca" };
+    return { label: "Normal", color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0" };
   };
 
   const getBreathHoldStatus = (val) => {

@@ -303,8 +303,13 @@ async function handleProfileUpdate(req) {
     if (email !== undefined && email !== null)
       updates.email = typeof email === "string" ? email.trim() : email;
     if (gender !== undefined && gender !== null) updates.gender = gender;
-    if (dateOfBirth !== undefined && dateOfBirth !== null)
+    if (dateOfBirth !== undefined && dateOfBirth !== null && dateOfBirth !== "") {
+      const parsedDob = new Date(dateOfBirth);
+      if (!isNaN(parsedDob.getTime()) && parsedDob > new Date()) {
+        return failure("Date of birth cannot be in the future", null, 400, { headers: corsHeaders });
+      }
       updates.date_of_birth = dateOfBirth;
+    }
     if (bloodGroup !== undefined && bloodGroup !== null)
       updates.blood_group = bloodGroup;
     if (address !== undefined && address !== null)

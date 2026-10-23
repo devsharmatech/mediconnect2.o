@@ -323,17 +323,16 @@ export default function ManageSlots() {
   const bookedSlots = timeSlots.filter(slot => slot.status === 'booked' || slot.slot_booked === true);
 
   const timeRanges = {
-    morning: { label: 'Morning', start: 6 * 60, end: 12 * 60 },
+    morning: { label: 'Morning', start: 0, end: 12 * 60 },
     afternoon: { label: 'Afternoon', start: 12 * 60, end: 17 * 60 },
-    evening: { label: 'Evening', start: 17 * 60, end: 22 * 60 },
+    evening: { label: 'Evening', start: 17 * 60, end: 24 * 60 },
   };
 
   const getTimeRange = (time) => {
     const mins = parseTimeToMinutes(time);
     if (mins == null) return 'morning';
-    if (mins >= timeRanges.morning.start && mins < timeRanges.morning.end) return 'morning';
-    if (mins >= timeRanges.afternoon.start && mins < timeRanges.afternoon.end) return 'afternoon';
-    if (mins >= timeRanges.evening.start && mins < timeRanges.evening.end) return 'evening';
+    if (mins < timeRanges.afternoon.start) return 'morning';
+    if (mins >= timeRanges.afternoon.start && mins < timeRanges.evening.start) return 'afternoon';
     return 'evening';
   };
 
