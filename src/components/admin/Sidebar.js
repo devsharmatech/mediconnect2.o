@@ -122,10 +122,14 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
           submenu: true,
           subItems: [
             { name: "All Labs", path: `/admin/labs` },
-            { name: "Lab Test Orders", path: `/admin/labs/orders` },
             { name: "Commission Categories", path: `/admin/labs/categories` },
             { name: "Lab Tests Master", path: `/admin/cms/lab-tests` },
           ],
+        },
+        {
+          name: "Lab Orders",
+          icon: <TestTube className="w-4 h-4" />,
+          path: `/admin/labs/orders`,
         },
         {
           name: "Chemists",
@@ -142,6 +146,11 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
             { name: "Nursing Leads", path: `/admin/nursing` },
             { name: "Nursing Partners", path: `/admin/nursing/partners` },
           ],
+        },
+        {
+          name: "Documents",
+          icon: <FileText className="w-4 h-4" />,
+          path: `/admin/documents`,
         },
       ],
     },
@@ -277,15 +286,22 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
       >
 
         {/* Header */}
-        <div className={`p-5 flex items-center h-20 shrink-0 border-b border-white/10 ${open ? "justify-between" : "justify-center relative"}`}>
+        <div className={`p-4 flex items-center h-20 shrink-0 border-b border-white/10 ${open ? "justify-between" : "justify-center relative"}`}>
           <Link
             href="/"
             onClick={onCloseMobile}
             title="Go to website homepage"
             className="flex items-center gap-3 overflow-hidden cursor-pointer group"
           >
-            <div className="w-10 h-10 bg-white/10 group-hover:bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-md border border-white/20 shrink-0 transition-colors">
-              <Stethoscope className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center p-1 shrink-0 shadow-sm transition-transform group-hover:scale-105">
+              <img
+                src="/real-logo.png"
+                alt="MediConnect Logo"
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
             </div>
             {open && (
               <span className="text-base font-bold text-white tracking-wide whitespace-nowrap">
@@ -296,7 +312,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
 
           <button
             onClick={onToggle}
-            className={`p-1.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors ${
+            className={`p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors ${
               !open 
                 ? "hidden lg:flex absolute -right-3.5 top-1/2 -translate-y-1/2 bg-[#003358] border border-white/20 shadow-lg rounded-full z-10 w-7 h-7 items-center justify-center hover:scale-110" 
                 : "hidden lg:flex"
@@ -307,7 +323,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
           
           <button
             onClick={onCloseMobile}
-            className="lg:hidden p-1.5 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+            className="lg:hidden p-1.5 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -348,10 +364,10 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
                       }}
                       title={!open ? item.name : undefined}
                       className={`
-                        relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group text-xs font-medium text-left cursor-pointer
+                        relative w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-200 group text-xs font-medium text-left cursor-pointer
                         ${open ? "" : "justify-center"}
                         ${isActive
-                          ? "bg-white text-[#0067A1] shadow-md font-semibold"
+                          ? "bg-white text-[#0067A1] shadow-sm font-semibold"
                           : "text-white/70 hover:bg-white/10 hover:text-white"
                         }
                       `}
@@ -393,7 +409,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
                               key={sIdx}
                               onClick={() => handleNavigation(sub.path)}
                               className={`
-                                flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all text-left cursor-pointer
+                                flex items-center gap-2.5 w-full px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all text-left cursor-pointer
                                 ${isSubActive
                                   ? "text-white bg-white/15 font-semibold"
                                   : "text-white/60 hover:text-white hover:bg-white/5"
@@ -416,7 +432,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
         {/* User Profile & Logout Section - Fixed */}
         <div className="p-4 shrink-0 border-t border-white/10 bg-black/10">
           {open && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-xl border border-white/10 mb-3 overflow-hidden">
+            <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-lg border border-white/10 mb-3 overflow-hidden">
               <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-400 flex items-center justify-center text-[#003358] font-bold text-sm shadow-md overflow-hidden">
                 {adminUser?.profile_picture ? (
                   <img
@@ -445,7 +461,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
             onClick={() => handleLogout('admin')}
             title={!open ? "Logout" : undefined}
             className={`
-              flex items-center gap-2 px-3 py-3 rounded-xl text-sm transition-all duration-200 w-full font-medium border border-transparent
+              flex items-center gap-2 px-3 py-3 rounded-md text-sm transition-all duration-200 w-full font-medium border border-transparent
               text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 hover:border-rose-500/30
               ${!open ? "justify-center" : "justify-center"}
             `}

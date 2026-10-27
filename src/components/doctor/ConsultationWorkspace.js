@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import SessionStateTracker from "./SessionStateTracker";
+import PatientVerificationCard from "./PatientVerificationCard";
 
 export default function ConsultationWorkspace({ appointment, onConsultationUpdate }) {
   const [loading, setLoading] = useState(false);
@@ -598,6 +599,12 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
           )}
         </div>
       )}
+
+      {/* Mandatory Patient Identity & Consent Verification (NMC & Clinical Governance) */}
+      <PatientVerificationCard 
+        appointment={appointment} 
+        doctorUserId={typeof window !== "undefined" ? localStorage.getItem("userId") : null}
+      />
 
       {quickMode && !isLocked && (
         <div className="bg-indigo-50/50 border border-indigo-100 p-3 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">

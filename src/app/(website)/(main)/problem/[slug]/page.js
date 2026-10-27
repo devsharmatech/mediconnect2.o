@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   FaUserMd,
@@ -9,8 +9,8 @@ import {
   FaCheckCircle,
   FaShieldAlt,
   FaPhone,
-  FaCalendarCheck,
-  FaMapMarkerAlt
+  FaStethoscope,
+  FaStar,
 } from "react-icons/fa";
 import Link from "next/link";
 
@@ -64,6 +64,7 @@ export default function ProblemEducationPage() {
   const [condition, setCondition] = useState(null);
   const [relatedConditions, setRelatedConditions] = useState([]);
   const [doctors, setDoctors] = useState([]);
+  const [activeSpecialtyTab, setActiveSpecialtyTab] = useState("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -83,6 +84,13 @@ export default function ProblemEducationPage() {
         const currentCondition = jsonCond.data;
         setCondition(currentCondition);
 
+        // Parse multiple specialties
+        const parsedSpecialties = Array.isArray(currentCondition.specialties) && currentCondition.specialties.length > 0
+          ? currentCondition.specialties
+          : currentCondition.recommended_specialty
+          ? currentCondition.recommended_specialty.split(",").map(s => s.trim()).filter(Boolean)
+          : ["General Physician"];
+
         // 2. Fetch related conditions
         const resAllCond = await fetch("/api/cms/conditions?active_only=true");
         const jsonAllCond = await resAllCond.json();
@@ -94,12 +102,10 @@ export default function ProblemEducationPage() {
            setRelatedConditions(others);
         }
 
-        // 3. Fetch matched doctors based on Recommended Specialty
+        // 3. Fetch matched doctors based on ANY of the condition's specialties
         const resDocs = await fetch("/api/doctors/get?limit=100");
         const jsonDocs = await resDocs.json();
         const allDocs = Array.isArray(jsonDocs?.data) ? jsonDocs.data : [];
-        
-        const specialtyTarget = (currentCondition.recommended_specialty || "General Physician").toLowerCase();
         
         const mappedDocs = allDocs
           .filter((doc) => {
@@ -111,7 +117,10 @@ export default function ProblemEducationPage() {
             if (!(details.onboarding_status === "approved" || doc.status === 1) || !hasAvailability) return false;
             
             const docSpec = normalizeSpecialty(details.specialization).toLowerCase();
-            return docSpec.includes(specialtyTarget) || specialtyTarget.includes(docSpec);
+            return parsedSpecialties.some((spec) => {
+              const target = spec.toLowerCase();
+              return docSpec.includes(target) || target.includes(docSpec);
+            });
           })
           .map((doc) => {
             const details = doc.doctor_details || {};
@@ -149,12 +158,34 @@ export default function ProblemEducationPage() {
     if (slug) fetchData();
   }, [slug, router]);
 
+  // Derived multiple specialties array
+  const specialties = useMemo(() => {
+    if (!condition) return [];
+    if (Array.isArray(condition.specialties) && condition.specialties.length > 0) {
+      return condition.specialties;
+    }
+    if (condition.recommended_specialty) {
+      return condition.recommended_specialty.split(",").map(s => s.trim()).filter(Boolean);
+    }
+    return ["General Physician"];
+  }, [condition]);
+
+  // Filter doctors by active specialty tab
+  const filteredDoctors = useMemo(() => {
+    if (activeSpecialtyTab === "all") return doctors;
+    const target = activeSpecialtyTab.toLowerCase();
+    return doctors.filter(d => {
+      const docSpec = (d.specialty || "").toLowerCase();
+      return docSpec.includes(target) || target.includes(docSpec);
+    });
+  }, [doctors, activeSpecialtyTab]);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F7FAFC] flex items-center justify-center">
+      <div className="min-h-[50vh] bg-[#F8FAFC] flex items-center justify-center">
         <div className="flex flex-col items-center">
-          <div className="w-10 h-10 border-4 border-[#0B3A5B] border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-4 text-xs font-semibold uppercase tracking-wider text-[#607580]">
+          <div className="w-8 h-8 border-3 border-[#0067A1] border-t-transparent rounded-full animate-spin"></div>
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Loading medical information...
           </p>
         </div>
@@ -164,99 +195,125 @@ export default function ProblemEducationPage() {
 
   if (!condition) return null;
 
-  const targetSpecialtyUrl = `/doctors?specialty=${encodeURIComponent(condition.recommended_specialty || "General Physician")}`;
-
   return (
-    <div className="min-h-screen bg-[#F7FAFC]">
+    <div className="min-h-screen bg-[#F8FAFC]">
       
-      {/* 1. HERO HEADER */}
-      <section className="bg-gradient-to-b from-[#F7FAFC] to-white border-b border-[#DCE6EB] py-12 sm:py-16">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 text-center max-w-3xl">
-          <p className="text-[11px] sm:text-xs font-bold tracking-widest text-[#1677A8] uppercase mb-1.5">
-            HEALTH CONDITION GUIDE
-          </p>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#0B3A5B] tracking-tight mb-4">
-            {condition.seo_title || condition.title}
-          </h1>
-          <p className="text-base sm:text-lg text-[#607580] leading-relaxed max-w-2xl mx-auto">
-            {condition.short_description || `Learn about the symptoms, causes, and specialist treatments for ${condition.title}.`}
-          </p>
-          {condition.recommended_specialty && (
-            <div className="mt-6 flex justify-center">
-              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#E8F2F7] border border-[#DCE6EB] text-xs font-bold text-[#1677A8]">
-                <FaUserMd className="w-3.5 h-3.5" />
-                Recommended Specialty: {condition.recommended_specialty}
-              </span>
+      {/* 1. COMPACT PROFESSIONAL HEADER BAR */}
+      <section className="bg-white border-b border-slate-200 py-3.5 sm:py-4">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Breadcrumb line */}
+          <div className="flex items-center justify-between text-[11px] text-slate-500 mb-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Link href="/" className="hover:text-[#0067A1] transition-colors">Home</Link>
+              <span>/</span>
+              <Link href="/doctors" className="hover:text-[#0067A1] transition-colors">Specialists Directory</Link>
+              <span>/</span>
+              <span className="text-slate-800 font-semibold truncate max-w-[200px]">{condition.title}</span>
             </div>
-          )}
+            <Link
+              href="/doctors"
+              className="hidden sm:inline-flex items-center text-[11px] font-semibold text-[#0067A1] hover:text-[#004F7C] transition-colors group shrink-0"
+            >
+              <FaArrowLeft className="mr-1.5 h-2.5 w-2.5 group-hover:-translate-x-0.5 transition-transform" />
+              All Doctors
+            </Link>
+          </div>
+
+          {/* Condition Header with Compact Height & Proportioned Fonts */}
+          <div className="pt-0.5">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-bold tracking-wider uppercase text-[#0067A1] bg-[#0067A1]/10 px-2 py-0.5 rounded-[4px] border border-[#0067A1]/20">
+                Clinical Guide
+              </span>
+              <span className="text-xs text-slate-400">• Verified Condition</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold text-[#0B3A5B] tracking-tight">
+              {condition.seo_title || condition.title}
+            </h1>
+            <p className="text-xs sm:text-[13px] text-slate-600 mt-0.5 max-w-2xl leading-normal line-clamp-2">
+              {condition.short_description || `Symptoms, causes, and specialist consultation options for ${condition.title}.`}
+            </p>
+
+            {/* Quick Specialty CTA Buttons (Short & Clean) */}
+            {specialties.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Specialties:
+                </span>
+                {specialties.map((spec) => (
+                  <Link
+                    key={spec}
+                    href={`/doctors?specialty=${encodeURIComponent(spec)}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-[5px] bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold transition-colors shadow-2xs group cursor-pointer"
+                  >
+                    <FaStethoscope className="w-2.5 h-2.5 text-white/90" />
+                    <span>{spec}</span>
+                    <FaArrowRight className="w-2 h-2 text-white/80 group-hover:translate-x-0.5 transition-transform" />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
-      {/* 2. MAIN SECTION */}
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
-        <Link
-          href="/doctors"
-          className="inline-flex items-center text-xs sm:text-sm font-semibold text-[#1677A8] hover:text-[#0B3A5B] transition-colors mb-6 group"
-        >
-          <FaArrowLeft className="mr-2 h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
-          Back to Specialists Directory
-        </Link>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+      {/* 2. MAIN MEDICAL CONTENT & SIDEBAR */}
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
-          {/* Left Column: Rich Text Content */}
-          <div className="lg:col-span-8 space-y-8">
-            <div className="bg-white rounded-2xl border border-[#DCE6EB] p-6 sm:p-8 lg:p-10 shadow-2xs">
-              {/* Detailed CMS Content */}
+          {/* Left Column: Educational Content & Clinical Guide */}
+          <div className="lg:col-span-8 space-y-5">
+            <div className="bg-white rounded-[8px] border border-slate-200 p-5 sm:p-6 shadow-2xs">
+              {/* Detailed CMS Content with Refined Medical Font Sizes */}
               <div
                 className="prose prose-slate max-w-none 
-                  prose-headings:text-[#0B3A5B] prose-headings:font-extrabold 
-                  prose-h2:text-2xl prose-h2:md:text-3xl prose-h2:border-b prose-h2:border-[#DCE6EB] prose-h2:pb-3 prose-h2:mt-8 prose-h2:first:mt-0 
-                  prose-h3:text-xl prose-h3:text-[#0B3A5B] 
-                  prose-p:text-[#18303D] prose-p:leading-relaxed 
-                  prose-a:text-[#1677A8] prose-a:font-semibold 
-                  prose-strong:text-[#0B3A5B] 
-                  prose-ul:text-[#18303D] prose-li:my-1 
-                  prose-img:rounded-2xl [&_*]:!whitespace-normal"
+                  prose-headings:text-[#0B3A5B] prose-headings:font-bold 
+                  prose-h2:text-base sm:prose-h2:text-lg prose-h2:font-bold prose-h2:border-b prose-h2:border-slate-200 prose-h2:pb-1.5 prose-h2:mt-5 prose-h2:first:mt-0 
+                  prose-h3:text-sm sm:prose-h3:text-base prose-h3:font-semibold prose-h3:mt-3.5 
+                  prose-p:text-xs sm:prose-p:text-[13px] prose-p:text-slate-700 prose-p:leading-relaxed prose-p:my-2 
+                  prose-a:text-[#0067A1] prose-a:font-semibold 
+                  prose-strong:text-slate-900 prose-strong:font-semibold 
+                  prose-ul:text-xs sm:prose-ul:text-[13px] prose-ul:text-slate-700 prose-ul:my-2 prose-li:my-1 
+                  prose-img:rounded-[6px] [&_*]:!whitespace-normal"
                 dangerouslySetInnerHTML={{
                   __html: (
                     condition.detailed_content ||
-                    "<h2>Overview</h2><p>Clinical guidance for this health concern is being curated by our medical researchers.</p>"
+                    "<h2>Overview</h2><p>Clinical guidance for this health concern is being curated by our medical team.</p>"
                   ).replace(/&nbsp;/g, " "),
                 }}
               />
             </div>
 
-            {/* Medical Disclaimer */}
-            <div className="bg-white rounded-2xl p-5 sm:p-6 border border-[#DCE6EB] flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-[#E8F2F7] text-[#1677A8] flex items-center justify-center shrink-0 mt-0.5">
-                <FaShieldAlt className="h-4 w-4" />
+            {/* Medical Disclaimer (Compact & Standard) */}
+            <div className="bg-white rounded-[8px] p-4 border border-slate-200 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-[6px] bg-[#0067A1]/10 text-[#0067A1] flex items-center justify-center shrink-0 mt-0.5 border border-[#0067A1]/20">
+                <FaShieldAlt className="h-3.5 w-3.5" />
               </div>
               <div>
-                <h4 className="font-bold text-[#0B3A5B] text-xs uppercase tracking-wider mb-1">
+                <h4 className="font-bold text-[#0B3A5B] text-xs uppercase tracking-wider mb-0.5">
                   Medical Disclaimer
                 </h4>
-                <p className="text-xs sm:text-sm text-[#607580] leading-relaxed">
-                  The information on this page is for educational and clinical guidance only and does not substitute professional medical advice. Diagnosis and treatment decisions must always be made in consultation with a qualified doctor.
+                <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed">
+                  The clinical information provided on this page is for educational and guidance purposes and does not replace medical advice. Always consult a verified specialist for accurate diagnosis and prescription.
                 </p>
               </div>
             </div>
 
-            {/* Related Health Conditions */}
+            {/* Related Health Concerns */}
             {relatedConditions.length > 0 && (
-              <div className="bg-white rounded-2xl border border-[#DCE6EB] p-6 sm:p-7 shadow-2xs">
-                <h3 className="text-base sm:text-lg font-extrabold text-[#0B3A5B] mb-4">
+              <div className="bg-white rounded-[8px] border border-slate-200 p-4 sm:p-5 shadow-2xs">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
                   Related Health Concerns
                 </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   {relatedConditions.map((related) => (
                     <Link
                       key={related.id}
                       href={`/problem/${related.slug}`}
-                      className="bg-[#F7FAFC] p-3.5 rounded-xl border border-[#DCE6EB] hover:border-[#1677A8] hover:bg-white hover:shadow-2xs transition-all flex flex-col items-center text-center group"
+                      className="bg-slate-50 hover:bg-white p-3 rounded-[6px] border border-slate-200 hover:border-[#0067A1] transition-all flex flex-col items-center text-center group cursor-pointer"
                     >
                       {related.icon_name && (
-                        <div className="w-11 h-11 rounded-full bg-white border border-[#DCE6EB] flex items-center justify-center p-1.5 mb-2 group-hover:scale-105 transition-transform">
+                        <div className="w-9 h-9 rounded-[5px] bg-white border border-slate-200 flex items-center justify-center p-1.5 mb-1.5 group-hover:scale-105 transition-transform">
                           <img
                             src={related.icon_name}
                             alt={related.title}
@@ -264,7 +321,7 @@ export default function ProblemEducationPage() {
                           />
                         </div>
                       )}
-                      <span className="text-xs font-bold text-[#0B3A5B] group-hover:text-[#1677A8] transition-colors line-clamp-1">
+                      <span className="text-xs font-semibold text-slate-800 group-hover:text-[#0067A1] transition-colors line-clamp-1">
                         {related.title}
                       </span>
                     </Link>
@@ -274,121 +331,196 @@ export default function ProblemEducationPage() {
             )}
           </div>
 
-          {/* Right Column: CTA & Recommended Doctors */}
-          <div className="lg:col-span-4 space-y-6">
+          {/* Right Column: Multiple Specialty CTA Buttons & Suggested Doctors */}
+          <div className="lg:col-span-4 space-y-4">
             
-            {/* Consultation CTA Block */}
-            <div className="bg-[#0B3A5B] rounded-2xl p-6 sm:p-7 text-white shadow-2xs relative overflow-hidden">
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                    <FaUserMd className="text-white h-5 w-5" />
-                  </div>
-                  <h3 className="text-lg font-bold">Consult a Specialist</h3>
+            {/* Consultation CTA Block with Multiple Specialty Buttons */}
+            <div className="bg-[#0B3A5B] rounded-[8px] p-4 sm:p-5 text-white shadow-2xs">
+              <div className="flex items-center gap-2.5 mb-2">
+                <div className="w-8 h-8 rounded-[6px] bg-white/10 flex items-center justify-center shrink-0">
+                  <FaUserMd className="text-white h-4 w-4" />
                 </div>
-                <p className="text-white/80 text-xs sm:text-sm mb-5 leading-relaxed">
-                  Don&apos;t delay addressing {condition.title}. Connect with verified <span className="font-bold text-white">{condition.recommended_specialty || "specialist"}</span> doctors for an accurate diagnosis and treatment plan.
-                </p>
-                <Link
-                  href={targetSpecialtyUrl}
-                  className="w-full bg-white hover:bg-[#F7FAFC] text-[#0B3A5B] px-5 py-3 rounded-xl text-xs sm:text-sm font-semibold shadow-xs flex items-center justify-center gap-2 transition-colors"
-                >
-                  Find Doctor <FaArrowRight className="h-3 w-3" />
-                </Link>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Consult Doctor</h3>
+                  <p className="text-[11px] text-white/70">Verified Specialists</p>
+                </div>
               </div>
+
+              <p className="text-white/80 text-xs leading-normal mb-3">
+                Select specialty for <span className="font-semibold text-white">{condition.title}</span>:
+              </p>
+
+              {/* Multiple Specialty CTA Buttons (Short & Concise) */}
+              <div className="space-y-2 mb-2.5">
+                {specialties.map((spec) => (
+                  <Link
+                    key={spec}
+                    href={`/doctors?specialty=${encodeURIComponent(spec)}`}
+                    className="w-full bg-[#0067A1] hover:bg-[#004F7C] text-white px-3.5 py-2 rounded-[6px] text-xs font-bold shadow-2xs flex items-center justify-between transition-colors group cursor-pointer border border-white/10"
+                  >
+                    <span className="flex items-center gap-2">
+                      <FaStethoscope className="h-3 w-3 text-white/90" />
+                      <span>{spec}</span>
+                    </span>
+                    <FaArrowRight className="h-2.5 w-2.5 group-hover:translate-x-0.5 transition-transform" />
+                  </Link>
+                ))}
+              </div>
+
+              <Link
+                href="/doctors"
+                className="w-full bg-white hover:bg-slate-50 text-[#0B3A5B] px-3 py-1.5 rounded-[6px] text-xs font-semibold shadow-2xs flex items-center justify-center gap-1 transition-colors block text-center"
+              >
+                All Doctors
+              </Link>
             </div>
 
-            {/* Doctor List (Mapped by Specialty) */}
-            <div id="doctor-list" className="bg-white rounded-2xl border border-[#DCE6EB] shadow-2xs p-6 sticky top-24">
-              <div className="flex items-center justify-between pb-3 mb-4 border-b border-[#DCE6EB]">
-                <h3 className="text-base font-extrabold text-[#0B3A5B]">
-                  Suggested Doctors
-                </h3>
-                {condition.recommended_specialty && (
-                  <span className="text-[11px] font-bold bg-[#E8F2F7] text-[#1677A8] px-2.5 py-0.5 rounded-full border border-[#DCE6EB]">
-                    {condition.recommended_specialty}
-                  </span>
-                )}
+            {/* Suggested Doctors List with Specialty Filter Tabs */}
+            <div id="doctor-list" className="bg-white rounded-[8px] border border-slate-200 shadow-2xs p-4 sm:p-5 sticky top-20">
+              <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-200">
+                <div>
+                  <h3 className="text-sm font-bold text-[#0B3A5B]">
+                    Suggested Doctors
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Available specialists for this condition</p>
+                </div>
+                <span className="text-[11px] font-bold text-[#0067A1] bg-[#0067A1]/10 px-2 py-0.5 rounded-[4px] border border-[#0067A1]/20">
+                  {filteredDoctors.length} Found
+                </span>
               </div>
 
-              {doctors.length === 0 ? (
-                <div className="text-center py-6 bg-[#F7FAFC] rounded-xl border border-dashed border-[#DCE6EB] p-4">
-                  <FaUserMd className="mx-auto text-[#607580] text-3xl mb-2" />
-                  <p className="text-xs text-[#607580]">
-                    No specialists currently available for immediate online slot. Explore verified doctors in our care network.
+              {/* Specialty Filter Tabs */}
+              {specialties.length > 1 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-3 no-scrollbar">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSpecialtyTab("all")}
+                    className={`px-2 py-1 rounded-[4px] text-[11px] font-bold transition-colors cursor-pointer shrink-0 border ${
+                      activeSpecialtyTab === "all"
+                        ? "bg-[#0067A1] text-white border-[#0067A1]"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    All ({doctors.length})
+                  </button>
+                  {specialties.map((spec) => {
+                    const count = doctors.filter(d => {
+                      const docSpec = (d.specialty || "").toLowerCase();
+                      const target = spec.toLowerCase();
+                      return docSpec.includes(target) || target.includes(docSpec);
+                    }).length;
+
+                    return (
+                      <button
+                        key={spec}
+                        type="button"
+                        onClick={() => setActiveSpecialtyTab(spec)}
+                        className={`px-2 py-1 rounded-[4px] text-[11px] font-bold transition-colors cursor-pointer shrink-0 border ${
+                          activeSpecialtyTab === spec
+                            ? "bg-[#0067A1] text-white border-[#0067A1]"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {spec} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {filteredDoctors.length === 0 ? (
+                <div className="text-center py-5 bg-slate-50 rounded-[6px] border border-dashed border-slate-200 p-3">
+                  <FaUserMd className="mx-auto text-slate-400 text-2xl mb-1.5" />
+                  <p className="text-xs text-slate-600">
+                    No specialists available for this tab right now.
                   </p>
                   <Link
                     href="/doctors"
-                    className="inline-block mt-3 text-xs font-bold text-[#1677A8] hover:underline"
+                    className="inline-block mt-2 text-xs font-bold text-[#0067A1] hover:underline"
                   >
-                    View All Doctors
+                    Explore All Doctors
                   </Link>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {doctors.slice(0, 3).map((doctor) => (
-                    <Link
+                <div className="space-y-2.5">
+                  {filteredDoctors.slice(0, 4).map((doctor) => (
+                    <div
                       key={doctor.id}
-                      href={`/doctor/${doctor.id}`}
-                      className="group flex items-center gap-3.5 p-3 rounded-xl border border-[#DCE6EB] hover:border-[#1677A8]/50 hover:shadow-2xs transition-all bg-white"
+                      className="p-3 rounded-[6px] border border-slate-200 bg-white hover:border-[#0067A1]/50 hover:shadow-2xs transition-all flex items-center justify-between gap-3"
                     >
-                      <div className="relative shrink-0 w-13 h-13 rounded-xl overflow-hidden bg-[#F7FAFC] border border-[#DCE6EB]">
-                        <img
-                          src={doctor.profileImage || "/dr.png"}
-                          alt={doctor.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.style.display = "none";
-                            e.target.nextSibling.style.display = "flex";
-                          }}
-                        />
-                        <div className="hidden absolute inset-0 bg-[#E8F2F7] items-center justify-center font-bold text-[#1677A8]">
-                          {doctor.name.charAt(0)}
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="relative shrink-0 w-10 h-10 rounded-[6px] overflow-hidden bg-slate-100 border border-slate-200">
+                          <img
+                            src={doctor.profileImage || "/dr.png"}
+                            alt={doctor.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = "none";
+                              e.target.nextSibling.style.display = "flex";
+                            }}
+                          />
+                          <div className="hidden absolute inset-0 bg-blue-50 items-center justify-center font-bold text-[#0067A1] text-xs">
+                            {doctor.name.charAt(0)}
+                          </div>
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1">
+                            <h4 className="font-bold text-slate-900 text-xs truncate">
+                              {doctor.name}
+                            </h4>
+                            <FaCheckCircle className="w-2.5 h-2.5 text-[#0067A1] shrink-0" />
+                          </div>
+                          <p className="text-[10px] text-slate-500 truncate">
+                            {doctor.specialty}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5 text-[10px]">
+                            {doctor.experience && (
+                              <span className="font-semibold text-emerald-700">
+                                {doctor.experience}+ Yrs
+                              </span>
+                            )}
+                            {doctor.fee && (
+                              <span className="text-slate-500 font-semibold">
+                                • ₹{doctor.fee}
+                              </span>
+                            )}
+                            {doctor.rating && (
+                              <span className="inline-flex items-center gap-0.5 text-amber-600 font-bold">
+                                • <FaStar className="w-2 h-2" /> {doctor.rating}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1">
-                          <h4 className="font-bold text-[#0B3A5B] text-xs sm:text-sm truncate group-hover:text-[#1677A8] transition-colors">
-                            {doctor.name}
-                          </h4>
-                          <FaCheckCircle className="w-3 h-3 text-[#1677A8] shrink-0" />
-                        </div>
-                        <p className="text-[11px] text-[#607580] truncate mt-0.5">
-                          {doctor.specialty}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1 text-[11px]">
-                          <span className="font-semibold text-emerald-700">
-                            {doctor.experience || 5}+ Yrs
-                          </span>
-                          {doctor.fee && (
-                            <span className="text-[#607580]">
-                              • ₹{doctor.fee}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
+
+                      {/* CTA Button on doctor item */}
+                      <Link
+                        href={`/doctor/${doctor.id}`}
+                        className="bg-[#0067A1] hover:bg-[#004F7C] text-white py-1 px-2.5 rounded-[5px] text-[11px] font-bold text-center transition-colors shrink-0 shadow-2xs cursor-pointer"
+                      >
+                        Book Slot
+                      </Link>
+                    </div>
                   ))}
 
-                  {doctors.length > 3 && (
-                    <Link
-                      href={targetSpecialtyUrl}
-                      className="block text-center w-full py-2.5 text-xs font-semibold text-[#1677A8] bg-[#E8F2F7] hover:bg-[#1677A8]/15 rounded-xl transition-colors mt-2"
-                    >
-                      View All Specialists
-                    </Link>
-                  )}
+                  <Link
+                    href={`/doctors?specialty=${encodeURIComponent(activeSpecialtyTab === "all" ? (specialties[0] || "General Physician") : activeSpecialtyTab)}`}
+                    className="block text-center w-full py-1.5 text-xs font-bold text-[#0067A1] bg-slate-50 hover:bg-[#0067A1]/10 rounded-[6px] transition-colors mt-2 border border-slate-200"
+                  >
+                    View All Doctors →
+                  </Link>
                 </div>
               )}
 
               {/* Direct Care Helpline */}
-              <div className="mt-5 pt-4 border-t border-[#DCE6EB]/60 flex items-center gap-3 text-xs text-[#607580]">
-                <div className="w-8 h-8 rounded-lg bg-[#E8F2F7] text-[#1677A8] flex items-center justify-center shrink-0">
-                  <FaPhone className="h-3.5 w-3.5" />
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2.5 text-xs text-slate-500">
+                <div className="w-7 h-7 rounded-[5px] bg-[#0067A1]/10 text-[#0067A1] flex items-center justify-center shrink-0 border border-[#0067A1]/20">
+                  <FaPhone className="h-3 w-3" />
                 </div>
                 <div>
-                  <div className="font-bold text-[#0B3A5B]">Need Guidance?</div>
-                  <div className="text-[11px] text-[#607580]">+91 72890-43888 (9 AM - 9 PM)</div>
+                  <div className="font-bold text-[#0B3A5B] text-[11px]">Need Help Choosing?</div>
+                  <div className="text-[10px] text-slate-500">+91 72890-43888 (9 AM - 9 PM)</div>
                 </div>
               </div>
 

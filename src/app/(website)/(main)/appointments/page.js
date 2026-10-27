@@ -136,7 +136,8 @@ const canModifyAppointment = (apt, now = new Date()) => {
   const start = getAppointmentStart(apt);
   if (!start) return false;
   const diffMs = start.getTime() - now.getTime();
-  return diffMs >= 4 * 60 * 60 * 1000;
+  // Indian Telemedicine & Healthcare Practice Standard: Allow cancel/reschedule up to 2 hours before slot
+  return diffMs >= 2 * 60 * 60 * 1000;
 };
 
 const isVideoAppointment = (apt) => {
@@ -704,7 +705,7 @@ export default function AppointmentsPage() {
 
   const handleRescheduleClick = (appointment) => {
     if (!canModifyAppointment(appointment)) {
-      toast.error("You can reschedule only up to 4 hours before the appointment time.");
+      toast.error("You can reschedule only up to 2 hours before the appointment time.");
       return;
     }
 
@@ -718,7 +719,7 @@ export default function AppointmentsPage() {
 
   const handleCancelClick = (appointment) => {
     if (!canModifyAppointment(appointment)) {
-      toast.error("You can cancel only up to 4 hours before the appointment time.");
+      toast.error("You can cancel only up to 2 hours before the appointment time.");
       return;
     }
     setAppointmentToCancel(appointment);
@@ -1326,6 +1327,14 @@ export default function AppointmentsPage() {
                   })}{" "}
                   at {formatTimeTo12Hour(getDateTime(appointmentToCancel).timeStr)}
                 </p>
+              </div>
+
+              {/* 100% Auto-Refund Reassurance */}
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-start gap-2">
+                <FaCheck className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                <div>
+                  <span className="font-bold">100% Full Refund Guarantee:</span> If you paid online, your full consultation fee will be automatically refunded to your original payment method via Razorpay within 5–7 working days.
+                </div>
               </div>
             </div>
 

@@ -18,7 +18,11 @@ export async function GET(req, { params }) {
             return NextResponse.json({ success: false, error: "Condition not found" }, { status: 404 });
         }
 
-        return NextResponse.json({ success: true, data: rows[0] }, { status: 200 });
+        const row = rows[0];
+        const rawSpec = row?.recommended_specialty || "";
+        const specialties = rawSpec ? rawSpec.split(",").map(s => s.trim()).filter(Boolean) : [];
+
+        return NextResponse.json({ success: true, data: { ...row, specialties } }, { status: 200 });
     } catch (err) {
         console.error("GET /api/cms/conditions/[id] error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -34,6 +38,13 @@ export async function PUT(req, { params }) {
         if (payload.title && !slug) {
             slug = payload.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
         }
+
+        let cleanSpecialty = payload.recommended_specialty;
+        if (Array.isArray(cleanSpecialty)) {
+            cleanSpecialty = cleanSpecialty.map(s => String(s).trim()).filter(Boolean).join(", ");
+        } else if (cleanSpecialty !== undefined && cleanSpecialty !== null) {
+            cleanSpecialty = String(cleanSpecialty).trim();
+        }
         
         const rows = await sql`
             UPDATE cms_conditions
@@ -44,7 +55,7 @@ export async function PUT(req, { params }) {
                 short_description = ${payload.short_description !== undefined ? payload.short_description : sql`short_description`},
                 icon_name = ${payload.icon_name !== undefined ? payload.icon_name : sql`icon_name`},
                 detailed_content = ${payload.detailed_content !== undefined ? payload.detailed_content : sql`detailed_content`},
-                recommended_specialty = ${payload.recommended_specialty !== undefined ? payload.recommended_specialty : sql`recommended_specialty`},
+                recommended_specialty = ${cleanSpecialty !== undefined ? cleanSpecialty : sql`recommended_specialty`},
                 status = ${payload.status !== undefined ? payload.status : sql`status`},
                 display_order = ${payload.display_order !== undefined ? payload.display_order : sql`display_order`},
                 updated_at = NOW()
@@ -52,7 +63,11 @@ export async function PUT(req, { params }) {
             RETURNING *
         `;
 
-        return NextResponse.json({ success: true, data: rows[0] }, { status: 200 });
+        const row = rows[0];
+        const rawSpec = row?.recommended_specialty || "";
+        const specialties = rawSpec ? rawSpec.split(",").map(s => s.trim()).filter(Boolean) : [];
+
+        return NextResponse.json({ success: true, data: { ...row, specialties } }, { status: 200 });
     } catch (err) {
         console.error("PUT /api/cms/conditions/[id] error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });

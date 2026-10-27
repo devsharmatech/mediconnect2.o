@@ -28,12 +28,14 @@ import {
   BarChart3,
   MessageSquare,
   ExternalLink,
-  Stethoscope
+  Stethoscope,
+  Copy
 } from "lucide-react";
 import toast from "react-hot-toast";
 import ConsultationWorkspace from "@/components/doctor/ConsultationWorkspace";
 import SessionAgreementModal from "@/components/doctor/SessionAgreementModal";
 import DoctorAnalyticsWidget from "@/components/doctor/DoctorAnalyticsWidget";
+import PatientVerificationCard from "@/components/doctor/PatientVerificationCard";
 
 const STATUS_COLORS = {
   booked: "bg-[#0067A1]/10 text-[#0067A1] border-[#0067A1]/20",
@@ -69,6 +71,12 @@ const formatPatientEmail = (email) => {
   if (!email) return null;
   if (String(email).startsWith("deleted_") || String(email).startsWith("ANONYMIZED_")) return "Account Deleted";
   return email;
+};
+
+const formatAppointmentId = (id) => {
+  if (!id) return "";
+  const clean = String(id).replace(/[^a-zA-Z0-9]/g, "");
+  return `APT-${clean.slice(0, 8).toUpperCase()}`;
 };
 
 export default function DoctorAppointmentsPage() {
@@ -887,7 +895,7 @@ export default function DoctorAppointmentsPage() {
                       {/* Patient Row */}
                       <div className="flex items-center gap-2.5 mb-2.5">
                         <div className="relative shrink-0">
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0067A1]/15 to-[#0067A1]/5 flex items-center justify-center border border-[#0067A1]/15">
+                          <div className="w-9 h-9 rounded-full bg-[#0067A1]/10 flex items-center justify-center border border-[#0067A1]/20">
                             <User className="w-4 h-4 text-[#0067A1]" />
                           </div>
                           {withinSlot && (
@@ -908,11 +916,33 @@ export default function DoctorAppointmentsPage() {
                             )}
                           </div>
                           <div className="flex items-center gap-2 text-[10.5px] text-slate-500 truncate mt-0.5">
-                            <span className="truncate">{formatPatientPhone(apt.patient?.phone)}</span>
+                            {apt.patient?.phone && !String(apt.patient.phone).startsWith("ANONYMIZED_") ? (
+                              <a
+                                href={`tel:${apt.patient.phone}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="truncate hover:text-[#0067A1] hover:underline transition-colors"
+                                title="Click to call"
+                              >
+                                {formatPatientPhone(apt.patient.phone)}
+                              </a>
+                            ) : (
+                              <span className="truncate">{formatPatientPhone(apt.patient?.phone)}</span>
+                            )}
                             {formatPatientEmail(apt.patient?.email) && (
                               <>
                                 <span>•</span>
-                                <span className="truncate">{formatPatientEmail(apt.patient.email)}</span>
+                                {!String(apt.patient.email).startsWith("deleted_") && !String(apt.patient.email).startsWith("ANONYMIZED_") ? (
+                                  <a
+                                    href={`mailto:${apt.patient.email}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="truncate hover:text-[#0067A1] hover:underline transition-colors"
+                                    title="Click to email"
+                                  >
+                                    {formatPatientEmail(apt.patient.email)}
+                                  </a>
+                                ) : (
+                                  <span className="truncate">{formatPatientEmail(apt.patient.email)}</span>
+                                )}
                               </>
                             )}
                           </div>
@@ -1144,7 +1174,24 @@ export default function DoctorAppointmentsPage() {
                       <span className="capitalize">{selectedAppointment.status}</span>
                     </span>
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">ID: {selectedAppointment.id}</p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="text-xs text-slate-500">Booking ID:</span>
+                    <span className="font-mono text-xs font-bold text-[#0067A1] bg-[#0067A1]/10 px-2 py-0.5 rounded border border-[#0067A1]/20">
+                      #{formatAppointmentId(selectedAppointment.id)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(selectedAppointment.id);
+                        toast.success("Appointment ID copied");
+                      }}
+                      title={`Full ID: ${selectedAppointment.id}\nClick to copy`}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 hover:text-[#0067A1] bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded border border-slate-200 transition-colors cursor-pointer"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>Copy</span>
+                    </button>
+                  </div>
                 </div>
                 <button
                   onClick={handleCloseModal}
@@ -1159,7 +1206,7 @@ export default function DoctorAppointmentsPage() {
               <div className="space-y-6">
               {/* Patient Info */}
               <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-[#0067A1]/10 to-[#0067A1]/5 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-lg bg-[#0067A1]/10 border border-[#0067A1]/20 flex items-center justify-center">
                   <User className="w-7 h-7 text-[#0067A1]" />
                 </div>
                 <div className="flex-1">
@@ -1228,9 +1275,13 @@ export default function DoctorAppointmentsPage() {
               </div>
 
               {/* Appointment Details */}
-              <div className="bg-gradient-to-r from-[#0067A1]/5 to-transparent rounded-md p-4 border border-[#0067A1]/10">
+              <div className="bg-slate-50 rounded-md p-4 border border-slate-200">
                 <h5 className="text-xs font-bold text-[#0067A1] uppercase tracking-wider mb-2.5">Appointment Information</h5>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  <div>
+                    <p className="text-xs text-slate-500">Booking Ref</p>
+                    <p className="font-mono font-bold text-[#0067A1] text-sm">#{formatAppointmentId(selectedAppointment.id)}</p>
+                  </div>
                   <div>
                     <p className="text-xs text-slate-500">Date</p>
                     <p className="font-medium text-slate-800 text-sm">{selectedAppointment.appointment_date}</p>
@@ -1256,6 +1307,17 @@ export default function DoctorAppointmentsPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Patient Identity & Consent Verification (Every Consultation: In-Clinic, Video, Home Visit) */}
+              {selectedAppointment && !["cancelled", "rejected"].includes(String(selectedAppointment.status).toLowerCase()) && (
+                <PatientVerificationCard
+                  appointment={selectedAppointment}
+                  doctorUserId={typeof window !== "undefined" ? localStorage.getItem("userId") : null}
+                  onVerificationComplete={() => {
+                    toast.success("Verification saved");
+                  }}
+                />
+              )}
 
               {/* Address & Reason */}
               <div className="space-y-4">

@@ -26,6 +26,7 @@ import {
 } from "@heroicons/react/24/solid";
 import toast from "react-hot-toast";
 import SessionStateTracker from "@/components/doctor/SessionStateTracker";
+import PatientVerificationCard from "@/components/doctor/PatientVerificationCard";
 import { loadRazorpayScript } from "@/lib/razorpay";
 import PrescriptionViewerModal from "@/components/public-site/appointments/PrescriptionViewerModal";
 import SharePrescriptionModal from "@/components/public-site/appointments/SharePrescriptionModal";
@@ -150,6 +151,8 @@ function VideoCall({ appointmentId, userId, role }) {
 
   // Write prescription (doctor only)
   const [isWriteRxOpen, setIsWriteRxOpen] = useState(false);
+  const [isVerifyOpen, setIsVerifyOpen] = useState(false);
+  const [appointmentData, setAppointmentData] = useState(null);
   const [appointmentMeta, setAppointmentMeta] = useState(null); // { patient_id, doctor_id, doctor_specialization }
   const [rxLoading, setRxLoading] = useState(false);
   const [prescriptionTemplates, setPrescriptionTemplates] = useState([]);
@@ -185,6 +188,7 @@ function VideoCall({ appointmentId, userId, role }) {
       .then((json) => {
         if (json?.success && json?.data?.appointment) {
           const apt = json.data.appointment;
+          setAppointmentData(apt);
           const dur = Number(apt.duration_minutes || apt.slot_duration || 0);
           if (dur > 0) {
             setSlotAllottedSeconds(dur * 60);
@@ -1115,23 +1119,36 @@ function VideoCall({ appointmentId, userId, role }) {
 
             {/* Role-specific button */}
             {role === "doctor" ? (
-              <ControlButton
-                onClick={openPrescription}
-                disabled={!joined || rxLoading}
-                active
-                activeClass="bg-[#0067A1] hover:bg-[#004F7C]"
-                inactiveClass="bg-gray-700"
-                title={rxLoading ? "Loading prescription…" : "Write prescription"}
-              >
-                {rxLoading ? (
-                  <div className="flex flex-col items-center gap-0.5">
-                    <Spinner size="w-4 h-4" />
-                    <span className="text-white text-[9px] font-semibold leading-none">Loading</span>
-                  </div>
-                ) : (
-                  <span className="text-white text-sm font-bold">Rx</span>
-                )}
-              </ControlButton>
+              <>
+                <ControlButton
+                  onClick={() => setIsVerifyOpen(true)}
+                  disabled={!joined}
+                  active={isVerifyOpen}
+                  activeClass="bg-emerald-600 hover:bg-emerald-700"
+                  inactiveClass="bg-gray-700"
+                  title="Verify Patient"
+                >
+                  <ShieldCheck className="w-5 h-5 text-white" />
+                </ControlButton>
+
+                <ControlButton
+                  onClick={openPrescription}
+                  disabled={!joined || rxLoading}
+                  active
+                  activeClass="bg-[#0067A1] hover:bg-[#004F7C]"
+                  inactiveClass="bg-gray-700"
+                  title={rxLoading ? "Loading prescription…" : "Write prescription"}
+                >
+                  {rxLoading ? (
+                    <div className="flex flex-col items-center gap-0.5">
+                      <Spinner size="w-4 h-4" />
+                      <span className="text-white text-[9px] font-semibold leading-none">Loading</span>
+                    </div>
+                  ) : (
+                    <span className="text-white text-sm font-bold">Rx</span>
+                  )}
+                </ControlButton>
+              </>
             ) : (
               <ControlButton
                 onClick={fetchPatientPrescription}
@@ -1188,6 +1205,37 @@ function VideoCall({ appointmentId, userId, role }) {
             onClose={() => setIsPrescriptionOpen(false)}
             isDoctor={role === "doctor"}
           />
+        )}
+      </AnimatePresence>
+
+      {/* ── Patient Identity & Consent Verification Modal (Doctor only) ── */}
+      <AnimatePresence>
+        {isVerifyOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
+            >
+              <div className="relative">
+                <button
+                  onClick={() => setIsVerifyOpen(false)}
+                  className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-slate-200/80 hover:bg-slate-300 text-slate-700 transition-colors"
+                  title="Close"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+                <PatientVerificationCard
+                  appointment={appointmentData || { id: appointmentId, patient_id: appointmentMeta?.patient_id }}
+                  doctorUserId={userId || appointmentMeta?.doctor_id}
+                  onVerificationComplete={() => {
+                    toast.success("Verification saved");
+                  }}
+                />
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

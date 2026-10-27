@@ -20,7 +20,18 @@ export async function GET(req) {
             `;
         }
         
-        return NextResponse.json({ success: true, data }, { status: 200 });
+        const formatted = data.map(item => {
+            const rawSpec = item.recommended_specialty || "";
+            const specialties = rawSpec
+                ? rawSpec.split(",").map(s => s.trim()).filter(Boolean)
+                : [];
+            return {
+                ...item,
+                specialties
+            };
+        });
+
+        return NextResponse.json({ success: true, data: formatted }, { status: 200 });
     } catch (err) {
         console.error("GET /api/cms/conditions error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
@@ -30,7 +41,14 @@ export async function GET(req) {
 export async function POST(req) {
     try {
         const body = await req.json();
-        const { title, seo_title, short_description, icon_name, detailed_content, recommended_specialty, status, display_order } = body;
+        const { title, seo_title, short_description, icon_name, detailed_content, status, display_order } = body;
+
+        let cleanSpecialty = body.recommended_specialty;
+        if (Array.isArray(cleanSpecialty)) {
+            cleanSpecialty = cleanSpecialty.map(s => String(s).trim()).filter(Boolean).join(", ");
+        } else if (cleanSpecialty) {
+            cleanSpecialty = String(cleanSpecialty).trim();
+        }
 
         let slug = body.slug;
         if (title && !slug) {
@@ -49,7 +67,7 @@ export async function POST(req) {
                 ${short_description || null},
                 ${icon_name || null},
                 ${detailed_content || null},
-                ${recommended_specialty || null},
+                ${cleanSpecialty || null},
                 ${status || 'active'},
                 ${display_order !== undefined ? display_order : 0},
                 NOW(),
@@ -58,7 +76,11 @@ export async function POST(req) {
             RETURNING *
         `;
 
-        return NextResponse.json({ success: true, data: rows[0] }, { status: 201 });
+        const row = rows[0];
+        const rawSpec = row?.recommended_specialty || "";
+        const specialties = rawSpec ? rawSpec.split(",").map(s => s.trim()).filter(Boolean) : [];
+
+        return NextResponse.json({ success: true, data: { ...row, specialties } }, { status: 201 });
     } catch (err) {
         console.error("POST /api/cms/conditions error:", err);
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });

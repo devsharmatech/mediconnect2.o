@@ -19,6 +19,7 @@ import { evaluateCTA, updateEngagementProfile, trackSignal } from "./engagementE
 import { sendAppointmentUpdateAlert } from "@/lib/sms";
 import { sendPushAndInAppNotification } from "../notificationHelper";
 import { calculateBookingFinancialQuote, freezeBookingFinancialSnapshot, postAppointmentCompletionLedger } from "../doctorFinancialEngine";
+import { initiateRefund } from "./refundEngine";
 
 
 /**
@@ -741,6 +742,37 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
   const updated = updatedRows[0];
   if (!updated) throw new Error("Update failed.");
 
+  // Indian Medical Law & Consumer Protection 2020:
+  // If doctor rejects/declines a paid appointment, 100% full refund MUST be initiated immediately
+  let autoRefund = null;
+  const amountPaid = parseFloat(appointment.final_fee || appointment.original_fee || 0);
+  const paymentId = appointment.razorpay_payment_id;
+
+  if (status === "rejected" && appointment.payment_status === "paid" && paymentId && paymentId.startsWith("pay_") && amountPaid > 0) {
+    try {
+      console.log(`[Indian Medical Law] Doctor rejected appointment ${appointment_id}. Auto-initiating 100% full refund of ₹${amountPaid}...`);
+      autoRefund = await initiateRefund({
+        patient_id: appointment.patient_id,
+        care_episode_id: appointment.care_episode_id || null,
+        consultation_id: null,
+        original_payment_id: paymentId,
+        razorpay_order_id: appointment.razorpay_order_id || null,
+        amount: amountPaid,
+        reason: `Doctor rejected appointment (Full 100% Refund per Indian Telemedicine Guidelines)`,
+        initiated_by: `doctor:${actorId}`
+      });
+
+      await sql`
+        UPDATE appointments
+        SET payment_status = 'refund_initiated',
+            updated_at = NOW()
+        WHERE id = ${appointment_id}
+      `;
+    } catch (refErr) {
+      console.error("[RefundEngine] Auto-refund error on doctor rejection:", refErr.message);
+    }
+  }
+
   // Dispatch in-app, push, and WhatsApp notifications asynchronously
   (async () => {
     try {
@@ -765,12 +797,15 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
           metadata: { appointment_id: appointment.id, doctor_id: appointment.doctor_id, doctor_name: doctorName }
         });
       } else if (status === "rejected") {
+        const refundNote = autoRefund?.success
+          ? ` 100% Full refund of ₹${amountPaid} has been initiated to your original payment method (Ref: ${autoRefund.refund_id}). It will reflect in 5-7 business days.`
+          : "";
         await sendPushAndInAppNotification({
           user_id: appointment.patient_id,
-          title: "Appointment Update",
-          message: `Your appointment request with Dr. ${doctorName} for ${appointment.appointment_date} could not be accepted.`,
+          title: "Appointment Not Accepted - Refund Initiated",
+          message: `Your appointment request with Dr. ${doctorName} for ${appointment.appointment_date} could not be accepted.${refundNote}`,
           type: "appointment_rejected",
-          metadata: { appointment_id: appointment.id, doctor_id: appointment.doctor_id, doctor_name: doctorName }
+          metadata: { appointment_id: appointment.id, doctor_id: appointment.doctor_id, doctor_name: doctorName, refund: autoRefund }
         });
       }
 
@@ -1042,20 +1077,35 @@ async function executeCancelAppointment(payload, actorId) {
     console.error("[Layer111] Cancel notification dropped:", notifErr.message);
   }
 
-  // Note: if payment was made, could trigger outbox event for refund here
+  // Indian Medical & Consumer Law: Auto-trigger 100% refund for cancelled paid appointment
   if (appointment.payment_status === "paid") {
-    const consultations = await sql`
-      SELECT id FROM consultations WHERE appointment_id = ${appointment_id} LIMIT 1
-    `;
-    const consultation = consultations[0];
+    const amountPaid = parseFloat(appointment.final_fee || appointment.original_fee || 0);
+    const paymentId = appointment.razorpay_payment_id;
 
-    await insertOutboxEvent({
-      event_type: "PAYMENT_REFUND_REQUESTED",
-      consultation_id: consultation?.id || null,
-      care_episode_id: appointment.care_episode_id,
-      consultation_type: "SYSTEM_RECOVERY",
-      payload: { patient_id: appointment.patient_id, reason: "appointment_cancelled", amount: null }
-    });
+    if (paymentId && paymentId.startsWith("pay_") && amountPaid > 0) {
+      try {
+        console.log(`[Indian Medical Law] Appointment ${appointment_id} cancelled. Auto-initiating 100% refund of ₹${amountPaid}...`);
+        await initiateRefund({
+          patient_id: appointment.patient_id,
+          care_episode_id: appointment.care_episode_id || null,
+          consultation_id: null,
+          original_payment_id: paymentId,
+          razorpay_order_id: appointment.razorpay_order_id || null,
+          amount: amountPaid,
+          reason: `Appointment cancelled (100% Refund per Policy) by actor ${actorId}`,
+          initiated_by: `cancellation:${actorId}`
+        });
+
+        await sql`
+          UPDATE appointments
+          SET payment_status = 'refund_initiated',
+              updated_at = NOW()
+          WHERE id = ${appointment_id}
+        `;
+      } catch (refErr) {
+        console.error("[RefundEngine] Auto-refund error on appointment cancellation:", refErr.message);
+      }
+    }
   }
 
   return { appointment_id, status: "cancelled", appointment: updatedAppointment };
