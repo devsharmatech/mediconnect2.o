@@ -936,27 +936,71 @@ export default function AdminChemistOrdersPage() {
                     )}
                   </div>
 
+                  {/* Payment Proof Receipt (if uploaded by patient) */}
+                  {orderDetail.order.payment_proof_url && (
+                    <div className="bg-white rounded-md border border-slate-200 p-3.5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CreditCard className="w-4 h-4 text-emerald-600" />
+                          <div>
+                            <p className="font-semibold text-slate-800 text-xs">Payment Proof Receipt</p>
+                            <p className="text-[10px] text-slate-400">Uploaded by patient for verification</p>
+                          </div>
+                        </div>
+                        <a
+                          href={orderDetail.order.payment_proof_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-[4px] bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium flex items-center gap-1 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>View Full Image</span>
+                        </a>
+                      </div>
+                      <div className="w-full max-h-48 rounded-[4px] overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center">
+                        <img
+                          src={orderDetail.order.payment_proof_url}
+                          alt="Payment Proof"
+                          className="w-full h-full object-contain max-h-48"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   {/* Prescription Attachment (if any) */}
-                  {orderDetail.order.prescription_url && (
+                  {(orderDetail.order.prescription_file_url || orderDetail.order.prescription_record_id) && (
                     <div className="bg-white rounded-md border border-slate-200 p-4 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <FileText className="w-5 h-5 text-[#0067A1]" />
                         <div>
-                          <p className="font-medium text-slate-800 text-xs">Attached Medical Prescription</p>
+                          <p className="font-medium text-slate-800 text-xs">
+                            Attached Medical Prescription {orderDetail.order.prescription_unid ? `#${orderDetail.order.prescription_unid}` : ""}
+                          </p>
                           <p className="text-[10px] text-slate-400">
-                            {orderDetail.order.doctor_name ? `Issued by Dr. ${orderDetail.order.doctor_name}` : "Uploaded by patient"}
+                            {orderDetail.order.doctor_name ? `Issued by ${orderDetail.order.doctor_name}` : "Clinical prescription record"}
+                            {orderDetail.order.prescription_diagnosis && ` • ${orderDetail.order.prescription_diagnosis}`}
                           </p>
                         </div>
                       </div>
-                      <a
-                        href={orderDetail.order.prescription_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2.5 py-1 rounded-[4px] bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium flex items-center gap-1 transition-colors"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        <span>View Prescription</span>
-                      </a>
+                      {orderDetail.order.prescription_file_url ? (
+                        <a
+                          href={orderDetail.order.prescription_file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-[4px] bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium flex items-center gap-1 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>View Prescription</span>
+                        </a>
+                      ) : (
+                        <Link
+                          href={`/admin/prescriptions`}
+                          className="px-2.5 py-1 rounded-[4px] bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium flex items-center gap-1 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>View in Records</span>
+                        </Link>
+                      )}
                     </div>
                   )}
 
