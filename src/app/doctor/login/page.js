@@ -145,6 +145,25 @@ export default function DoctorLoginPage() {
   const handleOtpKeyDown = (index, e) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       otpRefs.current[index - 1]?.focus();
+    } else if (e.key === "ArrowLeft" && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    } else if (e.key === "ArrowRight" && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pasteData = e.clipboardData?.getData("text") || "";
+    const digits = pasteData.replace(/\D/g, "").slice(0, 6).split("");
+    if (digits.length > 0) {
+      const nextOtp = [...otp];
+      digits.forEach((d, i) => {
+        if (i < 6) nextOtp[i] = d;
+      });
+      setOtp(nextOtp);
+      const nextFocus = Math.min(digits.length, 5);
+      otpRefs.current[nextFocus]?.focus();
     }
   };
 
@@ -213,7 +232,7 @@ export default function DoctorLoginPage() {
             className="object-cover"
             priority
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#07243b]/95 via-[#0B3A5B]/70 to-[#0B3A5B]/20" />
+          <div className="absolute inset-0 bg-[#07243b]/80" />
 
           <div className="absolute bottom-0 left-0 right-0 p-10 z-10 text-white">
             <div className="flex items-center gap-3 mb-4">
@@ -343,9 +362,15 @@ export default function DoctorLoginPage() {
                     </span>
                     <input
                       type="tel"
-                      maxLength={10}
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      maxLength={15}
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, "");
+                        const clean = digits.length > 10 ? digits.slice(-10) : digits;
+                        setPhone(clean);
+                      }}
                       placeholder="Enter 10-digit number"
                       autoFocus
                       className="w-full pl-16 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 font-medium text-sm focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all"
@@ -402,10 +427,14 @@ export default function DoctorLoginPage() {
                       ref={(el) => (otpRefs.current[idx] = el)}
                       type="text"
                       inputMode="numeric"
-                      maxLength={1}
+                      pattern="[0-9]*"
+                      autoComplete={idx === 0 ? "one-time-code" : "off"}
+                      maxLength={6}
                       value={digit}
                       onChange={(e) => handleOtpChange(idx, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                      onPaste={handleOtpPaste}
+                      onFocus={(e) => e.target.select()}
                       className="w-11 h-13 sm:w-12 sm:h-14 text-center font-bold text-lg sm:text-xl text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0067A1] focus:border-[#0067A1] transition-all"
                     />
                   ))}

@@ -56,8 +56,10 @@ coverage/
 .cursor/
 .cursorrules
 .cursorignore
+.antigravity/
 .aider*
 .system_generated/
+AGENTS.md
 brain/
 artifacts/
 scratch/

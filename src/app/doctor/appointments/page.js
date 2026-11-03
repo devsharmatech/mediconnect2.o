@@ -29,7 +29,8 @@ import {
   MessageSquare,
   ExternalLink,
   Stethoscope,
-  Copy
+  Copy,
+  X
 } from "lucide-react";
 import toast from "react-hot-toast";
 import ConsultationWorkspace from "@/components/doctor/ConsultationWorkspace";
@@ -97,6 +98,24 @@ export default function DoctorAppointmentsPage() {
   }, []);
   const [typeFilter, setTypeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [joinedCallIds, setJoinedCallIds] = useState([]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncJoinedCalls = () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem("mediconnect_joined_calls") || "[]");
+        if (Array.isArray(stored)) setJoinedCallIds(stored.map(String));
+      } catch {}
+    };
+    syncJoinedCalls();
+    window.addEventListener("storage", syncJoinedCalls);
+    window.addEventListener("focus", syncJoinedCalls);
+    return () => {
+      window.removeEventListener("storage", syncJoinedCalls);
+      window.removeEventListener("focus", syncJoinedCalls);
+    };
+  }, []);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedAppointment, setSelectedAppointment] = useState(null);
@@ -109,6 +128,7 @@ export default function DoctorAppointmentsPage() {
   const todayStr = useMemo(() => (currentTime ? currentTime.toLocaleDateString("en-CA") : new Date().toLocaleDateString("en-CA")), [currentTime]);
 
   const [extendingAppointment, setExtendingAppointment] = useState(null);
+  const [prescriptionAppointment, setPrescriptionAppointment] = useState(null);
   const [extendMode, setExtendMode] = useState("now");
   const [extendMinutes, setExtendMinutes] = useState(15);
   const [isExtending, setIsExtending] = useState(false);
@@ -548,6 +568,30 @@ export default function DoctorAppointmentsPage() {
     }
   }
 
+  const hasDoctorJoinedVideoCall = (apt) => {
+    if (!apt) return false;
+    if (!isVideoAppointment(apt)) return true;
+    const st = String(apt.status || "").toLowerCase();
+    if (st === "completed") return true;
+    if (apt.call_started || apt.video_call_started) return true;
+    if (joinedCallIds.includes(String(apt.id))) return true;
+    if (typeof window !== "undefined") {
+      try {
+        const stored = JSON.parse(localStorage.getItem("mediconnect_joined_calls") || "[]");
+        if (Array.isArray(stored) && stored.map(String).includes(String(apt.id))) return true;
+      } catch {}
+    }
+    return false;
+  };
+
+  const handleOpenPrescription = (apt) => {
+    if (isVideoAppointment(apt) && !hasDoctorJoinedVideoCall(apt)) {
+      toast.error("Please join the video consultation call first before writing a prescription.");
+      return;
+    }
+    setPrescriptionAppointment(apt);
+  };
+
   const handleStartCall = async (apt) => {
     // No blocking – doctor can always start a call
     const doctorId =
@@ -556,6 +600,15 @@ export default function DoctorAppointmentsPage() {
     if (!doctorId) {
       toast.error("Please login as a doctor to start call.");
       return;
+    }
+
+    if (typeof window !== "undefined" && apt?.id) {
+      try {
+        const existing = JSON.parse(localStorage.getItem("mediconnect_joined_calls") || "[]");
+        const next = Array.from(new Set([...(Array.isArray(existing) ? existing : []), String(apt.id)]));
+        localStorage.setItem("mediconnect_joined_calls", JSON.stringify(next));
+        setJoinedCallIds(next);
+      } catch {}
     }
 
     // Open call screen IMMEDIATELY (synchronous with click) so popup blocker won't block it
@@ -651,7 +704,7 @@ export default function DoctorAppointmentsPage() {
         </div>
       )}
 
-      <div className="min-h-screen bg-gradient-to-br from-[#F8FAFC] to-[#F0F7F6]">
+      <div className="min-h-screen bg-[#F8FAFC]">
       <div className="w-full mx-auto space-y-6">
         {/* Header Section */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -1044,6 +1097,29 @@ export default function DoctorAppointmentsPage() {
                                 >
                                   <PhoneCall className="w-3 h-3" />
                                   Start Call
+                                </button>
+                              );
+                            })()}
+
+                            {["approved", "completed"].includes(apt.status) && (() => {
+                              const canWriteRx = !isVideoAppointment(apt) || hasDoctorJoinedVideoCall(apt);
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPrescription(apt)}
+                                  className={`h-7.5 px-2.5 rounded-md text-[11px] font-semibold transition-all shadow-xs flex items-center gap-1 shrink-0 ${
+                                    canWriteRx
+                                      ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-95"
+                                      : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                                  }`}
+                                  title={
+                                    canWriteRx
+                                      ? "Write & sign consultation prescription"
+                                      : "Join the video call first before writing a prescription"
+                                  }
+                                >
+                                  <Stethoscope className="w-3 h-3" />
+                                  <span>Prescription</span>
                                 </button>
                               );
                             })()}
@@ -1466,6 +1542,36 @@ export default function DoctorAppointmentsPage() {
                   Screening
                 </button>
               )}
+              {!["rejected", "cancelled"].includes(String(selectedAppointment.status).toLowerCase()) && (() => {
+                const canWriteRx = !isVideoAppointment(selectedAppointment) || hasDoctorJoinedVideoCall(selectedAppointment);
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const apt = selectedAppointment;
+                      if (!canWriteRx) {
+                        toast.error("Please join the video consultation call first before writing a prescription.");
+                        return;
+                      }
+                      handleCloseModal();
+                      setPrescriptionAppointment(apt);
+                    }}
+                    className={`px-3.5 py-2 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs ${
+                      canWriteRx
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-95"
+                        : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                    }`}
+                    title={
+                      canWriteRx
+                        ? "Write and digitally sign prescription"
+                        : "Join the video call first before writing a prescription"
+                    }
+                  >
+                    <Stethoscope className="w-3.5 h-3.5" />
+                    <span>Prescription</span>
+                  </button>
+                );
+              })()}
               {isVideoAppointment(selectedAppointment) && !["rejected", "cancelled", "completed"].includes(String(selectedAppointment.status).toLowerCase()) && !isAppointmentExpired(selectedAppointment, currentTime) && (() => {
                 const timing = getVideoCallTiming(selectedAppointment, currentTime);
                 return (
@@ -1628,6 +1734,45 @@ export default function DoctorAppointmentsPage() {
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Clinical Consultation & Prescription Workspace Modal */}
+      {prescriptionAppointment && (
+        <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs overflow-hidden animate-fade-in">
+          <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 max-w-4xl w-full h-full sm:h-auto sm:max-h-[92vh] overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#0067A1]/10 flex items-center justify-center text-[#0067A1]">
+                  <Stethoscope className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
+                    Consultation & Prescription: {prescriptionAppointment.patient?.full_name || "Patient"}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    #{formatAppointmentId(prescriptionAppointment.id)} • {prescriptionAppointment.appointment_type?.replace('_', ' ')} • {prescriptionAppointment.appointment_date}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPrescriptionAppointment(null)}
+                className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <ConsultationWorkspace
+                appointment={prescriptionAppointment}
+                onConsultationUpdate={() => {
+                  loadAppointments(page, dateFilter);
+                  setPrescriptionAppointment(null);
+                  toast.success("Prescription signed and saved successfully!");
+                }}
+              />
             </div>
           </div>
         </div>

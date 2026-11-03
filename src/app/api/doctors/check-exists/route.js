@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 export async function GET(request) {
   try {
@@ -9,25 +9,25 @@ export async function GET(request) {
     const excludeId = searchParams.get("excludeId");
 
     if (email) {
-      const { data, error } = await supabase
-        .from("doctor_details")
-        .select("id")
-        .eq("email", email)
-        .maybeSingle();
-      
-      if (data && data.id !== excludeId) {
+      const rows = await sql`
+        SELECT id
+        FROM doctor_details
+        WHERE LOWER(email) = LOWER(${email.trim()})
+        LIMIT 1
+      `;
+      if (rows[0] && rows[0].id !== excludeId) {
         return NextResponse.json({ exists: true, message: "Email already exists" });
       }
     }
 
     if (phone) {
-      const { data, error } = await supabase
-        .from("users")
-        .select("id")
-        .eq("phone_number", phone)
-        .maybeSingle();
-      
-      if (data && data.id !== excludeId) {
+      const rows = await sql`
+        SELECT id
+        FROM users
+        WHERE phone_number = ${phone.trim()}
+        LIMIT 1
+      `;
+      if (rows[0] && rows[0].id !== excludeId) {
         return NextResponse.json({ exists: true, message: "Phone number already exists" });
       }
     }

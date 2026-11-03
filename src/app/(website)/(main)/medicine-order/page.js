@@ -472,8 +472,17 @@ function MedicineOrderContent() {
       return;
     }
 
-    if (cartItems.length === 0 && !uploadedRxUrl) {
-      toast.error("Please add at least one medicine or attach a prescription");
+    if (!uploadedRxUrl && !prescriptionFile) {
+      toast.error("Attaching a valid doctor prescription is mandatory to order medicines.");
+      const rxEl = document.getElementById("prescription-upload-card");
+      if (rxEl) {
+        rxEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      return;
+    }
+
+    if (cartItems.length === 0 && !uploadedRxUrl && !prescriptionFile) {
+      toast.error("Please add medicines or attach a prescription");
       return;
     }
 
@@ -1765,11 +1774,14 @@ function MedicineOrderContent() {
                   </div>
 
                   {/* Prescription Upload Section */}
-                  <div className="pt-4 border-t border-slate-100 space-y-3">
+                  <div id="prescription-upload-card" className="pt-4 border-t border-slate-100 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-semibold text-slate-900">2. Upload Prescription (Optional / Rx)</h3>
-                        <p className="text-xs text-slate-500">Upload doctor prescription image or PDF for verification.</p>
+                        <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
+                          <span>2. Upload Prescription (Mandatory / Rx)</span>
+                          <span className="text-rose-500 font-bold">*</span>
+                        </h3>
+                        <p className="text-xs text-slate-500">Government regulation requires an authentic doctor prescription for pharmacy dispensing.</p>
                       </div>
                       {uploadingRx && (
                         <span className="text-xs text-[#0067A1] font-medium flex items-center gap-1">
@@ -1903,8 +1915,10 @@ function MedicineOrderContent() {
                       type="button"
                       disabled={broadcasting}
                       onClick={() => {
-                        if (cartItems.length === 0 && !uploadedRxUrl) {
-                          toast.error("Please add at least one medicine or attach a prescription");
+                        if (!uploadedRxUrl && !prescriptionFile) {
+                          toast.error("Attaching a valid doctor prescription is mandatory to order medicines.");
+                          const rxEl = document.getElementById("prescription-upload-card");
+                          if (rxEl) rxEl.scrollIntoView({ behavior: "smooth", block: "center" });
                           return;
                         }
                         if (!deliveryAddress.trim()) {
@@ -2388,8 +2402,10 @@ function MedicineOrderContent() {
                 type="button"
                 disabled={broadcasting}
                 onClick={() => {
-                  if (cartItems.length === 0 && !uploadedRxUrl) {
-                    toast.error("Please add at least one medicine or attach a prescription");
+                  if (!uploadedRxUrl && !prescriptionFile) {
+                    toast.error("Attaching a valid doctor prescription is mandatory to order medicines.");
+                    const rxEl = document.getElementById("prescription-upload-card");
+                    if (rxEl) rxEl.scrollIntoView({ behavior: "smooth", block: "center" });
                     return;
                   }
                   if (!deliveryAddress.trim()) {

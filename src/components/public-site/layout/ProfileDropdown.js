@@ -335,68 +335,70 @@ const ProfileDropdown = ({ user, userRole, onLogout, className = "" }) => {
               </Link>
             )}
 
-            {/* PATIENT VIEW / PERSONAL HEALTH SECTION (Accessible by ALL users: Patient, Doctor, Chemist, Lab, Admin) */}
-            <div className={`pt-1.5 mt-1 ${(isDoctor || isChemist || isLab || isAdmin) ? "border-t border-slate-100" : ""}`}>
-              {(isDoctor || isChemist || isLab || isAdmin) && (
-                <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Patient View
-                </div>
-              )}
+            {/* PATIENT VIEW / PERSONAL HEALTH SECTION (Accessible by Patient, Doctor, Chemist, Lab - NOT Admin) */}
+            {!isAdmin && (
+              <div className={`pt-1.5 mt-1 ${(isDoctor || isChemist || isLab) ? "border-t border-slate-100" : ""}`}>
+                {(isDoctor || isChemist || isLab) && (
+                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Patient View
+                  </div>
+                )}
 
-              <Link
-                href="/dashboard"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
-              >
-                <FaUser className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                <span>Health Records</span>
-              </Link>
+                <Link
+                  href="/dashboard"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+                >
+                  <FaUser className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
+                  <span>Health Records</span>
+                </Link>
 
-              <Link
-                href="/appointments"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
-              >
-                <FaCalendarAlt className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                <span>My Appointments</span>
-              </Link>
+                <Link
+                  href="/appointments"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+                >
+                  <FaCalendarAlt className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
+                  <span>My Appointments</span>
+                </Link>
 
-              <Link
-                href="/lab-reports"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
-              >
-                <FaFlask className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                <span>My Lab Reports</span>
-              </Link>
+                <Link
+                  href="/lab-reports"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+                >
+                  <FaFlask className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
+                  <span>My Lab Reports</span>
+                </Link>
 
-              <Link
-                href="/medicine-order"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
-              >
-                <FaCog className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                <span>My Medicine Orders</span>
-              </Link>
+                <Link
+                  href="/medicine-order"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+                >
+                  <FaCog className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
+                  <span>My Medicine Orders</span>
+                </Link>
 
-              <Link
-                href="/digital-locker"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
-              >
-                <FaFolderOpen className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                <span>Digital Locker</span>
-              </Link>
+                <Link
+                  href="/digital-locker"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+                >
+                  <FaFolderOpen className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
+                  <span>Digital Locker</span>
+                </Link>
 
-              <Link
-                href="/profile"
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
-              >
-                <FaUser className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
-                <span>My Profile</span>
-              </Link>
-            </div>
+                <Link
+                  href="/profile"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-slate-50 rounded-lg font-medium transition-colors group"
+                >
+                  <FaUser className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#0067A1] shrink-0 transition-colors" />
+                  <span>My Profile</span>
+                </Link>
+              </div>
+            )}
 
             {/* Divider */}
             <div className="border-t border-slate-100 my-1"></div>

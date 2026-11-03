@@ -29,6 +29,7 @@ import {
   IndianRupee,
   CheckCircle,
   XCircle,
+  FileText,
 } from "lucide-react";
 
 export default function AppointmentsPage() {
@@ -116,6 +117,143 @@ export default function AppointmentsPage() {
       setViewAppointment(data.data.appointment);
     } catch (err) {
       toast.error(err.message);
+    }
+  };
+
+  const handleDownloadInvoice = (appointment) => {
+    if (!appointment) return;
+    const invId = `INV-${(appointment.id || "").slice(0, 8).toUpperCase()}`;
+    const dateStr = formatDate(appointment.appointment_date || new Date());
+    const timeStr = formatTime(appointment.appointment_time || "");
+    const patientName = appointment.patient?.full_name || "Patient";
+    const patientPhone = appointment.patient?.phone_number || "—";
+    const patientEmail = appointment.patient?.email || "—";
+    const doctorName = appointment.doctor?.full_name || "Doctor";
+    const doctorSpec = appointment.doctor?.specialization || "General Medicine";
+    const clinicName = appointment.doctor?.clinic_name || "MediConnect Partner Clinic";
+    const fee = Number(appointment.consultation_fee || appointment.doctor?.consultation_fee || 0);
+    const mode = appointment.appointment_type === "video" ? "Video Consultation" : appointment.appointment_type === "home_visit" ? "Home Visit Consultation" : "In-Clinic Consultation";
+
+    const invoiceHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Invoice - ${invId}</title>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+          body { background: #f8fafc; padding: 30px; color: #1e293b; }
+          .invoice-card { max-width: 750px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 36px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 24px; border-bottom: 2px solid #0067A1; margin-bottom: 24px; }
+          .brand-title { font-size: 24px; font-weight: 800; color: #0067A1; letter-spacing: -0.5px; }
+          .brand-subtitle { font-size: 12px; color: #64748b; margin-top: 2px; }
+          .inv-meta { text-align: right; }
+          .inv-badge { display: inline-block; background: #ecfdf5; color: #059669; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid #a7f3d0; margin-bottom: 6px; }
+          .inv-num { font-size: 16px; font-weight: 700; color: #0f172a; }
+          .inv-date { font-size: 12px; color: #64748b; margin-top: 2px; }
+          .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
+          .party-box { background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #f1f5f9; }
+          .party-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #0067A1; margin-bottom: 8px; }
+          .party-name { font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+          .party-detail { font-size: 12px; color: #475569; line-height: 1.5; }
+          .service-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+          .service-table th { background: #f1f5f9; text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 700; color: #334155; }
+          .service-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #f1f5f9; color: #1e293b; }
+          .totals { margin-left: auto; width: 280px; margin-bottom: 28px; }
+          .totals-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; color: #475569; }
+          .totals-row.grand { border-top: 2px solid #e2e8f0; font-size: 16px; font-weight: 800; color: #0067A1; padding-top: 8px; }
+          .footer-note { font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px; }
+          @media print {
+            body { background: white; padding: 0; }
+            .invoice-card { box-shadow: none; border: none; padding: 20px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="invoice-card">
+          <div class="header">
+            <div>
+              <div class="brand-title">MediConnect.fit</div>
+              <div class="brand-subtitle">Official Consultation Invoice & Payment Receipt</div>
+            </div>
+            <div class="inv-meta">
+              <span class="inv-badge">✓ PAYMENT RECEIVED</span>
+              <div class="inv-num">${invId}</div>
+              <div class="inv-date">Date: ${dateStr}</div>
+            </div>
+          </div>
+
+          <div class="parties">
+            <div class="party-box">
+              <div class="party-title">Billed To (Patient)</div>
+              <div class="party-name">${patientName}</div>
+              <div class="party-detail">Phone: ${patientPhone}</div>
+              <div class="party-detail">Email: ${patientEmail}</div>
+            </div>
+            <div class="party-box">
+              <div class="party-title">Healthcare Provider</div>
+              <div class="party-name">Dr. ${doctorName.replace(/^(Dr\.\s*)+/i, "")}</div>
+              <div class="party-detail">Specialty: ${doctorSpec}</div>
+              <div class="party-detail">Facility: ${clinicName}</div>
+            </div>
+          </div>
+
+          <table class="service-table">
+            <thead>
+              <tr>
+                <th>Service Description</th>
+                <th>Mode</th>
+                <th>Schedule</th>
+                <th style="text-align: right;">Amount (INR)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Professional Medical Consultation</td>
+                <td>${mode}</td>
+                <td>${dateStr} ${timeStr}</td>
+                <td style="text-align: right; font-weight: 600;">₹${fee.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="totals">
+            <div class="totals-row">
+              <span>Consultation Fee:</span>
+              <span>₹${fee.toFixed(2)}</span>
+            </div>
+            <div class="totals-row">
+              <span>Platform & Facilitation:</span>
+              <span>₹0.00</span>
+            </div>
+            <div class="totals-row">
+              <span>Taxes (GST):</span>
+              <span>Included</span>
+            </div>
+            <div class="totals-row grand">
+              <span>Total Paid:</span>
+              <span>₹${fee.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div class="footer-note">
+            This is a computer-generated invoice receipt issued through MediConnect.fit for professional healthcare services. No physical signature is required.
+          </div>
+        </div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    const printWin = window.open("", "_blank", "width=850,height=900");
+    if (printWin) {
+      printWin.document.write(invoiceHtml);
+      printWin.document.close();
     }
   };
 
@@ -660,6 +798,15 @@ export default function AppointmentsPage() {
                                 <motion.button
                                   whileHover={{ scale: 1.1 }}
                                   whileTap={{ scale: 0.9 }}
+                                  onClick={() => handleDownloadInvoice(appointment)}
+                                  className="p-2 text-[#0067A1] hover:text-[#004F7C] dark:text-blue-400 dark:hover:text-blue-300 transition-all duration-300 cursor-pointer"
+                                  title="Download / View Invoice"
+                                >
+                                  <FileText size={18} />
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
                                   onClick={() =>
                                     fetchAppointmentDetails(appointment.id)
                                   }
@@ -1169,7 +1316,14 @@ export default function AppointmentsPage() {
               </div>
 
               <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between w-full">
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadInvoice(viewAppointment)}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#0067A1] text-white rounded-lg hover:bg-[#004F7C] text-sm font-semibold transition-colors cursor-pointer"
+                  >
+                    <FileText size={16} /> Download Invoice
+                  </button>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}

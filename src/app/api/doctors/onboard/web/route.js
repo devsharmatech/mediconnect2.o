@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
-import { uploadToS3, getCloudFrontUrl, extractKeyFromUrl } from "@/lib/s3";
+import sql from "@/lib/db";
+import { uploadToS3 } from "@/lib/s3";
 import { v4 as uuidv4 } from "uuid";
 import nodemailer from "nodemailer";
 
 export const runtime = "nodejs";
 const BUCKET = "doctor-documents";
 
-// Configure nodemailer using SMTP environment variables
 const mailTransporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT || "0"),
@@ -20,9 +19,7 @@ const mailTransporter = nodemailer.createTransport({
 
 async function sendOnboardingEmail(email, name) {
   if (!email) return;
-
   const displayName = name || "Doctor";
-
   try {
     await mailTransporter.sendMail({
       from: process.env.SMTP_USER,
@@ -43,7 +40,6 @@ async function sendOnboardingEmail(email, name) {
   }
 }
 
-// Helper: Upload file to AWS S3
 async function uploadFile(folder, file, doctorId) {
   if (!file) return null;
   const arrayBuffer = await file.arrayBuffer();
@@ -61,7 +57,6 @@ async function uploadFile(folder, file, doctorId) {
   }
 }
 
-// Helper: Parse JSON safely
 const parseJSON = (v) => {
   if (!v) return null;
   if (typeof v === "object") return v;
@@ -72,7 +67,6 @@ const parseJSON = (v) => {
   }
 };
 
-// Helper: Convert to boolean
 const toBool = (v) => v === "true" || v === true;
 
 export async function POST(req) {
@@ -81,22 +75,18 @@ export async function POST(req) {
     let fields = {};
     let isJsonFlow = false;
 
-    // ── Detect if request is JSON (signed-URL flow) or FormData (legacy) ──
     if (contentType.includes("application/json")) {
       isJsonFlow = true;
       fields = await req.json();
     } else {
-      // Legacy FormData flow
       const formData = await req.formData();
 
-      // Extract text fields
       for (const [key, value] of formData.entries()) {
         if (typeof value === "string") {
           fields[key] = value;
         }
       }
 
-      // Upload single files
       const singleFileFields = ["address_proof", "passport_photo"];
       for (const fieldName of singleFileFields) {
         const files = formData.getAll(fieldName) || [];
@@ -118,7 +108,6 @@ export async function POST(req) {
         if (urls.length > 0) fields[`_uploaded_${fieldName}`] = urls;
       }
 
-      // Upload multi-file fields
       const multiFileFields = ["dmc_mci_nmc_certificates", "dmc_mci_certificate", "aadhaar_pan_license", "clinic_photos"];
       for (const fieldName of multiFileFields) {
         const files = formData.getAll(fieldName) || [];
@@ -140,7 +129,6 @@ export async function POST(req) {
         if (urls.length > 0) fields[`_uploaded_${fieldName}`] = urls;
       }
 
-      // Handle signature
       const sig = formData.get("digital_signature");
       if (sig) {
         if (typeof sig === "string" && sig.startsWith("data:")) {
@@ -164,71 +152,79 @@ export async function POST(req) {
       }
     }
 
-    // ── Common processing for both flows ──
     const phone = fields.phone;
     const email = fields.email;
-    const isAdmin = toBool(fields.isAdmin);
 
-    if (!phone)
+    if (!phone) {
       return NextResponse.json({ status: false, message: "Phone required" });
-
-    // 1. Check for existing phone number
-    let { data: existingUser } = await supabase
-      .from("users")
-      .select("id, role")
-      .eq("phone_number", phone)
-      .maybeSingle();
-
-    // If phone exists and it's NOT an admin update (or if we want to be strict)
-    // Actually, usually admin updates use a separate PUT or we pass doctorId.
-    // For now, if we are in POST (Creation), we should error if phone exists.
-    if (existingUser && !fields.id) {
-       return NextResponse.json({ 
-         status: false, 
-         message: "A user with this phone number already exists." 
-       }, { status: 400 });
     }
 
-    // 2. Check for existing email in doctor_details
+    const existingUsers = await sql`
+      SELECT id, role
+      FROM users
+      WHERE phone_number = ${phone}
+      LIMIT 1
+    `;
+    const existingUser = existingUsers[0] || null;
+
+    if (existingUser && !fields.id) {
+      return NextResponse.json(
+        {
+          status: false,
+          message: "A user with this phone number already exists.",
+        },
+        { status: 400 }
+      );
+    }
+
     if (email) {
-      const { data: existingEmail } = await supabase
-        .from("doctor_details")
-        .select("id")
-        .eq("email", email)
-        .maybeSingle();
-      
+      const existingEmails = await sql`
+        SELECT id
+        FROM doctor_details
+        WHERE LOWER(email) = LOWER(${email.trim()})
+        LIMIT 1
+      `;
+      const existingEmail = existingEmails[0] || null;
+
       if (existingEmail && !fields.id && existingEmail.id !== existingUser?.id) {
-        return NextResponse.json({ 
-          status: false, 
-          message: "A doctor with this email address already exists." 
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            status: false,
+            message: "A doctor with this email address already exists.",
+          },
+          { status: 400 }
+        );
       }
     }
 
     let doctorId = fields.id || existingUser?.id;
     if (!doctorId) {
-      const { data: newUser, error } = await supabase
-        .from("users")
-        .insert({ phone_number: phone, role: "doctor", is_verified: true })
-        .select("id")
-        .single();
-      if (error) throw error;
-      doctorId = newUser.id;
+      const newUsers = await sql`
+        INSERT INTO users (phone_number, role, is_verified, status)
+        VALUES (${phone}, 'doctor', true, 1)
+        RETURNING id
+      `;
+      doctorId = newUsers[0].id;
     }
 
-    // Resolve document URLs
     let dmc, aadhaarPan, addressProof, passport, clinicPhotos, signature_url;
 
     if (isJsonFlow) {
-      // Signed URL flow: URLs already present as strings/arrays
       dmc = fields.dmc_mci_nmc_certificates || fields.dmc_mci_certificate || [];
       aadhaarPan = fields.aadhaar_pan_license || [];
-      addressProof = fields.address_proof ? (Array.isArray(fields.address_proof) ? fields.address_proof : [fields.address_proof]) : [];
-      passport = fields.passport_photo ? (Array.isArray(fields.passport_photo) ? fields.passport_photo : [fields.passport_photo]) : [];
+      addressProof = fields.address_proof
+        ? Array.isArray(fields.address_proof)
+          ? fields.address_proof
+          : [fields.address_proof]
+        : [];
+      passport = fields.passport_photo
+        ? Array.isArray(fields.passport_photo)
+          ? fields.passport_photo
+          : [fields.passport_photo]
+        : [];
       clinicPhotos = fields.clinic_photos || [];
       signature_url = fields.signature_url || null;
     } else {
-      // Legacy flow: get URLs from the uploaded results
       dmc = fields._uploaded_dmc_mci_nmc_certificates || fields._uploaded_dmc_mci_certificate || [];
       aadhaarPan = fields._uploaded_aadhaar_pan_license || [];
       addressProof = fields._uploaded_address_proof || [];
@@ -236,8 +232,6 @@ export async function POST(req) {
       clinicPhotos = fields._uploaded_clinic_photos || [];
       signature_url = fields._uploaded_signature_url || null;
     }
-
-    // Prepare structured fields
 
     const details = {
       id: doctorId,
@@ -301,15 +295,17 @@ export async function POST(req) {
       },
     };
 
-    // Insert/update doctor_details
-    const { data: existing } = await supabase
-      .from("doctor_details")
-      .select("*")
-      .eq("id", doctorId)
-      .maybeSingle();
+    const existingRows = await sql`
+      SELECT *
+      FROM doctor_details
+      WHERE id = ${doctorId}
+      LIMIT 1
+    `;
+    const existing = existingRows[0] || null;
 
     if (existing?.id) {
       const updateDetails = { ...details };
+      delete updateDetails.id;
 
       if (dmc.length === 0 && existing.dmc_mci_certificate?.length > 0) {
         updateDetails.dmc_mci_certificate = existing.dmc_mci_certificate;
@@ -335,17 +331,18 @@ export async function POST(req) {
         ...details.meta,
       };
 
-      const { error } = await supabase
-        .from("doctor_details")
-        .update(updateDetails)
-        .eq("id", doctorId);
-      if (error) throw error;
+      const cols = Object.keys(updateDetails);
+      await sql`
+        UPDATE doctor_details
+        SET ${sql(updateDetails, cols)}
+        WHERE id = ${doctorId}
+      `;
     } else {
-      const { error } = await supabase.from("doctor_details").insert([details]);
-      if (error) throw error;
+      await sql`
+        INSERT INTO doctor_details ${sql(details)}
+      `;
     }
 
-    // Fire-and-forget email ONLY if not submitted by admin (admin sends an invite instead)
     if (!toBool(fields.isAdmin)) {
       sendOnboardingEmail(details.email, details.full_name);
     }

@@ -7,17 +7,30 @@ export async function GET(req) {
         const isActiveOnly = searchParams.get('active_only') === 'true';
 
         let data;
-        if (isActiveOnly) {
-            data = await sql`
-                SELECT * FROM cms_conditions 
-                WHERE status = 'active'
-                ORDER BY display_order ASC
-            `;
-        } else {
-            data = await sql`
-                SELECT * FROM cms_conditions 
-                ORDER BY display_order ASC
-            `;
+        const runQuery = async () => {
+            if (isActiveOnly) {
+                return await sql`
+                    SELECT * FROM cms_conditions 
+                    WHERE status = 'active'
+                    ORDER BY display_order ASC
+                `;
+            } else {
+                return await sql`
+                    SELECT * FROM cms_conditions 
+                    ORDER BY display_order ASC
+                `;
+            }
+        };
+
+        try {
+            data = await runQuery();
+        } catch (firstErr) {
+            if (firstErr?.code === 'CONNECT_TIMEOUT' || firstErr?.code === 'ETIMEDOUT' || firstErr?.message?.includes('TIMEOUT')) {
+                console.warn("[conditions] Retrying query after connection timeout...");
+                data = await runQuery();
+            } else {
+                throw firstErr;
+            }
         }
         
         const formatted = data.map(item => {
@@ -34,7 +47,7 @@ export async function GET(req) {
         return NextResponse.json({ success: true, data: formatted }, { status: 200 });
     } catch (err) {
         console.error("GET /api/cms/conditions error:", err);
-        return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+        return NextResponse.json({ success: false, error: err.message, data: [] }, { status: 200 });
     }
 }
 

@@ -38,6 +38,7 @@ export async function PUT(req) {
       second_booking_discount_type,
       second_booking_discount_value,
       additional_clinics,
+      slot_interval_minutes,
     } = body;
 
     if (!user_id) {
@@ -53,17 +54,36 @@ export async function PUT(req) {
       ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS additional_clinics JSONB DEFAULT '[]'::jsonb;
       ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS second_booking_discount_type TEXT DEFAULT 'none';
       ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS second_booking_discount_value NUMERIC DEFAULT 0;
+      ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS slot_interval_minutes INTEGER DEFAULT 15;
     `.catch((err) => {
       console.warn("Could not alter doctor_details for follow_up fees:", err.message);
     });
 
     const [existingDoc] = await sql`
-      SELECT id, meta FROM doctor_details WHERE id = ${user_id} LIMIT 1
+      SELECT id, meta, onboarding_status, allowed_to_consult FROM doctor_details WHERE id = ${user_id} LIMIT 1
     `;
+
+    // Guard against unapproved doctors updating live profile directly (Item 16)
+    if (existingDoc && existingDoc.onboarding_status !== "approved" && !existingDoc.allowed_to_consult) {
+      return failure(
+        "Your account is pending Admin and KYC approval. Please complete your KYC onboarding first.",
+        null,
+        403,
+        { headers: corsHeaders }
+      );
+    }
 
     const updateData = {
       updated_at: new Date(),
     };
+
+    if (slot_interval_minutes !== undefined) {
+      const validIntervals = [5, 10, 15, 20, 30, 45, 60];
+      const parsedInterval = Number(slot_interval_minutes);
+      if (validIntervals.includes(parsedInterval)) {
+        updateData.slot_interval_minutes = parsedInterval;
+      }
+    }
 
     if (full_name !== undefined) updateData.full_name = full_name;
     if (email !== undefined) updateData.email = email;

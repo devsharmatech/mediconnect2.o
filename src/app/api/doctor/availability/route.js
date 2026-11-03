@@ -1,5 +1,5 @@
 import { success, failure } from "@/lib/response";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { corsHeaders } from "@/lib/cors";
 
 export async function OPTIONS() {
@@ -16,32 +16,40 @@ export async function POST(req) {
     }
 
     if (action === "get") {
-      const { data, error } = await supabase
-        .from("doctor_details")
-        .select("is_open, slot_interval_minutes")
-        .eq("id", doctor_id)
-        .maybeSingle();
+      const rows = await sql`
+        SELECT is_open, is_available, slot_interval_minutes
+        FROM doctor_details
+        WHERE id = ${doctor_id}
+        LIMIT 1
+      `;
+      const data = rows[0] || null;
+      const openState = data ? (data.is_open !== false && data.is_available !== false) : false;
 
-      if (error) throw error;
-
-      return success("Availability fetched successfully", {
-        is_open: data?.is_open ?? false,
-        slot_interval_minutes: data?.slot_interval_minutes ?? 10
-      }, 200, { headers: corsHeaders });
+      return success(
+        "Availability fetched successfully",
+        {
+          is_open: openState,
+          is_available: openState,
+          slot_interval_minutes: Number(data?.slot_interval_minutes) || 10,
+        },
+        200,
+        { headers: corsHeaders }
+      );
     }
 
     if (action === "toggle") {
-      // If turning offline, check if doctor has active appointments today
-      if (!is_open) {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const { data: appointments, error: apptErr } = await supabase
-          .from("appointments")
-          .select("id, appointment_time, appointment_type, status")
-          .eq("doctor_id", doctor_id)
-          .eq("appointment_date", todayStr)
-          .in("status", ["approved", "booked", "pending"]);
+      const nextOpen = Boolean(is_open);
 
-        if (apptErr) throw apptErr;
+      // If turning offline, check if doctor has active appointments today
+      if (!nextOpen) {
+        const todayStr = new Date().toISOString().split("T")[0];
+        const appointments = await sql`
+          SELECT id, appointment_time::text AS appointment_time, appointment_type, status
+          FROM appointments
+          WHERE doctor_id = ${doctor_id}
+            AND appointment_date = ${todayStr}::date
+            AND status IN ('approved', 'booked', 'pending')
+        `;
 
         if (appointments && appointments.length > 0) {
           return new Response(
@@ -55,25 +63,41 @@ export async function POST(req) {
         }
       }
 
-      const { error } = await supabase
-        .from("doctor_details")
-        .update({ is_open: !!is_open })
-        .eq("id", doctor_id);
+      await sql`
+        UPDATE doctor_details
+        SET is_open = ${nextOpen},
+            is_available = ${nextOpen}
+        WHERE id = ${doctor_id}
+      `;
 
-      if (error) throw error;
+      const statusMsg = nextOpen
+        ? "Now You Are Live — Open for Appointments"
+        : "Now You Are Closed — Offline for Appointments";
 
-      return success(`Availability updated to ${is_open ? "online" : "offline"}`, { is_open }, 200, { headers: corsHeaders });
+      return success(
+        statusMsg,
+        { is_open: nextOpen, is_available: nextOpen },
+        200,
+        { headers: corsHeaders }
+      );
     }
 
     if (action === "set_interval") {
-      const { error } = await supabase
-        .from("doctor_details")
-        .update({ slot_interval_minutes: parseInt(slot_interval_minutes, 10) || 10 })
-        .eq("id", doctor_id);
+      const parsed = parseInt(slot_interval_minutes, 10);
+      const validInterval = !Number.isNaN(parsed) && parsed >= 5 ? parsed : 10;
 
-      if (error) throw error;
+      await sql`
+        UPDATE doctor_details
+        SET slot_interval_minutes = ${validInterval}
+        WHERE id = ${doctor_id}
+      `;
 
-      return success("Slot interval updated successfully", { slot_interval_minutes }, 200, { headers: corsHeaders });
+      return success(
+        `Slot interval updated to ${validInterval} minutes`,
+        { slot_interval_minutes: validInterval },
+        200,
+        { headers: corsHeaders }
+      );
     }
 
     return failure("Invalid action", null, 400, { headers: corsHeaders });
@@ -92,18 +116,25 @@ export async function GET(req) {
       return failure("doctor_id is required", null, 400, { headers: corsHeaders });
     }
 
-    const { data, error } = await supabase
-      .from("doctor_details")
-      .select("is_open, slot_interval_minutes")
-      .eq("id", doctor_id)
-      .maybeSingle();
+    const rows = await sql`
+      SELECT is_open, is_available, slot_interval_minutes
+      FROM doctor_details
+      WHERE id = ${doctor_id}
+      LIMIT 1
+    `;
+    const data = rows[0] || null;
+    const openState = data ? (data.is_open !== false && data.is_available !== false) : false;
 
-    if (error) throw error;
-
-    return success("Availability fetched", {
-      is_open: data?.is_open ?? false,
-      slot_interval_minutes: data?.slot_interval_minutes ?? 10
-    }, 200, { headers: corsHeaders });
+    return success(
+      "Availability fetched",
+      {
+        is_open: openState,
+        is_available: openState,
+        slot_interval_minutes: Number(data?.slot_interval_minutes) || 10,
+      },
+      200,
+      { headers: corsHeaders }
+    );
   } catch (error) {
     console.error("Availability GET Error:", error);
     return failure("Internal Error", error.message, 500, { headers: corsHeaders });

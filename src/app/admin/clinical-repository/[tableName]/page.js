@@ -252,13 +252,13 @@ export default function ClinicalTableManager() {
               onClick={triggerExport}
               className="bg-white border border-slate-200 text-slate-700 px-5 py-3 rounded-xl flex items-center gap-2 disabled:opacity-50 hover:bg-slate-50 text-sm font-bold shadow-sm transition-all"
             >
-              <Download className="w-4 h-4 text-[#0067A1]" /> Export CSV
+              <Upload className="w-4 h-4 text-[#0067A1]" /> Export CSV
             </button>
             <button 
               onClick={triggerImport}
               className="bg-white border border-slate-200 text-slate-700 px-5 py-3 rounded-xl flex items-center gap-2 hover:bg-slate-50 text-sm font-bold shadow-sm transition-all"
             >
-              <Upload className="w-4 h-4 text-[#0067A1]" /> Import CSV
+              <Download className="w-4 h-4 text-[#0067A1]" /> Import CSV
             </button>
             <button 
               onClick={openAddModal}

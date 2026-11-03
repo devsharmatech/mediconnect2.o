@@ -1,251 +1,128 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 12;
-    const search = searchParams.get('search') || '';
-    const status = searchParams.get('status');
-    const specialization = searchParams.get('specialization') || searchParams.get('specialty');
-    const feeFilter = searchParams.get('feeFilter') || searchParams.get('fee_filter');
-    const sortBy = searchParams.get('sortBy') || searchParams.get('sort_by') || 'recommended';
-    const publicOnly = searchParams.get('public_only') === 'true';
+    const page = parseInt(searchParams.get("page"), 10) || 1;
+    const limit = parseInt(searchParams.get("limit"), 10) || 10;
+    const search = (searchParams.get("search") || "").trim();
+    const status = searchParams.get("status");
+    const specialization = searchParams.get("specialization") || searchParams.get("specialty") || "";
+    const feeFilter = searchParams.get("feeFilter") || searchParams.get("fee_filter");
+    const publicOnly = searchParams.get("public_only") === "true";
 
-    const offset = (page - 1) * limit;
+    const offset = Math.max(0, (page - 1) * limit);
 
-    // First get doctor users
-    let userQuery = supabase
-      .from('users')
-      .select('*', { count: 'exact' })
-      .eq('role', 'doctor');
+    // Build conditions
+    const conditions = [sql`u.role = 'doctor'`];
 
     if (publicOnly) {
-      userQuery = userQuery.eq('status', 1);
+      conditions.push(sql`u.status = 1`);
+      conditions.push(sql`d.onboarding_status = 'approved'`);
+      conditions.push(sql`(dos.allowed_to_consult = true OR dos.allowed_to_consult IS NULL)`);
     }
 
-    // Apply status filter to users
-    if (status && status !== 'all') {
-      if (status === 'pending_approval') {
-        const { data: pendingDetails } = await supabase
-          .from('doctor_details')
-          .select('id')
-          .eq('onboarding_status', 'pending');
-        const pendingIds = pendingDetails?.map(d => d.id) || [];
-        userQuery = userQuery.in('id', pendingIds.length > 0 ? pendingIds : ['00000000-0000-0000-0000-000000000000']);
-      } else if (status === 'verified') {
-        userQuery = userQuery.eq('is_verified', true);
-      } else {
-        userQuery = userQuery.eq('status', parseInt(status));
+    if (status && status !== "all") {
+      if (status === "pending_approval") {
+        conditions.push(sql`(d.onboarding_status = 'pending' OR d.onboarding_status IS NULL)`);
+      } else if (status === "verified") {
+        conditions.push(sql`(u.is_verified = true OR dos.registration_verified = true)`);
+      } else if (!Number.isNaN(Number(status))) {
+        conditions.push(sql`u.status = ${Number(status)}`);
       }
     }
 
-    // Check if we need doctor_details filtering
-    const hasDetailsFilter = (specialization && specialization !== 'All Specialties' && specialization !== 'all') || search || (feeFilter && feeFilter !== 'all') || publicOnly;
-
-    if (hasDetailsFilter) {
-      let detailsQuery = supabase.from('doctor_details').select('id, specialization, clinic_consultation_fee, video_consultation_fee, home_visit_fee, rating, experience_years, full_name, onboarding_status');
-
-      if (publicOnly) {
-        detailsQuery = detailsQuery.eq('onboarding_status', 'approved');
-      }
-
-      // Specialization filter
-      if (specialization && specialization !== 'All Specialties' && specialization !== 'all') {
-        const specLower = specialization.toLowerCase().trim();
-        if (
-          specLower === 'uro/neuro' ||
-          specLower === 'uro / neuro' ||
-          specLower === 'urology/neurology' ||
-          specLower === 'urology / neurology' ||
-          (specLower.includes('uro') && specLower.includes('neuro'))
-        ) {
-          detailsQuery = detailsQuery
-            .or('specialization.ilike.%urology%,specialization.ilike.%neurology%,specialization.ilike.%urologist%,specialization.ilike.%neurologist%,specialization.ilike.%neurosurg%')
-            .not('specialization', 'ilike', '%psychiat%');
-        } else if (specLower === 'urology' || specLower.includes('urolog')) {
-          detailsQuery = detailsQuery
-            .or('specialization.ilike.%urology%,specialization.ilike.%urologist%')
-            .not('specialization', 'ilike', '%neurology%')
-            .not('specialization', 'ilike', '%psychiat%');
-        } else if (specLower === 'neurology' || (specLower.includes('neuro') && !specLower.includes('uro'))) {
-          detailsQuery = detailsQuery
-            .or('specialization.ilike.%neurology%,specialization.ilike.%neurologist%,specialization.ilike.%neurosurg%,specialization.ilike.%pediatric neurology%')
-            .not('specialization', 'ilike', '%urology%')
-            .not('specialization', 'ilike', '%psychiat%');
-        } else if (specLower.includes('dentist') || specLower.includes('dental') || specLower.includes('dentistry')) {
-          detailsQuery = detailsQuery.or('specialization.ilike.%dentist%,specialization.ilike.%dental%,specialization.ilike.%dentistry%');
-        } else if (specLower.includes('physician') || specLower.includes('gp') || specLower.includes('general')) {
-          detailsQuery = detailsQuery.or('specialization.ilike.%physician%,specialization.ilike.%general%,specialization.ilike.%medicine%');
-        } else if (specLower.includes('gynecol') || specLower.includes('obgyn')) {
-          detailsQuery = detailsQuery.or('specialization.ilike.%gynecol%,specialization.ilike.%gynaecol%,specialization.ilike.%obgyn%');
-        } else if (specLower.includes('pediatr') || specLower.includes('paediatr')) {
-          detailsQuery = detailsQuery.or('specialization.ilike.%pediatr%,specialization.ilike.%paediatr%,specialization.ilike.%child%');
-        } else if (specLower.includes('orthoped') || specLower.includes('orthopaed')) {
-          detailsQuery = detailsQuery.or('specialization.ilike.%orthoped%,specialization.ilike.%orthopaed%,specialization.ilike.%bone%');
-        } else if (
-          specLower === 'ent' ||
-          specLower === 'ent doctor' ||
-          specLower.includes('otorhinolaryngol') ||
-          specLower.includes('otolaryngol') ||
-          specLower.includes('ear, nose') ||
-          specLower.includes('ear nose')
-        ) {
-          detailsQuery = detailsQuery
-            .or('specialization.ilike.%ENT%,specialization.ilike.%Otorhinolaryngol%,specialization.ilike.%Otolaryngol%')
-            .not('specialization', 'ilike', '%dent%')
-            .not('specialization', 'ilike', '%cardio%')
-            .not('specialization', 'ilike', '%heart%')
-            .not('specialization', 'ilike', '%derma%')
-            .not('specialization', 'ilike', '%psychiat%')
-            .not('specialization', 'ilike', '%gastro%');
-        } else if (specLower.includes('cardio') || specLower.includes('heart')) {
-          detailsQuery = detailsQuery.or('specialization.ilike.%cardio%,specialization.ilike.%heart%');
-        } else if (specLower.includes('psychiat') || specLower.includes('mental')) {
-          detailsQuery = detailsQuery
-            .or('specialization.ilike.%psychiat%,specialization.ilike.%mental%')
-            .not('specialization', 'ilike', '%urology%')
-            .not('specialization', 'ilike', '%neurology%');
-        } else {
-          detailsQuery = detailsQuery.ilike('specialization', `%${specialization}%`);
-        }
-      }
-
-      // Search filter
-      if (search) {
-        const cleanSearch = search.trim();
-        const searchLower = cleanSearch.toLowerCase();
-        if (searchLower === 'ent' || searchLower === 'ent doctor' || searchLower === 'ent specialist') {
-          detailsQuery = detailsQuery
-            .or('specialization.ilike.%ENT%,specialization.ilike.%Otorhinolaryngol%,specialization.ilike.%Otolaryngol%')
-            .not('specialization', 'ilike', '%dent%')
-            .not('specialization', 'ilike', '%cardio%')
-            .not('specialization', 'ilike', '%heart%')
-            .not('specialization', 'ilike', '%derma%')
-            .not('specialization', 'ilike', '%psychiat%');
-        } else if (
-          searchLower === 'uro/neuro' ||
-          searchLower === 'uro / neuro' ||
-          (searchLower.includes('uro') && searchLower.includes('neuro'))
-        ) {
-          detailsQuery = detailsQuery
-            .or('specialization.ilike.%urology%,specialization.ilike.%neurology%,specialization.ilike.%urologist%,specialization.ilike.%neurologist%')
-            .not('specialization', 'ilike', '%psychiat%');
-        } else {
-          const strippedSearch = cleanSearch.replace(/^(dr\.|dr\s+|doctor\s+)/i, "").trim();
-          const searchTokens = Array.from(new Set([cleanSearch, strippedSearch, ...strippedSearch.split(/\s+/)].filter(Boolean)))
-            .map(t => t.replace(/[,()]/g, "").trim())
-            .filter(t => t.length >= 2);
-
-          const orClauses = [];
-          for (const token of searchTokens) {
-            orClauses.push(
-              `full_name.ilike.%${token}%`,
-              `specialization.ilike.%${token}%`,
-              `clinic_name.ilike.%${token}%`,
-              `clinic_address.ilike.%${token}%`
-            );
-          }
-          if (orClauses.length > 0) {
-            detailsQuery = detailsQuery.or(orClauses.join(","));
-          } else {
-            detailsQuery = detailsQuery.or(`full_name.ilike.%${cleanSearch}%,specialization.ilike.%${cleanSearch}%`);
-          }
-        }
-      }
-
-      // Fee filter
-      if (feeFilter && feeFilter !== 'all') {
-        if (feeFilter === 'under_500') {
-          detailsQuery = detailsQuery.or('clinic_consultation_fee.lt.500,video_consultation_fee.lt.500');
-        } else if (feeFilter === '500_1000') {
-          detailsQuery = detailsQuery.or('and(clinic_consultation_fee.gte.500,clinic_consultation_fee.lte.1000),and(video_consultation_fee.gte.500,video_consultation_fee.lte.1000)');
-        } else if (feeFilter === 'above_1000') {
-          detailsQuery = detailsQuery.or('clinic_consultation_fee.gt.1000,video_consultation_fee.gt.1000');
-        }
-      }
-
-      const { data: matchedDetails, error: detailsError } = await detailsQuery;
-      if (detailsError) throw detailsError;
-
-      const matchedIds = matchedDetails?.map(d => d.id) || [];
-      userQuery = userQuery.in('id', matchedIds.length > 0 ? matchedIds : ['00000000-0000-0000-0000-000000000000']);
+    if (specialization && specialization !== "All Specialties" && specialization !== "all") {
+      const specPattern = `%${specialization.toLowerCase().trim()}%`;
+      conditions.push(sql`LOWER(COALESCE(d.specialization, '')) LIKE ${specPattern}`);
     }
 
-    // Get users with pagination
-    const { data: users, error: usersError, count } = await userQuery
-      .range(offset, offset + limit - 1)
-      .order('created_at', { ascending: false });
+    if (search) {
+      const searchPattern = `%${search.toLowerCase()}%`;
+      conditions.push(sql`(
+        LOWER(COALESCE(d.full_name, '')) LIKE ${searchPattern} OR
+        LOWER(COALESCE(u.email, '')) LIKE ${searchPattern} OR
+        LOWER(COALESCE(u.phone_number, '')) LIKE ${searchPattern} OR
+        LOWER(COALESCE(d.clinic_name, '')) LIKE ${searchPattern} OR
+        LOWER(COALESCE(d.specialization, '')) LIKE ${searchPattern}
+      )`);
+    }
 
-    if (usersError) throw usersError;
+    if (feeFilter && feeFilter !== "all") {
+      if (feeFilter === "under_500") {
+        conditions.push(sql`(
+          (d.clinic_consultation_fee IS NOT NULL AND d.clinic_consultation_fee > 0 AND d.clinic_consultation_fee < 500) OR
+          (d.video_consultation_fee IS NOT NULL AND d.video_consultation_fee > 0 AND d.video_consultation_fee < 500)
+        )`);
+      } else if (feeFilter === "500_1000") {
+        conditions.push(sql`(
+          (d.clinic_consultation_fee >= 500 AND d.clinic_consultation_fee <= 1000) OR
+          (d.video_consultation_fee >= 500 AND d.video_consultation_fee <= 1000)
+        )`);
+      } else if (feeFilter === "above_1000") {
+        conditions.push(sql`(
+          d.clinic_consultation_fee > 1000 OR
+          d.video_consultation_fee > 1000
+        )`);
+      }
+    }
 
-    // Calculate global stats for summary
-    const [
-      { count: activeCount },
-      { count: pendingCount },
-      { count: verifiedCount },
-      { count: totalCount }
-    ] = await Promise.all([
-      supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "doctor").eq("status", 1),
-      supabase.from("doctor_details").select("id", { count: "exact", head: true }).eq("onboarding_status", "pending"),
-      supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "doctor").eq("is_verified", true),
-      supabase.from("users").select("id", { count: "exact", head: true }).eq("role", "doctor")
+    // Combine conditions with AND
+    const whereClause = conditions.reduce((acc, cond) => sql`${acc} AND ${cond}`);
+
+    // Summary counts query
+    const [summaryRows, countRows, doctorRows] = await Promise.all([
+      sql`
+        SELECT 
+          COUNT(*)::int as total,
+          COUNT(*) FILTER (WHERE u.status = 1)::int as active,
+          COUNT(*) FILTER (WHERE d.onboarding_status = 'pending')::int as pending,
+          COUNT(*) FILTER (WHERE u.is_verified = true OR dos.registration_verified = true)::int as verified
+        FROM users u
+        LEFT JOIN doctor_details d ON d.id = u.id
+        LEFT JOIN doctor_onboarding_status dos ON dos.doctor_id = u.id
+        WHERE u.role = 'doctor'
+      `,
+      sql`
+        SELECT COUNT(*)::int as total_filtered
+        FROM users u
+        LEFT JOIN doctor_details d ON d.id = u.id
+        LEFT JOIN doctor_onboarding_status dos ON dos.doctor_id = u.id
+        WHERE ${whereClause}
+      `,
+      sql`
+        SELECT 
+          u.*,
+          row_to_json(d.*) as doctor_details,
+          row_to_json(dos.*) as onboarding_status_row
+        FROM users u
+        LEFT JOIN doctor_details d ON d.id = u.id
+        LEFT JOIN doctor_onboarding_status dos ON dos.doctor_id = u.id
+        WHERE ${whereClause}
+        ORDER BY u.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `
     ]);
 
-    // If no users found, return empty
-    if (!users || users.length === 0) {
-      return NextResponse.json({
-        success: true,
-        data: [],
-        summary: {
-          total: totalCount || 0,
-          active: activeCount || 0,
-          pending: pendingCount || 0,
-          verified: verifiedCount || 0
-        },
-        pagination: {
-          currentPage: page,
-          totalPages: 0,
-          totalItems: 0,
-          itemsPerPage: limit,
-          hasNextPage: false,
-          hasPrevPage: false,
-        },
-      });
-    }
+    const totalCount = summaryRows[0]?.total || 0;
+    const activeCount = summaryRows[0]?.active || 0;
+    const pendingCount = summaryRows[0]?.pending || 0;
+    const verifiedCount = summaryRows[0]?.verified || 0;
+    const totalFiltered = countRows[0]?.total_filtered || 0;
 
-    // Get doctor details, onboarding status, and consents for these users
-    const userIds = users.map((user) => user.id);
-    
-    const [detailsRes, onboardingRes, consentsRes] = await Promise.all([
-      supabase.from("doctor_details").select("*").in("id", userIds),
-      supabase.from("doctor_onboarding_status").select("*").in("doctor_id", userIds),
-      supabase.from("doctor_consents").select("*").in("doctor_id", userIds),
-    ]);
+    const cleanUrl = (url) => {
+      if (!url || typeof url !== "string") return url;
+      return url.replace(/::text$/, "").replace(/^['"]|['"]$/g, "");
+    };
 
-    if (detailsRes.error) throw detailsRes.error;
-    if (onboardingRes.error) throw onboardingRes.error;
-    if (consentsRes.error) throw consentsRes.error;
+    const doctors = doctorRows.map((row) => {
+      const details = row.doctor_details || {};
+      const dos = row.onboarding_status_row || null;
 
-    const doctorDetails = detailsRes.data;
-    const onboardingLogs = onboardingRes.data;
-    const consentLogs = consentsRes.data;
-
-    // Combine user data with doctor details and logs
-    const doctors = users.map((user) => {
-      const details = doctorDetails?.find((detail) => detail.id === user.id) || {};
-      const onboardingLog = onboardingLogs?.find((log) => log.doctor_id === user.id);
-      const consentLog = consentLogs?.filter((log) => log.doctor_id === user.id) || [];
-
-      const cleanUrl = (url) => {
-        if (!url || typeof url !== "string") return url;
-        return url.replace(/::text$/, "").replace(/^['"]|['"]$/g, "");
-      };
-
-      let derivedProfilePicture = cleanUrl(user.profile_picture) || null;
+      let derivedProfilePicture = cleanUrl(row.profile_picture) || null;
       const passportPhoto = details.passport_photo;
 
       if (!derivedProfilePicture && passportPhoto) {
@@ -257,39 +134,43 @@ export async function GET(request) {
       }
 
       return {
-        ...user,
+        id: row.id,
+        email: row.email,
+        phone_number: row.phone_number,
+        role: row.role,
+        status: row.status,
+        is_verified: row.is_verified,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
         profile_picture: derivedProfilePicture,
         doctor_details: details,
-        onboarding_logs: onboardingLog ? [onboardingLog] : [],
-        consent_logs: consentLog,
+        onboarding_logs: dos ? [dos] : [],
+        consent_logs: [],
       };
     });
 
-    const totalItems = count || 0;
-    const totalPages = Math.ceil(totalItems / limit);
-    const hasNextPage = page < totalPages;
-    const hasPrevPage = page > 1;
+    const totalPages = Math.ceil(totalFiltered / limit);
 
     return NextResponse.json({
       success: true,
       data: doctors,
       summary: {
-        total: totalCount || 0,
-        active: activeCount || 0,
-        pending: pendingCount || 0,
-        verified: verifiedCount || 0
+        total: totalCount,
+        active: activeCount,
+        pending: pendingCount,
+        verified: verifiedCount
       },
       pagination: {
         currentPage: page,
         totalPages,
-        totalItems,
+        totalItems: totalFiltered,
         itemsPerPage: limit,
-        hasNextPage,
-        hasPrevPage,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
       },
     });
   } catch (error) {
-    console.error('Error fetching doctors:', error);
+    console.error("Error in /api/doctors/get:", error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

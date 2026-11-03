@@ -1,15 +1,13 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
-// Convert HH:MM → total minutes
 function toMinutes(t) {
   if (!t) return null;
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 }
 
-// Convert minutes → HH:MM
 function minutesToHHMM(min) {
   const h = Math.floor(min / 60).toString().padStart(2, "0");
   const m = (min % 60).toString().padStart(2, "0");
@@ -30,23 +28,34 @@ export async function POST(req) {
       });
     }
 
-    // ---------------------------------------------
-    // 1) Fetch doctor's home visit slots & leave days
-    // ---------------------------------------------
-    const { data: doctor, error: docErr } = await supabase
-      .from("doctor_details")
-      .select("home_slots, leave_days, slot_interval_minutes")
-      .eq("id", doctor_id)
-      .maybeSingle();
-
-    if (docErr) throw docErr;
+    const docRows = await sql`
+      SELECT home_slots, leave_days, is_open, is_available, slot_interval_minutes
+      FROM doctor_details
+      WHERE id = ${doctor_id}
+      LIMIT 1
+    `;
+    const doctor = docRows[0];
     if (!doctor) return failure("Doctor not found", null, 404, { headers: corsHeaders });
 
-    // Parse as local time (not UTC) to avoid off-by-one day in IST/UTC+ timezones
+    if (doctor.is_open === false || doctor.is_available === false) {
+      return success("Doctor is currently closed for appointments", [], 200, {
+        headers: corsHeaders,
+      });
+    }
+
     const [_y, _m, _d] = date.split("-").map(Number);
     const weekday = new Date(_y, _m - 1, _d).toLocaleString("en-US", { weekday: "long" });
 
-    let todaySlot = doctor.home_slots?.[weekday];
+    let homeSlotsObj = doctor.home_slots;
+    if (typeof homeSlotsObj === "string") {
+      try {
+        homeSlotsObj = JSON.parse(homeSlotsObj);
+      } catch {
+        homeSlotsObj = {};
+      }
+    }
+
+    let todaySlot = homeSlotsObj?.[weekday] || homeSlotsObj?.[weekday.toLowerCase()];
 
     if (!todaySlot) {
       return success("No home visit timing set for this day", [], 200, {
@@ -54,7 +63,6 @@ export async function POST(req) {
       });
     }
 
-    // Parse if string JSON
     if (typeof todaySlot === "string") {
       try {
         todaySlot = JSON.parse(todaySlot);
@@ -67,7 +75,7 @@ export async function POST(req) {
 
     let intervals = [];
     if (Array.isArray(todaySlot)) {
-      intervals = todaySlot.filter(s => s.start && s.end);
+      intervals = todaySlot.filter((s) => s.start && s.end);
     } else if (todaySlot.start && todaySlot.end) {
       intervals = [todaySlot];
     }
@@ -78,21 +86,25 @@ export async function POST(req) {
       });
     }
 
-    // Check if doctor is on leave (leave_days stores full weekday names like "Thursday")
     const leaveDays = Array.isArray(doctor.leave_days)
       ? doctor.leave_days
-      : (typeof doctor.leave_days === "string" ? (() => { try { return JSON.parse(doctor.leave_days); } catch { return []; } })() : []);
+      : typeof doctor.leave_days === "string"
+        ? (() => {
+            try {
+              return JSON.parse(doctor.leave_days);
+            } catch {
+              return [];
+            }
+          })()
+        : [];
     if (leaveDays.includes(weekday)) {
       return success("Doctor is on leave this day", [], 200, {
         headers: corsHeaders,
       });
     }
 
-    // ---------------------------------------------
-    // 3) Generate home visit slots
-    // ---------------------------------------------
     const slots = [];
-    const actual_slot_duration = doctor.slot_interval_minutes || slot_duration || 10;
+    const actual_slot_duration = Math.max(5, Number(doctor.slot_interval_minutes) || Number(slot_duration) || 10);
 
     intervals.forEach(({ start, end }) => {
       const startMin = toMinutes(start);
@@ -100,7 +112,7 @@ export async function POST(req) {
 
       for (let m = startMin; m < endMin; m += actual_slot_duration) {
         const timeHHMM = minutesToHHMM(m);
-        if (!slots.some(s => s.time === timeHHMM)) {
+        if (!slots.some((s) => s.time === timeHHMM)) {
           slots.push({
             time: timeHHMM,
             slot_booked: false,
@@ -111,25 +123,16 @@ export async function POST(req) {
 
     slots.sort((a, b) => a.time.localeCompare(b.time));
 
-    // ---------------------------------------------
-    // 4) Check booked home visit appointments
-    // ---------------------------------------------
-    const { data: booked, error: bookedErr } = await supabase
-      .from("appointments")
-      .select("appointment_time")
-      .eq("doctor_id", doctor_id)
-      .eq("appointment_date", date)
-   // .eq("type", "home") 
-      .in("status", ["booked", "approved", "completed", "freezed"]);
+    const booked = await sql`
+      SELECT appointment_time::text AS appointment_time
+      FROM appointments
+      WHERE doctor_id = ${doctor_id}
+        AND appointment_date = ${date}::date
+        AND status IN ('booked', 'approved', 'completed', 'freezed')
+    `;
 
-    if (bookedErr) throw bookedErr;
+    const bookedTimes = booked.map((a) => (a.appointment_time || "").slice(0, 5));
 
-    const bookedTimes =
-      booked?.map((a) => a.appointment_time.slice(0, 5)) || [];
-
-    // ---------------------------------------------
-    // 5) Mark booked slots
-    // ---------------------------------------------
     const finalSlots = slots.map((slot) => ({
       ...slot,
       slot_booked: bookedTimes.includes(slot.time),
@@ -138,7 +141,6 @@ export async function POST(req) {
     return success("Home visit slots generated successfully", finalSlots, 200, {
       headers: corsHeaders,
     });
-
   } catch (err) {
     console.error("Home slot error:", err);
     return failure("Failed to generate home visit slots", err.message, 500, {

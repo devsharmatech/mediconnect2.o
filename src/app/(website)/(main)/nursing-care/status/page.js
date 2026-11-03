@@ -203,20 +203,27 @@ export default function NursingStatusPage() {
   return (
     <div className="max-w-full mx-auto py-4 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <Heart className="w-6 h-6 text-[#0067A1]" /> My Nursing Requests
           </h1>
           <p className="text-sm text-gray-500 mt-1">Track the status of your nursing care requests</p>
         </div>
-        <button
-          onClick={fetchRequests}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] transition-colors text-sm cursor-pointer"
-        >
-          <RefreshCw className="w-4 h-4" /> Refresh
-        </button>
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/nursing-care"
+            className="flex items-center gap-1.5 px-4 py-2 bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] transition-colors text-sm font-semibold shadow-sm cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4" /> New Request
+          </Link>
+          <button
+            onClick={fetchRequests}
+            className="flex items-center gap-1.5 px-3.5 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors text-sm cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* No requests */}
@@ -230,7 +237,7 @@ export default function NursingStatusPage() {
           <h3 className="text-lg font-semibold text-gray-700 mb-2">No Nursing Requests Yet</h3>
           <p className="text-sm text-gray-500 mb-6">You haven&apos;t submitted any nursing care requests.</p>
           <Link
-            href="/website/nursing-care"
+            href="/nursing-care"
             className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] transition-colors text-sm font-medium"
           >
             <Heart className="w-4 h-4" /> Request Nursing Care

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   FaUserMd,
   FaMapMarkerAlt,
@@ -141,10 +141,23 @@ function DoctorProfileSkeleton() {
   );
 }
 
-export default function DoctorProfilePage() {
+const normalizeAppointmentMode = (val) => {
+  if (!val) return "clinic_visit";
+  const s = String(val).toLowerCase().trim();
+  if (s.includes("video") || s === "online") return "video_consultation";
+  if (s.includes("home")) return "home_visit";
+  if (s.includes("clinic")) return "clinic_visit";
+  return "clinic_visit";
+};
+
+function DoctorProfileContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const doctorId = params?.id;
+
+  const sessionPreferredMode = typeof window !== "undefined" ? sessionStorage.getItem("preferred_consultation_mode") : null;
+  const rawModeParam = searchParams?.get("mode") || searchParams?.get("type") || searchParams?.get("appointmentType") || sessionPreferredMode;
 
   const [doctor, setDoctor] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -155,7 +168,13 @@ export default function DoctorProfilePage() {
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [booking, setBooking] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
-  const [appointmentType, setAppointmentType] = useState("clinic_visit");
+  const [appointmentType, setAppointmentType] = useState(() => normalizeAppointmentMode(rawModeParam));
+
+  useEffect(() => {
+    if (rawModeParam) {
+      setAppointmentType(normalizeAppointmentMode(rawModeParam));
+    }
+  }, [rawModeParam]);
   const [isFollowUp, setIsFollowUp] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [dataSharingConsent, setDataSharingConsent] = useState(true);
@@ -325,6 +344,43 @@ export default function DoctorProfilePage() {
   }, [doctorId, router]);
 
   useEffect(() => {
+    if (!doctor) return;
+    const details = doctor.doctor_details || {};
+    const parseN = (v) => {
+      if (!v) return 0;
+      const n = Number(String(v).replace(/[^0-9.]/g, ""));
+      return isNaN(n) ? 0 : n;
+    };
+    const vFee = parseN(details.video_consultation_fee ?? details.consultation_fee);
+    const cFee = parseN(details.clinic_consultation_fee ?? details.consultation_fee);
+    const hFee = parseN(details.home_visit_fee);
+
+    const preferred = normalizeAppointmentMode(rawModeParam);
+    if (preferred === "video_consultation" && vFee > 0) {
+      setAppointmentType("video_consultation");
+      return;
+    } else if (preferred === "home_visit" && hFee > 0) {
+      setAppointmentType("home_visit");
+      return;
+    } else if (preferred === "clinic_visit" && cFee > 0) {
+      setAppointmentType("clinic_visit");
+      return;
+    }
+
+    // Fallback if the currently selected appointment type is not served (fee <= 0)
+    if (appointmentType === "video_consultation" && vFee <= 0) {
+      if (cFee > 0) setAppointmentType("clinic_visit");
+      else if (hFee > 0) setAppointmentType("home_visit");
+    } else if (appointmentType === "clinic_visit" && cFee <= 0) {
+      if (vFee > 0) setAppointmentType("video_consultation");
+      else if (hFee > 0) setAppointmentType("home_visit");
+    } else if (appointmentType === "home_visit" && hFee <= 0) {
+      if (vFee > 0) setAppointmentType("video_consultation");
+      else if (cFee > 0) setAppointmentType("clinic_visit");
+    }
+  }, [doctor, rawModeParam]);
+
+  useEffect(() => {
     fetch("/api/cms/settings")
       .then((res) => res.json())
       .then((json) => {
@@ -393,6 +449,24 @@ export default function DoctorProfilePage() {
       return q.split(",").map((s) => s.trim()).filter(Boolean);
     }
     return [];
+  })();
+
+  const superSpecialties = (() => {
+    try {
+      const meta = typeof details.meta === 'string' ? JSON.parse(details.meta) : (details.meta || {});
+      const raw = meta.super_speciality || details.super_speciality;
+      if (Array.isArray(raw)) return raw.filter(Boolean);
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed.filter(Boolean);
+        } catch {}
+        return raw.split(",").map((s) => s.trim()).filter(Boolean);
+      }
+      return [];
+    } catch {
+      return [];
+    }
   })();
 
   let profileImage = "";
@@ -803,9 +877,20 @@ export default function DoctorProfilePage() {
                 </span>
               </div>
               
-              <p className="text-xs sm:text-sm font-medium text-[#0067A1] mb-2.5">
-                {specialty}
-              </p>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 mb-2.5">
+                <p className="text-xs sm:text-sm font-medium text-[#0067A1]">
+                  {specialty}
+                </p>
+                {superSpecialties.length > 0 && (
+                  <div className="flex flex-wrap gap-1 items-center">
+                    {superSpecialties.map((ss, idx) => (
+                      <span key={idx} className="inline-block bg-sky-50 text-[#0067A1] text-[11px] font-medium px-2 py-0.5 rounded-full border border-sky-200">
+                        {ss}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-xs text-slate-600 mb-3.5">
                 <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/60 font-normal">
@@ -996,11 +1081,20 @@ export default function DoctorProfilePage() {
                           <h4 className="font-medium text-xs text-slate-400 mb-2 uppercase tracking-wide">
                             Specializations
                           </h4>
-                          <div className="border border-slate-200/80 rounded-lg p-2.5 bg-white">
+                          <div className="border border-slate-200/80 rounded-lg p-2.5 bg-white space-y-2">
                             <span className="flex items-center gap-2 font-normal text-slate-700 text-xs">
                               <span className="h-1.5 w-1.5 rounded-full bg-[#0067A1]"></span>
                               {specialty}
                             </span>
+                            {superSpecialties.length > 0 && (
+                              <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-1.5">
+                                {superSpecialties.map((ss, idx) => (
+                                  <span key={idx} className="inline-block bg-sky-50 text-[#0067A1] text-[11px] font-medium px-2 py-0.5 rounded-md border border-sky-200">
+                                    {ss}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1475,6 +1569,15 @@ export default function DoctorProfilePage() {
                             <div className="animate-spin h-5 w-5 border-2 border-[#0067A1] border-t-transparent rounded-full mx-auto mb-1.5"></div>
                             <p className="text-xs text-slate-500 font-normal">Checking doctor slots...</p>
                           </div>
+                        ) : (details.is_open === false || details.is_available === false) ? (
+                          <div className="text-center py-5 bg-rose-50/70 rounded-lg border border-rose-200 p-3">
+                            <p className="text-xs text-rose-800 font-semibold mb-0.5">
+                              Doctor is Currently Closed
+                            </p>
+                            <p className="text-[11px] text-rose-600">
+                              This doctor has temporarily paused new appointment bookings.
+                            </p>
+                          </div>
                         ) : slots.length === 0 ? (
                           <div className="text-center py-5 bg-slate-50/60 rounded-lg border border-slate-100 p-3">
                             <p className="text-xs text-slate-700 font-semibold mb-0.5">
@@ -1621,6 +1724,8 @@ export default function DoctorProfilePage() {
                     }}
                     disabled={
                       booking ||
+                      details.is_open === false ||
+                      details.is_available === false ||
                       !dataSharingConsent ||
                       !teleconsultConsent
                     }
@@ -1649,8 +1754,8 @@ export default function DoctorProfilePage() {
                   </button>
 
                   {bookingSuccess && (
-                    <div className="mt-2 bg-emerald-50 text-emerald-800 p-2 rounded-lg border border-emerald-100 flex items-center justify-center gap-2 text-xs font-medium">
-                      <FaCheckCircle className="text-emerald-600" /> Booked! Redirecting...
+                    <div className="mt-2 bg-amber-50 text-amber-800 p-2 rounded-lg border border-amber-200 flex items-center justify-center gap-2 text-xs font-medium">
+                      <FaCheckCircle className="text-amber-600" /> Booking Requested! Awaiting doctor approval...
                     </div>
                   )}
                 </div>
@@ -1792,5 +1897,13 @@ export default function DoctorProfilePage() {
         />
       )}
     </div>
+  );
+}
+
+export default function DoctorProfilePage() {
+  return (
+    <React.Suspense fallback={<DoctorProfileSkeleton />}>
+      <DoctorProfileContent />
+    </React.Suspense>
   );
 }

@@ -195,4 +195,112 @@ f) This Agreement constitutes the entire agreement between the parties with resp
 
 g) If any provision of this Agreement is held to be invalid, illegal, or unenforceable, the remaining provisions shall continue in full force and effect. The invalid provision shall be modified to the minimum extent necessary to make it valid and enforceable while preserving the original intent of the parties.`,
   },
+  {
+    id: 12,
+    title: "Schedule A — Doctor Details and Platform Service Rates",
+    preview:
+      "Commercial fee structure, commission percentages, and qualifying follow-up rules.",
+    content: `### SCHEDULE A — DOCTOR DETAILS AND PLATFORM SERVICE RATES
+
+| Service / Patient Category | Platform Service Rate | Application |
+| :--- | :--- | :--- |
+| **Video consultation** | **20%** | Per completed, chargeable consultation. |
+| **In-clinic: first-time Platform-acquired patient** | **18%** | Booking originates through MediConnect.fit and is not a qualifying follow-up or accepted migrated patient. |
+| **In-clinic: qualifying follow-up with same Doctor** | **10%** | Applies to the same Doctor and same ongoing treatment when the patient returns on or before the end of the three-calendar-day grace period added to the follow-up due date recorded in the prescription for the preceding consultation, and within six months of the first completed, chargeable in-clinic consultation with that Doctor. The interval may vary by prescription and is not fixed by the Platform. |
+| **In-clinic: after follow-up period and grace period** | **18%** | 18% applies after the prescription-based follow-up deadline plus three calendar days, after the six-month eligibility period expires, or if the patient consults a different Doctor/specialty. If no usable follow-up interval/date is recorded, 18% applies unless an authorised, auditable correction is made. |
+| **In-clinic: different Doctor / specialty crossover** | **18%** | Applies to the relevant booking with the different Doctor/specialty. |
+| **In-clinic: accepted migrated / pre-existing patient** | **5%** | Only for that Doctor’s pre-existing patient recorded in the accepted migration record. |
+| **Home visit consultation** | **20%** | Per completed, chargeable home-visit consultation. |
+
+*The Parties accept the service modes and Platform Service Rates recorded above. Any change must be recorded in a written or electronic amendment accepted by both Parties and shall not apply retrospectively.*`,
+  },
+  {
+    id: 13,
+    title: "Schedule B — Platform Service Fee, Payment, Tax and Settlement",
+    preview:
+      "10-day settlement cycle, TDS statutory compliance, fee calculation base, and payout rules.",
+    content: `### SCHEDULE B — PLATFORM SERVICE FEE, PAYMENT, TAX AND SETTLEMENT
+
+*The payment and settlement terms in this Schedule apply together with Schedule A.*
+
+| Topic | Agreed Operating Rule |
+| :--- | :--- |
+| **Patient payment collection** | MediConnect.fit collects payments for consultations booked through the Platform and maintains transaction-wise records, subject to the actual approved payment-provider arrangement. The Platform’s role, merchant/collection account and refund responsibility must match that arrangement. |
+| **Platform Service Fee calculation base** | The Platform Service Fee is calculated by applying the applicable Platform Service Rate to the professional consultation fee actually collected for the completed service, after discounts/coupons and excluding separately stated GST (if applicable), refunded/reversed amounts and any separately identified non-consultation/platform fee. Payment-gateway charges are not separately deducted from the Doctor unless expressly agreed in a written amendment. |
+| **Settlement cycle** | Reconcile earnings every 10 calendar days and initiate payout to the Doctor’s verified bank account within the following three working days, subject to successful collection and reconciliation. If delayed, notify the Doctor of the affected amount, reason and expected resolution date. |
+| **Settlement statement** | Show appointment/transaction ID, service date, gross consultation fee collected, discounts, refunds, applicable Platform Service Rate, resulting Platform Service Fee, statutory TDS (if any), other permitted adjustments and net payout. |
+| **TDS** | Where the Platform operator is legally required to deduct TDS from a resident Doctor’s professional fees, it shall apply the rate and calculation base prescribed by the Indian tax law in force for the relevant credit/payment event, subject to applicable thresholds, timing, classification, transitional rules and any valid lower/nil-deduction certificate. No fixed TDS rate is promised by this Agreement. If no deduction is legally required or the law prescribes different treatment, the law shall govern. The deductor shall deposit TDS with the Central Government, report it against the Doctor’s PAN and provide the applicable TDS certificate in the form then prescribed by law, so the Doctor may claim the tax credit subject to applicable law and tax records. |
+| **Invoices and taxes** | Each Party issues the invoices, receipts and tax documents legally required for its role. Each Party is responsible for its own tax obligations. The medical service and Platform Service Fee may have different tax treatment; the applicable payment-provider/PA arrangement must be followed. |
+| **Cancellations, refunds and chargebacks** | Apply the cancellation, rescheduling, no-show and refund rules in Schedule D of this Agreement. Every adjustment must be linked to the relevant transaction, recorded and explained; no arbitrary or unrelated deduction is permitted. |
+| **Payment queries** | The Doctor may query a statement within 15 calendar days of receipt. The Parties shall review supporting records promptly; undisputed amounts shall not be unreasonably withheld. |
+| **Bank details** | Payouts go only to the Doctor’s verified bank account. Changes require authenticated confirmation. |
+
+*Applicable operating terms: Clauses 6 and 11 and Schedule D of this Agreement. Effective from the Agreement Effective Date.*`,
+  },
+  {
+    id: 14,
+    title: "Schedule C — Clinical, Privacy and Operational Responsibilities",
+    preview:
+      "Clear division between Platform technology services and Doctor independent clinical authority.",
+    content: `### SCHEDULE C — CLINICAL, PRIVACY AND OPERATIONAL RESPONSIBILITIES
+
+| Area | Platform Responsibility | Doctor Responsibility |
+| :--- | :--- | :--- |
+| **Credentials** | Maintain appropriate verification records and re-check where required. | Keep registration, qualifications and declared details accurate and current. |
+| **Clinical independence** | Provide booking and consultation facilities without improper influence over clinical decisions. | Exercise independent clinical judgement and follow applicable professional and ethical standards. |
+| **Teleconsultation and consent** | Provide available booking/consent workflows and relevant patient details. | Check identity, age, consent and suitability; follow telemedicine requirements and prescribing restrictions. |
+| **Privacy and security** | Protect information handled by Platform systems with reasonable safeguards and access controls. | Use patient information only for authorised purposes, protect credentials/devices and promptly report suspected compromise. |
+| **Records and prescriptions** | Provide relevant record/prescription tools where offered and preserve Platform audit records under its control. | Maintain clinical notes, prescriptions and records required by law; ensure corrections are traceable. |
+| **Complaints and patient safety** | Maintain a complaint/escalation channel and apply proportionate safety measures. | Cooperate with good-faith reviews and provide relevant records securely. |
+| **Ethics and conflicts** | Do not improperly influence clinical decisions or promote unnecessary care for commercial reasons. | Avoid unnecessary care for commercial gain and disclose conflicts where required. |
+| **Operating rules and changes** | Provide this Agreement and notify the Doctor of proposed material changes. | Follow this Agreement and Schedule D; material changes require acceptance and material concerns should be raised promptly. |
+
+*No undisclosed internal procedure or later operational change may alter agreed commercial terms without the mutual acceptance required under this Agreement.*`,
+  },
+  {
+    id: 15,
+    title: "Schedule D — Consultation Operating Rules",
+    preview:
+      "Rescheduling allowances, cancellation policy, no-show protocols, and refund governance.",
+    content: `### SCHEDULE D — CONSULTATION OPERATING RULES
+*Effective Date: The date of the last signature on this Agreement.*
+
+#### D1. Consultation modes and authority
+- **Enabled modes**: Enabled modes are only those selected in Schedule A: video consultation, in-clinic consultation and/or home visit. Chat/audio are not enabled unless separately agreed in writing.
+- **Clinical judgement**: The Doctor retains independent clinical judgement. The Platform coordinates bookings and administration; backend-confirmed state governs booking, payment, rescheduling, cancellation and refund. A screen, message or payment notification alone is not proof of a completed booking or consultation.
+
+#### D2. Rescheduling
+| Time Before Appointment Start | Patient Entitlement | Rule |
+| :--- | :--- | :--- |
+| **> 2 hours** | Up to 3 reschedules per booking | Confirm the replacement slot before releasing the original booking. |
+| **30 minutes to 2 hours** | 1 reschedule per booking | Further changes require authorised admin review. |
+| **Less than 30 minutes** | No self-service reschedule | An authorised admin may approve an exception; record the reason and approver. |
+
+*The count is per booking and cannot be reset by changing channel or support agent. The patient must see the new provider (if any), date/time, any adjustment and remaining allowance before confirming.*
+
+#### D3. Cancellation, No-Show and Refund Rules
+*Backend transaction and booking states, supported connection/payment logs and authorised audit records govern each outcome. Cancellation/refund terms and any potential deductions must be clearly disclosed to the patient before booking.*
+
+| Event | Rule / Financial Treatment |
+| :--- | :--- |
+| **Patient cancels > 2 hours before start** | Patient chooses a full refund or rescheduling under D2. Display the available options before confirmation. |
+| **Patient cancels 30 minutes to 2 hours before start** | No automatic refund. Admin review may approve a refund or deduction; disclose the decision and amounts before confirming cancellation. |
+| **Patient cancels within 30 minutes** | No automatic refund. Admin review and a recorded decision are required for any exception. |
+| **Patient no-show** | Apply a 10-minute grace period. No automatic refund where the no-show rule was disclosed before booking; admin may review documented exceptional circumstances. Do not classify a documented platform/provider outage as patient no-show. |
+| **Doctor requests reschedule or cancels** | Offer the patient a confirmed replacement slot or a full refund, at the patient’s choice. No Platform Service Fee applies to an unperformed consultation. |
+| **Doctor late / delay notice** | If the Doctor has not joined within 5 minutes and no delay notice has been accepted, treat as provider failure. A delay notice must state the revised ETA; proceed only if the patient accepts. Otherwise offer rescheduling or a full refund. |
+| **Doctor no-show** | If the Doctor does not attend and no accepted delay notice applies, offer rescheduling or a full refund. No Platform Service Fee applies to an unperformed consultation. |
+| **Patient-side network/device failure** | Attempt reconnection for up to 10 minutes while the Doctor remains available. If the consultation cannot be completed and logs indicate patient-side failure only, no automatic refund applies; authorised admin may approve rescheduling/refund on documented review. No Platform Service Rate applies unless the consultation is completed and chargeable. |
+| **Doctor-side network/device failure** | Attempt reconnection or another supported, consented channel for up to 10 minutes. If the consultation remains incomplete, treat as provider failure and offer rescheduling or a full refund. No Platform Service Rate applies. |
+| **Platform, hosting, telecom, or payment-provider outage** | Attempt recovery or an approved alternative without compromising privacy or consent. If the consultation cannot be completed, offer rescheduling or a full refund; no Platform Service Rate applies to an unperformed consultation. |
+| **Shared or undetermined connectivity failure** | Do not assign fault without available evidence. Record system/connection logs and offer rescheduling or a full refund if the consultation cannot be completed. No Platform Service Fee applies to an unperformed consultation. |
+| **Platform cancels / Doctor or slot unavailable after confirmation** | Notify the patient promptly and offer a confirmed replacement slot or full refund, at the patient’s choice. No Platform Service Fee applies to an unperformed consultation. |
+| **Payment fails or booking is not confirmed** | Do not treat the appointment as confirmed until backend confirmation. Reconcile any captured amount; refund the full unallocated amount if no valid booking is created. |
+| **Duplicate payment / duplicate capture** | Reconcile transaction IDs and refund the duplicate amount. Do not deduct or settle the same capture twice. |
+| **Technical interruption after consultation starts** | Attempt recovery/reconnection for up to 10 minutes. If the consultation is not completed, offer rescheduling or a full refund. Any partial refund requires documented review and disclosure; no unilateral deduction is permitted. |
+| **Patient emergency or exceptional circumstances** | Authorised admin may approve rescheduling or a full/partial refund after documented review. Record the evidence relied upon and disclose any financial outcome before confirmation. |
+| **Refund initiation and confirmation** | Initiate an approved refund within 3 working days, subject to payment-provider capability. A refund is complete only after provider confirmation; display status and prevent duplicate refunds. |
+| **Chargeback / disputed payment** | Link the dispute to the transaction, notify affected parties where lawful, preserve evidence and review promptly. Any temporary hold is limited to the disputed amount; no arbitrary or unrelated settlement deduction is permitted. |
+| **Administrative exception / audit** | Every exception must record the authorised staff member, reason, timestamp, transaction/booking ID, evidence and outcome. Reschedule counts cannot be reset by changing channel or support agent. |`,
+  },
 ];

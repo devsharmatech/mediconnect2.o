@@ -22,8 +22,8 @@ const sql = globalForDb.sql || postgres({
   ssl: sslConfig,
   // Keep pool appropriately sized for concurrent requests
   max: process.env.DB_MAX_CONNECTIONS ? parseInt(process.env.DB_MAX_CONNECTIONS, 10) : 20,
-  // 30s connect timeout prevents false write CONNECT_TIMEOUT errors across WAN/internet to AWS RDS
-  connect_timeout: 30,
+  // 10s connect timeout prevents server freezing indefinitely on firewall drops
+  connect_timeout: 10,
   // Keep connections warm for 120s to avoid latency overhead of repeated TLS handshakes
   idle_timeout: 120,
   // Recycle after 5 min to prevent AWS RDS forced disconnects
@@ -37,4 +37,3 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export default sql;
-

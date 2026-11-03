@@ -108,7 +108,10 @@ export default function DoctorLedgerAdminPage() {
   }, [selectedDoctorId, statusFilter, modeFilter, excludeFree, searchQuery, page]);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 350);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   // Run 10-day settlement batch

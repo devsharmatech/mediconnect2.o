@@ -61,10 +61,9 @@ export default function LabTestsMasterPage() {
   }, []);
 
   useEffect(() => {
-    fetchLabTests();
     fetchCategories();
     fetchCommissionSettings();
-  }, [pagination.page, categoryFilter, selectedLab]);
+  }, []);
 
   const fetchCommissionSettings = async () => {
     try {
@@ -111,16 +110,16 @@ export default function LabTestsMasterPage() {
     }
   };
 
-  const fetchLabTests = async () => {
+  const fetchLabTests = async (targetPage = pagination.page, querySearch = search, cat = categoryFilter, lab = selectedLab) => {
     setLoading(true);
     try {
       const queryParams = {
-        page: pagination.page,
-        q: search,
-        category: categoryFilter,
+        page: targetPage,
+        q: querySearch,
+        category: cat,
         limit: 10
       };
-      if (selectedLab) queryParams.lab_id = selectedLab;
+      if (lab) queryParams.lab_id = lab;
 
       const query = new URLSearchParams(queryParams).toString();
 
@@ -134,6 +133,7 @@ export default function LabTestsMasterPage() {
         setSelectedLabDetails(data.selectedLab || null);
         setPagination(prev => ({ 
           ...prev, 
+          page: targetPage,
           totalPages: data.pagination?.totalPages || 1,
           total: data.pagination?.total || 0,
           activeTotal: data.pagination?.activeTotal !== undefined ? data.pagination.activeTotal : (data.pagination?.total || 0)
@@ -145,6 +145,19 @@ export default function LabTestsMasterPage() {
       setLoading(false);
     }
   };
+
+  // Debounce search, category, and selectedLab (resets to page 1)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchLabTests(1, search, categoryFilter, selectedLab);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search, categoryFilter, selectedLab]);
+
+  // Page change
+  useEffect(() => {
+    fetchLabTests(pagination.page, search, categoryFilter, selectedLab);
+  }, [pagination.page]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -413,13 +426,13 @@ export default function LabTestsMasterPage() {
             onClick={handleExport}
             className="flex items-center gap-2 px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-200 font-semibold hover:bg-gray-50 dark:hover:bg-gray-750 transition-all shadow-sm"
           >
-            <Download size={18} /> Export
+            <Upload size={18} /> Export
           </button>
           <button
             onClick={() => setIsImportModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-200 font-semibold hover:bg-gray-50 dark:hover:bg-gray-750 transition-all shadow-sm"
           >
-            <Upload size={18} /> Bulk Import
+            <Download size={18} /> Bulk Import
           </button>
           <button
             onClick={() => {

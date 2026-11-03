@@ -40,7 +40,8 @@ import { Activity, ShieldAlert, ClipboardList, Stethoscope, CalendarPlus, CheckC
 const normalizeStatus = (status) => {
   if (!status) return "pending";
   const s = String(status).toLowerCase();
-  if (["booked", "approved", "freezed", "confirmed"].includes(s)) return "confirmed";
+  if (["approved", "freezed", "confirmed"].includes(s)) return "confirmed";
+  if (["booked", "pending"].includes(s)) return "pending";
   if (s.includes("cancel") || ["rejected", "declined"].includes(s)) return "cancelled";
   return s;
 };
@@ -151,7 +152,16 @@ const getVideoCallTiming = (apt, now = new Date()) => {
   }
 
   const normStatus = normalizeStatus(apt.status);
-  if (!["confirmed", "pending"].includes(normStatus)) {
+  if (normStatus === "pending") {
+    return {
+      isVideo: true,
+      canJoin: false,
+      label: "Pending Approval",
+      disabledReason: "pending_approval",
+      tooltip: "Waiting for doctor to approve your appointment",
+    };
+  }
+  if (normStatus !== "confirmed") {
     return { isVideo: true, canJoin: false, label: "Call Unavailable", disabledReason: "invalid_status", tooltip: "Appointment is not confirmed" };
   }
 
@@ -1678,7 +1688,7 @@ const AppointmentCard = ({
   const getStatusConfig = (status) => {
     switch (status) {
       case "confirmed":   return { cls: "bg-green-100 text-green-700 border-green-200",   dot: "bg-green-500",  label: "Confirmed" };
-      case "pending":     return { cls: "bg-amber-100 text-amber-700 border-amber-200",   dot: "bg-amber-500",  label: "Pending" };
+      case "pending":     return { cls: "bg-amber-100 text-amber-700 border-amber-200",   dot: "bg-amber-500",  label: "Pending Approval" };
       case "completed":   return { cls: "bg-emerald-100 text-emerald-700 border-emerald-200", dot: "bg-emerald-500", label: "Completed" };
       case "expired":     return { cls: "bg-gray-100 text-gray-500 border-gray-200",      dot: "bg-gray-400",   label: "Expired" };
       case "cancelled":   return { cls: "bg-red-100 text-red-700 border-red-200",         dot: "bg-red-500",    label: "Cancelled" };

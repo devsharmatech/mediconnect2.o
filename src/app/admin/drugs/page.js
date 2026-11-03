@@ -29,9 +29,8 @@ export default function DrugMasterPage() {
   const adminId = getLoggedInUser("admin")?.id;
 
   useEffect(() => {
-    fetchDrugs();
     fetchCategories();
-  }, [pagination.page, categoryFilter]);
+  }, []);
 
   const fetchCategories = async () => {
     const res = await fetch("/api/admin/drugs/categories");
@@ -39,13 +38,13 @@ export default function DrugMasterPage() {
     if (data.success) setCategories(data.data);
   };
 
-  const fetchDrugs = async () => {
+  const fetchDrugs = async (targetPage = pagination.page, querySearch = search, cat = categoryFilter) => {
     setLoading(true);
     try {
       const query = new URLSearchParams({
-        page: pagination.page,
-        q: search,
-        category: categoryFilter,
+        page: targetPage,
+        q: querySearch,
+        category: cat,
         limit: 10
       }).toString();
 
@@ -53,7 +52,12 @@ export default function DrugMasterPage() {
       const data = await res.json();
       if (data.success) {
         setDrugs(data.data);
-        setPagination(prev => ({ ...prev, totalPages: data.pagination.totalPages }));
+        setPagination(prev => ({ 
+          ...prev, 
+          page: targetPage,
+          totalPages: data.pagination.totalPages,
+          total: data.pagination.total 
+        }));
       }
     } catch (err) {
       toast.error("Failed to fetch drugs");
@@ -61,6 +65,19 @@ export default function DrugMasterPage() {
       setLoading(false);
     }
   };
+
+  // Debounced search and category filter (resets to page 1)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchDrugs(1, search, categoryFilter);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search, categoryFilter]);
+
+  // Page change handler
+  useEffect(() => {
+    fetchDrugs(pagination.page, search, categoryFilter);
+  }, [pagination.page]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -232,13 +249,13 @@ export default function DrugMasterPage() {
             onClick={handleExport}
             className="flex items-center gap-2 px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-200 font-semibold hover:bg-gray-50 dark:hover:bg-gray-750 transition-all shadow-sm"
           >
-            <Download size={18} /> Export
+            <Upload size={18} /> Export
           </button>
           <button
             onClick={() => setIsImportModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-200 font-semibold hover:bg-gray-50 dark:hover:bg-gray-750 transition-all shadow-sm"
           >
-            <Upload size={18} /> Import
+            <Download size={18} /> Import
           </button>
           <button
             onClick={() => {

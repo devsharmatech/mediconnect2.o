@@ -65,6 +65,7 @@ export default function CheckoutPage() {
             return;
         }
         setCart(c);
+        if (c.visit_type) setVisitType(c.visit_type);
 
         // Get patient ID
         const userId = localStorage.getItem("userId") || localStorage.getItem("user_id");

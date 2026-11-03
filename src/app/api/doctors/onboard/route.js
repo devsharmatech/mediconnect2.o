@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { uploadToS3, deleteFromS3, extractKeyFromUrl } from "@/lib/s3";
 
 export async function POST(request) {
@@ -7,45 +7,45 @@ export async function POST(request) {
     const formData = await request.formData();
 
     // Text fields
-    const full_name = formData.get('full_name');
-    const email = formData.get('email');
-    const specialization = formData.get('specialization');
-    const experience_years = formData.get('experience_years');
-    const license_number = formData.get('license_number');
-    const clinic_name = formData.get('clinic_name');
-    const clinic_address = formData.get('clinic_address');
-    const consultation_fee = formData.get('consultation_fee');
-    const qualification = formData.get('qualification');
-    const indemnity_insurance = formData.get('indemnity_insurance');
-    const digital_consent = formData.get('digital_consent');
-    const onboarding_status = formData.get('onboarding_status') || 'pending';
-    const phone_number = formData.get('phone_number');
+    const full_name = formData.get("full_name");
+    const email = formData.get("email");
+    const specialization = formData.get("specialization");
+    const experience_years = formData.get("experience_years");
+    const license_number = formData.get("license_number");
+    const clinic_name = formData.get("clinic_name");
+    const clinic_address = formData.get("clinic_address");
+    const consultation_fee = formData.get("consultation_fee");
+    const qualification = formData.get("qualification");
+    const indemnity_insurance = formData.get("indemnity_insurance");
+    const digital_consent = formData.get("digital_consent");
+    const onboarding_status = formData.get("onboarding_status") || "pending";
+    const phone_number = formData.get("phone_number");
 
     // Array fields
-    const available_days = formData.get('available_days')?.split(',') || [];
-    const speciality_tags = formData.get('speciality_tags')?.split(',') || [];
+    const available_days = formData.get("available_days")?.split(",") || [];
+    const speciality_tags = formData.get("speciality_tags")?.split(",") || [];
 
     // JSON fields
-    const available_time = formData.get('available_time')
-      ? JSON.parse(formData.get('available_time'))
+    const available_time = formData.get("available_time")
+      ? JSON.parse(formData.get("available_time"))
       : { start: "09:00", end: "17:00" };
 
-    const bank_account_details = formData.get('bank_account_details')
-      ? JSON.parse(formData.get('bank_account_details'))
+    const bank_account_details = formData.get("bank_account_details")
+      ? JSON.parse(formData.get("bank_account_details"))
       : { account_no: "", ifsc: "", bank_name: "" };
 
     // File uploads (handle both `_file` suffix and exact keys)
     const getFileOrText = (key) => {
       const file = formData.get(`${key}_file`) || formData.get(key);
-      if (file && typeof file === 'object' && file.name) return { file, text: null };
-      return { file: null, text: typeof file === 'string' ? file : null };
+      if (file && typeof file === "object" && file.name) return { file, text: null };
+      return { file: null, text: typeof file === "string" ? file : null };
     };
 
-    const dmc_mci = getFileOrText('dmc_mci_certificate');
-    const aadhaar_pan = getFileOrText('aadhaar_pan_license');
-    const address_proof = getFileOrText('address_proof');
-    const passport_photo = getFileOrText('passport_photo');
-    const clinic_photos = getFileOrText('clinic_photos');
+    const dmc_mci = getFileOrText("dmc_mci_certificate");
+    const aadhaar_pan = getFileOrText("aadhaar_pan_license");
+    const address_proof = getFileOrText("address_proof");
+    const passport_photo = getFileOrText("passport_photo");
+    const clinic_photos = getFileOrText("clinic_photos");
 
     // Validate required fields
     if (!full_name || !email || !specialization || !phone_number) {
@@ -55,21 +55,12 @@ export async function POST(request) {
       );
     }
 
-    // Start by creating user
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .insert([
-        {
-          phone_number,
-          role: 'doctor',
-          is_verified: false,
-          status: 1,
-        }
-      ])
-      .select()
-      .single();
-
-    if (userError) throw userError;
+    // Start by creating user in AWS RDS PostgreSQL
+    const [user] = await sql`
+      INSERT INTO users (phone_number, role, is_verified, status)
+      VALUES (${phone_number}, 'doctor', false, 1)
+      RETURNING *
+    `;
 
     const doctorId = user.id;
 
@@ -82,7 +73,7 @@ export async function POST(request) {
 
     // Upload DMC/MCI Certificate
     if (dmc_mci.file) {
-      const fileName = `${doctorId}-${Date.now()}.${dmc_mci.file.name.split('.').pop()}`;
+      const fileName = `${doctorId}-${Date.now()}.${dmc_mci.file.name.split(".").pop()}`;
       try {
         const { url } = await uploadToS3(dmc_mci.file, `doctor-documents/dmc-certificates/${fileName}`, "application/octet-stream");
         dmc_mci_certificate_url = url;
@@ -91,7 +82,7 @@ export async function POST(request) {
 
     // Upload Aadhaar/PAN/License
     if (aadhaar_pan.file) {
-      const fileName = `${doctorId}-${Date.now()}.${aadhaar_pan.file.name.split('.').pop()}`;
+      const fileName = `${doctorId}-${Date.now()}.${aadhaar_pan.file.name.split(".").pop()}`;
       try {
         const { url } = await uploadToS3(aadhaar_pan.file, `doctor-documents/aadhaar-pan/${fileName}`, "application/octet-stream");
         aadhaar_pan_license_url = url;
@@ -100,7 +91,7 @@ export async function POST(request) {
 
     // Upload Address Proof
     if (address_proof.file) {
-      const fileName = `${doctorId}-${Date.now()}.${address_proof.file.name.split('.').pop()}`;
+      const fileName = `${doctorId}-${Date.now()}.${address_proof.file.name.split(".").pop()}`;
       try {
         const { url } = await uploadToS3(address_proof.file, `doctor-documents/address-proofs/${fileName}`, "application/octet-stream");
         address_proof_url = url;
@@ -109,7 +100,7 @@ export async function POST(request) {
 
     // Upload Passport Photo
     if (passport_photo.file) {
-      const fileName = `${doctorId}-${Date.now()}.${passport_photo.file.name.split('.').pop()}`;
+      const fileName = `${doctorId}-${Date.now()}.${passport_photo.file.name.split(".").pop()}`;
       try {
         const { url } = await uploadToS3(passport_photo.file, `doctor-documents/passport-photos/${fileName}`, "application/octet-stream");
         passport_photo_url = url;
@@ -118,47 +109,46 @@ export async function POST(request) {
 
     // Upload Clinic Photos
     if (clinic_photos.file) {
-      const fileName = `${doctorId}-${Date.now()}.${clinic_photos.file.name.split('.').pop()}`;
+      const fileName = `${doctorId}-${Date.now()}.${clinic_photos.file.name.split(".").pop()}`;
       try {
         const { url } = await uploadToS3(clinic_photos.file, `doctor-documents/clinic-photos/${fileName}`, "application/octet-stream");
         clinic_photos_urls = [url];
       } catch (err) { console.error("Clinic photos upload error:", err); }
     }
 
-    const { data: doctorDetails, error: detailsError } = await supabase
-      .from('doctor_details')
-      .insert([
-        {
-          id: doctorId,
-          full_name,
-          email,
-          specialization,
-          experience_years: parseInt(experience_years) || 0,
-          license_number,
-          clinic_name,
-          clinic_address,
-          available_days,
-          available_time,
-          speciality_tags,
-          consultation_fee: parseFloat(consultation_fee) || 0,
-          qualification,
-          indemnity_insurance: parseFloat(indemnity_insurance) || 0,
-          dmc_mci_certificate: dmc_mci_certificate_url,
-          aadhaar_pan_license: aadhaar_pan_license_url,
-          address_proof: address_proof_url,
-          passport_photo: passport_photo_url,
-          clinic_photos: clinic_photos_urls,
-          bank_account_details,
-          digital_consent: Boolean(digital_consent),
-          onboarding_status,
-        }
-      ])
-      .select()
-      .single();
-
-    if (detailsError) {
-      // Rollback: delete user and uploaded files
-      await supabase.from('users').delete().eq('id', doctorId);
+    let doctorDetails;
+    try {
+      const insertData = {
+        id: doctorId,
+        full_name,
+        email,
+        specialization,
+        experience_years: parseInt(experience_years) || 0,
+        license_number,
+        clinic_name,
+        clinic_address,
+        available_days,
+        available_time: sql.json(available_time),
+        speciality_tags,
+        consultation_fee: parseFloat(consultation_fee) || 0,
+        qualification,
+        indemnity_insurance: parseFloat(indemnity_insurance) || 0,
+        dmc_mci_certificate: dmc_mci_certificate_url ? [dmc_mci_certificate_url] : null,
+        aadhaar_pan_license: aadhaar_pan_license_url ? [aadhaar_pan_license_url] : null,
+        address_proof: address_proof_url ? [address_proof_url] : null,
+        passport_photo: passport_photo_url ? [passport_photo_url] : null,
+        clinic_photos: clinic_photos_urls,
+        bank_account_details: sql.json(bank_account_details),
+        digital_consent: Boolean(digital_consent),
+        onboarding_status,
+      };
+      const cols = Object.keys(insertData);
+      [doctorDetails] = await sql`
+        INSERT INTO doctor_details ${sql(insertData, ...cols)}
+        RETURNING *
+      `;
+    } catch (detailsError) {
+      await sql`DELETE FROM users WHERE id = ${doctorId}`;
 
       const filesToDelete = [];
       if (dmc_mci_certificate_url) {
@@ -178,7 +168,7 @@ export async function POST(request) {
         if (key) filesToDelete.push(key);
       }
       if (clinic_photos_urls && clinic_photos_urls.length > 0) {
-        clinic_photos_urls.forEach(url => {
+        clinic_photos_urls.forEach((url) => {
           const key = extractKeyFromUrl(url);
           if (key) filesToDelete.push(key);
         });
@@ -195,11 +185,11 @@ export async function POST(request) {
       success: true,
       data: {
         ...user,
-        doctor_details: doctorDetails
-      }
+        doctor_details: doctorDetails,
+      },
     });
   } catch (error) {
-    console.error('Error onboarding doctor:', error);
+    console.error("Error onboarding doctor:", error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

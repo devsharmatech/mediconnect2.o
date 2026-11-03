@@ -38,30 +38,24 @@ export default function DiagnosisMasterPage() {
 
   const adminId = getLoggedInUser("admin")?.id;
 
-  useEffect(() => {
-    fetchDiagnoses();
-  }, [pagination.page, statusFilter, categoryFilter]);
-
-  const fetchDiagnoses = async () => {
+  const fetchDiagnoses = async (targetPage = pagination.page, querySearch = search, stat = statusFilter, cat = categoryFilter) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        page: pagination.page,
-        q: search,
+        page: targetPage,
+        q: querySearch,
         limit: 10,
       });
-      if (categoryFilter) params.set("category", categoryFilter);
+      if (cat) params.set("category", cat);
+      if (stat && stat !== "all") params.set("status", stat);
 
       const res = await fetch(`/api/admin/diagnosis?${params.toString()}`);
       const data = await res.json();
       if (data.success) {
-        let filtered = data.data;
-        if (statusFilter === "active") filtered = filtered.filter(d => d.is_active);
-        else if (statusFilter === "inactive") filtered = filtered.filter(d => !d.is_active);
-
-        setDiagnoses(filtered);
+        setDiagnoses(data.data);
         setPagination(prev => ({
           ...prev,
+          page: targetPage,
           totalPages: data.pagination.totalPages,
           total: data.pagination.total
         }));
@@ -72,6 +66,19 @@ export default function DiagnosisMasterPage() {
       setLoading(false);
     }
   };
+
+  // Debounce search, status, and category filters (resets to page 1)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchDiagnoses(1, search, statusFilter, categoryFilter);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search, statusFilter, categoryFilter]);
+
+  // Page change
+  useEffect(() => {
+    fetchDiagnoses(pagination.page, search, statusFilter, categoryFilter);
+  }, [pagination.page]);
 
   const handleSearch = () => {
     if (pagination.page === 1) fetchDiagnoses();
@@ -279,13 +286,13 @@ export default function DiagnosisMasterPage() {
             onClick={handleExport}
             className="flex items-center gap-2 px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-200 font-semibold hover:bg-gray-50 dark:hover:bg-gray-750 transition-all shadow-sm cursor-pointer"
           >
-            <Download size={18} /> Export
+            <Upload size={18} /> Export
           </button>
           <button
             onClick={() => setIsImportModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-200 font-semibold hover:bg-gray-50 dark:hover:bg-gray-750 transition-all shadow-sm cursor-pointer"
           >
-            <Upload size={18} /> Bulk Import
+            <Download size={18} /> Bulk Import
           </button>
           <button
             onClick={() => {

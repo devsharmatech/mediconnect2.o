@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -6,33 +6,9 @@ export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
-async function requireEmailVerified(userId) {
-  const { data: latestVerified, error } = await supabase
-    .from("email_verifications")
-    .select("id, is_verified")
-    .eq("user_id", userId)
-    .eq("is_verified", true)
-    .order("verified_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  if (!latestVerified?.is_verified) {
-    return failure(
-      "Email verification required to access Digital Locker.",
-      { verified: false },
-      403
-    );
-  }
-
-  return null;
-}
-
-// GET - Retrieve audit logs for a user's documents
 export async function GET(req, { params }) {
   try {
-    const { userId } = params;
+    const { userId } = await params;
     const { searchParams } = new URL(req.url);
     const documentId = searchParams.get("document_id");
     const action = searchParams.get("action");
@@ -43,31 +19,31 @@ export async function GET(req, { params }) {
       return failure("User ID is required.", null, 400);
     }
 
-    const verificationFailure = await requireEmailVerified(userId);
-    if (verificationFailure) return verificationFailure;
+    const conditions = [sql`user_id = ${userId}`];
+    if (documentId) conditions.push(sql`document_id = ${documentId}`);
+    if (action) conditions.push(sql`action = ${action}`);
 
-    let query = supabase
-      .from("digital_locker_audit_logs")
-      .select("*", { count: "exact" })
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+    const whereClause = conditions.reduce((acc, curr, idx) =>
+      idx === 0 ? curr : sql`${acc} AND ${curr}`
+    );
 
-    if (documentId) {
-      query = query.eq("document_id", documentId);
-    }
+    const logs = await sql`
+      SELECT *
+      FROM digital_locker_audit_logs
+      WHERE ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
 
-    if (action) {
-      query = query.eq("action", action);
-    }
-
-    const { data: logs, error, count } = await query;
-
-    if (error) throw error;
+    const [{ count }] = await sql`
+      SELECT COUNT(*)::int AS count
+      FROM digital_locker_audit_logs
+      WHERE ${whereClause}
+    `;
 
     return success("Audit logs retrieved successfully.", {
-      logs,
-      total: count,
+      logs: logs || [],
+      total: count || 0,
       limit,
       offset,
     });

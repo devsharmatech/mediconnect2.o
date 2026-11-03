@@ -347,32 +347,29 @@ export default function LungHealthResult() {
 
   // ── Condition-tailored Doctor Specialty Consultation Suggestions ──
   const suggestedSpecialties = (() => {
-    const list = [];
-
-    // Condition A: Wheezing, shortness of breath, lower peak flow, or smoker -> Pulmonology
-    if (hasWheezing || isShortOfBreath || (inputs.peak_flow && Number(inputs.peak_flow) < 350) || isSmoker) {
-      list.push({
+    const list = [
+      {
         shortName: "Pulmonologist",
         specialtyParam: "Pulmonology",
         btnLabel: "Consult Pulmonologist",
-      });
-    }
+      },
+      {
+        shortName: "General Physician",
+        specialtyParam: "General Physician",
+        btnLabel: "Consult General Physician",
+      },
+      {
+        shortName: "Medicine Specialist",
+        specialtyParam: "General Medicine",
+        btnLabel: "Consult Medicine Specialist",
+      },
+    ];
 
-    // Condition B: Frequent or persistent cough -> ENT Specialist
     if (hasCough) {
       list.push({
         shortName: "ENT Specialist",
-        specialtyParam: "ENT",
+        specialtyParam: "ENT (Otorhinolaryngology)",
         btnLabel: "Consult ENT Specialist",
-      });
-    }
-
-    // Condition C: If neither wheezing nor cough, or general health screening -> General Physician
-    if (list.length === 0) {
-      list.push({
-        shortName: "General Physician",
-        specialtyParam: "General+Physician",
-        btnLabel: "Consult General Physician",
       });
     }
 
@@ -721,7 +718,7 @@ export default function LungHealthResult() {
               <Download className="w-3.5 h-3.5" /> {downloadingPDF ? 'Generating…' : 'PDF'}
             </button>
             <Link
-              href="/doctors"
+              href="/doctors?specialty=Pulmonology"
               className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#0067A1] hover:bg-[#005584] text-white rounded-md text-xs font-medium transition-all shrink-0"
             >
               <Stethoscope className="w-3.5 h-3.5" /> Consult Doctor
@@ -986,7 +983,7 @@ export default function LungHealthResult() {
           )}
 
           {/* ── Suggested Doctor Consultation (Premium Healthcare Banner) ── */}
-          <div className="p-3.5 sm:p-4 bg-gradient-to-r from-sky-50/80 via-white to-blue-50/40 rounded-xl border border-sky-200/80 shadow-2xs space-y-2.5">
+          <div className="p-3.5 sm:p-4 bg-sky-50/70 rounded-xl border border-sky-200/80 shadow-2xs space-y-2.5">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-[#0067A1]/10 flex items-center justify-center text-[#0067A1] shrink-0">
@@ -997,7 +994,7 @@ export default function LungHealthResult() {
                 </h4>
               </div>
               <Link
-                href="/doctors"
+                href="/doctors?specialty=Pulmonology"
                 className="text-[11px] font-semibold text-[#0067A1] hover:underline inline-flex items-center gap-1"
               >
                 <span>Browse All Doctors</span>
@@ -1008,7 +1005,7 @@ export default function LungHealthResult() {
             <p className="text-xs text-slate-600 leading-relaxed sm:pl-9">
               Based on your recorded screening responses, you may consider consulting a{" "}
               <span className="font-semibold text-slate-900">
-                {suggestedSpecialties.map(s => s.shortName).join(" or ")}
+                {suggestedSpecialties.map(s => s.shortName).join(", ")}
               </span>{" "}
               for personalized health guidance and evaluation.
             </p>
@@ -1017,7 +1014,7 @@ export default function LungHealthResult() {
               {suggestedSpecialties.map((s, idx) => (
                 <Link
                   key={idx}
-                  href={`/doctors?specialty=${s.specialtyParam}`}
+                  href={`/doctors?specialty=${encodeURIComponent(s.specialtyParam)}`}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-2xs cursor-pointer ${
                     idx === 0
                       ? "bg-[#0067A1] hover:bg-[#005584] text-white hover:shadow-xs"

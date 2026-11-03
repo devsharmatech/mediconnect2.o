@@ -90,6 +90,7 @@ export default function PublicCheckoutPage() {
             return;
         }
         setCart(c);
+        if (c.visit_type) setVisitType(c.visit_type);
 
         // Check authentication
         const isAuthed = checkAuthStatus();

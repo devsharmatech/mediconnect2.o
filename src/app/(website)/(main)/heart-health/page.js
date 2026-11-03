@@ -479,11 +479,11 @@ export default function GamifiedHeartHealthAssessment() {
     <div className="min-h-screen bg-slate-50/70 pt-3 sm:pt-6 pb-48 sm:pb-28 px-3 sm:px-6 font-sans">
       <div className="max-w-2xl sm:max-w-3xl mx-auto space-y-3 sm:space-y-4">
 
-        {/* ── Page Header (Original Blue Gradient Header Restored & Responsive) ── */}
+        {/* ── Page Header ── */}
         <motion.div
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative overflow-hidden rounded-xl bg-gradient-to-r from-[#003358] via-[#0067A1] to-[#0284c7] p-3.5 sm:p-5 text-white shadow-sm border border-[#005584]"
+          className="relative overflow-hidden rounded-xl bg-[#0067A1] p-3.5 sm:p-5 text-white shadow-sm border border-[#005584]"
         >
           <div className="absolute inset-0 opacity-[0.06] pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%)', backgroundSize: '12px 12px' }} />
           <div className="relative flex items-center gap-3 sm:gap-3.5">

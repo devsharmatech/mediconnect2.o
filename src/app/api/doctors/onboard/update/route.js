@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { uploadToS3, getCloudFrontUrl, extractKeyFromUrl } from "@/lib/s3";
 
 export async function PUT(request) {
@@ -220,13 +220,8 @@ export async function PUT(request) {
     ]);
 
     // Get current doctor details (needed for meta merge, existence check)
-    const { data: currentDoctor, error: fetchError } = await supabase
-      .from("doctor_details")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (fetchError) throw fetchError;
+    const docRows = await sql`SELECT * FROM doctor_details WHERE id = ${id} LIMIT 1`;
+    const currentDoctor = docRows[0] || null;
 
     const updateData = {
       email,
@@ -392,15 +387,19 @@ export async function PUT(request) {
       updateData.signature_url = parsedSignatureUrl;
     }
 
-    // ✅ Support pre-uploaded URL arrays from admin form (JSON-encoded arrays of public URLs)
-    // The admin page uploads files first via /api/upload/doctor-document then sends URLs here
+    // ✅ Support pre-uploaded URL arrays from admin form or single URL strings from onboarding form
     const parseUrlArray = (key) => {
       const raw = formData.get(key);
       if (!raw) return null;
-      try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
-      } catch { /* not JSON */ }
+      if (typeof raw === "string") {
+        const trimmed = raw.trim();
+        if (trimmed.startsWith("http")) return [trimmed];
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) return parsed;
+          if (typeof parsed === "string" && parsed.startsWith("http")) return [parsed];
+        } catch { /* not JSON */ }
+      }
       return null;
     };
 
@@ -448,37 +447,49 @@ export async function PUT(request) {
     const phoneToUpdate = updateData.phone_number;
     delete updateData.phone_number;
 
-    // Update or insert doctor details safely without overwriting omitted columns with NULL
-    let { data: doctorDetails, error: detailsError } = await supabase
-      .from("doctor_details")
-      .update(updateData)
-      .eq("id", id)
-      .select()
-      .maybeSingle();
+    // Update or insert doctor details safely in AWS RDS PostgreSQL
+    let doctorDetails = null;
+    const updateColumns = Object.keys(updateData).filter((k) => k !== "id");
 
-    if (detailsError) throw detailsError;
-
-    // If row didn't exist, insert it
-    if (!doctorDetails) {
-      const { data: newDetails, error: insertError } = await supabase
-        .from("doctor_details")
-        .insert({ id, ...updateData })
-        .select()
-        .single();
-      
-      if (insertError) throw insertError;
-      doctorDetails = newDetails;
+    if (currentDoctor && updateColumns.length > 0) {
+      const rows = await sql`
+        UPDATE doctor_details
+        SET ${sql(updateData, updateColumns)}
+        WHERE id = ${id}
+        RETURNING *;
+      `;
+      doctorDetails = rows[0];
+    } else if (!currentDoctor) {
+      const rows = await sql`
+        INSERT INTO doctor_details ${sql({ id, ...updateData })}
+        RETURNING *;
+      `;
+      doctorDetails = rows[0];
     }
 
     if (phoneToUpdate) {
-      const { error: userUpdateError } = await supabase
-        .from("users")
-        .update({ phone_number: phoneToUpdate })
-        .eq("id", id);
-      if (userUpdateError) {
-        console.error("Error updating users table phone:", userUpdateError);
-        throw new Error(`Failed to update user phone number: ${userUpdateError.message || JSON.stringify(userUpdateError)}`);
-      }
+      await sql`
+        UPDATE users
+        SET phone_number = ${phoneToUpdate}, updated_at = NOW()
+        WHERE id = ${id};
+      `;
+    }
+
+    if (updateData.onboarding_status === "approved") {
+      await sql`
+        INSERT INTO doctor_onboarding_status (doctor_id, allowed_to_consult, registration_verified, updated_at)
+        VALUES (${id}, true, true, NOW())
+        ON CONFLICT (doctor_id)
+        DO UPDATE SET allowed_to_consult = true, registration_verified = true, updated_at = NOW();
+      `;
+      await sql`UPDATE users SET status = 1, updated_at = NOW() WHERE id = ${id};`;
+    } else if (updateData.onboarding_status === "rejected") {
+      await sql`
+        UPDATE doctor_onboarding_status
+        SET allowed_to_consult = false, registration_verified = false, updated_at = NOW()
+        WHERE doctor_id = ${id};
+      `;
+      await sql`UPDATE users SET status = 0, updated_at = NOW() WHERE id = ${id};`;
     }
 
     return NextResponse.json({

@@ -457,21 +457,18 @@ function VideoCall({ appointmentId, userId, role }) {
       clientRef.current = client;
 
       // ── Remote user event listeners (BEFORE join so we don't miss events) ──
-      client.on("user-published", async (user, mediaType) => {
-        console.log(`[Agora] user-published uid=${user.uid} mediaType=${mediaType}`);
+      const subscribeAndPlayRemote = async (user, mediaType) => {
         try {
           await client.subscribe(user, mediaType);
           console.log(`[Agora] Subscribed to ${mediaType} from uid=${user.uid}`);
+          remoteUsersRef.current.set(user.uid, user);
+          setHasRemoteUser(true);
+          setParticipantCount(remoteUsersRef.current.size + 1);
 
           if (mediaType === "video") {
-            remoteUsersRef.current.set(user.uid, user);
-            setHasRemoteUser(true);
-            setParticipantCount(2);
-
-            // Play remote video with retry
             const playRemoteVideo = (attempt = 0) => {
               if (!remoteVideoRef.current || !user.videoTrack) {
-                if (attempt < 5) setTimeout(() => playRemoteVideo(attempt + 1), 300);
+                if (attempt < 15) setTimeout(() => playRemoteVideo(attempt + 1), 250);
                 return;
               }
               try {
@@ -479,17 +476,16 @@ function VideoCall({ appointmentId, userId, role }) {
                 console.log(`[Agora] Remote video playing from uid=${user.uid}`);
               } catch (e) {
                 console.warn("Remote video play error:", e);
-                if (attempt < 5) setTimeout(() => playRemoteVideo(attempt + 1), 300);
+                if (attempt < 15) setTimeout(() => playRemoteVideo(attempt + 1), 250);
               }
             };
             playRemoteVideo();
 
             const who = role === "doctor" ? "Patient" : "Doctor";
-            toast.success(`${who} joined the call`);
+            toast.success(`${who} video connected`);
           }
 
           if (mediaType === "audio") {
-            // Remote audio – play() routes to speakers automatically
             try {
               if (user.audioTrack) {
                 user.audioTrack.play();
@@ -502,6 +498,18 @@ function VideoCall({ appointmentId, userId, role }) {
         } catch (err) {
           console.error("Subscribe error:", err);
         }
+      };
+
+      client.on("user-joined", (user) => {
+        console.log(`[Agora] user-joined uid=${user.uid}`);
+        remoteUsersRef.current.set(user.uid, user);
+        setHasRemoteUser(true);
+        setParticipantCount(remoteUsersRef.current.size + 1);
+      });
+
+      client.on("user-published", async (user, mediaType) => {
+        console.log(`[Agora] user-published uid=${user.uid} mediaType=${mediaType}`);
+        await subscribeAndPlayRemote(user, mediaType);
       });
 
       client.on("user-unpublished", (user, mediaType) => {
@@ -522,6 +530,33 @@ function VideoCall({ appointmentId, userId, role }) {
       const assignedUid = await client.join(appId, channelName, token, null);
       console.log(`[Agora] Joined channel=${channelName} assignedUid=${assignedUid}`);
       toast.dismiss(loadingToast);
+
+      // Mount active call video containers immediately so remoteVideoRef & localVideoRef exist in DOM
+      setJoined(true);
+
+      // Persist joined status so doctor portal knows the doctor joined this video call
+      if (typeof window !== "undefined" && appointmentId) {
+        try {
+          const existing = JSON.parse(localStorage.getItem("mediconnect_joined_calls") || "[]");
+          const next = Array.from(new Set([...(Array.isArray(existing) ? existing : []), String(appointmentId)]));
+          localStorage.setItem("mediconnect_joined_calls", JSON.stringify(next));
+        } catch {}
+      }
+
+      // Subscribe to any remote users already in the channel when we joined
+      if (Array.isArray(client.remoteUsers) && client.remoteUsers.length > 0) {
+        for (const rUser of client.remoteUsers) {
+          remoteUsersRef.current.set(rUser.uid, rUser);
+          setHasRemoteUser(true);
+          setParticipantCount(remoteUsersRef.current.size + 1);
+          if (rUser.hasVideo) {
+            subscribeAndPlayRemote(rUser, "video");
+          }
+          if (rUser.hasAudio) {
+            subscribeAndPlayRemote(rUser, "audio");
+          }
+        }
+      }
 
       // ── Create local tracks directly without device locking ──
       const { mic, cam } = await createTracks(AgoraRTC);
@@ -553,8 +588,6 @@ function VideoCall({ appointmentId, userId, role }) {
         console.warn("[Agora] No tracks to publish");
         toast.success("Joined (no media available)");
       }
-
-      setJoined(true);
     } catch (err) {
       console.warn("Join warning:", err);
       const msg =
@@ -677,6 +710,10 @@ function VideoCall({ appointmentId, userId, role }) {
 
   /* ── Doctor: open write-prescription modal ──── */
   const openPrescription = async () => {
+    if (!joined) {
+      toast.error("Please join the video consultation first before writing a prescription.");
+      return;
+    }
     setRxLoading(true);
     let resolvedMeta = appointmentMeta;
 

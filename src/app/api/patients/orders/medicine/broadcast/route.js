@@ -48,6 +48,10 @@ export async function POST(req) {
       return failure("Delivery address is required", null, 400, { headers: corsHeaders });
     }
 
+    if (!prescription_id && !prescription_url) {
+      return failure("A valid doctor prescription is mandatory to order medicines.", null, 400, { headers: corsHeaders });
+    }
+
     let targetPrescriptionId = prescription_id || null;
 
     // If custom medicines or uploaded prescription provided without a prescription_id,

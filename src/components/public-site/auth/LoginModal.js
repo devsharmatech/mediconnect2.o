@@ -107,7 +107,8 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'phone_number') {
-      const clean = value.replace(/\D/g, '').slice(0, 10);
+      const digits = value.replace(/\D/g, '');
+      const clean = digits.length > 10 ? digits.slice(-10) : digits;
       setFormData(prev => ({ ...prev, [name]: clean }));
       return;
     }
@@ -498,8 +499,8 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
                         name="phone_number"
                         type="tel"
                         inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={10}
+                        autoComplete="tel"
+                        maxLength={15}
                         placeholder="Enter 10-digit mobile number"
                         required
                         value={formData.phone_number}

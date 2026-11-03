@@ -95,7 +95,10 @@ export default function AdminPartnersPage() {
   }, [search, serviceFilter]);
 
   useEffect(() => {
-    loadPartners();
+    const timer = setTimeout(() => {
+      loadPartners();
+    }, 350);
+    return () => clearTimeout(timer);
   }, [loadPartners]);
 
   // Open Add Modal

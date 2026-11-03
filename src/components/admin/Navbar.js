@@ -421,12 +421,6 @@ export default function Navbar({ onMenuClick, sidebarOpen }) {
                         Settings
                       </span>
                     </Link>
-                    <Link href="/dashboard" className="flex items-center space-x-3 w-full p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer">
-                      <Heart size={18} className="text-pink-500" />
-                      <span className="text-sm text-gray-700 dark:text-gray-300">
-                        Patient View
-                      </span>
-                    </Link>
                     <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                     <button
                       onClick={() => {

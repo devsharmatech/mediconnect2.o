@@ -22,6 +22,7 @@ export async function GET(req) {
     const limit = parseInt(searchParams.get("limit") || "10", 10);
     const offset = (page - 1) * limit;
     const categoryFilter = searchParams.get("category") || "";
+    const status = searchParams.get("status") || "all";
 
     const conditions = [];
 
@@ -32,6 +33,12 @@ export async function GET(req) {
 
     if (categoryFilter) {
       conditions.push(sql`category = ${categoryFilter}`);
+    }
+
+    if (status === "active") {
+      conditions.push(sql`is_active = true`);
+    } else if (status === "inactive") {
+      conditions.push(sql`is_active = false`);
     }
 
     const whereClause = conditions.length > 0

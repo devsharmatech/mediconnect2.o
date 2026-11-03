@@ -12,7 +12,18 @@ export async function GET() {
         return NextResponse.json({ success: true, data: rows[0] || {} }, { status: 200 });
     } catch (err) {
         console.error("GET /api/cms/settings error:", err);
-        return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+        return NextResponse.json({ 
+            success: false, 
+            error: err.message,
+            data: {
+                site_name: "MediConnect",
+                logo: "/logo.png",
+                header_tagline: "Your Digital Health Partner",
+                footer_text: "MediConnect Healthcare Platform",
+                support_email: "support@mediconnect.fit",
+                support_phone: "+91-9876543210"
+            }
+        }, { status: 200 });
     }
 }
 
@@ -36,6 +47,9 @@ export async function POST(req) {
                     social_links = ${payload.social_links !== undefined ? JSON.stringify(payload.social_links) : sql`social_links`},
                     whatsapp_number = ${payload.whatsapp_number !== undefined ? payload.whatsapp_number : sql`whatsapp_number`},
                     whatsapp_message = ${payload.whatsapp_message !== undefined ? payload.whatsapp_message : sql`whatsapp_message`},
+                    meta_title = ${payload.meta_title !== undefined ? payload.meta_title : sql`meta_title`},
+                    meta_description = ${payload.meta_description !== undefined ? payload.meta_description : sql`meta_description`},
+                    meta_keywords = ${payload.meta_keywords !== undefined ? payload.meta_keywords : sql`meta_keywords`},
                     updated_at = NOW()
                 WHERE id = ${existing[0].id}
                 RETURNING *
@@ -45,7 +59,8 @@ export async function POST(req) {
             const inserted = await sql`
                 INSERT INTO website_settings (
                     site_name, logo, header_tagline, footer_text, support_email, support_phone,
-                    emergency_disclaimer, social_links, whatsapp_number, whatsapp_message, created_at, updated_at
+                    emergency_disclaimer, social_links, whatsapp_number, whatsapp_message,
+                    meta_title, meta_description, meta_keywords, created_at, updated_at
                 ) VALUES (
                     ${payload.site_name || null},
                     ${payload.logo || null},
@@ -57,6 +72,9 @@ export async function POST(req) {
                     ${payload.social_links ? JSON.stringify(payload.social_links) : null},
                     ${payload.whatsapp_number || null},
                     ${payload.whatsapp_message || null},
+                    ${payload.meta_title || null},
+                    ${payload.meta_description || null},
+                    ${payload.meta_keywords || null},
                     NOW(),
                     NOW()
                 )

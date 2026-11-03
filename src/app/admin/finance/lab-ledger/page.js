@@ -146,7 +146,10 @@ export default function LabLedgerAdminPage() {
   }, [selectedLabId, statusFilter, searchQuery, page]);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      fetchData();
+    }, 350);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   // Run 10-day settlement batch

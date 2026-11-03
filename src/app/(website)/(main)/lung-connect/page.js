@@ -3718,16 +3718,32 @@ function LungConnectHubContent() {
                     <AnimatedCheckmark size="md" showParticles={true} className="mx-auto" />
                     <h4 className="text-base font-bold text-slate-950">Care Connection Ready</h4>
                     <p className="text-slate-800 text-xs">
-                      Your care episode context has been safely synchronized. You can now proceed to select a physician and schedule an appointment.
+                      Your care episode context has been safely synchronized. Choose a specialist category below to view matching doctors.
                     </p>
-                    <div className="pt-2">
+                    <div className="pt-2 space-y-2">
                       <Link
-                        href="/doctors"
+                        href="/doctors?specialty=Pulmonology"
                         className="w-full inline-flex items-center justify-center gap-2 bg-[#0067A1] hover:bg-[#005280] text-white py-2.5 px-4 rounded-[5px] text-xs font-bold cursor-pointer"
                       >
-                        <span>Continue to Find Doctors</span>
+                        <span>Consult Pulmonologist</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <Link
+                          href="/doctors?specialty=General%20Physician"
+                          className="w-full inline-flex items-center justify-center gap-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 hover:border-[#0067A1] py-2 px-3 rounded-[5px] text-xs font-semibold cursor-pointer"
+                        >
+                          <span>General Physician</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </Link>
+                        <Link
+                          href="/doctors?specialty=General%20Medicine"
+                          className="w-full inline-flex items-center justify-center gap-1.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 hover:border-[#0067A1] py-2 px-3 rounded-[5px] text-xs font-semibold cursor-pointer"
+                        >
+                          <span>Medicine Specialist</span>
+                          <ArrowRight className="w-3 h-3" />
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 )}

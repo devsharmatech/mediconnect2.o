@@ -251,6 +251,7 @@ export default function PatientSidebar({
       name: "ABHA Health ID",
       href: "/abha",
       icon: FaLock,
+      badge: "Coming Soon",
     },
     {
       section: "Tools",
@@ -449,6 +450,11 @@ export default function PatientSidebar({
                 <>
                   {iconNode}
                   <span className="whitespace-nowrap">{item.name}</span>
+                  {item.badge && (
+                    <span className="ml-auto text-[9px] font-bold px-2 py-0.5 rounded bg-amber-400 text-slate-900 uppercase tracking-wider">
+                      {item.badge}
+                    </span>
+                  )}
                   {isGroup && (
                     <FaChevronRight
                       className={`ml-auto w-3 h-3 text-white/50 transition-transform duration-200 ${

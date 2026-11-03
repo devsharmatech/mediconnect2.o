@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import nodemailer from "nodemailer";
@@ -20,13 +20,15 @@ const onboardingStatusTransporter = nodemailer.createTransport({
 
 async function sendOnboardingStatusEmail(doctorId, onboarding_status) {
   try {
-    const { data: doctor, error } = await supabase
-      .from("doctor_details")
-      .select("email, full_name")
-      .eq("id", doctorId)
-      .maybeSingle();
+    const rows = await sql`
+      SELECT email, full_name
+      FROM doctor_details
+      WHERE id = ${doctorId}
+      LIMIT 1
+    `;
+    const doctor = rows[0];
 
-    if (error || !doctor?.email) return;
+    if (!doctor?.email) return;
 
     const email = doctor.email;
     const name = doctor.full_name || "Doctor";
@@ -46,7 +48,7 @@ async function sendOnboardingStatusEmail(doctorId, onboarding_status) {
     await onboardingStatusTransporter.sendMail({
       from: process.env.SMTP_USER,
       to: email,
-      subject: `Your MediConnect onboarding status: ${onboarding_status}`,
+      subject: `Your MediConnect onboarding status: ${subjectStatus}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #0067A1;">Dear ${name},</h2>
@@ -78,43 +80,77 @@ export async function POST(req) {
       });
     }
 
-    // Build update payload
-    const updatePayload = {
-      onboarding_status,
-      updated_at: new Date().toISOString(),
-    };
+    const isApproved = onboarding_status === "approved";
+    const isRejected = onboarding_status === "rejected";
 
-    // When approving: also mark registration as verified
-    if (onboarding_status === "approved") {
-      updatePayload.registration_verified = true;
-      updatePayload.kyc_status = "verified";
+    // Update doctor_details in AWS RDS PostgreSQL
+    let updatedDetails;
+    if (isApproved) {
+      const rows = await sql`
+        UPDATE doctor_details
+        SET 
+          onboarding_status = ${onboarding_status},
+          registration_verified = true,
+          kyc_status = 'verified',
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *;
+      `;
+      updatedDetails = rows[0];
+    } else if (isRejected) {
+      const rows = await sql`
+        UPDATE doctor_details
+        SET 
+          onboarding_status = ${onboarding_status},
+          registration_verified = false,
+          kyc_status = 'rejected',
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *;
+      `;
+      updatedDetails = rows[0];
+    } else {
+      const rows = await sql`
+        UPDATE doctor_details
+        SET 
+          onboarding_status = ${onboarding_status},
+          updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *;
+      `;
+      updatedDetails = rows[0];
     }
 
-    // When rejecting: clear registration_verified
-    if (onboarding_status === "rejected") {
-      updatePayload.registration_verified = false;
-    }
+    // Upsert doctor_onboarding_status in AWS RDS
+    await sql`
+      INSERT INTO doctor_onboarding_status (doctor_id, allowed_to_consult, registration_verified, updated_at)
+      VALUES (${id}, ${isApproved}, ${isApproved}, NOW())
+      ON CONFLICT (doctor_id)
+      DO UPDATE SET
+        allowed_to_consult = ${isApproved},
+        registration_verified = ${isApproved},
+        updated_at = NOW();
+    `;
 
-    const { data, error } = await supabase
-      .from("doctor_details")
-      .update(updatePayload)
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // Also activate/deactivate the user account record
-    if (onboarding_status === "approved") {
-      await supabase.from("users").update({ status: 1, updated_at: new Date().toISOString() }).eq("id", id);
-    } else if (onboarding_status === "rejected") {
-      await supabase.from("users").update({ status: 0, updated_at: new Date().toISOString() }).eq("id", id);
+    // Sync users account status
+    if (isApproved) {
+      await sql`
+        UPDATE users
+        SET status = 1, updated_at = NOW()
+        WHERE id = ${id};
+      `;
+    } else if (isRejected) {
+      await sql`
+        UPDATE users
+        SET status = 0, updated_at = NOW()
+        WHERE id = ${id};
+      `;
     }
 
     // Fire-and-forget email notification to doctor
     sendOnboardingStatusEmail(id, onboarding_status);
 
-    return success("Doctor onboarding status updated successfully.", data, 200, {
+    return success("Doctor onboarding status updated successfully.", updatedDetails, 200, {
       headers: corsHeaders,
     });
   } catch (error) {

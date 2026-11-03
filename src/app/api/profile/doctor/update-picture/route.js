@@ -80,6 +80,16 @@ export async function PUT(req) {
         SET profile_picture = ${profile_picture_url}, updated_at = NOW()
         WHERE id = ${user_id}
       `;
+
+      try {
+        await sql`
+          UPDATE doctor_details
+          SET passport_photo = ARRAY[${profile_picture_url}]::text[], updated_at = NOW()
+          WHERE id = ${user_id}
+        `;
+      } catch (ddErr) {
+        console.warn("[DoctorUpdatePic] Synced users but doctor_details update skipped:", ddErr.message);
+      }
     }
 
     return success(

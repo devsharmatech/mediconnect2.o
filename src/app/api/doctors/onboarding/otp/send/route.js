@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import crypto from "crypto";
 import { sendGenericOTPViaSMS } from "@/lib/sms";
 
-
-
-const OTP_EXPIRY_MS = 5 * 60 * 1000;       // 5 minutes (spec requirement)
-const OTP_COOLDOWN_MS = 30 * 1000;          // 30 seconds minimum between requests
-const OTP_MAX_PER_HOUR = 5;                 // Max 5 OTP requests per hour per doctor
+const OTP_EXPIRY_MS = 5 * 60 * 1000;
+const OTP_COOLDOWN_MS = 30 * 1000;
+const OTP_MAX_PER_HOUR = 5;
 
 export async function POST(request) {
   try {
@@ -24,49 +22,52 @@ export async function POST(request) {
     let resolvedPhone = phone;
     let resolvedEmail = email;
 
-    // Resolve doctor_id from phone if needed
     if (!resolvedDoctorId && resolvedPhone) {
-      const { data: users, error: userError } = await supabase
-        .from("users")
-        .select("id, phone_number")
-        .eq("phone_number", resolvedPhone)
-        .eq("role", "doctor");
-
-      if (!userError && users && users.length > 0) {
+      const users = await sql`
+        SELECT id, phone_number
+        FROM users
+        WHERE phone_number = ${resolvedPhone}
+          AND role = 'doctor'
+        LIMIT 1
+      `;
+      if (users && users.length > 0) {
         resolvedDoctorId = users[0].id;
       }
     }
 
-    // Resolve doctor_id from email if needed
     if (!resolvedDoctorId && resolvedEmail) {
-      const { data: details, error: detailsError } = await supabase
-        .from("doctor_details")
-        .select("id")
-        .eq("email", resolvedEmail);
-
-      if (!detailsError && details && details.length > 0) {
+      const details = await sql`
+        SELECT id
+        FROM doctor_details
+        WHERE email = ${resolvedEmail}
+        LIMIT 1
+      `;
+      if (details && details.length > 0) {
         resolvedDoctorId = details[0].id;
       }
     }
 
-
-    // Resolve phone and email from doctor_id if needed
     if (resolvedDoctorId) {
-      const { data: user } = await supabase
-        .from("users")
-        .select("phone_number")
-        .eq("id", resolvedDoctorId)
-        .single();
-      if (!resolvedPhone) resolvedPhone = user?.phone_number;
+      const userRows = await sql`
+        SELECT phone_number
+        FROM users
+        WHERE id = ${resolvedDoctorId}
+        LIMIT 1
+      `;
+      if (!resolvedPhone && userRows[0]?.phone_number) {
+        resolvedPhone = userRows[0].phone_number;
+      }
 
       if (!resolvedEmail || !resolvedPhone) {
-        const { data: details } = await supabase
-          .from("doctor_details")
-          .select("email, phone_number")
-          .eq("id", resolvedDoctorId)
-          .single();
-        if (!resolvedEmail) resolvedEmail = details?.email;
-        if (!resolvedPhone) resolvedPhone = details?.phone_number;
+        const detailRows = await sql`
+          SELECT email
+          FROM doctor_details
+          WHERE id = ${resolvedDoctorId}
+          LIMIT 1
+        `;
+        if (!resolvedEmail && detailRows[0]?.email) {
+          resolvedEmail = detailRows[0].email;
+        }
       }
     }
 
@@ -84,18 +85,17 @@ export async function POST(request) {
       );
     }
 
-    // ── RATE LIMITING ─────────────────────────────────────────────────────────
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-    const { data: recentOtps, error: recentErr } = await supabase
-      .from("doctor_otp_logs")
-      .select("created_at")
-      .eq("doctor_id", resolvedDoctorId)
-      .gte("created_at", oneHourAgo)
-      .order("created_at", { ascending: false });
+    const recentOtps = await sql`
+      SELECT created_at
+      FROM doctor_otp_logs
+      WHERE doctor_id = ${resolvedDoctorId}
+        AND created_at >= ${oneHourAgo}
+      ORDER BY created_at DESC
+    `;
 
-    if (!recentErr && recentOtps) {
-      // Max 5 per hour
+    if (recentOtps && recentOtps.length > 0) {
       if (recentOtps.length >= OTP_MAX_PER_HOUR) {
         return NextResponse.json(
           {
@@ -106,45 +106,29 @@ export async function POST(request) {
         );
       }
 
-      // 30-second cooldown between requests
-      if (recentOtps.length > 0) {
-        const lastSentAt = new Date(recentOtps[0].created_at).getTime();
-        const msSinceLast = Date.now() - lastSentAt;
-        if (msSinceLast < OTP_COOLDOWN_MS) {
-          const waitSecs = Math.ceil((OTP_COOLDOWN_MS - msSinceLast) / 1000);
-          return NextResponse.json(
-            {
-              success: false,
-              error: `Please wait ${waitSecs} second(s) before requesting a new OTP.`,
-            },
-            { status: 429 }
-          );
-        }
+      const lastSentAt = new Date(recentOtps[0].created_at).getTime();
+      const msSinceLast = Date.now() - lastSentAt;
+      if (msSinceLast < OTP_COOLDOWN_MS) {
+        const waitSecs = Math.ceil((OTP_COOLDOWN_MS - msSinceLast) / 1000);
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Please wait ${waitSecs} second(s) before requesting a new OTP.`,
+          },
+          { status: 429 }
+        );
       }
     }
-    // ─────────────────────────────────────────────────────────────────────────
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS).toISOString();
 
-    // Store OTP in doctor_otp_logs (5-minute expiry per spec)
-    const { error: insertError } = await supabase
-      .from("doctor_otp_logs")
-      .insert([
-        {
-          doctor_id: resolvedDoctorId,
-          otp_hash: otpHash,
-          is_used: false,
-          attempt_count: 0,
-          expires_at: new Date(Date.now() + OTP_EXPIRY_MS).toISOString(),
-        },
-      ]);
+    await sql`
+      INSERT INTO doctor_otp_logs (doctor_id, otp_hash, is_used, attempt_count, expires_at)
+      VALUES (${resolvedDoctorId}, ${otpHash}, false, 0, ${expiresAt})
+    `;
 
-
-    if (insertError) throw insertError;
-
-    // Send OTP via SMS
     let smsSuccess = false;
     let smsError = null;
     if (resolvedPhone) {

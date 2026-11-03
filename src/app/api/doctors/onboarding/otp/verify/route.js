@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import crypto from "crypto";
 
-const MAX_ATTEMPTS = 3; // spec: max 3 attempts per session
+const MAX_ATTEMPTS = 3;
 
 export async function POST(request) {
   try {
@@ -24,26 +24,27 @@ export async function POST(request) {
 
     let resolvedDoctorId = doctor_id;
 
-    // Resolve doctor_id from phone or email
     if (!resolvedDoctorId && phone) {
-      const { data: users, error: userError } = await supabase
-        .from("users")
-        .select("id")
-        .eq("phone_number", phone)
-        .eq("role", "doctor");
-
-      if (!userError && users && users.length > 0) {
+      const users = await sql`
+        SELECT id
+        FROM users
+        WHERE phone_number = ${phone}
+          AND role = 'doctor'
+        LIMIT 1
+      `;
+      if (users && users.length > 0) {
         resolvedDoctorId = users[0].id;
       }
     }
 
     if (!resolvedDoctorId && email) {
-      const { data: details, error: detailsError } = await supabase
-        .from("doctor_details")
-        .select("id")
-        .eq("email", email);
-
-      if (!detailsError && details && details.length > 0) {
+      const details = await sql`
+        SELECT id
+        FROM doctor_details
+        WHERE email = ${email}
+        LIMIT 1
+      `;
+      if (details && details.length > 0) {
         resolvedDoctorId = details[0].id;
       }
     }
@@ -55,16 +56,16 @@ export async function POST(request) {
       );
     }
 
-    // Fetch the latest unused OTP for this doctor
-    const { data: otpLogs, error: logError } = await supabase
-      .from("doctor_otp_logs")
-      .select("*")
-      .eq("doctor_id", resolvedDoctorId)
-      .eq("is_used", false)
-      .order("created_at", { ascending: false })
-      .limit(1);
+    const otpLogs = await sql`
+      SELECT *
+      FROM doctor_otp_logs
+      WHERE doctor_id = ${resolvedDoctorId}
+        AND is_used = false
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
 
-    if (logError || !otpLogs || otpLogs.length === 0) {
+    if (!otpLogs || otpLogs.length === 0) {
       return NextResponse.json(
         {
           success: false,
@@ -76,7 +77,6 @@ export async function POST(request) {
 
     const latestLog = otpLogs[0];
 
-    // Check expiry
     if (new Date() > new Date(latestLog.expires_at)) {
       return NextResponse.json(
         {
@@ -87,24 +87,21 @@ export async function POST(request) {
       );
     }
 
-    // ── ATTEMPT LIMIT ─────────────────────────────────────────────────────────
     const currentAttempts = latestLog.attempt_count || 0;
 
     if (currentAttempts >= MAX_ATTEMPTS) {
-      // Flag for admin review after max attempts exceeded
-      await supabase
-        .from("doctor_onboarding_status")
-        .update({
-          otp_failure_flagged: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("doctor_id", resolvedDoctorId);
+      await sql`
+        UPDATE doctor_onboarding_status
+        SET otp_failure_flagged = true,
+            updated_at = NOW()
+        WHERE doctor_id = ${resolvedDoctorId}
+      `;
 
-      // Invalidate the OTP
-      await supabase
-        .from("doctor_otp_logs")
-        .update({ is_used: true })
-        .eq("id", latestLog.id);
+      await sql`
+        UPDATE doctor_otp_logs
+        SET is_used = true
+        WHERE id = ${latestLog.id}
+      `;
 
       return NextResponse.json(
         {
@@ -115,59 +112,49 @@ export async function POST(request) {
         { status: 429 }
       );
     }
-    // ─────────────────────────────────────────────────────────────────────────
 
-    // Hash and verify
     const inputHash = crypto.createHash("sha256").update(otp).digest("hex");
 
     if (inputHash !== latestLog.otp_hash) {
-      // Increment attempt count
-      await supabase
-        .from("doctor_otp_logs")
-        .update({ attempt_count: currentAttempts + 1 })
-        .eq("id", latestLog.id);
+      await sql`
+        UPDATE doctor_otp_logs
+        SET attempt_count = ${currentAttempts + 1}
+        WHERE id = ${latestLog.id}
+      `;
 
       const attemptsLeft = MAX_ATTEMPTS - (currentAttempts + 1);
 
       return NextResponse.json(
         {
           success: false,
-          error: `Invalid OTP. ${attemptsLeft > 0 ? `${attemptsLeft} attempt(s) remaining.` : "No attempts remaining. Please request a new OTP."}`,
+          error: `Invalid OTP. ${
+            attemptsLeft > 0
+              ? `${attemptsLeft} attempt(s) remaining.`
+              : "No attempts remaining. Please request a new OTP."
+          }`,
           attempts_left: attemptsLeft,
         },
         { status: 400 }
       );
     }
 
-    // ── OTP VALID ─────────────────────────────────────────────────────────────
-    // Mark as used (single-use enforcement)
-    await supabase
-      .from("doctor_otp_logs")
-      .update({ is_used: true, attempt_count: currentAttempts + 1 })
-      .eq("id", latestLog.id);
+    await sql`
+      UPDATE doctor_otp_logs
+      SET is_used = true,
+          attempt_count = ${currentAttempts + 1}
+      WHERE id = ${latestLog.id}
+    `;
 
-    // Update onboarding status to OTP_COMPLETED
-    const { error: statusError } = await supabase
-      .from("doctor_onboarding_status")
-      .update({
-        otp_verified: true,
-        status: "OTP_COMPLETED",
-        otp_failure_flagged: false, // clear any prior flag
-        updated_at: new Date().toISOString(),
-      })
-      .eq("doctor_id", resolvedDoctorId);
-
-    if (statusError) {
-      console.warn("Could not update onboarding status:", statusError);
-      // Fallback: update just the verified flag
-      await supabase
-        .from("doctor_onboarding_status")
-        .update({
-          otp_verified: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("doctor_id", resolvedDoctorId);
-    }
+    await sql`
+      INSERT INTO doctor_onboarding_status (doctor_id, otp_verified, status, otp_failure_flagged, updated_at)
+      VALUES (${resolvedDoctorId}, true, 'OTP_COMPLETED', false, NOW())
+      ON CONFLICT (doctor_id)
+      DO UPDATE SET
+        otp_verified = true,
+        status = 'OTP_COMPLETED',
+        otp_failure_flagged = false,
+        updated_at = NOW()
+    `;
 
     return NextResponse.json({
       success: true,

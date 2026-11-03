@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -14,47 +14,43 @@ export async function POST(req) {
       return failure("Verification ID and OTP code are required.", null, 400);
     }
 
-    // Get the verification record
-    const { data: verification, error: verificationError } = await supabase
-      .from("email_verifications")
-      .select("*")
-      .eq("id", verification_id)
-      .single();
+    const rows = await sql`
+      SELECT *
+      FROM email_verifications
+      WHERE id = ${verification_id}
+      LIMIT 1
+    `;
+    const verification = rows[0];
 
-    if (verificationError || !verification) {
+    if (!verification) {
       return failure("Verification record not found.", null, 404);
     }
 
-    // Check if OTP has expired
     if (new Date() > new Date(verification.otp_expires_at)) {
       return failure("OTP has expired.", null, 400);
     }
 
-    // Check if max attempts exceeded
-    if (verification.attempts >= verification.max_attempts) {
+    if (
+      verification.max_attempts &&
+      verification.attempts >= verification.max_attempts
+    ) {
       return failure("Maximum OTP attempts exceeded.", null, 400);
     }
 
-    // Verify OTP
-    if (verification.otp_code !== otp_code) {
-      await supabase
-        .from("email_verifications")
-        .update({ attempts: verification.attempts + 1 })
-        .eq("id", verification_id);
-
+    if (String(verification.otp_code) !== String(otp_code)) {
+      await sql`
+        UPDATE email_verifications
+        SET attempts = COALESCE(attempts, 0) + 1
+        WHERE id = ${verification_id}
+      `;
       return failure("Invalid OTP code.", null, 400);
     }
 
-    // Mark as verified
-    const { error: verifyError } = await supabase
-      .from("email_verifications")
-      .update({
-        is_verified: true,
-        verified_at: new Date().toISOString(),
-      })
-      .eq("id", verification_id);
-
-    if (verifyError) throw verifyError;
+    await sql`
+      UPDATE email_verifications
+      SET is_verified = true, verified_at = NOW()
+      WHERE id = ${verification_id}
+    `;
 
     return success("Mobile number verified successfully.", {
       user_id: verification.user_id,

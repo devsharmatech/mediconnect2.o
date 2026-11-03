@@ -102,7 +102,15 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'phone_number' && isNaN(value)) return;
+    if (name === 'phone_number') {
+      const digits = value.replace(/\D/g, '');
+      const clean = digits.length > 10 ? digits.slice(-10) : digits;
+      setFormData(prev => ({
+        ...prev,
+        [name]: clean
+      }));
+      return;
+    }
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -552,7 +560,9 @@ const SignupModal = ({ isOpen, onClose, onLoginClick, onSuccess }) => {
                     name="phone_number"
                     placeholder="10-digit phone number"
                     type="tel"
-                    maxLength="10"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    maxLength={15}
                     required
                     value={formData.phone_number}
                     onChange={handleChange}

@@ -1,13 +1,14 @@
 "use client";
 
 import React from "react";
-import { FaCalendarAlt, FaClock, FaMapMarkerAlt, FaTimes, FaUserMd, FaIdCard, FaUser, FaMoneyBillWave, FaFileInvoiceDollar, FaBuilding, FaFileMedical, FaEye, FaDownload, FaShareAlt, FaLock, FaCheck, FaPills, FaFlask } from "react-icons/fa";
+import { FaCalendarAlt, FaClock, FaMapMarkerAlt, FaTimes, FaUserMd, FaIdCard, FaUser, FaMoneyBillWave, FaFileInvoiceDollar, FaBuilding, FaFileMedical, FaEye, FaDownload, FaShareAlt, FaLock, FaCheck, FaPills, FaFlask, FaExclamationTriangle, FaPrint } from "react-icons/fa";
 
 const normalizeStatus = (status) => {
   if (!status) return "pending";
   const s = String(status).toLowerCase();
   if (s === "expired") return "expired";
-  if (["booked", "approved", "freezed"].includes(s)) return "confirmed";
+  if (["approved", "freezed", "confirmed"].includes(s)) return "confirmed";
+  if (["booked", "pending"].includes(s)) return "pending";
   return s;
 };
 
@@ -143,6 +144,24 @@ const AppointmentDetailsModal = ({
 }) => {
   if (!isOpen || !appointment) return null;
 
+  const [verification, setVerification] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!appointment?.id) return;
+    let isMounted = true;
+    fetch(`/api/doctor/patient-verification?appointment_id=${appointment.id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (isMounted && d.success && d.verification) {
+          setVerification(d.verification);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [appointment?.id]);
+
   const status = isAppointmentExpired(appointment) ? "expired" : normalizeStatus(appointment.status);
 
   // Doctor Info
@@ -241,11 +260,32 @@ const AppointmentDetailsModal = ({
 
         {/* Content */}
         <div className="px-4 py-4 sm:p-6 space-y-6 sm:space-y-8 flex-1 overflow-y-auto">
+          {/* Identity Discrepancy Alert */}
+          {verification && verification.status === "discrepancy_reported" && (
+            <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 space-y-2 shadow-2xs">
+              <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+                <FaExclamationTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Clinical Verification / Identity Notice</span>
+              </div>
+              <p className="text-xs text-amber-900">
+                <span className="font-semibold">Reason Recorded:</span> {verification.discrepancy_reason || "Identity verification pending"}
+              </p>
+              {verification.discrepancy_notes && (
+                <p className="text-xs text-amber-800 bg-white/80 p-2.5 rounded-lg border border-amber-200 italic">
+                  &ldquo;{verification.discrepancy_notes}&rdquo;
+                </p>
+              )}
+              <p className="text-[11px] text-amber-700 leading-relaxed">
+                Your consulting doctor recorded an identity or profile verification note during this consultation session. If your details require updating, please verify your profile information or contact MediConnect Support.
+              </p>
+            </div>
+          )}
+
           {/* Status + Type + Amount Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
              <div className="flex items-center gap-3">
                <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide border ${getStatusColor(status)}`}>
-                 {capitalize(status)}
+                 {status === "pending" ? "Pending Approval" : capitalize(status)}
                </span>
                <span className="text-sm font-semibold text-emerald-900 bg-emerald-100 px-3 py-1.5 rounded-full">
                  {getAppointmentTypeLabel(appointment)}
@@ -536,12 +576,23 @@ const AppointmentDetailsModal = ({
         {/* Footer */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0 pb-safe">
           <p className="text-[11px] sm:text-xs text-gray-400 max-w-md text-center sm:text-left">This receipt is generated automatically and serves as a record of consultation in compliance with Telemedicine Practice Guidelines.</p>
-          <button
-            onClick={onClose}
-            className="w-full sm:w-auto px-6 py-2.5 border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-colors duration-200 shadow-sm cursor-pointer"
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold rounded-lg transition-colors shadow-xs cursor-pointer"
+              title="Print or save payment invoice"
+            >
+              <FaFileInvoiceDollar className="w-3.5 h-3.5" />
+              <span>Download Invoice</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 sm:flex-none px-5 py-2.5 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-100 transition-colors shadow-2xs cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     </div>

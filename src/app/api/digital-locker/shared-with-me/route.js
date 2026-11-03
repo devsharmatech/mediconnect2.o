@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
 import sql from "@/lib/db";
-import { getPresignedDownloadUrl } from "@/lib/s3";
+import { getPresignedDownloadUrl, extractKeyFromUrl } from "@/lib/s3";
+
+function resolveS3Key(rawUrl) {
+    if (!rawUrl || typeof rawUrl !== "string") return null;
+    const cleanUrl = rawUrl.split("?")[0];
+    const fromHelper = extractKeyFromUrl(cleanUrl);
+    if (fromHelper) return fromHelper;
+    const parts = cleanUrl.split("/digital-locker/");
+    if (parts.length > 1) return `digital-locker/${parts[1]}`;
+    return null;
+}
 
 /**
  * API: Get Documents Shared with a Doctor by a Patient (AWS RDS PostgreSQL)
- * 
- * Flow:
- * 1. Query 'document_shares' for active shares from patient to doctor in AWS RDS
- * 2. Join with 'digital_locker_documents' to get document details
- * 3. Generate presigned S3 URLs if applicable
  */
 export async function GET(request) {
     try {
@@ -20,7 +25,6 @@ export async function GET(request) {
             return NextResponse.json({ success: false, error: "Missing required IDs" }, { status: 400 });
         }
 
-        // Fetch active shares with document details directly from AWS RDS
         const shares = await sql`
             SELECT 
                 ds.id as share_id,
@@ -34,6 +38,7 @@ export async function GET(request) {
                 d.document_url,
                 d.document_type,
                 d.file_size,
+                d.mime_type,
                 d.created_at as doc_created_at
             FROM document_shares ds
             JOIN digital_locker_documents d ON d.id = ds.document_id
@@ -44,7 +49,6 @@ export async function GET(request) {
             ORDER BY ds.created_at DESC
         `;
 
-        // Clean up response and generate signed URLs
         const documents = await Promise.all(shares.map(async (s) => {
             if (!s.document_url) {
                 return {
@@ -56,19 +60,16 @@ export async function GET(request) {
                 };
             }
 
-            // Calculate remaining seconds for the signed URL
             const expiresAt = new Date(s.expires_at);
             const now = new Date();
-            const expiresIn = Math.max(Math.floor((expiresAt - now) / 1000), 60);
+            const expiresIn = Math.max(Math.floor((expiresAt - now) / 1000), 300);
 
-            // Extract storage path from CloudFront / S3 URL
             let secureUrl = s.document_url;
-            const urlParts = s.document_url.split("/digital-locker/");
-            const storagePath = urlParts.length > 1 ? urlParts[1] : null;
+            const s3Key = resolveS3Key(s.document_url);
 
-            if (storagePath) {
+            if (s3Key) {
                 try {
-                    const signedUrl = await getPresignedDownloadUrl(`digital-locker/${storagePath}`, expiresIn);
+                    const signedUrl = await getPresignedDownloadUrl(s3Key, expiresIn);
                     if (signedUrl) {
                         secureUrl = signedUrl;
                     }
@@ -85,7 +86,10 @@ export async function GET(request) {
                 document_name: s.document_name,
                 description: s.description,
                 file_url: secureUrl,
+                document_url: secureUrl,
                 file_type: s.document_type,
+                document_type: s.document_type,
+                mime_type: s.mime_type,
                 file_size: s.file_size,
                 created_at: s.doc_created_at,
                 is_secure: true,

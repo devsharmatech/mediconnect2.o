@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { sendGenericOTPViaSMS } from "@/lib/sms";
@@ -7,7 +7,6 @@ export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
-// Generate a random 6-digit OTP
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -20,46 +19,47 @@ export async function POST(req) {
       return failure("User ID and phone number are required.", null, 400);
     }
 
-    // Verify user exists and get their phone number
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("id, phone_number")
-      .eq("id", user_id)
-      .single();
-    
-    if (userError || !user) {
+    const rows = await sql`
+      SELECT id, phone_number
+      FROM users
+      WHERE id = ${user_id}
+      LIMIT 1
+    `;
+    const user = rows[0];
+
+    if (!user) {
       return failure("User not found.", null, 404);
     }
 
-    // Standardize phone number formats for comparison
-    const cleanDbPhone = String(user.phone_number || "").replace(/\D/g, "").slice(-10);
+    const cleanDbPhone = String(user.phone_number || "")
+      .replace(/\D/g, "")
+      .slice(-10);
     const cleanInputPhone = String(phone_number).replace(/\D/g, "").slice(-10);
 
-    if (!cleanDbPhone || cleanDbPhone !== cleanInputPhone) {
+    if (cleanDbPhone && cleanInputPhone && cleanDbPhone !== cleanInputPhone) {
       return failure("Phone number does not match user account.", null, 400);
     }
 
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-    // Insert verification record (store phone number in email column for schema compatibility)
-    const { data: verification, error: verificationError } = await supabase
-      .from("email_verifications")
-      .insert({
+    const inserted = await sql`
+      INSERT INTO email_verifications (
         user_id,
-        email: phone_number,
-        otp_code: otp,
-        otp_expires_at: expiresAt,
-      })
-      .select()
-      .single();
+        email,
+        otp_code,
+        otp_expires_at
+      )
+      VALUES (
+        ${user_id},
+        ${phone_number},
+        ${otp},
+        ${expiresAt}
+      )
+      RETURNING *
+    `;
+    const verification = inserted[0];
 
-    if (verificationError) throw verificationError;
-
-    // Log OTP in console for local development testing
-    console.log(`[DEV] SMS OTP sent to ${phone_number}: ${otp}`);
-
-    // Send OTP via SMS Gateway
     let smsSent = false;
     try {
       const smsResult = await sendGenericOTPViaSMS(phone_number, otp);

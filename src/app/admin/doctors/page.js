@@ -184,6 +184,7 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
   const [address_proof_file, setAddressProofFile] = useState(null);
   const [passport_photo_file, setPassportPhotoFile] = useState(null);
   const [clinic_photos_files, setClinicPhotosFiles] = useState([]);
+  const [feeModes, setFeeModes] = useState({ video: true, clinic: true, home: false });
 
   // Signature pad states
   const [signatureData, setSignatureData] = useState("");
@@ -577,7 +578,13 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
         signature_url: Array.isArray(details.signature_url) ? details.signature_url[0] : (details.signature_url || null),
       });
       setSignatureData(Array.isArray(details.signature_url) ? details.signature_url[0] : (details.signature_url || ""));
+      setFeeModes({
+        video: Boolean(details.video_consultation_fee && Number(details.video_consultation_fee) > 0),
+        clinic: Boolean(details.clinic_consultation_fee && Number(details.clinic_consultation_fee) > 0),
+        home: Boolean(details.home_visit_fee && Number(details.home_visit_fee) > 0),
+      });
     } else {
+      setFeeModes({ video: true, clinic: true, home: false });
       setFormData({
         // Core fields (match doctor-onboarding defaultFormData)
         doctor_name: "",
@@ -1277,46 +1284,112 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
             placeholder="5"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Video Consultation Fee
-          </label>
+        <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Video Consultation Fee
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                const next = !feeModes.video;
+                setFeeModes(prev => ({ ...prev, video: next }));
+                if (!next) handleInputChange("video_consultation_fee", "");
+              }}
+              className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-colors cursor-pointer ${
+                feeModes.video 
+                  ? "bg-[#0067A1] text-white" 
+                  : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+              }`}
+            >
+              {feeModes.video ? "Enabled" : "Disabled"}
+            </button>
+          </div>
           <input
             type="number"
+            disabled={!feeModes.video}
             value={formData.video_consultation_fee}
             onChange={(e) =>
               handleInputChange("video_consultation_fee", e.target.value)
             }
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
-            placeholder="500"
+            className={`w-full px-3 py-2 border rounded-lg transition-colors ${
+              !feeModes.video
+                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
+                : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
+            }`}
+            placeholder={feeModes.video ? "500" : "Enable toggle to set fee"}
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Clinic Consultation Fee
-          </label>
+        <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Clinic Consultation Fee
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                const next = !feeModes.clinic;
+                setFeeModes(prev => ({ ...prev, clinic: next }));
+                if (!next) handleInputChange("clinic_consultation_fee", "");
+              }}
+              className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-colors cursor-pointer ${
+                feeModes.clinic 
+                  ? "bg-[#0067A1] text-white" 
+                  : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+              }`}
+            >
+              {feeModes.clinic ? "Enabled" : "Disabled"}
+            </button>
+          </div>
           <input
             type="number"
+            disabled={!feeModes.clinic}
             value={formData.clinic_consultation_fee}
             onChange={(e) =>
               handleInputChange("clinic_consultation_fee", e.target.value)
             }
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
-            placeholder="800"
+            className={`w-full px-3 py-2 border rounded-lg transition-colors ${
+              !feeModes.clinic
+                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
+                : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
+            }`}
+            placeholder={feeModes.clinic ? "800" : "Enable toggle to set fee"}
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Home Visit Fee
-          </label>
+        <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Home Visit Fee
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                const next = !feeModes.home;
+                setFeeModes(prev => ({ ...prev, home: next }));
+                if (!next) handleInputChange("home_visit_fee", "");
+              }}
+              className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-colors cursor-pointer ${
+                feeModes.home 
+                  ? "bg-[#0067A1] text-white" 
+                  : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+              }`}
+            >
+              {feeModes.home ? "Enabled" : "Disabled"}
+            </button>
+          </div>
           <input
             type="number"
+            disabled={!feeModes.home}
             value={formData.home_visit_fee}
             onChange={(e) =>
               handleInputChange("home_visit_fee", e.target.value)
             }
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
-            placeholder="1500"
+            className={`w-full px-3 py-2 border rounded-lg transition-colors ${
+              !feeModes.home
+                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
+                : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
+            }`}
+            placeholder={feeModes.home ? "1500" : "Enable toggle to set fee"}
           />
         </div>
       </div>
@@ -2265,41 +2338,62 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
         </div>
 
         <div className="p-3 sm:p-6 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-          <div className="flex justify-between gap-3">
+          <div className="flex justify-between items-center gap-3">
             <button
               onClick={() => step > 1 && setStep(step - 1)}
               disabled={step === 1}
-              className="px-4 sm:px-6 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              className="px-4 sm:px-6 py-2 text-sm sm:text-base border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer"
             >
               Previous
             </button>
 
-            {step < 4 ? (
-              <button
-                onClick={() => setStep(step + 1)}
-                className="px-4 sm:px-6 py-2 text-sm sm:text-base bg-black text-white rounded-lg hover:bg-gray-800 transition-all duration-200 shadow-sm"
-              >
-                Next
-              </button>
-            ) : (
-              <button
-                onClick={handleSubmit}
-                disabled={loading}
-                className="px-4 sm:px-6 py-2 text-sm sm:text-base bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-all duration-200 shadow-sm"
-              >
-                {loading ? (
-                  <div className="flex items-center space-x-2">
-                    <RefreshCw size={16} className="animate-spin" />
-                    <span className="hidden sm:inline">Saving...</span>
-                    <span className="sm:hidden">...</span>
-                  </div>
-                ) : doctor ? (
-                  <span><span className="hidden sm:inline">Update Doctor</span><span className="sm:hidden">Update</span></span>
-                ) : (
-                  <span><span className="hidden sm:inline">Onboard Doctor</span><span className="sm:hidden">Save</span></span>
-                )}
-              </button>
-            )}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {doctor && (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="px-4 sm:px-5 py-2 text-sm sm:text-base bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold rounded-lg transition-all duration-200 shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  title="Save updates immediately without cycling all steps"
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      <span>Updating...</span>
+                    </>
+                  ) : (
+                    <span>Update Doctor</span>
+                  )}
+                </button>
+              )}
+
+              {step < 4 ? (
+                <button
+                  onClick={() => setStep(step + 1)}
+                  className="px-4 sm:px-6 py-2 text-sm sm:text-base bg-black text-white rounded-lg hover:bg-gray-800 transition-all duration-200 shadow-sm cursor-pointer"
+                >
+                  Next
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="px-4 sm:px-6 py-2 text-sm sm:text-base bg-black text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-all duration-200 shadow-sm cursor-pointer"
+                >
+                  {loading ? (
+                    <div className="flex items-center space-x-2">
+                      <RefreshCw size={16} className="animate-spin" />
+                      <span className="hidden sm:inline">Saving...</span>
+                      <span className="sm:hidden">...</span>
+                    </div>
+                  ) : doctor ? (
+                    <span><span className="hidden sm:inline">Update Doctor</span><span className="sm:hidden">Update</span></span>
+                  ) : (
+                    <span><span className="hidden sm:inline">Onboard Doctor</span><span className="sm:hidden">Save</span></span>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </motion.div>
@@ -2445,9 +2539,10 @@ function DoctorDetailsModal({ doctor, isOpen, onClose }) {
   };
 
   const getProfilePhoto = () => {
+    if (doctor?.profile_picture && doctor.profile_picture !== "[]") return doctor.profile_picture;
     const passport = details.passport_photo;
     if (Array.isArray(passport) && passport.length > 0) return passport[0];
-    if (typeof passport === "string" && passport) return passport;
+    if (typeof passport === "string" && passport && passport !== "[]") return passport;
     // Fallback placeholder when no passport photo is available
     return "https://placehold.co/96x96?text=DR";
   };
@@ -3652,9 +3747,11 @@ export default function DoctorsPage() {
   };
 
   const getProfilePhoto = (doctor) => {
+    if (doctor.profile_picture && doctor.profile_picture !== "[]") return doctor.profile_picture;
+    if (doctor.users?.profile_picture && doctor.users.profile_picture !== "[]") return doctor.users.profile_picture;
     const passport = doctor.doctor_details?.passport_photo;
     if (Array.isArray(passport) && passport.length > 0) return passport[0];
-    if (typeof passport === "string" && passport) return passport;
+    if (typeof passport === "string" && passport && passport !== "[]") return passport;
     // Fallback placeholder when no passport photo is available
     return "https://placehold.co/40x40?text=DR";
   };
@@ -3698,7 +3795,7 @@ export default function DoctorsPage() {
                       onClick={() => setExportModalOpen(true)}
                       className="flex items-center px-4 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-semibold rounded-lg transition-colors cursor-pointer border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
                     >
-                      <Download size={20} className="mr-2" />
+                      <Upload size={20} className="mr-2" />
                       Export Data
                     </motion.button>
                     <motion.button

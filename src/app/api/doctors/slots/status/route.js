@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -11,32 +11,32 @@ export async function POST(req) {
     const body = await req.json();
     const { doctor_id, appointment_date, appointment_times, action } = body || {};
 
-    if (!doctor_id || !appointment_date || !appointment_times?.length || !action)
+    if (!doctor_id || !appointment_date || !appointment_times?.length || !action) {
       return failure(
         "doctor_id, appointment_date, appointment_times (array), and action are required.",
         null,
         400,
         { headers: corsHeaders }
       );
+    }
 
-    if (!["freeze", "unfreeze"].includes(action))
+    if (!["freeze", "unfreeze"].includes(action)) {
       return failure("Invalid action. Use 'freeze' or 'unfreeze'.", null, 400, { headers: corsHeaders });
+    }
 
     const results = [];
 
     for (const time of appointment_times) {
-      // ✅ Check if slot exists
-      const { data: existing, error: existingErr } = await supabase
-        .from("appointments")
-        .select("id, status")
-        .eq("doctor_id", doctor_id)
-        .eq("appointment_date", appointment_date)
-        .eq("appointment_time", time)
-        .maybeSingle();
+      const existingRows = await sql`
+        SELECT id, status
+        FROM appointments
+        WHERE doctor_id = ${doctor_id}
+          AND appointment_date = ${appointment_date}::date
+          AND SUBSTRING(appointment_time::text, 1, 5) = ${String(time).slice(0, 5)}
+        LIMIT 1
+      `;
+      const existing = existingRows[0] || null;
 
-      if (existingErr) throw existingErr;
-
-      // ✅ Freeze logic
       if (action === "freeze") {
         if (existing && ["booked", "approved", "completed"].includes(existing.status)) {
           results.push({ time, status: "failed", message: "Slot already booked by a patient" });
@@ -48,52 +48,34 @@ export async function POST(req) {
           continue;
         }
 
-        // Update or Insert freezed record
         if (existing) {
-          const { data, error } = await supabase
-            .from("appointments")
-            .update({
-              status: "freezed",
-              patient_id: doctor_id, // doctor freezes his own slot
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", existing.id)
-            .select()
-            .single();
-          if (error) throw error;
+          await sql`
+            UPDATE appointments
+            SET status = 'freezed',
+                patient_id = ${doctor_id},
+                updated_at = NOW()
+            WHERE id = ${existing.id}
+          `;
           results.push({ time, status: "success", action: "freezed" });
         } else {
-          const { data, error } = await supabase
-            .from("appointments")
-            .insert([
-              {
-                doctor_id,
-                patient_id: doctor_id, // self-freeze
-                appointment_date,
-                appointment_time: time,
-                status: "freezed",
-              },
-            ])
-            .select()
-            .single();
-          if (error) throw error;
+          await sql`
+            INSERT INTO appointments (doctor_id, patient_id, appointment_date, appointment_time, status)
+            VALUES (${doctor_id}, ${doctor_id}, ${appointment_date}::date, ${time}, 'freezed')
+          `;
           results.push({ time, status: "success", action: "freezed" });
         }
       }
 
-      // ✅ Unfreeze logic
       if (action === "unfreeze") {
         if (!existing || existing.status !== "freezed") {
           results.push({ time, status: "failed", message: "Slot is not freezed" });
           continue;
         }
 
-        const { error: delErr } = await supabase
-          .from("appointments")
-          .delete()
-          .eq("id", existing.id);
-
-        if (delErr) throw delErr;
+        await sql`
+          DELETE FROM appointments
+          WHERE id = ${existing.id}
+        `;
         results.push({ time, status: "success", action: "unfreezed" });
       }
     }

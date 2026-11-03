@@ -64,6 +64,7 @@ const defaultFormData = {
   follow_up_fee: "",
   speciality: [],
   super_speciality: [],
+  clinic_name: "",
   clinic_address: "",
   clinic_photos: [],
   kyc_data: [],
@@ -479,6 +480,7 @@ function DoctorOnboardingForm({
     follow_up_fee: initialTokenData.follow_up_fee || "",
     speciality: parseListField(initialTokenData.specialization, specialityOptions),
     super_speciality: parseListField(initialTokenData.meta?.super_speciality, superSpecialityOptions),
+    clinic_name: initialTokenData.clinic_name || "",
     clinic_address: initialTokenData.clinic_address || "",
     clinic_photos: initialTokenData.clinic_photos || [],
     kyc_data: initialTokenData.kyc_data || [],
@@ -1562,14 +1564,58 @@ function DoctorOnboardingForm({
     return Object.keys(newErrors).length === 0;
   };
 
+  const autoSaveTokenStep = async () => {
+    if (!isTokenFlow || !doctorId) return;
+    try {
+      const { availableDays, availableTime } = computeAvailability();
+      const updateFormData = new FormData();
+      updateFormData.append("id", doctorId);
+      Object.entries(formData).forEach(([key, value]) => {
+        if (
+          value === null ||
+          value === undefined ||
+          key === "dmc_mci_nmc_certificates" ||
+          key === "clinic_photos" ||
+          key === "address_proof" ||
+          key === "passport_photo" ||
+          key === "digital_signature"
+        ) {
+          return;
+        }
+        if (Array.isArray(value) || typeof value === "object") {
+          updateFormData.append(key, JSON.stringify(value));
+        } else {
+          updateFormData.append(key, value);
+        }
+      });
+      if (availableDays.length) updateFormData.append("available_days", JSON.stringify(availableDays));
+      if (availableTime) updateFormData.append("available_time", JSON.stringify(availableTime));
+      await fetch("/api/doctors/onboard/update", {
+        method: "PUT",
+        body: updateFormData,
+      });
+    } catch (e) {
+      console.warn("Background onboarding save warning:", e);
+    }
+  };
+
   const nextStep = () => {
     if (validateStep(currentStep)) {
+      if (isTokenFlow && doctorId) {
+        autoSaveTokenStep();
+      }
       setCurrentStep((prev) => Math.min(prev + 1, steps.length));
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     }
   };
 
   const prevStep = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 1));
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   // Upload a single file via S3 presigned URL (direct client-to-S3 upload, bypasses server body size limits)
@@ -1775,12 +1821,23 @@ function DoctorOnboardingForm({
             }
           }
 
-          await fetch("/api/doctors/onboard/update", {
+          const updateRes = await fetch("/api/doctors/onboard/update", {
             method: "PUT",
             body: updateFormData,
           });
+          const updateJson = await updateRes.json().catch(() => ({}));
+          if (!updateRes.ok || updateJson.status === false) {
+            toast.dismiss("loading");
+            toast.error(updateJson.message || "Failed to save updated KYC details. Please try again.");
+            setLoading(false);
+            return;
+          }
         } catch (err) {
           console.error("Failed to save onboarding details:", err);
+          toast.dismiss("loading");
+          toast.error("Failed to save updated KYC details. Please try again.");
+          setLoading(false);
+          return;
         }
 
         await handleAcceptAgreement();
@@ -1977,7 +2034,7 @@ function DoctorOnboardingForm({
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F6F8FA] via-white to-[#F6F8FA] py-2 sm:py-4 overflow-x-hidden">
+    <div className="min-h-screen bg-[#F6F8FA] py-2 sm:py-4 overflow-x-hidden">
       <div className="w-full max-w-6xl mx-auto px-2 sm:px-6 lg:px-8 min-w-0">
         {/* Header */}
         <motion.div
@@ -1985,7 +2042,7 @@ function DoctorOnboardingForm({
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-3 sm:mb-4"
         >
-          <div className="bg-gradient-to-r from-[#0067A1] to-[#0067A1] text-white rounded-lg p-3 sm:p-5 shadow-sm">
+          <div className="bg-[#0067A1] text-white rounded-lg p-3 sm:p-5 shadow-sm">
             <h1 className="text-xl sm:text-2xl font-bold mb-0.5 sm:mb-1.5">Doctor Onboarding Form</h1>
             <p className="text-xs sm:text-base opacity-90">
               Join our network of healthcare professionals
@@ -1998,7 +2055,7 @@ function DoctorOnboardingForm({
           <div className="mb-2 sm:mb-3">
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
               <motion.div
-                className="h-full bg-gradient-to-r from-[#0067A1] to-[#0067A1] rounded-full"
+                className="h-full bg-[#0067A1] rounded-full"
                 initial={{ width: 0 }}
                 animate={{ width: `${progress}%` }}
                 transition={{ duration: 0.5 }}
@@ -2007,11 +2064,11 @@ function DoctorOnboardingForm({
           </div>
 
           <div className="flex justify-between">
-            {steps.map((step, index) => (
+            {steps.map((step) => (
               <div key={step.number} className="text-center flex-1 min-w-0">
                 <div
-                  className={`w-9 h-9 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-1 sm:mb-2 border-2 sm:border-4 ${currentStep > step.number
-                    ? "bg-[#0067A1] border-[#0067A1] text-white"
+                  className={`w-9 h-9 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mx-auto mb-1 sm:mb-2 border-2 sm:border-4 transition-colors ${currentStep > step.number
+                    ? "bg-emerald-600 border-emerald-600 text-white"
                     : currentStep === step.number
                       ? "bg-[#0067A1] border-[#0067A1] text-white"
                       : "bg-white border-gray-300 text-gray-400"
@@ -2023,8 +2080,13 @@ function DoctorOnboardingForm({
                     <step.icon className="w-4 h-4 sm:w-6 sm:h-6" />
                   )}
                 </div>
+                <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+                  currentStep === step.number ? "text-[#0067A1]" : currentStep > step.number ? "text-emerald-600" : "text-gray-400"
+                }`}>
+                  Step {step.number}
+                </span>
                 <span
-                  className={`text-[9px] xs:text-[10px] sm:text-xs md:text-sm font-semibold hidden sm:block break-normal px-1 leading-tight mt-1.5 ${currentStep >= step.number
+                  className={`text-[9px] xs:text-[10px] sm:text-xs md:text-sm font-semibold hidden sm:block break-normal px-1 leading-tight mt-0.5 ${currentStep >= step.number
                     ? "text-[#0067A1]"
                     : "text-gray-500"
                     }`}
@@ -2408,9 +2470,7 @@ function DoctorOnboardingForm({
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className="bg-[#0067A1] text-white px-4 sm:px-6 py-2 rounded-md hover:bg-[#004F7C] transition-colors font-medium text-sm whitespace-nowrap"
-                  >
-                    Next Step
-                  </motion.button>
+                  >Next</motion.button>
                 </div>
               </motion.div>
             )}
@@ -2491,6 +2551,20 @@ function DoctorOnboardingForm({
                         Clinic Details
                       </h3>
                       <div className="space-y-3 sm:space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Primary Clinic / Hospital Name
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.clinic_name || ""}
+                            onChange={(e) =>
+                              handleInputChange("clinic_name", e.target.value)
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] transition-colors"
+                            placeholder="Clinic or Hospital Name"
+                          />
+                        </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Clinic Address
@@ -2606,10 +2680,108 @@ function DoctorOnboardingForm({
 
                     {/* Availability Slots */}
                     <div>
-                      <h3 className="text-sm sm:text-base font-semibold uppercase tracking-wider text-gray-700 mb-2 sm:mb-3 flex items-center">
-                        <Calendar className="w-4 h-4 mr-2 text-[#0067A1]" />
-                        Weekly Availability
-                      </h3>
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                        <h3 className="text-sm sm:text-base font-semibold uppercase tracking-wider text-gray-700 flex items-center">
+                          <Calendar className="w-4 h-4 mr-2 text-[#0067A1]" />
+                          Weekly Availability
+                        </h3>
+                        {/* Quick Auto-Fill Presets (Item 18) */}
+                        <div className="flex flex-wrap items-center gap-1.5 bg-sky-50 border border-sky-200 rounded-lg px-2.5 py-1.5">
+                          <span className="text-[11px] font-bold text-[#0067A1] mr-1">Auto-Fill:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const workDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+                              const nextClinic = {};
+                              const nextVideo = {};
+                              daysOfWeek.forEach((d) => {
+                                if (workDays.includes(d)) {
+                                  nextClinic[d] = [{ start: "09:00", end: "13:00" }];
+                                  nextVideo[d] = [{ start: "17:00", end: "20:00" }];
+                                }
+                              });
+                              setFormData((prev) => ({
+                                ...prev,
+                                clinic_slots: nextClinic,
+                                video_slots: nextVideo,
+                                leave_days: ["Saturday", "Sunday"],
+                              }));
+                              toast.success("Mon–Fri schedule auto-filled!");
+                            }}
+                            className="px-2.5 py-1 text-xs font-semibold rounded bg-white border border-sky-200 text-[#0067A1] hover:bg-[#0067A1] hover:text-white transition-colors"
+                          >
+                            Mon–Fri
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const workDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                              const nextClinic = {};
+                              const nextVideo = {};
+                              daysOfWeek.forEach((d) => {
+                                if (workDays.includes(d)) {
+                                  nextClinic[d] = [{ start: "09:00", end: "14:00" }];
+                                  nextVideo[d] = [{ start: "17:00", end: "21:00" }];
+                                }
+                              });
+                              setFormData((prev) => ({
+                                ...prev,
+                                clinic_slots: nextClinic,
+                                video_slots: nextVideo,
+                                leave_days: ["Sunday"],
+                              }));
+                              toast.success("Mon–Sat schedule auto-filled!");
+                            }}
+                            className="px-2.5 py-1 text-xs font-semibold rounded bg-white border border-sky-200 text-[#0067A1] hover:bg-[#0067A1] hover:text-white transition-colors"
+                          >
+                            Mon–Sat
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const monClinic = formData.clinic_slots?.["Monday"];
+                              const monVideo = formData.video_slots?.["Monday"];
+                              const monHome = formData.home_slots?.["Monday"];
+                              const nextClinic = { ...formData.clinic_slots };
+                              const nextVideo = { ...formData.video_slots };
+                              const nextHome = { ...formData.home_slots };
+                              daysOfWeek.forEach((d) => {
+                                if (d !== "Sunday") {
+                                  if (monClinic) nextClinic[d] = JSON.parse(JSON.stringify(monClinic));
+                                  if (monVideo) nextVideo[d] = JSON.parse(JSON.stringify(monVideo));
+                                  if (monHome) nextHome[d] = JSON.parse(JSON.stringify(monHome));
+                                }
+                              });
+                              setFormData((prev) => ({
+                                ...prev,
+                                clinic_slots: nextClinic,
+                                video_slots: nextVideo,
+                                home_slots: nextHome,
+                              }));
+                              toast.success("Copied Monday slots to Mon–Sat!");
+                            }}
+                            className="px-2.5 py-1 text-xs font-semibold rounded bg-white border border-slate-300 text-slate-700 hover:border-[#0067A1] hover:text-[#0067A1] transition-colors"
+                          >
+                            Copy Mon → All
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                clinic_slots: {},
+                                video_slots: {},
+                                home_slots: {},
+                                leave_days: [],
+                              }));
+                              toast.success("Cleared all weekly slots");
+                            }}
+                            className="px-2.5 py-1 text-xs font-semibold rounded bg-white border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
                       <div className="w-0 min-w-full overflow-x-auto bg-gray-50 rounded-lg p-1.5 sm:p-3">
                         <table className="w-full border-collapse min-w-[800px]">
                           <thead>
@@ -2833,10 +3005,8 @@ function DoctorOnboardingForm({
                     onClick={nextStep}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="bg-gradient-to-r from-[#0067A1] to-[#0067A1] text-white px-4 sm:px-8 py-2.5 sm:py-3 rounded-xl hover:shadow-lg transition-all font-semibold shadow-md text-sm sm:text-base whitespace-nowrap"
-                  >
-                    Next Step
-                  </motion.button>
+                    className="bg-[#0067A1] text-white px-4 sm:px-8 py-2.5 sm:py-3 rounded-xl hover:shadow-lg transition-all font-semibold shadow-md text-sm sm:text-base whitespace-nowrap"
+                  >Next</motion.button>
                 </div>
               </motion.div>
             )}
@@ -3081,9 +3251,7 @@ function DoctorOnboardingForm({
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className="bg-[#0067A1] text-white px-4 py-2 rounded-md hover:bg-[#004F7C] transition-colors font-semibold text-sm whitespace-nowrap"
-                  >
-                    Next Step
-                  </motion.button>
+                  >Next</motion.button>
                 </div>
               </motion.div>
             )}

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import nodemailer from "nodemailer";
 
 // Configure nodemailer using SMTP environment variables
@@ -15,14 +15,15 @@ const statusMailTransporter = nodemailer.createTransport({
 
 async function sendStatusEmail(userId, newStatus) {
   try {
-    // Fetch doctor details to get email and name
-    const { data: doctorDetails, error: detailsError } = await supabase
-      .from("doctor_details")
-      .select("email, full_name")
-      .eq("id", userId)
-      .maybeSingle();
+    const rows = await sql`
+      SELECT email, full_name
+      FROM doctor_details
+      WHERE id = ${userId}
+      LIMIT 1
+    `;
+    const doctorDetails = rows[0];
 
-    if (detailsError || !doctorDetails?.email) return;
+    if (!doctorDetails?.email) return;
 
     const email = doctorDetails.email;
     const name = doctorDetails.full_name || "Doctor";
@@ -61,25 +62,40 @@ export async function POST(request) {
       );
     }
 
-    const { data, error } = await supabase
-      .from('users')
-      .update({ 
-        status: parseInt(status),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .eq('role', 'doctor')
-      .select()
-      .single();
+    const intStatus = parseInt(status, 10);
 
-    if (error) throw error;
+    const userRows = await sql`
+      UPDATE users
+      SET 
+        status = ${intStatus},
+        updated_at = NOW()
+      WHERE id = ${id} AND role = 'doctor'
+      RETURNING *;
+    `;
+
+    if (!userRows || userRows.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Doctor not found or update failed" },
+        { status: 404 }
+      );
+    }
+
+    // Sync doctor_onboarding_status
+    await sql`
+      INSERT INTO doctor_onboarding_status (doctor_id, allowed_to_consult, registration_verified, updated_at)
+      VALUES (${id}, ${intStatus === 1}, ${intStatus === 1}, NOW())
+      ON CONFLICT (doctor_id)
+      DO UPDATE SET
+        allowed_to_consult = ${intStatus === 1},
+        updated_at = NOW();
+    `;
 
     // Send notification email to doctor about status change (non-blocking)
     sendStatusEmail(id, status);
 
     return NextResponse.json({
       success: true,
-      data
+      data: userRows[0]
     });
   } catch (error) {
     console.error('Error updating doctor status:', error);

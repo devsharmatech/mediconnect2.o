@@ -1,17 +1,11 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-/* ---------------------------------------
-   ALWAYS GET INDIA TIME ON LIVE SERVER
-------------------------------------------*/
 function getISTDate() {
-  const nowIST = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-  );
-  return nowIST;
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
 }
 
 function getTodaySlugsIST() {
@@ -23,10 +17,9 @@ function getTodaySlugsIST() {
 }
 
 function getISTTimeHHMM() {
-  return getISTDate().toTimeString().slice(0, 5); // "HH:MM"
+  return getISTDate().toTimeString().slice(0, 5);
 }
 
-/* Convert time string to minutes for safe comparison */
 function toMinutes(t) {
   if (!t) return null;
   const [h, m] = t.split(":").map(Number);
@@ -37,31 +30,25 @@ export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
-export async function GET(req) {
+export async function GET() {
   try {
-    const todaySlugs = getTodaySlugsIST(); // IST day slugs
-    const currentTime = getISTTimeHHMM(); // IST time
+    const todaySlugs = getTodaySlugsIST();
+    const currentTime = getISTTimeHHMM();
     const nowMin = toMinutes(currentTime);
 
-    // ---------------------------------------
-    // 1) FETCH ACTIVE DOCTORS
-    // ---------------------------------------
-    const { data: doctors, error: doctorErr } = await supabase
-      .from("doctor_details")
-      .select("*, users!inner(role, is_verified, status)")
-      .eq("users.role", "doctor")
-      .eq("users.status", 1);
+    const doctors = await sql`
+      SELECT d.*, json_build_object('role', u.role, 'is_verified', u.is_verified, 'status', u.status) AS users
+      FROM doctor_details d
+      JOIN users u ON u.id = d.id
+      LEFT JOIN doctor_onboarding_status dos ON dos.doctor_id = u.id
+      WHERE u.role = 'doctor'
+        AND u.status = 1
+        AND (d.onboarding_status = 'approved' OR dos.allowed_to_consult = true)
+    `;
 
-    if (doctorErr) throw doctorErr;
-
-    // ---------------------------------------
-    // 2) FILTER DOCTORS BY AVAILABILITY
-    // ---------------------------------------
     const availableDoctors = (doctors || []).filter((doc) => {
-      // If doctor is explicitly closed for instant calls, exclude
-      if (doc.is_open === false) return false;
+      if (doc.is_open === false || doc.is_available === false) return false;
 
-      // If doctor has specific available_days, verify today matches
       if (doc.available_days && doc.available_days.length > 0) {
         const isToday = Array.isArray(doc.available_days)
           ? todaySlugs.some((slug) => doc.available_days.includes(slug))
@@ -70,11 +57,9 @@ export async function GET(req) {
         if (!isToday) return false;
       }
 
-      // Check slot availability across available_time, video_slots, and clinic_slots
       let hasTimeConstraint = false;
       let isWithinTime = false;
 
-      // Check legacy available_time
       if (doc.available_time) {
         hasTimeConstraint = true;
         let start, end;
@@ -97,7 +82,6 @@ export async function GET(req) {
         }
       }
 
-      // Check video_slots
       if (!isWithinTime && doc.video_slots) {
         hasTimeConstraint = true;
         let slots = [];
@@ -107,6 +91,11 @@ export async function GET(req) {
           try {
             slots = JSON.parse(doc.video_slots) || [];
           } catch {}
+        } else if (typeof doc.video_slots === "object") {
+          const dayName = todaySlugs[2];
+          const daySlot = doc.video_slots[dayName] || doc.video_slots[dayName?.toLowerCase()];
+          if (Array.isArray(daySlot)) slots = daySlot;
+          else if (daySlot) slots = [daySlot];
         }
 
         for (const slot of slots) {
@@ -123,7 +112,6 @@ export async function GET(req) {
         }
       }
 
-      // If no strict time schedule was specified or doctor is open, consider available
       if (!hasTimeConstraint) {
         return true;
       }
@@ -132,17 +120,11 @@ export async function GET(req) {
     });
 
     if (availableDoctors.length === 0) {
-      // Fallback: If no doctors are in active time window right now, return verified approved doctors so patient can still request
-      const fallbackDoctors = (doctors || []).filter((doc) => doc.is_open !== false);
-      return success("Available doctors", fallbackDoctors.length > 0 ? fallbackDoctors : doctors || [], 200, {
+      const fallbackDoctors = (doctors || []).filter((doc) => doc.is_open !== false && doc.is_available !== false);
+      return success("Available doctors", fallbackDoctors, 200, {
         headers: corsHeaders,
       });
     }
-
-    // ---------------------------------------
-    // 3) GET TODAY’S APPOINTMENTS (BLOCKED)
-    // ---------------------------------------
-    const blockedStatuses = ["booked", "approved", "completed", "freezed"];
 
     const todayIST = getISTDate();
     const yyyy = todayIST.getFullYear();
@@ -150,24 +132,19 @@ export async function GET(req) {
     const dd = String(todayIST.getDate()).padStart(2, "0");
     const todayStr = `${yyyy}-${mm}-${dd}`;
 
-    const { data: todaysAppointments, error: appErr } = await supabase
-      .from("appointments")
-      .select("doctor_id, appointment_date, appointment_time, status")
-      .eq("appointment_date", todayStr)
-      .in("status", blockedStatuses);
+    const todaysAppointments = await sql`
+      SELECT doctor_id, appointment_date, appointment_time::text AS appointment_time, status
+      FROM appointments
+      WHERE appointment_date = ${todayStr}::date
+        AND status IN ('booked', 'approved', 'completed', 'freezed')
+    `;
 
-    if (appErr) throw appErr;
-
-    // ---------------------------------------
-    // 4) REMOVE DOCTORS WHO ARE BUSY RIGHT NOW
-    // ---------------------------------------
     const instantDoctors = availableDoctors.filter((doc) => {
       const isBusy = (todaysAppointments || []).some((apt) => {
         if (apt.doctor_id !== doc.id) return false;
-        const aptTime = apt.appointment_time?.slice(0, 5);
-        return aptTime === currentTime; // IST time
+        const aptTime = (apt.appointment_time || "").slice(0, 5);
+        return aptTime === currentTime;
       });
-
       return !isBusy;
     });
 

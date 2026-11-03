@@ -1,6 +1,7 @@
 import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+import { resolveTestCollectionType } from "@/lib/labSearchHelper";
 import { cookies } from "next/headers";
 
 const safeUuid = (val) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val) ? val : null);
@@ -149,9 +150,15 @@ export async function POST(req) {
             const generatedTestCode = t.test_code?.trim() || `MGR${String(nextNumber).padStart(4, '0')}`;
             nextNumber++;
 
-            // Strict collection_type check: 'home', 'lab', 'both'
-            const rawColType = String(t.collection_type || t["Collection Type"] || "lab").trim().toLowerCase();
-            const collection_type = ['home', 'lab', 'both'].includes(rawColType) ? rawColType : 'lab';
+            // Strict collection_type check: 'home', 'lab', 'both' (or auto-infer by test type)
+            const rawColType = String(t.collection_type || t["Collection Type"] || "").trim().toLowerCase();
+            const collection_type = ['home', 'lab', 'both'].includes(rawColType)
+                ? rawColType
+                : resolveTestCollectionType({
+                      test_name: testName,
+                      specimen_type: t.specimen_type || t["Sample Type"] || "",
+                      category_name: catName,
+                  });
 
             const clinical_history = ["yes", "true", "1"].includes(
                 String(t.clinical_history_required || t["Clinical History Required"] || "").trim().toLowerCase()

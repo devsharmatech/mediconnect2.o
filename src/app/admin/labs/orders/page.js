@@ -48,6 +48,7 @@ export default function AdminLabOrdersPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   // Filters state
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
@@ -55,6 +56,15 @@ export default function AdminLabOrdersPage() {
   const [dateRangeFilter, setDateRangeFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
+
+  // Debounce search input and reset page to 1
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   // Inspection Modal / Detail Drawer
   const [selectedOrderId, setSelectedOrderId] = useState(null);
@@ -363,11 +373,8 @@ export default function AdminLabOrdersPage() {
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search by order #, patient name, phone, lab name, technician, razorpay ID..."
                 className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#0067A1]"
               />

@@ -1,38 +1,124 @@
 "use server";
 
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
+
+/**
+ * Calculate distance in km between two lat/lng points using the Haversine formula.
+ */
+function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const nLat1 = Number(lat1);
+  const nLon1 = Number(lon1);
+  const nLat2 = Number(lat2);
+  const nLon2 = Number(lon2);
+  if (!Number.isFinite(nLat1) || !Number.isFinite(nLon1) || !Number.isFinite(nLat2) || !Number.isFinite(nLon2)) return null;
+  if (Math.abs(nLat1) > 90 || Math.abs(nLat2) > 90 || Math.abs(nLon1) > 180 || Math.abs(nLon2) > 180) return null;
+
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = ((nLat2 - nLat1) * Math.PI) / 180;
+  const dLon = ((nLon2 - nLon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((nLat1 * Math.PI) / 180) *
+    Math.cos((nLat2 * Math.PI) / 180) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const dist = R * c;
+  return Math.round(dist * 10) / 10;
+}
+
+/**
+ * Check if a fee value represents a served consultation mode.
+ * - Only Fee > 0 is served.
+ * - 0, null, undefined, empty string, or NaN means NOT served / not available.
+ */
+function isFeeServed(val) {
+  if (val === null || val === undefined) return false;
+  const str = String(val).trim();
+  if (str === "") return false;
+  const num = Number(str);
+  return !Number.isNaN(num) && num > 0;
+}
 
 export async function getDoctorsAction({
   page = 1,
   limit = 12,
   search = "",
   specialization = "",
-  feeFilter = "all",
+  appointmentMode = "all", // "all" | "clinic" | "video" | "home"
+  feeFilter = "all", // "all" | "under_500" | "500_1000" | "above_1000"
+  experienceFilter = "all", // "all" | "5" | "10" | "15"
+  addressSearch = "",
+  userLat = null,
+  userLng = null,
   sortBy = "recommended",
 }) {
   try {
     const offset = (page - 1) * limit;
 
-    let userQuery = supabase
-      .from("users")
-      .select("*", { count: "exact" })
-      .eq("role", "doctor")
-      .eq("status", 1);
+    // Retrieve active, approved, and verified doctors from AWS RDS PostgreSQL
+    const activeDoctorRows = await sql`
+      SELECT 
+        u.id, u.phone_number, u.role, u.status, u.profile_picture, u.created_at,
+        d.full_name, d.email, d.specialization, d.clinic_consultation_fee, d.video_consultation_fee, 
+        d.home_visit_fee, d.consultation_fee, d.rating, d.total_reviews, d.experience_years, 
+        d.onboarding_status, d.clinic_name, d.clinic_address, d.latitude, d.longitude, d.passport_photo,
+        d.meta, d.is_open, d.is_available, d.slot_interval_minutes,
+        dos.allowed_to_consult, dos.registration_verified
+      FROM users u
+      JOIN doctor_details d ON d.id = u.id
+      LEFT JOIN doctor_onboarding_status dos ON dos.doctor_id = u.id
+      WHERE u.role = 'doctor'
+        AND u.status = 1
+        AND COALESCE(d.is_open, true) = true
+        AND COALESCE(d.is_available, true) = true
+        AND (d.onboarding_status = 'approved' OR d.onboarding_status IS NULL)
+        AND (dos.allowed_to_consult = true OR d.onboarding_status = 'approved')
+        AND (dos.registration_verified = true OR d.registration_verified = true)
+    `;
 
-    const hasDetailsFilter =
-      (specialization && specialization !== "All Specialties" && specialization !== "all") ||
-      Boolean(search) ||
-      (feeFilter && feeFilter !== "all");
+    if (!activeDoctorRows || activeDoctorRows.length === 0) {
+      return {
+        success: true,
+        data: [],
+        pagination: {
+          currentPage: page,
+          totalPages: 0,
+          totalItems: 0,
+          hasNextPage: false,
+        },
+      };
+    }
 
-    if (hasDetailsFilter) {
-      let detailsQuery = supabase
-        .from("doctor_details")
-        .select(
-          "id, specialization, clinic_consultation_fee, video_consultation_fee, home_visit_fee, rating, experience_years, full_name, onboarding_status, clinic_name, clinic_address"
-        );
+    let filteredDetails = activeDoctorRows.map((row) => ({
+      ...row,
+      // Ensure clean passport photo URL if stringified
+      passport_photo: Array.isArray(row.passport_photo)
+        ? row.passport_photo
+        : (row.passport_photo ? [row.passport_photo] : (row.profile_picture ? [row.profile_picture] : []))
+    }));
 
-      if (specialization && specialization !== "All Specialties" && specialization !== "all") {
-        const specLower = specialization.toLowerCase().trim();
+    // Specialization filter
+    if (specialization && specialization !== "All Specialties" && specialization !== "all") {
+      const specLower = specialization.toLowerCase().trim();
+      filteredDetails = filteredDetails.filter((doc) => {
+        const docSpec = (doc.specialization || "").toLowerCase();
+        let superSpecs = [];
+        try {
+          const metaObj = typeof doc.meta === 'string' ? JSON.parse(doc.meta) : (doc.meta || {});
+          if (Array.isArray(metaObj.super_speciality)) {
+            superSpecs = metaObj.super_speciality.map(s => String(s).toLowerCase());
+          } else if (metaObj.super_speciality) {
+            superSpecs = [String(metaObj.super_speciality).toLowerCase()];
+          }
+        } catch {
+          superSpecs = [];
+        }
+
+        const matchesSuper = superSpecs.some(ss => ss.includes(specLower) || specLower.includes(ss));
+        if (matchesSuper) return true;
+
         if (
           specLower === "uro/neuro" ||
           specLower === "uro / neuro" ||
@@ -40,31 +126,36 @@ export async function getDoctorsAction({
           specLower === "urology / neurology" ||
           (specLower.includes("uro") && specLower.includes("neuro"))
         ) {
-          detailsQuery = detailsQuery
-            .or("specialization.ilike.%urology%,specialization.ilike.%neurology%,specialization.ilike.%urologist%,specialization.ilike.%neurologist%,specialization.ilike.%neurosurg%")
-            .not("specialization", "ilike", "%psychiat%");
+          return (docSpec.includes("urology") || docSpec.includes("neurology") || docSpec.includes("urologist") || docSpec.includes("neurologist") || docSpec.includes("neurosurg")) && !docSpec.includes("psychiat");
         } else if (specLower === "urology" || specLower.includes("urolog")) {
-          detailsQuery = detailsQuery
-            .or("specialization.ilike.%urology%,specialization.ilike.%urologist%")
-            .not("specialization", "ilike", "%neurology%")
-            .not("specialization", "ilike", "%psychiat%");
+          return (docSpec.includes("urology") || docSpec.includes("urologist")) && !docSpec.includes("neurology") && !docSpec.includes("psychiat");
         } else if (specLower === "neurology" || (specLower.includes("neuro") && !specLower.includes("uro"))) {
-          detailsQuery = detailsQuery
-            .or("specialization.ilike.%neurology%,specialization.ilike.%neurologist%,specialization.ilike.%neurosurg%,specialization.ilike.%pediatric neurology%")
-            .not("specialization", "ilike", "%urology%")
-            .not("specialization", "ilike", "%psychiat%");
+          return (docSpec.includes("neurology") || docSpec.includes("neurologist") || docSpec.includes("neurosurg")) && !docSpec.includes("urology") && !docSpec.includes("psychiat");
         } else if (specLower.includes("gastro")) {
-          detailsQuery = detailsQuery.or("specialization.ilike.%gastro%,specialization.ilike.%stomach%,specialization.ilike.%digestive%");
+          return docSpec.includes("gastro") || docSpec.includes("stomach") || docSpec.includes("digestive");
         } else if (specLower.includes("dentist") || specLower.includes("dental") || specLower.includes("dentistry")) {
-          detailsQuery = detailsQuery.or("specialization.ilike.%dentist%,specialization.ilike.%dental%,specialization.ilike.%dentistry%");
-        } else if (specLower.includes("physician") || specLower === "gp" || specLower.includes("general")) {
-          detailsQuery = detailsQuery.or("specialization.ilike.%physician%,specialization.ilike.%general%,specialization.ilike.%medicine%");
+          return docSpec.includes("dentist") || docSpec.includes("dental") || docSpec.includes("dentistry");
+        } else if (specLower === "general physician" || specLower === "gp" || specLower.includes("physician")) {
+          return (
+            docSpec.includes("general physician") ||
+            docSpec.includes("physician") ||
+            docSpec === "gp"
+          ) && !docSpec.includes("surgery");
+        } else if (specLower === "general medicine" || specLower === "medicine specialist" || specLower === "internal medicine") {
+          return (
+            docSpec.includes("general medicine") ||
+            docSpec.includes("internal medicine") ||
+            docSpec.includes("medicine specialist") ||
+            docSpec.includes("general physician")
+          ) && !docSpec.includes("surgery") && !docSpec.includes("sports") && !docSpec.includes("pain") && !docSpec.includes("emergency") && !docSpec.includes("critical");
+        } else if (specLower.includes("general") && !specLower.includes("surgery")) {
+          return docSpec.includes("general physician") || docSpec.includes("general medicine");
         } else if (specLower.includes("gynecol") || specLower.includes("gynaecol") || specLower.includes("obgyn")) {
-          detailsQuery = detailsQuery.or("specialization.ilike.%gynecol%,specialization.ilike.%gynaecol%,specialization.ilike.%obgyn%");
+          return docSpec.includes("gynecol") || docSpec.includes("gynaecol") || docSpec.includes("obgyn");
         } else if (specLower.includes("pediatr") || specLower.includes("paediatr")) {
-          detailsQuery = detailsQuery.or("specialization.ilike.%pediatr%,specialization.ilike.%paediatr%,specialization.ilike.%child%");
+          return docSpec.includes("pediatr") || docSpec.includes("paediatr") || docSpec.includes("child");
         } else if (specLower.includes("orthoped") || specLower.includes("orthopaed")) {
-          detailsQuery = detailsQuery.or("specialization.ilike.%orthoped%,specialization.ilike.%orthopaed%,specialization.ilike.%bone%");
+          return docSpec.includes("orthoped") || docSpec.includes("orthopaed") || docSpec.includes("bone");
         } else if (
           specLower === "ent" ||
           specLower === "ent doctor" ||
@@ -73,150 +164,188 @@ export async function getDoctorsAction({
           specLower.includes("ear, nose") ||
           specLower.includes("ear nose")
         ) {
-          detailsQuery = detailsQuery
-            .or("specialization.ilike.%ENT%,specialization.ilike.%Otorhinolaryngol%,specialization.ilike.%Otolaryngol%")
-            .not("specialization", "ilike", "%dent%")
-            .not("specialization", "ilike", "%cardio%")
-            .not("specialization", "ilike", "%heart%")
-            .not("specialization", "ilike", "%derma%")
-            .not("specialization", "ilike", "%psychiat%")
-            .not("specialization", "ilike", "%gastro%");
+          return (docSpec.includes("ent") || docSpec.includes("otorhinolaryngol") || docSpec.includes("otolaryngol")) && !docSpec.includes("dent") && !docSpec.includes("cardio");
         } else if (specLower.includes("cardio") || specLower.includes("heart")) {
-          detailsQuery = detailsQuery.or("specialization.ilike.%cardio%,specialization.ilike.%heart%");
+          return docSpec.includes("cardio") || docSpec.includes("heart");
         } else if (specLower.includes("derma") || specLower.includes("skin")) {
-          detailsQuery = detailsQuery.or("specialization.ilike.%derma%,specialization.ilike.%skin%");
+          return docSpec.includes("derma") || docSpec.includes("skin");
         } else if (specLower.includes("ophthal") || specLower.includes("eye")) {
-          detailsQuery = detailsQuery.or("specialization.ilike.%ophthal%,specialization.ilike.%eye%");
+          return docSpec.includes("ophthal") || docSpec.includes("eye");
         } else if (specLower.includes("psychiat") || specLower.includes("mental")) {
-          detailsQuery = detailsQuery
-            .or("specialization.ilike.%psychiat%,specialization.ilike.%mental%")
-            .not("specialization", "ilike", "%urology%")
-            .not("specialization", "ilike", "%neurology%");
-        } else if (
-          specLower.includes("pulmon") ||
-          specLower.includes("chest") ||
-          specLower.includes("respirat") ||
-          specLower.includes("lung")
-        ) {
-          detailsQuery = detailsQuery.or(
-            "specialization.ilike.%pulmon%,specialization.ilike.%chest%,specialization.ilike.%respirat%,specialization.ilike.%lung%"
-          );
+          return (docSpec.includes("psychiat") || docSpec.includes("mental")) && !docSpec.includes("urology") && !docSpec.includes("neurology");
+        } else if (specLower.includes("pulmon") || specLower.includes("chest") || specLower.includes("lung")) {
+          return docSpec.includes("pulmon") || docSpec.includes("chest") || docSpec.includes("lung");
         } else {
-          detailsQuery = detailsQuery.ilike("specialization", `%${specialization}%`);
+          return docSpec.includes(specLower);
         }
-      }
+      });
+    }
 
-      if (search) {
-        const cleanSearch = search.trim();
-        const searchLower = cleanSearch.toLowerCase();
-        if (searchLower === "ent" || searchLower === "ent doctor" || searchLower === "ent specialist") {
-          detailsQuery = detailsQuery
-            .or("specialization.ilike.%ENT%,specialization.ilike.%Otorhinolaryngol%,specialization.ilike.%Otolaryngol%")
-            .not("specialization", "ilike", "%dent%")
-            .not("specialization", "ilike", "%cardio%")
-            .not("specialization", "ilike", "%heart%")
-            .not("specialization", "ilike", "%derma%")
-            .not("specialization", "ilike", "%psychiat%");
-        } else if (
-          searchLower === "uro/neuro" ||
-          searchLower === "uro / neuro" ||
-          (searchLower.includes("uro") && searchLower.includes("neuro"))
-        ) {
-          detailsQuery = detailsQuery
-            .or("specialization.ilike.%urology%,specialization.ilike.%neurology%,specialization.ilike.%urologist%,specialization.ilike.%neurologist%")
-            .not("specialization", "ilike", "%psychiat%");
-        } else if (
-          searchLower.includes("pulmon") ||
-          searchLower.includes("chest") ||
-          searchLower.includes("respirat") ||
-          searchLower.includes("lung")
-        ) {
-          detailsQuery = detailsQuery.or(
-            "specialization.ilike.%pulmon%,specialization.ilike.%chest%,specialization.ilike.%respirat%,specialization.ilike.%lung%"
-          );
+    // Search filter
+    if (search) {
+      const cleanSearch = search.trim().toLowerCase();
+      const strippedSearch = cleanSearch.replace(/^(dr\.|dr\s+|doctor\s+)/i, "").trim();
+      const tokens = Array.from(new Set([cleanSearch, strippedSearch, ...strippedSearch.split(/\s+/)].filter(Boolean))).filter(t => t.length >= 2);
+
+      filteredDetails = filteredDetails.filter((doc) => {
+        const fullName = (doc.full_name || "").toLowerCase();
+        const spec = (doc.specialization || "").toLowerCase();
+        const clinicName = (doc.clinic_name || "").toLowerCase();
+        const clinicAddr = (doc.clinic_address || "").toLowerCase();
+        return tokens.some(t =>
+          fullName.includes(t) ||
+          spec.includes(t) ||
+          clinicName.includes(t) ||
+          clinicAddr.includes(t)
+        );
+      });
+    }
+
+    // Filter by Appointment Mode
+    if (appointmentMode && appointmentMode !== "all") {
+      filteredDetails = filteredDetails.filter((doc) => {
+        if (appointmentMode === "clinic") {
+          return isFeeServed(doc.clinic_consultation_fee) || isFeeServed(doc.consultation_fee);
+        }
+        if (appointmentMode === "video") {
+          return isFeeServed(doc.video_consultation_fee);
+        }
+        if (appointmentMode === "home") {
+          return isFeeServed(doc.home_visit_fee);
+        }
+        return true;
+      });
+    }
+
+    // Filter by Consultation Fee (checks if any served fee matches the selected tier)
+    if (feeFilter && feeFilter !== "all") {
+      filteredDetails = filteredDetails.filter((doc) => {
+        let fees = [];
+        if (appointmentMode === "clinic") {
+          const f = doc.clinic_consultation_fee ?? doc.consultation_fee;
+          if (isFeeServed(f)) fees.push(Number(f));
+        } else if (appointmentMode === "video") {
+          if (isFeeServed(doc.video_consultation_fee)) fees.push(Number(doc.video_consultation_fee));
+        } else if (appointmentMode === "home") {
+          if (isFeeServed(doc.home_visit_fee)) fees.push(Number(doc.home_visit_fee));
         } else {
-          const strippedSearch = cleanSearch.replace(/^(dr\.|dr\s+|doctor\s+)/i, "").trim();
-          const searchTokens = Array.from(new Set([cleanSearch, strippedSearch, ...strippedSearch.split(/\s+/)].filter(Boolean)))
-            .map((t) => t.replace(/[,()]/g, "").trim())
-            .filter((t) => t.length >= 2);
-
-          const orClauses = [];
-          for (const token of searchTokens) {
-            orClauses.push(
-              `full_name.ilike.%${token}%`,
-              `specialization.ilike.%${token}%`,
-              `clinic_name.ilike.%${token}%`,
-              `clinic_address.ilike.%${token}%`
-            );
-          }
-          if (orClauses.length > 0) {
-            detailsQuery = detailsQuery.or(orClauses.join(","));
-          } else {
-            detailsQuery = detailsQuery.or(`full_name.ilike.%${cleanSearch}%,specialization.ilike.%${cleanSearch}%`);
-          }
+          const clinicVal = doc.clinic_consultation_fee ?? doc.consultation_fee;
+          if (isFeeServed(clinicVal)) fees.push(Number(clinicVal));
+          if (isFeeServed(doc.video_consultation_fee)) fees.push(Number(doc.video_consultation_fee));
+          if (isFeeServed(doc.home_visit_fee)) fees.push(Number(doc.home_visit_fee));
         }
-      }
 
-      const { data: matchedDetails, error: detailsError } = await detailsQuery;
-      if (detailsError) throw detailsError;
+        if (fees.length === 0) return false;
 
-      let filteredDetails = matchedDetails || [];
+        if (feeFilter === "under_500") {
+          return fees.some((f) => f < 500);
+        } else if (feeFilter === "500_1000") {
+          return fees.some((f) => f >= 500 && f <= 1000);
+        } else if (feeFilter === "above_1000") {
+          return fees.some((f) => f >= 1000);
+        }
+        return true;
+      });
+    }
 
-      // Accurate fee filtering
-      if (feeFilter && feeFilter !== "all") {
+    // Filter by Doctor Experience
+    if (experienceFilter && experienceFilter !== "all") {
+      const minExp = parseFloat(experienceFilter);
+      if (!Number.isNaN(minExp) && minExp > 0) {
         filteredDetails = filteredDetails.filter((doc) => {
-          const rawFees = [
-            doc.clinic_consultation_fee,
-            doc.video_consultation_fee,
-            doc.home_visit_fee,
-          ].map((f) => (typeof f === "number" ? f : f ? Number(f) : NaN)).filter((f) => Number.isFinite(f) && f > 0);
-
-          if (rawFees.length === 0) return false;
-          const minFee = Math.min(...rawFees);
-
-          if (feeFilter === "under_500") {
-            return minFee < 500;
-          } else if (feeFilter === "500_1000") {
-            return minFee >= 500 && minFee <= 1000;
-          } else if (feeFilter === "above_1000") {
-            return minFee > 1000;
-          }
-          return true;
+          const exp = Number(doc.experience_years) || 0;
+          return exp >= minExp;
         });
       }
-
-      const matchedIds = filteredDetails.map((d) => d.id);
-      userQuery = userQuery.in("id", matchedIds.length > 0 ? matchedIds : ["00000000-0000-0000-0000-000000000000"]);
     }
 
-    const { data: users, error: usersError, count } = await userQuery
-      .range(offset, offset + limit - 1)
-      .order("created_at", { ascending: false });
+    // Calculate distance for all doctors if user coordinates are valid
+    const validUserCoords =
+      userLat != null &&
+      userLng != null &&
+      !Number.isNaN(Number(userLat)) &&
+      !Number.isNaN(Number(userLng));
 
-    if (usersError) throw usersError;
-    if (!users || users.length === 0) {
-      return { success: true, data: [], pagination: { hasNextPage: false } };
+    // Fallback: If address search text was provided without coordinates, filter by address text
+    if (addressSearch && !validUserCoords) {
+      const cleanAddr = addressSearch.toLowerCase().trim();
+      filteredDetails = filteredDetails.filter((doc) => {
+        const addr = (doc.clinic_address || "").toLowerCase();
+        const cname = (doc.clinic_name || "").toLowerCase();
+        return addr.includes(cleanAddr) || cname.includes(cleanAddr);
+      });
     }
 
-    const userIds = users.map((user) => user.id);
-    const { data: doctorDetails, error: detailsResErr } = await supabase
-      .from("doctor_details")
-      .select("*")
-      .in("id", userIds);
-
-    if (detailsResErr) throw detailsResErr;
-
-    const doctors = users.map((user) => {
-      const details = doctorDetails?.find((detail) => detail.id === user.id) || {};
+    filteredDetails = filteredDetails.map((doc) => {
+      let distanceKm = null;
+      if (validUserCoords) {
+        distanceKm = calculateDistanceKm(userLat, userLng, doc.latitude, doc.longitude);
+      }
       return {
-        ...user,
-        doctor_details: details,
+        ...doc,
+        distanceKm,
       };
     });
 
-    const totalItems = count || 0;
+    // Sorting
+    filteredDetails.sort((a, b) => {
+      if (sortBy === "nearest") {
+        const distA = a.distanceKm != null ? a.distanceKm : 9999999;
+        const distB = b.distanceKm != null ? b.distanceKm : 9999999;
+        if (distA !== distB) return distA - distB;
+        return (b.rating || 0) - (a.rating || 0);
+      }
+      if (sortBy === "rating_high") {
+        return (b.rating || 0) - (a.rating || 0);
+      }
+      if (sortBy === "exp_high") {
+        return (b.experience_years || 0) - (a.experience_years || 0);
+      }
+      if (sortBy === "fee_low" || sortBy === "fee_high") {
+        const getMinServed = (doc) => {
+          const list = [
+            doc.clinic_consultation_fee ?? doc.consultation_fee,
+            doc.video_consultation_fee,
+            doc.home_visit_fee,
+          ]
+            .filter(isFeeServed)
+            .map(Number);
+          return list.length > 0 ? Math.min(...list) : 9999999;
+        };
+        const feeA = getMinServed(a);
+        const feeB = getMinServed(b);
+        return sortBy === "fee_low" ? feeA - feeB : feeB - feeA;
+      }
+      if (sortBy === "name_asc") {
+        return (a.full_name || "").localeCompare(b.full_name || "");
+      }
+      // default: recommended (higher rating first, then more experience)
+      const ratingDiff = (b.rating || 0) - (a.rating || 0);
+      if (ratingDiff !== 0) return ratingDiff;
+      return (b.experience_years || 0) - (a.experience_years || 0);
+    });
+
+    // Pagination
+    const totalItems = filteredDetails.length;
     const totalPages = Math.ceil(totalItems / limit);
+    const paginatedDetails = filteredDetails.slice(offset, offset + limit);
     const hasNextPage = page < totalPages;
+
+    // Format doctor card structure
+    const doctors = paginatedDetails.map((details) => {
+      return {
+        id: details.id,
+        phone_number: details.phone_number,
+        phone: details.phone_number,
+        email: details.email,
+        role: details.role,
+        status: details.status,
+        profile_picture: details.profile_picture || (Array.isArray(details.passport_photo) ? details.passport_photo[0] : details.passport_photo),
+        created_at: details.created_at,
+        doctor_details: details,
+        distanceKm: details.distanceKm,
+      };
+    });
 
     return {
       success: true,

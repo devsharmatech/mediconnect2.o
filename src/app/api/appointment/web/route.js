@@ -25,13 +25,13 @@ export async function GET(req) {
       baseFilter = sql`${baseFilter} AND a.status = ${status}`;
     }
     if (date) {
-      baseFilter = sql`${baseFilter} AND a.appointment_date = ${date}`;
+      baseFilter = sql`${baseFilter} AND (a.appointment_date = ${date}::date OR a.appointment_date::text LIKE ${date + '%'})`;
     }
     if (doctor_id) {
-      baseFilter = sql`${baseFilter} AND a.doctor_id = ${doctor_id}`;
+      baseFilter = sql`${baseFilter} AND a.doctor_id::text = ${doctor_id}`;
     }
     if (patient_id) {
-      baseFilter = sql`${baseFilter} AND a.patient_id = ${patient_id}`;
+      baseFilter = sql`${baseFilter} AND a.patient_id::text = ${patient_id}`;
     }
     if (search) {
       const searchPattern = `%${search}%`;
@@ -39,9 +39,12 @@ export async function GET(req) {
         pd.full_name ILIKE ${searchPattern} OR
         pd.email ILIKE ${searchPattern} OR
         pu.phone_number ILIKE ${searchPattern} OR
+        pu.un_id::text ILIKE ${searchPattern} OR
         dd.full_name ILIKE ${searchPattern} OR
         dd.email ILIKE ${searchPattern} OR
-        du.phone_number ILIKE ${searchPattern}
+        du.phone_number ILIKE ${searchPattern} OR
+        du.un_id::text ILIKE ${searchPattern} OR
+        a.id::text ILIKE ${searchPattern}
       )`;
     }
 

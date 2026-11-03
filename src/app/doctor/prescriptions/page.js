@@ -75,35 +75,48 @@ export default function Prescriptions() {
     setShowPatientDropdown(false);
     setIsLoadingWorkspace(true);
     try {
-      const res = await api.post('/consultation/start', {
-        patient_id: patient.id,
-        symptoms: 'Routine E-Prescription Creation',
-        consultation_mode: 'CLINIC_VISIT'
+      const docId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+      const resApt = await api.post('/appointment/doctor-appointment', {
+        doctor_id: docId,
+        date_filter: 'all'
       });
-      if (res.success && res.data) {
-        const patientAgeVal = calculatePatientAgeHelper(patient.date_of_birth, patient.age);
-        setMockAppointment({
-          id: res.data.consultation_id,
-          patient_id: patient.id,
-          care_episode_id: res.data.care_episode_id,
-          patient: {
-            id: patient.id,
-            full_name: patient.full_name,
-            gender: patient.gender,
-            date_of_birth: patient.date_of_birth,
-            age: patientAgeVal,
-            blood_group: patient.blood_group,
-            phone: patient.phone,
-            email: patient.email,
-          },
-          status: 'ACTIVE'
-        });
-      } else {
-        toast.error("Failed to initialize clinical workspace. Please try again.");
+      const appointmentsList = resApt.success && Array.isArray(resApt.data) 
+        ? resApt.data 
+        : (resApt.data?.appointments || []);
+      
+      const matchingApt = appointmentsList.find(a => 
+        (a.patient_id === patient.id || a.patient?.id === patient.id) &&
+        !['cancelled', 'rejected'].includes(String(a.status).toLowerCase())
+      );
+
+      if (!matchingApt) {
+        toast.error("No valid consultation appointment found for this patient. Medical regulations require an active appointment before issuing a prescription.");
+        setIsLoadingWorkspace(false);
+        return;
       }
+
+      const patientAgeVal = calculatePatientAgeHelper(patient.date_of_birth, patient.age);
+      setMockAppointment({
+        id: matchingApt.id,
+        patient_id: patient.id,
+        care_episode_id: matchingApt.care_episode_id || matchingApt.id,
+        appointment_type: matchingApt.appointment_type || 'clinic_visit',
+        appointment_date: matchingApt.appointment_date,
+        patient: {
+          id: patient.id,
+          full_name: patient.full_name,
+          gender: patient.gender,
+          date_of_birth: patient.date_of_birth,
+          age: patientAgeVal,
+          blood_group: patient.blood_group,
+          phone: patient.phone,
+          email: patient.email,
+        },
+        status: matchingApt.status || 'ACTIVE'
+      });
     } catch (err) {
       console.error(err);
-      toast.error("An error occurred starting the clinical workspace.");
+      toast.error("Could not verify consultation records for this patient.");
     } finally {
       setIsLoadingWorkspace(false);
     }
@@ -633,17 +646,10 @@ export default function Prescriptions() {
                           <div className="inline-flex items-center gap-1.5">
                             <button
                               onClick={() => setCurrentPrescription(prescription)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-[#0067A1] hover:bg-[#0067A1]/5 hover:border-[#0067A1]/30 transition-colors"
                             >
                               <FaChevronRight className="w-3.5 h-3.5" />
                               <span>View</span>
-                            </button>
-                            <button
-                              onClick={() => handleDelete(prescription)}
-                              className="p-2 rounded-lg border border-slate-200 hover:border-rose-200 hover:bg-rose-50"
-                              title="Delete"
-                            >
-                              <FaTrash className="w-3.5 h-3.5 text-slate-500 hover:text-rose-600" />
                             </button>
                           </div>
                         </td>
@@ -796,57 +802,6 @@ export default function Prescriptions() {
             onClose={() => setCurrentPrescription(null)}
             isDoctor={true}
           />
-        )}
-
-        {/* Custom UI Modal for Prescription Deletion */}
-        {prescriptionToDelete && (
-          <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-fadeIn overflow-hidden">
-            <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-100 max-w-md w-full h-full sm:h-auto overflow-hidden flex flex-col justify-between pb-safe">
-              <div className="p-6 text-center space-y-4 my-auto">
-                <div className="w-14 h-14 mx-auto rounded-full bg-red-50 flex items-center justify-center text-red-500">
-                  <FaTrash className="w-6 h-6" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-lg font-bold text-slate-800">Delete Prescription</h3>
-                  <p className="text-sm text-slate-600">
-                    Are you sure you want to delete the prescription for{" "}
-                    <span className="font-semibold text-slate-800">
-                      {prescriptionToDelete.patientName || "this patient"}
-                    </span>
-                    ? This action cannot be undone.
-                  </p>
-                </div>
-              </div>
-              <div className="bg-slate-50 px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-end gap-2.5 sm:gap-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setPrescriptionToDelete(null)}
-                  disabled={isDeleting}
-                  className="flex-1 sm:flex-none justify-center px-4 py-2.5 sm:py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmDelete}
-                  disabled={isDeleting}
-                  className="flex-1 sm:flex-none justify-center inline-flex items-center gap-2 px-4 py-2.5 sm:py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {isDeleting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <FaTrash className="w-3.5 h-3.5" />
-                      Delete Prescription
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
         )}
       </div>
     </div>

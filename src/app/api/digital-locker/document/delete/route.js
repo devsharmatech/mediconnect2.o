@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { deleteFromS3, extractKeyFromUrl } from "@/lib/s3";
 
 export async function DELETE(request) {
@@ -13,15 +13,14 @@ export async function DELETE(request) {
       );
     }
 
-    // Fetch document details to get S3 key
-    const { data: doc, error: fetchError } = await supabase
-      .from("digital_locker_documents")
-      .select("*")
-      .eq("id", document_id)
-      .eq("user_id", user_id)
-      .maybeSingle();
+    const rows = await sql`
+      SELECT *
+      FROM digital_locker_documents
+      WHERE id = ${document_id} AND user_id = ${user_id}
+      LIMIT 1
+    `;
+    const doc = rows[0];
 
-    if (fetchError) throw fetchError;
     if (!doc) {
       return NextResponse.json(
         { success: false, message: "Document not found or access denied" },
@@ -29,7 +28,6 @@ export async function DELETE(request) {
       );
     }
 
-    // Try deleting file from S3
     if (doc.document_url) {
       const s3Key = extractKeyFromUrl(doc.document_url);
       if (s3Key) {
@@ -41,21 +39,16 @@ export async function DELETE(request) {
       }
     }
 
-    // Delete record from digital_locker_documents table
-    const { error: deleteError } = await supabase
-      .from("digital_locker_documents")
-      .delete()
-      .eq("id", document_id)
-      .eq("user_id", user_id);
-
-    if (deleteError) throw deleteError;
+    await sql`
+      DELETE FROM digital_locker_documents
+      WHERE id = ${document_id} AND user_id = ${user_id}
+    `;
 
     return NextResponse.json({
       success: true,
       message: "Document deleted successfully",
       deleted_id: document_id,
     });
-
   } catch (error) {
     console.error("Digital locker document delete error:", error);
     return NextResponse.json(

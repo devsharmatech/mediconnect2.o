@@ -34,7 +34,7 @@ export default function SubscribersPage() {
         const csvContent =
             "data:text/csv;charset=utf-8," +
             "Email,Subscribed At\n" +
-            subscribers.map((s) => `${s.email},${s.subscribed_at}`).join("\n");
+            filteredSubscribers.map((s) => `${s.email},${s.subscribed_at}`).join("\n");
 
         const link = document.createElement("a");
         link.setAttribute("href", encodeURI(csvContent));

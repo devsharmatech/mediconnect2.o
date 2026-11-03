@@ -1,21 +1,6 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
-/**
- * GET /api/doctors/onboarding/status
- *
- * Returns the full onboarding status for a doctor.
- * Query params: ?doctor_id=<uuid>  OR  ?email=<email>  OR  ?phone=<phone>
- *
- * Response includes:
- *   - status (state machine value)
- *   - otp_verified
- *   - agreement_accepted
- *   - registration_verified
- *   - allowed_to_consult
- *   - otp_failure_flagged
- *   - last consent version accepted
- */
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -35,24 +20,24 @@ export async function GET(request) {
 
     let resolvedDoctorId = doctor_id;
 
-    // Resolve by phone
     if (!resolvedDoctorId && phone) {
-      const { data: users } = await supabase
-        .from("users")
-        .select("id")
-        .eq("phone_number", phone)
-        .eq("role", "doctor")
-        .limit(1);
+      const users = await sql`
+        SELECT id
+        FROM users
+        WHERE phone_number = ${phone}
+          AND role = 'doctor'
+        LIMIT 1
+      `;
       if (users && users.length > 0) resolvedDoctorId = users[0].id;
     }
 
-    // Resolve by email
     if (!resolvedDoctorId && email) {
-      const { data: details } = await supabase
-        .from("doctor_details")
-        .select("id")
-        .eq("email", email)
-        .limit(1);
+      const details = await sql`
+        SELECT id
+        FROM doctor_details
+        WHERE email = ${email}
+        LIMIT 1
+      `;
       if (details && details.length > 0) resolvedDoctorId = details[0].id;
     }
 
@@ -63,30 +48,30 @@ export async function GET(request) {
       );
     }
 
-    // Fetch onboarding status record
-    const { data: statusData, error: statusError } = await supabase
-      .from("doctor_onboarding_status")
-      .select("*")
-      .eq("doctor_id", resolvedDoctorId)
-      .single();
+    const statusRows = await sql`
+      SELECT *
+      FROM doctor_onboarding_status
+      WHERE doctor_id = ${resolvedDoctorId}
+      LIMIT 1
+    `;
+    const statusData = statusRows[0] || null;
 
-    if (statusError || !statusData) {
+    if (!statusData) {
       return NextResponse.json(
         { success: false, error: "Onboarding status record not found." },
         { status: 404 }
       );
     }
 
-    // Fetch latest accepted consent version
-    const { data: latestConsent } = await supabase
-      .from("doctor_consents")
-      .select("consent_version, accepted_at")
-      .eq("doctor_id", resolvedDoctorId)
-      .eq("agreement_accepted", true)
-      .order("accepted_at", { ascending: false })
-      .limit(1);
+    const latestConsent = await sql`
+      SELECT consent_version, accepted_at
+      FROM doctor_consents
+      WHERE doctor_id = ${resolvedDoctorId}
+        AND agreement_accepted = true
+      ORDER BY accepted_at DESC
+      LIMIT 1
+    `;
 
-    // Determine if doctor can consult (all 3 flags must be true)
     const canConsult =
       statusData.registration_verified === true &&
       statusData.agreement_accepted === true &&

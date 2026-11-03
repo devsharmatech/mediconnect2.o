@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 
@@ -6,16 +6,16 @@ export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
-// Map appointment_type -> doctor_details column
 const SLOT_COLUMN_MAP = {
   clinic_visit: "clinic_slots",
+  clinic_follow_up: "clinic_slots",
   video_consultation: "video_slots",
+  video_follow_up: "video_slots",
   home_visit: "home_slots",
+  home_follow_up: "home_slots",
+  follow_up: "clinic_slots",
 };
 
-/**
- * Normalizes time strings like "9:00 AM", "09:00:00", "9:00" to 24-hour "HH:MM" format.
- */
 function parseTimeTo24h(str) {
   if (!str || typeof str !== "string") return "";
   const clean = str.trim();
@@ -35,38 +35,37 @@ function parseTimeTo24h(str) {
   return clean;
 }
 
-/**
- * Extracts start/end intervals for a specific weekday from typeSlots or general available_time.
- */
 function resolveIntervals(typeSlots, availableTime, fullWeekday, shortWeekday) {
   let rawSlots = typeSlots;
   if (typeof rawSlots === "string") {
-    try { rawSlots = JSON.parse(rawSlots); } catch { rawSlots = null; }
+    try {
+      rawSlots = JSON.parse(rawSlots);
+    } catch {
+      rawSlots = null;
+    }
   }
 
   let intervals = [];
 
   if (rawSlots && typeof rawSlots === "object") {
-    // 1. Direct interval object: { start: "09:00", end: "21:00" }
     if (rawSlots.start && rawSlots.end) {
       intervals = [{ start: parseTimeTo24h(rawSlots.start), end: parseTimeTo24h(rawSlots.end) }];
-    }
-    // 2. Direct array of intervals: [{ start: "09:00", end: "21:00" }]
-    else if (Array.isArray(rawSlots) && rawSlots.length > 0 && rawSlots[0]?.start && rawSlots[0]?.end) {
-      intervals = rawSlots.map(s => ({ start: parseTimeTo24h(s.start), end: parseTimeTo24h(s.end) }));
-    }
-    // 3. Object with weekday keys: { "Monday": ..., "Wednesday": ..., "Wed": ..., "wednesday": ... }
-    else {
-      const daySlot = rawSlots[fullWeekday] || 
-                      rawSlots[shortWeekday] || 
-                      rawSlots[fullWeekday.toLowerCase()] || 
-                      rawSlots[shortWeekday.toLowerCase()];
+    } else if (Array.isArray(rawSlots) && rawSlots.length > 0 && rawSlots[0]?.start && rawSlots[0]?.end) {
+      intervals = rawSlots.map((s) => ({ start: parseTimeTo24h(s.start), end: parseTimeTo24h(s.end) }));
+    } else {
+      const daySlot =
+        rawSlots[fullWeekday] ||
+        rawSlots[shortWeekday] ||
+        rawSlots[fullWeekday.toLowerCase()] ||
+        rawSlots[shortWeekday.toLowerCase()];
       if (daySlot) {
         if (Array.isArray(daySlot)) {
-          intervals = daySlot.filter(s => s.start && s.end).map(s => ({
-            start: parseTimeTo24h(s.start),
-            end: parseTimeTo24h(s.end)
-          }));
+          intervals = daySlot
+            .filter((s) => s.start && s.end)
+            .map((s) => ({
+              start: parseTimeTo24h(s.start),
+              end: parseTimeTo24h(s.end),
+            }));
         } else if (daySlot.start && daySlot.end) {
           intervals = [{ start: parseTimeTo24h(daySlot.start), end: parseTimeTo24h(daySlot.end) }];
         }
@@ -74,70 +73,88 @@ function resolveIntervals(typeSlots, availableTime, fullWeekday, shortWeekday) {
     }
   }
 
-  // Fallback to doctor's general available_time if typeSlots returned no intervals
   if (intervals.length === 0 && availableTime) {
     let rawTime = availableTime;
     if (typeof rawTime === "string") {
-      try { rawTime = JSON.parse(rawTime); } catch {}
+      try {
+        rawTime = JSON.parse(rawTime);
+      } catch {}
     }
 
     if (typeof rawTime === "object" && rawTime?.start && rawTime?.end) {
       intervals = [{ start: parseTimeTo24h(rawTime.start), end: parseTimeTo24h(rawTime.end) }];
     } else if (typeof rawTime === "string" && rawTime.includes("-")) {
-      const parts = rawTime.split("-").map(s => s.trim());
+      const parts = rawTime.split("-").map((s) => s.trim());
       if (parts.length === 2 && parts[0] && parts[1]) {
         intervals = [{ start: parseTimeTo24h(parts[0]), end: parseTimeTo24h(parts[1]) }];
       }
     }
   }
 
-  return intervals.filter(s => s.start && s.end && s.start < s.end);
+  return intervals.filter((s) => s.start && s.end && s.start < s.end);
 }
 
 export async function POST(req) {
   try {
     const { doctor_id, date, appointment_type = "video_consultation" } = await req.json();
 
-    if (!doctor_id || !date)
+    if (!doctor_id || !date) {
       return failure("doctor_id and date required", null, 400, { headers: corsHeaders });
+    }
 
-    // Fetch doctor details
-    const { data: doctor, error: doctorErr } = await supabase
-      .from("doctor_details")
-      .select("available_days, available_time, clinic_slots, video_slots, home_slots, leave_days, is_open, slot_interval_minutes")
-      .eq("id", doctor_id)
-      .maybeSingle();
-
-    if (doctorErr) throw doctorErr;
+    const docRows = await sql`
+      SELECT available_days, available_time, clinic_slots, video_slots, home_slots, leave_days, is_open, is_available, slot_interval_minutes
+      FROM doctor_details
+      WHERE id = ${doctor_id}
+      LIMIT 1
+    `;
+    const doctor = docRows[0];
     if (!doctor) return failure("Doctor not found", null, 404, { headers: corsHeaders });
 
-    // Check if doctor is open
-    if (doctor.is_open === false) {
+    if (doctor.is_open === false || doctor.is_available === false) {
       return success("Doctor is currently not accepting appointments.", [], 200, { headers: corsHeaders });
     }
 
-    // Derive weekday names
     const [yyyy, mm, dd] = date.split("-").map(Number);
     const localDate = new Date(yyyy, mm - 1, dd);
     const shortWeekday = localDate.toLocaleString("en-US", { weekday: "short" });
     const fullWeekday = localDate.toLocaleString("en-US", { weekday: "long" });
 
-    // Check leave_days
-    const leaveDays = Array.isArray(doctor.leave_days)
-      ? doctor.leave_days
-      : (typeof doctor.leave_days === "string" ? JSON.parse(doctor.leave_days) : []);
+    let leaveDays = [];
+    if (Array.isArray(doctor.leave_days)) {
+      leaveDays = doctor.leave_days;
+    } else if (typeof doctor.leave_days === "string") {
+      try {
+        leaveDays = JSON.parse(doctor.leave_days);
+      } catch {
+        leaveDays = doctor.leave_days.split(",").map((s) => s.trim()).filter(Boolean);
+      }
+    }
 
-    if (leaveDays.some(ld => String(ld).toLowerCase() === fullWeekday.toLowerCase() || String(ld).toLowerCase() === shortWeekday.toLowerCase())) {
+    if (
+      Array.isArray(leaveDays) &&
+      leaveDays.some(
+        (ld) =>
+          String(ld).toLowerCase() === fullWeekday.toLowerCase() ||
+          String(ld).toLowerCase() === shortWeekday.toLowerCase()
+      )
+    ) {
       return success(`Doctor is on leave on ${fullWeekday}.`, [], 200, { headers: corsHeaders });
     }
 
-    // Check available_days if configured
-    const availableDays = Array.isArray(doctor.available_days)
-      ? doctor.available_days
-      : (typeof doctor.available_days === "string" ? JSON.parse(doctor.available_days) : []);
+    let availableDays = [];
+    if (Array.isArray(doctor.available_days)) {
+      availableDays = doctor.available_days;
+    } else if (typeof doctor.available_days === "string") {
+      try {
+        availableDays = JSON.parse(doctor.available_days);
+      } catch {
+        availableDays = doctor.available_days.split(",").map((s) => s.trim()).filter(Boolean);
+      }
+    }
 
-    if (availableDays.length > 0) {
-      const isAvailable = availableDays.some(ad => {
+    if (Array.isArray(availableDays) && availableDays.length > 0) {
+      const isAvailable = availableDays.some((ad) => {
         const adClean = String(ad).trim().toLowerCase();
         return adClean === fullWeekday.toLowerCase() || adClean === shortWeekday.toLowerCase();
       });
@@ -146,7 +163,6 @@ export async function POST(req) {
       }
     }
 
-    // Resolve intervals for requested appointment type with fallback to available_time
     const slotColumnKey = SLOT_COLUMN_MAP[appointment_type] || "video_slots";
     const typeSlots = doctor[slotColumnKey];
     const intervals = resolveIntervals(typeSlots, doctor.available_time, fullWeekday, shortWeekday);
@@ -160,9 +176,8 @@ export async function POST(req) {
       );
     }
 
-    // Generate slot times using interval (default 15 minutes)
     const slots = [];
-    const slotInterval = doctor.slot_interval_minutes || 15;
+    const slotInterval = Math.max(5, Number(doctor.slot_interval_minutes) || 10);
 
     intervals.forEach(({ start, end }) => {
       let current = new Date(`1970-01-01T${start}:00`);
@@ -170,7 +185,7 @@ export async function POST(req) {
 
       while (current < endLimit) {
         const time = current.toTimeString().slice(0, 5);
-        if (!slots.some(s => s.time === time)) {
+        if (!slots.some((s) => s.time === time)) {
           slots.push({ time, slot_booked: false });
         }
         current.setMinutes(current.getMinutes() + slotInterval);
@@ -179,19 +194,16 @@ export async function POST(req) {
 
     slots.sort((a, b) => a.time.localeCompare(b.time));
 
-    // Fetch booked slots
-    const { data: bookedAppointments, error: appErr } = await supabase
-      .from("appointments")
-      .select("appointment_time")
-      .eq("doctor_id", doctor_id)
-      .eq("appointment_date", date)
-      .in("status", ["booked", "approved", "completed", "freezed"]);
+    const bookedAppointments = await sql`
+      SELECT appointment_time::text AS appointment_time
+      FROM appointments
+      WHERE doctor_id = ${doctor_id}
+        AND appointment_date = ${date}::date
+        AND status IN ('booked', 'approved', 'completed', 'freezed')
+    `;
 
-    if (appErr) throw appErr;
+    const bookedTimes = bookedAppointments.map((a) => (a.appointment_time || "").slice(0, 5));
 
-    const bookedTimes = bookedAppointments?.map((a) => a.appointment_time.slice(0, 5)) || [];
-
-    // Mark booked slots
     const finalSlots = slots.map((slot) => ({
       ...slot,
       slot_booked: bookedTimes.includes(slot.time),

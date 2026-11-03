@@ -94,6 +94,10 @@ export async function GET(req) {
       license_number: doctor.license_number || "",
       secondBookingDiscountType: doctor.second_booking_discount_type || "none",
       secondBookingDiscountValue: Number(doctor.second_booking_discount_value || 0),
+      onboarding_status: doctor.onboarding_status || "pending",
+      allowed_to_consult: Boolean(doctor.allowed_to_consult),
+      is_available: doctor.is_available !== false,
+      super_speciality: Array.isArray(doctor.meta?.super_speciality) ? doctor.meta.super_speciality : [],
     };
 
     return success("Profile fetched successfully", profile, 200, { headers: corsHeaders });
@@ -134,6 +138,26 @@ export async function POST(req) {
 
     if (!doctor_id) {
       return failure("doctor_id is required", null, 400, { headers: corsHeaders });
+    }
+
+    // Item 16: Guard against unapproved doctors modifying live profile settings
+    const statusCheck = await sql`
+      SELECT onboarding_status, allowed_to_consult
+      FROM doctor_details
+      WHERE id = ${doctor_id}
+      LIMIT 1
+    `;
+    if (statusCheck.length > 0) {
+      const docStatus = String(statusCheck[0].onboarding_status || "").toLowerCase();
+      const canConsult = Boolean(statusCheck[0].allowed_to_consult);
+      if (docStatus !== "approved" && !canConsult) {
+        return failure(
+          "Your account is pending Admin & KYC approval. Live profile settings can only be modified after approval.",
+          null,
+          403,
+          { headers: corsHeaders }
+        );
+      }
     }
 
     const bioValue = bio !== undefined ? bio : about_me;

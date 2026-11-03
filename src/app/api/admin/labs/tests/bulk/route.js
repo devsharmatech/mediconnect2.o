@@ -1,6 +1,7 @@
 import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+import { resolveTestCollectionType } from "@/lib/labSearchHelper";
 
 export const dynamic = 'force-dynamic';
 
@@ -139,9 +140,15 @@ export async function POST(req) {
                 }
             }
 
-            // Parse collection type (home, lab, both)
-            const rawColType = String(t.collection_type || t["Collection Type"] || "lab").trim().toLowerCase();
-            const collection_type = ['home', 'lab', 'both'].includes(rawColType) ? rawColType : 'lab';
+            // Parse collection type (home, lab, both) or auto-infer by test type
+            const rawColType = String(t.collection_type || t["Collection Type"] || "").trim().toLowerCase();
+            const collection_type = ['home', 'lab', 'both'].includes(rawColType)
+                ? rawColType
+                : resolveTestCollectionType({
+                      test_name: testName,
+                      specimen_type: t.specimen_type || t["Sample Type"] || "",
+                      category_name: catName,
+                  });
 
             const generatedTestCode = `MGR${String(nextNumber).padStart(4, '0')}`;
             nextNumber++;

@@ -207,7 +207,7 @@ const Dashboard = () => {
 
   const quickActions = [
     { label: "Appointments", sub: "Book & manage", href: "/appointments", image: "/images/dashboard-icons/appointments.png", gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50/80", text: "text-[#004F7C]" },
-    { label: "Video Consult", sub: "Talk to doctors", href: "/appointments", image: "/images/dashboard-icons/video-consult.png", gradient: "from-sky-500 to-blue-600", bg: "bg-sky-50/80", text: "text-sky-600" },
+    { label: "Video Consult", sub: "Talk to doctors", href: "/doctors?mode=video", image: "/images/dashboard-icons/video-consult.png", gradient: "from-sky-500 to-blue-600", bg: "bg-sky-50/80", text: "text-sky-600" },
     { label: "LungConnect", sub: "Breathe better", href: "/lung-connect", image: "/images/dashboard-icons/lung-connect.png", gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50/80", text: "text-[#0067A1]" },
     { label: "CardioConnect", sub: "Heart vitals & care", href: "/cardio-connect", image: "/images/dashboard-icons/cardio-connect.png", gradient: "from-rose-500 to-pink-600", bg: "bg-rose-50/80", text: "text-rose-600" },
     { label: "Medicines", sub: "Order online", href: "/medicine-order", image: "/images/dashboard-icons/medicines.png", gradient: "from-amber-500 to-orange-600", bg: "bg-amber-50/80", text: "text-amber-700" },
@@ -215,7 +215,7 @@ const Dashboard = () => {
     { label: "Nursing Care", sub: "Home nurse care", href: "/nursing-care/status", image: "/images/dashboard-icons/nursing-care.png", gradient: "from-fuchsia-500 to-purple-600", bg: "bg-fuchsia-50/80", text: "text-fuchsia-700" },
     { label: "Digital Locker", sub: "Secure health vault", href: "/digital-locker", image: "/images/dashboard-icons/digilocker.png", gradient: "from-slate-500 to-gray-700", bg: "bg-slate-50/80", text: "text-slate-700" },
     { label: "Lab Tests", sub: "Sample collection", href: "/dashboard/lab-booking", image: "/images/dashboard-icons/lab-tests.png", gradient: "from-blue-500 to-indigo-600", bg: "bg-blue-50/80", text: "text-[#004F7C]" },
-    { label: "Home Doctor", sub: "Doctor at home", href: "/appointments", image: "/images/dashboard-icons/home-visit.png", gradient: "from-rose-500 to-red-600", bg: "bg-rose-50/80", text: "text-rose-700" },
+    { label: "Home Doctor", sub: "Doctor at home", href: "/doctors?mode=home", image: "/images/dashboard-icons/home-visit.png", gradient: "from-rose-500 to-red-600", bg: "bg-rose-50/80", text: "text-rose-700" },
     { label: "Breathing", sub: "Relax & exercise", href: "/lung-connect?action=breathing", image: "/images/dashboard-icons/lung-connect.png", gradient: "from-emerald-400 to-teal-500", bg: "bg-emerald-50/80", text: "text-emerald-700" },
     { label: "Health Assistant", sub: "24/7 AI guide", onClick: () => window.dispatchEvent(new CustomEvent("open-dr-mediconnect-chat")), image: "/images/dashboard-icons/consultation.png", gradient: "from-emerald-500 to-teal-600", bg: "bg-emerald-50/80", text: "text-emerald-700" },
   ];
@@ -326,7 +326,7 @@ const Dashboard = () => {
               return (
                 <Wrapper key={action.label} {...wrapperProps}
                   className="group relative bg-white rounded-xl border border-gray-100 p-3.5 sm:p-4 hover:shadow-lg hover:border-gray-200 hover:-translate-y-0.5 transition-all duration-200 text-left overflow-hidden flex flex-col justify-between">
-                  <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${action.gradient} opacity-0 group-hover:opacity-100 transition-opacity`} />
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-[#0067A1] opacity-0 group-hover:opacity-100 transition-opacity" />
                   <div>
                     <div className={`w-12 h-12 sm:w-14 sm:h-14 ${action.bg} rounded-xl flex items-center justify-center p-2 mb-3 group-hover:scale-105 transition-transform duration-200 shadow-sm border border-black/[0.04]`}>
                       {action.image ? (
@@ -376,7 +376,7 @@ const Dashboard = () => {
                           appt.status === "booked" ? "bg-amber-50 text-amber-700" :
                             "bg-gray-50 text-gray-950"
                         }`}>
-                        {appt.status === "approved" ? "Confirmed" : appt.status === "booked" ? "Pending" : appt.status}
+                        {appt.status === "approved" ? "Confirmed" : appt.status === "booked" ? "Pending Approval" : appt.status}
                       </span>
                       <h4 className="text-base font-bold text-gray-900 truncate">
                         {appt.doctor?.full_name || appt.doctor_name || "Doctor"}
@@ -425,7 +425,7 @@ const Dashboard = () => {
                 <h3 className="text-sm font-bold text-gray-800">No Appointments Today</h3>
                 <p className="text-xs text-gray-900 mt-1 max-w-xs mx-auto">Schedule a consultation with our experienced specialists for personalized care.</p>
               </div>
-              <Link href="/appointments" className="px-4 py-2 bg-[#0067A1] text-white rounded-[5px] text-xs font-semibold hover:bg-[#004F7C] transition-colors mt-1">
+              <Link href="/doctors" className="px-4 py-2 bg-[#0067A1] text-white rounded-[5px] text-xs font-semibold hover:bg-[#004F7C] transition-colors mt-1">
                 Book Appointment
               </Link>
             </motion.div>
@@ -596,8 +596,7 @@ const Dashboard = () => {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="group relative overflow-hidden rounded-[5px] p-5 sm:p-6 cursor-pointer hover:shadow-xl transition-shadow"
-              style={{ background: "linear-gradient(135deg, #7c3aed 0%, #a855f7 40%, #c084fc 100%)" }}
+              className="group relative overflow-hidden rounded-[5px] p-5 sm:p-6 cursor-pointer hover:shadow-xl transition-shadow bg-[#0067A1]"
             >
               {/* Decorative blobs */}
               {/* Animated floating crosses */}

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 export async function POST(request) {
   try {
@@ -22,15 +22,15 @@ export async function POST(request) {
 
     let resolvedDoctorId = doctor_id;
 
-    // Resolve doctor_id from phone
     if (!resolvedDoctorId && phone) {
-      const { data: users, error: userError } = await supabase
-        .from("users")
-        .select("id")
-        .eq("phone_number", phone)
-        .eq("role", "doctor");
-
-      if (userError || !users || users.length === 0) {
+      const users = await sql`
+        SELECT id
+        FROM users
+        WHERE phone_number = ${phone}
+          AND role = 'doctor'
+        LIMIT 1
+      `;
+      if (!users || users.length === 0) {
         return NextResponse.json(
           { success: false, error: "Doctor not found" },
           { status: 404 }
@@ -39,14 +39,14 @@ export async function POST(request) {
       resolvedDoctorId = users[0].id;
     }
 
-    // Resolve doctor_id from email
     if (!resolvedDoctorId && email) {
-      const { data: details, error: detailsError } = await supabase
-        .from("doctor_details")
-        .select("id")
-        .eq("email", email);
-
-      if (!detailsError && details && details.length > 0) {
+      const details = await sql`
+        SELECT id
+        FROM doctor_details
+        WHERE email = ${email}
+        LIMIT 1
+      `;
+      if (details && details.length > 0) {
         resolvedDoctorId = details[0].id;
       }
     }
@@ -58,15 +58,15 @@ export async function POST(request) {
       );
     }
 
+    const statusRows = await sql`
+      SELECT otp_verified, status
+      FROM doctor_onboarding_status
+      WHERE doctor_id = ${resolvedDoctorId}
+      LIMIT 1
+    `;
+    const statusData = statusRows[0] || null;
 
-    // STRICT STATE MACHINE: OTP must be verified first
-    const { data: statusData, error: statusFetchError } = await supabase
-      .from("doctor_onboarding_status")
-      .select("otp_verified, status")
-      .eq("doctor_id", resolvedDoctorId)
-      .single();
-
-    if (statusFetchError || !statusData?.otp_verified) {
+    if (!statusData?.otp_verified) {
       return NextResponse.json(
         {
           success: false,
@@ -78,62 +78,48 @@ export async function POST(request) {
 
     const capturedAt = new Date().toISOString();
     const capturedIp =
-      ip_address ||
-      request.headers.get("x-forwarded-for") ||
-      "unknown";
+      ip_address || request.headers.get("x-forwarded-for") || "unknown";
     const capturedDevice =
       device_info || request.headers.get("user-agent") || "unknown";
 
-    // Insert consent record
-    const { error: consentError } = await supabase
-      .from("doctor_consents")
-      .insert([
-        {
-          doctor_id: resolvedDoctorId,
+    try {
+      await sql`
+        INSERT INTO doctor_consents (
+          doctor_id,
           consent_version,
-          agreement_accepted: true,
-          accepted_at: capturedAt,
-          ip_address: capturedIp,
-          device_info: capturedDevice,
-        },
-      ]);
-
-    if (consentError) {
+          agreement_accepted,
+          accepted_at,
+          ip_address,
+          device_info
+        )
+        VALUES (
+          ${resolvedDoctorId},
+          ${consent_version},
+          true,
+          ${capturedAt},
+          ${capturedIp},
+          ${capturedDevice}
+        )
+      `;
+    } catch (consentError) {
       console.warn("Could not insert consent record:", consentError.message);
     }
 
-    // ── STATE MACHINE: CONSENT_COMPLETED → READY_FOR_VERIFICATION ────────────
-    // Step 1: Mark CONSENT_COMPLETED
-    await supabase
-      .from("doctor_onboarding_status")
-      .update({
-        agreement_accepted: true,
-        status: "CONSENT_COMPLETED",
-        updated_at: capturedAt,
-      })
-      .eq("doctor_id", resolvedDoctorId);
+    await sql`
+      UPDATE doctor_onboarding_status
+      SET agreement_accepted = true,
+          status = 'READY_FOR_VERIFICATION',
+          updated_at = NOW()
+      WHERE doctor_id = ${resolvedDoctorId}
+    `;
 
-    // Step 2: Immediately transition to READY_FOR_VERIFICATION (both conditions met)
-    const { error: updateError } = await supabase
-      .from("doctor_onboarding_status")
-      .update({
-        status: "READY_FOR_VERIFICATION",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("doctor_id", resolvedDoctorId);
-
-    if (updateError) throw updateError;
-    // ─────────────────────────────────────────────────────────────────────────
-
-    // Also update doctor_details
-    await supabase
-      .from("doctor_details")
-      .update({
-        onboarding_status: "pending",
-        digital_consent: true,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", resolvedDoctorId);
+    await sql`
+      UPDATE doctor_details
+      SET onboarding_status = 'pending',
+          digital_consent = true,
+          updated_at = NOW()
+      WHERE id = ${resolvedDoctorId}
+    `;
 
     return NextResponse.json({
       success: true,

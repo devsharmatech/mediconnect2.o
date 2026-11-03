@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import nodemailer from "nodemailer";
@@ -7,15 +7,13 @@ export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
-// Generate a random 6-digit OTP
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Configure nodemailer (update with your email service)
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT),
+  port: parseInt(process.env.SMTP_PORT || "587", 10),
   secure: process.env.SMTP_SECURE === "true",
   auth: {
     user: process.env.SMTP_USER,
@@ -31,69 +29,53 @@ export async function POST(req) {
       return failure("User ID and email are required.", null, 400);
     }
 
-    // Verify user exists and get role
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("id, phone_number, role")
-      .eq("id", user_id)
-      .single();
-    
-    if (userError || !user) {
+    const users = await sql`
+      SELECT id, phone_number, role
+      FROM users
+      WHERE id = ${user_id}
+      LIMIT 1
+    `;
+    const user = users[0];
+
+    if (!user) {
       return failure("User not found.", null, 404);
     }
 
-    // Map role to table name
-    const roleTableMap = {
-      doctor: "doctor_details",
-      patient: "patient_details",
-      chemist: "chemist_details",
-      lab: "lab_details",
-      pharmacist: "pharmacist_details",
-      admin: "admin_details",
-    };
-
-    const roleTable = roleTableMap[user.role?.toLowerCase()];
-    if (!roleTable) {
+    const role = user.role?.toLowerCase();
+    let roleRows = [];
+    if (role === "doctor") {
+      roleRows = await sql`SELECT email FROM doctor_details WHERE id = ${user_id} LIMIT 1`;
+    } else if (role === "patient") {
+      roleRows = await sql`SELECT email FROM patient_details WHERE id = ${user_id} LIMIT 1`;
+    } else if (role === "chemist" || role === "pharmacist") {
+      roleRows = await sql`SELECT email FROM chemist_details WHERE id = ${user_id} LIMIT 1`;
+    } else if (role === "lab") {
+      roleRows = await sql`SELECT email FROM lab_details WHERE id = ${user_id} LIMIT 1`;
+    } else if (role === "admin") {
+      roleRows = await sql`SELECT email FROM admin_details WHERE id = ${user_id} LIMIT 1`;
+    } else {
       return failure("Invalid user role.", null, 400);
     }
 
-    // Get email from role-specific table
-    const { data: roleData, error: roleError } = await supabase
-      .from(roleTable)
-      .select("email")
-      .eq("id", user_id)
-      .single();
-
-    if (roleError || !roleData) {
+    const roleData = roleRows[0];
+    if (!roleData) {
       return failure("User details not found.", null, 404);
     }
 
-    // Verify email matches
-    if (roleData.email?.toLowerCase() !== email.toLowerCase()) {
+    if (roleData.email && roleData.email.toLowerCase() !== email.toLowerCase()) {
       return failure("Email does not match user account.", null, 400);
     }
 
     const otp = generateOTP();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-    // Insert email verification record
-    const { data: verification, error: verificationError } = await supabase
-      .from("email_verifications")
-      .insert({
-        user_id,
-        email,
-        otp_code: otp,
-        otp_expires_at: expiresAt,
-      })
-      .select()
-      .single();
+    const verifications = await sql`
+      INSERT INTO email_verifications (user_id, email, otp_code, otp_expires_at)
+      VALUES (${user_id}, ${email}, ${otp}, ${expiresAt})
+      RETURNING *
+    `;
+    const verification = verifications[0];
 
-    if (verificationError) throw verificationError;
-
-    // Log OTP in console for local development testing
-    console.log(`[DEV] Email OTP sent to ${email}: ${otp}`);
-
-    // Send OTP via email
     try {
       await transporter.sendMail({
         from: process.env.SMTP_USER,
@@ -102,19 +84,17 @@ export async function POST(req) {
         html: `
           <h2>Email Verification</h2>
           <p>Your OTP for email verification on MediConnect is:</p>
-          <h1 style="color: #007bff; font-size: 32px; letter-spacing: 5px;">${otp}</h1>
+          <h1 style="color: #0067A1; font-size: 32px; letter-spacing: 5px;">${otp}</h1>
           <p>This OTP is valid for 10 minutes.</p>
           <p>Do not share this OTP with anyone.</p>
-          <p>If you didn't request this, please ignore this email.</p>
         `,
       });
     } catch (emailError) {
       console.error("Email sending error:", emailError);
-      // Continue even if email fails for development
     }
 
     return success("OTP sent successfully to your email.", {
-      verification_id: verification.id,
+      verification_id: verification?.id,
       email,
       expires_in_minutes: 10,
     });

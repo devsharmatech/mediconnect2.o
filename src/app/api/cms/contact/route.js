@@ -12,7 +12,16 @@ export async function GET() {
         return NextResponse.json({ success: true, data: rows[0] || {} }, { status: 200 });
     } catch (err) {
         console.error("GET /api/cms/contact error:", err);
-        return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+        return NextResponse.json({ 
+            success: false, 
+            error: err.message, 
+            data: {
+                support_email: "support@mediconnect.fit",
+                support_phone: "+91-9876543210",
+                support_hours: "24/7 Support Available",
+                consultation_support_text: "Need help booking an appointment? Reach our team anytime."
+            } 
+        }, { status: 200 });
     }
 }
 

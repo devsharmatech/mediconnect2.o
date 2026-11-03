@@ -809,6 +809,7 @@ export default function RefundsPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
   const [page, setPage] = useState(1);
@@ -816,6 +817,15 @@ export default function RefundsPage() {
   // Modals
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -845,10 +855,8 @@ export default function RefundsPage() {
     fetchData();
   }, [fetchData]);
 
-  // Debounced search
   const handleSearchChange = (e) => {
-    setSearch(e.target.value);
-    setPage(1);
+    setSearchInput(e.target.value);
   };
 
   const handleCopy = (text) => {
@@ -966,13 +974,13 @@ export default function RefundsPage() {
               <input
                 type="text"
                 placeholder="Search patient, payment ID..."
-                value={search}
+                value={searchInput}
                 onChange={handleSearchChange}
                 className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:border-[#0067A1] focus:bg-white transition-all shadow-2xs"
               />
-              {search && (
+              {searchInput && (
                 <button
-                  onClick={() => { setSearch(""); setPage(1); }}
+                  onClick={() => { setSearchInput(""); setSearch(""); setPage(1); }}
                   className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
                 >
                   <X size={13} />

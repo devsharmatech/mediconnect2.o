@@ -1986,12 +1986,15 @@ export default function HealthInsurancePage() {
 
   useEffect(() => {
     if (activeTab === "policies") {
-      fetchPolicies(
-        pagination.currentPage,
-        searchTerm,
-        typeFilter,
-        providerFilter
-      );
+      const timer = setTimeout(() => {
+        fetchPolicies(
+          1,
+          searchTerm,
+          typeFilter,
+          providerFilter
+        );
+      }, 400);
+      return () => clearTimeout(timer);
     }
   }, [
     searchTerm,
@@ -2000,6 +2003,17 @@ export default function HealthInsurancePage() {
     pagination.itemsPerPage,
     activeTab,
   ]);
+
+  useEffect(() => {
+    if (activeTab === "policies") {
+      fetchPolicies(
+        pagination.currentPage,
+        searchTerm,
+        typeFilter,
+        providerFilter
+      );
+    }
+  }, [pagination.currentPage]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {

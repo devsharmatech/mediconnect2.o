@@ -1606,7 +1606,10 @@ export default function ChemistsPage() {
   };
 
   useEffect(() => {
-    fetchChemists(1, searchTerm, statusFilter);
+    const timer = setTimeout(() => {
+      fetchChemists(1, searchTerm, statusFilter);
+    }, 400);
+    return () => clearTimeout(timer);
   }, [searchTerm, statusFilter]);
 
   const handlePageChange = (newPage) => {

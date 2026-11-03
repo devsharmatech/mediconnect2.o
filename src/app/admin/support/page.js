@@ -56,6 +56,7 @@ export default function AdminSupportPage() {
     total_contact_messages: 0,
   });
 
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -63,6 +64,15 @@ export default function AdminSupportPage() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [newStatus, setNewStatus] = useState("");
+
+  // Debounce search input and reset page to 1
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -231,11 +241,8 @@ export default function AdminSupportPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
                 type="text"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 placeholder={activeTab === "tickets" ? "Search ticket, user, phone..." : "Search name, email, query..."}
                 className="pl-9 pr-3.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder-slate-400 outline-none focus:ring-2 focus:ring-[#0067A1]/20 w-full sm:w-60"
               />

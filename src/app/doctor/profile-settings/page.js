@@ -37,7 +37,8 @@ import {
   FaCheck,
   FaChevronDown,
   FaChevronUp,
-  FaVideo
+  FaVideo,
+  FaHome
 } from "react-icons/fa";
 import api from "@/utils/websiteApi";
 
@@ -190,6 +191,8 @@ const Field = ({
   textarea = false,
   rows = 3,
   onChange,
+  disabled = false,
+  placeholder = "",
 }) => (
   <div className="space-y-1.5">
     <label className="block text-xs font-semibold text-slate-700">
@@ -202,7 +205,13 @@ const Field = ({
           value={value || ""}
           onChange={onChange}
           rows={rows}
-          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-colors"
+          disabled={disabled}
+          placeholder={placeholder}
+          className={`w-full px-3 py-2 text-sm rounded-lg border transition-colors ${
+            disabled
+              ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+              : "bg-white text-slate-800 border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1]"
+          }`}
         />
       ) : (
         <input
@@ -210,12 +219,20 @@ const Field = ({
           name={name}
           value={value || ""}
           onChange={onChange}
-          className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-colors"
+          disabled={disabled}
+          placeholder={placeholder}
+          className={`w-full px-3 py-2 text-sm rounded-lg border transition-colors ${
+            disabled
+              ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+              : "bg-white text-slate-800 border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1]"
+          }`}
         />
       )
     ) : (
-      <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200/80 text-slate-800 text-sm min-h-[38px] flex items-center">
-        {value || <span className="text-slate-400 font-normal">—</span>}
+      <div className={`px-3 py-2 rounded-lg border text-sm min-h-[38px] flex items-center ${
+        disabled ? "bg-slate-100/70 border-slate-200 text-slate-400 italic" : "bg-slate-50 border-slate-200/80 text-slate-800"
+      }`}>
+        {disabled ? "Mode Disabled" : (value || <span className="text-slate-400 font-normal">—</span>)}
       </div>
     )}
   </div>
@@ -270,6 +287,10 @@ export default function DoctorProfile() {
   });
   const [profilePicture, setProfilePicture] = useState("");
   const [newProfileFile, setNewProfileFile] = useState(null);
+  const [enabledModes, setEnabledModes] = useState({ video: true, clinic: true, home: false });
+  const [isApprovedDoctor, setIsApprovedDoctor] = useState(true);
+  const [onboardingStatus, setOnboardingStatus] = useState("approved");
+  const [slotIntervalMinutes, setSlotIntervalMinutes] = useState(15);
 
   const [stats, setStats] = useState({
     totalAppointments: 0,
@@ -339,6 +360,14 @@ export default function DoctorProfile() {
 
       const parsed = res.data;
       const details = parsed?.details || {};
+
+      const statusVal = details.onboarding_status || "pending";
+      const approvedFlag = statusVal === "approved" || details.allowed_to_consult === true;
+      setOnboardingStatus(statusVal);
+      setIsApprovedDoctor(approvedFlag);
+      if (details.slot_interval_minutes && [5, 10, 15, 20, 30, 45, 60].includes(Number(details.slot_interval_minutes))) {
+        setSlotIntervalMinutes(Number(details.slot_interval_minutes));
+      }
 
       // Parse available_time fallback
       let parsedAvailableTime = details.available_time;
@@ -626,6 +655,15 @@ export default function DoctorProfile() {
 
       setSelectedSpecialities(specializationArray);
       setSelectedQualifications(qualificationArray);
+
+      const hasVideo = details.video_consultation_fee !== null && details.video_consultation_fee !== undefined && Number(details.video_consultation_fee) > 0;
+      const hasClinic = details.clinic_consultation_fee !== null && details.clinic_consultation_fee !== undefined && Number(details.clinic_consultation_fee) > 0;
+      const hasHome = details.home_visit_fee !== null && details.home_visit_fee !== undefined && Number(details.home_visit_fee) > 0;
+      setEnabledModes({
+        video: hasVideo || (!hasClinic && !hasHome),
+        clinic: hasClinic,
+        home: hasHome,
+      });
 
       // Derive simple stats from doctor details if available
       setStats({
@@ -1114,12 +1152,12 @@ export default function DoctorProfile() {
         specialization: selectedSpecialities,
         qualification: selectedQualifications,
         experience_years: experienceYears,
-        video_consultation_fee: parseFee(profile.videoConsultationFee),
-        video_follow_up_fee: parseFee(profile.videoFollowUpFee),
-        clinic_consultation_fee: parseFee(profile.clinicConsultationFee),
-        clinic_follow_up_fee: parseFee(profile.clinicFollowUpFee),
-        home_visit_fee: parseFee(profile.homeVisitFee),
-        home_follow_up_fee: parseFee(profile.homeFollowUpFee),
+        video_consultation_fee: enabledModes.video ? parseFee(profile.videoConsultationFee) : 0,
+        video_follow_up_fee: enabledModes.video ? parseFee(profile.videoFollowUpFee) : 0,
+        clinic_consultation_fee: enabledModes.clinic ? parseFee(profile.clinicConsultationFee) : 0,
+        clinic_follow_up_fee: enabledModes.clinic ? parseFee(profile.clinicFollowUpFee) : 0,
+        home_visit_fee: enabledModes.home ? parseFee(profile.homeVisitFee) : 0,
+        home_follow_up_fee: enabledModes.home ? parseFee(profile.homeFollowUpFee) : 0,
         follow_up_fee: parseFee(profile.followUpFee || profile.videoFollowUpFee || profile.clinicFollowUpFee),
         clinic_name: profile.hospital,
         clinic_address: profile.address,
@@ -1136,6 +1174,7 @@ export default function DoctorProfile() {
         second_booking_discount_type: profile.secondBookingDiscountType,
         second_booking_discount_value: profile.secondBookingDiscountValue,
         additional_clinics: profile.additionalClinics,
+        slot_interval_minutes: slotIntervalMinutes,
       };
 
       const res = await api.put("/profile/doctor/basic-update", payload);
@@ -1188,6 +1227,30 @@ export default function DoctorProfile() {
   return (
     <div className="min-h-screen bg-slate-50/50 py-2 sm:py-5 px-1 sm:px-4 md:px-6 pb-16 sm:pb-8">
       <div className="max-w-7xl mx-auto space-y-3 sm:space-y-5">
+        {/* Unapproved Doctor Lock Notice (Item 16) */}
+        {!isApprovedDoctor && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <FaLock className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <h3 className="text-sm font-bold text-amber-900">
+                  Account Pending Admin &amp; KYC Approval ({onboardingStatus})
+                </h3>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Live profile editing is locked until your KYC onboarding and verification are approved by the Admin team.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push("/doctor/onboarding")}
+              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-md transition-colors shrink-0 self-start sm:self-auto"
+            >
+              Complete KYC
+            </button>
+          </div>
+        )}
+
         {/* Top Action Header Bar */}
         <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           <div>
@@ -1199,8 +1262,16 @@ export default function DoctorProfile() {
             {!isEditing ? (
               <button
                 type="button"
-                onClick={() => setIsEditing(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0067A1] text-white text-xs sm:text-sm font-semibold rounded-md hover:bg-[#004F7C] transition-colors shadow-2xs"
+                disabled={!isApprovedDoctor}
+                onClick={() => {
+                  if (!isApprovedDoctor) {
+                    toast.error("Your account is pending KYC & Admin approval.");
+                    return;
+                  }
+                  setIsEditing(true);
+                  setQuickSetupOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0067A1] text-white text-xs sm:text-sm font-semibold rounded-md hover:bg-[#004F7C] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-2xs"
               >
                 <FaEdit className="w-3 h-3" />
                 Edit
@@ -1428,13 +1499,13 @@ export default function DoctorProfile() {
             </div>
 
             {/* Fees & Practice Details */}
-            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 space-y-3 sm:space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 space-y-4">
               <div className="border-b border-slate-100 pb-3">
-                <h2 className="text-base font-bold text-slate-900">Consultation Fees & Experience</h2>
-                <p className="text-xs text-slate-500">Pricing and hospital affiliation</p>
+                <h2 className="text-base font-bold text-slate-900">Consultation Modes & Fees</h2>
+                <p className="text-xs text-slate-500">Enable consultation modes and configure consultation and follow-up fees</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-1">
                 <Field
                   label="Years of Experience"
                   value={profile.experience}
@@ -1449,51 +1520,189 @@ export default function DoctorProfile() {
                   name="hospital"
                   onChange={handleInputChange}
                 />
-                
-                <Field
-                  label="Video Consultation Fee (₹)"
-                  value={profile.videoConsultationFee}
-                  isEditing={isEditing}
-                  name="videoConsultationFee"
-                  onChange={handleInputChange}
-                />
-                <Field
-                  label="Video Follow-up Fee (₹)"
-                  value={profile.videoFollowUpFee}
-                  isEditing={isEditing}
-                  name="videoFollowUpFee"
-                  onChange={handleInputChange}
-                />
+              </div>
 
-                <Field
-                  label="Clinic Visit Fee (₹)"
-                  value={profile.clinicConsultationFee}
-                  isEditing={isEditing}
-                  name="clinicConsultationFee"
-                  onChange={handleInputChange}
-                />
-                <Field
-                  label="Clinic Follow-up Fee (₹)"
-                  value={profile.clinicFollowUpFee}
-                  isEditing={isEditing}
-                  name="clinicFollowUpFee"
-                  onChange={handleInputChange}
-                />
+              {/* Mode 1: Video Consultation */}
+              <div className={`p-4 rounded-xl border transition-all ${
+                enabledModes.video ? "bg-sky-50/40 border-sky-200" : "bg-slate-50 border-slate-200"
+              }`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      enabledModes.video ? "bg-[#0067A1] text-white" : "bg-slate-200 text-slate-500"
+                    }`}>
+                      <FaVideo className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Video Consultation</h3>
+                      <p className="text-[11px] text-slate-500">Teleconsultation via video calling</p>
+                    </div>
+                  </div>
+                  {isEditing ? (
+                    <button
+                      type="button"
+                      onClick={() => setEnabledModes((prev) => ({ ...prev, video: !prev.video }))}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        enabledModes.video ? "bg-[#0067A1]" : "bg-slate-300"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          enabledModes.video ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  ) : (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      enabledModes.video ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
+                    }`}>
+                      {enabledModes.video ? "Active" : "Disabled"}
+                    </span>
+                  )}
+                </div>
 
-                <Field
-                  label="Home Visit Fee (₹)"
-                  value={profile.homeVisitFee}
-                  isEditing={isEditing}
-                  name="homeVisitFee"
-                  onChange={handleInputChange}
-                />
-                <Field
-                  label="Home Visit Follow-up Fee (₹)"
-                  value={profile.homeFollowUpFee}
-                  isEditing={isEditing}
-                  name="homeFollowUpFee"
-                  onChange={handleInputChange}
-                />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <Field
+                    label="Video Consultation Fee (₹)"
+                    value={enabledModes.video ? profile.videoConsultationFee : ""}
+                    isEditing={isEditing}
+                    disabled={!enabledModes.video}
+                    placeholder="e.g. 500"
+                    name="videoConsultationFee"
+                    onChange={handleInputChange}
+                  />
+                  <Field
+                    label="Video Follow-up Fee (₹)"
+                    value={enabledModes.video ? profile.videoFollowUpFee : ""}
+                    isEditing={isEditing}
+                    disabled={!enabledModes.video}
+                    placeholder="e.g. 300"
+                    name="videoFollowUpFee"
+                    onChange={handleInputChange}
+                  />
+                </div>
+              </div>
+
+              {/* Mode 2: In-Clinic Consultation */}
+              <div className={`p-4 rounded-xl border transition-all ${
+                enabledModes.clinic ? "bg-emerald-50/40 border-emerald-200" : "bg-slate-50 border-slate-200"
+              }`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      enabledModes.clinic ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-500"
+                    }`}>
+                      <FaClinicMedical className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">In-Clinic Consultation</h3>
+                      <p className="text-[11px] text-slate-500">Physical visits at clinic or hospital</p>
+                    </div>
+                  </div>
+                  {isEditing ? (
+                    <button
+                      type="button"
+                      onClick={() => setEnabledModes((prev) => ({ ...prev, clinic: !prev.clinic }))}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        enabledModes.clinic ? "bg-[#0067A1]" : "bg-slate-300"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          enabledModes.clinic ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  ) : (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      enabledModes.clinic ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
+                    }`}>
+                      {enabledModes.clinic ? "Active" : "Disabled"}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <Field
+                    label="Clinic Visit Fee (₹)"
+                    value={enabledModes.clinic ? profile.clinicConsultationFee : ""}
+                    isEditing={isEditing}
+                    disabled={!enabledModes.clinic}
+                    placeholder="e.g. 700"
+                    name="clinicConsultationFee"
+                    onChange={handleInputChange}
+                  />
+                  <Field
+                    label="Clinic Follow-up Fee (₹)"
+                    value={enabledModes.clinic ? profile.clinicFollowUpFee : ""}
+                    isEditing={isEditing}
+                    disabled={!enabledModes.clinic}
+                    placeholder="e.g. 400"
+                    name="clinicFollowUpFee"
+                    onChange={handleInputChange}
+                  />
+                </div>
+              </div>
+
+              {/* Mode 3: Home Visit Consultation */}
+              <div className={`p-4 rounded-xl border transition-all ${
+                enabledModes.home ? "bg-purple-50/40 border-purple-200" : "bg-slate-50 border-slate-200"
+              }`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      enabledModes.home ? "bg-purple-600 text-white" : "bg-slate-200 text-slate-500"
+                    }`}>
+                      <FaHome className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Home Visit Consultation</h3>
+                      <p className="text-[11px] text-slate-500">Doctor visit at patient residence</p>
+                    </div>
+                  </div>
+                  {isEditing ? (
+                    <button
+                      type="button"
+                      onClick={() => setEnabledModes((prev) => ({ ...prev, home: !prev.home }))}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        enabledModes.home ? "bg-[#0067A1]" : "bg-slate-300"
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          enabledModes.home ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  ) : (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      enabledModes.home ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
+                    }`}>
+                      {enabledModes.home ? "Active" : "Disabled"}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <Field
+                    label="Home Visit Fee (₹)"
+                    value={enabledModes.home ? profile.homeVisitFee : ""}
+                    isEditing={isEditing}
+                    disabled={!enabledModes.home}
+                    placeholder="e.g. 1500"
+                    name="homeVisitFee"
+                    onChange={handleInputChange}
+                  />
+                  <Field
+                    label="Home Visit Follow-up Fee (₹)"
+                    value={enabledModes.home ? profile.homeFollowUpFee : ""}
+                    isEditing={isEditing}
+                    disabled={!enabledModes.home}
+                    placeholder="e.g. 800"
+                    name="homeFollowUpFee"
+                    onChange={handleInputChange}
+                  />
+                </div>
               </div>
             </div>
 
@@ -1709,11 +1918,36 @@ export default function DoctorProfile() {
                   <p className="text-xs text-slate-500 mt-0.5">Configure clinic, video consultation, and home visit availability</p>
                 </div>
                 
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-amber-600 font-medium hidden md:inline">Select at least 1 active day</span>
+                <div className="flex items-center flex-wrap gap-2">
+                  {/* Slot Duration Selector (5m, 10m, 15m, 20m, 30m, 45m, 60m) */}
+                  <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
+                    <FaClock className="w-3 h-3 text-[#0067A1]" />
+                    <span className="text-[11px] font-semibold text-slate-600 mr-1">Slot:</span>
+                    {[5, 10, 15, 20, 30, 45, 60].map((mins) => (
+                      <button
+                        key={mins}
+                        type="button"
+                        onClick={() => {
+                          if (!isApprovedDoctor) return;
+                          if (!isEditing) setIsEditing(true);
+                          setSlotIntervalMinutes(mins);
+                        }}
+                        className={`px-1.5 py-0.5 rounded text-[11px] font-bold transition-colors ${
+                          slotIntervalMinutes === mins
+                            ? "bg-[#0067A1] text-white"
+                            : "text-slate-600 hover:bg-white"
+                        }`}
+                      >
+                        {mins}m
+                      </button>
+                    ))}
+                  </div>
+
                   <button
                     type="button"
+                    disabled={!isApprovedDoctor}
                     onClick={() => {
+                      if (!isApprovedDoctor) return;
                       if (!isEditing) setIsEditing(true);
                       setQuickSetupOpen((prev) => !prev);
                     }}
@@ -1732,7 +1966,7 @@ export default function DoctorProfile() {
 
               {/* Quick Setup Panel */}
               {quickSetupOpen && (
-                <div className="p-2.5 sm:p-4 rounded-xl bg-gradient-to-br from-blue-50/70 via-slate-50 to-indigo-50/50 border border-blue-200/80 space-y-3 animate-in fade-in duration-200">
+                <div className="p-2.5 sm:p-4 rounded-xl bg-sky-50/70 border border-blue-200/80 space-y-3 animate-in fade-in duration-200">
                   {/* Presets Header */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-blue-100">
                     <div>

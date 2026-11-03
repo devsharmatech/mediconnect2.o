@@ -298,10 +298,11 @@ export default function HeartHealthResult() {
 
   const suggestedSpecialties = isCardioAbnormal
     ? [
-        { shortName: "Cardiologist", specialtyParam: "Cardiologist" },
+        { shortName: "Cardiologist", specialtyParam: "Cardiology" },
         { shortName: "General Physician", specialtyParam: "General Physician" }
       ]
     : [
+        { shortName: "Cardiologist", specialtyParam: "Cardiology" },
         { shortName: "General Physician", specialtyParam: "General Physician" }
       ];
 
@@ -662,7 +663,7 @@ export default function HeartHealthResult() {
               </button>
 
               <Link
-                href="/doctors"
+                href="/doctors?specialty=Cardiology"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-[5px] text-xs font-semibold shadow-2xs transition-all"
               >
                 <Stethoscope className="w-3.5 h-3.5 text-[#0067A1]" />
@@ -1007,7 +1008,7 @@ export default function HeartHealthResult() {
           )}
 
           {/* ── Suggested Doctor Consultation (Premium Healthcare Banner) ── */}
-          <div className="p-3.5 sm:p-4 bg-gradient-to-r from-sky-50/80 via-white to-blue-50/40 rounded-xl border border-sky-200/80 shadow-2xs space-y-2.5">
+          <div className="p-3.5 sm:p-4 bg-sky-50/70 rounded-xl border border-sky-200/80 shadow-2xs space-y-2.5">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-[#0067A1]/10 flex items-center justify-center text-[#0067A1] shrink-0">
@@ -1018,7 +1019,7 @@ export default function HeartHealthResult() {
                 </h4>
               </div>
               <Link
-                href="/doctors"
+                href="/doctors?specialty=Cardiology"
                 className="text-[11px] font-semibold text-[#0067A1] hover:underline inline-flex items-center gap-1"
               >
                 <span>Browse All Doctors</span>
@@ -1038,7 +1039,7 @@ export default function HeartHealthResult() {
               {suggestedSpecialties.map((s, idx) => (
                 <Link
                   key={idx}
-                  href={`/doctors?specialty=${s.specialtyParam}`}
+                  href={`/doctors?specialty=${encodeURIComponent(s.specialtyParam)}`}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-2xs cursor-pointer ${
                     idx === 0
                       ? "bg-[#0067A1] hover:bg-[#005584] text-white hover:shadow-xs"
@@ -1214,7 +1215,7 @@ export default function HeartHealthResult() {
                   className="px-4 py-2 bg-[#0067A1] hover:bg-[#005282] text-white rounded-[5px] text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download {selectedFormat === 'F4' ? 'Health Assessment' : selectedFormat === 'F1' ? 'Home & Activity' : selectedFormat === 'F2' ? 'Progress & Trends' : 'Walking Test'} PDF</span>
+                  <span>Download PDF</span>
                 </button>
               </div>
             </div>

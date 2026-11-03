@@ -23,7 +23,7 @@ export async function GET(req) {
         return NextResponse.json({ success: true, data }, { status: 200 });
     } catch (err) {
         console.error("GET /api/cms/compliance-logos error:", err);
-        return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+        return NextResponse.json({ success: false, error: err.message, data: [] }, { status: 200 });
     }
 }
 

@@ -1,6 +1,8 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+
+export const dynamic = "force-dynamic";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -9,8 +11,8 @@ export async function OPTIONS() {
 export async function GET(req) {
   try {
     const url = new URL(req.url);
-    const page = parseInt(url.searchParams.get("page") || "1");
-    const limit = parseInt(url.searchParams.get("limit") || "10");
+    const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
+    const limit = Math.max(1, parseInt(url.searchParams.get("limit") || "10", 10));
     const offset = (page - 1) * limit;
     const doctorId = url.searchParams.get("doctor_id") || null;
     const startDate = url.searchParams.get("start_date") || null;
@@ -18,63 +20,75 @@ export async function GET(req) {
     const search = url.searchParams.get("search") || null;
     const id = url.searchParams.get("id") || null;
 
+    // Single Prescription by ID
     if (id) {
-      const { data: prescription, error } = await supabase
-        .from("prescriptions")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+      const rows = await sql`
+        SELECT 
+          p.*,
+          dd.full_name AS doctor_full_name,
+          dd.email AS doctor_email,
+          dd.specialization AS doctor_specialization,
+          pd.full_name AS patient_full_name,
+          pd.email AS patient_email,
+          pd.gender AS patient_gender,
+          pd.date_of_birth AS patient_dob,
+          pd.blood_group AS patient_blood_group,
+          pd.address AS patient_address,
+          pd.emergency_contact AS patient_emergency_contact,
+          pu.phone_number AS patient_phone,
+          a.appointment_date,
+          a.appointment_time,
+          a.status AS appointment_status
+        FROM prescriptions p
+        LEFT JOIN doctor_details dd ON dd.id = p.doctor_id
+        LEFT JOIN patient_details pd ON pd.id = p.patient_id
+        LEFT JOIN users pu ON pu.id = p.patient_id
+        LEFT JOIN appointments a ON a.id = p.appointment_id
+        WHERE p.id::text = ${id}
+        LIMIT 1
+      `;
 
-      if (error) throw error;
-      if (!prescription)
-        return failure("Prescription not found", null, 404, {
-          headers: corsHeaders,
-        });
+      if (rows.length === 0) {
+        return failure("Prescription not found", null, 404, { headers: corsHeaders });
+      }
 
-      const [doctorRes, patientRes, appointmentRes, userRes] = await Promise.all([
-        supabase
-          .from("doctor_details")
-          .select("id, full_name, email, specialization")
-          .eq("id", prescription.doctor_id)
-          .maybeSingle(),
-        supabase
-          .from("patient_details")
-          .select("id, full_name, gender, date_of_birth, blood_group, email, address, emergency_contact")
-          .eq("id", prescription.patient_id)
-          .maybeSingle(),
-        supabase
-          .from("appointments")
-          .select("id, appointment_date, appointment_time, status")
-          .eq("id", prescription.appointment_id)
-          .maybeSingle(),
-        prescription.patient_id
-          ? supabase
-              .from("users")
-              .select("phone_number")
-              .eq("id", prescription.patient_id)
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
-      ]);
+      const r = rows[0];
 
-      // Compute age from date_of_birth
-      let patientData = patientRes.data ? { ...patientRes.data } : null;
-      if (patientData?.date_of_birth) {
-        const dob = new Date(patientData.date_of_birth);
+      let age = null;
+      if (r.patient_dob) {
+        const dob = new Date(r.patient_dob);
         const today = new Date();
-        let age = today.getFullYear() - dob.getFullYear();
+        age = today.getFullYear() - dob.getFullYear();
         const m = today.getMonth() - dob.getMonth();
         if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-        patientData.age = age;
-      }
-      if (userRes.data?.phone_number) {
-        if (patientData) patientData.phone = userRes.data.phone_number;
       }
 
       const result = {
-        ...prescription,
-        doctor: doctorRes.data || null,
-        patient: patientData,
-        appointment: appointmentRes.data || null,
+        ...r,
+        doctor: r.doctor_id ? {
+          id: r.doctor_id,
+          full_name: r.doctor_full_name,
+          email: r.doctor_email,
+          specialization: r.doctor_specialization,
+        } : null,
+        patient: r.patient_id ? {
+          id: r.patient_id,
+          full_name: r.patient_full_name,
+          gender: r.patient_gender,
+          date_of_birth: r.patient_dob,
+          blood_group: r.patient_blood_group,
+          email: r.patient_email,
+          address: r.patient_address,
+          emergency_contact: r.patient_emergency_contact,
+          phone: r.patient_phone,
+          age,
+        } : null,
+        appointment: r.appointment_id ? {
+          id: r.appointment_id,
+          appointment_date: r.appointment_date,
+          appointment_time: r.appointment_time,
+          status: r.appointment_status,
+        } : null,
       };
 
       return success("Prescription details fetched successfully", result, 200, {
@@ -82,75 +96,97 @@ export async function GET(req) {
       });
     }
 
-    let query = supabase.from("prescriptions").select("*", { count: "exact" });
+    // List Prescriptions with filters
+    const conditions = [];
 
-    if (doctorId) query = query.eq("doctor_id", doctorId);
-    if (search)
-      query = query.or(
-        `notes.ilike.%${search}%,diagnosis.ilike.%${search}%,id.ilike.%${search}%`
-      );
-
-    if (startDate && endDate) {
-      const start = new Date(startDate).toISOString();
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      query = query.gte("created_at", start).lte("created_at", end.toISOString());
+    if (doctorId) {
+      conditions.push(sql`p.doctor_id::text = ${doctorId}`);
     }
 
-    const { data, error, count } = await query
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+    if (search && search.trim()) {
+      const s = `%${search.trim()}%`;
+      conditions.push(sql`(
+        p.notes::text ILIKE ${s} OR 
+        p.diagnosis::text ILIKE ${s} OR 
+        p.id::text ILIKE ${s} OR 
+        p.unid::text ILIKE ${s} OR
+        pd.full_name ILIKE ${s} OR 
+        dd.full_name ILIKE ${s} OR
+        pu.phone_number ILIKE ${s}
+      )`);
+    }
 
-    if (error) throw error;
+    if (startDate && endDate) {
+      conditions.push(sql`p.created_at >= ${startDate}::timestamptz AND p.created_at <= (${endDate}::date + INTERVAL '1 day')`);
+    } else if (startDate) {
+      conditions.push(sql`p.created_at >= ${startDate}::timestamptz`);
+    } else if (endDate) {
+      conditions.push(sql`p.created_at <= (${endDate}::date + INTERVAL '1 day')`);
+    }
 
-    // Enrich list items with patient and doctor names
-    const enriched = await Promise.all(
-      (data || []).map(async (rx) => {
-        const [patientRes, doctorRes, userPhoneRes] = await Promise.all([
-          rx.patient_id
-            ? supabase
-                .from("patient_details")
-                .select("full_name, gender, date_of_birth")
-                .eq("id", rx.patient_id)
-                .maybeSingle()
-            : Promise.resolve({ data: null }),
-          rx.doctor_id
-            ? supabase
-                .from("doctor_details")
-                .select("full_name, specialization")
-                .eq("id", rx.doctor_id)
-                .maybeSingle()
-            : Promise.resolve({ data: null }),
-          rx.patient_id
-            ? supabase
-                .from("users")
-                .select("phone_number")
-                .eq("id", rx.patient_id)
-                .maybeSingle()
-            : Promise.resolve({ data: null }),
-        ]);
-        const patientInfo = patientRes.data ? { ...patientRes.data } : null;
-        if (patientInfo && userPhoneRes.data?.phone_number) {
-          patientInfo.phone = userPhoneRes.data.phone_number;
-        }
-        return {
-          ...rx,
-          patient: patientInfo,
-          doctor: doctorRes.data || null,
-        };
-      })
-    );
+    const whereClause = conditions.length > 0 
+      ? conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`) 
+      : sql`1=1`;
 
-    const response = {
+    const [{ count }] = await sql`
+      SELECT COUNT(*)::int AS count
+      FROM prescriptions p
+      LEFT JOIN patient_details pd ON pd.id = p.patient_id
+      LEFT JOIN doctor_details dd ON dd.id = p.doctor_id
+      LEFT JOIN users pu ON pu.id = p.patient_id
+      WHERE ${whereClause}
+    `;
+
+    const rows = await sql`
+      SELECT 
+        p.*,
+        dd.full_name AS doctor_full_name,
+        dd.specialization AS doctor_specialization,
+        pd.full_name AS patient_full_name,
+        pd.gender AS patient_gender,
+        pd.date_of_birth AS patient_dob,
+        pu.phone_number AS patient_phone
+      FROM prescriptions p
+      LEFT JOIN patient_details pd ON pd.id = p.patient_id
+      LEFT JOIN doctor_details dd ON dd.id = p.doctor_id
+      LEFT JOIN users pu ON pu.id = p.patient_id
+      WHERE ${whereClause}
+      ORDER BY p.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+
+    const enriched = rows.map((r) => {
+      let age = null;
+      if (r.patient_dob) {
+        const dob = new Date(r.patient_dob);
+        const today = new Date();
+        age = today.getFullYear() - dob.getFullYear();
+        const m = today.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+      }
+
+      return {
+        ...r,
+        patient: r.patient_id ? {
+          full_name: r.patient_full_name,
+          gender: r.patient_gender,
+          date_of_birth: r.patient_dob,
+          phone: r.patient_phone,
+          age,
+        } : null,
+        doctor: r.doctor_id ? {
+          full_name: r.doctor_full_name,
+          specialization: r.doctor_specialization,
+        } : null,
+      };
+    });
+
+    return success("Prescriptions fetched successfully", {
       items: enriched,
       page,
       limit,
       total: count || 0,
-    };
-
-    return success("Prescriptions fetched successfully", response, 200, {
-      headers: corsHeaders,
-    });
+    }, 200, { headers: corsHeaders });
   } catch (error) {
     console.error("GET /prescriptions error:", error);
     return failure("Failed to fetch prescriptions.", error.message, 500, {

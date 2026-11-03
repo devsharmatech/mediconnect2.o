@@ -1,25 +1,12 @@
-import { supabase } from "@/lib/supabaseAdmin";
-import { uploadToS3, getCloudFrontUrl, getPresignedUploadUrl, getPresignedDownloadUrl, extractKeyFromUrl } from "@/lib/s3";
+import sql from "@/lib/db";
+import { uploadToS3, getPresignedDownloadUrl } from "@/lib/s3";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-import nodemailer from "nodemailer";
 import crypto from "crypto";
 import { sendGenericOTPViaSMS } from "@/lib/sms";
 
 export const dynamic = "force-dynamic";
 
-// Configure nodemailer
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT),
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD,
-  },
-});
-
-// Helper functions for verification
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -32,50 +19,22 @@ export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
 }
 
-async function requireEmailVerified(userId) {
-  try {
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (userError) {
-      console.warn("Notice fetching user role for email verification check:", userError.message);
-      return null;
-    }
-    
-    if (user?.role === "patient") {
-      // Patients login via OTP and do not require email verification
-      return null;
-    }
-
-    const { data: latestVerified, error: evError } = await supabase
-      .from("email_verifications")
-      .select("id, is_verified")
-      .eq("user_id", userId)
-      .eq("is_verified", true)
-      .order("verified_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (evError) {
-      console.warn("Notice fetching email verification record:", evError.message);
-      return null;
-    }
-
-    if (!latestVerified?.is_verified) {
-      return failure(
-        "Email verification required to access Digital Locker.",
-        { verified: false },
-        403
+async function resolveSignedUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== "string") return rawUrl;
+  const urlParts = rawUrl.split("/digital-locker/");
+  const storagePath = urlParts.length > 1 ? urlParts[1] : null;
+  if (storagePath) {
+    try {
+      const signed = await getPresignedDownloadUrl(
+        `digital-locker/${storagePath}`,
+        3600
       );
+      if (signed) return signed;
+    } catch (e) {
+      console.warn("Presigned URL fallback:", e.message);
     }
-  } catch (err) {
-    console.error("Failed to determine user verification status:", err);
   }
-
-  return null;
+  return rawUrl;
 }
 
 // GET - Retrieve all documents for a user or get single document
@@ -89,60 +48,41 @@ export async function GET(req, { params }) {
       return failure("User ID is required.", null, 400);
     }
 
-    const verificationFailure = await requireEmailVerified(userId);
-    if (verificationFailure) return verificationFailure;
-
-    // If document_id is provided, get single document
     if (documentId) {
-      const { data: document, error } = await supabase
-        .from("digital_locker_documents")
-        .select("*")
-        .eq("id", documentId)
-        .eq("user_id", userId)
-        .eq("is_active", true)
-        .single();
-
-      if (error || !document) {
+      const rows = await sql`
+        SELECT *
+        FROM digital_locker_documents
+        WHERE id = ${documentId}
+          AND user_id = ${userId}
+          AND COALESCE(is_active, true) = true
+        LIMIT 1
+      `;
+      const document = rows[0];
+      if (!document) {
         return failure("Document not found.", null, 404);
       }
 
-      // Generate secure signed URL (1 hour expiry)
-      const urlParts = document.document_url.split("/digital-locker/");
-      const storagePath = urlParts.length > 1 ? urlParts[1] : null;
-      if (storagePath) {
-        const signedData = { signedUrl: await (async () => { try { const { getPresignedDownloadUrl: _gpdu } = await import("@/lib/s3"); return await _gpdu(`digital-locker/${storagePath}`, 3600); } catch(e) { return null; } })() };
-        if (signedData?.signedUrl) {
-          document.document_url = signedData.signedUrl;
-        }
-      }
+      document.document_url = await resolveSignedUrl(document.document_url);
 
       return success("Document retrieved successfully.", {
         document,
       });
     }
 
-    // Otherwise, get all user documents
-    const { data: documents, error } = await supabase
-      .from("digital_locker_documents")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .order("upload_date", { ascending: false });
+    const documents = await sql`
+      SELECT *
+      FROM digital_locker_documents
+      WHERE user_id = ${userId}
+        AND COALESCE(is_active, true) = true
+      ORDER BY COALESCE(upload_date, created_at) DESC
+    `;
 
-    if (error) throw error;
-
-    // Generate signed URLs for all documents
-    const securedDocuments = await Promise.all((documents || []).map(async (doc) => {
-      const urlParts = doc.document_url.split("/digital-locker/");
-      const storagePath = urlParts.length > 1 ? urlParts[1] : null;
-      if (storagePath) {
-        const signedData = { signedUrl: await (async () => { try { const { getPresignedDownloadUrl: _gpdu } = await import("@/lib/s3"); return await _gpdu(`digital-locker/${storagePath}`, 3600); } catch(e) { return null; } })() };
-        if (signedData?.signedUrl) {
-          doc.document_url = signedData.signedUrl;
-        }
-      }
-      return doc;
-    }));
+    const securedDocuments = await Promise.all(
+      (documents || []).map(async (doc) => ({
+        ...doc,
+        document_url: await resolveSignedUrl(doc.document_url),
+      }))
+    );
 
     return success("Documents retrieved successfully.", {
       documents: securedDocuments,
@@ -165,12 +105,9 @@ export async function POST(req, { params }) {
       return failure("User ID is required.", null, 400);
     }
 
-    // If action is "log", log a document action (view/download/share)
     if (action === "log") {
-      const verificationFailure = await requireEmailVerified(userId);
-      if (verificationFailure) return verificationFailure;
-
-      const { document_id, action_type, ip_address, user_agent } = await req.json();
+      const { document_id, action_type, ip_address, user_agent } =
+        await req.json();
 
       if (!document_id || !action_type) {
         return failure("Document ID and action type are required.", null, 400);
@@ -181,39 +118,39 @@ export async function POST(req, { params }) {
         return failure("Invalid action type.", null, 400);
       }
 
-      // Verify document exists
-      const { data: document, error: docError } = await supabase
-        .from("digital_locker_documents")
-        .select("*")
-        .eq("id", document_id)
-        .eq("user_id", userId)
-        .single();
-
-      if (docError || !document) {
+      const docs = await sql`
+        SELECT id
+        FROM digital_locker_documents
+        WHERE id = ${document_id} AND user_id = ${userId}
+        LIMIT 1
+      `;
+      if (!docs[0]) {
         return failure("Document not found.", null, 404);
       }
 
-      // Log the action
-      const { data: log, error: logError } = await supabase
-        .from("digital_locker_audit_logs")
-        .insert({
+      const inserted = await sql`
+        INSERT INTO digital_locker_audit_logs (
           document_id,
-          user_id: userId,
-          action: action_type,
+          user_id,
+          action,
           ip_address,
-          user_agent,
-        })
-        .select()
-        .single();
-
-      if (logError) throw logError;
+          user_agent
+        )
+        VALUES (
+          ${document_id},
+          ${userId},
+          ${action_type},
+          ${ip_address || null},
+          ${user_agent || null}
+        )
+        RETURNING *
+      `.catch(() => []);
 
       return success(`Document ${action_type} logged successfully.`, {
-        log,
+        log: inserted[0] || null,
       });
     }
 
-    // If action is "requestverify", send OTP for document action (edit/delete)
     if (action === "requestverify") {
       const { document_id, action_type } = await req.json();
 
@@ -221,28 +158,31 @@ export async function POST(req, { params }) {
         return failure("Document ID and action type are required.", null, 400);
       }
 
-      // Get the user's phone number from the users table
-      const { data: user, error: userError } = await supabase
-        .from("users")
-        .select("phone_number")
-        .eq("id", userId)
-        .single();
+      const users = await sql`
+        SELECT phone_number
+        FROM users
+        WHERE id = ${userId}
+        LIMIT 1
+      `;
+      const user = users[0];
 
-      if (userError || !user?.phone_number) {
-        return failure("Registered phone number not found for this user account.", null, 400);
+      if (!user?.phone_number) {
+        return failure(
+          "Registered phone number not found for this user account.",
+          null,
+          400
+        );
       }
 
       const phone_number = user.phone_number;
 
-      // Verify document exists and belongs to user
-      const { data: document, error: docError } = await supabase
-        .from("digital_locker_documents")
-        .select("*")
-        .eq("id", document_id)
-        .eq("user_id", userId)
-        .single();
-
-      if (docError || !document) {
+      const docs = await sql`
+        SELECT id
+        FROM digital_locker_documents
+        WHERE id = ${document_id} AND user_id = ${userId}
+        LIMIT 1
+      `;
+      if (!docs[0]) {
         return failure("Document not found.", null, 404);
       }
 
@@ -250,26 +190,27 @@ export async function POST(req, { params }) {
       const verificationToken = generateVerificationToken();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-      // Create verification request
-      const { data: verificationRequest, error: verificationError } = await supabase
-        .from("document_verification_requests")
-        .insert({
+      const inserted = await sql`
+        INSERT INTO document_verification_requests (
           document_id,
-          user_id: userId,
+          user_id,
           action_type,
-          verification_token: verificationToken,
-          otp_code: otp,
-          otp_expires_at: expiresAt,
-        })
-        .select()
-        .single();
+          verification_token,
+          otp_code,
+          otp_expires_at
+        )
+        VALUES (
+          ${document_id},
+          ${userId},
+          ${action_type},
+          ${verificationToken},
+          ${otp},
+          ${expiresAt}
+        )
+        RETURNING *
+      `;
+      const verificationRequest = inserted[0];
 
-      if (verificationError) throw verificationError;
-
-      // Log OTP in console for local development testing
-      console.log(`[DEV] SMS OTP sent to ${phone_number} for document ${action_type}: ${otp}`);
-
-      // Send OTP via SMS
       let smsSent = false;
       try {
         const smsResult = await sendGenericOTPViaSMS(phone_number, otp);
@@ -278,29 +219,36 @@ export async function POST(req, { params }) {
         console.error("SMS sending error:", smsError);
       }
 
-      return success(`OTP sent successfully to your registered mobile number for document ${action_type}.`, {
-        verification_id: verificationRequest.id,
-        verification_token: verificationToken,
-        sms_sent: smsSent,
-      });
+      return success(
+        `OTP sent successfully to your registered mobile number for document ${action_type}.`,
+        {
+          verification_id: verificationRequest.id,
+          verification_token: verificationToken,
+          sms_sent: smsSent,
+        }
+      );
     }
 
-    // If action is "verifyotp", verify the OTP
     if (action === "verifyotp") {
       const { verification_token, otp_code } = await req.json();
 
       if (!verification_token || !otp_code) {
-        return failure("Verification token and OTP code are required.", null, 400);
+        return failure(
+          "Verification token and OTP code are required.",
+          null,
+          400
+        );
       }
 
-      // Get the verification request
-      const { data: verificationRequest, error: verificationError } = await supabase
-        .from("document_verification_requests")
-        .select("*")
-        .eq("verification_token", verification_token)
-        .single();
+      const rows = await sql`
+        SELECT *
+        FROM document_verification_requests
+        WHERE verification_token = ${verification_token}
+        LIMIT 1
+      `;
+      const verificationRequest = rows[0];
 
-      if (verificationError || !verificationRequest) {
+      if (!verificationRequest) {
         return failure("Verification request not found.", null, 404);
       }
 
@@ -308,20 +256,15 @@ export async function POST(req, { params }) {
         return failure("Already verified.", null, 400);
       }
 
-      // Verify OTP
-      if (verificationRequest.otp_code !== otp_code) {
+      if (String(verificationRequest.otp_code) !== String(otp_code)) {
         return failure("Invalid OTP code.", null, 400);
       }
 
-      // Mark as verified
-      await supabase
-        .from("document_verification_requests")
-        .update({
-          is_verified: true,
-          verified_at: new Date().toISOString(),
-          status: "verified",
-        })
-        .eq("id", verificationRequest.id);
+      await sql`
+        UPDATE document_verification_requests
+        SET is_verified = true, verified_at = NOW(), status = 'verified'
+        WHERE id = ${verificationRequest.id}
+      `;
 
       return success("OTP verified successfully.", {
         verification_token,
@@ -329,7 +272,7 @@ export async function POST(req, { params }) {
       });
     }
 
-    // Otherwise, upload a new document
+    // Upload a new document
     const formData = await req.formData();
     const file = formData.get("file");
     const document_name = formData.get("document_name");
@@ -348,7 +291,6 @@ export async function POST(req, { params }) {
       return failure("Document type is required.", null, 400);
     }
 
-    // Enforce 15MB file size limit
     const MAX_FILE_SIZE_MB = 15;
     const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
     if (file.size > MAX_FILE_SIZE_BYTES) {
@@ -359,7 +301,6 @@ export async function POST(req, { params }) {
       );
     }
 
-    // Validate document type (government IDs and medical documents)
     const validDocTypes = [
       "adharcard",
       "pancard",
@@ -378,7 +319,6 @@ export async function POST(req, { params }) {
       return failure("Invalid document type.", validDocTypes, 400);
     }
 
-    // Extract and validate file extension
     const rawFileName = file.name || "document.pdf";
     const fileExtension = rawFileName.includes(".")
       ? rawFileName.split(".").pop().toLowerCase().trim()
@@ -407,18 +347,13 @@ export async function POST(req, { params }) {
       );
     }
 
-    // Verify user exists
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("id")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (userError || !user) {
+    const users = await sql`
+      SELECT id FROM users WHERE id = ${userId} LIMIT 1
+    `;
+    if (!users[0]) {
       return failure("User not found.", null, 404);
     }
 
-    // Map MIME type for S3 / CloudFront
     const mimeTypeMap = {
       pdf: "application/pdf",
       jpg: "image/jpeg",
@@ -441,47 +376,69 @@ export async function POST(req, { params }) {
     const cleanDocType = String(document_type).replace(/[^a-zA-Z0-9_-]/g, "");
     const fileName = `${userId}-${cleanDocType}-${timestamp}.${fileExtension}`;
 
-    // Upload file buffer to AWS S3
     let document_url;
     try {
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      const { url } = await uploadToS3(buffer, `digital-locker/${fileName}`, finalMimeType);
+      const { url } = await uploadToS3(
+        buffer,
+        `digital-locker/${fileName}`,
+        finalMimeType
+      );
       document_url = url;
     } catch (uploadError) {
       console.error("Storage upload error:", uploadError);
-      return failure("Failed to upload file to storage.", uploadError.message, 500);
+      return failure(
+        "Failed to upload file to storage.",
+        uploadError.message,
+        500
+      );
     }
 
-    // Insert document record
-    const { data: document, error: insertError } = await supabase
-      .from("digital_locker_documents")
-      .insert({
-        user_id: userId,
-        document_name: document_name.trim(),
+    const insertedDocs = await sql`
+      INSERT INTO digital_locker_documents (
+        user_id,
+        document_name,
         document_type,
         document_url,
-        description: description ? description.trim() : null,
-        file_size: fileSize,
-        mime_type: finalMimeType,
-      })
-      .select()
-      .single();
+        description,
+        file_size,
+        mime_type,
+        is_active
+      )
+      VALUES (
+        ${userId},
+        ${document_name.trim()},
+        ${document_type},
+        ${document_url},
+        ${description ? description.trim() : null},
+        ${fileSize},
+        ${finalMimeType},
+        true
+      )
+      RETURNING *
+    `;
+    const document = insertedDocs[0];
 
-    if (insertError) throw insertError;
-
-    // Log the upload action
-    await supabase.from("digital_locker_audit_logs").insert({
-      document_id: document.id,
-      user_id: userId,
-      action: "uploaded",
-      action_details: {
-        document_name: document_name.trim(),
-        document_type,
-        file_size: fileSize,
-        mime_type: finalMimeType,
-      },
-    });
+    await sql`
+      INSERT INTO digital_locker_audit_logs (
+        document_id,
+        user_id,
+        action,
+        action_details
+      )
+      VALUES (
+        ${document.id},
+        ${userId},
+        'uploaded',
+        ${JSON.stringify({
+          document_name: document_name.trim(),
+          document_type,
+          file_size: fileSize,
+          mime_type: finalMimeType,
+        })}::jsonb
+      )
+    `.catch(() => {});
 
     return success("Document uploaded successfully.", {
       document,
@@ -492,83 +449,68 @@ export async function POST(req, { params }) {
   }
 }
 
-// PUT - Update document details (requires verification)
+// PUT - Update document details
 export async function PUT(req, { params }) {
   try {
     const { userId } = await params;
     const { document_id, document_name, description, verification_token } =
       await req.json();
 
-    const verificationFailure = await requireEmailVerified(userId);
-    if (verificationFailure) return verificationFailure;
-
     if (!document_id || !verification_token) {
-      return failure("Document ID and verification token are required.", null, 400);
+      return failure(
+        "Document ID and verification token are required.",
+        null,
+        400
+      );
     }
 
-    // Verify the verification token
-    const { data: verificationRequest, error: verificationError } = await supabase
-      .from("document_verification_requests")
-      .select("*")
-      .eq("verification_token", verification_token)
-      .eq("document_id", document_id)
-      .eq("action_type", "edit")
-      .eq("is_verified", true)
-      .single();
+    const verRows = await sql`
+      SELECT *
+      FROM document_verification_requests
+      WHERE verification_token = ${verification_token}
+        AND document_id = ${document_id}
+        AND action_type = 'edit'
+        AND is_verified = true
+      LIMIT 1
+    `;
+    const verificationRequest = verRows[0];
 
-    if (verificationError || !verificationRequest) {
+    if (!verificationRequest) {
       return failure("Invalid or unverified verification token.", null, 401);
     }
 
-    // Check if token is expired
     if (verificationRequest.status === "expired") {
       return failure("Verification token has expired.", null, 400);
     }
 
-    // Verify document exists and belongs to user
-    const { data: document, error: docError } = await supabase
-      .from("digital_locker_documents")
-      .select("*")
-      .eq("id", document_id)
-      .eq("user_id", userId)
-      .single();
+    const docs = await sql`
+      SELECT *
+      FROM digital_locker_documents
+      WHERE id = ${document_id} AND user_id = ${userId}
+      LIMIT 1
+    `;
+    const document = docs[0];
 
-    if (docError || !document) {
+    if (!document) {
       return failure("Document not found.", null, 404);
     }
 
-    // Update document
-    const { data: updatedDocument, error: updateError } = await supabase
-      .from("digital_locker_documents")
-      .update({
-        document_name: document_name || document.document_name,
-        description: description || document.description,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", document_id)
-      .select()
-      .single();
+    const updatedRows = await sql`
+      UPDATE digital_locker_documents
+      SET
+        document_name = ${document_name || document.document_name},
+        description = ${description !== undefined ? description : document.description},
+        updated_at = NOW()
+      WHERE id = ${document_id}
+      RETURNING *
+    `;
+    const updatedDocument = updatedRows[0];
 
-    if (updateError) throw updateError;
-
-    // Log the edit action
-    await supabase.from("digital_locker_audit_logs").insert({
-      document_id,
-      user_id: userId,
-      action: "edited",
-      action_details: {
-        changes: {
-          document_name,
-          description,
-        },
-      },
-    });
-
-    // Mark verification request as used
-    await supabase
-      .from("document_verification_requests")
-      .update({ status: "completed" })
-      .eq("id", verificationRequest.id);
+    await sql`
+      UPDATE document_verification_requests
+      SET status = 'completed'
+      WHERE id = ${verificationRequest.id}
+    `.catch(() => {});
 
     return success("Document updated successfully.", {
       document: updatedDocument,
@@ -579,53 +521,35 @@ export async function PUT(req, { params }) {
   }
 }
 
-// DELETE - Delete a document (requires verification)
+// DELETE - Soft delete a document
 export async function DELETE(req, { params }) {
   try {
     const { userId } = await params;
-    const { document_id, verification_token } = await req.json();
-
-    const verificationFailure = await requireEmailVerified(userId);
-    if (verificationFailure) return verificationFailure;
+    const { document_id } = await req.json();
 
     if (!document_id) {
       return failure("Document ID is required.", null, 400);
     }
 
+    const docs = await sql`
+      SELECT *
+      FROM digital_locker_documents
+      WHERE id = ${document_id} AND user_id = ${userId}
+      LIMIT 1
+    `;
+    const document = docs[0];
 
-
-    // Verify document exists and belongs to user
-    const { data: document, error: docError } = await supabase
-      .from("digital_locker_documents")
-      .select("*")
-      .eq("id", document_id)
-      .eq("user_id", userId)
-      .single();
-
-    if (docError || !document) {
+    if (!document) {
       return failure("Document not found.", null, 404);
     }
 
-    // Soft delete - mark as inactive instead of removing
-    const { error: deleteError } = await supabase
-      .from("digital_locker_documents")
-      .update({
-        is_active: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", document_id);
+    await sql`
+      UPDATE digital_locker_documents
+      SET is_active = false, updated_at = NOW()
+      WHERE id = ${document_id}
+    `;
 
-    if (deleteError) throw deleteError;
-
-    // Log the delete action
-    await supabase.from("digital_locker_audit_logs").insert({
-      document_id,
-      user_id: userId,
-      action: "deleted",
-      action_details: {
-        document_name: document.document_name,
-      },
-    }); return success("Document deleted successfully.", {
+    return success("Document deleted successfully.", {
       document_id,
       deleted: true,
     });

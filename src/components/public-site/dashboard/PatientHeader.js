@@ -84,6 +84,7 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
   const [modalLoading, setModalLoading] = useState(false);
   const [activeCallAppointmentId, setActiveCallAppointmentId] = useState(null);
   const [showActiveCallBanner, setShowActiveCallBanner] = useState(false);
+  const [upcomingReminder, setUpcomingReminder] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all"); // "all" | "unread"
   const [modalFilterType, setModalFilterType] = useState("all");
@@ -143,11 +144,44 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
       return;
     }
 
-    if (id && role === "patient") {
+    if (id && (!role || role === "patient")) {
       setUserId(id);
       fetchNotifications(id);
+      fetchUpcomingReminder(id);
     }
   }, []);
+
+  const fetchUpcomingReminder = async (uid) => {
+    if (!uid || !isValidUUID(uid)) return;
+    try {
+      const res = await fetch("/api/appointment/patient-appointment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patient_id: uid, date_filter: "all", page: 1 }),
+      });
+      const data = await res.json();
+      if (!data?.success) return;
+      const list = data.data?.appointments || [];
+      const now = new Date();
+      const upcoming = list.filter((a) => {
+        const s = String(a.status || "").toLowerCase();
+        if (!["booked", "approved", "confirmed", "freezed", "pending"].includes(s)) return false;
+        const dStr = typeof a.appointment_date === "string" ? a.appointment_date.split("T")[0] : "";
+        const tStr = typeof a.appointment_time === "string" ? a.appointment_time.slice(0, 5) : "23:59";
+        if (!dStr) return false;
+        const dt = new Date(`${dStr}T${tStr}:00`);
+        return !isNaN(dt.getTime()) && dt.getTime() + 30 * 60 * 1000 >= now.getTime();
+      });
+      upcoming.sort((a, b) => {
+        const da = new Date(`${String(a.appointment_date).split("T")[0]}T${String(a.appointment_time || "00:00").slice(0, 5)}:00`);
+        const db = new Date(`${String(b.appointment_date).split("T")[0]}T${String(b.appointment_time || "00:00").slice(0, 5)}:00`);
+        return da - db;
+      });
+      setUpcomingReminder(upcoming[0] || null);
+    } catch {
+      // silent
+    }
+  };
 
 
   // Poll notifications so "Join Call" alert appears quickly
@@ -685,7 +719,36 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
-      {/* Active call strip hidden per user request */}
+      {/* Compact Top Booking Reminder Strip (Item 23) */}
+      {upcomingReminder && (
+        <div className="bg-[#0067A1] text-white px-3 sm:px-6 py-1.5 flex items-center justify-between gap-2 text-xs border-b border-[#005282]">
+          <div className="flex items-center gap-2 min-w-0">
+            <FaCalendarCheck className="w-3.5 h-3.5 text-sky-200 shrink-0" />
+            <span className="font-semibold truncate">
+              Upcoming Booking: Dr. {(upcomingReminder.doctor?.full_name || upcomingReminder.doctor_name || "Doctor").replace(/^Dr\.?\s*/i, "")}
+            </span>
+            <span className="hidden sm:inline text-sky-200">•</span>
+            <span className="text-sky-100 font-medium shrink-0">
+              {String(upcomingReminder.appointment_date || "").split("T")[0]} at {String(upcomingReminder.appointment_time || "").slice(0, 5)}
+            </span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase shrink-0 ${
+              ["approved", "confirmed", "freezed"].includes(String(upcomingReminder.status).toLowerCase())
+                ? "bg-emerald-500 text-white"
+                : "bg-amber-400 text-slate-900"
+            }`}>
+              {["approved", "confirmed", "freezed"].includes(String(upcomingReminder.status).toLowerCase())
+                ? "Confirmed"
+                : "Pending Approval"}
+            </span>
+          </div>
+          <Link
+            href="/appointments"
+            className="px-2.5 py-0.5 rounded bg-white text-[#0067A1] font-bold text-[11px] hover:bg-sky-50 transition-colors shrink-0"
+          >
+            View
+          </Link>
+        </div>
+      )}
       <div className="flex items-center justify-between h-16 px-4 lg:px-6">
         {/* Left Section */}
         <div className="flex items-center gap-3">

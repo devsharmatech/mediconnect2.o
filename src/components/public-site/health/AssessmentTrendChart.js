@@ -167,22 +167,10 @@ export default function AssessmentTrendChart({
             </div>
           </div>
 
-          {/* Segmented Reference Track */}
+          {/* Non-composite Reference Track (CC-08 / LC-10 Compliant) */}
           <div className="space-y-1.5 my-2">
             <div className="relative w-full h-3 bg-slate-200 rounded-full overflow-hidden flex">
-              <div className="w-[40%] h-full bg-amber-400/80" title="High Risk (0-39)" />
-              <div className="w-[30%] h-full bg-sky-400/80" title="Moderate (40-69)" />
-              <div className="w-[30%] h-full bg-emerald-500" title="Optimal (70-100)" />
-            </div>
-
-            {/* Pointer position */}
-            <div className="relative w-full h-4">
-              <div
-                className="absolute -top-1 -translate-x-1/2 flex flex-col items-center"
-                style={{ left: `${Math.min(96, Math.max(4, singlePoint.score))}%` }}
-              >
-                <div className="w-2.5 h-2.5 rotate-45 bg-slate-900 shadow-sm" />
-              </div>
+              <div className="w-full h-full bg-[#0067A1]/80" title="Recorded Baseline Checkup" />
             </div>
           </div>
 

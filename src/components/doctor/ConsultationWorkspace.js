@@ -21,6 +21,7 @@ import {
 import { toast } from "react-hot-toast";
 import SessionStateTracker from "./SessionStateTracker";
 import PatientVerificationCard from "./PatientVerificationCard";
+import PdfJsViewer from "@/components/public-site/ui/PdfJsViewer";
 
 export default function ConsultationWorkspace({ appointment, onConsultationUpdate }) {
   const [loading, setLoading] = useState(false);
@@ -67,6 +68,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
   const [showSharedDocs, setShowSharedDocs] = useState(false);
   const [sharedDocs, setSharedDocs] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
+  const [viewingSharedDoc, setViewingSharedDoc] = useState(null);
 
   const isRejectedOrCancelled = ["rejected", "cancelled", "REJECTED", "CANCELLED"].includes(appointment?.status);
   const isCompleted = appointment?.status === "COMPLETED" || appointment?.status === "CLOSED_RESOLVED" || appointment?.status === "completed";
@@ -1144,16 +1146,21 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
                             </div>
                           </div>
                         </div>
-                        {doc.file_url ? (
-                          <a 
-                            href={doc.file_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="px-4 py-2 bg-slate-50 text-slate-600 rounded-xl hover:bg-[#0067A1] hover:text-white transition-all shadow-sm text-xs font-bold flex items-center gap-2 cursor-pointer"
+                        {(doc.file_url || doc.document_url) ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setViewingSharedDoc({
+                                url: doc.file_url || doc.document_url,
+                                name: doc.document_name || "Medical Record",
+                                mime: doc.mime_type || "",
+                              })
+                            }
+                            className="px-4 py-2 bg-[#0067A1] text-white rounded-xl hover:bg-[#005282] transition-all shadow-sm text-xs font-bold flex items-center gap-2 cursor-pointer"
                           >
                             <ExternalLink className="w-4 h-4" />
                             View Record
-                          </a>
+                          </button>
                         ) : (
                           <button 
                             disabled
@@ -1183,6 +1190,58 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
         </div>
       </div>
       )}
+
+      {viewingSharedDoc && (() => {
+        const docUrl = viewingSharedDoc.url || "";
+        const isImg = Boolean(
+          viewingSharedDoc.mime?.startsWith("image/") ||
+          docUrl.split("?")[0].match(/\.(jpeg|jpg|png|webp|gif|bmp)$/i)
+        );
+        return (
+          <div className="fixed inset-0 z-[10005] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+            <div className="bg-white w-full max-w-5xl h-[88vh] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+              <div className="px-4 py-3 bg-white border-b border-slate-200 flex items-center justify-between gap-3 shrink-0">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                  {viewingSharedDoc.name}
+                </h3>
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={docUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-[#0067A1]" />
+                    Open Tab
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setViewingSharedDoc(null)}
+                    className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-hidden bg-slate-100 flex items-center justify-center">
+                {isImg ? (
+                  <div className="w-full h-full overflow-auto flex items-center justify-center p-4 bg-slate-900">
+                    <img
+                      src={docUrl}
+                      alt={viewingSharedDoc.name}
+                      className="max-w-full max-h-full object-contain rounded-lg"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex flex-col overflow-hidden">
+                    <PdfJsViewer url={docUrl} fileName={viewingSharedDoc.name} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {/* Autocomplete Datalists */}
       <datalist id="symptoms-list">
         {symptomMaster.map((sym, i) => <option key={i} value={sym} />)}

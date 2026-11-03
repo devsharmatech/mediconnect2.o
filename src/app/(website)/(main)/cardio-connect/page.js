@@ -1020,7 +1020,7 @@ export default function CardioConnectHome() {
         )}
 
         {/* ── CARD 1: HEART TRAINING HERO BANNER ── */}
-        <section className="bg-gradient-to-r from-[#002b49] via-[#003d66] to-[#005584] rounded-[5px] p-5 sm:p-7 text-white shadow-md relative overflow-hidden group">
+        <section className="bg-[#003358] rounded-[5px] p-5 sm:p-7 text-white shadow-md relative overflow-hidden group">
           <div className="absolute -right-8 -bottom-8 w-48 h-48 rounded-full bg-white/5 pointer-events-none blur-xl group-hover:bg-white/10 transition-all duration-500" />
           
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
@@ -1050,7 +1050,7 @@ export default function CardioConnectHome() {
                 className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-white hover:bg-slate-50 text-[#0067A1] font-semibold text-xs sm:text-sm rounded-[5px] shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
               >
                 <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
-                <span>START HEART TRAINING</span>
+                <span>Start Training</span>
                 <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
             </div>
@@ -1318,19 +1318,44 @@ export default function CardioConnectHome() {
           </section>
         </div>
 
-        {/* ── OPTIONAL SECONDARY ACTION: CARDIO SCREENING / UPDATE ASSESSMENT ── */}
-        <div className="p-3.5 bg-white rounded-[5px] border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-          <div>
-            <span className="text-slate-900 font-bold block">Need to update your clinical vitals or retake assessment?</span>
-            <span className="text-slate-500 text-[11px]">Log new blood pressure, lipid panel, or lifestyle readings to refresh your longitudinal trajectory.</span>
+        {/* ── OPTIONAL SECONDARY ACTION: CARDIO SCREENING & SPECIALIST CARE NAVIGATION ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="p-3.5 bg-white rounded-[5px] border border-slate-200 shadow-2xs flex flex-col justify-between gap-2 text-xs">
+            <div>
+              <span className="text-slate-900 font-bold block">Need to update your clinical vitals or retake assessment?</span>
+              <span className="text-slate-500 text-[11px]">Log new blood pressure, lipid panel, or lifestyle readings to refresh your longitudinal trajectory.</span>
+            </div>
+            <Link
+              href="/heart-health"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-[5px] font-semibold text-xs transition-colors shadow-2xs shrink-0 cursor-pointer self-start"
+            >
+              <span>Update Assessment</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
-          <Link
-            href="/heart-health"
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-[5px] font-semibold text-xs transition-colors shadow-2xs shrink-0 cursor-pointer"
-          >
-            <span>Update / Retake Assessment</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
+
+          <div className="p-3.5 bg-white rounded-[5px] border border-slate-200 shadow-2xs flex flex-col justify-between gap-2 text-xs">
+            <div>
+              <span className="text-slate-900 font-bold block">Need Specialist Cardiac Consultation?</span>
+              <span className="text-slate-500 text-[11px]">Connect with verified Cardiologists or General Physicians for clinical evaluation.</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/doctors?specialty=Cardiology"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-[5px] font-semibold text-xs transition-colors shadow-2xs shrink-0 cursor-pointer"
+              >
+                <span>Consult Cardiologist</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+              <Link
+                href="/doctors?specialty=General%20Physician"
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-[5px] font-semibold text-xs transition-colors shrink-0 cursor-pointer"
+              >
+                <span>General Physician</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
         </div>
 
       </main>
@@ -1501,7 +1526,7 @@ export default function CardioConnectHome() {
                 className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium text-xs rounded-[5px] shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Play className="w-4 h-4 fill-current" />
-                <span>START HEART TRAINING</span>
+                <span>Start Training</span>
               </button>
               <button
                 type="button"
@@ -1609,7 +1634,7 @@ export default function CardioConnectHome() {
               {/* Main Interactive Display Area: Gauge View / Map View / Split View */}
               <div>
                 {trainingViewMode === "gauge" && (
-                  <div className="flex flex-col items-center justify-center p-5 bg-gradient-to-b from-[#f0f7ff] via-white to-[#f4f9ff] border border-sky-100 rounded-[5px] shadow-xs relative overflow-hidden">
+                  <div className="flex flex-col items-center justify-center p-5 bg-sky-50/50 border border-sky-100 rounded-[5px] shadow-xs relative overflow-hidden">
                     <AnimatedStopwatch
                       isActive={!isTrainingPaused}
                       isPaused={isTrainingPaused}
@@ -1661,7 +1686,7 @@ export default function CardioConnectHome() {
 
                 {trainingViewMode === "split" && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="flex flex-col items-center justify-center p-3 bg-gradient-to-b from-[#f0f7ff] via-white to-[#f4f9ff] border border-sky-100 rounded-[5px] shadow-xs">
+                    <div className="flex flex-col items-center justify-center p-3 bg-sky-50/50 border border-sky-100 rounded-[5px] shadow-xs">
                       <AnimatedStopwatch
                         isActive={!isTrainingPaused}
                         isPaused={isTrainingPaused}
@@ -1901,7 +1926,7 @@ export default function CardioConnectHome() {
                 onClick={() => setActiveModal(null)}
                 className="w-full py-3 bg-[#0067A1] hover:bg-[#004F7C] text-white font-semibold text-xs rounded-[5px] shadow-xs transition-colors cursor-pointer"
               >
-                DONE (Back to Home)
+                Done
               </button>
               <button
                 type="button"
@@ -1912,14 +1937,14 @@ export default function CardioConnectHome() {
                 className="w-full py-2.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200 font-semibold text-xs rounded-[5px] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <FileText className="w-3.5 h-3.5" />
-                <span>VIEW HISTORY & PRINT PDF REPORT (F1–F4)</span>
+                <span>View Reports</span>
               </button>
               <button
                 type="button"
                 onClick={() => setActiveModal("progress")}
                 className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-[5px] transition-colors cursor-pointer"
               >
-                VIEW PROGRESS
+                View Progress
               </button>
             </div>
           </div>
@@ -2031,7 +2056,7 @@ export default function CardioConnectHome() {
                 className="w-full py-2.5 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200 font-semibold text-xs rounded-[5px] transition-colors cursor-pointer flex items-center justify-center gap-2"
               >
                 <Heart className="w-3.5 h-3.5" />
-                <span>Update / Retake Assessment (Add New Vitals)</span>
+                <span>Update Assessment</span>
               </button>
               <button
                 type="button"
@@ -2497,7 +2522,7 @@ export default function CardioConnectHome() {
                 onClick={() => finishWalkingTest(true)}
                 className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-[5px] shadow-xs transition-colors cursor-pointer"
               >
-                STOP EARLY / COMPLETE TEST
+                Complete Test
               </button>
             </div>
           </div>

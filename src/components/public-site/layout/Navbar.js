@@ -161,12 +161,12 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
   // Prevent background scrolling when any modal or mobile menu is open
   useEffect(() => {
     if (activeModal || isMenuOpen) {
-      document.body.style.overflow = "hidden";
+      document.body.style.overflowY = "hidden";
     } else {
-      document.body.style.overflow = "unset";
+      document.body.style.overflowY = "";
     }
     return () => {
-      document.body.style.overflow = "unset";
+      document.body.style.overflowY = "";
     };
   }, [activeModal, isMenuOpen]);
 
@@ -1208,56 +1208,58 @@ const Navbar = ({ isMenuOpen, toggleSideBar }) => {
                     </MobileNavLink>
                   )}
 
-                  {/* Patient View for All Users */}
-                  <div className={`pt-2 mt-1 ${(isDoctor || isChemist || isLab || isAdmin) ? "border-t border-gray-100" : ""}`}>
-                    {(isDoctor || isChemist || isLab || isAdmin) && (
-                      <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                        Patient View
-                      </div>
-                    )}
-                    <MobileNavLink href="/dashboard" onClick={toggleSideBar}>
-                      <div className="flex items-center gap-2.5">
-                        <FaUser className="w-4 h-4 text-[#0067A1]" />
-                        <span>Patient Dashboard</span>
-                      </div>
-                    </MobileNavLink>
-                    <MobileNavLink href="/appointments" onClick={toggleSideBar}>
-                      <div className="flex items-center gap-2.5">
-                        <FaCalendarAlt className="w-4 h-4 text-[#0067A1]" />
-                        <span>My Appointments</span>
-                      </div>
-                    </MobileNavLink>
-                    <MobileNavLink href="/lung-connect" onClick={toggleSideBar}>
-                      <div className="flex items-center gap-2.5">
-                        <TbLungsFilled className="w-4 h-4 text-teal-600" />
-                        <span>LungConnect</span>
-                      </div>
-                    </MobileNavLink>
-                    <MobileNavLink href="/cardio-connect" onClick={toggleSideBar}>
-                      <div className="flex items-center gap-2.5">
-                        <FaHeartbeat className="w-4 h-4 text-rose-500" />
-                        <span>CardioConnect</span>
-                      </div>
-                    </MobileNavLink>
-                    <MobileNavLink href="/lab-reports" onClick={toggleSideBar}>
-                      <div className="flex items-center gap-2.5">
-                        <FaFlask className="w-4 h-4 text-purple-600" />
-                        <span>Lab Reports</span>
-                      </div>
-                    </MobileNavLink>
-                    <MobileNavLink href="/medicine-order" onClick={toggleSideBar}>
-                      <div className="flex items-center gap-2.5">
-                        <FaCog className="w-4 h-4 text-[#0067A1]" />
-                        <span>Medicine Orders</span>
-                      </div>
-                    </MobileNavLink>
-                    <MobileNavLink href="/profile" onClick={toggleSideBar}>
-                      <div className="flex items-center gap-2.5">
-                        <FaCog className="w-4 h-4 text-[#0067A1]" />
-                        <span>My Profile</span>
-                      </div>
-                    </MobileNavLink>
-                  </div>
+                  {/* Patient View for Users (Not Admin) */}
+                  {!isAdmin && (
+                    <div className={`pt-2 mt-1 ${(isDoctor || isChemist || isLab) ? "border-t border-gray-100" : ""}`}>
+                      {(isDoctor || isChemist || isLab) && (
+                        <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                          Patient View
+                        </div>
+                      )}
+                      <MobileNavLink href="/dashboard" onClick={toggleSideBar}>
+                        <div className="flex items-center gap-2.5">
+                          <FaUser className="w-4 h-4 text-[#0067A1]" />
+                          <span>Patient Dashboard</span>
+                        </div>
+                      </MobileNavLink>
+                      <MobileNavLink href="/appointments" onClick={toggleSideBar}>
+                        <div className="flex items-center gap-2.5">
+                          <FaCalendarAlt className="w-4 h-4 text-[#0067A1]" />
+                          <span>My Appointments</span>
+                        </div>
+                      </MobileNavLink>
+                      <MobileNavLink href="/lung-connect" onClick={toggleSideBar}>
+                        <div className="flex items-center gap-2.5">
+                          <TbLungsFilled className="w-4 h-4 text-teal-600" />
+                          <span>LungConnect</span>
+                        </div>
+                      </MobileNavLink>
+                      <MobileNavLink href="/cardio-connect" onClick={toggleSideBar}>
+                        <div className="flex items-center gap-2.5">
+                          <FaHeartbeat className="w-4 h-4 text-rose-500" />
+                          <span>CardioConnect</span>
+                        </div>
+                      </MobileNavLink>
+                      <MobileNavLink href="/lab-reports" onClick={toggleSideBar}>
+                        <div className="flex items-center gap-2.5">
+                          <FaFlask className="w-4 h-4 text-purple-600" />
+                          <span>Lab Reports</span>
+                        </div>
+                      </MobileNavLink>
+                      <MobileNavLink href="/medicine-order" onClick={toggleSideBar}>
+                        <div className="flex items-center gap-2.5">
+                          <FaCog className="w-4 h-4 text-[#0067A1]" />
+                          <span>Medicine Orders</span>
+                        </div>
+                      </MobileNavLink>
+                      <MobileNavLink href="/profile" onClick={toggleSideBar}>
+                        <div className="flex items-center gap-2.5">
+                          <FaCog className="w-4 h-4 text-[#0067A1]" />
+                          <span>My Profile</span>
+                        </div>
+                      </MobileNavLink>
+                    </div>
+                  )}
 
                   {/* Sign Out Button in Drawer */}
                   <button

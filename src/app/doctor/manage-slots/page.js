@@ -21,6 +21,7 @@ import {
   FaTimes
 } from 'react-icons/fa';
 import api from '@/utils/websiteApi';
+import toast from 'react-hot-toast';
 
 export default function ManageSlots() {
   const [timeSlots, setTimeSlots] = useState([]);
@@ -99,13 +100,25 @@ export default function ManageSlots() {
         setShowBlockedModal(true);
       } else if (json.success) {
         setIsOpen(newValue);
-        setAvailabilityMessage(json.message || '');
-        setTimeout(() => setAvailabilityMessage(''), 3000);
+        const statusText = newValue
+          ? 'Now You Are Live — Open for Appointments'
+          : 'Now You Are Closed — Offline for Appointments';
+        setAvailabilityMessage(statusText);
+        toast.success(statusText);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('doctor-availability-changed', { detail: { is_open: newValue } }));
+        }
+        if (selectedDate) {
+          fetchSlots(selectedDate);
+        }
+        setTimeout(() => setAvailabilityMessage(''), 4000);
       } else {
         setAvailabilityMessage(json.message || 'Failed to update availability');
+        toast.error(json.message || 'Failed to update availability');
       }
     } catch (err) {
       setAvailabilityMessage('Failed to update availability');
+      toast.error('Failed to update availability');
     } finally {
       setToggleLoading(false);
     }
@@ -116,11 +129,18 @@ export default function ManageSlots() {
     if (!userId) return;
     setSlotInterval(interval);
     try {
-      await fetch('/api/doctor/availability', {
+      const res = await fetch('/api/doctor/availability', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ doctor_id: userId, action: 'set_interval', slot_interval_minutes: interval }),
       });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(`Slot interval updated to ${interval}m`);
+        if (selectedDate) {
+          fetchSlots(selectedDate);
+        }
+      }
     } catch (err) {
       console.error('Failed to update interval:', err);
     }
@@ -693,7 +713,7 @@ export default function ManageSlots() {
             <div className="flex flex-col gap-1.5 shrink-0">
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Slot Interval</p>
               <div className="flex flex-wrap items-center gap-1.5">
-                {[5, 10, 15, 30, 45, 60].map((mins) => (
+                {[5, 10, 15, 20, 30, 45, 60].map((mins) => (
                   <button
                     key={mins}
                     onClick={() => handleIntervalChange(mins)}

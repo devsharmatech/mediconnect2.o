@@ -18,6 +18,10 @@
 }
 
 /* Apply Poppins everywhere across the website and dashboard with crisp antialiasing */
+html {
+  scrollbar-gutter: stable;
+}
+
 html,
 body,
 .website-root {

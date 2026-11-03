@@ -28,9 +28,14 @@ export default function AbhaCreationPage() {
                 </div>
                 <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                     <div className="max-w-3xl">
-                        <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5 mb-6 backdrop-blur-sm">
+                        <div className="inline-flex items-center gap-2 bg-amber-400 text-slate-900 rounded-full px-4 py-1.5 mb-4 font-bold text-xs uppercase tracking-wider">
+                            <span>Coming Soon</span>
+                            <span>•</span>
+                            <span className="font-medium normal-case">ABDM Integration in Progress</span>
+                        </div>
+                        <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-1.5 mb-6 ml-3 backdrop-blur-sm">
                             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                            <span className="text-sm font-medium tracking-wide">National Health Authority Approved</span>
+                            <span className="text-sm font-medium tracking-wide">National Health Authority Sandbox</span>
                         </div>
                         <h1 className="text-4xl lg:text-5xl font-bold mb-6 leading-tight">
                             Create Your <span className="text-[#3edcb4]">ABHA Number</span>

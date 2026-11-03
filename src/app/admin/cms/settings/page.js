@@ -17,6 +17,9 @@ export default function SettingsCMS() {
     emergency_disclaimer: "",
     whatsapp_number: "",
     whatsapp_message: "",
+    meta_title: "",
+    meta_description: "",
+    meta_keywords: "",
     social_links: {
       facebook: "",
       twitter: "",
@@ -166,6 +169,56 @@ export default function SettingsCMS() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Pre-filled Message</label>
                 <input type="text" value={data.whatsapp_message} onChange={(e) => setData({ ...data, whatsapp_message: e.target.value })} placeholder="e.g. Hello, I need help with..." className="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white placeholder-gray-400" />
+              </div>
+
+              <div className="col-span-1 md:col-span-2 mt-4">
+                <hr className="border-gray-200 dark:border-gray-700"/>
+                <div className="mt-4 mb-2">
+                  <h3 className="text-xl font-semibold text-gray-800 dark:text-white">SEO & Search Engine Meta Tags</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Configure global metadata for Google indexing, search result previews, and social media sharing.</p>
+                </div>
+              </div>
+
+              <div className="col-span-1 md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  SEO Meta Title
+                  <span className="text-xs text-gray-400 font-normal ml-2">(Recommended: 50–60 characters)</span>
+                </label>
+                <input 
+                  type="text" 
+                  value={data.meta_title || ""} 
+                  onChange={(e) => setData({ ...data, meta_title: e.target.value })} 
+                  placeholder="e.g. MediConnect — Book Doctor Appointments & Consultations Online" 
+                  className="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white placeholder-gray-400" 
+                />
+              </div>
+
+              <div className="col-span-1 md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  SEO Meta Description
+                  <span className="text-xs text-gray-400 font-normal ml-2">(Recommended: 150–160 characters)</span>
+                </label>
+                <textarea 
+                  rows="3" 
+                  value={data.meta_description || ""} 
+                  onChange={(e) => setData({ ...data, meta_description: e.target.value })} 
+                  placeholder="e.g. Find verified medical specialists, book video or in-clinic doctor consultations, order genuine medicines, and manage healthcare records securely on MediConnect." 
+                  className="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white placeholder-gray-400"
+                ></textarea>
+              </div>
+
+              <div className="col-span-1 md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  SEO Meta Keywords
+                  <span className="text-xs text-gray-400 font-normal ml-2">(Comma-separated keywords)</span>
+                </label>
+                <input 
+                  type="text" 
+                  value={data.meta_keywords || ""} 
+                  onChange={(e) => setData({ ...data, meta_keywords: e.target.value })} 
+                  placeholder="e.g. online doctor consultation, book clinic appointment, video consult, medicines online, health records" 
+                  className="w-full px-4 py-2 border rounded-xl dark:bg-gray-700 dark:border-gray-600 dark:text-white placeholder-gray-400" 
+                />
               </div>
 
               <div className="col-span-1 md:col-span-2 mt-4"><hr className="border-gray-200 dark:border-gray-700"/><h3 className="text-xl font-semibold mt-4 text-gray-800 dark:text-white">Social Media Links</h3></div>

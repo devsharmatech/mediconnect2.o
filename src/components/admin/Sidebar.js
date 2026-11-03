@@ -134,7 +134,12 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
         {
           name: "Chemists",
           icon: <Pill className="w-4 h-4" />,
-          path: `/admin/chemists`,
+          submenu: true,
+          subItems: [
+            { name: "All Chemists", path: `/admin/chemists` },
+            { name: "Chemist Orders", path: `/admin/chemists/orders` },
+            { name: "Chemist Payments", path: `/admin/chemists/payments` },
+          ],
         },
         {
           name: "Allied Partners",
@@ -237,11 +242,6 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
           name: "Settings",
           icon: <Settings className="w-4 h-4" />,
           path: `/admin/settings`,
-        },
-        {
-          name: "Patient View",
-          icon: <Heart className="w-4 h-4" />,
-          path: `/dashboard`,
         },
       ],
     },

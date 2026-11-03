@@ -1881,8 +1881,15 @@ export default function HospitalsPage() {
   };
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchHospitals(1, searchTerm, statusFilter, typeFilter);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm, statusFilter, typeFilter, pagination.itemsPerPage]);
+
+  useEffect(() => {
     fetchHospitals(pagination.currentPage, searchTerm, statusFilter, typeFilter);
-  }, [pagination.currentPage, searchTerm, statusFilter, typeFilter, pagination.itemsPerPage]);
+  }, [pagination.currentPage]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {

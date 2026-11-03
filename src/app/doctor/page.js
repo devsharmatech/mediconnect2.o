@@ -27,6 +27,8 @@ export default function DoctorDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [scorecard, setScorecard] = useState(null);
+  const [isDoctorOpen, setIsDoctorOpen] = useState(true);
+  const [togglingOpen, setTogglingOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -90,8 +92,17 @@ export default function DoctorDashboard() {
           ? prescriptionsRes.data
           : [];
 
-      // Fetch AI Interactions needing review
+      // Fetch AI Interactions needing review & doctor availability
       try {
+        fetch(`/api/doctor/availability?doctor_id=${userId}`)
+          .then((r) => r.json())
+          .then((avail) => {
+            if (avail?.success) {
+              setIsDoctorOpen(avail.data?.is_open !== false);
+            }
+          })
+          .catch(() => {});
+
         const scoreRes = await fetch(`/api/doctors/analytics/scorecard?doctor_id=${userId}`);
         const scoreData = await scoreRes.json();
         if (scoreData.success) setScorecard(scoreData.data);
@@ -299,10 +310,49 @@ export default function DoctorDashboard() {
                 <p className="text-sm sm:text-base font-semibold leading-tight">{formatTime(currentTime)}</p>
                 <p className="text-[10px] text-sky-200">Local Time</p>
               </div>
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/10 border border-white/20 rounded-md">
-                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-xs text-white font-medium">Online</span>
-              </div>
+              <button
+                type="button"
+                disabled={togglingOpen}
+                onClick={async () => {
+                  if (!doctorId || togglingOpen) return;
+                  const nextState = !isDoctorOpen;
+                  setTogglingOpen(true);
+                  try {
+                    const res = await fetch("/api/doctor/availability", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ doctor_id: doctorId, action: "toggle", is_open: nextState }),
+                    });
+                    const json = await res.json();
+                    if (res.status === 409) {
+                      toast.error(json.message || "Cannot go offline while you have active appointments today.");
+                    } else if (json.success) {
+                      setIsDoctorOpen(nextState);
+                      toast.success(
+                        nextState
+                          ? "Now You Are Live — Open for Appointments"
+                          : "Now You Are Closed — Offline for Appointments"
+                      );
+                      window.dispatchEvent(new CustomEvent("doctor-availability-changed", { detail: { is_open: nextState } }));
+                    } else {
+                      toast.error(json.message || "Failed to update availability");
+                    }
+                  } catch {
+                    toast.error("Failed to update availability");
+                  } finally {
+                    setTogglingOpen(false);
+                  }
+                }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md border transition-colors cursor-pointer ${
+                  isDoctorOpen
+                    ? "bg-emerald-600/30 border-emerald-400/50 text-white hover:bg-emerald-600/40"
+                    : "bg-slate-800/40 border-white/20 text-slate-200 hover:bg-slate-800/60"
+                }`}
+                title="Click to toggle Live / Closed status"
+              >
+                <div className={`w-2 h-2 rounded-full ${isDoctorOpen ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
+                <span className="text-xs font-semibold">{isDoctorOpen ? "Live (Open)" : "Closed"}</span>
+              </button>
             </div>
           </div>
         </div>

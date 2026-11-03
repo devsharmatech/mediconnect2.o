@@ -3139,7 +3139,10 @@ export default function LabsPage() {
   };
 
   useEffect(() => {
-    fetchLabs(pagination.currentPage, searchTerm, statusFilter);
+    const timer = setTimeout(() => {
+      fetchLabs(1, searchTerm, statusFilter);
+    }, 400);
+    return () => clearTimeout(timer);
   }, [searchTerm, statusFilter, pagination.itemsPerPage]);
 
   const handlePageChange = (newPage) => {

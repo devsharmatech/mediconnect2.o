@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -11,14 +11,15 @@ export async function GET(request) {
     let doctorId = null;
 
     if (token) {
-      // Verify token and get doctor_id
-      const { data: statusData, error: statusError } = await supabase
-        .from("doctor_onboarding_status")
-        .select("doctor_id, token_expires_at")
-        .eq("invitation_token", token)
-        .single();
+      const statusRows = await sql`
+        SELECT doctor_id, token_expires_at
+        FROM doctor_onboarding_status
+        WHERE invitation_token = ${token}
+        LIMIT 1
+      `;
+      const statusData = statusRows[0] || null;
 
-      if (statusError || !statusData) {
+      if (!statusData) {
         return NextResponse.json(
           {
             success: false,
@@ -29,13 +30,11 @@ export async function GET(request) {
         );
       }
 
-      // Check expiry
-      if (new Date() > new Date(statusData.token_expires_at)) {
+      if (statusData.token_expires_at && new Date() > new Date(statusData.token_expires_at)) {
         return NextResponse.json(
           {
             success: false,
-            error:
-              "Invitation link has expired. Please contact admin for a new link.",
+            error: "Invitation link has expired. Please contact admin for a new link.",
           },
           { status: 401 }
         );
@@ -43,19 +42,19 @@ export async function GET(request) {
 
       doctorId = statusData.doctor_id;
     } else if (phone) {
-      const { data: users, error: userError } = await supabase
-        .from("users")
-        .select("id")
-        .eq("phone_number", phone)
-        .eq("role", "doctor");
-
-      if (userError || !users || users.length === 0) {
+      const users = await sql`
+        SELECT id
+        FROM users
+        WHERE phone_number = ${phone}
+          AND role = 'doctor'
+        LIMIT 1
+      `;
+      if (!users || users.length === 0) {
         return NextResponse.json(
           { success: false, error: "Doctor not found" },
           { status: 404 }
         );
       }
-
       doctorId = users[0].id;
     }
 
@@ -66,38 +65,41 @@ export async function GET(request) {
       );
     }
 
-    // Get doctor details
-    const { data: details, error: detailsError } = await supabase
-      .from("doctor_details")
-      .select("*")
-      .eq("id", doctorId)
-      .single();
+    const detailsRows = await sql`
+      SELECT *
+      FROM doctor_details
+      WHERE id = ${doctorId}
+      LIMIT 1
+    `;
+    const details = detailsRows[0] || null;
 
-    if (detailsError) {
+    if (!details) {
       return NextResponse.json(
         { success: false, error: "Details not found" },
         { status: 404 }
       );
     }
 
-    // Also fetch onboarding status
-    const { data: onboardingStatus } = await supabase
-      .from("doctor_onboarding_status")
-      .select("*")
-      .eq("doctor_id", doctorId)
-      .maybeSingle();
+    const onboardingRows = await sql`
+      SELECT *
+      FROM doctor_onboarding_status
+      WHERE doctor_id = ${doctorId}
+      LIMIT 1
+    `;
+    const onboardingStatus = onboardingRows[0] || null;
 
-    // Get phone from users table
-    const { data: userData } = await supabase
-      .from("users")
-      .select("phone_number")
-      .eq("id", doctorId)
-      .single();
+    const userRows = await sql`
+      SELECT phone_number
+      FROM users
+      WHERE id = ${doctorId}
+      LIMIT 1
+    `;
+    const userData = userRows[0] || null;
 
     return NextResponse.json({
       success: true,
       data: details,
-      onboarding_status: onboardingStatus || null,
+      onboarding_status: onboardingStatus,
       phone: userData?.phone_number || null,
       doctor_id: doctorId,
     });

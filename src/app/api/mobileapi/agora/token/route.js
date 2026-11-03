@@ -58,7 +58,9 @@ export async function POST(req) {
 
     const channelName = `appointment_${appointment_id}`;
     const agoraRole =
-      role === "publisher" ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
+      role === "subscriber" || role === "audience"
+        ? RtcRole.SUBSCRIBER
+        : RtcRole.PUBLISHER;
 
     // agora-token v2 expects DURATIONS in seconds, not Unix timestamps.
     const TOKEN_EXPIRE = 3600; // 1 hour

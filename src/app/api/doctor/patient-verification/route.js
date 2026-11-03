@@ -315,6 +315,35 @@ export async function POST(req) {
       } catch (tickErr) {
         console.warn("Support ticket creation warning:", tickErr.message);
       }
+
+      // 5. Notify the Patient of Discrepancy Alert
+      try {
+        await sql`
+          INSERT INTO notifications (
+            user_id,
+            title,
+            message,
+            type,
+            metadata,
+            created_at
+          ) VALUES (
+            ${patient_id},
+            'Identity Verification Notice',
+            ${`Your doctor reported an identity/profile discrepancy: "${discrepancy_reason}". Please review your consultation details.`},
+            'APPOINTMENT_DISCREPANCY',
+            ${JSON.stringify({
+              appointment_id,
+              doctor_id,
+              discrepancy_reason,
+              discrepancy_notes: discrepancy_notes || null,
+              reported_at: new Date().toISOString()
+            })},
+            NOW()
+          )
+        `;
+      } catch (notifErr) {
+        console.warn("Patient notification warning:", notifErr.message);
+      }
     }
 
     return NextResponse.json({

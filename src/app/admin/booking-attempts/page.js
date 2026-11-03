@@ -44,10 +44,14 @@ export default function AdminPatientVisitsPage() {
   }, []);
 
   const filteredGroups = doctorGroups.filter(g => {
+    if (!searchTerm.trim()) return true;
     const searchStr = searchTerm.toLowerCase();
     const docName = g.doctor?.name?.toLowerCase() || "";
     const spec = g.doctor?.specialization?.toLowerCase() || "";
-    return docName.includes(searchStr) || spec.includes(searchStr);
+    const email = g.doctor?.email?.toLowerCase() || "";
+    const phone = g.doctor?.phone?.toLowerCase() || "";
+    const city = g.doctor?.city?.toLowerCase() || "";
+    return docName.includes(searchStr) || spec.includes(searchStr) || email.includes(searchStr) || phone.includes(searchStr) || city.includes(searchStr);
   });
 
   const totalDoctors = doctorGroups.length;
