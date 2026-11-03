@@ -416,12 +416,15 @@ function DoctorProfileContent() {
           appointment_type: slotType,
         });
 
-        if (!res.success)
-          throw new Error(res.error || "Failed to fetch slots");
+        if (!res.success) {
+          console.warn("Doctor slots fetch notice:", res.error);
+          setSlots([]);
+          return;
+        }
         setSlots(Array.isArray(res.data) ? res.data : []);
       } catch (e) {
         console.error("Doctor slots error:", e);
-        setError(e.message || "Failed to fetch slots");
+        setSlots([]);
       } finally {
         setSlotsLoading(false);
       }
