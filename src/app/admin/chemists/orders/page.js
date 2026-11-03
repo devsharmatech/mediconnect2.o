@@ -316,7 +316,7 @@ export default function AdminChemistOrdersPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full min-h-screen">
       {/* ─── Page Header ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
@@ -797,9 +797,9 @@ export default function AdminChemistOrdersPage() {
                               <span className="font-medium text-slate-700">
                                 Qty: {item.quantity || 1}
                               </span>
-                              {item.price && (
+                              {Number(item.price) > 0 && (
                                 <p className="text-[11px] font-semibold text-slate-900 mt-0.5">
-                                  ₹{item.price}
+                                  ₹{Number(item.price).toLocaleString("en-IN")}
                                 </p>
                               )}
                             </div>
