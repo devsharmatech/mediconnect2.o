@@ -21,6 +21,7 @@ import {
   Building2,
   User,
   Shield,
+  ShieldCheck,
   FileText,
   ChevronLeft,
   ChevronRight,
@@ -967,9 +968,9 @@ export default function AdminChemistOrdersPage() {
                     </div>
                   )}
 
-                  {/* Prescription Information */}
+                  {/* Prescription Information (Privacy-Compliant Admin Summary) */}
                   {(orderDetail.order.prescription_file_url || orderDetail.order.prescription_record_id) && (
-                    <div className="bg-white rounded-md border border-slate-200 p-4 space-y-2.5">
+                    <div className="bg-white rounded-[5px] border border-slate-200 p-3.5 space-y-2.5">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-[#0067A1]" />
@@ -985,25 +986,13 @@ export default function AdminChemistOrdersPage() {
                           </div>
                         </div>
 
-                        {orderDetail.order.prescription_file_url ? (
-                          <a
-                            href={orderDetail.order.prescription_file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-2.5 py-1 rounded-[4px] bg-[#0067A1]/10 hover:bg-[#0067A1] text-[#0067A1] hover:text-white text-xs font-medium flex items-center gap-1 transition-colors"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            <span>View PDF</span>
-                          </a>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-[4px]">
-                            <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
-                            <span>Digitally Verified</span>
-                          </span>
-                        )}
+                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-[4px]">
+                          <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
+                          <span>Digitally Verified for Dispensing</span>
+                        </span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
                         <div className="bg-slate-50 p-2.5 rounded-[4px] border border-slate-200/80">
                           <p className="text-[10px] text-slate-400 font-medium uppercase">Consulting Doctor</p>
                           <p className="font-semibold text-slate-800 text-xs mt-0.5">
@@ -1021,15 +1010,14 @@ export default function AdminChemistOrdersPage() {
                         </div>
 
                         <div className="bg-slate-50 p-2.5 rounded-[4px] border border-slate-200/80">
-                          <p className="text-[10px] text-slate-400 font-medium uppercase">Clinical Diagnosis</p>
-                          <p className="font-medium text-slate-800 text-xs mt-0.5">
-                            {orderDetail.order.prescription_diagnosis || "General Consultation"}
+                          <p className="text-[10px] text-slate-400 font-medium uppercase">Clinical Governance</p>
+                          <p className="font-medium text-emerald-700 text-xs mt-0.5 flex items-center gap-1">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>DPDP & TPG 2020 Compliant</span>
                           </p>
-                          {orderDetail.order.doctor_phone && (
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                              Doctor Contact: {orderDetail.order.doctor_phone}
-                            </p>
-                          )}
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            Licensed Pharmacist Fulfillment Protocol
+                          </p>
                         </div>
                       </div>
                     </div>

@@ -18,6 +18,7 @@ export async function GET(req) {
     const startDate = url.searchParams.get("start_date") || null;
     const endDate = url.searchParams.get("end_date") || null;
     const search = url.searchParams.get("search") || null;
+    const status = url.searchParams.get("status") || null;
     const id = url.searchParams.get("id") || null;
 
     // Single Prescription by ID
@@ -101,6 +102,16 @@ export async function GET(req) {
 
     if (doctorId) {
       conditions.push(sql`p.doctor_id::text = ${doctorId}`);
+    }
+
+    if (status && status !== "all") {
+      if (status === "draft") {
+        conditions.push(sql`p.is_draft = true`);
+      } else if (status === "active") {
+        conditions.push(sql`(p.status = 'active' OR p.status IS NULL) AND (p.is_draft = false OR p.is_draft IS NULL)`);
+      } else {
+        conditions.push(sql`p.status = ${status}`);
+      }
     }
 
     if (search && search.trim()) {
