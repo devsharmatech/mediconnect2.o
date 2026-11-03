@@ -967,40 +967,71 @@ export default function AdminChemistOrdersPage() {
                     </div>
                   )}
 
-                  {/* Prescription Attachment (if any) */}
+                  {/* Prescription Information */}
                   {(orderDetail.order.prescription_file_url || orderDetail.order.prescription_record_id) && (
-                    <div className="bg-white rounded-md border border-slate-200 p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-[#0067A1]" />
-                        <div>
-                          <p className="font-medium text-slate-800 text-xs">
-                            Attached Medical Prescription {orderDetail.order.prescription_unid ? `#${orderDetail.order.prescription_unid}` : ""}
+                    <div className="bg-white rounded-md border border-slate-200 p-4 space-y-2.5">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-[#0067A1]" />
+                          <div>
+                            <span className="font-semibold text-slate-900 text-xs">
+                              Medical Prescription {orderDetail.order.prescription_unid ? `#${orderDetail.order.prescription_unid}` : ""}
+                            </span>
+                            {orderDetail.order.prescription_date && (
+                              <span className="text-[10px] text-slate-400 ml-2">
+                                {dayjs(orderDetail.order.prescription_date).format("DD MMM YYYY")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {orderDetail.order.prescription_file_url ? (
+                          <a
+                            href={orderDetail.order.prescription_file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1 rounded-[4px] bg-[#0067A1]/10 hover:bg-[#0067A1] text-[#0067A1] hover:text-white text-xs font-medium flex items-center gap-1 transition-colors"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            <span>View PDF</span>
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-[4px]">
+                            <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
+                            <span>Digitally Verified</span>
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
+                        <div className="bg-slate-50 p-2.5 rounded-[4px] border border-slate-200/80">
+                          <p className="text-[10px] text-slate-400 font-medium uppercase">Consulting Doctor</p>
+                          <p className="font-semibold text-slate-800 text-xs mt-0.5">
+                            {orderDetail.order.doctor_name
+                              ? orderDetail.order.doctor_name.toLowerCase().startsWith("dr")
+                                ? orderDetail.order.doctor_name
+                                : `Dr. ${orderDetail.order.doctor_name}`
+                              : "Verified Clinical Doctor"}
                           </p>
-                          <p className="text-[10px] text-slate-400">
-                            {orderDetail.order.doctor_name ? `Issued by ${orderDetail.order.doctor_name}` : "Clinical prescription record"}
-                            {orderDetail.order.prescription_diagnosis && ` • ${orderDetail.order.prescription_diagnosis}`}
+                          {orderDetail.order.prescription_specialization && (
+                            <p className="text-[10px] text-[#0067A1] font-medium mt-0.5">
+                              {orderDetail.order.prescription_specialization}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="bg-slate-50 p-2.5 rounded-[4px] border border-slate-200/80">
+                          <p className="text-[10px] text-slate-400 font-medium uppercase">Clinical Diagnosis</p>
+                          <p className="font-medium text-slate-800 text-xs mt-0.5">
+                            {orderDetail.order.prescription_diagnosis || "General Consultation"}
                           </p>
+                          {orderDetail.order.doctor_phone && (
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              Doctor Contact: {orderDetail.order.doctor_phone}
+                            </p>
+                          )}
                         </div>
                       </div>
-                      {orderDetail.order.prescription_file_url ? (
-                        <a
-                          href={orderDetail.order.prescription_file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-2.5 py-1 rounded-[4px] bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium flex items-center gap-1 transition-colors"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          <span>View Prescription</span>
-                        </a>
-                      ) : (
-                        <Link
-                          href={`/admin/prescriptions`}
-                          className="px-2.5 py-1 rounded-[4px] bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium flex items-center gap-1 transition-colors"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          <span>View in Records</span>
-                        </Link>
-                      )}
                     </div>
                   )}
 

@@ -34,6 +34,7 @@ export async function GET(request, { params }) {
         p.file_url as prescription_file_url,
         p.unid as prescription_unid,
         p.diagnosis as prescription_diagnosis,
+        p.specialization as prescription_specialization,
         p.created_at as prescription_date,
         doc_u.phone_number as doctor_phone,
         dd.full_name as doctor_name
