@@ -23,7 +23,7 @@ import SessionStateTracker from "./SessionStateTracker";
 import PatientVerificationCard from "./PatientVerificationCard";
 import PdfJsViewer from "@/components/public-site/ui/PdfJsViewer";
 
-export default function ConsultationWorkspace({ appointment, onConsultationUpdate }) {
+export default function ConsultationWorkspace({ appointment, onConsultationUpdate, onViewOfficialPrescription }) {
   const [loading, setLoading] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState(null);
@@ -71,9 +71,11 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
   const [viewingSharedDoc, setViewingSharedDoc] = useState(null);
 
   const isRejectedOrCancelled = ["rejected", "cancelled", "REJECTED", "CANCELLED"].includes(appointment?.status);
-  const isCompleted = appointment?.status === "COMPLETED" || appointment?.status === "CLOSED_RESOLVED" || appointment?.status === "completed";
-  // isLocked = true either when appointment is already completed (from DB) OR when doctor just signed it this session
-  const isLocked = isCompleted || isSigned;
+  // An appointment is only locked if a signed prescription already exists in DB OR doctor just signed it this session.
+  // If the appointment status is completed (e.g. clinic/home visit done or video slot ended), but no prescription exists yet,
+  // the doctor is allowed to write and digitally sign the prescription!
+  const hasExistingPrescription = Boolean(appointment?.has_prescription || appointment?.prescription_id);
+  const isLocked = hasExistingPrescription || isSigned;
 
   // Patient info & age calculation for clinician context
   const patientObj = appointment?.patient || appointment?.patient_details || null;
@@ -677,12 +679,24 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
       )}
 
       {isLocked && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl flex items-center gap-3">
-          <CheckCircle className="w-5 h-5 text-emerald-600" />
-          <FolderLock className="w-5 h-5 text-emerald-600" />
-          <p className="text-sm font-semibold">
-            {isSigned ? "Prescription signed & locked. No further edits allowed." : "This consultation is completed and locked. No further modifications allowed."}
-          </p>
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+            <FolderLock className="w-5 h-5 text-emerald-600 shrink-0" />
+            <p className="text-sm font-semibold">
+              {isSigned ? "Prescription signed & locked." : "This consultation has a signed prescription on file."}
+            </p>
+          </div>
+          {onViewOfficialPrescription && (
+            <button
+              type="button"
+              onClick={onViewOfficialPrescription}
+              className="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>View Prescription</span>
+            </button>
+          )}
         </div>
       )}
 

@@ -18,7 +18,12 @@ export async function POST(req) {
       });
     }
 
-    const rows = await sql`
+    let docCondition = sql``;
+    if (doctor_id) {
+      docCondition = sql`AND p.doctor_id = ${doctor_id}`;
+    }
+
+    let rows = await sql`
       SELECT 
         p.*,
         a.care_episode_id,
@@ -28,10 +33,27 @@ export async function POST(req) {
       LEFT JOIN appointments a ON a.id = p.appointment_id
       LEFT JOIN care_episodes ce ON ce.id = a.care_episode_id
       WHERE p.appointment_id = ${appointment_id}
-        ${doctor_id ? sql`AND (p.doctor_id = ${doctor_id} OR ${doctor_id} IS NULL)` : sql``}
+        ${docCondition}
       ORDER BY p.created_at DESC
       LIMIT 1
     `;
+
+    // Fallback: If not found with doctor_id filter, find by appointment_id directly
+    if ((!rows || rows.length === 0) && doctor_id) {
+      rows = await sql`
+        SELECT 
+          p.*,
+          a.care_episode_id,
+          ce.episode_id AS care_episode_code,
+          ce.status AS care_episode_status
+        FROM prescriptions p
+        LEFT JOIN appointments a ON a.id = p.appointment_id
+        LEFT JOIN care_episodes ce ON ce.id = a.care_episode_id
+        WHERE p.appointment_id = ${appointment_id}
+        ORDER BY p.created_at DESC
+        LIMIT 1
+      `;
+    }
 
     if (!rows || rows.length === 0) {
       return success("No prescription found", { prescription: null }, 200, {
