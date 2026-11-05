@@ -577,6 +577,47 @@ export default function DoctorAppointmentsPage() {
     }
   }
 
+  function canExtendAppointmentSlot(apt, now = currentTime) {
+    if (!apt || !apt.appointment_date) return false;
+    if (["completed", "cancelled", "rejected"].includes(String(apt.status).toLowerCase())) return false;
+    if (apt.has_prescription || apt.prescription_id) return false;
+    if (!isAppointmentExpired(apt, now)) return false;
+
+    const checkNow = now instanceof Date ? now : new Date();
+
+    try {
+      const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "23:59";
+      const dateStr = typeof apt.appointment_date === "string" 
+        ? apt.appointment_date 
+        : apt.appointment_date instanceof Date 
+        ? apt.appointment_date.toISOString().split("T")[0]
+        : String(apt.appointment_date || "");
+      const dateOnly = dateStr.split("T")[0];
+      const [year, month, day] = dateOnly.split("-").map(Number);
+      const [hours, minutes] = timePart.split(":").map(Number);
+      if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
+
+      const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
+
+      // If appointment was on a past day, do not show Add Time
+      const todayDateOnly = new Date(checkNow.getFullYear(), checkNow.getMonth(), checkNow.getDate()).getTime();
+      const aptDateOnly = new Date(year, month - 1, day).getTime();
+      if (aptDateOnly < todayDateOnly) {
+        return false;
+      }
+
+      // If more than 1 hour (60 minutes) has passed since appointment slot, do not show Add Time
+      const diffMs = checkNow.getTime() - aptDateTime.getTime();
+      if (diffMs > 60 * 60 * 1000) {
+        return false;
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function isExpiredOneDayBefore(dateVal) {
     if (!dateVal) return false;
     try {
@@ -1103,19 +1144,21 @@ export default function DoctorAppointmentsPage() {
                             <span className="text-[10.5px] font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200/60">
                               Expired
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setExtendingAppointment(apt);
-                                setExtendMode("now");
-                                setExtendMinutes(15);
-                              }}
-                              className="h-7 px-2 rounded-md bg-blue-50 text-[#0067A1] hover:bg-blue-100 border border-blue-200/80 text-[10.5px] font-semibold transition-all cursor-pointer flex items-center gap-1"
-                              title="Add minutes to expired slot"
-                            >
-                              <Clock className="w-3 h-3 text-[#0067A1]" />
-                              <span>+ Add Time</span>
-                            </button>
+                            {canExtendAppointmentSlot(apt, currentTime) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExtendingAppointment(apt);
+                                  setExtendMode("now");
+                                  setExtendMinutes(15);
+                                }}
+                                className="h-7 px-2 rounded-md bg-blue-50 text-[#0067A1] hover:bg-blue-100 border border-blue-200/80 text-[10.5px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                                title="Add minutes to expired slot"
+                              >
+                                <Clock className="w-3 h-3 text-[#0067A1]" />
+                                <span>+ Add Time</span>
+                              </button>
+                            )}
                             {apt.status === "booked" && (
                               <button
                                 onClick={() => updateAppointmentStatus(apt.id, "rejected")}
@@ -1581,7 +1624,7 @@ export default function DoctorAppointmentsPage() {
               >
                 Close
               </button>
-              {isAppointmentExpired(selectedAppointment, currentTime) && !selectedAppointment.has_prescription && selectedAppointment.status !== "completed" && (
+              {canExtendAppointmentSlot(selectedAppointment, currentTime) && (
                 <button
                   type="button"
                   onClick={() => {

@@ -46,9 +46,11 @@ export async function POST(req) {
       console.warn("Migration warning in /api/appointment/extend:", migErr.message);
     }
 
-    // Verify appointment in AWS RDS
+    // Verify appointment in AWS RDS and check if it is older than 1 hour
     const [appointment] = await sql`
-      SELECT id, doctor_id, patient_id, appointment_date, appointment_time, original_appointment_time, status, appointment_type
+      SELECT 
+        id, doctor_id, patient_id, appointment_date, appointment_time, original_appointment_time, status, appointment_type,
+        ((appointment_date + appointment_time + INTERVAL '1 hour') < (NOW() AT TIME ZONE 'Asia/Kolkata')) AS is_older_than_one_hour
       FROM appointments
       WHERE id = ${appointment_id}
       LIMIT 1
@@ -60,6 +62,10 @@ export async function POST(req) {
 
     if (doctor_id && String(appointment.doctor_id) !== String(doctor_id)) {
       return failure("Unauthorized: Doctor does not match appointment.", null, 403, { headers: corsHeaders });
+    }
+
+    if (appointment.is_older_than_one_hour) {
+      return failure("Appointment slots can only be extended within 1 hour of the scheduled time.", null, 400, { headers: corsHeaders });
     }
 
     const addMinutes = Math.max(0, parseInt(minutes, 10) || 15);
