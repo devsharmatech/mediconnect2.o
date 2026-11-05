@@ -156,7 +156,9 @@ export default function DoctorDashboardLayout({ children }) {
         if (prof?.name && prof.name !== "Doctor") {
           setDoctorName(prof.name.replace(/^Dr\.\s*/i, ""));
         }
-        if (typeof prof?.is_available === "boolean") {
+        if (typeof prof?.is_open === "boolean") {
+          setIsDoctorOpen(prof.is_open);
+        } else if (typeof prof?.is_available === "boolean") {
           setIsDoctorOpen(prof.is_available);
         }
       }

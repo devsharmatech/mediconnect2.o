@@ -72,7 +72,7 @@ export async function POST(req) {
     }
 
     const docRows = await sql`
-      SELECT available_days, available_time, clinic_slots, video_slots, home_slots, leave_days, is_open, is_available, slot_interval_minutes
+      SELECT available_days, available_time, clinic_slots, video_slots, home_slots, leave_days, is_open, slot_interval_minutes
       FROM doctor_details
       WHERE id = ${doctor_id}
       LIMIT 1
@@ -80,7 +80,7 @@ export async function POST(req) {
     const doctor = docRows[0];
     if (!doctor) return failure("Doctor not found", null, 404, { headers: corsHeaders });
 
-    if (doctor.is_open === false || doctor.is_available === false) {
+    if (doctor.is_open === false) {
       return success("Doctor is currently closed for appointments.", [], 200, { headers: corsHeaders });
     }
 

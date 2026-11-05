@@ -17,13 +17,13 @@ export async function POST(req) {
 
     if (action === "get") {
       const rows = await sql`
-        SELECT is_open, is_available, slot_interval_minutes
+        SELECT is_open, slot_interval_minutes
         FROM doctor_details
         WHERE id = ${doctor_id}
         LIMIT 1
       `;
       const data = rows[0] || null;
-      const openState = data ? (data.is_open !== false && data.is_available !== false) : false;
+      const openState = data ? data.is_open !== false : false;
 
       return success(
         "Availability fetched successfully",
@@ -65,8 +65,7 @@ export async function POST(req) {
 
       await sql`
         UPDATE doctor_details
-        SET is_open = ${nextOpen},
-            is_available = ${nextOpen}
+        SET is_open = ${nextOpen}
         WHERE id = ${doctor_id}
       `;
 
@@ -117,13 +116,13 @@ export async function GET(req) {
     }
 
     const rows = await sql`
-      SELECT is_open, is_available, slot_interval_minutes
+      SELECT is_open, slot_interval_minutes
       FROM doctor_details
       WHERE id = ${doctor_id}
       LIMIT 1
     `;
     const data = rows[0] || null;
-    const openState = data ? (data.is_open !== false && data.is_available !== false) : false;
+    const openState = data ? data.is_open !== false : false;
 
     return success(
       "Availability fetched",

@@ -64,7 +64,7 @@ export async function getDoctorsAction({
         d.full_name, d.email, d.specialization, d.clinic_consultation_fee, d.video_consultation_fee, 
         d.home_visit_fee, d.consultation_fee, d.rating, d.total_reviews, d.experience_years, 
         d.onboarding_status, d.clinic_name, d.clinic_address, d.latitude, d.longitude, d.passport_photo,
-        d.meta, d.is_open, d.is_available, d.slot_interval_minutes,
+        d.meta, d.is_open, d.slot_interval_minutes,
         dos.allowed_to_consult, dos.registration_verified
       FROM users u
       JOIN doctor_details d ON d.id = u.id
@@ -72,7 +72,6 @@ export async function getDoctorsAction({
       WHERE u.role = 'doctor'
         AND u.status = 1
         AND COALESCE(d.is_open, true) = true
-        AND COALESCE(d.is_available, true) = true
         AND (d.onboarding_status = 'approved' OR d.onboarding_status IS NULL)
         AND (dos.allowed_to_consult = true OR d.onboarding_status = 'approved')
         AND (dos.registration_verified = true OR d.registration_verified = true)

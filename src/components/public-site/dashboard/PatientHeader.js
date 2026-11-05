@@ -691,7 +691,7 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
       user?.user?.details?.email ||
       user?.user?.email ||
       user?.email ||
-      "user@example.com"
+      (user?.phone_number ? `+91 ${user.phone_number}` : "")
     );
   };
 

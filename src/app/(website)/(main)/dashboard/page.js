@@ -56,6 +56,24 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    const role = localStorage.getItem("userRole");
+    if (role === "doctor") {
+      router.replace("/doctor");
+      return;
+    }
+    if (role === "chemist") {
+      router.replace("/chemist/dashboard");
+      return;
+    }
+    if (role === "lab") {
+      router.replace("/lab/dashboard");
+      return;
+    }
+    if (role === "admin") {
+      router.replace("/admin/dashboard");
+      return;
+    }
+
     let parsed = null;
     const userData = localStorage.getItem("userData");
     if (userData) {

@@ -79,6 +79,24 @@ const PatientDashboardLayout = ({ children }) => {
       return;
     }
 
+    // Strict Role Separation: If logged-in user is a Doctor/Chemist/Lab/Admin, redirect to their dedicated portal
+    if (userRole === "doctor") {
+      router.replace("/doctor");
+      return;
+    }
+    if (userRole === "chemist") {
+      router.replace("/chemist/dashboard");
+      return;
+    }
+    if (userRole === "lab") {
+      router.replace("/lab/dashboard");
+      return;
+    }
+    if (userRole === "admin") {
+      router.replace("/admin/dashboard");
+      return;
+    }
+
     // Keep session synchronized in localStorage and cookies (30 days max-age)
     try {
       localStorage.setItem("userId", String(userId));
@@ -92,6 +110,28 @@ const PatientDashboardLayout = ({ children }) => {
         if (!data || !data.role) {
           // Stale or logged out session detected — wipe and redirect to home
           logoutUser("patient", "/");
+          return;
+        }
+
+        // Enforce verified backend role boundary
+        if (data.role === "doctor") {
+          localStorage.setItem("userRole", "doctor");
+          router.replace("/doctor");
+          return;
+        }
+        if (data.role === "chemist") {
+          localStorage.setItem("userRole", "chemist");
+          router.replace("/chemist/dashboard");
+          return;
+        }
+        if (data.role === "lab") {
+          localStorage.setItem("userRole", "lab");
+          router.replace("/lab/dashboard");
+          return;
+        }
+        if (data.role === "admin") {
+          localStorage.setItem("userRole", "admin");
+          router.replace("/admin/dashboard");
           return;
         }
 

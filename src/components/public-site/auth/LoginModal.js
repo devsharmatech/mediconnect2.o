@@ -328,11 +328,18 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
             onSuccess(response.data);
           } else {
             const storedRedirect = typeof window !== "undefined" ? sessionStorage.getItem("post_login_redirect") : null;
-            if (storedRedirect) {
+            if (activeRole === 'doctor' || role === 'doctor') {
+              sessionStorage.removeItem("post_login_redirect");
+              if (storedRedirect && (storedRedirect.startsWith("/doctor") || storedRedirect.startsWith("/appointments/"))) {
+                router.push(storedRedirect);
+              } else {
+                router.push("/doctor");
+              }
+            } else if (storedRedirect) {
               sessionStorage.removeItem("post_login_redirect");
               router.push(storedRedirect);
             } else {
-              const redirectPath = role === 'doctor' ? '/doctor' : '/dashboard';
+              const redirectPath = activeRole === 'chemist' ? '/chemist/dashboard' : activeRole === 'lab' ? '/lab/dashboard' : '/dashboard';
               router.push(redirectPath);
             }
           }

@@ -211,7 +211,7 @@ function VerifyOtpContent() {
           window.dispatchEvent(new CustomEvent('userProfileUpdated', { detail: user }));
         }
         setTimeout(() => {
-          const redirectPath = role === 'doctor' ? '/doctor' : '/dashboard';
+          const redirectPath = role === 'doctor' ? '/doctor' : role === 'chemist' ? '/chemist/dashboard' : role === 'lab' ? '/lab/dashboard' : role === 'admin' ? '/admin/dashboard' : '/dashboard';
           router.push(redirectPath);
         }, 1200);
       } else {
