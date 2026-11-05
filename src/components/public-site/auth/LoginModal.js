@@ -153,6 +153,10 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
 
       if (response.success) {
         setUserId(response.data.user_id);
+        if (response.data.role) {
+          setUserType(response.data.role);
+          sessionStorage.setItem('loginUserType', response.data.role);
+        }
         setIsUnverifiedAccount(response.data.is_verified === false);
         setSuccessMessage(
           response.data?.message || (loginMethod === 'email' ? `OTP sent to ${formData.email}` : `OTP sent successfully.`)
@@ -265,6 +269,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
         user_id: userId || undefined,
         phone_number: loginMethod === 'phone' ? formData.phone_number : undefined,
         email: loginMethod === 'email' ? formData.email : undefined,
+        role: userType || undefined,
         otp: otpValue,
       });
 
@@ -272,15 +277,16 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
         setStep('success');
         const { user_id, role, user } = response.data || {};
         if (typeof window !== 'undefined') {
-          const activeRole = role === 'admin' ? 'patient' : (role || 'patient');
+          const effectiveRole = role || userType || 'patient';
+          const activeRole = effectiveRole === 'admin' ? 'patient' : effectiveRole;
           if (response.data?.token) localStorage.setItem('authToken', response.data.token);
           if (user_id) localStorage.setItem('userId', String(user_id));
           localStorage.setItem('userRole', activeRole);
 
           const sanitizedName = user?.details?.full_name && !user.details.full_name.toLowerCase().includes("administrator") 
             ? user.details.full_name 
-            : (user?.name || "Dev Sharma");
-          const userWithPatientDetails = {
+            : (user?.name || "User");
+          const userObj = {
             ...user,
             full_name: sanitizedName,
             details: {
@@ -289,11 +295,18 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
             }
           };
 
-          localStorage.setItem('userData', JSON.stringify(userWithPatientDetails));
-          localStorage.setItem('patientUser', JSON.stringify(userWithPatientDetails));
-          if (role && role !== 'patient') {
-            localStorage.setItem(`${role}User`, JSON.stringify(user));
+          localStorage.setItem('userData', JSON.stringify(userObj));
+          
+          if (activeRole === 'doctor') {
+            localStorage.setItem('doctorUser', JSON.stringify(userObj));
+            localStorage.removeItem('patientUser');
+          } else {
+            localStorage.setItem('patientUser', JSON.stringify(userObj));
+            if (activeRole !== 'patient') {
+              localStorage.setItem(`${activeRole}User`, JSON.stringify(userObj));
+            }
           }
+
           if (user_id) {
             document.cookie = `session_id=${user_id}; path=/; max-age=2592000; SameSite=Lax`;
           }
@@ -699,7 +712,7 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
 
               {/* Resend */}
               <div className="flex flex-col items-center gap-1.5 mt-5">
-                <span className="text-xs text-gray-400">Didn't receive the code?</span>
+                <span className="text-xs text-gray-400">Didn&apos;t receive the code?</span>
                 <button
                   type="button"
                   onClick={handleResendOtp}

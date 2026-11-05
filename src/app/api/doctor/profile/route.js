@@ -140,6 +140,10 @@ export async function POST(req) {
       return failure("doctor_id is required", null, 400, { headers: corsHeaders });
     }
 
+    await sql`
+      ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS allowed_to_consult BOOLEAN DEFAULT true;
+    `.catch(() => {});
+
     // Item 16: Guard against unapproved doctors modifying live profile settings
     const statusCheck = await sql`
       SELECT onboarding_status, allowed_to_consult

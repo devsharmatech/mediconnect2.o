@@ -55,6 +55,7 @@ export async function PUT(req) {
       ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS second_booking_discount_type TEXT DEFAULT 'none';
       ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS second_booking_discount_value NUMERIC DEFAULT 0;
       ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS slot_interval_minutes INTEGER DEFAULT 15;
+      ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS allowed_to_consult BOOLEAN DEFAULT true;
     `.catch((err) => {
       console.warn("Could not alter doctor_details for follow_up fees:", err.message);
     });

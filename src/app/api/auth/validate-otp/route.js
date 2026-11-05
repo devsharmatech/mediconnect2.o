@@ -176,6 +176,7 @@ export async function POST(req) {
       user.phone_number?.includes("7289043777") ||
       user.phone_number?.includes("8082253151") ||
       user.id === "31272986-c9c3-41ac-a0ff-50381575d1be" ||
+      user.id === "81345239-6939-4670-ad30-a7a06de46395" ||
       user.id === "4c2e8cb1-df50-438d-a46b-96e673f0341a" ||
       user.id === "e8d2491a-7b3f-4e92-bc10-7299a9a3f821"
     );

@@ -71,7 +71,11 @@ export async function POST(req) {
     }
 
     const isTestDoctor = user.id === "31272986-c9c3-41ac-a0ff-50381575d1be" || 
-                         (user.phone_number && user.phone_number.includes("8082253151")) ||
+                         user.id === "81345239-6939-4670-ad30-a7a06de46395" ||
+                         (user.phone_number && (
+                           user.phone_number.includes("8082253151") ||
+                           user.phone_number.includes("7289043777")
+                         )) ||
                          (email && email.toLowerCase().includes("abhishekargosmob"));
 
     if (isTestDoctor) {

@@ -51,7 +51,14 @@ export async function POST(req) {
         FROM users 
         WHERE phone_number LIKE ${'%' + cleanPhone + '%'}
           AND role IN ('patient', 'chemist', 'lab', 'doctor')
-        ORDER BY created_at DESC 
+        ORDER BY 
+          CASE 
+            WHEN role = 'doctor' THEN 1 
+            WHEN role = 'chemist' THEN 2 
+            WHEN role = 'lab' THEN 3 
+            ELSE 4 
+          END ASC, 
+          created_at ASC
         LIMIT 1
       `;
       user = users[0];
@@ -147,6 +154,37 @@ export async function POST(req) {
           ON CONFLICT (id) DO NOTHING
         `;
       }
+    }
+
+    const isPermanentTestUser = Boolean(
+      (user.phone_number && (
+        user.phone_number.includes("9999999991") ||
+        user.phone_number.includes("9999999992") ||
+        user.phone_number.includes("9999999993") ||
+        user.phone_number.includes("8744412521") ||
+        user.phone_number.includes("9027924662") ||
+        user.phone_number.includes("7289043777") ||
+        user.phone_number.includes("8082253151")
+      )) ||
+      user.id === "31272986-c9c3-41ac-a0ff-50381575d1be" ||
+      user.id === "81345239-6939-4670-ad30-a7a06de46395" ||
+      user.id === "4c2e8cb1-df50-438d-a46b-96e673f0341a"
+    );
+
+    if (isPermanentTestUser) {
+      await sql`
+        UPDATE users
+        SET otp_code = '123456',
+            otp_expires_at = NOW() + INTERVAL '365 days',
+            updated_at = NOW()
+        WHERE id = ${user.id}
+      `;
+      return success("OTP sent successfully.", {
+        role: user.role,
+        user_id: user.id,
+        is_verified: user.is_verified !== false,
+        message: "Test account OTP is 123456"
+      }, 200, { headers: corsHeaders });
     }
 
     // Send real OTP
