@@ -53,6 +53,8 @@ export async function GET(req) {
       SELECT 
         a.id, a.appointment_date, a.appointment_time, a.appointment_type, a.status,
         a.disease_info, a.created_at, a.updated_at, a.patient_id, a.doctor_id,
+        COALESCE(a.original_appointment_time, a.appointment_time)::text AS original_appointment_time,
+        a.extended_until,
         pu.un_id AS patient_un_id, pu.phone_number AS patient_phone, pu.profile_picture AS patient_picture,
         pd.full_name AS patient_name, pd.email AS patient_email, pd.gender AS patient_gender,
         du.un_id AS doctor_un_id, du.phone_number AS doctor_phone, du.profile_picture AS doctor_picture,
@@ -110,6 +112,8 @@ export async function GET(req) {
       id: apt.id,
       appointment_date: apt.appointment_date,
       appointment_time: apt.appointment_time,
+      original_appointment_time: apt.original_appointment_time,
+      extended_until: apt.extended_until,
       appointment_type: apt.appointment_type,
       status: apt.status,
       disease_info: apt.disease_info,

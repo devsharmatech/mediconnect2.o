@@ -88,9 +88,19 @@ const getAppointmentStart = (apt) => {
 };
 
 const getAppointmentEnd = (apt) => {
+  if (apt.extended_until) {
+    const ext = new Date(apt.extended_until);
+    if (!isNaN(ext.getTime())) return ext;
+  }
+  const isClinic = apt.appointment_type === "clinic_visit" || apt.type === "clinic_visit" || apt.appointment_type === "home_visit";
   const start = getAppointmentStart(apt);
   if (!start) return null;
-  // Consultation window is active up to 30 minutes from start
+  if (isClinic) {
+    const endOfDay = new Date(start);
+    endOfDay.setHours(23, 59, 59, 999);
+    return endOfDay;
+  }
+  // Video consultation window is active up to 30 minutes from start
   return new Date(start.getTime() + 30 * 60 * 1000);
 };
 
@@ -99,10 +109,23 @@ const getEffectiveStatus = (apt, now = new Date()) => {
   if (base === "expired") return "expired";
   if (!["confirmed", "pending"].includes(base)) return base;
 
+  if (apt.extended_until) {
+    const ext = new Date(apt.extended_until);
+    if (!isNaN(ext.getTime()) && now <= ext) return base;
+  }
+
+  const isClinic = apt.appointment_type === "clinic_visit" || apt.type === "clinic_visit" || apt.appointment_type === "home_visit";
   const start = getAppointmentStart(apt);
   if (!start) return base;
 
-  // After 30 minutes past start time, appointment is expired
+  if (isClinic) {
+    const endOfDay = new Date(start);
+    endOfDay.setHours(23, 59, 59, 999);
+    if (now > endOfDay) return "expired";
+    return base;
+  }
+
+  // After 30 minutes past start time, video appointment is expired (unless extended)
   const end = new Date(start.getTime() + 30 * 60 * 1000);
   if (now > end) return "expired";
   return base;
@@ -173,7 +196,13 @@ const getVideoCallTiming = (apt, now = new Date()) => {
   const nowMs = now.getTime();
   const startMs = start.getTime();
   const windowStartMs = startMs - 5 * 60 * 1000; // Enabled 5 minutes before start
-  const windowEndMs = startMs + 30 * 60 * 1000;  // Disabled after 30 minutes
+  let windowEndMs = startMs + 30 * 60 * 1000;  // Disabled after 30 minutes (or extended_until)
+  if (apt.extended_until) {
+    const ext = new Date(apt.extended_until);
+    if (!isNaN(ext.getTime()) && ext.getTime() > windowEndMs) {
+      windowEndMs = ext.getTime();
+    }
+  }
 
   if (nowMs < windowStartMs) {
     const diffMs = windowStartMs - nowMs;

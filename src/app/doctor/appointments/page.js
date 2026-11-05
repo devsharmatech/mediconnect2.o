@@ -395,6 +395,8 @@ export default function DoctorAppointmentsPage() {
           ...prev,
           appointment_date: res.data?.appointment?.appointment_date || prev.appointment_date,
           appointment_time: res.data?.appointment?.appointment_time || prev.appointment_time,
+          extended_until: res.data?.appointment?.extended_until || prev.extended_until,
+          status: res.data?.appointment?.status || "approved",
           _forceExpired: false,
         }));
       }
@@ -503,9 +505,15 @@ export default function DoctorAppointmentsPage() {
       }
       const start = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
 
-      // Call is available from 5 minutes before up to 30 minutes after start
+      // Call is available from 5 minutes before up to 30 minutes after start (or extended_until)
       const earlyStart = new Date(start.getTime() - 5 * 60 * 1000);
-      const end = new Date(start.getTime() + 30 * 60 * 1000);
+      let end = new Date(start.getTime() + 30 * 60 * 1000);
+      if (apt.extended_until) {
+        const ext = new Date(apt.extended_until);
+        if (!isNaN(ext.getTime()) && ext.getTime() > end.getTime()) {
+          end = ext;
+        }
+      }
 
       if (now < earlyStart) {
         return { isAvailable: false, label: "Opens 5m before", status: "early", earlyStart };
@@ -527,7 +535,19 @@ export default function DoctorAppointmentsPage() {
     if (!apt?.appointment_date) return false;
     if (["completed", "cancelled", "rejected"].includes(String(apt.status).toLowerCase())) return false;
     if (apt._forceExpired) return true;
+
+    const checkNow = now instanceof Date ? now : new Date();
+
+    // If appointment slot has an active extension window, it is not expired
+    if (apt.extended_until) {
+      const ext = new Date(apt.extended_until);
+      if (!isNaN(ext.getTime()) && checkNow.getTime() <= ext.getTime()) {
+        return false;
+      }
+    }
+
     try {
+      const isClinic = apt.appointment_type === "clinic_visit" || apt.type === "clinic_visit" || apt.appointment_type === "home_visit";
       const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "23:59";
       const dateStr = typeof apt.appointment_date === "string" 
         ? apt.appointment_date 
@@ -539,8 +559,14 @@ export default function DoctorAppointmentsPage() {
       const [hours, minutes] = timePart.split(":").map(Number);
       if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
       const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
-      const checkNow = now instanceof Date ? now : new Date();
-      // If appointment slot start was more than 30 mins ago, it's expired
+
+      if (isClinic) {
+        // Clinic visits stay active through the end of the scheduled appointment day
+        const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+        return checkNow.getTime() > endOfDay.getTime();
+      }
+
+      // If video appointment slot start was more than 30 mins ago, it's expired
       return checkNow.getTime() > aptDateTime.getTime() + 30 * 60 * 1000;
     } catch {
       return false;

@@ -236,6 +236,11 @@ export default function DoctorDashboard() {
 
   const isAppointmentExpired = (apt) => {
     if (["completed", "cancelled", "rejected"].includes(String(apt?.status).toLowerCase())) return false;
+    if (apt?.extended_until) {
+      const ext = new Date(apt.extended_until);
+      if (!isNaN(ext.getTime()) && Date.now() <= ext.getTime()) return false;
+    }
+    const isClinic = apt?.appointment_type === "clinic_visit" || apt?.type === "clinic_visit" || apt?.appointment_type === "home_visit";
     const dateStr = apt?.date || apt?.appointment_date;
     if (!dateStr) return false;
     try {
@@ -245,6 +250,10 @@ export default function DoctorDashboard() {
       const [hours, minutes] = timePart.split(":").map(Number);
       const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
       const now = new Date();
+      if (isClinic) {
+        const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+        return now.getTime() > endOfDay.getTime();
+      }
       return now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000;
     } catch {
       return false;

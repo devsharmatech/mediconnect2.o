@@ -35,9 +35,20 @@ export async function POST(req) {
       return failure("appointment_id is required.", null, 400, { headers: corsHeaders });
     }
 
+    // Ensure columns exist (self-healing migration)
+    try {
+      await sql`
+        ALTER TABLE appointments 
+        ADD COLUMN IF NOT EXISTS original_appointment_time TIME,
+        ADD COLUMN IF NOT EXISTS extended_until TIMESTAMPTZ;
+      `;
+    } catch (migErr) {
+      console.warn("Migration warning in /api/appointment/extend:", migErr.message);
+    }
+
     // Verify appointment in AWS RDS
     const [appointment] = await sql`
-      SELECT id, doctor_id, patient_id, appointment_date, appointment_time, status
+      SELECT id, doctor_id, patient_id, appointment_date, appointment_time, original_appointment_time, status, appointment_type
       FROM appointments
       WHERE id = ${appointment_id}
       LIMIT 1
@@ -52,31 +63,28 @@ export async function POST(req) {
     }
 
     const addMinutes = Math.max(0, parseInt(minutes, 10) || 15);
+    const durationMinutes = addMinutes > 0 ? addMinutes : 30;
 
-    // If mode is 'now', set slot to current time so it's live right now
-    // If mode is 'add', set slot to (CURRENT_TIME + addMinutes)
-    let updated;
-    if (mode === "now" || addMinutes === 0) {
-      [updated] = await sql`
-        UPDATE appointments
-        SET 
-          appointment_date = (NOW() AT TIME ZONE 'Asia/Kolkata')::date,
-          appointment_time = (TO_CHAR(NOW() AT TIME ZONE 'Asia/Kolkata', 'HH24:MI:00'))::time,
-          updated_at = NOW()
-        WHERE id = ${appointment_id}
-        RETURNING id, doctor_id, patient_id, TO_CHAR(appointment_date, 'YYYY-MM-DD') AS appointment_date, appointment_time::text AS appointment_time, status
-      `;
-    } else {
-      [updated] = await sql`
-        UPDATE appointments
-        SET 
-          appointment_date = (NOW() AT TIME ZONE 'Asia/Kolkata')::date,
-          appointment_time = (TO_CHAR((NOW() AT TIME ZONE 'Asia/Kolkata') + (${addMinutes} || ' minutes')::interval, 'HH24:MI:00'))::time,
-          updated_at = NOW()
-        WHERE id = ${appointment_id}
-        RETURNING id, doctor_id, patient_id, TO_CHAR(appointment_date, 'YYYY-MM-DD') AS appointment_date, appointment_time::text AS appointment_time, status
-      `;
-    }
+    // Preserve original booked slot time and extend slot window via extended_until
+    const [updated] = await sql`
+      UPDATE appointments
+      SET 
+        original_appointment_time = COALESCE(original_appointment_time, appointment_time),
+        extended_until = (NOW() AT TIME ZONE 'Asia/Kolkata') + (${durationMinutes} || ' minutes')::interval,
+        status = CASE WHEN status = 'expired' THEN 'approved' ELSE status END,
+        updated_at = NOW()
+      WHERE id = ${appointment_id}
+      RETURNING 
+        id, 
+        doctor_id, 
+        patient_id, 
+        TO_CHAR(appointment_date, 'YYYY-MM-DD') AS appointment_date, 
+        COALESCE(original_appointment_time, appointment_time)::text AS appointment_time,
+        original_appointment_time::text AS original_appointment_time,
+        extended_until,
+        status,
+        appointment_type
+    `;
 
     return success(
       "Appointment time extended successfully.",

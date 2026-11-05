@@ -85,14 +85,23 @@ export async function POST(req) {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const offset = (pageNum - 1) * perPage;
 
-    // Auto-expire appointments whose scheduled slot has passed by > 30 minutes
+    // Auto-expire appointments whose scheduled slot has passed (respecting extensions and clinic vs video)
     try {
       await sql`
         UPDATE appointments
         SET status = 'expired', updated_at = NOW()
         WHERE patient_id = ${patient_id}
-          AND status IN ('booked', 'approved', 'freezed')
-          AND (appointment_date + appointment_time + INTERVAL '30 minutes') < (NOW() AT TIME ZONE 'Asia/Kolkata')
+          AND status IN ('booked', 'freezed')
+          AND (extended_until IS NULL OR extended_until < (NOW() AT TIME ZONE 'Asia/Kolkata'))
+          AND (
+            -- Video calls expire 30 minutes after slot if unextended
+            (COALESCE(appointment_type, 'video') NOT IN ('clinic_visit', 'home_visit') 
+             AND (appointment_date + appointment_time + INTERVAL '30 minutes') < (NOW() AT TIME ZONE 'Asia/Kolkata'))
+            OR
+            -- Clinic and home visits only expire after the full appointment date has passed
+            (COALESCE(appointment_type, 'video') IN ('clinic_visit', 'home_visit') 
+             AND appointment_date < (NOW() AT TIME ZONE 'Asia/Kolkata')::date)
+          )
       `;
     } catch (expErr) {
       console.warn("[patient-appointment] Auto-expire warning:", expErr.message);
@@ -113,6 +122,8 @@ export async function POST(req) {
         a.patient_id,
         TO_CHAR(a.appointment_date, 'YYYY-MM-DD') AS appointment_date,
         a.appointment_time::text AS appointment_time,
+        COALESCE(a.original_appointment_time, a.appointment_time)::text AS original_appointment_time,
+        a.extended_until,
         a.status,
         a.disease_info,
         a.appointment_type,
@@ -259,6 +270,8 @@ export async function POST(req) {
         patient_id: a.patient_id,
         appointment_date: a.appointment_date,
         appointment_time: a.appointment_time,
+        original_appointment_time: a.original_appointment_time,
+        extended_until: a.extended_until,
         status: a.status,
         disease_info: a.disease_info,
         appointment_type: a.appointment_type,

@@ -72,18 +72,33 @@ export async function POST(req) {
     // Validate that appointment slot has not expired if approving
     if (status === "approved") {
       const [apt] = await sql`
-        SELECT appointment_date, appointment_time, status
+        SELECT appointment_date, appointment_time, appointment_type, extended_until, status
         FROM appointments
         WHERE id = ${appointment_id}
         LIMIT 1
       `;
 
       if (apt?.appointment_date) {
-        const aptDateTime = parseAppointmentDateTime(apt.appointment_date, apt.appointment_time);
-        if (aptDateTime) {
-          const now = new Date();
-          if (now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000) {
-            return failure("This appointment slot has expired and can no longer be approved.", null, 400, { headers: corsHeaders });
+        const now = new Date();
+        const isExtended = apt.extended_until && now.getTime() <= new Date(apt.extended_until).getTime();
+        const isClinic = apt.appointment_type === "clinic_visit" || apt.appointment_type === "home_visit";
+
+        if (!isExtended) {
+          const aptDateTime = parseAppointmentDateTime(apt.appointment_date, apt.appointment_time);
+          if (aptDateTime) {
+            if (isClinic) {
+              // Clinic visits only expire after the end of the appointment day
+              const endOfDay = new Date(aptDateTime);
+              endOfDay.setHours(23, 59, 59, 999);
+              if (now.getTime() > endOfDay.getTime()) {
+                return failure("This appointment date has passed and can no longer be approved.", null, 400, { headers: corsHeaders });
+              }
+            } else {
+              // Video consults expire 30 minutes after slot start if not extended
+              if (now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000) {
+                return failure("This appointment slot has expired and can no longer be approved.", null, 400, { headers: corsHeaders });
+              }
+            }
           }
         }
       }

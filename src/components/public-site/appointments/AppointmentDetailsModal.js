@@ -18,6 +18,12 @@ const isAppointmentExpired = (apt) => {
   if (s === "expired") return true;
   if (!["booked", "approved", "freezed", "confirmed", "pending"].includes(s)) return false;
   
+  if (apt.extended_until) {
+    const ext = new Date(apt.extended_until);
+    if (!isNaN(ext.getTime()) && Date.now() <= ext.getTime()) return false;
+  }
+
+  const isClinic = apt.appointment_type === "clinic_visit" || apt.type === "clinic_visit" || apt.appointment_type === "home_visit";
   const rawDate = apt.date || apt.appointment_date;
   const rawTime = apt.time || apt.appointment_time;
   if (!rawDate) return false;
@@ -29,6 +35,11 @@ const isAppointmentExpired = (apt) => {
   const [y, m, d] = dateStr.split("-").map(Number);
   const [hh, mm] = timeStr.split(":").map(Number);
   if (isNaN(y) || isNaN(m) || isNaN(d) || isNaN(hh) || isNaN(mm)) return false;
+
+  if (isClinic) {
+    const endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
+    return Date.now() > endOfDay.getTime();
+  }
 
   const aptTime = new Date(y, m - 1, d, hh, mm, 0);
   return Date.now() > aptTime.getTime() + 30 * 60 * 1000;

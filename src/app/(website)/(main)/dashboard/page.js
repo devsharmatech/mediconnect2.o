@@ -154,6 +154,14 @@ const Dashboard = () => {
           if (["rejected", "cancelled", "completed", "expired"].includes(String(a.status).toLowerCase())) return false;
           if (!a.appointment_date || !a.appointment_time) return true;
 
+          // If extended_until is in the future, keep visible
+          if (a.extended_until) {
+            const ext = new Date(a.extended_until);
+            if (!isNaN(ext.getTime()) && now <= ext) return true;
+          }
+
+          const isClinic = a.appointment_type === "clinic_visit" || a.type === "clinic_visit" || a.appointment_type === "home_visit";
+
           const rawDateStr = typeof a.appointment_date === "string" 
             ? a.appointment_date 
             : a.appointment_date instanceof Date 
@@ -164,7 +172,14 @@ const Dashboard = () => {
             : rawDateStr;
           const apptDateTime = new Date(`${datePart}T${a.appointment_time}`);
 
-          // Filter out appointments that started more than 30 minutes in the past
+          if (isClinic) {
+            // Clinic visits stay visible on today's dashboard through the end of the day
+            const endOfDay = new Date(apptDateTime);
+            endOfDay.setHours(23, 59, 59, 999);
+            return now <= endOfDay;
+          }
+
+          // For video visits, filter out appointments that started more than 30 minutes in the past
           const diffMs = now.getTime() - apptDateTime.getTime();
           return isNaN(diffMs) || diffMs <= 30 * 60 * 1000;
         });

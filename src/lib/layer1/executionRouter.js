@@ -712,24 +712,36 @@ async function executeUpdateAppointmentStatus(payload, actorId) {
 
   if (status === "approved" && appointment.appointment_date) {
     try {
-      const timePart = appointment.appointment_time ? String(appointment.appointment_time).slice(0, 5) : "23:59";
-      const dateStr = typeof appointment.appointment_date === "string" 
-        ? appointment.appointment_date 
-        : appointment.appointment_date instanceof Date 
-        ? appointment.appointment_date.toISOString().split("T")[0]
-        : String(appointment.appointment_date || "");
-      const dateOnly = dateStr.split("T")[0];
-      const [year, month, day] = dateOnly.split("-").map(Number);
-      const [hours, minutes] = timePart.split(":").map(Number);
-      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
-        const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
-        const now = new Date();
-        if (now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000) {
-          throw new Error("Cannot approve an expired appointment slot.");
+      const now = new Date();
+      const isExtended = appointment.extended_until && now.getTime() <= new Date(appointment.extended_until).getTime();
+      const isClinic = appointment.appointment_type === "clinic_visit" || appointment.appointment_type === "home_visit";
+
+      if (!isExtended) {
+        const timePart = appointment.appointment_time ? String(appointment.appointment_time).slice(0, 5) : "23:59";
+        const dateStr = typeof appointment.appointment_date === "string" 
+          ? appointment.appointment_date 
+          : appointment.appointment_date instanceof Date 
+          ? appointment.appointment_date.toISOString().split("T")[0]
+          : String(appointment.appointment_date || "");
+        const dateOnly = dateStr.split("T")[0];
+        const [year, month, day] = dateOnly.split("-").map(Number);
+        const [hours, minutes] = timePart.split(":").map(Number);
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
+          if (isClinic) {
+            const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+            if (now.getTime() > endOfDay.getTime()) {
+              throw new Error("Cannot approve an appointment whose scheduled date has passed.");
+            }
+          } else {
+            if (now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000) {
+              throw new Error("Cannot approve an expired appointment slot.");
+            }
+          }
         }
       }
     } catch (err) {
-      if (err.message.includes("expired")) throw err;
+      if (err.message.includes("expired") || err.message.includes("passed")) throw err;
     }
   }
 
