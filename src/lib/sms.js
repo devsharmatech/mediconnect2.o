@@ -67,6 +67,8 @@ export async function sendOTPViaGateway(userId, phone_number, role = 'patient') 
             headers: {
                 "Authorization": `Bearer ${token}`
             },
+            timeout: 15000,
+            retries: 1,
             body: {
                 token: token,
                 senderid: senderId,
@@ -129,6 +131,8 @@ export async function sendGenericOTPViaSMS(phone_number, otp, role = 'patient') 
             headers: {
                 "Authorization": `Bearer ${token}`
             },
+            timeout: 15000,
+            retries: 1,
             body: {
                 token: token,
                 senderid: senderId,
