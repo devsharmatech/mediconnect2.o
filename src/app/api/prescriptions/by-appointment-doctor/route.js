@@ -12,8 +12,8 @@ export async function POST(req) {
     const body = await req.json();
     const { appointment_id, doctor_id } = body || {};
 
-    if (!appointment_id || !doctor_id) {
-      return failure("appointment_id and doctor_id are required", null, 400, {
+    if (!appointment_id) {
+      return failure("appointment_id is required", null, 400, {
         headers: corsHeaders,
       });
     }
@@ -28,7 +28,7 @@ export async function POST(req) {
       LEFT JOIN appointments a ON a.id = p.appointment_id
       LEFT JOIN care_episodes ce ON ce.id = a.care_episode_id
       WHERE p.appointment_id = ${appointment_id}
-        AND p.doctor_id = ${doctor_id}
+        ${doctor_id ? sql`AND (p.doctor_id = ${doctor_id} OR ${doctor_id} IS NULL)` : sql``}
       ORDER BY p.created_at DESC
       LIMIT 1
     `;
@@ -40,10 +40,28 @@ export async function POST(req) {
     }
 
     const prescription = rows[0];
-    const generatedEpisodeCode = prescription.care_episode_code || (prescription.care_episode_id ? `EP-${String(prescription.care_episode_id).slice(0, 8).toUpperCase()}` : null);
-    prescription.episode_id = generatedEpisodeCode;
 
-    return success("Prescription fetched successfully", { prescription }, 200, {
+    // Fetch related details for official A4 medical prescription letterhead
+    const [docRows, patRows, fullApptRows, docUserRows, patUserRows] = await Promise.all([
+      prescription.doctor_id ? sql`SELECT * FROM doctor_details WHERE id = ${prescription.doctor_id} LIMIT 1` : Promise.resolve([]),
+      prescription.patient_id ? sql`SELECT * FROM patient_details WHERE id = ${prescription.patient_id} LIMIT 1` : Promise.resolve([]),
+      sql`SELECT * FROM appointments WHERE id = ${prescription.appointment_id} LIMIT 1`,
+      prescription.doctor_id ? sql`SELECT un_id FROM users WHERE id = ${prescription.doctor_id} LIMIT 1` : Promise.resolve([]),
+      prescription.patient_id ? sql`SELECT un_id FROM users WHERE id = ${prescription.patient_id} LIMIT 1` : Promise.resolve([]),
+    ]);
+
+    const generatedEpisodeCode = prescription.care_episode_code || 
+      (prescription.care_episode_id ? `EP-${String(prescription.care_episode_id).slice(0, 8).toUpperCase()}` : null);
+
+    const fullPrescription = {
+      ...prescription,
+      doctor_details: { ...(docRows[0] || {}), un_id: docUserRows[0]?.un_id || null },
+      patient_details: { ...(patRows[0] || {}), un_id: patUserRows[0]?.un_id || null },
+      appointments: fullApptRows[0] || {},
+      episode_id: generatedEpisodeCode,
+    };
+
+    return success("Prescription fetched successfully", { prescription: fullPrescription }, 200, {
       headers: corsHeaders,
     });
   } catch (err) {

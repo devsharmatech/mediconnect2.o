@@ -19,7 +19,7 @@ import { toast } from "react-hot-toast";
 export function maskPhoneNumber(phone) {
   if (!phone) return "Not Available";
   const str = String(phone).trim();
-  if (str.startsWith("ANONYMIZED_") || str.startsWith("deleted_")) return "Account Deleted";
+  if (str.startsWith("ANONYMIZED_") || str.startsWith("deleted_")) return "Verified Patient";
   if (str.length <= 4) return "****";
   
   if (str.startsWith("+91")) {

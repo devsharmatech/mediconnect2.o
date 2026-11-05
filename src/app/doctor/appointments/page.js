@@ -37,6 +37,7 @@ import ConsultationWorkspace from "@/components/doctor/ConsultationWorkspace";
 import SessionAgreementModal from "@/components/doctor/SessionAgreementModal";
 import DoctorAnalyticsWidget from "@/components/doctor/DoctorAnalyticsWidget";
 import PatientVerificationCard from "@/components/doctor/PatientVerificationCard";
+import PrescriptionViewerModal from "@/components/public-site/appointments/PrescriptionViewerModal";
 
 const STATUS_COLORS = {
   booked: "bg-[#0067A1]/10 text-[#0067A1] border-[#0067A1]/20",
@@ -63,14 +64,14 @@ const TYPE_COLORS = {
 };
 
 const formatPatientPhone = (phone) => {
-  if (!phone) return "No phone";
-  if (String(phone).startsWith("ANONYMIZED_")) return "Account Deleted";
+  if (!phone) return "";
+  if (String(phone).startsWith("ANONYMIZED_")) return "";
   return phone;
 };
 
 const formatPatientEmail = (email) => {
   if (!email) return null;
-  if (String(email).startsWith("deleted_") || String(email).startsWith("ANONYMIZED_")) return "Account Deleted";
+  if (String(email).startsWith("deleted_") || String(email).startsWith("ANONYMIZED_") || String(email).startsWith("anonymized_")) return null;
   return email;
 };
 
@@ -129,6 +130,8 @@ export default function DoctorAppointmentsPage() {
 
   const [extendingAppointment, setExtendingAppointment] = useState(null);
   const [prescriptionAppointment, setPrescriptionAppointment] = useState(null);
+  const [viewingPrescriptionData, setViewingPrescriptionData] = useState(null);
+  const [isFetchingPrescription, setIsFetchingPrescription] = useState(false);
   const [extendMode, setExtendMode] = useState("now");
   const [extendMinutes, setExtendMinutes] = useState(15);
   const [isExtending, setIsExtending] = useState(false);
@@ -534,6 +537,7 @@ export default function DoctorAppointmentsPage() {
   function isAppointmentExpired(apt, now = currentTime) {
     if (!apt?.appointment_date) return false;
     if (["completed", "cancelled", "rejected"].includes(String(apt.status).toLowerCase())) return false;
+    if (apt.has_prescription || apt.prescription_id) return false;
     if (apt._forceExpired) return true;
 
     const checkNow = now instanceof Date ? now : new Date();
@@ -610,7 +614,32 @@ export default function DoctorAppointmentsPage() {
     return false;
   };
 
-  const handleOpenPrescription = (apt) => {
+  const handleOpenPrescription = async (apt) => {
+    if (!apt) return;
+
+    // If appointment has a prescription generated or is completed, open the official A4 letterhead viewer
+    if (apt.has_prescription || apt.status === "completed" || apt.prescription_id) {
+      try {
+        setIsFetchingPrescription(true);
+        const doctorId = typeof window !== "undefined" ? (localStorage.getItem("userId") || localStorage.getItem("user_id")) : null;
+        const res = await fetch("/api/prescriptions/by-appointment-doctor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ appointment_id: apt.id, doctor_id: doctorId || apt.doctor_id }),
+        });
+        const json = await res.json().catch(() => null);
+        if (json?.success && json?.data?.prescription) {
+          setViewingPrescriptionData(json.data.prescription);
+          return;
+        }
+      } catch (err) {
+        console.warn("Could not fetch prescription by appointment:", err);
+      } finally {
+        setIsFetchingPrescription(false);
+      }
+    }
+
+    // Otherwise, open consultation workspace to write and sign prescription
     if (isVideoAppointment(apt) && !hasDoctorJoinedVideoCall(apt)) {
       toast.error("Please join the video consultation call first before writing a prescription.");
       return;
@@ -944,17 +973,19 @@ export default function DoctorAppointmentsPage() {
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {isExpired && apt.status === "booked" ? (
+                          {isExpired && apt.status === "booked" && !apt.has_prescription ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700 text-[10.5px] font-semibold">
                               <Clock className="w-2.5 h-2.5" />
                               Expired
                             </span>
                           ) : (
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10.5px] font-semibold ${
-                              STATUS_COLORS[apt.status] || "bg-slate-100 text-slate-700 border-slate-200"
+                              apt.has_prescription || apt.status === "completed"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : (STATUS_COLORS[apt.status] || "bg-slate-100 text-slate-700 border-slate-200")
                             }`}>
-                              {getStatusIcon(apt.status)}
-                              <span className="capitalize">{apt.status || "unknown"}</span>
+                              {getStatusIcon(apt.has_prescription ? "completed" : apt.status)}
+                              <span className="capitalize">{apt.has_prescription ? "completed" : (apt.status || "unknown")}</span>
                             </span>
                           )}
 
@@ -985,7 +1016,9 @@ export default function DoctorAppointmentsPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
                             <h4 className="text-xs sm:text-[13px] font-bold text-slate-800 truncate leading-snug">
-                              {apt.patient?.full_name || "Patient"}
+                              {apt.patient?.full_name && !apt.patient.full_name.includes("DE-IDENTIFIED")
+                                ? apt.patient.full_name
+                                : `Patient #${apt.patient?.un_id || "Verified"}`}
                             </h4>
                             {apt.patient?.blood_group && (
                               <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9.5px] font-semibold bg-rose-50 text-rose-600 border border-rose-100 shrink-0">
@@ -1065,7 +1098,7 @@ export default function DoctorAppointmentsPage() {
                             <Info className="w-3 h-3 text-slate-400" />
                             {apt.status === "rejected" ? "Rejected" : "Cancelled"}
                           </span>
-                        ) : isExpired ? (
+                        ) : isExpired && !apt.has_prescription && apt.status !== "completed" ? (
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-[10.5px] font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200/60">
                               Expired
@@ -1127,19 +1160,22 @@ export default function DoctorAppointmentsPage() {
                               );
                             })()}
 
-                            {["approved", "completed"].includes(apt.status) && (() => {
-                              const canWriteRx = !isVideoAppointment(apt) || hasDoctorJoinedVideoCall(apt);
+                            {(["approved", "completed"].includes(apt.status) || apt.has_prescription) && (() => {
+                              const canWriteRx = apt.has_prescription || apt.status === "completed" || !isVideoAppointment(apt) || hasDoctorJoinedVideoCall(apt);
                               return (
                                 <button
                                   type="button"
                                   onClick={() => handleOpenPrescription(apt)}
+                                  disabled={isFetchingPrescription}
                                   className={`h-7.5 px-2.5 rounded-md text-[11px] font-semibold transition-all shadow-xs flex items-center gap-1 shrink-0 ${
                                     canWriteRx
                                       ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-95"
                                       : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
                                   }`}
                                   title={
-                                    canWriteRx
+                                    apt.has_prescription || apt.status === "completed"
+                                      ? "View official A4 prescription letterhead"
+                                      : canWriteRx
                                       ? "Write & sign consultation prescription"
                                       : "Join the video call first before writing a prescription"
                                   }
@@ -1313,7 +1349,9 @@ export default function DoctorAppointmentsPage() {
                 </div>
                 <div className="flex-1">
                   <h4 className="text-lg sm:text-xl font-bold text-slate-800">
-                    {selectedAppointment.patient?.full_name || "Patient"}
+                    {selectedAppointment.patient?.full_name && !selectedAppointment.patient.full_name.includes("DE-IDENTIFIED")
+                      ? selectedAppointment.patient.full_name
+                      : `Patient #${selectedAppointment.patient?.un_id || "Verified"}`}
                   </h4>
                   <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-slate-600">
                     {selectedAppointment.patient?.gender && (
@@ -1543,7 +1581,7 @@ export default function DoctorAppointmentsPage() {
               >
                 Close
               </button>
-              {isAppointmentExpired(selectedAppointment, currentTime) && (
+              {isAppointmentExpired(selectedAppointment, currentTime) && !selectedAppointment.has_prescription && selectedAppointment.status !== "completed" && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1568,27 +1606,26 @@ export default function DoctorAppointmentsPage() {
                   Screening
                 </button>
               )}
-              {!["rejected", "cancelled"].includes(String(selectedAppointment.status).toLowerCase()) && (() => {
-                const canWriteRx = !isVideoAppointment(selectedAppointment) || hasDoctorJoinedVideoCall(selectedAppointment);
+              {(!["rejected", "cancelled"].includes(String(selectedAppointment.status).toLowerCase()) || selectedAppointment.has_prescription) && (() => {
+                const canWriteRx = selectedAppointment.has_prescription || selectedAppointment.status === "completed" || !isVideoAppointment(selectedAppointment) || hasDoctorJoinedVideoCall(selectedAppointment);
                 return (
                   <button
                     type="button"
                     onClick={() => {
                       const apt = selectedAppointment;
-                      if (!canWriteRx) {
-                        toast.error("Please join the video consultation call first before writing a prescription.");
-                        return;
-                      }
                       handleCloseModal();
-                      setPrescriptionAppointment(apt);
+                      handleOpenPrescription(apt);
                     }}
+                    disabled={isFetchingPrescription}
                     className={`px-3.5 py-2 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs ${
                       canWriteRx
                         ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-95"
                         : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
                     }`}
                     title={
-                      canWriteRx
+                      selectedAppointment.has_prescription || selectedAppointment.status === "completed"
+                        ? "View official A4 prescription letterhead"
+                        : canWriteRx
                         ? "Write and digitally sign prescription"
                         : "Join the video call first before writing a prescription"
                     }
@@ -1793,15 +1830,28 @@ export default function DoctorAppointmentsPage() {
             <div className="flex-1 overflow-y-auto p-4 sm:p-6">
               <ConsultationWorkspace
                 appointment={prescriptionAppointment}
-                onConsultationUpdate={() => {
-                  loadAppointments(page, dateFilter);
+                onConsultationUpdate={async () => {
+                  const savedApt = prescriptionAppointment;
                   setPrescriptionAppointment(null);
                   toast.success("Prescription signed and saved successfully!");
+                  await loadAppointments(page, dateFilter);
+                  if (savedApt) {
+                    handleOpenPrescription(savedApt);
+                  }
                 }}
               />
             </div>
           </div>
         </div>
+      )}
+
+      {/* Official A4 Medical Prescription Letterhead Modal (exact same format as live video call) */}
+      {viewingPrescriptionData && (
+        <PrescriptionViewerModal
+          data={viewingPrescriptionData}
+          onClose={() => setViewingPrescriptionData(null)}
+          isDoctor={true}
+        />
       )}
       </div>
     </>

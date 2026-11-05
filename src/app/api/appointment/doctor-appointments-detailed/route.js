@@ -31,12 +31,17 @@ export async function POST(req) {
     const offset = (pageNum - 1) * perPage;
 
     // Auto-expire appointments whose scheduled slot has passed (respecting extensions and clinic vs video)
+    // NOTE: Appointments with a generated/signed prescription MUST NEVER expire!
     try {
       await sql`
         UPDATE appointments
         SET status = 'expired', updated_at = NOW()
         WHERE doctor_id = ${doctor_id}
           AND status IN ('booked', 'freezed')
+          AND id NOT IN (
+            SELECT appointment_id FROM prescriptions 
+            WHERE appointment_id IS NOT NULL AND (is_draft IS NULL OR is_draft = false)
+          )
           AND (extended_until IS NULL OR extended_until < (NOW() AT TIME ZONE 'Asia/Kolkata'))
           AND (
             -- Video calls expire 30 minutes after slot if unextended
@@ -46,6 +51,18 @@ export async function POST(req) {
             -- Clinic and home visits only expire after the full appointment date has passed
             (COALESCE(appointment_type, 'video') IN ('clinic_visit', 'home_visit') 
              AND appointment_date < (NOW() AT TIME ZONE 'Asia/Kolkata')::date)
+          )
+      `;
+
+      // Ensure any appointment with an existing prescription is marked 'completed'
+      await sql`
+        UPDATE appointments
+        SET status = 'completed', updated_at = NOW()
+        WHERE doctor_id = ${doctor_id}
+          AND status != 'completed'
+          AND id IN (
+            SELECT appointment_id FROM prescriptions 
+            WHERE appointment_id IS NOT NULL AND (is_draft IS NULL OR is_draft = false)
           )
       `;
     } catch (expErr) {
@@ -75,7 +92,22 @@ export async function POST(req) {
         a.appointment_time::text AS appointment_time,
         COALESCE(a.original_appointment_time, a.appointment_time)::text AS original_appointment_time,
         a.extended_until,
-        a.status,
+        CASE 
+          WHEN EXISTS (
+            SELECT 1 FROM prescriptions pr 
+            WHERE pr.appointment_id = a.id AND (pr.is_draft IS NULL OR pr.is_draft = false)
+          ) THEN 'completed'
+          ELSE a.status
+        END AS status,
+        EXISTS (
+          SELECT 1 FROM prescriptions pr 
+          WHERE pr.appointment_id = a.id AND (pr.is_draft IS NULL OR pr.is_draft = false)
+        ) AS has_prescription,
+        (
+          SELECT pr.id FROM prescriptions pr 
+          WHERE pr.appointment_id = a.id AND (pr.is_draft IS NULL OR pr.is_draft = false)
+          ORDER BY pr.created_at DESC LIMIT 1
+        ) AS prescription_id,
         a.disease_info,
         a.appointment_type,
         a.payment_status,
@@ -93,6 +125,7 @@ export async function POST(req) {
         p.blood_group AS patient_blood_group,
         p.address AS patient_address,
         u.phone_number AS patient_phone,
+        u.un_id AS patient_un_id,
         COUNT(*) OVER()::int AS full_count
       FROM appointments a
       LEFT JOIN patient_details p ON p.id = a.patient_id
@@ -173,13 +206,18 @@ export async function POST(req) {
       const simplePatient = {
         id: a.patient_id,
         phone: a.patient_phone || null,
-        full_name: a.patient_full_name || null,
-        email: a.patient_email || null,
+        full_name: (a.patient_full_name && !a.patient_full_name.includes("DE-IDENTIFIED")) 
+          ? a.patient_full_name 
+          : `Patient #${a.patient_un_id || "Verified"}`,
+        email: (a.patient_email && !a.patient_email.startsWith("anonymized_") && !a.patient_email.startsWith("deleted_")) 
+          ? a.patient_email 
+          : null,
         gender: a.patient_gender || null,
         date_of_birth: a.patient_date_of_birth || null,
         age: patientAge,
         blood_group: a.patient_blood_group || null,
         address: a.patient_address || null,
+        un_id: a.patient_un_id || null,
       };
 
       return {
@@ -191,6 +229,8 @@ export async function POST(req) {
         original_appointment_time: a.original_appointment_time,
         extended_until: a.extended_until,
         status: a.status,
+        has_prescription: Boolean(a.has_prescription),
+        prescription_id: a.prescription_id || null,
         disease_info: a.disease_info,
         appointment_type: a.appointment_type,
         payment_status: a.payment_status,
