@@ -23,7 +23,6 @@ import {
   Pill,
   Store,
   Clock,
-  Star,
   RotateCcw,
   FlaskConical,
   CreditCard,
