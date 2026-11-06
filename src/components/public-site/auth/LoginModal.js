@@ -276,9 +276,10 @@ const LoginModal = ({ isOpen, onClose, onSignupClick, initialUserType = 'patient
       if (response.success) {
         setStep('success');
         const { user_id, role, user } = response.data || {};
+        const effectiveRole = role || userType || 'patient';
+        const activeRole = effectiveRole === 'admin' ? 'patient' : effectiveRole;
+
         if (typeof window !== 'undefined') {
-          const effectiveRole = role || userType || 'patient';
-          const activeRole = effectiveRole === 'admin' ? 'patient' : effectiveRole;
           if (response.data?.token) localStorage.setItem('authToken', response.data.token);
           if (user_id) localStorage.setItem('userId', String(user_id));
           localStorage.setItem('userRole', activeRole);
