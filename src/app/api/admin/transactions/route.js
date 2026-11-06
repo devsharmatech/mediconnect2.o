@@ -30,11 +30,11 @@ export async function GET(request) {
     }
     if (paymentStatus !== "all") {
       if (paymentStatus === "paid") {
-        aptConditions.push(sql`LOWER(COALESCE(a.payment_status, '')) IN ('paid', 'completed')`);
+        aptConditions.push(sql`LOWER(COALESCE(a.payment_status, '')) IN ('paid', 'completed') AND COALESCE(a.final_fee, a.original_fee, 0) > 0`);
       } else if (paymentStatus === "free") {
         aptConditions.push(sql`(LOWER(COALESCE(a.payment_status, '')) = 'free' OR COALESCE(a.final_fee, a.original_fee, 0) = 0)`);
       } else if (paymentStatus === "pending") {
-        aptConditions.push(sql`LOWER(COALESCE(a.payment_status, 'pending')) IN ('pending', 'booked') AND COALESCE(a.final_fee, a.original_fee, 0) > 0`);
+        aptConditions.push(sql`LOWER(COALESCE(a.payment_status, 'pending')) IN ('pending', 'booked', 'unpaid') AND COALESCE(a.final_fee, a.original_fee, 0) > 0`);
       } else if (paymentStatus === "failed") {
         aptConditions.push(sql`LOWER(COALESCE(a.payment_status, '')) IN ('failed', 'cancelled', 'refunded')`);
       }
@@ -68,7 +68,7 @@ export async function GET(request) {
     }
     if (paymentStatus !== "all") {
       if (paymentStatus === "paid") {
-        labConditions.push(sql`LOWER(COALESCE(l.payment_status, '')) IN ('paid', 'completed')`);
+        labConditions.push(sql`LOWER(COALESCE(l.payment_status, '')) IN ('paid', 'completed') AND COALESCE(l.total_amount, 0) > 0`);
       } else if (paymentStatus === "free") {
         labConditions.push(sql`(LOWER(COALESCE(l.payment_status, '')) = 'free' OR COALESCE(l.total_amount, 0) = 0)`);
       } else if (paymentStatus === "pending") {
@@ -327,19 +327,65 @@ export async function GET(request) {
       `;
     }
 
-    // Calculate quick overall stats
-    const statsResult = await sql`
-      SELECT 
-        (SELECT COUNT(*)::int FROM appointments) AS total_appointments_count,
-        (SELECT COALESCE(SUM(COALESCE(final_fee, original_fee, 0)), 0)::numeric FROM appointments) AS total_appointments_volume,
-        (SELECT COUNT(*)::int FROM lab_test_orders) AS total_labs_count,
-        (SELECT COALESCE(SUM(COALESCE(total_amount, 0)), 0)::numeric FROM lab_test_orders) AS total_labs_volume
-    `;
-    const sRow = statsResult[0] || {};
-    const aptCount = parseInt(sRow.total_appointments_count || "0", 10);
-    const aptVol = parseFloat(sRow.total_appointments_volume || "0");
-    const labCount = parseInt(sRow.total_labs_count || "0", 10);
-    const labVol = parseFloat(sRow.total_labs_volume || "0");
+    // Calculate dynamic stats matching active filters
+    let aptCount = 0;
+    let aptVol = 0;
+    let labCount = 0;
+    let labVol = 0;
+
+    if (serviceType !== "lab") {
+      const [aptStat] = await sql`
+        SELECT 
+          COUNT(*)::int AS count,
+          COALESCE(SUM(
+            CASE 
+              WHEN LOWER(COALESCE(a.payment_status, '')) IN ('paid', 'completed') THEN COALESCE(a.final_fee, a.original_fee, 0)
+              ELSE 0
+            END
+          ), 0)::numeric AS paid_volume,
+          COALESCE(SUM(COALESCE(a.final_fee, a.original_fee, 0)), 0)::numeric AS total_volume
+        FROM appointments a
+        LEFT JOIN users u ON u.id = a.patient_id
+        LEFT JOIN patient_details p ON p.id = a.patient_id
+        LEFT JOIN doctor_details d ON d.id = a.doctor_id
+        WHERE ${aptWhere}
+      `;
+      aptCount = aptStat?.count || 0;
+      if (paymentStatus === "pending") {
+        aptVol = parseFloat(aptStat?.total_volume || "0");
+      } else if (paymentStatus === "free") {
+        aptVol = 0;
+      } else {
+        aptVol = parseFloat(aptStat?.paid_volume || "0");
+      }
+    }
+
+    if (serviceType !== "appointment") {
+      const [labStat] = await sql`
+        SELECT 
+          COUNT(*)::int AS count,
+          COALESCE(SUM(
+            CASE 
+              WHEN LOWER(COALESCE(l.payment_status, '')) IN ('paid', 'completed') THEN COALESCE(l.total_amount, 0)
+              ELSE 0
+            END
+          ), 0)::numeric AS paid_volume,
+          COALESCE(SUM(COALESCE(l.total_amount, 0)), 0)::numeric AS total_volume
+        FROM lab_test_orders l
+        LEFT JOIN users u ON u.id = l.patient_id
+        LEFT JOIN patient_details p ON p.id = l.patient_id
+        LEFT JOIN lab_details ld ON ld.id = l.lab_id
+        WHERE ${labWhere}
+      `;
+      labCount = labStat?.count || 0;
+      if (paymentStatus === "pending") {
+        labVol = parseFloat(labStat?.total_volume || "0");
+      } else if (paymentStatus === "free") {
+        labVol = 0;
+      } else {
+        labVol = parseFloat(labStat?.paid_volume || "0");
+      }
+    }
 
     const totalPages = Math.ceil(totalCount / limit) || 1;
 

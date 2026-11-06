@@ -53,13 +53,34 @@ const formatDate = (dateString) => {
 
 const formatTime = (timeString) => {
   if (!timeString) return "";
-  const s = String(timeString).slice(0, 5);
-  const [hStr, mStr] = s.split(":");
-  const h = parseInt(hStr, 10);
-  if (isNaN(h)) return s;
-  const suffix = h >= 12 ? "PM" : "AM";
-  const hour12 = ((h + 11) % 12) + 1;
-  return `${hour12}:${mStr} ${suffix}`;
+  const str = String(timeString).trim();
+  // If it's a full ISO timestamp or date-like string (e.g. 2026-07-08T... or 2026-07-08 ...)
+  if (str.includes("-") || str.includes("T")) {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+    }
+  }
+  // If it's already formatted like "10:30 AM" or "10:30 PM"
+  if (/am|pm/i.test(str)) {
+    return str;
+  }
+  // If it's a 24-hr time like "14:30" or "09:15:00"
+  const parts = str.split(":");
+  if (parts.length >= 2) {
+    const h = parseInt(parts[0], 10);
+    const m = parts[1].slice(0, 2);
+    if (!isNaN(h)) {
+      const suffix = h >= 12 ? "PM" : "AM";
+      const hour12 = ((h + 11) % 12) + 1;
+      return `${hour12}:${m} ${suffix}`;
+    }
+  }
+  return str;
 };
 
 const formatDateTime = (dateString) => {
@@ -374,14 +395,28 @@ export default function PatientTransactionsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Volume</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">
+              {paymentStatusFilter === "pending"
+                ? "Pending Volume"
+                : paymentStatusFilter === "paid"
+                ? "Paid Volume"
+                : paymentStatusFilter === "free"
+                ? "Free Volume"
+                : "Total Volume"}
+            </span>
             <CreditCard className="w-4 h-4 text-[#0067A1]" />
           </div>
           <div className="text-2xl font-bold text-slate-900 dark:text-white">
             ₹{stats.total_volume.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            Across {stats.total_count} total patient transactions
+            {paymentStatusFilter === "paid"
+              ? `Across ${stats.total_count} paid transactions`
+              : paymentStatusFilter === "free"
+              ? `Across ${stats.total_count} free consultations`
+              : paymentStatusFilter === "pending"
+              ? `Across ${stats.total_count} pending transactions`
+              : `Collected revenue • ${stats.total_count} transactions`}
           </div>
         </div>
 
@@ -394,7 +429,7 @@ export default function PatientTransactionsPage() {
             ₹{stats.appointments_volume.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            {stats.appointments_count} consultations booked
+            {stats.appointments_count} consultations {paymentStatusFilter === "paid" ? "paid" : "booked"}
           </div>
         </div>
 
@@ -407,7 +442,9 @@ export default function PatientTransactionsPage() {
             ₹{stats.labs_volume.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            {stats.labs_count} diagnostic orders processed
+            {stats.labs_volume === 0 && stats.labs_count > 0 && paymentStatusFilter !== "free"
+              ? `${stats.labs_count} orders (pending payment)`
+              : `${stats.labs_count} diagnostic orders`}
           </div>
         </div>
 
