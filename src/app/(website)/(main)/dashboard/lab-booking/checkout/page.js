@@ -19,6 +19,23 @@ function getCart() {
     try { return JSON.parse(localStorage.getItem(CART_KEY) || "null"); } catch { return null; }
 }
 
+function validateAddressDetails(addr) {
+    const full = (addr?.full_address || "").trim();
+    const city = (addr?.city || "").trim();
+    const pin = (addr?.pincode || "").trim();
+
+    if (!full || full.length < 5) {
+        return "Please enter a valid complete address (at least 5 characters).";
+    }
+    if (!city || city.length < 2 || !/^[a-zA-Z\s.-]+$/.test(city)) {
+        return "Please enter a valid city name (letters only).";
+    }
+    if (!pin || !/^\d{6}$/.test(pin)) {
+        return "Please enter a valid 6-digit Indian PIN code.";
+    }
+    return null;
+}
+
 export default function CheckoutPage() {
     const router = useRouter();
     const [cart, setCart] = useState(null);
@@ -171,8 +188,9 @@ export default function CheckoutPage() {
     };
 
     const handlePayment = async () => {
-        if (!address.full_address || !address.city || !address.pincode) {
-            toast.error("Please fill in all required address fields");
+        const addrError = validateAddressDetails(address);
+        if (addrError) {
+            toast.error(addrError);
             goToStep(2);
             return;
         }
@@ -784,8 +802,9 @@ export default function CheckoutPage() {
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                if (!address.full_address || !address.city || !address.pincode) {
-                                                    toast.error("Please fill in all required address fields");
+                                                const addrError = validateAddressDetails(address);
+                                                if (addrError) {
+                                                    toast.error(addrError);
                                                     return;
                                                 }
                                                 goToStep(3);

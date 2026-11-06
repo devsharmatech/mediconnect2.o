@@ -256,30 +256,38 @@ const CLUSTERS = [
 ];
 
 const matchesSpecialty = (docSpecialty, filter) => {
-  const docSpec = (docSpecialty || "").toLowerCase();
-  const target = filter.toLowerCase();
-  if (filter === "All Specialties") return true;
+  const docSpec = (docSpecialty || "").toLowerCase().trim();
+  const target = (filter || "").toLowerCase().trim();
+  if (!target || target === "all specialties") return true;
+  if (docSpec === target) return true;
 
   const hasWord = (str, word) => {
+    if (!str || !word) return false;
     const escaped = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
     const regex = new RegExp(`\\b${escaped}\\b`, 'i');
     return regex.test(str);
   };
 
-  if (docSpec === target) return true;
+  // Exact negative guards for common collisions (e.g. ENT vs Dentistry/Gastroenterology)
+  if (target === "ent" && (docSpec.includes("dentist") || docSpec.includes("dental") || docSpec.includes("gastro"))) {
+    return false;
+  }
+  if ((target.includes("dentist") || target.includes("dental")) && docSpec === "ent") {
+    return false;
+  }
 
   for (const cluster of CLUSTERS) {
     const inFilter = cluster.some((w) => {
-      if (w.length <= 3) {
-        return hasWord(target, w);
+      if (target.length <= 3 || w.length <= 3) {
+        return hasWord(target, w) || target === w;
       }
-      return target.includes(w) || w.includes(target);
+      return target.includes(w) || (target.length >= 4 && w.includes(target));
     });
 
     if (inFilter) {
       const inDoc = cluster.some((w) => {
         if (w.length <= 3) {
-          return hasWord(docSpec, w);
+          return hasWord(docSpec, w) || docSpec === w;
         }
         return docSpec.includes(w);
       });
@@ -292,7 +300,7 @@ const matchesSpecialty = (docSpecialty, filter) => {
   }
   if (target === "urology" && docSpec.includes("neurology")) return false;
   if (target === "neurology" && docSpec.includes("urology") && !docSpec.includes("neurology")) return false;
-  return docSpec.includes(target) || target.includes(docSpec);
+  return docSpec.includes(target) || (target.length >= 4 && target.includes(docSpec));
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -420,10 +428,28 @@ export default function FindDoctorsPage() {
     .filter((doc) => {
       const q = search.toLowerCase().trim();
       if (q) {
-        const match = [doc.name, doc.specialty, doc.location].some((f) =>
-          (f || "").toLowerCase().includes(q)
+        // Strict guard for ENT search against common collisions
+        const isEntQuery = q === "ent" || (/\bent\b/i).test(q);
+        const docSpec = (doc.specialty || "").toLowerCase();
+        if (isEntQuery && (docSpec.includes("dentist") || docSpec.includes("dental") || docSpec.includes("gastro"))) {
+          return false;
+        }
+
+        const nameMatches = q.length <= 3
+          ? new RegExp(`\\b${q.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}`, 'i').test(doc.name || "")
+          : (doc.name || "").toLowerCase().includes(q);
+
+        const locationMatches = q.length <= 3
+          ? new RegExp(`\\b${q.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}`, 'i').test(doc.location || "")
+          : (doc.location || "").toLowerCase().includes(q);
+
+        const specMatches = matchesSpecialty(doc.specialty, q) || (
+          q.length <= 3
+            ? new RegExp(`\\b${q.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i').test(doc.specialty || "")
+            : docSpec.includes(q)
         );
-        if (!match) return false;
+
+        if (!nameMatches && !locationMatches && !specMatches) return false;
       }
       return matchesSpecialty(doc.specialty, selectedSpecialty);
     })

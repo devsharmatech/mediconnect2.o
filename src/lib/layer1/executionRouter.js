@@ -16,7 +16,7 @@ import { initializeConsultation } from "./consultationService";
 import { logAudit } from "./auditLogger";
 import { insertOutboxEvent } from "./eventOutbox";
 import { evaluateCTA, updateEngagementProfile, trackSignal } from "./engagementEngine";
-import { sendAppointmentUpdateAlert } from "@/lib/sms";
+import { sendAppointmentUpdateAlert, formatDoctorName, formatWhatsAppDate } from "@/lib/sms";
 import { sendPushAndInAppNotification } from "../notificationHelper";
 import { calculateBookingFinancialQuote, freezeBookingFinancialSnapshot, postAppointmentCompletionLedger } from "../doctorFinancialEngine";
 import { initiateRefund } from "./refundEngine";
@@ -417,23 +417,24 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
       const patientDetailsRows = await sql`SELECT full_name FROM patient_details WHERE id = ${patient_id} LIMIT 1`;
 
       const patientName = patientDetailsRows[0]?.full_name || "Patient";
-      const doctorName = doctorDetails?.full_name || "Doctor";
+      const doctorDisplayName = formatDoctorName(doctorDetails?.full_name || "Doctor");
+      const readableAptDate = formatWhatsAppDate(appointment_date);
       const phoneNumber = patientUsers[0]?.phone_number;
 
       // 1. In-App & FCM Push Notification for Patient (Pending doctor approval)
       await sendPushAndInAppNotification({
         user_id: patient_id,
         title: "Appointment Request Received",
-        message: `Your appointment request with Dr. ${doctorName} on ${appointment_date} at ${appointment_time} has been received and is pending doctor confirmation.`,
+        message: `Your appointment request with ${doctorDisplayName} on ${readableAptDate} at ${appointment_time} has been received and is pending doctor confirmation.`,
         type: "appointment_booked",
-        metadata: { appointment_id: appointment.id, doctor_id, doctor_name: doctorName }
+        metadata: { appointment_id: appointment.id, doctor_id, doctor_name: doctorDisplayName }
       });
 
       // 2. In-App & FCM Push Notification for Doctor
       await sendPushAndInAppNotification({
         user_id: doctor_id,
         title: "New Appointment Booked",
-        message: `New appointment booked with ${patientName} on ${appointment_date} at ${appointment_time}.`,
+        message: `New appointment booked with ${patientName} on ${readableAptDate} at ${appointment_time}.`,
         type: "appointment_booked",
         metadata: { appointment_id: appointment.id, patient_id, patient_name: patientName }
       });
@@ -446,8 +447,8 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
           status_type: "booked",
           appointment_code: "MCAPT-" + String(appointment.id).slice(0, 8).toUpperCase(),
           patient_name: patientName,
-          doctor_or_service: "Dr. " + doctorName,
-          date: appointment_date,
+          doctor_or_service: doctorDisplayName,
+          date: readableAptDate,
           time: appointment_time,
           location_or_mode: (appointment_type === "video_call" || appointment_type === "video_consultation" || appointment_type === "video") ? "Video Call" : (appointment_type === "home_visit" ? "Home Visit" : "Clinic Visit"),
           patient_id

@@ -95,18 +95,24 @@ export async function GET(req) {
 
         // 2. Consultation in progress
         else if (latestConsultation && !latestConsultation.completed_at && (latestConsultation.case_status === "STARTED" || latestConsultation.case_status === "ACTIVE")) {
+            const apptType = String(responsePayload.appointment_type || "").toLowerCase();
+            const isHomeOrClinic = apptType.includes("home") || apptType.includes("clinic");
             const createdTime = new Date(latestConsultation.created_at || now);
             const isStale = (now - createdTime) > 15 * 60 * 1000; // 15 minutes timeout
 
             if (!isStale) {
-                if (!latestConsultation.doctor_id) {
+                if (isHomeOrClinic) {
+                    // In-person appointments (Home Visit & Clinic Visit) should not prompt for live video session resume
+                    rawAction = "NONE";
+                } else if (!latestConsultation.doctor_id) {
                     rawAction = "WAIT_FOR_DOCTOR";
                     responsePayload.consultation_id = latestConsultation.id;
+                    priority = 1;
                 } else {
                     rawAction = "RESUME_SESSION";
                     responsePayload.consultation_id = latestConsultation.id;
+                    priority = 1;
                 }
-                priority = 1;
             }
         }
 
@@ -128,7 +134,8 @@ export async function GET(req) {
                 const paidAt = new Date(latestPayment.created_at);
                 if ((now - paidAt) > 120000) {
                     const apptType = String(responsePayload.appointment_type || "").toLowerCase();
-                    if (apptType === "home" || apptType === "clinic") {
+                    const isHomeOrClinic = apptType.includes("home") || apptType.includes("clinic");
+                    if (isHomeOrClinic) {
                         rawAction = "NONE";
                     } else {
                         rawAction = "START_CONSULTATION";

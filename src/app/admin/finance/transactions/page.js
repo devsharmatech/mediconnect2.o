@@ -1264,3 +1264,4 @@ export default function PatientTransactionsPage() {
     </div>
   );
 }
+

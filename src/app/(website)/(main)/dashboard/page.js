@@ -308,7 +308,8 @@ const Dashboard = () => {
                     else if (nextActionData.next_action === "COMPLETE_PAYMENT") router.push("/appointments");
                     else if (nextActionData.next_action === "START_CONSULTATION") {
                       const apptType = String(nextActionData.appointment_type || "").toLowerCase();
-                      if (apptType === "home" || apptType === "clinic") {
+                      const isHomeOrClinic = apptType.includes("home") || apptType.includes("clinic");
+                      if (isHomeOrClinic) {
                         router.push("/appointments");
                       } else if (nextActionData.consultation_id) {
                         router.push(`/appointments/${nextActionData.consultation_id}/video?userId=${user?.id}&role=patient`);
@@ -320,7 +321,8 @@ const Dashboard = () => {
                     }
                     else if (nextActionData.next_action === "RESUME_SESSION" && nextActionData.consultation_id) {
                       const apptType = String(nextActionData.appointment_type || "").toLowerCase();
-                      if (apptType === "home" || apptType === "clinic") {
+                      const isHomeOrClinic = apptType.includes("home") || apptType.includes("clinic");
+                      if (isHomeOrClinic) {
                         router.push("/appointments");
                       } else {
                         router.push(`/appointments/${nextActionData.consultation_id}/video?userId=${user?.id}&role=patient`);
@@ -328,7 +330,8 @@ const Dashboard = () => {
                     }
                     else if (nextActionData.consultation_id) {
                       const apptType = String(nextActionData.appointment_type || "").toLowerCase();
-                      if (apptType === "home" || apptType === "clinic") {
+                      const isHomeOrClinic = apptType.includes("home") || apptType.includes("clinic");
+                      if (isHomeOrClinic) {
                         router.push("/appointments");
                       } else {
                         router.push(`/appointments/${nextActionData.consultation_id}/video?userId=${user?.id}&role=patient`);

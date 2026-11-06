@@ -433,11 +433,11 @@ function calculateLungHealth(inputs) {
     score -= 12;
   }
 
-  // Peak Flow (Optional)
-  if (inputs.peak_flow && inputs.peak_flow < 350) {
-    score -= 20;
-    riskFactors.push("Lower peak expiratory flow");
-  } else if (inputs.peak_flow && inputs.peak_flow < 450) {
+  // Peak Flow (Normal: 400 - 600 L/min)
+  if (inputs.peak_flow && (inputs.peak_flow < 350 || inputs.peak_flow > 650)) {
+    score -= 15;
+    riskFactors.push("Abnormal peak expiratory flow");
+  } else if (inputs.peak_flow && inputs.peak_flow < 400) {
     score -= 8;
   }
 

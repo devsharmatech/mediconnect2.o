@@ -106,7 +106,18 @@ const getAppointmentEnd = (apt) => {
 
 const getEffectiveStatus = (apt, now = new Date()) => {
   const base = normalizeStatus(apt.status);
+  const hasPrescription = !!(
+    apt.hasRx || 
+    apt.has_prescription || 
+    apt.prescription || 
+    apt.prescription_id || 
+    (Array.isArray(apt.prescriptions) && apt.prescriptions.length > 0)
+  );
+
+  // If a prescription is already issued or appointment marked completed, retain "completed" (never expired)
+  if (hasPrescription || base === "completed") return "completed";
   if (base === "expired") return "expired";
+  if (base === "cancelled") return "cancelled";
   if (!["confirmed", "pending"].includes(base)) return base;
 
   if (apt.extended_until) {
@@ -119,15 +130,20 @@ const getEffectiveStatus = (apt, now = new Date()) => {
   if (!start) return base;
 
   if (isClinic) {
+    // If the doctor approved/confirmed a Clinic Visit or Home Visit, keep it confirmed (Approved) matching Doctor Portal
+    if (base === "confirmed") return "confirmed";
     const endOfDay = new Date(start);
     endOfDay.setHours(23, 59, 59, 999);
     if (now > endOfDay) return "expired";
     return base;
   }
 
-  // After 30 minutes past start time, video appointment is expired (unless extended)
+  // After 30 minutes past start time, video appointment is expired (unless prescription exists or extended)
   const end = new Date(start.getTime() + 30 * 60 * 1000);
-  if (now > end) return "expired";
+  if (now > end) {
+    if (hasPrescription) return "completed";
+    return "expired";
+  }
   return base;
 };
 

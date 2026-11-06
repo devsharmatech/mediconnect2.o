@@ -16,7 +16,12 @@ const MEDICAL_SYNONYMS = {
   tsh: ['tsh', 'thyroid'],
   lipid: ['lipid', 'cholesterol', 'triglyceride', 'hdl', 'ldl'],
   cholesterol: ['cholesterol', 'lipid', 'triglyceride', 'hdl', 'ldl'],
-  vitamin: ['vitamin', 'b12', 'd3', 'hydroxy vitamin', 'cobalamin'],
+  'vitamin d': ['vitamin d', 'd3', 'calciferol', '25-hydroxy', 'cholecalciferol'],
+  'vitamin d3': ['vitamin d', 'd3', 'calciferol', '25-hydroxy', 'cholecalciferol'],
+  'vit d': ['vitamin d', 'd3', 'calciferol'],
+  'vitamin b12': ['vitamin b12', 'b12', 'cobalamin', 'cyanocobalamin'],
+  'vit b12': ['vitamin b12', 'b12', 'cobalamin'],
+  vitamin: ['vitamin'],
   b12: ['vitamin b12', 'b12', 'cobalamin'],
   d3: ['vitamin d', 'd3', 'calciferol'],
   urine: ['urine routine', 'urine', 'urinalysis'],
@@ -52,22 +57,33 @@ export function expandLabSearchTerms(query) {
   }
 
   // Check multi-word phrase matching directly
+  let matchedMultiWord = false;
   if (MEDICAL_SYNONYMS[normalizedPhrase]) {
     MEDICAL_SYNONYMS[normalizedPhrase].forEach(s => termSet.add(s));
+    matchedMultiWord = true;
   }
 
-  // Tokenize by spaces and punctuation
-  const tokens = normalizedPhrase.split(/[\s,+/&|_-]+/).map(t => t.replace(/[^\w]/g, '').trim()).filter(t => t.length >= 2);
-  for (const token of tokens) {
-    if (!stopWords.has(token)) {
-      termSet.add(token);
-    }
-    if (MEDICAL_SYNONYMS[token]) {
-      MEDICAL_SYNONYMS[token].forEach(s => termSet.add(s));
+  // Tokenize by spaces and punctuation only if no exact multi-word synonym match
+  if (!matchedMultiWord) {
+    const tokens = normalizedPhrase.split(/[\s,+/&|_-]+/).map(t => t.replace(/[^\w]/g, '').trim()).filter(t => t.length >= 2);
+    for (const token of tokens) {
+      if (!stopWords.has(token)) {
+        termSet.add(token);
+      }
+      if (MEDICAL_SYNONYMS[token]) {
+        MEDICAL_SYNONYMS[token].forEach(s => termSet.add(s));
+      }
     }
   }
 
-  return Array.from(termSet).filter(t => t && t.length >= 2);
+  // Cross-contamination guards (e.g. searching Vitamin D must never return Vitamin B12)
+  const result = Array.from(termSet).filter(t => t && t.length >= 2);
+  const isVitaminDQuery = /\b(vitamin\s*d|vit\s*d|d3)\b/i.test(normalizedPhrase);
+  if (isVitaminDQuery) {
+    return result.filter(t => !['b12', 'cobalamin', 'cyanocobalamin'].includes(t.toLowerCase()));
+  }
+
+  return result;
 }
 
 /**

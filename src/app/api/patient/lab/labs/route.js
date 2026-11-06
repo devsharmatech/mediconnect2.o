@@ -23,6 +23,8 @@ export async function GET(req) {
         const cityPattern = city ? `%${city}%` : null;
         const areaPattern = area ? `%${area}%` : null;
         const searchPattern = search ? `%${search}%` : null;
+        const searchWords = search ? search.split(/\s+/).filter(w => w.length >= 2) : [];
+        const searchWordPatterns = searchWords.length > 1 ? searchWords.map(w => `%${w}%`) : null;
 
         // Expand medical synonyms (e.g. Sugar -> Glucose, LFT -> Liver, CBC -> Complete Blood Count)
         const terms = search ? expandLabSearchTerms(search) : [];
@@ -41,6 +43,7 @@ export async function GET(req) {
                 AND (
                     ld.lab_name ILIKE ${searchPattern}
                     OR ld.address ILIKE ${searchPattern}
+                    ${searchWordPatterns ? sql`OR (ld.lab_name || ' ' || COALESCE(ld.address, '')) ILIKE ALL(${searchWordPatterns})` : sql``}
                     OR EXISTS (
                         SELECT 1 FROM lab_tests lt
                         WHERE lt.lab_id = ld.id
@@ -165,6 +168,7 @@ export async function GET(req) {
                 AND (
                     ld.lab_name ILIKE ${searchPattern}
                     OR ld.address ILIKE ${searchPattern}
+                    ${searchWordPatterns ? sql`OR (ld.lab_name || ' ' || COALESCE(ld.address, '')) ILIKE ALL(${searchWordPatterns})` : sql``}
                     OR EXISTS (
                         SELECT 1 FROM lab_tests lt
                         WHERE lt.lab_id = ld.id

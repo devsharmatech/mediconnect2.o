@@ -2,7 +2,7 @@ import admin from "@/lib/firebaseAdmin";
 import { supabase } from "@/lib/supabaseAdmin";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
-import { sendAppointmentReminder } from "@/lib/sms";
+import { sendAppointmentReminder, formatDoctorName, formatWhatsAppDate } from "@/lib/sms";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -87,7 +87,7 @@ export async function POST(req) {
 
           const phoneNumber = patientUser?.phone_number;
           const patientName = patientDetails?.full_name || "Patient";
-          const doctorName = doctorDetails?.full_name || "Doctor";
+          const doctorDisplayName = formatDoctorName(doctorDetails?.full_name || "Doctor");
 
           if (phoneNumber) {
             const appointmentCode = "MCAPT-" + apt.id.slice(0, 8).toUpperCase();
@@ -101,8 +101,8 @@ export async function POST(req) {
               recipient_name: patientName,
               appointment_code: appointmentCode,
               patient_name: patientName,
-              doctor_or_service: "Dr. " + doctorName,
-              date: apt.appointment_date,
+              doctor_or_service: doctorDisplayName,
+              date: formatWhatsAppDate(apt.appointment_date),
               time: apt.appointment_time,
               location_or_mode: mode,
               patient_id: patientId

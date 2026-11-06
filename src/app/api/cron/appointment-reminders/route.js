@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabaseAdmin";
 import { success, failure } from "@/lib/response";
-import { sendAppointmentReminder } from "@/lib/sms";
+import { sendAppointmentReminder, formatDoctorName, formatWhatsAppDate } from "@/lib/sms";
 import nodemailer from "nodemailer";
 
 /**
@@ -139,7 +139,9 @@ async function executeAppointmentReminders(req) {
         const doctorEmail = doctorDetails?.email || doctorUser?.email;
 
         const patientName = patientDetails?.full_name || "Patient";
-        const doctorName = doctorDetails?.full_name || "Doctor";
+        const doctorRawName = doctorDetails?.full_name || "Doctor";
+        const doctorDisplayName = formatDoctorName(doctorRawName);
+        const readableAptDate = formatWhatsAppDate(apt.appointment_date);
 
         const appointmentCode = "MCAPT-" + apt.id.slice(0, 8).toUpperCase();
         const mode = apt.appointment_type === "video_call" || apt.appointment_type === "video_consultation" || apt.appointment_type === "video"
@@ -193,7 +195,7 @@ async function executeAppointmentReminders(req) {
                   recipient_name: patientName,
                   appointment_code: appointmentCode,
                   patient_name: patientName,
-                  doctor_or_service: "Dr. " + doctorName,
+                  doctor_or_service: doctorDisplayName,
                   date: isToday ? "Today" : "Tomorrow",
                   time: apt.appointment_time,
                   location_or_mode: mode,
@@ -206,7 +208,7 @@ async function executeAppointmentReminders(req) {
                   await transporter.sendMail({
                     from: `"MediConnect" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
                     to: patientEmail,
-                    subject: `Reminder: Appointment with Dr. ${doctorName} Today`,
+                    subject: `Reminder: Appointment with ${doctorDisplayName} Today`,
                     html: `
                       <div style="font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;max-width:600px;margin:0 auto;color:#333;line-height:1.6;">
                         <div style="background-color:#0067A1;padding:24px;text-align:center;border-radius:10px 10px 0 0;">
@@ -214,9 +216,9 @@ async function executeAppointmentReminders(req) {
                         </div>
                         <div style="padding:24px;background-color:#fff;border:1px solid #eee;border-top:none;border-radius:0 0 10px 10px;">
                           <p>Hello <strong>${patientName}</strong>,</p>
-                          <p>You have a confirmed consultation with <strong>Dr. ${doctorName}</strong> today.</p>
+                          <p>You have a confirmed consultation with <strong>${doctorDisplayName}</strong> today.</p>
                           <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-                            <tr><td style="padding:8px 0;color:#666;">Date:</td><td style="padding:8px 0;font-weight:bold;">${apt.appointment_date}</td></tr>
+                            <tr><td style="padding:8px 0;color:#666;">Date:</td><td style="padding:8px 0;font-weight:bold;">${readableAptDate}</td></tr>
                             <tr><td style="padding:8px 0;color:#666;">Time:</td><td style="padding:8px 0;font-weight:bold;">${apt.appointment_time}</td></tr>
                             <tr><td style="padding:8px 0;color:#666;">Mode:</td><td style="padding:8px 0;font-weight:bold;">${mode}</td></tr>
                             <tr><td style="padding:8px 0;color:#666;">Appointment Ref:</td><td style="padding:8px 0;font-weight:bold;">${appointmentCode}</td></tr>
@@ -232,7 +234,7 @@ async function executeAppointmentReminders(req) {
               await supabase.from("notifications").insert({
                 user_id: patientId,
                 title: isToday ? "Appointment Reminder (Today)" : "Appointment Reminder (Tomorrow)",
-                message: `Reminder: You have an appointment with Dr. ${doctorName} ${timingWord} at ${apt.appointment_time}.`,
+                message: `Reminder: You have an appointment with ${doctorDisplayName} ${timingWord} at ${apt.appointment_time}.`,
                 type: "appointment_reminder",
                 metadata: {
                   appointment_id: String(apt.id),
@@ -266,10 +268,10 @@ async function executeAppointmentReminders(req) {
               if (doctorPhone) {
                 await sendAppointmentReminder({
                   phone_number: doctorPhone,
-                  recipient_name: "Dr. " + doctorName,
+                  recipient_name: doctorDisplayName,
                   appointment_code: appointmentCode,
                   patient_name: patientName,
-                  doctor_or_service: "Dr. " + doctorName,
+                  doctor_or_service: doctorDisplayName,
                   date: isToday ? "Today" : "Tomorrow",
                   time: apt.appointment_time,
                   location_or_mode: mode,
@@ -290,10 +292,10 @@ async function executeAppointmentReminders(req) {
                           <h2 style="color:white;margin:0;font-size:20px;">Appointment Reminder for Today</h2>
                         </div>
                         <div style="padding:24px;background-color:#fff;border:1px solid #eee;border-top:none;border-radius:0 0 10px 10px;">
-                          <p>Dear <strong>Dr. ${doctorName}</strong>,</p>
+                          <p>Dear <strong>${doctorDisplayName}</strong>,</p>
                           <p>This is a reminder for your scheduled consultation today with <strong>${patientName}</strong>.</p>
                           <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-                            <tr><td style="padding:8px 0;color:#666;">Date:</td><td style="padding:8px 0;font-weight:bold;">${apt.appointment_date}</td></tr>
+                            <tr><td style="padding:8px 0;color:#666;">Date:</td><td style="padding:8px 0;font-weight:bold;">${readableAptDate}</td></tr>
                             <tr><td style="padding:8px 0;color:#666;">Time:</td><td style="padding:8px 0;font-weight:bold;">${apt.appointment_time}</td></tr>
                             <tr><td style="padding:8px 0;color:#666;">Mode:</td><td style="padding:8px 0;font-weight:bold;">${mode}</td></tr>
                             <tr><td style="padding:8px 0;color:#666;">Appointment Ref:</td><td style="padding:8px 0;font-weight:bold;">${appointmentCode}</td></tr>

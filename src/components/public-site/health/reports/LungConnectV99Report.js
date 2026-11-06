@@ -480,8 +480,8 @@ export default function LungConnectV99Report({
                 <div style={{ fontSize: "16px", fontWeight: "700", color: "#0d3b66", fontFamily: "monospace", marginTop: "1px" }}>
                   {pefr} <span style={{ fontSize: "10px", fontWeight: "500" }}>L/min</span>
                 </div>
-                <div style={{ fontSize: "9px", color: pefr >= 450 ? "#15803d" : pefr >= 350 ? "#b45309" : "#dc2626", fontWeight: "600" }}>
-                  {pefr >= 450 ? "Optimal Flow" : pefr >= 350 ? "Moderate Flow" : "Below Baseline"}
+                <div style={{ fontSize: "9px", color: pefr > 650 ? "#dc2626" : pefr >= 450 ? "#15803d" : pefr >= 350 ? "#b45309" : "#dc2626", fontWeight: "600" }}>
+                  {pefr > 650 ? "Abnormal (Exceeds Normal Range)" : pefr >= 450 ? "Optimal Flow" : pefr >= 350 ? "Moderate Flow" : "Below Baseline"}
                 </div>
               </div>
 
