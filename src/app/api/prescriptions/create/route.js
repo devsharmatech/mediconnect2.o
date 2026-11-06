@@ -53,13 +53,22 @@ export async function POST(req) {
       "video_consultation",
       "video",
       "home_visit",
-      "clinic_visit"
+      "clinic_visit",
+      "clinic"
     ];
 
-    if (!allowedAppointmentTypes.includes(appointment_type)) {
+    if (appointment_type && !allowedAppointmentTypes.includes(appointment_type)) {
       return failure("Invalid appointment_type", null, 422, {
         headers: corsHeaders
       });
+    }
+
+    let normalizedAptType = "clinic_visit";
+    if (appointment_type) {
+      const lower = String(appointment_type).toLowerCase().trim();
+      if (lower.includes("video")) normalizedAptType = "video_call";
+      else if (lower.includes("home")) normalizedAptType = "home_visit";
+      else normalizedAptType = "clinic_visit";
     }
 
     if (!["save", "sign"].includes(action)) {
@@ -324,7 +333,7 @@ export async function POST(req) {
       doctor_id,
       patient_id,
       appointment_id,
-      appointment_type,
+      appointment_type: normalizedAptType,
       specialization,
 
       diagnosis: normalizedDiagnosis || "General Medical Consultation",

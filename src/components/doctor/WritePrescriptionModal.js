@@ -1235,7 +1235,12 @@ export default function WritePrescriptionModal({
         doctor_id: resolvedMeta.doctor_id,
         patient_id: resolvedMeta.patient_id,
         appointment_id: appointmentId,
-        appointment_type: resolvedMeta.appointment_type || meta?.appointment_type || "video_call",
+        appointment_type: (() => {
+          const raw = String(resolvedMeta.appointment_type || meta?.appointment_type || "video_call").toLowerCase();
+          if (raw.includes("video")) return "video_call";
+          if (raw.includes("home")) return "home_visit";
+          return "clinic_visit";
+        })(),
         specialization: selectedTemplateSpec || specList[0] || "general_medicine",
         diagnosis: { primary: diagnosis.trim(), notes: diagnosisNotes.trim() },
         medicines: filledMedicines,

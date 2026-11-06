@@ -184,8 +184,16 @@ export async function POST(req) {
       }).filter(Boolean);
     }
 
+    let normalizedAptType = "clinic_visit";
+    if (appointment_type) {
+      const lower = String(appointment_type).toLowerCase().trim();
+      if (lower.includes("video")) normalizedAptType = "video_call";
+      else if (lower.includes("home")) normalizedAptType = "home_visit";
+      else normalizedAptType = "clinic_visit";
+    }
+
     const updateData = {
-      appointment_type,
+      appointment_type: normalizedAptType,
       specialization,
 
       diagnosis,
