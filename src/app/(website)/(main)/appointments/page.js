@@ -1157,17 +1157,19 @@ export default function AppointmentsPage() {
 
   return (
     <>
-      <AppointmentDetailsModal
-        isOpen={isDetailsModalOpen}
-        onClose={() => setIsDetailsModalOpen(false)}
-        appointment={selectedAppointment}
-        onViewPrescription={handleViewPrescription}
-        onDownloadPrescription={handleDownloadPrescription}
-        onSharePrescription={handleSharePrescription}
-        onSaveToDigiLocker={handleSaveToDigiLocker}
-        onSendToChemist={handleCardSendToChemist}
-        onSendToLab={handleCardSendToLab}
-      />
+      {isDetailsModalOpen && selectedAppointment && (
+        <AppointmentDetailsModal
+          isOpen={isDetailsModalOpen}
+          onClose={() => setIsDetailsModalOpen(false)}
+          appointment={selectedAppointment}
+          onViewPrescription={handleViewPrescription}
+          onDownloadPrescription={handleDownloadPrescription}
+          onSharePrescription={handleSharePrescription}
+          onSaveToDigiLocker={handleSaveToDigiLocker}
+          onSendToChemist={handleCardSendToChemist}
+          onSendToLab={handleCardSendToLab}
+        />
+      )}
 
       {/* Reschedule Modal */}
       {isRescheduleModalOpen && appointmentToReschedule && (

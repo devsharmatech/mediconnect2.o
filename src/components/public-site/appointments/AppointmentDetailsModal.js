@@ -199,7 +199,7 @@ const AppointmentDetailsModal = ({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, appointment?.id]);
+  }, [appointment?.id]);
 
   if (!isOpen || !appointment) return null;
 
