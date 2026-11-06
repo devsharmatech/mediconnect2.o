@@ -1,7 +1,26 @@
 "use client";
 
-import React from "react";
-import { FaCalendarAlt, FaClock, FaMapMarkerAlt, FaTimes, FaUserMd, FaIdCard, FaUser, FaMoneyBillWave, FaFileInvoiceDollar, FaBuilding, FaFileMedical, FaEye, FaDownload, FaShareAlt, FaLock, FaCheck, FaPills, FaFlask, FaExclamationTriangle, FaPrint } from "react-icons/fa";
+import React, { useState, useEffect } from "react";
+import {
+  FaCalendarAlt,
+  FaClock,
+  FaMapMarkerAlt,
+  FaTimes,
+  FaUserMd,
+  FaIdCard,
+  FaUser,
+  FaBuilding,
+  FaFileMedical,
+  FaEye,
+  FaDownload,
+  FaShareAlt,
+  FaLock,
+  FaCheck,
+  FaPills,
+  FaFlask,
+  FaExclamationTriangle,
+  FaPrint,
+} from "react-icons/fa";
 
 const normalizeStatus = (status) => {
   if (!status) return "pending";
@@ -17,18 +36,26 @@ const isAppointmentExpired = (apt) => {
   const s = String(apt.status || "").toLowerCase();
   if (s === "expired") return true;
   if (!["booked", "approved", "freezed", "confirmed", "pending"].includes(s)) return false;
-  
+
   if (apt.extended_until) {
     const ext = new Date(apt.extended_until);
     if (!isNaN(ext.getTime()) && Date.now() <= ext.getTime()) return false;
   }
 
-  const isClinic = apt.appointment_type === "clinic_visit" || apt.type === "clinic_visit" || apt.appointment_type === "home_visit";
+  const isClinic =
+    apt.appointment_type === "clinic_visit" ||
+    apt.type === "clinic_visit" ||
+    apt.appointment_type === "home_visit";
   const rawDate = apt.date || apt.appointment_date;
   const rawTime = apt.time || apt.appointment_time;
   if (!rawDate) return false;
 
-  const dateStr = typeof rawDate === "string" ? rawDate.split("T")[0] : (rawDate instanceof Date ? rawDate.toISOString().split("T")[0] : "");
+  const dateStr =
+    typeof rawDate === "string"
+      ? rawDate.split("T")[0]
+      : rawDate instanceof Date
+      ? rawDate.toISOString().split("T")[0]
+      : "";
   const timeStr = typeof rawTime === "string" ? rawTime.slice(0, 5) : "";
   if (!dateStr || !timeStr) return false;
 
@@ -49,17 +76,17 @@ const getStatusColor = (status) => {
   const normalized = normalizeStatus(status);
   switch (normalized) {
     case "confirmed":
-      return "bg-green-100 text-green-800 border-green-200";
+      return "bg-emerald-50 text-emerald-800 border-emerald-200";
     case "pending":
-      return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      return "bg-amber-50 text-amber-800 border-amber-200";
     case "completed":
-      return "bg-blue-100 text-blue-800 border-blue-200";
+      return "bg-blue-50 text-[#0067A1] border-blue-200";
     case "cancelled":
-      return "bg-red-100 text-red-800 border-red-200";
+      return "bg-rose-50 text-rose-800 border-rose-200";
     case "expired":
-      return "bg-gray-100 text-gray-700 border-gray-300";
+      return "bg-slate-100 text-slate-700 border-slate-300";
     default:
-      return "bg-gray-100 text-gray-800 border-gray-200";
+      return "bg-slate-100 text-slate-700 border-slate-200";
   }
 };
 
@@ -94,9 +121,9 @@ const formatDate = (appointment) => {
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return String(raw);
   return d.toLocaleDateString("en-US", {
-    weekday: "long",
+    weekday: "short",
     year: "numeric",
-    month: "long",
+    month: "short",
     day: "numeric",
   });
 };
@@ -121,13 +148,13 @@ const getAppointmentTypeLabel = (appointment) => {
   const value = raw.toString().toLowerCase();
 
   if (["video", "video_consultation", "video_call"].includes(value)) {
-    return "Video consultation";
+    return "Video Consultation";
   }
   if (["home", "home_visit"].includes(value)) {
-    return "Home visit";
+    return "Home Visit";
   }
   if (["clinic", "clinic_visit", "in_person"].includes(value)) {
-    return "Clinic visit";
+    return "In-Clinic Visit";
   }
 
   return capitalize(raw.toString().replace("_", " "), "Consultation");
@@ -155,9 +182,9 @@ const AppointmentDetailsModal = ({
 }) => {
   if (!isOpen || !appointment) return null;
 
-  const [verification, setVerification] = React.useState(null);
+  const [verification, setVerification] = useState(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!appointment?.id) return;
     let isMounted = true;
     fetch(`/api/doctor/patient-verification?appointment_id=${appointment.id}`)
@@ -173,58 +200,108 @@ const AppointmentDetailsModal = ({
     };
   }, [appointment?.id]);
 
-  const status = isAppointmentExpired(appointment) ? "expired" : normalizeStatus(appointment.status);
+  const status = isAppointmentExpired(appointment)
+    ? "expired"
+    : normalizeStatus(appointment.status);
 
   // Doctor Info
-  const doctorName = appointment.doctor?.name || appointment.doctor?.full_name || "Doctor";
-  const specialty = formatSpecialty(appointment.doctor?.specialty || appointment.doctor?.specialization);
+  const doctorName =
+    appointment.doctor?.name || appointment.doctor?.full_name || "Doctor";
+  const specialty = formatSpecialty(
+    appointment.doctor?.specialty || appointment.doctor?.specialization
+  );
   const qualification = appointment.doctor?.qualification || "Not specified";
   const licenseNumber = appointment.doctor?.license_number || "Not specified";
-  
+
   // Location & Clinic
-  const type = String(appointment.appointment_type || appointment.type || "").toLowerCase();
-  const isVideo = type.includes("video") || type.includes("call") || type.includes("instant");
-  const clinicName = appointment.doctor?.clinic_name || "Online consultation";
+  const type = String(
+    appointment.appointment_type || appointment.type || ""
+  ).toLowerCase();
+  const isVideo =
+    type.includes("video") || type.includes("call") || type.includes("instant");
+  const clinicName = appointment.doctor?.clinic_name || "MediConnect Partner Clinic";
   const clinicAddress = appointment.doctor?.clinic_address || "N/A";
-  
+
   // Patient Info
-  const patientName = appointment.patient?.full_name || "N/A";
+  const patientName = appointment.patient?.full_name || "Patient";
   const patientAge = calculateAge(appointment.patient?.date_of_birth);
-  const patientGender = appointment.patient?.gender ? capitalize(appointment.patient.gender) : "N/A";
+  const patientGender = appointment.patient?.gender
+    ? capitalize(appointment.patient.gender)
+    : "N/A";
 
   const dateLabel = formatDate(appointment);
   const timeLabel = formatTime(appointment);
-  
+
   // Fee Calculation
   const getFee = () => {
-    if (appointment.final_fee !== undefined && appointment.final_fee !== null) return Number(appointment.final_fee);
-    if (appointment.amount !== undefined && appointment.amount !== null) return Number(appointment.amount);
+    if (appointment.final_fee !== undefined && appointment.final_fee !== null)
+      return Number(appointment.final_fee);
+    if (appointment.amount !== undefined && appointment.amount !== null)
+      return Number(appointment.amount);
     if (appointment.is_free) return 0;
     if (!appointment.doctor) return 0;
     const doc = appointment.doctor;
-    const type = String(appointment.appointment_type || appointment.type || "").toLowerCase();
-    
-    // Parse meta since video_consultation_fee and others might not exist as columns
-    const meta = typeof doc.meta === 'string' ? JSON.parse(doc.meta || '{}') : (doc.meta || {});
-    
-    const videoFee = meta?.video_consultation_fee ?? doc.video_consultation_fee ?? doc.consultation_fee ?? 0;
-    const videoFollowUpFee = meta?.video_follow_up_fee ?? doc.video_follow_up_fee ?? meta?.follow_up_fee ?? doc.follow_up_fee ?? 0;
-    const clinicFee = meta?.clinic_consultation_fee ?? doc.clinic_consultation_fee ?? doc.consultation_fee ?? 0;
-    const clinicFollowUpFee = meta?.clinic_follow_up_fee ?? doc.clinic_follow_up_fee ?? meta?.follow_up_fee ?? doc.follow_up_fee ?? 0;
+
+    const meta =
+      typeof doc.meta === "string" ? JSON.parse(doc.meta || "{}") : doc.meta || {};
+
+    const videoFee =
+      meta?.video_consultation_fee ??
+      doc.video_consultation_fee ??
+      doc.consultation_fee ??
+      0;
+    const videoFollowUpFee =
+      meta?.video_follow_up_fee ??
+      doc.video_follow_up_fee ??
+      meta?.follow_up_fee ??
+      doc.follow_up_fee ??
+      0;
+    const clinicFee =
+      meta?.clinic_consultation_fee ??
+      doc.clinic_consultation_fee ??
+      doc.consultation_fee ??
+      0;
+    const clinicFollowUpFee =
+      meta?.clinic_follow_up_fee ??
+      doc.clinic_follow_up_fee ??
+      meta?.follow_up_fee ??
+      doc.follow_up_fee ??
+      0;
     const homeFee = meta?.home_visit_fee ?? doc.home_visit_fee ?? 0;
-    const homeFollowUpFee = meta?.home_follow_up_fee ?? doc.home_follow_up_fee ?? meta?.follow_up_fee ?? doc.follow_up_fee ?? 0;
-    const instantFee = meta?.instant_consultation_fee ?? doc.instant_consultation_fee ?? 0;
+    const homeFollowUpFee =
+      meta?.home_follow_up_fee ??
+      doc.home_follow_up_fee ??
+      meta?.follow_up_fee ??
+      doc.follow_up_fee ??
+      0;
+    const instantFee =
+      meta?.instant_consultation_fee ?? doc.instant_consultation_fee ?? 0;
     const followUpFee = meta?.follow_up_fee ?? doc.follow_up_fee ?? 0;
 
     if (type.includes("instant")) return Number(instantFee);
-    if (type.includes("video")) return Number(type.includes("follow") ? (videoFollowUpFee || videoFee) : videoFee);
-    if (type.includes("clinic")) return Number(type.includes("follow") ? (clinicFollowUpFee || clinicFee) : clinicFee);
-    if (type.includes("home")) return Number(type.includes("follow") ? (homeFollowUpFee || homeFee) : homeFee);
-    if (type.includes("follow")) return Number(followUpFee || videoFollowUpFee || clinicFollowUpFee || videoFee);
+    if (type.includes("video"))
+      return Number(type.includes("follow") ? videoFollowUpFee || videoFee : videoFee);
+    if (type.includes("clinic"))
+      return Number(
+        type.includes("follow") ? clinicFollowUpFee || clinicFee : clinicFee
+      );
+    if (type.includes("home"))
+      return Number(type.includes("follow") ? homeFollowUpFee || homeFee : homeFee);
+    if (type.includes("follow"))
+      return Number(
+        followUpFee || videoFollowUpFee || clinicFollowUpFee || videoFee
+      );
     return Number(doc.consultation_fee ?? 0);
   };
+
   const feePaid = getFee();
-  const paymentStatus = (feePaid === 0 || ["paid", "completed", "not_applicable", "free"].includes(String(appointment.payment_status).toLowerCase())) ? "Paid" : capitalize(appointment.payment_status || "pending");
+  const paymentStatus =
+    feePaid === 0 ||
+    ["paid", "completed", "not_applicable", "free"].includes(
+      String(appointment.payment_status).toLowerCase()
+    )
+      ? "Paid"
+      : capitalize(appointment.payment_status || "pending");
 
   let diseaseInfo = null;
   if (appointment.disease_info) {
@@ -242,364 +319,355 @@ const AppointmentDetailsModal = ({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex sm:items-center sm:justify-center p-0 sm:p-6 overflow-hidden">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+  const hasPrescription = Boolean(
+    appointment.has_prescription || appointment.prescription || status === "completed"
+  );
 
-      {/* Modal */}
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto bg-slate-900/60 backdrop-blur-xs">
+      {/* Backdrop */}
+      <div className="absolute inset-0" onClick={onClose} />
+
+      {/* Modal Card - Clean, Compact, Not Bulky */}
       <div
-        className="relative bg-white rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-4xl sm:max-h-[90vh] flex flex-col overflow-hidden"
+        className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col my-auto max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-200 bg-[#F6F8FA] shrink-0">
-          <div>
-            <h2 className="text-lg sm:text-2xl font-bold text-gray-900">Consultation Receipt</h2>
-            <p className="text-xs sm:text-sm text-gray-500 mt-0.5 sm:mt-1">Ref ID: {appointment.id?.split("-")[0].toUpperCase()}</p>
+        {/* Header Bar */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-[#0067A1]/10 text-[#0067A1] flex items-center justify-center font-bold text-sm border border-[#0067A1]/20">
+              <FaFileMedical className="w-4 h-4 text-[#0067A1]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-tight">
+                  Consultation Receipt
+                </h2>
+                <span className="text-[10.5px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                  #{appointment.id?.split("-")[0].toUpperCase()}
+                </span>
+              </div>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/80 rounded-lg transition-colors duration-200 text-gray-500 hover:text-gray-800"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            title="Close receipt"
           >
-            <FaTimes className="h-5 w-5" />
+            <FaTimes className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="px-4 py-4 sm:p-6 space-y-6 sm:space-y-8 flex-1 overflow-y-auto">
-          {/* Identity Discrepancy Alert */}
+        {/* Scrollable Content */}
+        <div className="p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto">
+          {/* Identity Notice (If Discrepancy) */}
           {verification && verification.status === "discrepancy_reported" && (
-            <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 space-y-2 shadow-2xs">
-              <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
-                <FaExclamationTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Clinical Verification / Identity Notice</span>
+            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 space-y-1.5 text-xs text-amber-900 dark:text-amber-200">
+              <div className="flex items-center gap-1.5 font-bold">
+                <FaExclamationTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>Clinical Verification Notice</span>
               </div>
-              <p className="text-xs text-amber-900">
-                <span className="font-semibold">Reason Recorded:</span> {verification.discrepancy_reason || "Identity verification pending"}
-              </p>
-              {verification.discrepancy_notes && (
-                <p className="text-xs text-amber-800 bg-white/80 p-2.5 rounded-lg border border-amber-200 italic">
-                  &ldquo;{verification.discrepancy_notes}&rdquo;
-                </p>
-              )}
-              <p className="text-[11px] text-amber-700 leading-relaxed">
-                Your consulting doctor recorded an identity or profile verification note during this consultation session. If your details require updating, please verify your profile information or contact MediConnect Support.
+              <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
+                {verification.discrepancy_reason || "Identity verification pending by consulting doctor."}
+                {verification.discrepancy_notes ? ` ("${verification.discrepancy_notes}")` : ""}
               </p>
             </div>
           )}
 
-          {/* Status + Type + Amount Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-             <div className="flex items-center gap-3">
-               <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide border ${getStatusColor(status)}`}>
-                 {status === "pending" ? "Pending Approval" : capitalize(status)}
-               </span>
-               <span className="text-sm font-semibold text-emerald-900 bg-emerald-100 px-3 py-1.5 rounded-full">
-                 {getAppointmentTypeLabel(appointment)}
-               </span>
-             </div>
-             
-             <div className="flex items-center gap-4 text-right">
+          {/* Status & Fee Clinical Bar (Sleek Single Strip) */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
+            <div className="flex items-center gap-2">
+              <span
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider border ${getStatusColor(
+                  status
+                )}`}
+              >
+                {status === "pending" ? "Pending Approval" : capitalize(status)}
+              </span>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 text-[#0067A1] border border-sky-200">
+                {getAppointmentTypeLabel(appointment)}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 font-medium">Fee:</span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {feePaid === 0 ? "Free (₹0)" : `₹${feePaid.toLocaleString("en-IN")}`}
+                </span>
+              </div>
+              <span className="text-slate-300 dark:text-slate-600">|</span>
+              <span
+                className={`px-2 py-0.5 rounded text-[10.5px] font-bold uppercase tracking-wider ${
+                  paymentStatus.toLowerCase() === "paid" ||
+                  paymentStatus.toLowerCase() === "completed"
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "bg-amber-50 text-amber-800 border border-amber-200"
+                }`}
+              >
+                {paymentStatus}
+              </span>
+            </div>
+          </div>
+
+          {/* Structured 2-Column Clinical Details */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {/* Column 1: Doctor & Clinic */}
+            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 space-y-2.5 text-xs shadow-2xs">
+              <div className="flex items-center gap-1.5 font-bold uppercase text-[10.5px] tracking-wider text-[#0067A1]">
+                <FaUserMd className="w-3.5 h-3.5" />
+                <span>Doctor & Practice</span>
+              </div>
+              <div className="space-y-2">
                 <div>
-                  <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-0.5">Amount Paid</p>
-                  <p className="text-xl font-black text-gray-900">{feePaid === 0 ? "Free (₹0)" : `₹${feePaid}`}</p>
-                </div>
-                <div className="h-10 w-px bg-gray-300"></div>
-                <div>
-                  <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-0.5">Payment Status</p>
-                  <p className={`text-sm font-bold ${paymentStatus.toLowerCase() === 'paid' || paymentStatus.toLowerCase() === 'completed' ? 'text-green-600' : 'text-orange-500'}`}>
-                    {paymentStatus}
+                  <p className="font-bold text-slate-900 dark:text-white text-sm">
+                    {doctorName}
+                  </p>
+                  <p className="text-slate-600 dark:text-slate-300 font-medium mt-0.5">
+                    {specialty || "General Medicine"}
                   </p>
                 </div>
-             </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Left Column: Doctor & Clinic */}
-            <div className="space-y-6">
-              <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
-                  <FaUserMd className="text-[#0067A1]" />
-                  <h3 className="font-bold text-gray-900">Practitioner Details</h3>
-                </div>
-                <div className="p-4 space-y-3">
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 grid grid-cols-2 gap-2 text-[11px]">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Doctor Name</p>
-                    <p className="font-bold text-gray-900 text-base">{doctorName}</p>
-                    <p className="text-sm text-gray-600 font-medium">{specialty}</p>
+                    <span className="block text-slate-400 font-medium">Qualification</span>
+                    <span className="text-slate-800 dark:text-slate-200 font-semibold truncate block">
+                      {qualification}
+                    </span>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Qualifications</p>
-                    <p className="font-medium text-gray-800 text-sm">{qualification}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">
-                      {specialty?.toLowerCase()?.includes("dent") ? "Reg. Number (DDC)" : "Reg. Number (DMC/MCI)"}
-                    </p>
-                    <p className="font-medium text-gray-800 text-sm">{licenseNumber}</p>
+                    <span className="block text-slate-400 font-medium">
+                      {specialty?.toLowerCase()?.includes("dent")
+                        ? "Reg. No (DDC)"
+                        : "Reg. No (MCI/DMC)"}
+                    </span>
+                    <span className="text-slate-800 dark:text-slate-200 font-semibold font-mono truncate block">
+                      {licenseNumber}
+                    </span>
                   </div>
                 </div>
-              </div>
-
-              <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
-                  <FaBuilding className="text-[#0067A1]" />
-                  <h3 className="font-bold text-gray-900">Clinic / Location Details</h3>
-                </div>
-                <div className="p-4 space-y-3">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Clinic Name</p>
-                    <p className="font-bold text-gray-900 text-base">{clinicName}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Address</p>
-                    {isVideo ? (
-                      <p className="font-medium text-gray-800 text-sm">
-                        {clinicAddress || "Online Consultation Space"}
-                      </p>
-                    ) : (
-                      <p className="font-medium text-gray-800 text-sm">{clinicAddress}</p>
-                    )}
-                  </div>
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 text-[11px]">
+                  <span className="text-slate-400 font-medium">Clinic Location: </span>
+                  <span className="text-slate-800 dark:text-slate-200 font-semibold">
+                    {isVideo
+                      ? "Online Telemedicine Consultation"
+                      : `${clinicName}${clinicAddress && clinicAddress !== "N/A" ? ` • ${clinicAddress}` : ""}`}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: Patient & Consultation */}
-            <div className="space-y-6">
-              <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
-                  <FaUser className="text-[#0067A1]" />
-                  <h3 className="font-bold text-gray-900">Patient Details</h3>
-                </div>
-                <div className="p-4 space-y-3">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Patient Name</p>
-                    <p className="font-bold text-gray-900 text-base">{patientName}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Age</p>
-                      <p className="font-medium text-gray-800 text-sm">{patientAge}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Gender</p>
-                      <p className="font-medium text-gray-800 text-sm">{patientGender}</p>
-                    </div>
-                  </div>
-                </div>
+            {/* Column 2: Patient & Consultation */}
+            <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 space-y-2.5 text-xs shadow-2xs">
+              <div className="flex items-center gap-1.5 font-bold uppercase text-[10.5px] tracking-wider text-[#0067A1]">
+                <FaUser className="w-3.5 h-3.5" />
+                <span>Patient & Schedule</span>
               </div>
-
-              <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center gap-2">
-                  <FaCalendarAlt className="text-[#0067A1]" />
-                  <h3 className="font-bold text-gray-900">Consultation Schedule</h3>
+              <div className="space-y-2">
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white text-sm">
+                    {patientName}
+                  </p>
+                  <p className="text-slate-600 dark:text-slate-300 font-medium mt-0.5">
+                    {patientAge} • {patientGender}
+                  </p>
                 </div>
-                <div className="p-4 space-y-3">
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 grid grid-cols-2 gap-2 text-[11px]">
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Date</p>
-                    <p className="font-bold text-gray-900 text-base">{dateLabel}</p>
+                    <span className="block text-slate-400 font-medium">Schedule Date</span>
+                    <span className="text-slate-800 dark:text-slate-200 font-semibold truncate block">
+                      {dateLabel}
+                    </span>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Time</p>
-                    <p className="font-bold text-gray-900 text-base">{timeLabel}</p>
+                    <span className="block text-slate-400 font-medium">Consultation Time</span>
+                    <span className="text-slate-800 dark:text-slate-200 font-semibold font-mono truncate block">
+                      {timeLabel}
+                    </span>
                   </div>
+                </div>
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 text-[11px]">
+                  <span className="text-slate-400 font-medium">Consultation Ref: </span>
+                  <span className="text-slate-800 dark:text-slate-200 font-semibold font-mono truncate">
+                    {appointment.id}
+                  </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Medical Prescription Section */}
-          {(appointment.has_prescription || appointment.prescription || status === "completed") && (
-            <div className="border border-emerald-500/40 bg-gradient-to-b from-emerald-50/40 to-white rounded-xl overflow-hidden shadow-sm">
-              <div className="bg-gradient-to-r from-emerald-700 to-teal-800 px-4 py-3 text-white flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FaFileMedical className="w-4 h-4 text-emerald-200" />
-                  <h3 className="font-bold text-sm">Medical e-Prescription</h3>
+          {/* Medical e-Prescription (Solid & Compact) */}
+          {hasPrescription && (
+            <div className="p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-bold text-xs">
+                  <FaFileMedical className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Medical e-Prescription</span>
                 </div>
-                <span className="inline-flex items-center gap-1 bg-white/20 backdrop-blur-xs px-2.5 py-0.5 rounded-full text-[11px] font-semibold text-white">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                   ✓ Doctor Signed & Verified
                 </span>
               </div>
-              <div className="p-4 space-y-3">
-                <p className="text-xs text-gray-600 leading-relaxed">
-                  Your consultation prescription has been generated and digitally signed by Dr. {doctorName}. You can view the full clinical details, download the A4 PDF, share with pharmacies/labs/WhatsApp, and archive it directly into your DigiLocker.
-                </p>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-1">
-                  {/* View */}
-                  <button
-                    onClick={() => {
+              <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                Prescription issued by Dr. {doctorName}. You can view clinical details, download the A4 document, or share with pharmacy/lab.
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <button
+                  onClick={() => {
+                    onClose();
+                    if (onViewPrescription) onViewPrescription(appointment);
+                  }}
+                  className="px-3 py-1.5 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                  title="View prescription"
+                >
+                  <FaEye className="w-3 h-3" /> View
+                </button>
+                <button
+                  onClick={() => {
+                    if (onDownloadPrescription) onDownloadPrescription(appointment);
+                    else if (onViewPrescription) {
                       onClose();
-                      if (onViewPrescription) onViewPrescription(appointment);
-                    }}
-                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-medium transition cursor-pointer shadow-xs"
-                    title="View prescription"
-                  >
-                    <FaEye className="w-3.5 h-3.5" />
-                    <span>View</span>
-                  </button>
-
-                  {/* Download */}
-                  <button
-                    onClick={() => {
-                      if (onDownloadPrescription) onDownloadPrescription(appointment);
-                      else if (onViewPrescription) {
-                        onClose();
-                        onViewPrescription(appointment);
-                      }
-                    }}
-                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition cursor-pointer shadow-xs"
-                    title="Download A4 PDF"
-                  >
-                    <FaDownload className="w-3.5 h-3.5" />
-                    <span>Download</span>
-                  </button>
-
-                  {/* Chemist */}
-                  <button
-                    onClick={() => {
+                      onViewPrescription(appointment);
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                  title="Download prescription"
+                >
+                  <FaDownload className="w-3 h-3" /> Download
+                </button>
+                <button
+                  onClick={() => {
+                    onClose();
+                    if (onSendToChemist) onSendToChemist(appointment);
+                    else if (onViewPrescription) onViewPrescription(appointment);
+                  }}
+                  className="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                  title="Order medicines from pharmacy"
+                >
+                  <FaPills className="w-3 h-3" /> Chemist
+                </button>
+                <button
+                  onClick={() => {
+                    onClose();
+                    if (onSendToLab) onSendToLab(appointment);
+                    else if (onViewPrescription) onViewPrescription(appointment);
+                  }}
+                  className="px-3 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                  title="Book lab tests"
+                >
+                  <FaFlask className="w-3 h-3" /> Lab
+                </button>
+                <button
+                  onClick={() => {
+                    onClose();
+                    if (onSaveToDigiLocker) onSaveToDigiLocker(appointment);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs ${
+                    appointment.prescription_saved_in_digilocker ||
+                    appointment.prescription?.is_saved_in_digilocker
+                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300 cursor-default"
+                      : "bg-indigo-700 hover:bg-indigo-800 text-white"
+                  }`}
+                  title="Save to DigiLocker"
+                >
+                  {appointment.prescription_saved_in_digilocker ||
+                  appointment.prescription?.is_saved_in_digilocker ? (
+                    <FaCheck className="w-3 h-3 text-emerald-700" />
+                  ) : (
+                    <FaLock className="w-3 h-3 text-white" />
+                  )}
+                  <span>
+                    {appointment.prescription_saved_in_digilocker ||
+                    appointment.prescription?.is_saved_in_digilocker
+                      ? "In Locker"
+                      : "DigiLocker"}
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    if (onSharePrescription) onSharePrescription(appointment);
+                    else if (onViewPrescription) {
                       onClose();
-                      if (onSendToChemist) onSendToChemist(appointment);
-                      else if (onViewPrescription) onViewPrescription(appointment);
-                    }}
-                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-medium transition cursor-pointer shadow-xs"
-                    title="Order medicines from pharmacy"
-                  >
-                    <FaPills className="w-3.5 h-3.5" />
-                    <span>Chemist</span>
-                  </button>
-
-                  {/* Lab */}
-                  <button
-                    onClick={() => {
-                      onClose();
-                      if (onSendToLab) onSendToLab(appointment);
-                      else if (onViewPrescription) onViewPrescription(appointment);
-                    }}
-                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-medium transition cursor-pointer shadow-xs"
-                    title="Book prescribed lab tests"
-                  >
-                    <FaFlask className="w-3.5 h-3.5" />
-                    <span>Lab</span>
-                  </button>
-
-                  {/* DigiLocker */}
-                  <button
-                    onClick={() => {
-                      onClose();
-                      if (onSaveToDigiLocker) onSaveToDigiLocker(appointment);
-                    }}
-                    className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs font-medium transition cursor-pointer shadow-xs ${
-                      appointment.prescription_saved_in_digilocker || appointment.prescription?.is_saved_in_digilocker
-                        ? "bg-emerald-100 text-emerald-800 border border-emerald-300 cursor-default"
-                        : "bg-indigo-600 hover:bg-indigo-700 text-white"
-                    }`}
-                    title="Save to MediConnect DigiLocker"
-                  >
-                    {appointment.prescription_saved_in_digilocker || appointment.prescription?.is_saved_in_digilocker ? (
-                      <FaCheck className="w-3 h-3 text-emerald-700" />
-                    ) : (
-                      <FaLock className="w-3 h-3 text-white" />
-                    )}
-                    <span className="truncate">
-                      {appointment.prescription_saved_in_digilocker || appointment.prescription?.is_saved_in_digilocker ? "In Locker" : "DigiLocker"}
-                    </span>
-                  </button>
-
-                  {/* Share */}
-                  <button
-                    onClick={() => {
-                      if (onSharePrescription) onSharePrescription(appointment);
-                      else if (onViewPrescription) {
-                        onClose();
-                        onViewPrescription(appointment);
-                      }
-                    }}
-                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-medium transition cursor-pointer shadow-xs"
-                    title="Share prescription"
-                  >
-                    <FaShareAlt className="w-3.5 h-3.5" />
-                    <span>Share</span>
-                  </button>
-                </div>
+                      onViewPrescription(appointment);
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                  title="Share prescription"
+                >
+                  <FaShareAlt className="w-3 h-3" /> Share
+                </button>
               </div>
             </div>
           )}
 
-          {/* Screening Information */}
-          {diseaseInfo && (diseaseInfo.summary || diseaseInfo.urgency || diseaseInfo.probable_diagnoses) && (
-            <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                <h3 className="font-bold text-gray-900">Clinical Summary (Screening)</h3>
-              </div>
-              <div className="p-4">
-                {diseaseInfo.urgency && (
-                  <div className="mb-3">
-                    <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 border border-amber-100">
-                      Urgency: {diseaseInfo.urgency.toString().toUpperCase()}
+          {/* Clinical Screening Summary (Compact) */}
+          {diseaseInfo &&
+            (diseaseInfo.summary ||
+              diseaseInfo.urgency ||
+              diseaseInfo.probable_diagnoses) && (
+              <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-2 text-xs shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-[10.5px] uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Clinical Intake Notes
+                  </h4>
+                  {diseaseInfo.urgency && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 uppercase">
+                      Urgency: {diseaseInfo.urgency}
                     </span>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {diseaseInfo.summary && (
-                  <div className="mb-4">
-                    <p className="text-sm text-gray-700 leading-relaxed bg-gray-50/50 rounded-lg p-3 border border-gray-100">
-                      {diseaseInfo.summary}
-                    </p>
-                  </div>
+                  <p className="text-slate-700 dark:text-slate-300 text-xs leading-relaxed bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded-lg border border-slate-100 dark:border-slate-700">
+                    {diseaseInfo.summary}
+                  </p>
                 )}
 
-                {Array.isArray(diseaseInfo.probable_diagnoses) && diseaseInfo.probable_diagnoses.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                      Probable diagnoses
-                    </p>
-                    <ul className="space-y-2">
-                      {diseaseInfo.probable_diagnoses.map((d, idx) => (
-                        <li
-                          key={idx}
-                          className="flex items-center justify-between text-sm bg-gray-50 border border-gray-100 rounded-lg px-3 py-2"
-                        >
-                          <span className="font-medium text-gray-800">
-                            {d.name || d.label || "Diagnosis"}
+                {Array.isArray(diseaseInfo.probable_diagnoses) &&
+                  diseaseInfo.probable_diagnoses.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider">
+                        Probable Diagnoses
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {diseaseInfo.probable_diagnoses.map((d, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-xs font-medium text-slate-800 dark:text-slate-200"
+                          >
+                            <span>{d.name || d.label || "Diagnosis"}</span>
+                            {typeof d.confidence === "number" && (
+                              <span className="text-[10.5px] font-bold text-[#0067A1]">
+                                ({(d.confidence * 100).toFixed(0)}%)
+                              </span>
+                            )}
                           </span>
-                          {typeof d.confidence === "number" && (
-                            <span className="text-xs font-semibold text-[#0067A1]">
-                              {(d.confidence * 100).toFixed(0)}% confidence
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                        ))}
+                      </div>
+                    </div>
+                  )}
               </div>
-            </div>
-          )}
-
+            )}
         </div>
 
-        {/* Footer */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0 pb-safe">
-          <p className="text-[11px] sm:text-xs text-gray-400 max-w-md text-center sm:text-left">This receipt is generated automatically and serves as a record of consultation in compliance with Telemedicine Practice Guidelines.</p>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+        {/* Modal Footer */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50 shrink-0">
+          <p className="text-[11px] text-slate-400 text-center sm:text-left max-w-sm">
+            Official consultation record issued in compliance with Telemedicine Practice Guidelines.
+          </p>
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button
               type="button"
               onClick={() => window.print()}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold rounded-lg transition-colors shadow-xs cursor-pointer"
-              title="Print or save payment invoice"
+              className="flex-1 sm:flex-none px-3.5 py-1.5 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
+              title="Print consultation receipt"
             >
-              <FaFileInvoiceDollar className="w-3.5 h-3.5" />
-              <span>Download Invoice</span>
+              <FaPrint className="w-3 h-3" />
+              <span>Invoice</span>
             </button>
             <button
               onClick={onClose}
-              className="flex-1 sm:flex-none px-5 py-2.5 border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-100 transition-colors shadow-2xs cursor-pointer"
+              className="flex-1 sm:flex-none px-4 py-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg cursor-pointer transition-colors"
             >
               Close
             </button>
