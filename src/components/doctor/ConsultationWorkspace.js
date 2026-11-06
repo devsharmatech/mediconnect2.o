@@ -75,6 +75,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
   // If the appointment status is completed (e.g. clinic/home visit done or video slot ended), but no prescription exists yet,
   // the doctor is allowed to write and digitally sign the prescription!
   const hasExistingPrescription = Boolean(appointment?.has_prescription || appointment?.prescription_id);
+  const isCompleted = appointment?.status === "completed" || hasExistingPrescription || isSigned;
   const isLocked = hasExistingPrescription || isSigned;
 
   // Patient info & age calculation for clinician context
@@ -186,7 +187,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
     if (!isLocked) {
       fetchHelpers();
     }
-  }, [isCompleted]);
+  }, [isLocked]);
 
   // CLINICAL DATASET: Dynamic Complaint Mapping for Symptoms
   useEffect(() => {
@@ -215,7 +216,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
     }, 400);
 
     return () => clearTimeout(timeout);
-  }, [clinicalData.symptoms, isCompleted]);
+  }, [clinicalData.symptoms, isLocked]);
 
   // CLINICAL DATASET: Fetch Clinical Protocol when Diagnosis is selected
   const fetchProtocolForDiagnosis = async (diagNameOrId) => {
