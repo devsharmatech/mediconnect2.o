@@ -1,5 +1,5 @@
 import { success, failure } from "@/lib/response";
-import { supabase, sql } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { evaluateCTA } from "@/lib/layer1/engagementEngine";
 
 /**
@@ -48,7 +48,7 @@ export async function GET(req) {
             sql`SELECT service_type, priority FROM service_recommendation WHERE diagnosis_id = ${care_episode_id} OR problem_id = ${care_episode_id}`,
             sql`SELECT id, status FROM medicine_orders WHERE patient_id = ${user_id} AND created_at >= ${episode.created_at}`,
             sql`SELECT id, status FROM lab_test_orders WHERE care_episode_id = ${care_episode_id}`,
-            sql`SELECT id, payment_status, status FROM appointments WHERE care_episode_id = ${care_episode_id}`
+            sql`SELECT id, payment_status, status, appointment_type FROM appointments WHERE care_episode_id = ${care_episode_id}`
         ]);
 
         const latestConsultation = consultations?.[0];
