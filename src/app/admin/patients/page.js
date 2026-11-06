@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState, useMemo } from "react";
 import toast from "react-hot-toast";
 import {
   Search,
   Filter,
   Eye,
   Trash2,
-  Download,
-  Plus,
   RefreshCw,
   User,
   Users,
@@ -25,11 +22,10 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Venus,
-  Mars,
   Activity,
-  CheckCircle,
-  XCircle,
+  ShieldCheck,
+  RotateCcw,
+  X,
   Check,
 } from "lucide-react";
 
@@ -37,6 +33,28 @@ const formatPatientUnId = (unId) => {
   if (!unId && unId !== 0) return "N/A";
   const clean = String(unId).replace(/\D/g, "");
   return `PAT-${clean.padStart(4, "0")}`;
+};
+
+const calculateAge = (dob) => {
+  if (!dob) return null;
+  const birth = new Date(dob);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age >= 0 ? age : null;
+};
+
+const formatDate = (dateString) => {
+  if (!dateString) return "—";
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 };
 
 export default function PatientsPage() {
@@ -50,7 +68,7 @@ export default function PatientsPage() {
   const [verificationFilter, setVerificationFilter] = useState("all");
   const [genderFilter, setGenderFilter] = useState("all");
 
-  // Global stats (totals across all patients, not just current page)
+  // Global stats (totals across all patients from server)
   const [globalStats, setGlobalStats] = useState({
     total: 0,
     active: 0,
@@ -74,10 +92,11 @@ export default function PatientsPage() {
       const res = await fetch("/api/patients/stats");
       const data = await res.json();
       if (data.success) setGlobalStats(data.data);
-    } catch {}
+    } catch (err) {
+      console.error("Failed to fetch stats:", err);
+    }
   };
 
-  // In your fetchPatients function
   const fetchPatients = async (
     page = 1,
     search = searchTerm,
@@ -120,19 +139,32 @@ export default function PatientsPage() {
     }
   };
 
-  // Fetch stats on mount (global totals independent of pagination)
+  // Fetch stats on mount
   useEffect(() => {
     fetchStats();
   }, []);
 
-  // Debounced filter/search — fetch paginated list
+  // Debounced search and filter listener
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchPatients(1, searchTerm, statusFilter, genderFilter, verificationFilter, pagination.itemsPerPage);
-    }, 500);
+      fetchPatients(
+        1,
+        searchTerm,
+        statusFilter,
+        genderFilter,
+        verificationFilter,
+        pagination.itemsPerPage
+      );
+    }, 400);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, statusFilter, genderFilter, verificationFilter, pagination.itemsPerPage]);
+  }, [
+    searchTerm,
+    statusFilter,
+    genderFilter,
+    verificationFilter,
+    pagination.itemsPerPage,
+  ]);
 
   const toggleSelect = (id) => {
     setSelectedIds((prev) =>
@@ -156,6 +188,7 @@ export default function PatientsPage() {
         toast.success("Patients deleted successfully!");
         setSelectedIds([]);
         fetchPatients(pagination.currentPage);
+        fetchStats();
       } else {
         toast.error(result.error || "Failed to delete patients");
       }
@@ -164,41 +197,39 @@ export default function PatientsPage() {
     }
   };
 
-  // Pagination handlers
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
-      fetchPatients(newPage);
+      fetchPatients(
+        newPage,
+        searchTerm,
+        statusFilter,
+        genderFilter,
+        verificationFilter,
+        pagination.itemsPerPage
+      );
     }
   };
 
-  // Generate page numbers for pagination
   const getPageNumbers = () => {
     const pages = [];
-    const maxVisiblePages = 5;
-    let startPage = Math.max(
-      1,
-      pagination.currentPage - Math.floor(maxVisiblePages / 2)
-    );
-    let endPage = Math.min(
-      pagination.totalPages,
-      startPage + maxVisiblePages - 1
-    );
+    const maxVisible = 5;
+    let start = Math.max(1, pagination.currentPage - Math.floor(maxVisible / 2));
+    let end = Math.min(pagination.totalPages, start + maxVisible - 1);
 
-    if (endPage - startPage + 1 < maxVisiblePages) {
-      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
     }
 
-    for (let i = startPage; i <= endPage; i++) {
+    for (let i = start; i <= end; i++) {
       pages.push(i);
     }
-
     return pages;
   };
 
   const getInitials = (name) => {
-    if (!name || typeof name !== "string") return "P";
+    if (!name || typeof name !== "string") return "PT";
     const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return "P";
+    if (parts.length === 0) return "PT";
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
@@ -214,63 +245,13 @@ export default function PatientsPage() {
     return url;
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "active":
-        return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800";
-      case "inactive":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700";
-      default:
-        return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800";
-    }
-  };
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        type: "spring",
-        stiffness: 100,
-      },
-    },
-  };
-
-  const cardVariants = {
-    hidden: { scale: 0.9, opacity: 0 },
-    visible: {
-      scale: 1,
-      opacity: 1,
-      transition: {
-        type: "spring",
-        stiffness: 100,
-      },
-    },
-    hover: {
-      scale: 1.02,
-      transition: {
-        type: "spring",
-        stiffness: 400,
-      },
-    },
-  };
-
   const formatAddress = (val) => {
     if (!val) return "Not provided";
     if (typeof val === "string") return val;
     if (typeof val === "object") {
-      const parts = [val.street, val.city, val.state, val.pincode || val.zip].filter(Boolean);
+      const parts = [val.street, val.city, val.state, val.pincode || val.zip].filter(
+        Boolean
+      );
       return parts.length > 0 ? parts.join(", ") : JSON.stringify(val);
     }
     return String(val);
@@ -289,793 +270,943 @@ export default function PatientsPage() {
     return String(val);
   };
 
+  const isFilterActive =
+    searchTerm.trim() !== "" ||
+    statusFilter !== "all" ||
+    genderFilter !== "all" ||
+    verificationFilter !== "all";
+
+  const handleResetFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setGenderFilter("all");
+    setVerificationFilter("all");
+  };
+
+  const getGenderBadge = (gender) => {
+    const g = String(gender || "").toLowerCase();
+    if (g === "male") {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-[#0067A1] border border-blue-200">
+          Male
+        </span>
+      );
+    }
+    if (g === "female") {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-pink-50 text-pink-700 border border-pink-200">
+          Female
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+        {gender || "Unknown"}
+      </span>
+    );
+  };
+
   return (
-    <>
-      <main className="flex-1 overflow-auto relative z-0">
-        <div className="p-4 md:p-4 lg:p-4 bg-transparent">
-          <div className="bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/50">
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 rounded-2xl to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 lg:p-6">
-              {/* Header Section */}
-              <motion.div
-                className="mb-8"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <motion.h4
-                      className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-2"
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.2 }}
-                    >
-                      Patient Management
-                    </motion.h4>
-                    <motion.p
-                      className="text-gray-600 dark:text-gray-400 mt-2"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.3 }}
-                    >
-                      Showing {pagination.totalItems} patients
-                    </motion.p>
-                  </div>
-                </div>
-              </motion.div>
+    <main className="flex-1 bg-slate-50 dark:bg-slate-900 min-h-screen relative w-full">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Top Header & Breadcrumbs */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#0067A1] mb-1">
+              <span>Clinical Practice</span>
+              <span>/</span>
+              <span>Patients & Bookings</span>
+              <span>/</span>
+              <span className="text-slate-500">All Patients</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
+              Patient Management
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#0067A1]/10 text-[#0067A1] border border-[#0067A1]/20">
+                {pagination.totalItems} Registered Patients
+              </span>
+            </h1>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-3xl">
+              Monitor clinical patient registries, demographic records, identity verifications, and account activity.
+            </p>
+          </div>
 
-              {/* Stats Cards */}
-              {(() => {
-                const stats = [
-                  {
-                    label: "Total Registered",
-                    onClick: () => setStatusFilter("all"),
-                    value: globalStats.total,
-                    sub: "All time patients",
-                    Icon: Users,
-                    accent: "bg-blue-50 border-blue-100",
-                    valueColor: "text-[#004F7C]",
-                    subColor: "text-blue-400",
-                    iconBg: "bg-blue-100",
-                    iconColor: "text-[#0067A1]",
-                  },
-                  {
-                    label: "Active Patients",
-                    onClick: () => setStatusFilter("1"),
-                    value: globalStats.active,
-                    sub: `${globalStats.total > 0 ? Math.round((globalStats.active / globalStats.total) * 100) : 0}% of all patients`,
-                    Icon: UserCheck,
-                    accent: "bg-emerald-50 border-emerald-100",
-                    valueColor: "text-emerald-700",
-                    subColor: "text-emerald-400",
-                    iconBg: "bg-emerald-100",
-                    iconColor: "text-emerald-600",
-                  },
-                  {
-                    label: "Gender Split",
-                    onClick: () => setGenderFilter(prev => prev === 'all' ? 'male' : prev === 'male' ? 'female' : 'all'),
-                    value: `${globalStats.male}M / ${globalStats.female}F`,
-                    sub: "Click to toggle (Male/Female/All)",
-                    Icon: Activity,
-                    accent: "bg-violet-50 border-violet-100",
-                    valueColor: "text-violet-700",
-                    subColor: "text-violet-400",
-                    iconBg: "bg-violet-100",
-                    iconColor: "text-violet-600",
-                  },
-                  {
-                    label: "Joined This Month",
-                    onClick: () => { setStatusFilter('all'); setGenderFilter('all'); setSearchTerm(''); },
-                    value: globalStats.thisMonth,
-                    sub: "Click to clear all filters",
-                    Icon: CalendarPlus,
-                    accent: "bg-amber-50 border-amber-100",
-                    valueColor: "text-amber-700",
-                    subColor: "text-amber-400",
-                    iconBg: "bg-amber-100",
-                    iconColor: "text-amber-600",
-                  },
-                ];
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                fetchPatients(pagination.currentPage);
+                fetchStats();
+              }}
+              disabled={loading}
+              className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 rounded-lg text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+              title="Refresh patient records"
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 text-[#0067A1] ${
+                  loading ? "animate-spin" : ""
+                }`}
+              />
+              Refresh
+            </button>
+          </div>
+        </div>
 
-                return (
-                  <motion.div
-                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8"
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="visible"
-                  >
-                    {stats.map((stat) => (
-                      <motion.div
-                        key={stat.label}
-                        variants={cardVariants}
-                        whileHover="hover"
-                        onClick={stat.onClick}
-                        className={`rounded-2xl border p-5 flex items-start gap-4 ${stat.accent} shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer`}
-                      >
-                        <div className={`p-3 rounded-xl ${stat.iconBg} shrink-0`}>
-                          <stat.Icon className={`w-5 h-5 ${stat.iconColor}`} />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{stat.label}</p>
-                          <p className={`text-2xl font-bold leading-tight ${stat.valueColor}`}>{stat.value}</p>
-                          <p className={`text-xs mt-1 ${stat.subColor}`}>{stat.sub}</p>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                );
-              })()}
+        {/* Clinical KPI Metrics Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* Card 1: Total Registered */}
+          <div
+            onClick={handleResetFilters}
+            className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-[#0067A1] transition-all cursor-pointer flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between gap-1 mb-2">
+              <div className="p-2 rounded-lg bg-blue-50 text-[#0067A1]">
+                <Users className="w-4 h-4 text-[#0067A1]" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-[#0067A1]">
+                Total
+              </span>
+            </div>
+            <div>
+              <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-none">
+                {globalStats.total}
+              </p>
+              <p className="text-xs font-medium text-slate-500 mt-1">
+                All-time registered patients
+              </p>
+            </div>
+          </div>
 
+          {/* Card 2: Active Patients */}
+          <div
+            onClick={() => setStatusFilter("1")}
+            className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-emerald-600 transition-all cursor-pointer flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between gap-1 mb-2">
+              <div className="p-2 rounded-lg bg-emerald-50 text-emerald-700">
+                <UserCheck className="w-4 h-4 text-emerald-700" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                Active
+              </span>
+            </div>
+            <div>
+              <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-none">
+                {globalStats.active}
+              </p>
+              <p className="text-xs font-medium text-slate-500 mt-1">
+                {globalStats.total > 0
+                  ? Math.round((globalStats.active / globalStats.total) * 100)
+                  : 100}
+                % active patient rate
+              </p>
+            </div>
+          </div>
 
-              {/* Controls Section */}
-              <motion.div
-                className="bg-white/80 dark:bg-gray-800/80 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 p-6 mb-6"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-              >
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                  {/* Search Bar */}
-                  <motion.div
-                    className="relative flex-1 max-w-md"
-                    whileFocus={{ scale: 1.02 }}
-                  >
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                      type="text"
-                      placeholder="Search patients by name, email, or phone..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all duration-300 cursor-text"
-                    />
-                  </motion.div>
+          {/* Card 3: Gender Distribution */}
+          <div
+            onClick={() =>
+              setGenderFilter((prev) =>
+                prev === "all" ? "male" : prev === "male" ? "female" : "all"
+              )
+            }
+            className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-teal-600 transition-all cursor-pointer flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between gap-1 mb-2">
+              <div className="p-2 rounded-lg bg-teal-50 text-teal-700">
+                <Activity className="w-4 h-4 text-teal-700" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
+                Demographics
+              </span>
+            </div>
+            <div>
+              <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-none">
+                {globalStats.male}M • {globalStats.female}F
+              </p>
+              <p className="text-xs font-medium text-slate-500 mt-1">
+                Tap to cycle (Male / Female / All)
+              </p>
+            </div>
+          </div>
 
-                  {/* Filters and Actions */}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <motion.select
-                      whileFocus={{ scale: 1.05 }}
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all duration-300 cursor-pointer"
-                    >
-                      <option value="all">All Status</option>
-                      <option value="1">Active</option>
-                      <option value="0">Inactive</option>
-                    </motion.select>
-
-                    <motion.select
-                      whileFocus={{ scale: 1.05 }}
-                      value={verificationFilter}
-                      onChange={(e) => setVerificationFilter(e.target.value)}
-                      className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all duration-300 cursor-pointer"
-                    >
-                      <option value="all">All Verification</option>
-                      <option value="verified">Verified</option>
-                      <option value="unverified">Unverified</option>
-                    </motion.select>
-
-                    <motion.select
-                      whileFocus={{ scale: 1.05 }}
-                      value={genderFilter}
-                      onChange={(e) => setGenderFilter(e.target.value)}
-                      className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all duration-300 cursor-pointer"
-                    >
-                      <option value="all">All Gender</option>
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                    </motion.select>
-
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => fetchPatients(1)}
-                      className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-300 cursor-pointer"
-                    >
-                      <Filter size={20} />
-                    </motion.button>
-
-                  
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => fetchPatients(pagination.currentPage)}
-                      disabled={loading}
-                      className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      <RefreshCw
-                        size={20}
-                        className={loading ? "animate-spin" : ""}
-                      />
-                    </motion.button>
-                  </div>
-                </div>
-
-                {/* Bulk Actions */}
-                <AnimatePresence>
-                  {selectedIds.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="flex items-center justify-between mt-4 p-4 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-xl border border-red-200 dark:border-red-800/50"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                        <span className="text-red-800 dark:text-red-300 font-medium">
-                          {selectedIds.length} patient(s) selected
-                        </span>
-                      </div>
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setConfirmOpen(true)}
-                        className="flex items-center px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-medium rounded-lg transition-all duration-300 cursor-pointer"
-                      >
-                        <Trash2 size={18} className="mr-2" />
-                        Delete Selected
-                      </motion.button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-
-              {/* Patients Table */}
-              <motion.div
-                className="bg-white/80 dark:bg-gray-800/80 rounded-2xl  border border-gray-200/50 dark:border-gray-700/50 overflow-hidden mb-6"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                {loading ? (
-                  <motion.div
-                    className="flex items-center justify-center py-12"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                  >
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{
-                        duration: 1,
-                        repeat: Infinity,
-                        ease: "linear",
-                      }}
-                    >
-                      <RefreshCw
-                        size={32}
-                        className="text-gray-800 dark:text-gray-200"
-                      />
-                    </motion.div>
-                  </motion.div>
-                ) : patients.length === 0 ? (
-                  <motion.div
-                    className="text-center py-12"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                  >
-                    <User className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                      No patients found
-                    </h3>
-                    <p className="text-gray-500 dark:text-gray-400 mb-4">
-                      {searchTerm ||
-                      statusFilter !== "all" ||
-                      genderFilter !== "all"
-                        ? "Try adjusting your search criteria"
-                        : "Get started by adding your first patient"}
-                    </p>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-gray-800 to-gray-600 hover:from-gray-900 hover:to-gray-700 text-white font-medium rounded-lg transition-all duration-300 cursor-pointer"
-                    >
-                      <Plus size={20} className="mr-2" />
-                      Add New Patient
-                    </motion.button>
-                  </motion.div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50/80 dark:bg-gray-700/80 border-b border-gray-200 dark:border-gray-600">
-                        <tr>
-                          <th className="px-4 py-3 text-left">
-                            <input
-                              type="checkbox"
-                              onChange={(e) =>
-                                setSelectedIds(
-                                  e.target.checked
-                                    ? patients.map((p) => p.id)
-                                    : []
-                                )
-                              }
-                              checked={
-                                patients.length > 0 &&
-                                selectedIds.length === patients.length
-                              }
-                              className="rounded border-gray-300 text-gray-800 focus:ring-gray-800 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
-                            />
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Patient
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Contact
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Gender
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Status
-                          </th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {patients.map((patient, index) => (
-                          <motion.tr
-                            key={patient.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.1 }}
-                            className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-all duration-300"
-                          >
-                            <td className="px-4 py-3">
-                              <input
-                                type="checkbox"
-                                checked={selectedIds.includes(patient.id)}
-                                onChange={() => toggleSelect(patient.id)}
-                                className="rounded border-gray-300 text-gray-800 focus:ring-gray-800 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center">
-                                <div className="relative flex-shrink-0 h-10 w-10">
-                                  {normalizeAvatarUrl(patient.profile_picture) ? (
-                                    <motion.img
-                                      whileHover={{ scale: 1.05 }}
-                                      className="h-10 w-10 rounded-full object-cover shadow-xs border border-slate-200"
-                                      src={normalizeAvatarUrl(patient.profile_picture)}
-                                      alt=""
-                                    />
-                                  ) : (
-                                    <motion.div
-                                      whileHover={{ scale: 1.05 }}
-                                      className="h-10 w-10 rounded-full bg-gradient-to-br from-[#0067A1] to-[#004F7C] flex items-center justify-center text-white font-bold text-xs shadow-xs"
-                                    >
-                                      {getInitials(patient.patient_details?.full_name)}
-                                    </motion.div>
-                                  )}
-                                  {patient.is_verified && (
-                                    <div
-                                      className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center shadow-xs"
-                                      title="Verified Account"
-                                    >
-                                      <Check size={10} className="text-white stroke-[3.5]" />
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="ml-3.5">
-                                  <div className="text-sm font-bold text-slate-900 dark:text-white">
-                                    {patient.patient_details?.full_name || "Unknown"}
-                                  </div>
-                                  <div className="text-xs font-mono text-slate-400 dark:text-slate-400">
-                                    ID: {formatPatientUnId(patient.un_id)}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                                {patient.patient_details?.email || "No email"}
-                              </div>
-                              <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center mt-0.5 gap-1 font-mono">
-                                <Phone size={12} className="text-slate-400" />
-                                {patient.phone_number || "No phone"}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600 capitalize">
-                                {patient.patient_details?.gender || "Unknown"}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              {(patient.status === 1 || patient.status === null || patient.status === '1' || patient.status === 'active') ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700">
-                                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span> Active
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700">
-                                  <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0"></span> Inactive
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end space-x-2">
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => setViewPatient(patient)}
-                                  className="p-2 text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 transition-all duration-300 cursor-pointer"
-                                  title="View Details"
-                                >
-                                  <Eye size={18} />
-                                </motion.button>
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => toggleSelect(patient.id)}
-                                  className="p-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-all duration-300 cursor-pointer"
-                                  title="Delete"
-                                >
-                                  <Trash2 size={18} />
-                                </motion.button>
-                              </div>
-                            </td>
-                          </motion.tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </motion.div>
-
-              {/* Pagination Component */}
-              {patients.length > 0 && (
-                <motion.div
-                  className="bg-white/80 dark:bg-gray-800/80 rounded-2xl  border border-gray-200/50 dark:border-gray-700/50 p-6"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.8 }}
-                >
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Showing{" "}
-                      {(pagination.currentPage - 1) * pagination.itemsPerPage +
-                        1}{" "}
-                      to{" "}
-                      {Math.min(
-                        pagination.currentPage * pagination.itemsPerPage,
-                        pagination.totalItems
-                      )}{" "}
-                      of {pagination.totalItems} patients
-                    </div>
-
-                    <div className="flex items-center space-x-1">
-                      {/* First Page */}
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handlePageChange(1)}
-                        disabled={!pagination.hasPrevPage}
-                        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all duration-300"
-                      >
-                        <ChevronsLeft size={16} />
-                      </motion.button>
-
-                      {/* Previous Page */}
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() =>
-                          handlePageChange(pagination.currentPage - 1)
-                        }
-                        disabled={!pagination.hasPrevPage}
-                        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all duration-300"
-                      >
-                        <ChevronLeft size={16} />
-                      </motion.button>
-
-                      {/* Page Numbers */}
-                      {getPageNumbers().map((pageNum) => (
-                        <motion.button
-                          key={pageNum}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handlePageChange(pageNum)}
-                          className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all duration-300 cursor-pointer ${
-                            pageNum === pagination.currentPage
-                              ? "bg-gradient-to-r from-gray-800 to-gray-600 border-transparent text-white shadow-sm"
-                              : "border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600"
-                          }`}
-                        >
-                          {pageNum}
-                        </motion.button>
-                      ))}
-
-                      {/* Next Page */}
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() =>
-                          handlePageChange(pagination.currentPage + 1)
-                        }
-                        disabled={!pagination.hasNextPage}
-                        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all duration-300"
-                      >
-                        <ChevronRight size={16} />
-                      </motion.button>
-
-                      {/* Last Page */}
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handlePageChange(pagination.totalPages)}
-                        disabled={!pagination.hasNextPage}
-                        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all duration-300"
-                      >
-                        <ChevronsRight size={16} />
-                      </motion.button>
-                    </div>
-
-                    {/* Items Per Page Selector */}
-                    <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                      <span>Show:</span>
-                      <select
-                        value={pagination.itemsPerPage}
-                        onChange={(e) => {
-                          const newLimit = parseInt(e.target.value);
-                          setPagination((prev) => ({
-                            ...prev,
-                            itemsPerPage: newLimit,
-                            currentPage: 1,
-                          }));
-                        }}
-                        className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-800 focus:border-transparent cursor-pointer"
-                      >
-                        <option value="5">5</option>
-                        <option value="10">10</option>
-                        <option value="25">25</option>
-                        <option value="50">50</option>
-                      </select>
-                      <span>per page</span>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
+          {/* Card 4: Joined This Month */}
+          <div
+            onClick={handleResetFilters}
+            className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-2xs hover:border-indigo-600 transition-all cursor-pointer flex flex-col justify-between"
+          >
+            <div className="flex items-center justify-between gap-1 mb-2">
+              <div className="p-2 rounded-lg bg-indigo-50 text-indigo-700">
+                <CalendarPlus className="w-4 h-4 text-indigo-700" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                This Month
+              </span>
+            </div>
+            <div>
+              <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-none">
+                {globalStats.thisMonth}
+              </p>
+              <p className="text-xs font-medium text-slate-500 mt-1">
+                New clinical registrations
+              </p>
             </div>
           </div>
         </div>
-      </main>
-      {/* Fixed Confirm Delete Modal */}
-      <AnimatePresence>
-        {confirmOpen && (
-          <motion.div
-            className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md transform transition-all border border-gray-200/50 dark:border-gray-700/50"
-            >
-              <div className="p-6 text-center">
-                <motion.div
-                  className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-red-100 to-orange-100 dark:from-red-900/30 dark:to-orange-900/30 flex items-center justify-center"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.1 }}
+
+        {/* Clinical Search & Filter Toolbar */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 shadow-2xs space-y-3">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[280px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <input
+                type="text"
+                placeholder="Search patients by name, email, phone, or PAT ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1]"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2.5 top-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
-                  <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
-                </motion.div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  Confirm Deletion
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">
-                  Are you sure you want to delete {selectedIds.length}{" "}
-                  patient(s)? This action cannot be undone.
-                </p>
-                <div className="flex gap-3 justify-center">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setConfirmOpen(false)}
-                    className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300 font-medium cursor-pointer"
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleDelete}
-                    className="px-6 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg transition-all duration-300 font-medium cursor-pointer"
-                  >
-                    Delete
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                  ✕
+                </button>
+              )}
+            </div>
 
-      {/* Fixed Patient Details Modal */}
-      <AnimatePresence>
-        {viewPatient && (
-          <motion.div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl transform transition-all max-h-[90vh] overflow-hidden border border-gray-200/50 dark:border-gray-700/50"
+            {/* Filter Dropdowns Grid */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="py-2 px-2.5 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0067A1] cursor-pointer"
+              >
+                <option value="all">All Status</option>
+                <option value="1">Active</option>
+                <option value="0">Inactive</option>
+              </select>
+
+              {/* Verification Filter */}
+              <select
+                value={verificationFilter}
+                onChange={(e) => setVerificationFilter(e.target.value)}
+                className="py-2 px-2.5 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0067A1] cursor-pointer"
+              >
+                <option value="all">All Verification</option>
+                <option value="verified">Verified</option>
+                <option value="unverified">Unverified</option>
+              </select>
+
+              {/* Gender Filter */}
+              <select
+                value={genderFilter}
+                onChange={(e) => setGenderFilter(e.target.value)}
+                className="py-2 px-2.5 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0067A1] cursor-pointer"
+              >
+                <option value="all">All Genders</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+
+              {/* Reset Button */}
+              {isFilterActive && (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700/60 text-xs text-slate-500">
+            <span>
+              Showing{" "}
+              <strong className="text-slate-800 dark:text-slate-200">
+                {patients.length}
+              </strong>{" "}
+              of {pagination.totalItems} patients
+            </span>
+            {isFilterActive && (
+              <span className="text-[#0067A1] font-semibold flex items-center gap-1">
+                <Filter className="w-3 h-3" /> Filters active
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Bulk Action Banner */}
+        {selectedIds.length > 0 && (
+          <div className="p-3 bg-rose-50 dark:bg-rose-900/20 rounded-xl border border-rose-200 dark:border-rose-800 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold text-rose-800 dark:text-rose-300">
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <span>{selectedIds.length} patient(s) selected</span>
+            </div>
+            <button
+              onClick={() => setConfirmOpen(true)}
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
             >
-              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Patient Details
-                  </h3>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => setViewPatient(null)}
-                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all duration-300 cursor-pointer"
-                  >
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </motion.button>
-                </div>
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete Selected
+            </button>
+          </div>
+        )}
+
+        {/* Main Records Container */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs overflow-hidden">
+          {loading ? (
+            <div className="py-24 flex flex-col items-center justify-center">
+              <div className="w-10 h-10 border-4 border-[#0067A1]/20 border-t-[#0067A1] rounded-full animate-spin"></div>
+              <p className="mt-3 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Loading clinical patient records...
+              </p>
+            </div>
+          ) : patients.length === 0 ? (
+            <div className="py-20 text-center flex flex-col items-center max-w-sm mx-auto px-4">
+              <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mb-3">
+                <User className="w-6 h-6 text-slate-400" />
               </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">
+                No Patients Found
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                {isFilterActive
+                  ? "No patients match your active search or filter criteria."
+                  : "No clinical patient accounts are registered yet."}
+              </p>
+              {isFilterActive && (
+                <button
+                  onClick={handleResetFilters}
+                  className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] transition-colors cursor-pointer"
+                >
+                  Reset All Filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Responsive Mobile Cards View (md:hidden) */}
+              <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-700">
+                {patients.map((patient) => {
+                  const pName = patient.patient_details?.full_name || "Unknown Patient";
+                  const avatarUrl = normalizeAvatarUrl(patient.profile_picture);
+                  const age = calculateAge(patient.patient_details?.date_of_birth);
+                  const isVerified = Boolean(patient.is_verified);
+                  const isActive =
+                    patient.status === 1 ||
+                    patient.status === "1" ||
+                    patient.status === null ||
+                    patient.status === "active";
 
-              <div className="p-6 overflow-y-auto">
-                <div className="flex items-start space-x-6 mb-6">
-                  <div className="relative flex-shrink-0">
-                    {viewPatient.profile_picture ? (
-                      <motion.img
-                        whileHover={{ scale: 1.05 }}
-                        className="h-20 w-20 rounded-full object-cover shadow-sm border-2 border-slate-200"
-                        src={viewPatient.profile_picture}
-                        alt=""
-                      />
-                    ) : (
-                      <motion.div
-                        whileHover={{ scale: 1.05 }}
-                        className="h-20 w-20 rounded-full bg-gradient-to-br from-[#0067A1] to-[#004F7C] flex items-center justify-center text-white font-bold text-2xl shadow-sm"
-                      >
-                        {getInitials(viewPatient.patient_details?.full_name)}
-                      </motion.div>
-                    )}
-                    {viewPatient.is_verified && (
-                      <div
-                        className="absolute bottom-0 right-0 w-6 h-6 bg-emerald-500 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center shadow-sm"
-                        title="Verified Patient"
-                      >
-                        <Check size={14} className="text-white stroke-[3.5]" />
+                  return (
+                    <div key={patient.id} className="p-4 space-y-3">
+                      {/* Top Header */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(patient.id)}
+                            onChange={() => toggleSelect(patient.id)}
+                            className="rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1] cursor-pointer mt-0.5"
+                          />
+                          <div className="relative">
+                            {avatarUrl ? (
+                              <img
+                                src={avatarUrl}
+                                alt={pName}
+                                className="w-10 h-10 rounded-full object-cover border border-slate-200"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-[#0067A1]/10 text-[#0067A1] font-bold text-xs flex items-center justify-center border border-[#0067A1]/20">
+                                {getInitials(pName)}
+                              </div>
+                            )}
+                            {isVerified && (
+                              <div
+                                className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-600 rounded-full border border-white flex items-center justify-center"
+                                title="Verified Patient"
+                              >
+                                <Check size={8} className="text-white stroke-[3.5]" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                              {pName}
+                            </h4>
+                            <span className="text-[11px] font-mono text-slate-500">
+                              {formatPatientUnId(patient.un_id)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {isActive ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> Active
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Inactive
+                          </span>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                      {viewPatient.patient_details?.full_name || "Unknown"}
-                    </h4>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-amber-100 to-orange-100 text-amber-800 dark:from-amber-900/40 dark:to-orange-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                        Patient ID: {formatPatientUnId(viewPatient.un_id)}
-                      </span>
-                      {viewPatient.is_verified ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                          <CheckCircle size={12} /> Verified Patient
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-                          <XCircle size={12} /> Unverified Account
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center text-sm">
-                      <Mail className="w-4 h-4 text-gray-400 mr-3" />
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Email:
-                      </span>
-                      <span className="ml-2 text-gray-900 dark:text-white">
-                        {viewPatient.patient_details?.email || "Not provided"}
-                      </span>
-                    </div>
-                    <div className="flex items-center text-sm">
-                      <Phone className="w-4 h-4 text-gray-400 mr-3" />
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Phone:
-                      </span>
-                      <span className="ml-2 text-gray-900 dark:text-white">
-                        {viewPatient.phone_number || "Not provided"}
-                      </span>
-                    </div>
-                    <div className="flex items-center text-sm">
-                      <User className="w-4 h-4 text-gray-400 mr-3" />
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Gender:
-                      </span>
-                      <span className="ml-2 text-gray-900 dark:text-white capitalize">
-                        {typeof viewPatient.patient_details?.gender === "string" ? viewPatient.patient_details.gender : "Not provided"}
-                      </span>
-                    </div>
-                    <div className="flex items-center text-sm">
-                      <Calendar className="w-4 h-4 text-gray-400 mr-3" />
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Date of Birth:
-                      </span>
-                      <span className="ml-2 text-gray-900 dark:text-white">
-                        {viewPatient.patient_details?.date_of_birth ||
-                          "Not provided"}
-                      </span>
-                    </div>
-                  </div>
+                      {/* Clinical demographics */}
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        {getGenderBadge(patient.patient_details?.gender)}
+                        {age !== null && (
+                          <span className="text-slate-600 dark:text-slate-400 font-medium">
+                            • {age} yrs
+                          </span>
+                        )}
+                        {patient.patient_details?.blood_group && (
+                          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            <Droplets className="w-2.5 h-2.5" />
+                            {patient.patient_details.blood_group}
+                          </span>
+                        )}
+                      </div>
 
-                  <div className="space-y-4">
-                    <div className="flex items-center text-sm">
-                      <Droplets className="w-4 h-4 text-gray-400 mr-3" />
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Blood Group:
-                      </span>
-                      <span className="ml-2 text-gray-900 dark:text-white">
-                        {viewPatient.patient_details?.blood_group ||
-                          "Not provided"}
-                      </span>
-                    </div>
-                    <div className="flex items-start text-sm">
-                      <MapPin className="w-4 h-4 text-gray-400 mr-3 mt-0.5" />
-                      <div>
-                        <span className="text-gray-600 dark:text-gray-400">
-                          Address:
+                      {/* Contacts */}
+                      <div className="grid grid-cols-1 gap-1 text-xs text-slate-600 dark:text-slate-300">
+                        <div className="flex items-center gap-1.5 font-mono">
+                          <Phone className="w-3.5 h-3.5 text-slate-400" />
+                          <span>{patient.phone_number || "No phone provided"}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-500">
+                          <Mail className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="truncate">
+                            {patient.patient_details?.email || "No email provided"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Bottom action row */}
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-[11px] text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-slate-400" />
+                          {formatDate(patient.created_at)}
                         </span>
-                        <div className="ml-2 text-gray-900 dark:text-white">
-                          {formatAddress(viewPatient.patient_details?.address)}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setViewPatient(patient)}
+                            className="px-2.5 py-1 text-xs font-semibold text-[#0067A1] bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded flex items-center gap-1 cursor-pointer"
+                          >
+                            <Eye className="w-3 h-3" /> View
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedIds([patient.id]);
+                              setConfirmOpen(true);
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center text-sm">
-                      <AlertTriangle className="w-4 h-4 text-gray-400 mr-3" />
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Emergency Contact:
+                  );
+                })}
+              </div>
+
+              {/* Desktop Professional Table (hidden md:block) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 uppercase text-[10.5px] font-bold tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          onChange={(e) =>
+                            setSelectedIds(
+                              e.target.checked ? patients.map((p) => p.id) : []
+                            )
+                          }
+                          checked={
+                            patients.length > 0 &&
+                            selectedIds.length === patients.length
+                          }
+                          className="rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1] cursor-pointer"
+                        />
+                      </th>
+                      <th className="px-4 py-3">Patient Record</th>
+                      <th className="px-4 py-3">Demographics</th>
+                      <th className="px-4 py-3">Contact</th>
+                      <th className="px-4 py-3">Registered</th>
+                      <th className="px-4 py-3">Verification</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {patients.map((patient) => {
+                      const pName = patient.patient_details?.full_name || "Unknown Patient";
+                      const avatarUrl = normalizeAvatarUrl(patient.profile_picture);
+                      const age = calculateAge(patient.patient_details?.date_of_birth);
+                      const isVerified = Boolean(patient.is_verified);
+                      const isActive =
+                        patient.status === 1 ||
+                        patient.status === "1" ||
+                        patient.status === null ||
+                        patient.status === "active";
+
+                      return (
+                        <tr
+                          key={patient.id}
+                          className="hover:bg-slate-50/70 dark:hover:bg-slate-700/30 transition-colors"
+                        >
+                          <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(patient.id)}
+                              onChange={() => toggleSelect(patient.id)}
+                              className="rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1] cursor-pointer"
+                            />
+                          </td>
+
+                          {/* Patient Column */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="relative shrink-0">
+                                {avatarUrl ? (
+                                  <img
+                                    src={avatarUrl}
+                                    alt={pName}
+                                    className="w-9 h-9 rounded-full object-cover border border-slate-200"
+                                  />
+                                ) : (
+                                  <div className="w-9 h-9 rounded-full bg-[#0067A1]/10 text-[#0067A1] font-bold text-xs flex items-center justify-center border border-[#0067A1]/20">
+                                    {getInitials(pName)}
+                                  </div>
+                                )}
+                                {isVerified && (
+                                  <div
+                                    className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-600 rounded-full border border-white flex items-center justify-center"
+                                    title="Verified Patient"
+                                  >
+                                    <Check size={8} className="text-white stroke-[3.5]" />
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
+                                  {pName}
+                                </p>
+                                <p className="text-[11px] font-mono text-slate-400">
+                                  {formatPatientUnId(patient.un_id)}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Demographics Column */}
+                          <td className="px-4 py-3">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5">
+                                {getGenderBadge(patient.patient_details?.gender)}
+                                {patient.patient_details?.blood_group && (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                    <Droplets className="w-2.5 h-2.5" />
+                                    {patient.patient_details.blood_group}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-slate-500">
+                                {age !== null ? `${age} yrs` : "Age N/A"}
+                                {patient.patient_details?.date_of_birth && (
+                                  <span className="text-slate-400">
+                                    {" "}
+                                    ({formatDate(patient.patient_details.date_of_birth)})
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Contact Column */}
+                          <td className="px-4 py-3">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-200 font-mono">
+                                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                                <span>{patient.phone_number || "—"}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                                <Mail className="w-3.5 h-3.5 text-slate-400" />
+                                <span className="truncate max-w-[180px]">
+                                  {patient.patient_details?.email || "No email"}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Registered Date */}
+                          <td className="px-4 py-3">
+                            <span className="text-xs text-slate-600 dark:text-slate-300 font-medium">
+                              {formatDate(patient.created_at)}
+                            </span>
+                          </td>
+
+                          {/* Verification Column */}
+                          <td className="px-4 py-3">
+                            {isVerified ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                                Verified
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                Unverified
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Status Column */}
+                          <td className="px-4 py-3">
+                            {isActive ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> Active
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Inactive
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Actions Column */}
+                          <td className="px-4 py-3 text-right">
+                            <div className="inline-flex items-center gap-1 justify-end">
+                              <button
+                                onClick={() => setViewPatient(patient)}
+                                className="p-1.5 text-[#0067A1] hover:text-[#004F7C] hover:bg-sky-50 rounded transition-colors cursor-pointer"
+                                title="View Patient Details"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedIds([patient.id]);
+                                  setConfirmOpen(true);
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                                title="Delete Patient"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* Pagination Controls */}
+          {patients.length > 0 && (
+            <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-400">
+              <div>
+                Showing{" "}
+                <strong className="text-slate-900 dark:text-white">
+                  {(pagination.currentPage - 1) * pagination.itemsPerPage + 1}
+                </strong>{" "}
+                to{" "}
+                <strong className="text-slate-900 dark:text-white">
+                  {Math.min(
+                    pagination.currentPage * pagination.itemsPerPage,
+                    pagination.totalItems
+                  )}
+                </strong>{" "}
+                of {pagination.totalItems} patients
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handlePageChange(1)}
+                  disabled={!pagination.hasPrevPage}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="First Page"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => handlePageChange(pagination.currentPage - 1)}
+                  disabled={!pagination.hasPrevPage}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+
+                {getPageNumbers().map((num) => (
+                  <button
+                    key={num}
+                    onClick={() => handlePageChange(num)}
+                    className={`px-2.5 py-1 rounded text-xs font-semibold cursor-pointer ${
+                      num === pagination.currentPage
+                        ? "bg-[#0067A1] text-white shadow-xs"
+                        : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    {num}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => handlePageChange(pagination.currentPage + 1)}
+                  disabled={!pagination.hasNextPage}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="Next Page"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => handlePageChange(pagination.totalPages)}
+                  disabled={!pagination.hasNextPage}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="Last Page"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Items Per Page Selector */}
+              <div className="flex items-center gap-1.5 text-xs">
+                <span>Show:</span>
+                <select
+                  value={pagination.itemsPerPage}
+                  onChange={(e) => {
+                    const newLimit = parseInt(e.target.value, 10);
+                    setPagination((prev) => ({
+                      ...prev,
+                      itemsPerPage: newLimit,
+                      currentPage: 1,
+                    }));
+                  }}
+                  className="py-1 px-1.5 rounded border border-slate-200 bg-white text-slate-700 cursor-pointer"
+                >
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                </select>
+                <span>/ page</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm border border-slate-200 dark:border-slate-700 p-6 text-center">
+            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">
+              Delete Patient Records
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
+              Are you sure you want to delete {selectedIds.length} selected patient account(s)? This action cannot be reversed.
+            </p>
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="px-4 py-2 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Medical-Grade Patient Details Modal */}
+      {viewPatient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-2xl border border-slate-200 dark:border-slate-700 overflow-hidden my-8">
+            {/* Header */}
+            <div className="px-6 py-4 bg-[#0067A1] text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/15 text-white font-bold text-sm flex items-center justify-center border border-white/20">
+                  {getInitials(viewPatient.patient_details?.full_name)}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">
+                    {viewPatient.patient_details?.full_name || "Unknown Patient"}
+                  </h3>
+                  <div className="flex items-center gap-2 mt-0.5 text-xs text-white/80 font-mono">
+                    <span>{formatPatientUnId(viewPatient.un_id)}</span>
+                    <span>•</span>
+                    <span>{viewPatient.phone_number || "No phone"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setViewPatient(null)}
+                className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+              {/* Badges Bar */}
+              <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-700">
+                {viewPatient.is_verified ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    Verified Patient
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                    Unverified Account
+                  </span>
+                )}
+
+                {viewPatient.patient_details?.blood_group && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                    <Droplets className="w-3 h-3 text-rose-600" />
+                    Blood Group: {viewPatient.patient_details.blood_group}
+                  </span>
+                )}
+
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-[#0067A1] border border-blue-200">
+                  Enrolled: {formatDate(viewPatient.created_at)}
+                </span>
+              </div>
+
+              {/* 2-Column Clinical Details */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+                {/* Section 1: Demographics */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#0067A1]">
+                    Clinical Demographics
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Gender:</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 capitalize">
+                        {viewPatient.patient_details?.gender || "Not specified"}
                       </span>
-                      <span className="ml-2 text-gray-900 dark:text-white">
-                        {formatEmergencyContact(viewPatient.patient_details?.emergency_contact)}
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Date of Birth:</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        {formatDate(viewPatient.patient_details?.date_of_birth)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Age:</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        {calculateAge(viewPatient.patient_details?.date_of_birth) !==
+                        null
+                          ? `${calculateAge(
+                              viewPatient.patient_details?.date_of_birth
+                            )} years`
+                          : "Not provided"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Blood Group:</span>
+                      <span className="font-semibold text-rose-600">
+                        {viewPatient.patient_details?.blood_group || "Not provided"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Contact Information */}
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#0067A1]">
+                    Contact & Communication
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Phone Number:</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono">
+                        {viewPatient.phone_number || "Not provided"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Email Address:</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[180px]">
+                        {viewPatient.patient_details?.email || "Not provided"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Account Status:</span>
+                      <span className="font-semibold text-emerald-700">
+                        {viewPatient.status === 0 ? "Inactive" : "Active"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Identity Status:</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        {viewPatient.is_verified ? "Verified" : "Unverified"}
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                <div className="flex justify-end">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setViewPatient(null)}
-                    className="px-6 py-2 bg-gradient-to-r from-gray-800 to-gray-600 hover:from-gray-900 hover:to-gray-700 text-white font-medium rounded-lg transition-all duration-300 cursor-pointer"
-                  >
-                    Close
-                  </motion.button>
+              {/* Section 3: Address & Emergency Contact */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-2">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#0067A1] flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5" />
+                    Residential Address
+                  </h4>
+                  <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
+                    {formatAddress(viewPatient.patient_details?.address)}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-2">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#0067A1] flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    Emergency Contact
+                  </h4>
+                  <p className="text-slate-700 dark:text-slate-300 leading-relaxed font-mono">
+                    {formatEmergencyContact(
+                      viewPatient.patient_details?.emergency_contact
+                    )}
+                  </p>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end">
+              <button
+                onClick={() => setViewPatient(null)}
+                className="px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
   );
 }
