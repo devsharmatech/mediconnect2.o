@@ -1,18 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
 import {
   Search,
   User,
+  Users,
   Phone,
   Mail,
   History,
   Calendar,
   ArrowLeft,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ShieldCheck,
+  Activity,
+  RotateCcw,
+  Droplet,
 } from "lucide-react";
 
 export default function AdminDoctorPatientsPage() {
@@ -22,285 +28,606 @@ export default function AdminDoctorPatientsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  
+  const [genderFilter, setGenderFilter] = useState("all");
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        setLoading(true);
-        if (!doctorId) {
-          setError("Invalid doctor ID");
-          setLoading(false);
-          return;
-        }
-
-        const res = await fetch("/api/doctor/my-patients", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ doctor_id: doctorId })
-        });
-        
-        const json = await res.json();
-        if (json.success) {
-          setPatients(json.data);
-        } else {
-          setError(json.message || "Failed to fetch patients");
-        }
-      } catch (err) {
-        console.error("Error fetching data:", err);
-        setError("An error occurred while fetching patients.");
-      } finally {
+  const fetchPatients = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      if (!doctorId) {
+        setError("Invalid doctor ID");
         setLoading(false);
+        return;
       }
-    };
-    
+
+      const res = await fetch("/api/doctor/my-patients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doctor_id: doctorId }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setPatients(json.data || []);
+      } else {
+        setError(json.message || "Failed to fetch patients");
+      }
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      setError("An error occurred while fetching patients.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchPatients();
   }, [doctorId]);
 
-  const filteredPatients = patients.filter(p => {
-    const searchStr = searchTerm.toLowerCase();
-    return (
-      (p.full_name || "").toLowerCase().includes(searchStr) ||
-      (p.email || "").toLowerCase().includes(searchStr) ||
-      (p.phone || "").toLowerCase().includes(searchStr)
-    );
-  });
+  const filteredPatients = useMemo(() => {
+    const searchStr = searchTerm.toLowerCase().trim();
+    return patients.filter((p) => {
+      const matchesSearch =
+        !searchStr ||
+        (p.full_name || "").toLowerCase().includes(searchStr) ||
+        (p.email || "").toLowerCase().includes(searchStr) ||
+        (p.phone || "").toLowerCase().includes(searchStr);
 
-  // Reset to page 1 on search
+      const matchesGender =
+        genderFilter === "all" ||
+        (p.gender || "").toLowerCase() === genderFilter.toLowerCase();
+
+      return matchesSearch && matchesGender;
+    });
+  }, [patients, searchTerm, genderFilter]);
+
+  // Reset to page 1 on search / filter
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, genderFilter]);
 
-  const totalPages = Math.ceil(filteredPatients.length / itemsPerPage);
+  const totalPatients = patients.length;
+  const totalVisits = patients.reduce(
+    (acc, p) => acc + (p.visit_count || 0),
+    0
+  );
+  const returningPatients = patients.filter(
+    (p) => (p.visit_count || 0) > 1
+  ).length;
+  const verifiedCount = patients.filter((p) => p.is_identity_verified).length;
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredPatients.length / itemsPerPage)
+  );
   const paginatedPatients = filteredPatients.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
 
+  const isFilterActive = searchTerm.trim() !== "" || genderFilter !== "all";
+
+  const handleResetFilters = () => {
+    setSearchTerm("");
+    setGenderFilter("all");
+  };
+
   const formatDate = (dateString) => {
-    if (!dateString) return "";
+    if (!dateString) return "—";
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+    if (isNaN(date.getTime())) return "—";
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
   const formatTime = (timeString) => {
-    if (!timeString) return "";
-    const [h, m] = timeString.split(':');
+    if (!timeString) return "—";
+    const [h, m] = String(timeString).split(":");
     if (!h || !m) return timeString;
     const date = new Date();
     date.setHours(parseInt(h, 10), parseInt(m, 10), 0);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
+  const getInitials = (name) => {
+    return (
+      name
+        ?.split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2) || "PT"
+    );
   };
 
-  const cardVariants = {
-    hidden: { scale: 0.9, opacity: 0 },
-    visible: { scale: 1, opacity: 1, transition: { type: "spring", stiffness: 100 } },
-    hover: { scale: 1.02, transition: { type: "spring", stiffness: 400 } },
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1);
+    }
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+    return pages;
   };
 
   return (
-    <main className="flex-1 overflow-auto relative z-0">
-      <div className="p-4 md:p-4 lg:p-4 bg-transparent">
-        <div className="bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/50">
-          <div className="min-h-screen bg-gradient-to-br from-gray-50 rounded-2xl to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 lg:p-6">
-            
-            {/* Header Section */}
-            <motion.div
-              className="mb-8"
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
-                  <motion.button 
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => router.push("/admin/booking-attempts")}
-                    className="p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 rounded-xl transition-colors text-gray-600 dark:text-gray-300"
-                    title="Go back"
-                  >
-                    <ArrowLeft size={20} />
-                  </motion.button>
-                  <div>
-                    <motion.h4
-                      className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-1"
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.2 }}
-                    >
-                      Patient Directory
-                    </motion.h4>
-                    <motion.p
-                      className="text-gray-600 dark:text-gray-400 mt-1 text-sm"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.3 }}
-                    >
-                      Detailed list of patients treated by this doctor
-                    </motion.p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Controls Section */}
-            <motion.div
-              className="bg-white/80 dark:bg-gray-800/80 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 p-6 mb-6"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-            >
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <motion.div className="relative w-full lg:w-96" whileFocus={{ scale: 1.02 }}>
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                  <input
-                    type="text"
-                    placeholder="Search by name, phone, or email..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-gray-800 focus:border-transparent transition-all duration-300 cursor-text"
-                  />
-                </motion.div>
-              </div>
-            </motion.div>
-
-            {/* Data Table */}
-            <motion.div
-              className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 shadow-sm overflow-hidden flex flex-col"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-            >
-              {loading ? (
-                <div className="p-16 text-center flex flex-col items-center justify-center">
-                  <div className="w-10 h-10 border-4 border-gray-800 dark:border-white border-t-transparent rounded-full animate-spin"></div>
-                  <p className="mt-4 text-sm font-medium text-gray-500 dark:text-gray-400">Loading patient records...</p>
-                </div>
-              ) : error ? (
-                <div className="p-12 text-center text-red-600 dark:text-red-400 font-medium bg-red-50 dark:bg-red-900/10">
-                  {error}
-                </div>
-              ) : filteredPatients.length === 0 ? (
-                <div className="p-16 text-center text-gray-500 dark:text-gray-400">
-                  <User className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-                  <p className="font-medium text-lg">No patients found</p>
-                  <p className="text-sm mt-1">Try adjusting your search criteria.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto flex-1">
-                  <table className="w-full text-left whitespace-nowrap">
-                    <thead className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      <tr>
-                        <th className="px-6 py-4">Patient Info</th>
-                        <th className="px-6 py-4">Contact</th>
-                        <th className="px-6 py-4 text-center">Total Visits</th>
-                        <th className="px-6 py-4">Last Visit</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-sm">
-                      {paginatedPatients.map((patient, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 flex items-center justify-center font-bold">
-                                {patient.full_name?.charAt(0) || 'P'}
-                              </div>
-                              <div>
-                                <p className="font-semibold text-gray-900 dark:text-white">{patient.full_name}</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex gap-2">
-                                  <span>{patient.gender || 'Unknown'}</span>
-                                  {patient.blood_group && (
-                                    <span className="text-red-500 font-medium">Blood: {patient.blood_group}</span>
-                                  )}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-gray-600 dark:text-gray-300 space-y-1">
-                              <div className="flex items-center gap-2">
-                                <Phone className="text-gray-400 w-3 h-3" />
-                                <span>{patient.phone || 'No phone'}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-xs">
-                                <Mail className="text-gray-400 w-3 h-3" />
-                                <span>{patient.email || 'No email'}</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <div className="inline-flex flex-col items-center">
-                              <span className="text-lg font-bold text-gray-900 dark:text-white">{patient.visit_count}</span>
-                              {patient.visit_count > 1 && (
-                                <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-[#004F7C] dark:text-blue-300 px-2 py-0.5 rounded-full mt-1">Returning</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col text-gray-600 dark:text-gray-300">
-                              <span className="font-medium flex items-center gap-1.5">
-                                <Calendar className="text-gray-400 w-3 h-3" /> 
-                                {formatDate(patient.last_visit_date)}
-                              </span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1.5">
-                                <History className="text-gray-400 w-3 h-3" />
-                                {formatTime(patient.last_visit_time)}
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Pagination Controls */}
-              {filteredPatients.length > 0 && (
-                <div className="flex items-center justify-between px-6 py-4 bg-gray-50 dark:bg-gray-800/80 border-t border-gray-200 dark:border-gray-700">
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    Showing <span className="font-semibold text-gray-900 dark:text-white">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-semibold text-gray-900 dark:text-white">{Math.min(currentPage * itemsPerPage, filteredPatients.length)}</span> of <span className="font-semibold text-gray-900 dark:text-white">{filteredPatients.length}</span> entries
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                      disabled={currentPage === 1}
-                      className="p-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronLeft className="w-5 h-5" />
-                    </motion.button>
-                    <div className="px-4 py-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-sm font-semibold text-gray-700 dark:text-gray-200">
-                      Page {currentPage} of {totalPages}
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
-                      disabled={currentPage === totalPages}
-                      className="p-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronRight className="w-5 h-5" />
-                    </motion.button>
-                  </div>
-                </div>
-              )}
-            </motion.div>
+    <main className="flex-1 bg-slate-50 dark:bg-slate-900 min-h-screen relative w-full">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Top Header & Breadcrumbs */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#0067A1] mb-1">
+              <span>Clinical Practice</span>
+              <span>/</span>
+              <span>Patients & Bookings</span>
+              <span>/</span>
+              <button
+                onClick={() => router.push("/admin/booking-attempts")}
+                className="hover:underline cursor-pointer"
+              >
+                Consultations Tracker
+              </button>
+              <span>/</span>
+              <span className="text-slate-500">Doctor Patient Directory</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.push("/admin/booking-attempts")}
+                className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 rounded-lg text-slate-700 dark:text-slate-200 transition-colors shadow-2xs cursor-pointer"
+                title="Back to consultations tracker"
+              >
+                <ArrowLeft className="w-4 h-4 text-slate-700 dark:text-slate-200" />
+              </button>
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
+                Doctor Patient Directory
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#0067A1]/10 text-[#0067A1] border border-[#0067A1]/20">
+                  {totalPatients} Total Patients
+                </span>
+              </h1>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-3xl">
+              Audit all clinical patient records, visit histories, and demographic details treated under this doctor profile.
+            </p>
           </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchPatients}
+              disabled={loading}
+              className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 rounded-lg text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+              title="Refresh patient records"
+            >
+              <RotateCcw
+                className={`w-3.5 h-3.5 text-[#0067A1] ${
+                  loading ? "animate-spin" : ""
+                }`}
+              />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Clinical KPI Metrics Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-1 mb-2">
+              <div className="p-2 rounded-lg bg-blue-50 text-[#0067A1]">
+                <Users className="w-4 h-4 text-[#0067A1]" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-[#0067A1]">
+                Cohort
+              </span>
+            </div>
+            <div>
+              <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-none">
+                {totalPatients}
+              </p>
+              <p className="text-xs font-medium text-slate-500 mt-1">
+                Unique treated patients
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-1 mb-2">
+              <div className="p-2 rounded-lg bg-emerald-50 text-emerald-700">
+                <Activity className="w-4 h-4 text-emerald-700" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                Completed
+              </span>
+            </div>
+            <div>
+              <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-none">
+                {totalVisits}
+              </p>
+              <p className="text-xs font-medium text-slate-500 mt-1">
+                Total consultations conducted
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-1 mb-2">
+              <div className="p-2 rounded-lg bg-indigo-50 text-indigo-700">
+                <History className="w-4 h-4 text-indigo-700" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                Retention
+              </span>
+            </div>
+            <div>
+              <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-none">
+                {returningPatients}
+              </p>
+              <p className="text-xs font-medium text-slate-500 mt-1">
+                Returning patients (&gt;1 visit)
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-1 mb-2">
+              <div className="p-2 rounded-lg bg-teal-50 text-teal-700">
+                <ShieldCheck className="w-4 h-4 text-teal-700" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
+                Verified
+              </span>
+            </div>
+            <div>
+              <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-none">
+                {verifiedCount}
+              </p>
+              <p className="text-xs font-medium text-slate-500 mt-1">
+                Identity verified patients
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Search & Filter Toolbar */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 shadow-2xs space-y-3">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+            <div className="relative flex-1 min-w-[280px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <input
+                type="text"
+                placeholder="Search patient by name, phone, or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1]"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2.5 top-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={genderFilter}
+                onChange={(e) => setGenderFilter(e.target.value)}
+                className="py-2 px-2.5 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0067A1] cursor-pointer"
+              >
+                <option value="all">All Genders</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+
+              {isFilterActive && (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700/60 text-xs text-slate-500">
+            <span>
+              Showing{" "}
+              <strong className="text-slate-800 dark:text-slate-200">
+                {paginatedPatients.length}
+              </strong>{" "}
+              of {filteredPatients.length} patients
+            </span>
+            {isFilterActive && (
+              <span className="text-[#0067A1] font-semibold flex items-center gap-1">
+                Filters active
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Patient Table Container */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs overflow-hidden">
+          {loading ? (
+            <div className="py-24 flex flex-col items-center justify-center">
+              <div className="w-10 h-10 border-4 border-[#0067A1]/20 border-t-[#0067A1] rounded-full animate-spin"></div>
+              <p className="mt-3 text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Loading patient directory...
+              </p>
+            </div>
+          ) : error ? (
+            <div className="py-16 text-center text-rose-600 font-medium px-4">
+              <p className="text-sm">{error}</p>
+              <button
+                onClick={fetchPatients}
+                className="mt-3 px-3 py-1.5 bg-[#0067A1] text-white text-xs font-semibold rounded-lg hover:bg-[#004F7C] cursor-pointer"
+              >
+                Retry
+              </button>
+            </div>
+          ) : filteredPatients.length === 0 ? (
+            <div className="py-20 text-center flex flex-col items-center max-w-sm mx-auto px-4">
+              <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mb-3">
+                <User className="w-6 h-6 text-slate-400" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">
+                No Patients Found
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                {isFilterActive
+                  ? "No patient records match your active search criteria."
+                  : "No patients have been recorded under this doctor yet."}
+              </p>
+              {isFilterActive && (
+                <button
+                  onClick={handleResetFilters}
+                  className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] transition-colors cursor-pointer"
+                >
+                  Reset All Filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Responsive Mobile Cards View (md:hidden) */}
+              <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-700">
+                {paginatedPatients.map((patient, idx) => (
+                  <div key={patient.id || idx} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-[#0067A1]/10 text-[#0067A1] font-bold text-xs flex items-center justify-center shrink-0 border border-[#0067A1]/20">
+                          {getInitials(patient.full_name)}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                            {patient.full_name}
+                          </h4>
+                          <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
+                            <span>{patient.gender || "Unknown"}</span>
+                            {patient.age && <span>• {patient.age} yrs</span>}
+                            {patient.blood_group && (
+                              <span className="font-semibold text-rose-600">
+                                • {patient.blood_group}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
+                        {patient.visit_count} {patient.visit_count === 1 ? "visit" : "visits"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-1 text-xs text-slate-600 dark:text-slate-300">
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{patient.phone || "No phone provided"}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="truncate">{patient.email || "No email provided"}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-[11px] text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-slate-400" />
+                        Last: {formatDate(patient.last_visit_date)}
+                      </span>
+                      {patient.is_identity_verified && (
+                        <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
+                          <ShieldCheck className="w-3.5 h-3.5" /> Verified
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View (hidden md:block) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 uppercase text-[10.5px] font-bold tracking-wider">
+                    <tr>
+                      <th className="px-5 py-3.5">Patient Info</th>
+                      <th className="px-5 py-3.5">Contact Details</th>
+                      <th className="px-5 py-3.5 text-center">Total Visits</th>
+                      <th className="px-5 py-3.5">Last Consultation</th>
+                      <th className="px-5 py-3.5 text-right">Verification</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {paginatedPatients.map((patient, idx) => (
+                      <tr
+                        key={patient.id || idx}
+                        className="hover:bg-slate-50/70 dark:hover:bg-slate-700/30 transition-colors"
+                      >
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-[#0067A1]/10 text-[#0067A1] font-bold text-xs flex items-center justify-center shrink-0 border border-[#0067A1]/20">
+                              {getInitials(patient.full_name)}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
+                                {patient.full_name}
+                              </p>
+                              <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                                <span>{patient.gender || "Unknown"}</span>
+                                {patient.age && <span>• {patient.age} yrs</span>}
+                                {patient.blood_group && (
+                                  <span className="inline-flex items-center gap-0.5 text-rose-600 font-semibold">
+                                    <Droplet className="w-2.5 h-2.5" />
+                                    {patient.blood_group}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-3.5">
+                          <div className="space-y-0.5 text-xs text-slate-600 dark:text-slate-300">
+                            <div className="flex items-center gap-1.5">
+                              <Phone className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{patient.phone || "—"}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-slate-500">
+                              <Mail className="w-3.5 h-3.5 text-slate-400" />
+                              <span className="truncate max-w-[200px]">
+                                {patient.email || "—"}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-3.5 text-center">
+                          <div className="inline-flex flex-col items-center">
+                            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              {patient.visit_count}
+                            </span>
+                            {patient.visit_count > 1 && (
+                              <span className="text-[9.5px] font-bold uppercase tracking-wider text-teal-700 mt-1">
+                                Returning
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-3.5">
+                          <div className="flex flex-col text-xs text-slate-600 dark:text-slate-300">
+                            <span className="font-semibold flex items-center gap-1.5 text-slate-900 dark:text-white">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                              {formatDate(patient.last_visit_date)}
+                            </span>
+                            <span className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                              <History className="w-3 h-3 text-slate-400" />
+                              {formatTime(patient.last_visit_time)}
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="px-5 py-3.5 text-right">
+                          {patient.is_identity_verified ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                              Verified
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                              Unverified
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* Pagination Controls */}
+          {filteredPatients.length > 0 && (
+            <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-400">
+              <div>
+                Showing{" "}
+                <strong className="text-slate-900 dark:text-white">
+                  {(currentPage - 1) * itemsPerPage + 1}
+                </strong>{" "}
+                to{" "}
+                <strong className="text-slate-900 dark:text-white">
+                  {Math.min(currentPage * itemsPerPage, filteredPatients.length)}
+                </strong>{" "}
+                of {filteredPatients.length} patients
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="First Page"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+
+                {getPageNumbers().map((num) => (
+                  <button
+                    key={num}
+                    onClick={() => setCurrentPage(num)}
+                    className={`px-2.5 py-1 rounded text-xs font-semibold cursor-pointer ${
+                      num === currentPage
+                        ? "bg-[#0067A1] text-white shadow-xs"
+                        : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    {num}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="Next Page"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="Last Page"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </main>
