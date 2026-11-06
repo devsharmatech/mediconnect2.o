@@ -100,7 +100,8 @@ export default function PatientVerificationCard({
     async function loadVerification() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/doctor/patient-verification?appointment_id=${appointment.id}`);
+        const patientId = appointment?.patient_id || appointment?.patient?.id || "";
+        const res = await fetch(`/api/doctor/patient-verification?appointment_id=${appointment.id}&patient_id=${patientId}`);
         const data = await res.json();
         if (isMounted && data.success && data.verification) {
           setVerification(data.verification);
@@ -243,24 +244,30 @@ export default function PatientVerificationCard({
 
   // 1. Sleek Verified State (Compact, professional, non-intrusive)
   if (isVerified) {
+    const isPrior = Boolean(verification.is_previous_verification);
     return (
-      <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 transition-all">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 sm:p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 transition-all">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-7 h-7 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0">
             <Check className="w-4 h-4 stroke-[2.5]" />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h4 className="text-xs sm:text-sm font-bold text-emerald-950">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h4 className="text-xs sm:text-[13px] font-bold text-emerald-950">
                 Identity & Consent Verified
               </h4>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                Compliant
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                {isPrior ? "Prior Record" : "Compliant"}
               </span>
+              {isPrior && (
+                <span className="text-[10.5px] font-medium text-emerald-700 bg-white/80 px-1.5 py-0.2 rounded border border-emerald-200">
+                  Verified in previous visit
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-emerald-800/80 mt-0.5 truncate">
               {verification.verified_at
-                ? `Verified on ${new Date(verification.verified_at).toLocaleDateString("en-IN", {
+                ? `${isPrior ? "Confirmed previously on" : "Verified on"} ${new Date(verification.verified_at).toLocaleDateString("en-IN", {
                     day: "numeric",
                     month: "short",
                     year: "numeric",
@@ -275,7 +282,7 @@ export default function PatientVerificationCard({
         <button
           type="button"
           onClick={() => setVerification(null)}
-          className="self-start sm:self-center px-2.5 py-1 text-xs font-semibold text-emerald-800 hover:text-emerald-950 hover:bg-emerald-100/70 rounded-md transition-colors cursor-pointer"
+          className="self-start sm:self-center px-2 py-1 text-xs font-semibold text-emerald-800 hover:text-emerald-950 hover:bg-emerald-100/70 rounded border border-emerald-300 transition-colors cursor-pointer"
         >
           Re-verify
         </button>

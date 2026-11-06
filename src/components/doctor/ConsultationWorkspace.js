@@ -589,7 +589,18 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
               {patientObj.full_name.charAt(0).toUpperCase()}
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-800">{patientObj.full_name}</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <p className="text-xs font-bold text-slate-800">{patientObj.full_name}</p>
+                {patientObj.is_identity_verified && (
+                  <span 
+                    className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    title={patientObj.identity_verified_at ? `Identity Verified on ${new Date(patientObj.identity_verified_at).toLocaleDateString()}` : "Identity Verified"}
+                  >
+                    <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
+                    Identity Verified
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2 text-[11px] text-slate-500">
                 {patientObj.gender && <span className="capitalize">{patientObj.gender}</span>}
                 {patientAge && <span className="font-semibold text-[#0067A1]">• Age: {patientAge}</span>}

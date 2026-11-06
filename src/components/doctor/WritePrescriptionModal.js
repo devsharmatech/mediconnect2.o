@@ -1458,7 +1458,14 @@ export default function WritePrescriptionModal({
 
                   {meta?.patient_name && (
                     <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-100">
-                      <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-1">Patient</p>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider">Patient</p>
+                        {(appointment?.patient?.is_identity_verified || meta?.is_identity_verified) && (
+                          <span className="inline-flex items-center gap-0.5 text-[9.5px] font-semibold text-emerald-700 bg-emerald-100/90 px-1.5 py-0.2 rounded border border-emerald-200">
+                            ✓ Verified
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs font-semibold text-slate-800">{meta.patient_name}</p>
                       {meta.patient_gender && <p className="text-[11px] text-slate-600 font-normal capitalize">{meta.patient_gender}</p>}
                       {patientAge && <p className="text-[11px] font-medium text-slate-700">Age: {patientAge}</p>}

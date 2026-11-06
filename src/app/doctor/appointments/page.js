@@ -30,6 +30,7 @@ import {
   ExternalLink,
   Stethoscope,
   Copy,
+  ShieldCheck,
   X
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -1058,12 +1059,21 @@ export default function DoctorAppointmentsPage() {
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                             <h4 className="text-xs sm:text-[13px] font-bold text-slate-800 truncate leading-snug">
                               {apt.patient?.full_name && !apt.patient.full_name.includes("DE-IDENTIFIED")
                                 ? apt.patient.full_name
                                 : `Patient #${apt.patient?.un_id || "Verified"}`}
                             </h4>
+                            {apt.patient?.is_identity_verified && (
+                              <span 
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0"
+                                title={apt.patient?.identity_verified_at ? `Identity Verified on ${new Date(apt.patient.identity_verified_at).toLocaleDateString()}` : "Identity Verified"}
+                              >
+                                <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
+                                Verified
+                              </span>
+                            )}
                             {apt.patient?.blood_group && (
                               <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9.5px] font-semibold bg-rose-50 text-rose-600 border border-rose-100 shrink-0">
                                 <Droplet className="w-2.5 h-2.5 text-rose-500" />
@@ -1354,20 +1364,23 @@ export default function DoctorAppointmentsPage() {
       {/* Appointment Details Modal */}
       {selectedAppointment && (
         <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-hidden">
-          <div className="w-full h-full sm:h-auto sm:max-w-2xl rounded-none sm:rounded-lg bg-white border-0 sm:border border-slate-200 sm:max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="sticky top-0 bg-white border-b border-slate-100 z-10 p-0 shrink-0">
-              <div className="px-5 py-4 flex items-center justify-between">
+          <div className="w-full h-full sm:h-auto sm:max-w-xl rounded-none sm:rounded-xl bg-white border-0 sm:border border-slate-200 sm:max-h-[90vh] flex flex-col overflow-hidden shadow-xl">
+            {/* Header */}
+            <div className="sticky top-0 bg-white border-b border-slate-100 z-10 shrink-0">
+              <div className="px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-                    Appointment Details
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold ${STATUS_COLORS[selectedAppointment.status] || "bg-slate-100 text-slate-700"}`}>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                      Appointment Details
+                    </h3>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS_COLORS[selectedAppointment.status] || "bg-slate-100 text-slate-700"}`}>
                       {getStatusIcon(selectedAppointment.status)}
                       <span className="capitalize">{selectedAppointment.status}</span>
                     </span>
-                  </h3>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <span className="text-xs text-slate-500">Booking ID:</span>
-                    <span className="font-mono text-xs font-bold text-[#0067A1] bg-[#0067A1]/10 px-2 py-0.5 rounded border border-[#0067A1]/20">
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[11px] text-slate-500">Booking ID:</span>
+                    <span className="font-mono text-xs font-bold text-[#0067A1] bg-[#0067A1]/10 px-1.5 py-0.5 rounded border border-[#0067A1]/20">
                       #{formatAppointmentId(selectedAppointment.id)}
                     </span>
                     <button
@@ -1377,7 +1390,7 @@ export default function DoctorAppointmentsPage() {
                         toast.success("Appointment ID copied");
                       }}
                       title={`Full ID: ${selectedAppointment.id}\nClick to copy`}
-                      className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 hover:text-[#0067A1] bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded border border-slate-200 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 hover:text-[#0067A1] bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded border border-slate-200 transition-colors cursor-pointer"
                     >
                       <Copy className="w-3 h-3" />
                       <span>Copy</span>
@@ -1386,245 +1399,206 @@ export default function DoctorAppointmentsPage() {
                 </div>
                 <button
                   onClick={handleCloseModal}
-                  className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
-                  <XCircle className="w-5 h-5" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
             
-            <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 flex-1 min-h-0">
-              <div className="space-y-6">
-              {/* Patient Info */}
-              <div className="flex items-start gap-4">
-                <div className="w-14 h-14 rounded-lg bg-[#0067A1]/10 border border-[#0067A1]/20 flex items-center justify-center">
-                  <User className="w-7 h-7 text-[#0067A1]" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="text-lg sm:text-xl font-bold text-slate-800">
-                    {selectedAppointment.patient?.full_name && !selectedAppointment.patient.full_name.includes("DE-IDENTIFIED")
-                      ? selectedAppointment.patient.full_name
-                      : `Patient #${selectedAppointment.patient?.un_id || "Verified"}`}
-                  </h4>
-                  <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-slate-600">
-                    {selectedAppointment.patient?.gender && (
-                      <span className="capitalize">• {selectedAppointment.patient.gender}</span>
-                    )}
-                    {(() => {
-                      let displayAge = selectedAppointment.patient?.age;
-                      if (!displayAge && selectedAppointment.patient?.date_of_birth) {
-                        const dob = new Date(selectedAppointment.patient.date_of_birth);
-                        if (!isNaN(dob.getTime())) {
-                          const today = new Date();
-                          let a = today.getFullYear() - dob.getFullYear();
-                          const m = today.getMonth() - dob.getMonth();
-                          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) a--;
-                          if (a >= 0) displayAge = `${a} years`;
+            {/* Modal Body - Sleek, Compact, Non-Bulky Clinical Layout */}
+            <div className="overflow-y-auto px-4 py-3.5 sm:px-5 sm:py-4 flex-1 min-h-0 space-y-3">
+              {/* Unified Patient Profile Card with Verified Highlight */}
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 sm:p-3.5">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#0067A1]/10 border border-[#0067A1]/20 flex items-center justify-center shrink-0">
+                    <User className="w-5 h-5 text-[#0067A1]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                        {selectedAppointment.patient?.full_name && !selectedAppointment.patient.full_name.includes("DE-IDENTIFIED")
+                          ? selectedAppointment.patient.full_name
+                          : `Patient #${selectedAppointment.patient?.un_id || "Verified"}`}
+                      </h4>
+                      {/* Identity Verification Highlight */}
+                      {selectedAppointment.patient?.is_identity_verified ? (
+                        <span 
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs"
+                          title={selectedAppointment.patient?.identity_verified_at ? `Verified on ${new Date(selectedAppointment.patient.identity_verified_at).toLocaleDateString()}` : "Patient identity confirmed"}
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                          Identity Verified
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                          Verification Pending
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Patient Attributes Strip */}
+                    <div className="flex flex-wrap items-center gap-2.5 mt-1 text-xs text-slate-600">
+                      {selectedAppointment.patient?.gender && (
+                        <span className="capitalize">{selectedAppointment.patient.gender}</span>
+                      )}
+                      {(() => {
+                        let displayAge = selectedAppointment.patient?.age;
+                        if (!displayAge && selectedAppointment.patient?.date_of_birth) {
+                          const dob = new Date(selectedAppointment.patient.date_of_birth);
+                          if (!isNaN(dob.getTime())) {
+                            const today = new Date();
+                            let a = today.getFullYear() - dob.getFullYear();
+                            const m = today.getMonth() - dob.getMonth();
+                            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) a--;
+                            if (a >= 0) displayAge = `${a} years`;
+                          }
                         }
-                      }
-                      if (!displayAge) return null;
-                      const str = String(displayAge);
-                      return <span>• {str.includes("year") ? str : `${str} years`}</span>;
-                    })()}
-                    {selectedAppointment.patient?.blood_group && (
-                      <span className="inline-flex items-center gap-1.5 font-medium text-red-600">
-                        <Droplet className="w-4 h-4" />
-                        {selectedAppointment.patient.blood_group}
-                      </span>
-                    )}
+                        if (!displayAge) return null;
+                        const str = String(displayAge);
+                        return <span>• {str.includes("year") ? str : `${str} years`}</span>;
+                      })()}
+                      {selectedAppointment.patient?.blood_group && (
+                        <span className="inline-flex items-center gap-1 font-semibold text-rose-600">
+                          <Droplet className="w-3.5 h-3.5" />
+                          {selectedAppointment.patient.blood_group}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Inline Contact & Address Strip */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t border-slate-200/70 text-xs text-slate-600">
+                      {selectedAppointment.patient?.phone && (
+                        <div className="flex items-center gap-1">
+                          <Phone className="w-3 h-3 text-[#0067A1]" />
+                          <a
+                            href={`tel:${selectedAppointment.patient.phone}`}
+                            className="font-medium text-slate-800 hover:text-[#0067A1] hover:underline"
+                          >
+                            {formatPatientPhone(selectedAppointment.patient.phone)}
+                          </a>
+                        </div>
+                      )}
+                      {formatPatientEmail(selectedAppointment.patient?.email) && (
+                        <div className="flex items-center gap-1">
+                          <Mail className="w-3 h-3 text-[#0067A1]" />
+                          <a
+                            href={`mailto:${selectedAppointment.patient.email}`}
+                            className="text-slate-700 hover:text-[#0067A1] hover:underline truncate max-w-[220px]"
+                          >
+                            {formatPatientEmail(selectedAppointment.patient.email)}
+                          </a>
+                        </div>
+                      )}
+                      {selectedAppointment.patient?.address && (
+                        <div className="flex items-center gap-1 w-full text-[11px] text-slate-500 mt-0.5">
+                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                          <span className="truncate">{selectedAppointment.patient.address}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Contact Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {selectedAppointment.patient?.phone && (
-                  <div className="bg-slate-50 rounded-md p-3.5 border border-slate-100">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-md bg-white border border-slate-200">
-                        <Phone className="w-4 h-4 text-[#0067A1]" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500">Phone Number</p>
-                        <p className="font-medium text-slate-800 text-sm">{formatPatientPhone(selectedAppointment.patient.phone)}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {formatPatientEmail(selectedAppointment.patient?.email) && (
-                  <div className="bg-slate-50 rounded-md p-3.5 border border-slate-100">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-md bg-white border border-slate-200">
-                        <Mail className="w-4 h-4 text-[#0067A1]" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500">Email Address</p>
-                        <p className="font-medium text-slate-800 text-sm break-all">{formatPatientEmail(selectedAppointment.patient.email)}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Appointment Details */}
-              <div className="bg-slate-50 rounded-md p-4 border border-slate-200">
-                <h5 className="text-xs font-bold text-[#0067A1] uppercase tracking-wider mb-2.5">Appointment Information</h5>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                  <div>
-                    <p className="text-xs text-slate-500">Booking Ref</p>
-                    <p className="font-mono font-bold text-[#0067A1] text-sm">#{formatAppointmentId(selectedAppointment.id)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">Date</p>
-                    <p className="font-medium text-slate-800 text-sm">{selectedAppointment.appointment_date}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">Time</p>
-                    <p className="font-medium text-slate-800 text-sm">{formatTime(selectedAppointment.appointment_time)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">Type</p>
-                    <p className="font-medium text-slate-800 text-sm capitalize">
-                      {selectedAppointment.appointment_type?.replace('_', ' ') || 'N/A'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">Status</p>
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold ${
-                      STATUS_COLORS[selectedAppointment.status] || "bg-slate-100 text-slate-700"
-                    }`}>
-                      {getStatusIcon(selectedAppointment.status)}
-                      <span className="capitalize">{selectedAppointment.status}</span>
-                    </span>
-                  </div>
+              {/* Compact Appointment Info Strip */}
+              <div className="bg-white border border-slate-200 rounded-lg p-2.5 sm:p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Date</p>
+                  <p className="font-semibold text-slate-800 mt-0.5">{selectedAppointment.appointment_date}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Time</p>
+                  <p className="font-semibold text-slate-800 mt-0.5">{formatTime(selectedAppointment.appointment_time)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Type</p>
+                  <p className="font-semibold text-slate-800 capitalize mt-0.5">
+                    {selectedAppointment.appointment_type?.replace(/_/g, ' ') || 'Consultation'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Care Episode</p>
+                  <p className="font-mono font-semibold text-[#0067A1] mt-0.5 truncate">
+                    {selectedAppointment.care_episode_id 
+                      ? `EP-${String(selectedAppointment.care_episode_id).slice(0, 8).toUpperCase()}` 
+                      : (selectedAppointment.care_episode?.episode_code || 'EP-ACTIVE')}
+                  </p>
                 </div>
               </div>
 
-              {/* Patient Identity & Consent Verification (Every Consultation: In-Clinic, Video, Home Visit) */}
+              {/* Patient Identity & Consent Verification */}
               {selectedAppointment && !["cancelled", "rejected"].includes(String(selectedAppointment.status).toLowerCase()) && (
                 <PatientVerificationCard
                   appointment={selectedAppointment}
                   doctorUserId={typeof window !== "undefined" ? localStorage.getItem("userId") : null}
-                  onVerificationComplete={() => {
-                    toast.success("Verification saved");
+                  onVerificationComplete={(newVerification) => {
+                    const isVerified = newVerification?.status === "verified";
+                    setSelectedAppointment((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            patient: {
+                              ...prev.patient,
+                              is_identity_verified: isVerified,
+                              identity_verified_at: newVerification?.verified_at || new Date().toISOString(),
+                            },
+                          }
+                        : null
+                    );
+                    setAppointments((prevList) =>
+                      prevList.map((item) => {
+                        const pId = item.patient_id || item.patient?.id;
+                        const targetId = selectedAppointment.patient_id || selectedAppointment.patient?.id;
+                        if (pId && targetId && pId === targetId) {
+                          return {
+                            ...item,
+                            patient: {
+                              ...item.patient,
+                              is_identity_verified: isVerified,
+                              identity_verified_at: newVerification?.verified_at || new Date().toISOString(),
+                            },
+                          };
+                        }
+                        return item;
+                      })
+                    );
                   }}
                 />
               )}
 
-              {/* Address & Reason */}
-              <div className="space-y-4">
-                {selectedAppointment.screening && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <BarChart3 className="w-4 h-4 text-slate-400" />
-                      <p className="text-sm font-medium text-slate-700">Screening Summary</p>
+              {/* Reason & Screening Summary (Compact) */}
+              {(selectedAppointment.reason || selectedAppointment.screening) && (
+                <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-2.5 sm:p-3 space-y-2 text-xs">
+                  {selectedAppointment.reason && (
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Consultation Reason</p>
+                      <p className="text-slate-800 whitespace-pre-line leading-relaxed">{selectedAppointment.reason}</p>
                     </div>
-                    <div className="bg-slate-50 rounded-md p-3.5 space-y-3 text-sm text-slate-700 border border-slate-100">
-                      {selectedAppointment.screening.initial_symptoms && (
-                        <div>
-                          <p className="text-xs font-semibold text-slate-500 mb-1">Commonly reported symptoms (optional). Doctor may add or modify.</p>
-                          <p className="whitespace-pre-line">
-                            {selectedAppointment.screening.initial_symptoms}
-                          </p>
-                        </div>
-                      )}
-                      {selectedAppointment.screening.analysis?.summary && (
-                        <div>
-                          <p className="text-xs font-semibold text-slate-500 mb-1">Assistive Assessment</p>
-                          <p className="whitespace-pre-line">
-                            {selectedAppointment.screening.analysis.summary}
-                          </p>
-                        </div>
-                      )}
-                      {(selectedAppointment.screening.analysis?.urgency ||
-                        selectedAppointment.screening.analysis?.recommended_specialties?.length ||
-                        selectedAppointment.screening.analysis?.recommended_lab_tests?.length) && (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                          {selectedAppointment.screening.analysis?.urgency && (
-                            <div>
-                              <p className="text-[11px] font-semibold text-slate-500 mb-1">Urgency</p>
-                              <p className="text-slate-800 capitalize">
-                                {selectedAppointment.screening.analysis.urgency}
-                              </p>
-                            </div>
-                          )}
-                          {selectedAppointment.screening.analysis?.recommended_specialties?.length && (
-                            <div>
-                              <p className="text-[11px] font-semibold text-slate-500 mb-1">
-                                Suggested Specialties
-                              </p>
-                              <p className="text-slate-800">
-                                {selectedAppointment.screening.analysis.recommended_specialties.join(", ")}
-                              </p>
-                            </div>
-                          )}
-                          {selectedAppointment.screening.analysis?.recommended_lab_tests?.length && (
-                            <div>
-                              <p className="text-[11px] font-semibold text-slate-500 mb-1">
-                                Suggested Lab Tests
-                              </p>
-                              <p className="text-slate-800">
-                                {selectedAppointment.screening.analysis.recommended_lab_tests.join(", ")}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                  )}
+                  {selectedAppointment.screening?.initial_symptoms && (
+                    <div className="pt-1.5 border-t border-slate-200/60">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Reported Symptoms</p>
+                      <p className="text-slate-800">{selectedAppointment.screening.initial_symptoms}</p>
                     </div>
-                  </div>
-                )}
-                {selectedAppointment.appointment_type === 'clinic_visit' && selectedAppointment.doctor?.clinic_address && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <MapPin className="w-4 h-4 text-slate-400" />
-                      <p className="text-sm font-medium text-slate-700">Clinic Location</p>
+                  )}
+                  {selectedAppointment.screening?.analysis?.summary && (
+                    <div className="pt-1.5 border-t border-slate-200/60">
+                      <p className="text-[10px] font-bold text-[#0067A1] uppercase tracking-wider mb-0.5">Clinical Note / Screening</p>
+                      <p className="text-slate-700">{selectedAppointment.screening.analysis.summary}</p>
                     </div>
-                    <div className="bg-slate-50 rounded-md p-3.5 border border-slate-100">
-                      <p className="text-sm font-medium text-slate-800">
-                        {selectedAppointment.doctor.clinic_name}
-                      </p>
-                      <p className="text-sm text-slate-600 mt-1">
-                        {selectedAppointment.doctor.clinic_address}
-                      </p>
-                      {selectedAppointment.doctor.latitude && selectedAppointment.doctor.longitude && (
-                        <a
-                          href={`https://www.google.com/maps?q=${selectedAppointment.doctor.latitude},${selectedAppointment.doctor.longitude}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center mt-3 text-sm font-medium text-[#0067A1] hover:text-[#004F7C] transition-colors"
-                        >
-                          <MapPin className="w-4 h-4 mr-1.5" />
-                          View on Map
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {selectedAppointment.patient?.address && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <MapPin className="w-4 h-4 text-slate-400" />
-                      <p className="text-sm font-medium text-slate-700">Address</p>
-                    </div>
-                    <p className="text-sm text-slate-600 bg-slate-50 rounded-md p-3.5 border border-slate-100">
-                      {selectedAppointment.patient.address}
-                    </p>
-                  </div>
-                )}
+                  )}
+                </div>
+              )}
 
-                {selectedAppointment.reason && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <MessageSquare className="w-4 h-4 text-slate-400" />
-                      <p className="text-sm font-medium text-slate-700">Consultation Reason</p>
-                    </div>
-                    <p className="text-sm text-slate-600 bg-slate-50 rounded-md p-3.5 border border-slate-100 whitespace-pre-line">
-                      {selectedAppointment.reason}
-                    </p>
-                  </div>
-                )}
-              </div>
+              {/* Clinic Address if clinic visit */}
+              {selectedAppointment.appointment_type === 'clinic_visit' && selectedAppointment.doctor?.clinic_address && (
+                <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-2.5 text-xs">
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Clinic Location</p>
+                  <p className="font-semibold text-slate-800">{selectedAppointment.doctor.clinic_name}</p>
+                  <p className="text-slate-600 mt-0.5">{selectedAppointment.doctor.clinic_address}</p>
+                </div>
+              )}
             </div>
             
             <div className="sticky bottom-0 bg-white border-t border-slate-100 px-4 py-3 sm:px-6 sm:py-4 flex flex-wrap justify-end gap-2 sm:gap-3 z-10 shrink-0 pb-safe">
@@ -1716,7 +1690,6 @@ export default function DoctorAppointmentsPage() {
             </div>
           </div>
         </div>
-      </div>
       )}
 
       {/* Extend Appointment Time Modal */}

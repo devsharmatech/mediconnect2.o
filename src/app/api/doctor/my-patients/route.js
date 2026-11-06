@@ -32,7 +32,7 @@ export async function POST(req) {
     // 3. Fetch Patient Details and user phone numbers from AWS RDS
     const [patientRows, userRows] = await Promise.all([
       sql`
-        SELECT id, full_name, email, gender, date_of_birth, blood_group
+        SELECT id, full_name, email, gender, date_of_birth, blood_group, is_identity_verified, identity_verified_at
         FROM patient_details
         WHERE id = ANY(${patientIds}::uuid[])
       `,
@@ -81,6 +81,8 @@ export async function POST(req) {
           date_of_birth: pInfo.date_of_birth || "",
           age: calculatedAge,
           blood_group: pInfo.blood_group || "",
+          is_identity_verified: Boolean(pInfo.is_identity_verified),
+          identity_verified_at: pInfo.identity_verified_at || null,
           visit_count: 0,
           last_visit_date: apt.appointment_date,
           last_visit_time: apt.appointment_time,

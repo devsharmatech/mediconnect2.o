@@ -127,6 +127,8 @@ export async function POST(req) {
         p.date_of_birth AS patient_date_of_birth,
         p.blood_group AS patient_blood_group,
         p.address AS patient_address,
+        p.is_identity_verified AS patient_is_identity_verified,
+        p.identity_verified_at AS patient_identity_verified_at,
         u.phone_number AS patient_phone,
         u.un_id AS patient_un_id,
         d.full_name AS doctor_full_name,
@@ -230,6 +232,8 @@ export async function POST(req) {
         blood_group: a.patient_blood_group || null,
         address: a.patient_address || null,
         un_id: a.patient_un_id || null,
+        is_identity_verified: Boolean(a.patient_is_identity_verified),
+        identity_verified_at: a.patient_identity_verified_at || null,
       };
 
       const simpleDoctor = {

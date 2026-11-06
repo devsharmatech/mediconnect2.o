@@ -26,45 +26,82 @@ export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
     const appointment_id = searchParams.get("appointment_id");
+    let patient_id = searchParams.get("patient_id");
 
-    if (!appointment_id) {
-      return NextResponse.json({ success: false, error: "appointment_id is required" }, { status: 400 });
+    if (!appointment_id && !patient_id) {
+      return NextResponse.json({ success: false, error: "appointment_id or patient_id is required" }, { status: 400 });
     }
 
-    if (!isValidUUID(appointment_id)) {
-      return NextResponse.json({
-        success: true,
-        verification: null,
-        message: "Non-UUID appointment_id received, returning null verification record"
-      });
+    let verification = null;
+
+    if (appointment_id && isValidUUID(appointment_id)) {
+      const rows = await sql`
+        SELECT 
+          id,
+          appointment_id,
+          patient_id,
+          doctor_id,
+          status,
+          identity_confirmed,
+          consent_confirmed,
+          is_minor,
+          guardian_name,
+          guardian_relationship,
+          guardian_phone,
+          discrepancy_reason,
+          discrepancy_notes,
+          verified_at,
+          metadata,
+          created_at
+        FROM patient_identity_verifications
+        WHERE appointment_id = ${appointment_id}
+        LIMIT 1
+      `;
+      if (rows.length > 0) {
+        verification = rows[0];
+      } else if (!patient_id) {
+        const aptRows = await sql`SELECT patient_id FROM appointments WHERE id = ${appointment_id} LIMIT 1`;
+        if (aptRows.length > 0) patient_id = aptRows[0].patient_id;
+      }
     }
 
-    const rows = await sql`
-      SELECT 
-        id,
-        appointment_id,
-        patient_id,
-        doctor_id,
-        status,
-        identity_confirmed,
-        consent_confirmed,
-        is_minor,
-        guardian_name,
-        guardian_relationship,
-        guardian_phone,
-        discrepancy_reason,
-        discrepancy_notes,
-        verified_at,
-        metadata,
-        created_at
-      FROM patient_identity_verifications
-      WHERE appointment_id = ${appointment_id}
-      LIMIT 1
-    `;
+    // If no direct verification for this appointment yet, check if patient was verified in any previous appointment
+    if (!verification && patient_id && isValidUUID(patient_id)) {
+      const prevRows = await sql`
+        SELECT 
+          id,
+          appointment_id,
+          patient_id,
+          doctor_id,
+          status,
+          identity_confirmed,
+          consent_confirmed,
+          is_minor,
+          guardian_name,
+          guardian_relationship,
+          guardian_phone,
+          discrepancy_reason,
+          discrepancy_notes,
+          verified_at,
+          metadata,
+          created_at
+        FROM patient_identity_verifications
+        WHERE patient_id = ${patient_id} AND status = 'verified' AND identity_confirmed = true
+        ORDER BY verified_at DESC
+        LIMIT 1
+      `;
+      if (prevRows.length > 0) {
+        verification = {
+          ...prevRows[0],
+          is_previous_verification: true,
+          previous_appointment_id: prevRows[0].appointment_id,
+        };
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      verification: rows[0] || null
+      verification
     });
   } catch (error) {
     console.error("GET /api/doctor/patient-verification error:", error);
@@ -184,6 +221,25 @@ export async function POST(req) {
         metadata = EXCLUDED.metadata
       RETURNING *
     `;
+
+    // 1.1 Persist identity verification flag in patient_details profile
+    try {
+      if (status === "verified") {
+        await sql`
+          UPDATE patient_details 
+          SET is_identity_verified = true, identity_verified_at = NOW() 
+          WHERE id = ${patient_id}
+        `;
+      } else if (status === "discrepancy_reported") {
+        await sql`
+          UPDATE patient_details 
+          SET is_identity_verified = false, identity_verified_at = NULL 
+          WHERE id = ${patient_id}
+        `;
+      }
+    } catch (pdErr) {
+      console.warn("Patient details identity update note:", pdErr.message);
+    }
 
     // 2. Audit Log Entry (Mandatory Requirement 4)
     try {

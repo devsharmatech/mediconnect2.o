@@ -164,7 +164,18 @@ export default function DoctorMyPatientsPage() {
                     {patient.full_name?.charAt(0) || 'P'}
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-slate-800">{patient.full_name}</h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-lg font-bold text-slate-800">{patient.full_name}</h3>
+                      {patient.is_identity_verified && (
+                        <span 
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          title={patient.identity_verified_at ? `Verified on ${new Date(patient.identity_verified_at).toLocaleDateString()}` : "Patient identity confirmed"}
+                        >
+                          <FaCheckCircle className="text-emerald-600 text-xs" />
+                          Identity Verified
+                        </span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-3 text-sm text-slate-500 mt-1">
                       <span className="flex items-center gap-1.5"><FaVenusMars className="text-slate-400" /> {patient.gender || 'N/A'}</span>
                       {(() => {
