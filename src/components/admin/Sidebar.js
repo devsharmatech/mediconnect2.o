@@ -82,6 +82,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
           subItems: [
             { name: "All Patients", path: `/admin/patients` },
             { name: "Appointments", path: `/admin/appointments` },
+            { name: "Transactions", path: `/admin/finance/transactions` },
             { name: "Booking Attempts", path: `/admin/booking-attempts` },
             { name: "BPL Requests", path: `/admin/bpl-requests` },
           ],
@@ -167,6 +168,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
           icon: <IndianRupee className="w-4 h-4" />,
           submenu: true,
           subItems: [
+            { name: "Patient Transactions", path: `/admin/finance/transactions` },
             { name: "Doctor Ledger", path: `/admin/finance/doctor-ledger` },
             { name: "Lab Ledger", path: `/admin/finance/lab-ledger` },
             { name: "Chemist Ledger", path: `/admin/finance/chemist-ledger` },

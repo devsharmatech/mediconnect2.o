@@ -27,6 +27,7 @@ import {
   RotateCcw,
   X,
   Check,
+  CreditCard,
 } from "lucide-react";
 
 const formatPatientUnId = (unId) => {
@@ -1283,10 +1284,17 @@ export default function PatientsPage() {
               </div>
 
               {/* Footer */}
-              <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end">
+              <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <a
+                  href={`/admin/finance/transactions?patient_id=${viewPatient.id}`}
+                  className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Transactions</span>
+                </a>
                 <button
                   onClick={() => setViewPatient(null)}
-                  className="px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                  className="px-4 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Close
                 </button>
