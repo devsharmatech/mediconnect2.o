@@ -224,27 +224,47 @@ export async function GET(req) {
     const taggedMatched = matchedTemplates.map(t => ({ ...t, is_recommended: true }));
     const taggedOther = otherTemplates.map(t => ({ ...t, is_recommended: false }));
 
-    // Prioritize matched templates first, followed by other templates
-    const resultTemplates = [...taggedMatched, ...taggedOther];
-
-    const cleanedTemplates = resultTemplates.map(t => {
-      if (!t) return t;
-      return {
-        ...t,
-        default_values: cleanTemplateDefaultValues(t.default_values)
-      };
+    // Sort matched templates so matching appointment_type appears first
+    taggedMatched.sort((a, b) => {
+      const aType = (a.appointment_type || "").toLowerCase();
+      const bType = (b.appointment_type || "").toLowerCase();
+      const aMatch = (aType === appointment_type.toLowerCase() || (appointment_type === "video_consultation" && aType.includes("video"))) ? 1 : 0;
+      const bMatch = (bType === appointment_type.toLowerCase() || (appointment_type === "video_consultation" && bType.includes("video"))) ? 1 : 0;
+      return bMatch - aMatch;
     });
+
+    const cleanedMatched = taggedMatched.map(t => ({
+      ...t,
+      default_values: cleanTemplateDefaultValues(t?.default_values)
+    }));
+
+    const cleanedOther = taggedOther.map(t => ({
+      ...t,
+      default_values: cleanTemplateDefaultValues(t?.default_values)
+    }));
+
+    const cleanedAll = [...cleanedMatched, ...cleanedOther];
+
+    const reqShowAll = searchParams.get("all") === "true" || searchParams.get("show_all") === "true";
+
+    // By default, if doctor's specialization has matching templates, return ONLY doctor's specialty templates!
+    const effectiveTemplates = (!reqShowAll && cleanedMatched.length > 0) ? cleanedMatched : cleanedAll;
 
     return Response.json(
       {
         success: true,
         data: {
-          templates: cleanedTemplates,
-          matchedTemplates: taggedMatched,
-          count: cleanedTemplates.length,
+          templates: effectiveTemplates,
+          matchedTemplates: cleanedMatched,
+          allTemplates: cleanedAll,
+          count: effectiveTemplates.length,
+          doctorSpecialization: specialization,
+          matchedSpecialties: matchedKeys,
         },
-        templates: cleanedTemplates,
-        count: cleanedTemplates.length,
+        templates: effectiveTemplates,
+        matched_templates: cleanedMatched,
+        all_templates: cleanedAll,
+        count: effectiveTemplates.length,
       },
       { headers: corsHeaders }
     );

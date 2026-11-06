@@ -172,7 +172,8 @@ export default function WritePrescriptionModal({
   const [isPrescriptionSigned, setIsPrescriptionSigned] = useState(false);
   const [signedPrescriptionUrl, setSignedPrescriptionUrl] = useState(null);
   const [templateSearch, setTemplateSearch] = useState("");
-  const [templateFilter, setTemplateFilter] = useState("all");
+  const [templateFilter, setTemplateFilter] = useState("specialty");
+  const [allTemplatesList, setAllTemplatesList] = useState([]);
 
   const [doctorInfo, setDoctorInfo] = useState({
     name: meta?.doctor_name || "",
@@ -239,8 +240,12 @@ export default function WritePrescriptionModal({
       .then((r) => r.json())
       .then((json) => {
         const loaded = json?.data?.templates || json?.templates || [];
+        const allLoaded = json?.data?.allTemplates || json?.all_templates || loaded;
         if (Array.isArray(loaded)) {
           setTemplates(loaded);
+        }
+        if (Array.isArray(allLoaded)) {
+          setAllTemplatesList(allLoaded);
         }
       })
       .catch((err) => console.warn("Failed to load templates:", err))
@@ -332,7 +337,11 @@ export default function WritePrescriptionModal({
 
   const specList = (effectiveDoctorSpec || meta?.doctor_specialization || "").split(",").map(s => s.trim()).filter(Boolean);
 
-  const filteredTemplates = templates.filter((tpl) => {
+  const basePool = (templateFilter === "all" && allTemplatesList.length > 0)
+    ? allTemplatesList
+    : templates;
+
+  const filteredTemplates = basePool.filter((tpl) => {
     if (!tpl) return false;
     const q = templateSearch.trim().toLowerCase();
     const nameMatch = !q || (tpl.name || "").toLowerCase().includes(q) ||
@@ -340,13 +349,14 @@ export default function WritePrescriptionModal({
       (tpl.appointment_type || "").toLowerCase().includes(q);
     if (!nameMatch) return false;
 
-    if (templateFilter === "recommended") {
-      return Boolean(tpl.is_recommended);
+    if (templateFilter === "specialty" || templateFilter === "recommended") {
+      return tpl.is_recommended !== false;
     }
     return true;
   });
 
-  const recommendedCount = templates.filter((t) => t.is_recommended).length;
+  const fullPool = allTemplatesList.length > 0 ? allTemplatesList : templates;
+  const recommendedCount = fullPool.filter((t) => t.is_recommended).length || templates.length;
 
   /* ── Get active template structure ── */
   const getActiveStructure = () => {
@@ -1426,7 +1436,11 @@ export default function WritePrescriptionModal({
               <div className="mb-4">
                 <h4 className="text-sm font-semibold text-slate-800">Choose a Prescription Template</h4>
                 <p className="text-xs text-slate-600 font-normal mt-0.5">
-                  Select a template to pre-fill clinical diagnosis, medicines and advice, or start with a blank form.
+                  {effectiveDoctorSpec ? (
+                    <>Templates pre-configured for <strong className="text-[#0067A1] font-semibold">{effectiveDoctorSpec}</strong>.</>
+                  ) : (
+                    "Select a template to pre-fill clinical diagnosis, medicines and advice, or start with a blank form."
+                  )}
                 </p>
               </div>
 
@@ -1454,8 +1468,20 @@ export default function WritePrescriptionModal({
                   )}
                 </div>
 
-                {recommendedCount > 0 && (
+                {fullPool.length > recommendedCount && recommendedCount > 0 && (
                   <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTemplateFilter("specialty")}
+                      className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                        templateFilter === "specialty" || templateFilter === "recommended"
+                          ? "bg-[#0067A1] text-white shadow-xs"
+                          : "bg-[#0067A1]/10 text-[#0067A1] hover:bg-[#0067A1]/20 border border-[#0067A1]/20"
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      <span>{effectiveDoctorSpec ? `${effectiveDoctorSpec} (${recommendedCount})` : `Your Specialty (${recommendedCount})`}</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => setTemplateFilter("all")}
@@ -1465,18 +1491,7 @@ export default function WritePrescriptionModal({
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       }`}
                     >
-                      All Templates ({templates.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTemplateFilter("recommended")}
-                      className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
-                        templateFilter === "recommended"
-                          ? "bg-emerald-600 text-white shadow-xs"
-                          : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/70"
-                      }`}
-                    >
-                      <span>★ Your Specialty ({recommendedCount})</span>
+                      All Specialties ({fullPool.length})
                     </button>
                   </div>
                 )}
