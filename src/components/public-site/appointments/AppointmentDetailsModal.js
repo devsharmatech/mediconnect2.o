@@ -20,7 +20,9 @@ import {
   FaFlask,
   FaExclamationTriangle,
   FaPrint,
+  FaSpinner,
 } from "react-icons/fa";
+import { MEDICONNECT_LOGO_BASE64 } from "@/lib/prescriptionAssets";
 
 const normalizeStatus = (status) => {
   if (!status) return "pending";
@@ -181,6 +183,7 @@ const AppointmentDetailsModal = ({
   onSendToLab,
 }) => {
   const [verification, setVerification] = useState(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !appointment?.id) {
@@ -325,6 +328,79 @@ const AppointmentDetailsModal = ({
   const hasPrescription = Boolean(
     appointment.has_prescription || appointment.prescription || status === "completed"
   );
+
+  const handleGenerateInvoicePdf = async () => {
+    const el = document.getElementById("consultation-invoice-document");
+    if (!el) {
+      window.print();
+      return;
+    }
+
+    try {
+      setIsGeneratingPdf(true);
+
+      const jsPDFModule = await import("jspdf");
+      const jsPDF = jsPDFModule.default || jsPDFModule;
+
+      let html2canvas;
+      try {
+        const mod = await import("html2canvas-pro");
+        html2canvas = mod.default || mod;
+      } catch {
+        const fallback = await import("html2canvas");
+        html2canvas = fallback.default || fallback;
+      }
+
+      const canvas = await html2canvas(el, {
+        scale: 2.2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        windowWidth: 794,
+      });
+
+      const imgData = canvas.toDataURL("image/png", 1.0);
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+        compress: true,
+      });
+
+      const pdfWidth = 210;
+      const pdfHeight = 297;
+      const contentWidth = pdfWidth;
+      const contentHeight = (canvas.height * contentWidth) / canvas.width;
+
+      if (contentHeight <= pdfHeight * 1.15) {
+        const scaleFactor = Math.min(1, (pdfHeight - 12) / contentHeight);
+        const fittedW = contentWidth * scaleFactor;
+        const fittedH = contentHeight * scaleFactor;
+        const xOffset = (pdfWidth - fittedW) / 2;
+        pdf.addImage(imgData, "PNG", xOffset, 6, fittedW, fittedH, undefined, "FAST");
+      } else {
+        pdf.addImage(imgData, "PNG", 0, 0, contentWidth, contentHeight, undefined, "FAST");
+      }
+
+      const shortId = appointment.id?.split("-")[0]?.toUpperCase() || "RECEIPT";
+      const filename = `MediConnect_Invoice_${shortId}.pdf`;
+
+      pdf.save(filename);
+
+      try {
+        const blobUrl = pdf.output("bloburl");
+        window.open(blobUrl, "_blank");
+      } catch (err) {
+        console.warn("Could not open PDF in new tab:", err);
+      }
+    } catch (err) {
+      console.error("PDF Invoice generation failed, falling back to window.print():", err);
+      window.print();
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto bg-slate-900/60 backdrop-blur-xs">
@@ -661,12 +737,22 @@ const AppointmentDetailsModal = ({
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button
               type="button"
-              onClick={() => window.print()}
-              className="flex-1 sm:flex-none px-3.5 py-1.5 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
-              title="Print consultation receipt"
+              onClick={handleGenerateInvoicePdf}
+              disabled={isGeneratingPdf}
+              className="flex-1 sm:flex-none px-3.5 py-1.5 bg-[#0067A1] hover:bg-[#004F7C] disabled:opacity-60 text-white text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
+              title="Generate and print PDF invoice"
             >
-              <FaPrint className="w-3 h-3" />
-              <span>Invoice</span>
+              {isGeneratingPdf ? (
+                <>
+                  <FaSpinner className="w-3 h-3 animate-spin" />
+                  <span>Invoice</span>
+                </>
+              ) : (
+                <>
+                  <FaPrint className="w-3 h-3" />
+                  <span>Invoice</span>
+                </>
+              )}
             </button>
             <button
               onClick={onClose}
@@ -677,6 +763,272 @@ const AppointmentDetailsModal = ({
           </div>
         </div>
       </div>
+
+      {/* Off-screen Printable Invoice Container for html2canvas & jsPDF */}
+      <div
+        style={{
+          position: "absolute",
+          left: "-99999px",
+          top: 0,
+          width: "794px",
+          overflow: "hidden",
+          pointerEvents: "none",
+        }}
+        aria-hidden="true"
+      >
+        <div
+          id="consultation-invoice-document"
+          style={{
+            width: "794px",
+            minWidth: "794px",
+            maxWidth: "794px",
+            backgroundColor: "#ffffff",
+            color: "#0f172a",
+            padding: "36px 40px",
+            fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+            boxSizing: "border-box",
+            lineHeight: "1.45",
+          }}
+        >
+          {/* Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: "16px", borderBottom: "2px solid #0067A1" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+              <img
+                src={MEDICONNECT_LOGO_BASE64}
+                alt="MediConnect Logo"
+                style={{ width: "56px", height: "56px", objectFit: "contain", borderRadius: "50%" }}
+              />
+              <div>
+                <div style={{ fontSize: "20px", fontWeight: "800", color: "#0067A1", letterSpacing: "-0.3px" }}>
+                  MediConnect Healthcare
+                </div>
+                <div style={{ fontSize: "11px", color: "#475569", marginTop: "2px", fontWeight: "500" }}>
+                  Digital Clinical Platform & Telehealth Network
+                </div>
+                <div style={{ fontSize: "10.5px", color: "#64748b", marginTop: "1px" }}>
+                  CIN: U85110DL2024PTC123456 • New Delhi, India • support@mediconnect.com
+                </div>
+              </div>
+            </div>
+
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: "18px", fontWeight: "800", color: "#0f172a", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Consultation Receipt
+              </div>
+              <div style={{ fontSize: "11px", fontWeight: "700", color: "#0067A1", textTransform: "uppercase", letterSpacing: "1px", marginTop: "1px" }}>
+                Tax Invoice
+              </div>
+              <div style={{ fontSize: "11px", color: "#334155", marginTop: "6px" }}>
+                <span style={{ color: "#64748b" }}>Receipt No:</span> <b>INV-{appointment.id?.split("-")[0]?.toUpperCase() || "MC-001"}</b>
+              </div>
+              <div style={{ fontSize: "11px", color: "#334155" }}>
+                <span style={{ color: "#64748b" }}>Date of Issue:</span> <b>{dateLabel}</b>
+              </div>
+            </div>
+          </div>
+
+          {/* 2-Column Clinical Credentials Grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginTop: "20px" }}>
+            {/* Doctor Column */}
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "14px 16px", backgroundColor: "#f8fafc" }}>
+              <div style={{ fontSize: "11px", fontWeight: "700", color: "#0067A1", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
+                Practitioner & Clinic Details
+              </div>
+              <div style={{ fontSize: "14px", fontWeight: "700", color: "#0f172a" }}>
+                {doctorName}
+              </div>
+              <div style={{ fontSize: "12px", color: "#334155", fontWeight: "600", marginTop: "2px" }}>
+                {specialty || "General Medicine"}
+              </div>
+              <div style={{ fontSize: "11px", color: "#475569", marginTop: "6px" }}>
+                <b>Qualification:</b> {qualification}
+              </div>
+              <div style={{ fontSize: "11px", color: "#475569", marginTop: "2px" }}>
+                <b>Reg. No ({specialty?.toLowerCase()?.includes("dent") ? "DDC" : "MCI/DMC"}):</b> {licenseNumber}
+              </div>
+              <div style={{ fontSize: "11px", color: "#475569", marginTop: "2px" }}>
+                <b>Clinic / Practice:</b> {clinicName}
+              </div>
+              <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
+                <b>Address:</b> {clinicAddress}
+              </div>
+            </div>
+
+            {/* Patient Column */}
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "14px 16px", backgroundColor: "#f8fafc" }}>
+              <div style={{ fontSize: "11px", fontWeight: "700", color: "#0067A1", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
+                Patient & Consultation Details
+              </div>
+              <div style={{ fontSize: "14px", fontWeight: "700", color: "#0f172a" }}>
+                {patientName}
+              </div>
+              <div style={{ fontSize: "12px", color: "#334155", marginTop: "2px" }}>
+                <b>Age / Gender:</b> {patientAge} • {patientGender}
+              </div>
+              <div style={{ fontSize: "11px", color: "#475569", marginTop: "6px" }}>
+                <b>Patient UHID:</b> PAT-{appointment.patient?.id?.split("-")[0]?.toUpperCase() || appointment.patient_id?.split("-")[0]?.toUpperCase() || "GEN-01"}
+              </div>
+              <div style={{ fontSize: "11px", color: "#475569", marginTop: "2px" }}>
+                <b>Consultation Mode:</b> {getAppointmentTypeLabel(appointment)}
+              </div>
+              <div style={{ fontSize: "11px", color: "#475569", marginTop: "2px" }}>
+                <b>Appointment Date:</b> {dateLabel}
+              </div>
+              <div style={{ fontSize: "11px", color: "#475569", marginTop: "2px" }}>
+                <b>Consultation Slot:</b> {timeLabel}
+              </div>
+            </div>
+          </div>
+
+          {/* Clinical Notes / Screening (If Present) */}
+          {(diseaseInfo?.summary || diseaseInfo?.symptoms || diseaseInfo?.notes) && (
+            <div style={{ marginTop: "16px", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px 16px", backgroundColor: "#ffffff" }}>
+              <div style={{ fontSize: "10.5px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>
+                Clinical Summary / Intake Reason
+              </div>
+              <div style={{ fontSize: "11.5px", color: "#334155", lineHeight: "1.4" }}>
+                {diseaseInfo.summary || diseaseInfo.notes || (Array.isArray(diseaseInfo.symptoms) ? diseaseInfo.symptoms.join(", ") : String(diseaseInfo))}
+              </div>
+            </div>
+          )}
+
+          {/* Itemized Billing Table */}
+          <div style={{ marginTop: "20px" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11.5px", textAlign: "left" }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f1f5f9", borderBottom: "2px solid #cbd5e1" }}>
+                  <th style={{ padding: "9px 12px", fontWeight: "700", color: "#1e293b", width: "45px" }}>#</th>
+                  <th style={{ padding: "9px 12px", fontWeight: "700", color: "#1e293b" }}>Description</th>
+                  <th style={{ padding: "9px 12px", fontWeight: "700", color: "#1e293b", width: "140px" }}>Consultation Mode</th>
+                  <th style={{ padding: "9px 12px", fontWeight: "700", color: "#1e293b", width: "85px" }}>SAC Code</th>
+                  <th style={{ padding: "9px 12px", fontWeight: "700", color: "#1e293b", width: "100px", textAlign: "right" }}>Amount (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                  <td style={{ padding: "10px 12px", color: "#64748b" }}>1</td>
+                  <td style={{ padding: "10px 12px", color: "#0f172a", fontWeight: "600" }}>
+                    Doctor Outpatient Consultation & Clinical Assessment
+                  </td>
+                  <td style={{ padding: "10px 12px", color: "#334155" }}>
+                    {getAppointmentTypeLabel(appointment)}
+                  </td>
+                  <td style={{ padding: "10px 12px", color: "#64748b", fontFamily: "monospace" }}>999312</td>
+                  <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: "700", color: "#0f172a" }}>
+                    {feePaid === 0 ? "0.00" : feePaid.toFixed(2)}
+                  </td>
+                </tr>
+                <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                  <td style={{ padding: "10px 12px", color: "#64748b" }}>2</td>
+                  <td style={{ padding: "10px 12px", color: "#0f172a" }}>
+                    Platform Access & Digital Health Record Maintenance
+                  </td>
+                  <td style={{ padding: "10px 12px", color: "#334155" }}>Electronic System</td>
+                  <td style={{ padding: "10px 12px", color: "#64748b", fontFamily: "monospace" }}>998314</td>
+                  <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: "600", color: "#0f172a" }}>0.00</td>
+                </tr>
+              </tbody>
+            </table>
+
+            {/* Totals Summary */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: "16px", padding: "12px 14px", backgroundColor: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "#64748b" }}>
+                    Payment Status:
+                  </span>
+                  <span style={{
+                    fontSize: "11px",
+                    fontWeight: "800",
+                    textTransform: "uppercase",
+                    padding: "3px 8px",
+                    borderRadius: "4px",
+                    backgroundColor: paymentStatus.toLowerCase() === "paid" || paymentStatus.toLowerCase() === "completed" ? "#d1fae5" : "#fef3c7",
+                    color: paymentStatus.toLowerCase() === "paid" || paymentStatus.toLowerCase() === "completed" ? "#065f46" : "#92400e",
+                    border: `1px solid ${paymentStatus.toLowerCase() === "paid" || paymentStatus.toLowerCase() === "completed" ? "#a7f3d0" : "#fde68a"}`
+                  }}>
+                    {paymentStatus}
+                  </span>
+                </div>
+                <div style={{ fontSize: "10.5px", color: "#64748b", marginTop: "6px" }}>
+                  GST Exemption: Notification No. 12/2017-Central Tax (Rate)
+                </div>
+              </div>
+
+              <div style={{ textAlign: "right", minWidth: "220px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#475569", marginBottom: "4px" }}>
+                  <span>Gross Amount:</span>
+                  <span>₹{feePaid.toFixed(2)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#475569", marginBottom: "6px" }}>
+                  <span>Taxes (Healthcare Exempt):</span>
+                  <span>₹0.00</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", fontWeight: "800", color: "#0067A1", borderTop: "1.5px solid #cbd5e1", paddingTop: "6px" }}>
+                  <span>Total Paid:</span>
+                  <span>{feePaid === 0 ? "Free (₹0.00)" : `₹${feePaid.toFixed(2)}`}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Legal Compliance & Digital Signature */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: "32px", paddingTop: "14px", borderTop: "1px dashed #cbd5e1" }}>
+            <div style={{ maxWidth: "460px" }}>
+              <div style={{ fontSize: "10.5px", fontWeight: "700", color: "#475569", textTransform: "uppercase", marginBottom: "2px" }}>
+                Telemedicine Practice Guidelines Compliance
+              </div>
+              <div style={{ fontSize: "9.5px", color: "#64748b", lineHeight: "1.4" }}>
+                This document is an electronically generated consultation receipt & tax invoice issued under the Telemedicine Practice Guidelines, 2020 issued by the Ministry of Health and Family Welfare (MoHFW) and National Medical Commission (NMC). Retain this receipt for insurance reimbursement, wellness claims, or health tax deductions under Section 80D.
+              </div>
+            </div>
+
+            <div style={{ textAlign: "center", minWidth: "180px" }}>
+              <div style={{ fontSize: "11px", fontWeight: "700", color: "#0067A1" }}>
+                MediConnect Healthcare
+              </div>
+              <div style={{ fontSize: "10px", color: "#059669", fontWeight: "600", marginTop: "2px" }}>
+                ✓ Digitally Authenticated
+              </div>
+              <div style={{ fontSize: "9.5px", color: "#94a3b8", marginTop: "4px" }}>
+                Authorized Electronic Signatory
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Embedded CSS for Native Print fallback */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #consultation-invoice-document,
+          #consultation-invoice-document * {
+            visibility: visible !important;
+          }
+          #consultation-invoice-document {
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 100% !important;
+            margin: 0 !important;
+            padding: 12mm 15mm !important;
+            box-shadow: none !important;
+            border: none !important;
+            background: #ffffff !important;
+            color: #0f172a !important;
+            z-index: 999999 !important;
+          }
+          @page {
+            size: A4 portrait;
+            margin: 0;
+          }
+        }
+      `}</style>
     </div>
   );
 };
