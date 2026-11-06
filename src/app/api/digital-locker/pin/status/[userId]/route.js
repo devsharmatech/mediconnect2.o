@@ -11,3 +11,4 @@ export async function GET(req, { params }) {
   const syntheticReq = new Request(url, { method: "GET", headers: req.headers });
   return baseGET(syntheticReq);
 }
+

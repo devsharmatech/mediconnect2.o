@@ -106,3 +106,4 @@ export async function POST(req) {
     return failure("Failed to verify PIN.", error.message, 500);
   }
 }
+
