@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import ConsultationWorkspace from "@/components/doctor/ConsultationWorkspace";
+import WritePrescriptionModal from "@/components/doctor/WritePrescriptionModal";
 import SessionAgreementModal from "@/components/doctor/SessionAgreementModal";
 import DoctorAnalyticsWidget from "@/components/doctor/DoctorAnalyticsWidget";
 import PatientVerificationCard from "@/components/doctor/PatientVerificationCard";
@@ -1858,53 +1859,26 @@ export default function DoctorAppointmentsPage() {
           </div>
         </div>
       )}
-      {/* Clinical Consultation & Prescription Workspace Modal */}
+      {/* Clinical Consultation & Prescription Workspace Modal (Same template & interactive design as video call) */}
       {prescriptionAppointment && (
-        <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs overflow-hidden animate-fade-in">
-          <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 max-w-4xl w-full h-full sm:h-auto sm:max-h-[92vh] overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#0067A1]/10 flex items-center justify-center text-[#0067A1]">
-                  <Stethoscope className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
-                    Consultation & Prescription: {prescriptionAppointment.patient?.full_name || "Patient"}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    #{formatAppointmentId(prescriptionAppointment.id)} • {prescriptionAppointment.appointment_type?.replace('_', ' ')} • {prescriptionAppointment.appointment_date}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPrescriptionAppointment(null)}
-                className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-              <ConsultationWorkspace
-                appointment={prescriptionAppointment}
-                onViewOfficialPrescription={() => {
-                  const savedApt = prescriptionAppointment;
-                  setPrescriptionAppointment(null);
-                  handleOpenPrescription(savedApt);
-                }}
-                onConsultationUpdate={async () => {
-                  const savedApt = prescriptionAppointment;
-                  setPrescriptionAppointment(null);
-                  toast.success("Prescription signed and saved successfully!");
-                  await loadAppointments(page, dateFilter);
-                  if (savedApt) {
-                    handleOpenPrescription(savedApt);
-                  }
-                }}
-              />
-            </div>
-          </div>
-        </div>
+        <WritePrescriptionModal
+          appointmentId={prescriptionAppointment.id}
+          appointment={prescriptionAppointment}
+          onClose={() => setPrescriptionAppointment(null)}
+          onViewPrescription={() => {
+            const savedApt = prescriptionAppointment;
+            setPrescriptionAppointment(null);
+            handleOpenPrescription(savedApt);
+          }}
+          onPrescriptionSaved={async () => {
+            const savedApt = prescriptionAppointment;
+            setPrescriptionAppointment(null);
+            await loadAppointments(page, dateFilter);
+            if (savedApt) {
+              handleOpenPrescription(savedApt);
+            }
+          }}
+        />
       )}
 
       {/* Official A4 Medical Prescription Letterhead Modal (exact same format as live video call) */}

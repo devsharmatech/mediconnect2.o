@@ -315,3 +315,4 @@ async function unlockDigiLocker(userId, pin) {
 2. **Brute-Force Rate Limiting**: Max 5 attempts allowed. Exceeding 5 attempts sets a 15-minute temporary lockout in the database.
 3. **Single-Use Reset Token**: Generated only after OTP verification. Consumed immediately upon PIN reset.
 4. **Test Accounts**: Test mobile numbers (`9027924662`, `7289043777`, `9876543210`) use test OTP `123456`. Real numbers receive real carrier SMS via InsignSMS gateway.
+

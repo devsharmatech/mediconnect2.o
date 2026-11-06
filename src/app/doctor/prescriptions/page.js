@@ -22,6 +22,7 @@ import {
 import api from '@/utils/websiteApi';
 import toast from 'react-hot-toast';
 import ConsultationWorkspace from '@/components/doctor/ConsultationWorkspace';
+import WritePrescriptionModal from '@/components/doctor/WritePrescriptionModal';
 import PrescriptionViewerModal from '@/components/public-site/appointments/PrescriptionViewerModal';
 
 export default function Prescriptions() {
@@ -687,9 +688,31 @@ export default function Prescriptions() {
         </div>
 
         {/* New Prescription Modal */}
-        {showNewPrescription && (
+        {showNewPrescription && mockAppointment && (
+          <WritePrescriptionModal
+            appointmentId={mockAppointment.id}
+            appointment={mockAppointment}
+            onClose={() => {
+              setShowNewPrescription(false);
+              setMockAppointment(null);
+              setSelectedPatient(null);
+            }}
+            onViewPrescription={() => {
+              setShowNewPrescription(false);
+              fetchPrescriptions();
+            }}
+            onPrescriptionSaved={() => {
+              setShowNewPrescription(false);
+              setMockAppointment(null);
+              setSelectedPatient(null);
+              fetchPrescriptions();
+            }}
+          />
+        )}
+
+        {showNewPrescription && !mockAppointment && (
           <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn overflow-hidden">
-            <div className="bg-white rounded-none sm:rounded-3xl shadow-2xl border-0 sm:border border-slate-100 max-w-4xl w-full h-full sm:h-auto sm:max-h-[95vh] overflow-hidden flex flex-col">
+            <div className="bg-white rounded-none sm:rounded-3xl shadow-2xl border-0 sm:border border-slate-100 max-w-xl w-full h-full sm:h-auto sm:max-h-[95vh] overflow-hidden flex flex-col">
               
               {/* Modal Header */}
               <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
@@ -697,7 +720,7 @@ export default function Prescriptions() {
                   <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                     <FaFileMedical className="text-[#0067A1]" /> Issue E-Prescription
                   </h3>
-                  <p className="text-xs text-slate-500">Secure clinical documentation and prescriptions</p>
+                  <p className="text-xs text-slate-500">Select patient with an active appointment to start</p>
                 </div>
                 <button
                   onClick={() => setShowNewPrescription(false)}
@@ -708,80 +731,47 @@ export default function Prescriptions() {
               </div>
 
               {/* Form Content */}
-              <div className="flex-1 overflow-y-auto">
-                {!mockAppointment ? (
-                  <div className="p-6 space-y-4 min-h-[320px]">
-                    <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Select Patient to Begin</h3>
-                    <div className="relative">
-                      <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder="Search patient by name or phone..."
-                        value={patientSearch}
-                        onChange={(e) => {
-                          setPatientSearch(e.target.value);
-                          setShowPatientDropdown(true);
-                        }}
-                        onFocus={() => setShowPatientDropdown(true)}
-                        className="w-full pl-12 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0067A1]"
-                      />
-                      {showPatientDropdown && patientSearch.trim().length > 0 && (
-                        <div className="absolute z-10 w-full mt-2 bg-white rounded-xl shadow-xl border border-slate-100 max-h-60 overflow-y-auto">
-                          {patients.filter(p => 
-                            (p.full_name || '').toLowerCase().includes(patientSearch.toLowerCase()) || 
-                            (p.phone && p.phone.includes(patientSearch))
-                          ).map(p => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => handleSelectPatient(p)}
-                              className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 flex items-center justify-between text-sm text-slate-700"
-                            >
-                              <div>
-                                <p className="font-semibold text-slate-800">{p.full_name}</p>
-                                <p className="text-xs text-slate-500">{p.phone} • {p.gender}{calculatePatientAgeHelper(p.date_of_birth, p.age) ? ` • ${calculatePatientAgeHelper(p.date_of_birth, p.age)} yrs` : ''}{p.blood_group ? ` • ${p.blood_group}` : ''}</p>
-                              </div>
-                              <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">{p.visit_count} Visits</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
+              <div className="p-6 space-y-4 min-h-[320px] overflow-y-auto">
+                <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Select Patient to Begin</h3>
+                <div className="relative">
+                  <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search patient by name or phone..."
+                    value={patientSearch}
+                    onChange={(e) => {
+                      setPatientSearch(e.target.value);
+                      setShowPatientDropdown(true);
+                    }}
+                    onFocus={() => setShowPatientDropdown(true)}
+                    className="w-full pl-12 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0067A1]"
+                  />
+                  {showPatientDropdown && patientSearch.trim().length > 0 && (
+                    <div className="absolute z-10 w-full mt-2 bg-white rounded-xl shadow-xl border border-slate-100 max-h-60 overflow-y-auto">
+                      {patients.filter(p => 
+                        (p.full_name || '').toLowerCase().includes(patientSearch.toLowerCase()) || 
+                        (p.phone && p.phone.includes(patientSearch))
+                      ).map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handleSelectPatient(p)}
+                          className="w-full text-left px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 flex items-center justify-between text-sm text-slate-700"
+                        >
+                          <div>
+                            <p className="font-semibold text-slate-800">{p.full_name}</p>
+                            <p className="text-xs text-slate-500">{p.phone} • {p.gender}{calculatePatientAgeHelper(p.date_of_birth, p.age) ? ` • ${calculatePatientAgeHelper(p.date_of_birth, p.age)} yrs` : ''}{p.blood_group ? ` • ${p.blood_group}` : ''}</p>
+                          </div>
+                          <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">{p.visit_count} Visits</span>
+                        </button>
+                      ))}
                     </div>
-                    {isLoadingWorkspace && (
-                      <div className="flex items-center justify-center py-6 gap-2">
-                        <div className="w-5 h-5 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin"></div>
-                        <p className="text-xs text-slate-500 font-semibold">Initializing clinical workspace...</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="p-6">
-                    <div className="mb-4 flex items-center justify-between bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                      <div>
-                        <span className="text-xs font-semibold text-slate-400 uppercase">Consulting Patient</span>
-                        <h4 className="font-bold text-slate-800 text-base">{selectedPatient?.full_name}</h4>
-                        <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
-                          {selectedPatient?.gender && <span>{selectedPatient.gender}</span>}
-                          {calculatePatientAgeHelper(selectedPatient?.date_of_birth, selectedPatient?.age) && (
-                            <span>• Age: {calculatePatientAgeHelper(selectedPatient?.date_of_birth, selectedPatient?.age)} yrs</span>
-                          )}
-                          {selectedPatient?.blood_group && <span className="text-rose-600 font-semibold">• {selectedPatient.blood_group}</span>}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => { setMockAppointment(null); setSelectedPatient(null); }}
-                        className="text-xs font-bold text-[#0067A1] hover:underline"
-                      >
-                        Change Patient
-                      </button>
-                    </div>
-                    <ConsultationWorkspace
-                      appointment={mockAppointment}
-                      onConsultationUpdate={() => {
-                        setShowNewPrescription(false);
-                        fetchPrescriptions();
-                      }}
-                    />
+                  )}
+                </div>
+                {isLoadingWorkspace && (
+                  <div className="flex items-center justify-center py-6 gap-2">
+                    <div className="w-5 h-5 border-2 border-[#0067A1] border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-xs text-slate-500 font-semibold">Initializing clinical workspace...</p>
                   </div>
                 )}
               </div>
