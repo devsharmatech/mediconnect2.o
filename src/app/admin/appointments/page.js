@@ -41,7 +41,32 @@ export default function AppointmentsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
   const [summary, setSummary] = useState([]);
+
+  const TYPE_META = {
+    video_consultation: { label: "Video", full: "Video Consultation", cls: "bg-sky-50 text-[#0067A1] border-sky-200" },
+    video: { label: "Video", full: "Video Consultation", cls: "bg-sky-50 text-[#0067A1] border-sky-200" },
+    clinic_visit: { label: "Clinic", full: "Clinic Visit", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    home_visit: { label: "Home", full: "Home Visit", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  };
+  const getTypeMeta = (t) =>
+    TYPE_META[t] || {
+      label: t ? String(t).replace(/_/g, " ") : "N/A",
+      full: t ? String(t).replace(/_/g, " ") : "N/A",
+      cls: "bg-slate-50 text-slate-600 border-slate-200",
+    };
+
+  // Actual amount charged to patient (final_fee) - never fall back to doctor's list fee
+  const getPaidFee = (apt) => {
+    const v = apt?.final_fee;
+    return v === null || v === undefined || v === "" ? 0 : Number(v) || 0;
+  };
+  const formatFee = (apt) => {
+    const fee = getPaidFee(apt);
+    return fee > 0 ? `₹${fee.toLocaleString("en-IN")}` : "Free";
+  };
 
   // Pagination state
   const [pagination, setPagination] = useState({
@@ -69,6 +94,8 @@ export default function AppointmentsPage() {
         ...(search && { search }),
         ...(status !== "all" && { status }),
         ...(date && { date }),
+        ...(typeFilter !== "all" && { type: typeFilter }),
+        ...(paymentFilter !== "all" && { payment: paymentFilter }),
       });
 
       const res = await fetch(`/api/appointment/web?${params}`);
@@ -131,8 +158,8 @@ export default function AppointmentsPage() {
     const doctorName = appointment.doctor?.full_name || "Doctor";
     const doctorSpec = appointment.doctor?.specialization || "General Medicine";
     const clinicName = appointment.doctor?.clinic_name || "MediConnect Partner Clinic";
-    const fee = Number(appointment.consultation_fee || appointment.doctor?.consultation_fee || 0);
-    const mode = appointment.appointment_type === "video" ? "Video Consultation" : appointment.appointment_type === "home_visit" ? "Home Visit Consultation" : "In-Clinic Consultation";
+    const fee = getPaidFee(appointment);
+    const mode = getTypeMeta(appointment.appointment_type).full;
 
     const invoiceHtml = `
       <!DOCTYPE html>
@@ -176,7 +203,7 @@ export default function AppointmentsPage() {
               <div class="brand-subtitle">Official Consultation Invoice & Payment Receipt</div>
             </div>
             <div class="inv-meta">
-              <span class="inv-badge">✓ PAYMENT RECEIVED</span>
+              <span class="inv-badge">${fee > 0 ? (appointment.payment_status === "paid" ? "✓ PAYMENT RECEIVED" : "PAYMENT PENDING") : "NO CHARGE"}</span>
               <div class="inv-num">${invId}</div>
               <div class="inv-date">Date: ${dateStr}</div>
             </div>
@@ -230,7 +257,7 @@ export default function AppointmentsPage() {
               <span>Included</span>
             </div>
             <div class="totals-row grand">
-              <span>Total Paid:</span>
+              <span>${fee > 0 && appointment.payment_status === "paid" ? "Total Paid:" : fee > 0 ? "Total Due:" : "Total Paid:"}</span>
               <span>₹${fee.toFixed(2)}</span>
             </div>
           </div>
@@ -264,7 +291,7 @@ export default function AppointmentsPage() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, statusFilter, dateFilter, pagination.itemsPerPage]);
+  }, [searchTerm, statusFilter, dateFilter, typeFilter, paymentFilter, pagination.itemsPerPage]);
 
   const toggleSelect = (id) => {
     setSelectedIds((prev) =>
@@ -417,41 +444,31 @@ export default function AppointmentsPage() {
   return (
     <>
       <main className="flex-1 overflow-auto relative z-0">
-        <div className="p-4 md:p-4 lg:p-4 bg-transparent">
-          <div className="bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl border border-gray-200/50 dark:border-gray-700/50">
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 rounded-2xl to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 sm:p-6">
+        <div className="w-full p-3 sm:p-4 lg:p-6 bg-transparent">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700">
+            <div className="min-h-screen bg-slate-50 dark:bg-gray-900 rounded-xl p-3 sm:p-6">
               {/* Header Section */}
               <motion.div
-                className="mb-8"
+                className="mb-6"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+                transition={{ duration: 0.4 }}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <motion.h4
-                      className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent mb-2"
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.2 }}
-                    >
+                    <h4 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
                       Appointments Management
-                    </motion.h4>
-                    <motion.p
-                      className="text-gray-600 dark:text-gray-400 mt-2"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: 0.3 }}
-                    >
+                    </h4>
+                    <p className="text-sm text-slate-600 dark:text-gray-400 mt-1">
                       Showing {pagination.totalItems} appointments
-                    </motion.p>
+                    </p>
                   </div>
                 </div>
               </motion.div>
 
               {/* Stats Cards */}
               <motion.div
-                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 2xl:grid-cols-6 gap-3 mb-8"
+                className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mb-6"
                 variants={containerVariants}
                 initial="hidden"
                 animate="visible"
@@ -546,7 +563,7 @@ export default function AppointmentsPage() {
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   {/* Search Bar */}
                   <motion.div
-                    className="relative flex-1 max-w-md"
+                    className="relative flex-1 lg:max-w-md w-full"
                     whileFocus={{ scale: 1.02 }}
                   >
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -560,7 +577,29 @@ export default function AppointmentsPage() {
                   </motion.div>
 
                   {/* Filters and Actions */}
-                  <div className="flex flex-wrap items-center justify-start lg:justify-end gap-3 mt-4 lg:mt-0">
+                  <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2 mt-3 lg:mt-0">
+                    <select
+                      value={typeFilter}
+                      onChange={(e) => setTypeFilter(e.target.value)}
+                      className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#0067A1] focus:border-transparent cursor-pointer"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="video_consultation">Video</option>
+                      <option value="clinic_visit">Clinic</option>
+                      <option value="home_visit">Home Visit</option>
+                    </select>
+
+                    <select
+                      value={paymentFilter}
+                      onChange={(e) => setPaymentFilter(e.target.value)}
+                      className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#0067A1] focus:border-transparent cursor-pointer"
+                    >
+                      <option value="all">All Fees</option>
+                      <option value="paid">Paid</option>
+                      <option value="free">Free (₹0)</option>
+                      <option value="unpaid">Unpaid</option>
+                    </select>
+
                     <motion.select
                       whileFocus={{ scale: 1.05 }}
                       value={statusFilter}
@@ -583,14 +622,21 @@ export default function AppointmentsPage() {
                       className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-300 cursor-pointer"
                     />
 
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => fetchAppointments(1)}
-                      className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-300 cursor-pointer"
-                    >
-                      <Filter size={20} />
-                    </motion.button>
+                    {(searchTerm || statusFilter !== "all" || dateFilter || typeFilter !== "all" || paymentFilter !== "all") && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchTerm("");
+                          setStatusFilter("all");
+                          setDateFilter("");
+                          setTypeFilter("all");
+                          setPaymentFilter("all");
+                        }}
+                        className="px-3 py-2 text-sm font-semibold text-rose-600 border border-rose-200 hover:bg-rose-50 rounded-lg cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                    )}
 
                     <motion.button
                       whileHover={{ scale: 1.05 }}
@@ -614,7 +660,7 @@ export default function AppointmentsPage() {
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="flex items-center justify-between mt-4 p-4 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-xl border border-red-200 dark:border-red-800/50"
+                      className="flex items-center justify-between mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800/50"
                     >
                       <div className="flex items-center space-x-2">
                         <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
@@ -626,10 +672,10 @@ export default function AppointmentsPage() {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setConfirmOpen(true)}
-                        className="flex items-center px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-medium rounded-lg transition-all duration-300 cursor-pointer"
+                        className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-all duration-300 cursor-pointer"
                       >
                         <Trash2 size={18} className="mr-2" />
-                        Delete Selected
+                        Delete
                       </motion.button>
                     </motion.div>
                   )}
@@ -680,8 +726,51 @@ export default function AppointmentsPage() {
                     </p>
                   </motion.div>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl">
-                    <table className="w-full whitespace-nowrap min-w-[900px]">
+                  <>
+                  {/* Mobile cards */}
+                  <div className="md:hidden divide-y divide-slate-100 dark:divide-gray-700">
+                    {appointments.map((appointment) => (
+                      <div key={appointment.id} className="p-3 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(appointment.id)}
+                              onChange={() => toggleSelect(appointment.id)}
+                              className="rounded border-gray-300 cursor-pointer"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                                {appointment.patient?.full_name || "Unknown Patient"}
+                              </p>
+                              <p className="text-xs text-slate-500">{appointment.patient?.phone_number}</p>
+                            </div>
+                          </div>
+                          <span className={`shrink-0 inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium ${getStatusColor(appointment.status)}`}>
+                            {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-gray-300">
+                          <span className="flex items-center gap-1"><Calendar size={12} />{formatDate(appointment.appointment_date)}</span>
+                          <span className="flex items-center gap-1"><Clock size={12} />{formatTime(appointment.appointment_time)}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="font-medium text-slate-800 dark:text-white">{appointment.doctor?.full_name || "Unknown Doctor"}</span>
+                          <span className={`px-2 py-0.5 rounded-md font-semibold border ${getTypeMeta(appointment.appointment_type).cls}`}>
+                            {getTypeMeta(appointment.appointment_type).label}
+                          </span>
+                          <span className="font-semibold text-slate-900 dark:text-white">{formatFee(appointment)}</span>
+                        </div>
+                        <div className="flex items-center gap-1 pt-1">
+                          <button onClick={() => handleDownloadInvoice(appointment)} className="p-2 text-[#0067A1] cursor-pointer" title="Invoice"><FileText size={18} /></button>
+                          <button onClick={() => fetchAppointmentDetails(appointment.id)} className="p-2 text-gray-600 cursor-pointer" title="View"><Eye size={18} /></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="hidden md:block overflow-x-auto rounded-xl">
+                    <table className="w-full whitespace-nowrap min-w-[1000px]">
                       <thead className="bg-gray-50/80 dark:bg-gray-700/80 border-b border-gray-200 dark:border-gray-600">
                         <tr>
                           <th className="px-4 py-3 text-left">
@@ -711,6 +800,12 @@ export default function AppointmentsPage() {
                             Doctor
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Type
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Fee
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Status
                           </th>
                           <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -737,7 +832,7 @@ export default function AppointmentsPage() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center">
-                                <div className="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-gray-500 to-gray-600 rounded-full flex items-center justify-center text-white font-medium text-sm shadow-sm">
+                                <div className="flex-shrink-0 h-10 w-10 bg-[#475569] rounded-full flex items-center justify-center text-white font-medium text-sm shadow-sm">
                                   <Calendar size={16} />
                                 </div>
                                 <div className="ml-4">
@@ -753,7 +848,7 @@ export default function AppointmentsPage() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center">
-                                <div className="flex-shrink-0 h-8 w-8 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center text-white text-xs font-medium">
+                                <div className="flex-shrink-0 h-8 w-8 bg-emerald-600 rounded-full flex items-center justify-center text-white text-xs font-medium">
                                   {getInitials(appointment.patient?.full_name)}
                                 </div>
                                 <div className="ml-3">
@@ -769,7 +864,7 @@ export default function AppointmentsPage() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center">
-                                <div className="flex-shrink-0 h-8 w-8 bg-gradient-to-br from-[#0067A1] to-[#004F7C] rounded-full flex items-center justify-center text-white text-xs font-medium">
+                                <div className="flex-shrink-0 h-8 w-8 bg-[#0067A1] rounded-full flex items-center justify-center text-white text-xs font-medium">
                                   {getInitials(appointment.doctor?.full_name)}
                                 </div>
                                 <div className="ml-3">
@@ -782,6 +877,19 @@ export default function AppointmentsPage() {
                                   </div>
                                 </div>
                               </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold border ${getTypeMeta(appointment.appointment_type).cls}`}>
+                                {getTypeMeta(appointment.appointment_type).label}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`text-sm font-semibold ${getPaidFee(appointment) > 0 ? "text-slate-900 dark:text-white" : "text-slate-500"}`}>
+                                {formatFee(appointment)}
+                              </span>
+                              {getPaidFee(appointment) > 0 && appointment.payment_status && appointment.payment_status !== "paid" && (
+                                <span className="ml-1.5 text-[10px] font-bold uppercase text-amber-600">{appointment.payment_status}</span>
+                              )}
                             </td>
                             <td className="px-4 py-3">
                               <span
@@ -831,6 +939,7 @@ export default function AppointmentsPage() {
                       </tbody>
                     </table>
                   </div>
+                  </>
                 )}
               </motion.div>
 
@@ -889,7 +998,7 @@ export default function AppointmentsPage() {
                           onClick={() => handlePageChange(pageNum)}
                           className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all duration-300 cursor-pointer ${
                             pageNum === pagination.currentPage
-                              ? "bg-gradient-to-r from-gray-600 to-gray-700 border-transparent text-white shadow-sm"
+                              ? "bg-[#0067A1] border-transparent text-white shadow-sm"
                               : "border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600"
                           }`}
                         >
@@ -969,7 +1078,7 @@ export default function AppointmentsPage() {
             >
               <div className="p-6 text-center">
                 <motion.div
-                  className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-red-100 to-orange-100 dark:from-red-900/30 dark:to-orange-900/30 flex items-center justify-center"
+                  className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center"
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ delay: 0.1 }}
@@ -996,7 +1105,7 @@ export default function AppointmentsPage() {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handleDelete}
-                    className="px-6 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg transition-all duration-300 font-medium cursor-pointer"
+                    className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all duration-300 font-medium cursor-pointer"
                   >
                     Delete
                   </motion.button>
@@ -1056,7 +1165,7 @@ export default function AppointmentsPage() {
                   <div className="flex-shrink-0">
                     <motion.div
                       whileHover={{ scale: 1.1 }}
-                      className="h-20 w-20 rounded-full bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center text-white font-medium text-2xl shadow-sm"
+                      className="h-20 w-20 rounded-full bg-slate-600 flex items-center justify-center text-white font-medium text-2xl shadow-sm"
                     >
                       <Calendar size={32} />
                     </motion.div>
@@ -1066,7 +1175,7 @@ export default function AppointmentsPage() {
                       Appointment #{viewAppointment.id.slice(0, 8)}
                     </h4>
                     <div className="flex flex-wrap gap-2 mt-2">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 dark:from-gray-900/40 dark:to-gray-800/40 dark:text-gray-300 border border-gray-200 dark:border-gray-800">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-800">
                         {formatDate(viewAppointment.appointment_date)} at{" "}
                         {formatTime(viewAppointment.appointment_time)}
                       </span>
@@ -1221,11 +1330,15 @@ export default function AppointmentsPage() {
                         </div>
                         <div>
                           <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                            Consultation Fee
+                            Booking Type / Fee Paid
                           </label>
                           <p className="text-gray-900 dark:text-white flex items-center">
-                            <IndianRupee size={14} className="mr-1" />
-                            {viewAppointment.doctor?.consultation_fee}
+                            {getTypeMeta(viewAppointment.appointment_type).full} · {formatFee(viewAppointment)}
+                            {Number(viewAppointment.discount_amount) > 0 && (
+                              <span className="ml-2 text-xs text-gray-500">
+                                (list ₹{Number(viewAppointment.original_fee) || 0}, discount ₹{Number(viewAppointment.discount_amount)})
+                              </span>
+                            )}
                           </p>
                         </div>
                       </div>
@@ -1328,7 +1441,7 @@ export default function AppointmentsPage() {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setViewAppointment(null)}
-                    className="px-6 py-2 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white font-medium rounded-lg transition-all duration-300 cursor-pointer"
+                    className="px-6 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium rounded-lg transition-all duration-300 cursor-pointer"
                   >
                     Close
                   </motion.button>

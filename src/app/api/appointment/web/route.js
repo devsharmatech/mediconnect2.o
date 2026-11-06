@@ -33,6 +33,18 @@ export async function GET(req) {
     if (patient_id) {
       baseFilter = sql`${baseFilter} AND a.patient_id::text = ${patient_id}`;
     }
+    const apptType = searchParams.get("type") || "all";
+    const payStatus = searchParams.get("payment") || "all";
+    if (apptType !== "all") {
+      baseFilter = sql`${baseFilter} AND a.appointment_type = ${apptType}`;
+    }
+    if (payStatus === "free") {
+      baseFilter = sql`${baseFilter} AND COALESCE(a.final_fee, 0) = 0`;
+    } else if (payStatus === "paid") {
+      baseFilter = sql`${baseFilter} AND COALESCE(a.final_fee, 0) > 0 AND a.payment_status = 'paid'`;
+    } else if (payStatus === "unpaid") {
+      baseFilter = sql`${baseFilter} AND COALESCE(a.final_fee, 0) > 0 AND a.payment_status <> 'paid'`;
+    }
     if (search) {
       const searchPattern = `%${search}%`;
       baseFilter = sql`${baseFilter} AND (
@@ -55,6 +67,7 @@ export async function GET(req) {
         a.disease_info, a.created_at, a.updated_at, a.patient_id, a.doctor_id,
         COALESCE(a.original_appointment_time, a.appointment_time)::text AS original_appointment_time,
         a.extended_until,
+        a.final_fee, a.original_fee, a.discount_amount, a.payment_status,
         pu.un_id AS patient_un_id, pu.phone_number AS patient_phone, pu.profile_picture AS patient_picture,
         pd.full_name AS patient_name, pd.email AS patient_email, pd.gender AS patient_gender,
         du.un_id AS doctor_un_id, du.phone_number AS doctor_phone, du.profile_picture AS doctor_picture,
@@ -116,6 +129,10 @@ export async function GET(req) {
       extended_until: apt.extended_until,
       appointment_type: apt.appointment_type,
       status: apt.status,
+      final_fee: apt.final_fee,
+      original_fee: apt.original_fee,
+      discount_amount: apt.discount_amount,
+      payment_status: apt.payment_status,
       disease_info: apt.disease_info,
       created_at: apt.created_at,
       patient: {
