@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Heart, Play, Pause, Footprints, Activity,
   ChevronRight, ChevronLeft, Info, Shield, AlertTriangle, CheckCircle2,
-  X, RotateCcw, Clock, Award, Sparkles, RefreshCw,
+  X, RotateCcw, Clock, Award, RefreshCw,
   TrendingUp, TrendingDown, Minus, MapPin, ArrowRight, ArrowLeft,
   Calendar, WifiOff, Check, Settings, Navigation,
   Search, CloudSun, Wind, Droplets, Database, Compass, FileText,

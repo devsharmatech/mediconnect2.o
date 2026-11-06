@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { FaChevronDown, FaQuestionCircle, FaHeadset, FaEnvelope } from 'react-icons/fa';
-import { HiSparkles } from 'react-icons/hi2';
 
 const fallbackFaqs = [
   {
@@ -229,7 +228,7 @@ const FAQ = () => {
             <div className="bg-[#0B3A5B] rounded-2xl p-6 text-white sticky top-24 shadow-xs">
               <div>
                 <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center mb-4 text-[#1677A8]">
-                  <HiSparkles className="w-5 h-5 text-white" />
+                  <FaQuestionCircle className="w-5 h-5 text-white" />
                 </div>
                 
                 <h3 className="text-base font-bold mb-1.5 text-white">Still Have Questions?</h3>

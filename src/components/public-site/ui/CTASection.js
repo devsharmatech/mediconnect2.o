@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { FaArrowRight, FaHeartbeat, FaUserMd, FaFlask, FaPills, FaCheckCircle, FaApple, FaGooglePlay } from 'react-icons/fa';
-import { HiSparkles } from 'react-icons/hi2';
 
 const CTASection = ({ onSignupClick }) => {
   return (
@@ -15,7 +14,7 @@ const CTASection = ({ onSignupClick }) => {
               {/* Left Content */}
               <div>
                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-white text-sm font-semibold rounded-full mb-6">
-                  <HiSparkles className="w-4 h-4" />
+                  <FaCheckCircle className="w-4 h-4" />
                   Designed for individuals and families
                 </div>
                 

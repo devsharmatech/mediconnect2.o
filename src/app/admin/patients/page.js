@@ -25,7 +25,6 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Sparkles,
   Venus,
   Mars,
   Activity,

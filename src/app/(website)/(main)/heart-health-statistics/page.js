@@ -35,7 +35,6 @@ import {
   Calendar,
   ShieldCheck,
   ArrowRight,
-  Sparkles,
   RefreshCw,
   BarChart3,
   Info,

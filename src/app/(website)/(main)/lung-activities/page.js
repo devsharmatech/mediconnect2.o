@@ -20,7 +20,6 @@ import {
   CheckCircle2,
   SlidersHorizontal,
   RotateCcw,
-  Sparkles,
   Award,
   Layers,
   MapPin,

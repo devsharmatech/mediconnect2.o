@@ -27,7 +27,6 @@ import {
   Eye,
   ChevronRight,
   ChevronDown,
-  Sparkles,
   Zap,
   MessageSquare,
   ShoppingCart,
@@ -246,7 +245,7 @@ function CustomNotificationToast({ notification, onClose, onClick }) {
                   {getTypeLabel()}
                 </span>
               </div>
-              <Sparkles className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+              <Zap className="w-4 h-4 text-amber-500 dark:text-amber-400" />
             </div>
           </div>
         </div>

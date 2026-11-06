@@ -20,7 +20,6 @@ import {
   Copy,
   Check,
   Layers,
-  Sparkles,
   Stethoscope,
   TestTube,
   Pill,

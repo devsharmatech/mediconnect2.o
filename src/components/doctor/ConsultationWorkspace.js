@@ -12,7 +12,7 @@ import {
   Pill,
   ShieldAlert,
   Star,
-  Sparkles,
+  Zap,
   FolderLock,
   ExternalLink,
   Clock,
@@ -613,7 +613,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
 
       {quickMode && !isLocked && (
         <div className="bg-indigo-50/50 border border-indigo-100 p-3 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-          <Sparkles className="w-5 h-5 text-indigo-600" />
+          <Zap className="w-5 h-5 text-indigo-600" />
           <p className="text-xs font-medium text-indigo-900">
             <span className="font-bold">Quick Mode Active:</span> Validation rules are relaxed and quality is marked LOW to maximize efficiency.
           </p>
@@ -737,7 +737,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
             {diagnosisSuggestions.length > 0 && !isLocked && (
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold text-slate-400 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-[#0067A1]" /> Dataset & AI Suggestions:
+                  <Stethoscope className="w-3.5 h-3.5 text-[#0067A1]" /> Clinical Suggestions:
                 </span>
                 {diagnosisSuggestions.map((ds, idx) => (
                   <button

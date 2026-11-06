@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Wind, Activity, Footprints, Heart, Shield, ShieldCheck,
-  Calendar, Clock, Award, Sparkles, RefreshCw, AlertTriangle,
+  Calendar, Clock, Award, RefreshCw, AlertTriangle,
   CheckCircle2, ChevronRight, X, ArrowRight, MapPin, ExternalLink,
   Flame, Info, Sliders, ChevronDown, Check, Compass, Play,
   Pause, RotateCcw, Lock, ChevronUp, Share2, HelpCircle, Eye,
@@ -1911,7 +1911,7 @@ function LungConnectHubContent() {
                     <span className="w-2.5 h-2.5 rounded-[3px] bg-white border border-slate-300"></span> Upcoming
                   </span>
                   <span className="flex items-center gap-1.5 text-[#0067A1] font-medium">
-                    <Sparkles className="w-3 h-3" /> Checkpoint (+15 recurring cycle)
+                    <Award className="w-3 h-3" /> Checkpoint (+15 recurring cycle)
                   </span>
                 </div>
               </div>
@@ -2990,7 +2990,7 @@ function LungConnectHubContent() {
                   <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-800 px-2 py-0.5 rounded-[5px]">
                     Governed AI
                   </span>
-                  <Sparkles className="w-4 h-4 text-slate-800" />
+                  <ShieldCheck className="w-4 h-4 text-slate-800" />
                 </div>
                 <h4 className="text-sm font-bold text-slate-950">Governed AI Gate</h4>
                 <div className="text-[11px] text-slate-800">

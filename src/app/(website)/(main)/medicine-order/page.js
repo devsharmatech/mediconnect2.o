@@ -36,7 +36,6 @@ import {
   ExternalLink,
   Info,
   Radio,
-  Sparkles,
   ChevronRight,
   ChevronLeft,
   ChevronDown,

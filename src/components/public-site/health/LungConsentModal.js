@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, ShieldCheck, MapPin, Stethoscope, Check, AlertCircle,
-  FileText, Bell, Sparkles, ChevronRight, Lock
+  FileText, Bell, Award, ChevronRight, Lock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { AnimatedShieldConsent } from './animations';
@@ -111,7 +111,7 @@ export default function LungConsentModal({ isOpen, onClose, onSaved }) {
       key: 'marketing',
       title: '5. Marketing & Platform Insights (Optional)',
       desc: 'Allows receiving wellness education newsletters, feature updates, and participating in voluntary health surveys.',
-      icon: Sparkles,
+      icon: Award,
       badge: 'Optional',
     },
   ];

@@ -5,12 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart, Clock, CheckCircle2, AlertCircle, Loader2,
   Phone, MapPin, RefreshCw, ChevronDown, ChevronUp,
-  ArrowLeft, Sparkles, UserCheck, Handshake, PlayCircle, XCircle, Lock
+  ArrowLeft, PlusCircle, UserCheck, Handshake, PlayCircle, XCircle, Lock
 } from "lucide-react";
 import Link from "next/link";
 
 const STATUS_PIPELINE = [
-  { key: "NEW", label: "Request Submitted", icon: Sparkles, description: "Your request has been received and is in the queue." },
+  { key: "NEW", label: "Request Submitted", icon: PlusCircle, description: "Your request has been received and is in the queue." },
   { key: "CONTACTED", label: "Team Contacted You", icon: Phone, description: "Our team has reached out to discuss your needs." },
   { key: "QUALIFIED", label: "Qualified", icon: UserCheck, description: "Your request has been verified and qualified." },
   { key: "SHARED_WITH_PARTNER", label: "Partner Assigned", icon: Handshake, description: "A nursing care partner has been assigned to your request." },
@@ -215,7 +215,7 @@ export default function NursingStatusPage() {
             href="/nursing-care"
             className="flex items-center gap-1.5 px-4 py-2 bg-[#0067A1] text-white rounded-xl hover:bg-[#004F7C] transition-colors text-sm font-semibold shadow-sm cursor-pointer"
           >
-            <Sparkles className="w-4 h-4" /> New Request
+            <PlusCircle className="w-4 h-4" /> New Request
           </Link>
           <button
             onClick={fetchRequests}

@@ -5,7 +5,7 @@ import {
   Microscope, Plus, Search, Filter, Download, Upload,
   Edit2, Trash2, CheckCircle, XCircle, FileText, 
   Activity, AlertTriangle, Database, RefreshCw,
-  Percent, Coins, ShieldAlert, Sparkles, Save
+  Percent, Coins, ShieldAlert, Save
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Papa from "papaparse";

@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { FaUserPlus, FaSearch, FaCalendarCheck, FaVideo, FaFileMedical, FaPills, FaArrowRight, FaCheckCircle, FaUpload, FaNotesMedical, FaBell, FaUserMd } from 'react-icons/fa';
-import { HiSparkles } from 'react-icons/hi2';
 
 const steps = [
   {
@@ -96,7 +95,7 @@ const additionalServices = [
     description: 'Support to stay on track with doctor-advised medicines and investigations.',
   },
   {
-    icon: HiSparkles,
+    icon: FaCheckCircle,
     title: 'Health Insights & Tools',
     description: 'Contextual health tips, reminders, and supportive tools around your care.',
   },

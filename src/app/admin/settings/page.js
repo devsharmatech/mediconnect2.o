@@ -22,7 +22,6 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Sparkles,
   Save,
   Shield,
   Bot,

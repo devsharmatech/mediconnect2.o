@@ -13,7 +13,6 @@ import {
   Mail,
   Phone,
   MessageSquare,
-  Sparkles,
   Pill,
   Home as HomeIcon,
   HelpCircle,

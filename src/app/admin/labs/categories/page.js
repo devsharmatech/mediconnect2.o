@@ -14,7 +14,6 @@ import {
   Coins, 
   Lock, 
   Info, 
-  Sparkles, 
   RefreshCw,
   Calculator,
   ChevronRight,
@@ -243,7 +242,7 @@ export default function AdminLabCategoriesPage() {
         <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-[#0067A1]" />
+              <Coins className="w-5 h-5 text-[#0067A1]" />
               Configured Commission Tiers ({categories.length})
             </h2>
             <p className="text-xs text-gray-500 mt-1">

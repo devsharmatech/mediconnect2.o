@@ -23,7 +23,7 @@ import {
   Pill,
   Store,
   Clock,
-  Sparkles,
+  Star,
   RotateCcw,
   FlaskConical,
   CreditCard,
@@ -1654,7 +1654,7 @@ function SharePrescriptionModal({
                   animate={{ scale: [0.95, 1.05, 0.95] }}
                   transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
                 >
-                  <Sparkles className="w-2.5 h-2.5 text-amber-500 fill-amber-400" />
+                  <Star className="w-2.5 h-2.5 text-amber-500 fill-amber-400" />
                   <span className="text-[9px] font-bold text-amber-700">Best Price</span>
                 </motion.div>
 

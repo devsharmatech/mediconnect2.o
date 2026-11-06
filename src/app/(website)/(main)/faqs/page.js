@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FaChevronDown, FaSearch, FaQuestionCircle } from "react-icons/fa";
 import Link from "next/link";
-import { HiSparkles } from "react-icons/hi2";
+import { HiQuestionMarkCircle } from "react-icons/hi2";
 
 export default function FaqsPage() {
   const [faqs, setFaqs] = useState([]);
@@ -67,7 +67,7 @@ export default function FaqsPage() {
         <div className="container mx-auto max-w-full flex flex-col items-center">
           {headerData?.title && (
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 backdrop-blur-sm">
-              <HiSparkles className="h-4 w-4 text-emerald-300" />
+              <HiQuestionMarkCircle className="h-4 w-4 text-emerald-300" />
               <span className="text-xs sm:text-sm font-semibold tracking-wide text-teal-100 uppercase">
                 {headerData.title}
               </span>

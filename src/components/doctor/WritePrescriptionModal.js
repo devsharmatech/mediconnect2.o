@@ -16,7 +16,7 @@ import {
   Heart,
   Thermometer,
   Scale,
-  Sparkles,
+  CheckCircle,
   FlaskConical,
   Calendar,
   ChevronLeft,
@@ -1651,7 +1651,7 @@ export default function WritePrescriptionModal({
             <div className="flex items-center justify-between mb-3">
               <div className={`${sectionTitle} mb-0`}>
                 <span className="w-5 h-5 rounded bg-[#0067A1]/10 flex items-center justify-center text-[11px] font-medium text-[#0067A1]">
-                  <Sparkles className="w-3.5 h-3.5 text-[#0067A1]" />
+                  <Activity className="w-3.5 h-3.5 text-[#0067A1]" />
                 </span>
                 Presenting Complaints
               </div>
@@ -1949,7 +1949,7 @@ export default function WritePrescriptionModal({
                           className="px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors flex items-center gap-1.5 active:scale-95 cursor-pointer"
                           title="Click to set standard healthy normal vitals"
                         >
-                          <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> Set Normal
+                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Set Normal
                         </button>
                         <button
                           type="button"

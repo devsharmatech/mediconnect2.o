@@ -23,7 +23,6 @@ import {
   FaCheckCircle,
 } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
-import { HiSparkles } from "react-icons/hi2";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();

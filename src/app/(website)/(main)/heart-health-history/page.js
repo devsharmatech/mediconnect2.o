@@ -24,7 +24,6 @@ import {
   RefreshCw,
   X,
   Eye,
-  Sparkles,
   Info
 } from "lucide-react";
 import toast from "react-hot-toast";

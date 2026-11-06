@@ -51,7 +51,6 @@ import {
   SlidersHorizontal,
   AlertTriangle,
   ArrowRight,
-  Sparkles,
   ExternalLink
 } from "lucide-react";
 import { getLoggedInUser } from "@/lib/authHelpers";

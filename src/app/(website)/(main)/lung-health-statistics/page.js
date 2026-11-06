@@ -29,7 +29,7 @@ import {
   CheckCircle2,
   FileText,
   Stethoscope,
-  Sparkles,
+  Award,
   ArrowRight,
   Filter,
   BarChart2,
@@ -622,7 +622,7 @@ export default function LungHealthStatisticsPage() {
                   </p>
                 </div>
                 <div className="w-10 h-10 rounded-[5px] bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
-                  <Sparkles className="w-5 h-5" />
+                  <Award className="w-5 h-5" />
                 </div>
               </div>
             </div>
@@ -917,7 +917,7 @@ export default function LungHealthStatisticsPage() {
                     <span className="text-[10px] uppercase font-bold tracking-wider opacity-85">
                       Breathing Consistency
                     </span>
-                    <Sparkles className="w-3.5 h-3.5 text-sky-200" />
+                    <Award className="w-3.5 h-3.5 text-sky-200" />
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-2xl font-bold font-mono">{breathingStats.totalSessions}</span>
