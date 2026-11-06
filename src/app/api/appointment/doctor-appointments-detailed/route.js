@@ -126,10 +126,17 @@ export async function POST(req) {
         p.address AS patient_address,
         u.phone_number AS patient_phone,
         u.un_id AS patient_un_id,
+        d.full_name AS doctor_full_name,
+        d.specialization AS doctor_specialization,
+        d.qualification AS doctor_qualification,
+        d.license_number AS doctor_license_number,
+        d.clinic_name AS doctor_clinic_name,
+        d.clinic_address AS doctor_clinic_address,
         COUNT(*) OVER()::int AS full_count
       FROM appointments a
       LEFT JOIN patient_details p ON p.id = a.patient_id
       LEFT JOIN users u ON u.id = a.patient_id
+      LEFT JOIN doctor_details d ON d.id = a.doctor_id
       WHERE a.doctor_id = ${doctor_id}
         ${dateCondition}
       ORDER BY 
@@ -220,6 +227,16 @@ export async function POST(req) {
         un_id: a.patient_un_id || null,
       };
 
+      const simpleDoctor = {
+        id: a.doctor_id,
+        full_name: a.doctor_full_name || null,
+        specialization: a.doctor_specialization || null,
+        qualification: a.doctor_qualification || null,
+        license_number: a.doctor_license_number || null,
+        clinic_name: a.doctor_clinic_name || a.clinic_name || null,
+        clinic_address: a.doctor_clinic_address || a.clinic_address || null,
+      };
+
       return {
         id: a.id,
         doctor_id: a.doctor_id,
@@ -242,6 +259,7 @@ export async function POST(req) {
         created_at: a.created_at,
         updated_at: a.updated_at,
         patient: simplePatient,
+        doctor: simpleDoctor,
         screening,
       };
     });

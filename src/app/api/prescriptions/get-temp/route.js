@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { corsHeaders } from "@/lib/cors";
 
 export async function OPTIONS() {
@@ -149,7 +149,7 @@ function matchAllSpecializations(doctorSpecString) {
   return Array.from(matched);
 }
 
-// GET templates by specialization and appointment type
+// GET templates by specialization and appointment type from AWS RDS PostgreSQL
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
@@ -162,52 +162,70 @@ export async function GET(req) {
       appointment_type = "video_consultation";
     }
 
-    // Fetch all active templates for this appointment type
-    const { data: allTemplates, error } = await supabase
-      .from("prescription_templates")
-      .select("*")
-      .eq("is_active", true)
-      .eq("appointment_type", appointment_type);
+    // Fetch all active templates from AWS RDS
+    const dbTemplates = await sql`
+      SELECT 
+        id,
+        name,
+        specialization,
+        appointment_type,
+        description,
+        template_structure,
+        default_values,
+        is_active,
+        created_by,
+        created_at,
+        updated_at
+      FROM prescription_templates
+      WHERE is_active = true
+      ORDER BY name ASC
+    `;
 
-    if (error) throw error;
-
-    const dbTemplates = allTemplates || [];
-
-    // Get all matched canonical specialization keys from comma-separated doctor spec
+    // Match doctor's specialization keys
     const matchedKeys = matchAllSpecializations(specialization);
 
-    let resultTemplates = [];
+    let matchedTemplates = [];
+    let otherTemplates = [];
 
     if (matchedKeys.length > 0) {
-      // For each matched key, find the matching DB template
-      for (const key of matchedKeys) {
-        const found = dbTemplates.find(t =>
-          t.specialization.trim().toUpperCase() === key.toUpperCase()
-        );
-        if (found) {
-          resultTemplates.push(found);
-        } else {
-          // No DB template for this key — generate a dynamic fallback
-          resultTemplates.push(getDefaultTemplate(key, appointment_type));
+      // Find templates matching doctor's specialization
+      matchedTemplates = dbTemplates.filter(t => 
+        matchedKeys.some(k => (t.specialization || "").trim().toUpperCase() === k.toUpperCase())
+      );
+
+      // Other active templates
+      otherTemplates = dbTemplates.filter(t => 
+        !matchedKeys.some(k => (t.specialization || "").trim().toUpperCase() === k.toUpperCase())
+      );
+
+      // If no DB template found for this specialization, add default fallback
+      if (matchedTemplates.length === 0) {
+        for (const key of matchedKeys) {
+          matchedTemplates.push(getDefaultTemplate(key, appointment_type));
         }
       }
     } else if (specialization.trim()) {
-      // No canonical match → try direct substring match as last resort
-      const directMatch = dbTemplates.filter(t =>
-        t.specialization.toLowerCase().includes(specialization.toLowerCase()) ||
-        specialization.toLowerCase().includes(t.specialization.toLowerCase().trim())
+      // Substring match fallback
+      matchedTemplates = dbTemplates.filter(t =>
+        (t.specialization || "").toLowerCase().includes(specialization.toLowerCase()) ||
+        specialization.toLowerCase().includes((t.specialization || "").toLowerCase().trim())
       );
-
-      if (directMatch.length > 0) {
-        resultTemplates = directMatch;
-      } else {
-        // Fallback: return a generic default template
-        resultTemplates = [getDefaultTemplate(specialization, appointment_type)];
+      otherTemplates = dbTemplates.filter(t => !matchedTemplates.includes(t));
+      if (matchedTemplates.length === 0) {
+        matchedTemplates = [getDefaultTemplate(specialization, appointment_type)];
       }
     } else {
-      // No specialization provided — return all templates
-      resultTemplates = dbTemplates;
+      // If no specialization provided, all templates are available
+      matchedTemplates = dbTemplates;
+      otherTemplates = [];
     }
+
+    // Tag matched templates as recommended
+    const taggedMatched = matchedTemplates.map(t => ({ ...t, is_recommended: true }));
+    const taggedOther = otherTemplates.map(t => ({ ...t, is_recommended: false }));
+
+    // Prioritize matched templates first, followed by other templates
+    const resultTemplates = [...taggedMatched, ...taggedOther];
 
     const cleanedTemplates = resultTemplates.map(t => {
       if (!t) return t;
@@ -220,8 +238,13 @@ export async function GET(req) {
     return Response.json(
       {
         success: true,
+        data: {
+          templates: cleanedTemplates,
+          matchedTemplates: taggedMatched,
+          count: cleanedTemplates.length,
+        },
         templates: cleanedTemplates,
-        count: cleanedTemplates.length
+        count: cleanedTemplates.length,
       },
       { headers: corsHeaders }
     );

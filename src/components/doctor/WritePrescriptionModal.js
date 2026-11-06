@@ -171,6 +171,16 @@ export default function WritePrescriptionModal({
   const [isEditingExisting, setIsEditingExisting] = useState(false);
   const [isPrescriptionSigned, setIsPrescriptionSigned] = useState(false);
   const [signedPrescriptionUrl, setSignedPrescriptionUrl] = useState(null);
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [templateFilter, setTemplateFilter] = useState("all");
+
+  const [doctorInfo, setDoctorInfo] = useState({
+    name: meta?.doctor_name || "",
+    specialization: meta?.doctor_specialization || "",
+    qualification: meta?.doctor_qualification || "",
+    license: meta?.doctor_license || "",
+    clinic: meta?.doctor_clinic || "",
+  });
 
   const episodeCode = meta?.episode_id || existingEpisodeId || (meta?.care_episode_id ? (String(meta.care_episode_id).toUpperCase().startsWith("EP-") ? String(meta.care_episode_id).toUpperCase() : `EP-${String(meta.care_episode_id).slice(0, 8).toUpperCase()}`) : null);
 
@@ -188,25 +198,54 @@ export default function WritePrescriptionModal({
   const [conditionMaster, setConditionMaster] = useState([]);
   const [complaintSuggestions, setComplaintSuggestions] = useState([]);
 
+  // Auto-fetch doctor profile if doctor details or specialization were not in appointment object
+  useEffect(() => {
+    const docId = meta?.doctor_id || (typeof window !== "undefined" ? (localStorage.getItem("userId") || localStorage.getItem("user_id")) : null);
+    if (docId && (!doctorInfo.specialization || !doctorInfo.name)) {
+      fetch(`/api/doctor/profile?doctor_id=${encodeURIComponent(docId)}`)
+        .then((r) => r.json())
+        .then((res) => {
+          if (res?.success && res.data) {
+            const d = res.data;
+            let qual = d.qualification || "";
+            if (Array.isArray(qual)) qual = qual.join(", ");
+            else if (typeof qual === "string") {
+              try { const p = JSON.parse(qual); if (Array.isArray(p)) qual = p.join(", "); } catch {}
+            }
+            setDoctorInfo({
+              name: d.full_name || d.name || doctorInfo.name || "Doctor",
+              specialization: d.specialization || doctorInfo.specialization || "General Physician",
+              qualification: qual || doctorInfo.qualification,
+              license: d.license_number || doctorInfo.license,
+              clinic: d.clinic_name || doctorInfo.clinic,
+            });
+          }
+        })
+        .catch((err) => console.warn("Failed to load doctor profile:", err));
+    }
+  }, [meta?.doctor_id, doctorInfo.name, doctorInfo.specialization, doctorInfo.qualification, doctorInfo.license, doctorInfo.clinic]);
+
+  // Load prescription templates from AWS RDS
   useEffect(() => {
     if (propTemplates && propTemplates.length > 0) {
       setTemplates(propTemplates);
       setTemplatesLoading(false);
       return;
     }
-    const spec = meta?.doctor_specialization || "";
-    const aptType = meta?.appointment_type || "video_call";
+    const spec = doctorInfo.specialization || meta?.doctor_specialization || "";
+    const aptType = meta?.appointment_type || "clinic_visit";
     setTemplatesLoading(true);
     fetch(`/api/prescriptions/get-temp?specialization=${encodeURIComponent(spec)}&appointment_type=${encodeURIComponent(aptType)}`)
       .then((r) => r.json())
       .then((json) => {
-        if (json?.success && Array.isArray(json?.data?.templates)) {
-          setTemplates(json.data.templates);
+        const loaded = json?.data?.templates || json?.templates || [];
+        if (Array.isArray(loaded)) {
+          setTemplates(loaded);
         }
       })
       .catch((err) => console.warn("Failed to load templates:", err))
       .finally(() => setTemplatesLoading(false));
-  }, [meta?.doctor_specialization, meta?.appointment_type, propTemplates]);
+  }, [doctorInfo.specialization, meta?.doctor_specialization, meta?.appointment_type, propTemplates]);
 
   useEffect(() => {
     // 1. Fetch medicines immediately and unblocked
@@ -285,7 +324,29 @@ export default function WritePrescriptionModal({
       });
   }, []);
 
-  const specList = (meta?.doctor_specialization || "").split(",").map(s => s.trim()).filter(Boolean);
+  const effectiveDoctorName = doctorInfo.name || meta?.doctor_name || "Doctor";
+  const effectiveDoctorSpec = doctorInfo.specialization || meta?.doctor_specialization || "";
+  const effectiveDoctorQual = doctorInfo.qualification || meta?.doctor_qualification || "";
+  const effectiveDoctorLicense = doctorInfo.license || meta?.doctor_license || "";
+  const effectiveDoctorClinic = doctorInfo.clinic || meta?.doctor_clinic || "";
+
+  const specList = (effectiveDoctorSpec || meta?.doctor_specialization || "").split(",").map(s => s.trim()).filter(Boolean);
+
+  const filteredTemplates = templates.filter((tpl) => {
+    if (!tpl) return false;
+    const q = templateSearch.trim().toLowerCase();
+    const nameMatch = !q || (tpl.name || "").toLowerCase().includes(q) ||
+      (tpl.specialization || "").toLowerCase().includes(q) ||
+      (tpl.appointment_type || "").toLowerCase().includes(q);
+    if (!nameMatch) return false;
+
+    if (templateFilter === "recommended") {
+      return Boolean(tpl.is_recommended);
+    }
+    return true;
+  });
+
+  const recommendedCount = templates.filter((t) => t.is_recommended).length;
 
   /* ── Get active template structure ── */
   const getActiveStructure = () => {
@@ -1308,15 +1369,15 @@ export default function WritePrescriptionModal({
                   {meta.patient_gender ? `, ${meta.patient_gender}` : ""}
                 </p>
               )}
-              {meta?.doctor_name && (
+              {effectiveDoctorName && (
                 <p className="text-xs text-white/80">
-                  <span className="text-white/60">Dr:</span> {meta.doctor_name}
-                  {meta.doctor_qualification ? ` (${meta.doctor_qualification})` : ""}
+                  <span className="text-white/60">Dr:</span> {effectiveDoctorName}
+                  {effectiveDoctorQual ? ` (${effectiveDoctorQual})` : ""}
                 </p>
               )}
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-white/10 transition-colors shrink-0 ml-3">
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-white/10 transition-colors shrink-0 ml-3 cursor-pointer">
             <XMarkIcon className="w-5 h-5 text-white" />
           </button>
         </div>
@@ -1329,85 +1390,159 @@ export default function WritePrescriptionModal({
             <div className="p-6">
 
               {/* Doctor & Patient Info Cards */}
-              {(meta?.doctor_name || meta?.patient_name) && (
-                <div className="space-y-2 mb-5">
-                  <div className="grid grid-cols-2 gap-3">
-                    {meta?.doctor_name && (
-                      <div className="p-3 rounded-lg bg-[#0067A1]/5 border border-[#0067A1]/10">
-                        <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-1">Doctor</p>
-                        <p className="text-xs font-medium text-slate-800">{meta.doctor_name}</p>
-                        {meta.doctor_qualification && <p className="text-[11px] text-slate-600 font-normal">{meta.doctor_qualification}</p>}
-                        {meta.doctor_specialization && <p className="text-[11px] text-[#0067A1] font-medium">{meta.doctor_specialization}</p>}
-                        {meta.doctor_license && <p className="text-[10px] text-slate-500 font-normal">Reg: {meta.doctor_license}</p>}
-                        {meta.doctor_clinic && <p className="text-[10px] text-slate-500 font-normal">{meta.doctor_clinic}</p>}
-                      </div>
+              <div className="space-y-2 mb-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 rounded-lg bg-[#0067A1]/5 border border-[#0067A1]/10">
+                    <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-1">Doctor Profile</p>
+                    <p className="text-xs font-semibold text-slate-800">{effectiveDoctorName}</p>
+                    {effectiveDoctorQual && <p className="text-[11px] text-slate-600 font-normal">{effectiveDoctorQual}</p>}
+                    {effectiveDoctorSpec && (
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-[#0067A1]/10 text-[#0067A1]">
+                        Specialization: {effectiveDoctorSpec}
+                      </span>
                     )}
-                    {meta?.patient_name && (
-                      <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-100">
-                        <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-1">Patient</p>
-                        <p className="text-xs font-medium text-slate-800">{meta.patient_name}</p>
-                        {meta.patient_gender && <p className="text-[11px] text-slate-600 font-normal capitalize">{meta.patient_gender}</p>}
-                        {meta.patient_dob && <p className="text-[10px] text-slate-500 font-normal">DOB: {new Date(meta.patient_dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
-                        {meta.patient_blood_group && <p className="text-[10px] text-slate-500 font-normal">Blood: {meta.patient_blood_group}</p>}
-                      </div>
-                    )}
+                    {effectiveDoctorLicense && <p className="text-[10px] text-slate-500 font-normal mt-0.5">Reg: {effectiveDoctorLicense}</p>}
+                    {effectiveDoctorClinic && <p className="text-[10px] text-slate-500 font-normal">{effectiveDoctorClinic}</p>}
                   </div>
-                  {episodeCode && (
-                    <div className="px-3 py-1.5 rounded-md bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
-                      <span className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Episode ID</span>
-                      <span className="font-mono font-medium text-[#0067A1]">{episodeCode}</span>
+
+                  {meta?.patient_name && (
+                    <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-100">
+                      <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-1">Patient</p>
+                      <p className="text-xs font-semibold text-slate-800">{meta.patient_name}</p>
+                      {meta.patient_gender && <p className="text-[11px] text-slate-600 font-normal capitalize">{meta.patient_gender}</p>}
+                      {meta.patient_dob && <p className="text-[10px] text-slate-500 font-normal">DOB: {new Date(meta.patient_dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
+                      {meta.patient_blood_group && <p className="text-[10px] text-slate-500 font-normal">Blood: {meta.patient_blood_group}</p>}
                     </div>
                   )}
                 </div>
-              )}
+                {episodeCode && (
+                  <div className="px-3 py-1.5 rounded-md bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+                    <span className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Episode ID</span>
+                    <span className="font-mono font-medium text-[#0067A1]">{episodeCode}</span>
+                  </div>
+                )}
+              </div>
 
-              <div className="mb-5">
+              <div className="mb-4">
                 <h4 className="text-sm font-semibold text-slate-800">Choose a Prescription Template</h4>
-                <p className="text-xs text-slate-600 font-normal mt-1">
-                  Select a template to pre-fill your prescription, or start with a blank form.
+                <p className="text-xs text-slate-600 font-normal mt-0.5">
+                  Select a template to pre-fill clinical diagnosis, medicines and advice, or start with a blank form.
                 </p>
+              </div>
+
+              {/* Search & Specialty Filter Controls */}
+              <div className="space-y-2.5 mb-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={templateSearch}
+                    onChange={(e) => setTemplateSearch(e.target.value)}
+                    placeholder="Search templates by specialty or name…"
+                    className="w-full pl-9 pr-8 py-2 text-xs rounded-lg border border-slate-300 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1]"
+                  />
+                  <svg className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  {templateSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setTemplateSearch("")}
+                      className="absolute right-2.5 top-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {recommendedCount > 0 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTemplateFilter("all")}
+                      className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer ${
+                        templateFilter === "all"
+                          ? "bg-[#0067A1] text-white shadow-xs"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      All Templates ({templates.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTemplateFilter("recommended")}
+                      className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
+                        templateFilter === "recommended"
+                          ? "bg-emerald-600 text-white shadow-xs"
+                          : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/70"
+                      }`}
+                    >
+                      <span>★ Your Specialty ({recommendedCount})</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {templatesLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 text-slate-500 space-y-2.5">
                   <Spinner size="w-6 h-6 text-[#0067A1]" />
-                  <p className="text-xs font-medium text-slate-600">Loading prescription templates…</p>
+                  <p className="text-xs font-medium text-slate-600">Loading prescription templates from AWS RDS…</p>
                 </div>
-              ) : templates.length > 0 ? (
-                <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
-                  {templates.map((tpl, idx) => (
-                    <button
-                      key={tpl.id || idx}
-                      onClick={() => applyTemplate(tpl)}
-                      className="w-full flex items-start gap-3 p-3.5 rounded-lg border border-slate-200 hover:border-[#0067A1] hover:bg-[#0067A1]/5 transition-all text-left group cursor-pointer"
-                    >
-                      <div className="w-8 h-8 rounded-md bg-[#0067A1]/10 flex items-center justify-center shrink-0 group-hover:bg-[#0067A1]/20 transition-colors">
-                        <span className="text-[#0067A1] font-semibold text-xs">Rx</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{tpl.name || `Template ${idx + 1}`}</p>
-                        {tpl.specialization && (
-                          <p className="text-[11px] text-[#0067A1] font-medium capitalize mt-0.5">{tpl.specialization.replace(/_/g, " ")}</p>
-                        )}
-                        {tpl.appointment_type && (
-                          <p className="text-[10px] text-slate-500 font-normal mt-0.5 capitalize">{tpl.appointment_type.replace(/_/g, " ")}</p>
-                        )}
-                      </div>
-                      <svg className="w-4 h-4 text-slate-400 group-hover:text-[#0067A1] shrink-0 mt-1 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                  ))}
+              ) : filteredTemplates.length > 0 ? (
+                <div className="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1">
+                  {filteredTemplates.map((tpl, idx) => {
+                    const isRec = Boolean(tpl.is_recommended);
+                    return (
+                      <button
+                        key={tpl.id || idx}
+                        onClick={() => applyTemplate(tpl)}
+                        className={`w-full flex items-start gap-3 p-3.5 rounded-lg border transition-all text-left group cursor-pointer ${
+                          isRec
+                            ? "border-[#0067A1]/40 bg-[#0067A1]/5 hover:border-[#0067A1] hover:bg-[#0067A1]/10 shadow-xs"
+                            : "border-slate-200 bg-white hover:border-[#0067A1] hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 transition-colors ${
+                          isRec
+                            ? "bg-[#0067A1] text-white"
+                            : "bg-[#0067A1]/10 text-[#0067A1] group-hover:bg-[#0067A1]/20"
+                        }`}>
+                          <span className="font-bold text-xs">Rx</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-semibold text-slate-900 truncate">{tpl.name || `Template ${idx + 1}`}</p>
+                            {isRec && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                Recommended for your specialty
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            {tpl.specialization && (
+                              <p className="text-[11px] text-[#0067A1] font-semibold capitalize">{tpl.specialization.replace(/_/g, " ")}</p>
+                            )}
+                            {tpl.appointment_type && (
+                              <span className="text-[10px] text-slate-500 font-normal capitalize">• {tpl.appointment_type.replace(/_/g, " ")}</span>
+                            )}
+                          </div>
+                        </div>
+                        <svg className="w-4 h-4 text-slate-400 group-hover:text-[#0067A1] shrink-0 mt-1 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
-                <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-center">
-                  <p className="text-xs text-slate-600">No pre-configured templates found. You can start directly with a blank form.</p>
+                <div className="p-6 rounded-lg bg-slate-50 border border-slate-200 text-center space-y-1">
+                  <p className="text-xs font-semibold text-slate-700">No matching templates found for your search.</p>
+                  <p className="text-[11px] text-slate-500">You can clear your search to view all templates, or start with a blank form.</p>
                 </div>
               )}
 
               <button
                 onClick={() => applyTemplate(null)}
-                className="w-full mt-4 py-2.5 rounded-lg border border-dashed border-slate-300 text-sm text-slate-700 hover:border-[#0067A1] hover:text-[#0067A1] hover:bg-slate-50 transition-all font-medium"
+                className="w-full mt-4 py-2.5 rounded-lg border border-dashed border-slate-300 text-sm text-slate-700 hover:border-[#0067A1] hover:text-[#0067A1] hover:bg-slate-50 transition-all font-semibold cursor-pointer"
               >
                 + Start with Blank Form
               </button>
@@ -1419,77 +1554,74 @@ export default function WritePrescriptionModal({
           <div className="p-6 space-y-6">
 
           {/* ── Doctor & Patient Info Summary ── */}
-          {(meta?.doctor_name || meta?.patient_name) && (
-            <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-2.5">
-              <div className="grid grid-cols-2 gap-3">
-                {meta?.doctor_name && (
-                  <div>
-                    <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-0.5">Doctor</p>
-                    <p className="text-xs font-medium text-slate-800">{meta.doctor_name}</p>
-                    {meta.doctor_qualification && <p className="text-[11px] text-slate-600 font-normal">{meta.doctor_qualification}</p>}
-                    
-                    {specList.length > 1 ? (
-                      <div className="mt-1">
-                        <label className="text-[10px] text-slate-600 font-medium block">Active Specialization</label>
-                        <select
-                          disabled={isPrescriptionSigned}
-                          value={selectedTemplateSpec}
-                          onChange={(e) => setSelectedTemplateSpec(e.target.value)}
-                          className={`text-xs ${isPrescriptionSigned ? "bg-slate-100 text-slate-600 cursor-not-allowed" : "bg-white text-[#0067A1]"} border border-slate-300 rounded p-1 font-medium mt-0.5 focus:outline-none focus:ring-1 focus:ring-[#0067A1]`}
-                        >
-                          {specList.map((spec) => (
-                            <option key={spec} value={spec}>
-                              {spec}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ) : (
-                      selectedTemplateSpec && <p className="text-[11px] text-[#0067A1] font-medium">{selectedTemplateSpec}</p>
-                    )}
+          <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-200/80 space-y-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-0.5">Doctor</p>
+                <p className="text-xs font-semibold text-slate-800">{effectiveDoctorName}</p>
+                {effectiveDoctorQual && <p className="text-[11px] text-slate-600 font-normal">{effectiveDoctorQual}</p>}
+                
+                {specList.length > 1 ? (
+                  <div className="mt-1">
+                    <label className="text-[10px] text-slate-600 font-medium block">Active Specialization</label>
+                    <select
+                      disabled={isPrescriptionSigned}
+                      value={selectedTemplateSpec}
+                      onChange={(e) => setSelectedTemplateSpec(e.target.value)}
+                      className={`text-xs ${isPrescriptionSigned ? "bg-slate-100 text-slate-600 cursor-not-allowed" : "bg-white text-[#0067A1]"} border border-slate-300 rounded p-1 font-medium mt-0.5 focus:outline-none focus:ring-1 focus:ring-[#0067A1]`}
+                    >
+                      {specList.map((spec) => (
+                        <option key={spec} value={spec}>
+                          {spec}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  (selectedTemplateSpec || effectiveDoctorSpec) && <p className="text-[11px] text-[#0067A1] font-semibold">{selectedTemplateSpec || effectiveDoctorSpec}</p>
+                )}
 
-                    {meta.doctor_license && <p className="text-[10px] text-slate-500 font-normal">Reg: {meta.doctor_license}</p>}
-                    {meta.doctor_clinic && <p className="text-[10px] text-slate-500 font-normal">{meta.doctor_clinic}</p>}
-                  </div>
-                )}
-                {meta?.patient_name && (
-                  <div>
-                    <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-0.5">Patient</p>
-                    <p className="text-xs font-medium text-slate-800">{meta.patient_name}</p>
-                    {meta.patient_gender && <p className="text-[11px] text-slate-600 font-normal capitalize">{meta.patient_gender}</p>}
-                    {meta.patient_dob && <p className="text-[10px] text-slate-500 font-normal">DOB: {new Date(meta.patient_dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
-                    {meta.patient_blood_group && <p className="text-[10px] text-slate-500 font-normal">Blood: {meta.patient_blood_group}</p>}
-                    {meta.patient_address && <p className="text-[10px] text-slate-500 font-normal truncate">{meta.patient_address}</p>}
-                  </div>
-                )}
+                {effectiveDoctorLicense && <p className="text-[10px] text-slate-500 font-normal">Reg: {effectiveDoctorLicense}</p>}
+                {effectiveDoctorClinic && <p className="text-[10px] text-slate-500 font-normal">{effectiveDoctorClinic}</p>}
               </div>
 
-              {/* ── Journey & Episode Tracking Strip ── */}
-              <div className="pt-2 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Episode ID:</span>
-                  <span className="font-mono font-medium text-[#0067A1] bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px]">
-                    {episodeCode || "EP-CONSULTATION"}
-                  </span>
+              {meta?.patient_name && (
+                <div>
+                  <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-0.5">Patient</p>
+                  <p className="text-xs font-semibold text-slate-800">{meta.patient_name}</p>
+                  {meta.patient_gender && <p className="text-[11px] text-slate-600 font-normal capitalize">{meta.patient_gender}</p>}
+                  {meta.patient_dob && <p className="text-[10px] text-slate-500 font-normal">DOB: {new Date(meta.patient_dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
+                  {meta.patient_blood_group && <p className="text-[10px] text-slate-500 font-normal">Blood: {meta.patient_blood_group}</p>}
+                  {meta.patient_address && <p className="text-[10px] text-slate-500 font-normal truncate">{meta.patient_address}</p>}
                 </div>
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-700">
-                  <span className="font-normal text-slate-500">Prescription:</span>
-                  <span className="font-medium text-slate-800">
-                    {isPrescriptionSigned ? "Finalized (Signed)" : isEditingExisting ? (existingPid ? `Rx #${existingPid}` : "Saved Draft") : "New Rx (Draft)"}
-                  </span>
-                  {!isPrescriptionSigned && (
-                    <button
-                      type="button"
-                      onClick={() => setTemplateStep("select")}
-                      className="ml-2 text-[#0067A1] hover:text-[#005282] font-semibold underline text-[11px] cursor-pointer"
-                    >
-                      Change Template
-                    </button>
-                  )}
-                </div>
+              )}
+            </div>
+
+            {/* ── Journey & Episode Tracking Strip ── */}
+            <div className="pt-2 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Episode ID:</span>
+                <span className="font-mono font-medium text-[#0067A1] bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px]">
+                  {episodeCode || "EP-CONSULTATION"}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-700">
+                <span className="font-normal text-slate-500">Prescription:</span>
+                <span className="font-medium text-slate-800">
+                  {isPrescriptionSigned ? "Finalized (Signed)" : isEditingExisting ? (existingPid ? `Rx #${existingPid}` : "Saved Draft") : "New Rx (Draft)"}
+                </span>
+                {!isPrescriptionSigned && (
+                  <button
+                    type="button"
+                    onClick={() => setTemplateStep("select")}
+                    className="ml-2 text-[#0067A1] hover:text-[#005282] font-semibold underline text-[11px] cursor-pointer"
+                  >
+                    Change Template
+                  </button>
+                )}
               </div>
             </div>
-          )}
+          </div>
           {/* ── Existing Prescription Notice ── */}
           {isPrescriptionSigned ? (
             <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-950">
