@@ -261,7 +261,7 @@ export default function Prescriptions() {
         return {
           id: p.id,
           raw: p,
-          doctorId: p.doctor_id,
+          doctorId: p.doctor_id || userId,
           patientName: p.patient_details?.full_name || 'Patient',
           patientId: p.patient_id,
           patientDetails: p.patient_details || null,
@@ -270,7 +270,6 @@ export default function Prescriptions() {
             p.patient_details?.users?.un_id ||
             p.patient_details?.user?.un_id ||
             null,
-          doctorId: p.doctor_id || doctorId,
           appointment: p.appointments || null,
           date: p.created_at?.slice(0, 10) || '',
           time: p.created_at ? new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',

@@ -55,7 +55,7 @@ function buildMetaFromAppointment(apt) {
     patient_id: patient.id || apt.patient_id,
     doctor_id: doctor.id || apt.doctor_id,
     care_episode_id: apt.care_episode_id || null,
-    episode_id: apt.episode_id || (apt.care_episode_id ? `EP-${String(apt.care_episode_id).slice(0, 8).toUpperCase()}` : null),
+    episode_id: apt.episode_id || (apt.care_episode_id ? (String(apt.care_episode_id).toUpperCase().startsWith("EP-") ? String(apt.care_episode_id).toUpperCase() : `EP-${String(apt.care_episode_id).slice(0, 8).toUpperCase()}`) : null),
     patient_name: patient.full_name || apt.patient_name || "Patient",
     patient_gender: patient.gender || "",
     patient_dob: patient.date_of_birth || patient.dob || "",
@@ -171,6 +171,8 @@ export default function WritePrescriptionModal({
   const [isEditingExisting, setIsEditingExisting] = useState(false);
   const [isPrescriptionSigned, setIsPrescriptionSigned] = useState(false);
   const [signedPrescriptionUrl, setSignedPrescriptionUrl] = useState(null);
+
+  const episodeCode = meta?.episode_id || existingEpisodeId || (meta?.care_episode_id ? (String(meta.care_episode_id).toUpperCase().startsWith("EP-") ? String(meta.care_episode_id).toUpperCase() : `EP-${String(meta.care_episode_id).slice(0, 8).toUpperCase()}`) : null);
 
   // Dynamic template states
   const [selectedTemplate, setSelectedTemplate] = useState(null);
