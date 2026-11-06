@@ -40,6 +40,21 @@ function Spinner({ size = "w-5 h-5" }) {
   );
 }
 
+function calculatePatientAge(dob, explicitAge) {
+  if (explicitAge !== undefined && explicitAge !== null && explicitAge !== "") {
+    const a = String(explicitAge).trim();
+    return a.toLowerCase().includes("yr") ? a : `${a} yrs`;
+  }
+  if (!dob) return null;
+  const b = new Date(dob);
+  if (isNaN(b.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - b.getFullYear();
+  const m = today.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+  return age >= 0 ? `${age} yrs` : null;
+}
+
 function buildMetaFromAppointment(apt) {
   if (!apt) return {};
   const patient = apt.patient || apt.patient_details || {};
@@ -51,13 +66,22 @@ function buildMetaFromAppointment(apt) {
     try { const p = JSON.parse(qual); if (Array.isArray(p)) qual = p.join(", "); } catch {}
   }
 
+  const careEpId = apt.care_episode_id || apt.care_episode?.id || null;
+  const aptId = apt.id || apt.appointment_id || null;
+  const epCode = apt.episode_id || 
+    (careEpId ? (String(careEpId).toUpperCase().startsWith("EP-") ? String(careEpId).toUpperCase() : `EP-${String(careEpId).slice(0, 8).toUpperCase()}`) : null) ||
+    (aptId ? `EP-${String(aptId).slice(0, 8).toUpperCase()}` : null);
+
+  const calculatedAge = calculatePatientAge(patient.date_of_birth || patient.dob, patient.age || patient.patient_age);
+
   return {
     patient_id: patient.id || apt.patient_id,
     doctor_id: doctor.id || apt.doctor_id,
-    care_episode_id: apt.care_episode_id || null,
-    episode_id: apt.episode_id || (apt.care_episode_id ? (String(apt.care_episode_id).toUpperCase().startsWith("EP-") ? String(apt.care_episode_id).toUpperCase() : `EP-${String(apt.care_episode_id).slice(0, 8).toUpperCase()}`) : null),
+    care_episode_id: careEpId,
+    episode_id: epCode,
     patient_name: patient.full_name || apt.patient_name || "Patient",
     patient_gender: patient.gender || "",
+    patient_age: calculatedAge,
     patient_dob: patient.date_of_birth || patient.dob || "",
     patient_email: patient.email || "",
     patient_blood_group: patient.blood_group || "",
@@ -68,7 +92,7 @@ function buildMetaFromAppointment(apt) {
     doctor_license: doctor.license_number || "",
     doctor_clinic: doctor.clinic_name || "",
     doctor_clinic_address: doctor.clinic_address || "",
-    appointment_type: apt.appointment_type || "clinic",
+    appointment_type: apt.appointment_type || "clinic_visit",
   };
 }
 
@@ -183,7 +207,18 @@ export default function WritePrescriptionModal({
     clinic: meta?.doctor_clinic || "",
   });
 
-  const episodeCode = meta?.episode_id || existingEpisodeId || (meta?.care_episode_id ? (String(meta.care_episode_id).toUpperCase().startsWith("EP-") ? String(meta.care_episode_id).toUpperCase() : `EP-${String(meta.care_episode_id).slice(0, 8).toUpperCase()}`) : null);
+  const episodeCode = 
+    meta?.episode_id || 
+    existingEpisodeId || 
+    (meta?.care_episode_id ? (String(meta.care_episode_id).toUpperCase().startsWith("EP-") ? String(meta.care_episode_id).toUpperCase() : `EP-${String(meta.care_episode_id).slice(0, 8).toUpperCase()}`) : null) ||
+    (appointment?.episode_id || (appointment?.care_episode_id ? `EP-${String(appointment.care_episode_id).slice(0, 8).toUpperCase()}` : null)) ||
+    (appointmentId ? `EP-${String(appointmentId).slice(0, 8).toUpperCase()}` : null);
+
+  const patientAge = (() => {
+    if (meta?.patient_age) return meta.patient_age;
+    const pat = appointment?.patient || appointment?.patient_details || null;
+    return calculatePatientAge(meta?.patient_dob || pat?.date_of_birth || pat?.dob, pat?.age || pat?.patient_age);
+  })();
 
   // Dynamic template states
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -1382,6 +1417,7 @@ export default function WritePrescriptionModal({
                 <p className="text-xs text-white/80">
                   <span className="text-white/60">Patient:</span> {meta.patient_name}
                   {meta.patient_gender ? `, ${meta.patient_gender}` : ""}
+                  {patientAge ? `, Age: ${patientAge}` : ""}
                 </p>
               )}
               {effectiveDoctorName && (
@@ -1425,7 +1461,7 @@ export default function WritePrescriptionModal({
                       <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-1">Patient</p>
                       <p className="text-xs font-semibold text-slate-800">{meta.patient_name}</p>
                       {meta.patient_gender && <p className="text-[11px] text-slate-600 font-normal capitalize">{meta.patient_gender}</p>}
-                      {meta.patient_dob && <p className="text-[10px] text-slate-500 font-normal">DOB: {new Date(meta.patient_dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
+                      {patientAge && <p className="text-[11px] font-medium text-slate-700">Age: {patientAge}</p>}
                       {meta.patient_blood_group && <p className="text-[10px] text-slate-500 font-normal">Blood: {meta.patient_blood_group}</p>}
                     </div>
                   )}
@@ -1610,7 +1646,7 @@ export default function WritePrescriptionModal({
                   <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-0.5">Patient</p>
                   <p className="text-xs font-semibold text-slate-800">{meta.patient_name}</p>
                   {meta.patient_gender && <p className="text-[11px] text-slate-600 font-normal capitalize">{meta.patient_gender}</p>}
-                  {meta.patient_dob && <p className="text-[10px] text-slate-500 font-normal">DOB: {new Date(meta.patient_dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
+                  {patientAge && <p className="text-[11px] font-medium text-slate-700">Age: {patientAge}</p>}
                   {meta.patient_blood_group && <p className="text-[10px] text-slate-500 font-normal">Blood: {meta.patient_blood_group}</p>}
                   {meta.patient_address && <p className="text-[10px] text-slate-500 font-normal truncate">{meta.patient_address}</p>}
                 </div>
@@ -1622,7 +1658,7 @@ export default function WritePrescriptionModal({
               <div className="flex items-center gap-1.5">
                 <span className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Episode ID:</span>
                 <span className="font-mono font-medium text-[#0067A1] bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px]">
-                  {episodeCode || "EP-CONSULTATION"}
+                  {episodeCode}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-[11px] text-slate-700">

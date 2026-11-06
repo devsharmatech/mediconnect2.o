@@ -110,6 +110,9 @@ export async function POST(req) {
         ) AS prescription_id,
         a.disease_info,
         a.appointment_type,
+        a.care_episode_id,
+        COALESCE(ce.episode_id, CASE WHEN a.care_episode_id IS NOT NULL THEN 'EP-' || UPPER(SUBSTRING(a.care_episode_id::text, 1, 8)) ELSE 'EP-' || UPPER(SUBSTRING(a.id::text, 1, 8)) END) AS episode_id,
+        a.unid,
         a.payment_status,
         a.razorpay_order_id,
         a.razorpay_payment_id,
@@ -137,6 +140,7 @@ export async function POST(req) {
       LEFT JOIN patient_details p ON p.id = a.patient_id
       LEFT JOIN users u ON u.id = a.patient_id
       LEFT JOIN doctor_details d ON d.id = a.doctor_id
+      LEFT JOIN care_episodes ce ON ce.id = a.care_episode_id
       WHERE a.doctor_id = ${doctor_id}
         ${dateCondition}
       ORDER BY 
@@ -222,6 +226,7 @@ export async function POST(req) {
         gender: a.patient_gender || null,
         date_of_birth: a.patient_date_of_birth || null,
         age: patientAge,
+        patient_age: patientAge !== null ? `${patientAge} yrs` : null,
         blood_group: a.patient_blood_group || null,
         address: a.patient_address || null,
         un_id: a.patient_un_id || null,
@@ -241,6 +246,9 @@ export async function POST(req) {
         id: a.id,
         doctor_id: a.doctor_id,
         patient_id: a.patient_id,
+        care_episode_id: a.care_episode_id || null,
+        episode_id: a.episode_id || (a.care_episode_id ? `EP-${String(a.care_episode_id).slice(0, 8).toUpperCase()}` : `EP-${String(a.id).slice(0, 8).toUpperCase()}`),
+        unid: a.unid || null,
         appointment_date: a.appointment_date,
         appointment_time: a.appointment_time,
         original_appointment_time: a.original_appointment_time,

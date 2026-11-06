@@ -2533,7 +2533,25 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
   const [isPrescriptionSigned, setIsPrescriptionSigned] = useState(false);
   const [signedPrescriptionUrl, setSignedPrescriptionUrl] = useState(null);
 
-  const episodeCode = meta?.episode_id || existingEpisodeId || (meta?.care_episode_id ? `EP-${String(meta.care_episode_id).slice(0, 8).toUpperCase()}` : null);
+  const episodeCode = meta?.episode_id || existingEpisodeId || (meta?.care_episode_id ? `EP-${String(meta.care_episode_id).slice(0, 8).toUpperCase()}` : null) || (appointmentId ? `EP-${String(appointmentId).slice(0, 8).toUpperCase()}` : null);
+
+  const patientAge = (() => {
+    if (meta?.patient_age) return meta.patient_age;
+    const pat = appointmentMeta?.patient || null;
+    if (pat?.age) {
+      const a = String(pat.age).trim();
+      return a.toLowerCase().includes("yr") ? a : `${a} yrs`;
+    }
+    const dob = meta?.patient_dob || pat?.date_of_birth || pat?.dob;
+    if (!dob) return null;
+    const b = new Date(dob);
+    if (isNaN(b.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - b.getFullYear();
+    const m = today.getMonth() - b.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+    return age >= 0 ? `${age} yrs` : null;
+  })();
 
   // Dynamic template states
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -3660,7 +3678,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                         <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-1">Patient</p>
                         <p className="text-xs font-medium text-slate-800">{meta.patient_name}</p>
                         {meta.patient_gender && <p className="text-[11px] text-slate-600 font-normal capitalize">{meta.patient_gender}</p>}
-                        {meta.patient_dob && <p className="text-[10px] text-slate-500 font-normal">DOB: {new Date(meta.patient_dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
+                        {patientAge && <p className="text-[11px] font-medium text-slate-700">Age: {patientAge}</p>}
                         {meta.patient_blood_group && <p className="text-[10px] text-slate-500 font-normal">Blood: {meta.patient_blood_group}</p>}
                       </div>
                     )}
@@ -3763,7 +3781,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                     <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider mb-0.5">Patient</p>
                     <p className="text-xs font-medium text-slate-800">{meta.patient_name}</p>
                     {meta.patient_gender && <p className="text-[11px] text-slate-600 font-normal capitalize">{meta.patient_gender}</p>}
-                    {meta.patient_dob && <p className="text-[10px] text-slate-500 font-normal">DOB: {new Date(meta.patient_dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
+                    {patientAge && <p className="text-[11px] font-medium text-slate-700">Age: {patientAge}</p>}
                     {meta.patient_blood_group && <p className="text-[10px] text-slate-500 font-normal">Blood: {meta.patient_blood_group}</p>}
                     {meta.patient_address && <p className="text-[10px] text-slate-500 font-normal truncate">{meta.patient_address}</p>}
                   </div>
@@ -3775,7 +3793,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                 <div className="flex items-center gap-1.5">
                   <span className="text-[10px] font-medium text-slate-600 uppercase tracking-wider">Episode ID:</span>
                   <span className="font-mono font-medium text-[#0067A1] bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px]">
-                    {episodeCode || "EP-CONSULTATION"}
+                    {episodeCode}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-700">
