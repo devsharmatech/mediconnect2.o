@@ -180,12 +180,13 @@ const AppointmentDetailsModal = ({
   onSendToChemist,
   onSendToLab,
 }) => {
-  if (!isOpen || !appointment) return null;
-
   const [verification, setVerification] = useState(null);
 
   useEffect(() => {
-    if (!appointment?.id) return;
+    if (!isOpen || !appointment?.id) {
+      setVerification(null);
+      return;
+    }
     let isMounted = true;
     fetch(`/api/doctor/patient-verification?appointment_id=${appointment.id}`)
       .then((r) => r.json())
@@ -198,7 +199,9 @@ const AppointmentDetailsModal = ({
     return () => {
       isMounted = false;
     };
-  }, [appointment?.id]);
+  }, [isOpen, appointment?.id]);
+
+  if (!isOpen || !appointment) return null;
 
   const status = isAppointmentExpired(appointment)
     ? "expired"
