@@ -47,11 +47,11 @@ export async function GET(req) {
       }
     }
     if (payStatus === "free") {
-      baseFilter = sql`${baseFilter} AND COALESCE(a.final_fee, 0) = 0`;
+      baseFilter = sql`${baseFilter} AND (COALESCE(a.final_fee, 0) = 0 OR a.payment_status = 'free')`;
     } else if (payStatus === "paid") {
-      baseFilter = sql`${baseFilter} AND COALESCE(a.final_fee, 0) > 0 AND a.payment_status = 'paid'`;
+      baseFilter = sql`${baseFilter} AND a.payment_status = 'paid'`;
     } else if (payStatus === "unpaid") {
-      baseFilter = sql`${baseFilter} AND COALESCE(a.final_fee, 0) > 0 AND a.payment_status <> 'paid'`;
+      baseFilter = sql`${baseFilter} AND (a.payment_status = 'pending' OR (a.payment_status NOT IN ('paid', 'not_applicable') AND a.payment_status IS NOT NULL)) AND COALESCE(a.final_fee, 0) > 0`;
     }
     if (search) {
       const searchPattern = `%${search}%`;

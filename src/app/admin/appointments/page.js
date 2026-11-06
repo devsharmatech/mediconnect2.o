@@ -47,7 +47,19 @@ export default function AppointmentsPage() {
   const [dateFilter, setDateFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
-  const [summary, setSummary] = useState([]);
+  const [summary, setSummary] = useState({});
+
+  const handleStatCardClick = (val) => {
+    if (statusFilter === val && val !== "all") {
+      setStatusFilter("all");
+    } else {
+      setStatusFilter(val);
+    }
+    setTypeFilter("all");
+    setPaymentFilter("all");
+    setDateFilter("");
+    setSearchTerm("");
+  };
 
   // Medical-grade type mapping for all DB values
   const TYPE_META = {
@@ -439,7 +451,7 @@ export default function AppointmentsPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
               Appointments Management
               <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#0067A1]/10 text-[#0067A1] border border-[#0067A1]/20">
-                {pagination.totalItems} Total Records
+                {pagination.totalItems} {statusFilter !== "all" ? `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} ` : ""}Appointments
               </span>
             </h1>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-3xl">
@@ -529,7 +541,7 @@ export default function AppointmentsPage() {
             return (
               <div
                 key={stat.label}
-                onClick={() => setStatusFilter(stat.filterValue)}
+                onClick={() => handleStatCardClick(stat.filterValue)}
                 className={`cursor-pointer bg-white dark:bg-slate-800 rounded-xl p-3.5 border transition-all shadow-2xs hover:shadow-md flex flex-col justify-between ${
                   isActive
                     ? "border-[#0067A1] ring-2 ring-[#0067A1]/20 bg-blue-50/20"
