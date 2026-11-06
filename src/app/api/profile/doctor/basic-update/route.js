@@ -8,7 +8,15 @@ export async function OPTIONS() {
 
 export async function PUT(req) {
   try {
-    const body = await req.json();
+    let body = {};
+    try {
+      const rawText = await req.text();
+      body = rawText ? JSON.parse(rawText) : {};
+    } catch (parseErr) {
+      console.warn("Doctor basic-update body parse warning:", parseErr.message);
+      body = {};
+    }
+
     const {
       user_id,
       full_name,
@@ -39,7 +47,7 @@ export async function PUT(req) {
       second_booking_discount_value,
       additional_clinics,
       slot_interval_minutes,
-    } = body;
+    } = body || {};
 
     if (!user_id) {
       return failure("user_id is required", null, 400, { headers: corsHeaders });
@@ -47,15 +55,16 @@ export async function PUT(req) {
 
     // Ensure follow_up fee and clinic columns exist in doctor_details
     await sql`
-      ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS video_follow_up_fee NUMERIC DEFAULT 0;
-      ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS clinic_follow_up_fee NUMERIC DEFAULT 0;
-      ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS home_follow_up_fee NUMERIC DEFAULT 0;
-      ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS follow_up_fee NUMERIC DEFAULT 0;
-      ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS additional_clinics JSONB DEFAULT '[]'::jsonb;
-      ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS second_booking_discount_type TEXT DEFAULT 'none';
-      ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS second_booking_discount_value NUMERIC DEFAULT 0;
-      ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS slot_interval_minutes INTEGER DEFAULT 15;
-      ALTER TABLE doctor_details ADD COLUMN IF NOT EXISTS allowed_to_consult BOOLEAN DEFAULT true;
+      ALTER TABLE doctor_details 
+        ADD COLUMN IF NOT EXISTS video_follow_up_fee NUMERIC DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS clinic_follow_up_fee NUMERIC DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS home_follow_up_fee NUMERIC DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS follow_up_fee NUMERIC DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS additional_clinics JSONB DEFAULT '[]'::jsonb,
+        ADD COLUMN IF NOT EXISTS second_booking_discount_type TEXT DEFAULT 'none',
+        ADD COLUMN IF NOT EXISTS second_booking_discount_value NUMERIC DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS slot_interval_minutes INTEGER DEFAULT 15,
+        ADD COLUMN IF NOT EXISTS allowed_to_consult BOOLEAN DEFAULT true;
     `.catch((err) => {
       console.warn("Could not alter doctor_details for follow_up fees:", err.message);
     });

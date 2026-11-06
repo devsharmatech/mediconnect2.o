@@ -42,6 +42,46 @@ export default function StaffPatientsPage() {
     return () => clearTimeout(t);
   }, [searchTerm, statusFilter, genderFilter]);
 
+  const formatAddress = (val) => {
+    if (!val) return "—";
+    let data = val;
+    if (typeof val === "string") {
+      const trimmed = val.trim();
+      if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+        try { data = JSON.parse(trimmed); } catch { data = trimmed; }
+      } else { data = trimmed; }
+    }
+    if (typeof data === "object" && data !== null) {
+      const parts = [data.street, data.city, data.state, data.pincode || data.zip].filter(Boolean);
+      return parts.length > 0 ? parts.join(", ") : "—";
+    }
+    const str = String(data).trim();
+    return (!str || str === "{}" || str === '{"address":""}') ? "—" : str;
+  };
+
+  const formatEmergencyContact = (val) => {
+    if (!val) return "—";
+    let data = val;
+    if (typeof val === "string") {
+      const trimmed = val.trim();
+      if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+        try { data = JSON.parse(trimmed); } catch { data = trimmed; }
+      } else { data = trimmed; }
+    }
+    if (typeof data === "object" && data !== null) {
+      const name = (data.name || data.contact_name || "").trim();
+      const phone = (data.phone || data.phone_number || "").trim();
+      const rel = (data.relation || data.relationship || "").trim();
+      const parts = [name, rel ? `(${rel})` : "", phone].filter(Boolean);
+      return parts.length > 0 ? parts.join(" ") : "—";
+    }
+    const str = String(data).trim();
+    if (!str || str === "{}" || str === '{"name":"","phone":""}' || str.replace(/[{}\s,"':]/g, "") === "namephone") {
+      return "—";
+    }
+    return str;
+  };
+
   return (
     <div className="p-4 lg:p-8 space-y-6">
       {/* Header */}
@@ -180,8 +220,8 @@ export default function StaffPatientsPage() {
                   { icon: Calendar, label: "DOB", value: viewPatient.patient_details?.date_of_birth ? new Date(viewPatient.patient_details.date_of_birth).toLocaleDateString("en-IN") : null },
                   { icon: User, label: "Gender", value: viewPatient.patient_details?.gender },
                   { icon: Droplets, label: "Blood Group", value: viewPatient.patient_details?.blood_group },
-                  { icon: MapPin, label: "Address", value: viewPatient.patient_details?.address },
-                  { icon: Phone, label: "Emergency Contact", value: viewPatient.patient_details?.emergency_contact },
+                  { icon: MapPin, label: "Address", value: formatAddress(viewPatient.patient_details?.address) },
+                  { icon: Phone, label: "Emergency Contact", value: formatEmergencyContact(viewPatient.patient_details?.emergency_contact) },
                   { icon: Calendar, label: "Registered", value: viewPatient.created_at ? new Date(viewPatient.created_at).toLocaleDateString("en-IN") : null },
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-3">
