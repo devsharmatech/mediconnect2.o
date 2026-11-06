@@ -33,10 +33,18 @@ export async function GET(req) {
     if (patient_id) {
       baseFilter = sql`${baseFilter} AND a.patient_id::text = ${patient_id}`;
     }
-    const apptType = searchParams.get("type") || "all";
+    const apptType = (searchParams.get("type") || "all").toLowerCase();
     const payStatus = searchParams.get("payment") || "all";
     if (apptType !== "all") {
-      baseFilter = sql`${baseFilter} AND a.appointment_type = ${apptType}`;
+      if (apptType === "video" || apptType === "video_consultation") {
+        baseFilter = sql`${baseFilter} AND a.appointment_type IN ('video', 'video_consultation', 'video_call', 'video_follow_up', 'instant')`;
+      } else if (apptType === "clinic" || apptType === "clinic_visit") {
+        baseFilter = sql`${baseFilter} AND a.appointment_type IN ('clinic_visit', 'in_person', 'clinic')`;
+      } else if (apptType === "home" || apptType === "home_visit") {
+        baseFilter = sql`${baseFilter} AND a.appointment_type IN ('home_visit', 'home_follow_up')`;
+      } else {
+        baseFilter = sql`${baseFilter} AND a.appointment_type = ${apptType}`;
+      }
     }
     if (payStatus === "free") {
       baseFilter = sql`${baseFilter} AND COALESCE(a.final_fee, 0) = 0`;

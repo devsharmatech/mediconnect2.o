@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import {
@@ -8,8 +8,6 @@ import {
   Filter,
   Eye,
   Trash2,
-  Download,
-  Plus,
   RefreshCw,
   User,
   Phone,
@@ -23,13 +21,19 @@ import {
   ChevronsRight,
   Clock,
   Stethoscope,
-  DollarSign,
   Shield,
   Activity,
   IndianRupee,
-  CheckCircle,
+  CheckCircle2,
   XCircle,
   FileText,
+  Video,
+  Building2,
+  Home,
+  RotateCcw,
+  Copy,
+  X,
+  Zap,
 } from "lucide-react";
 
 export default function AppointmentsPage() {
@@ -45,27 +49,45 @@ export default function AppointmentsPage() {
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [summary, setSummary] = useState([]);
 
+  // Medical-grade type mapping for all DB values
   const TYPE_META = {
-    video_consultation: { label: "Video", full: "Video Consultation", cls: "bg-sky-50 text-[#0067A1] border-sky-200" },
-    video: { label: "Video", full: "Video Consultation", cls: "bg-sky-50 text-[#0067A1] border-sky-200" },
-    clinic_visit: { label: "Clinic", full: "Clinic Visit", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-    home_visit: { label: "Home", full: "Home Visit", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+    video_consultation: { label: "Video", full: "Video Consultation", icon: Video, cls: "bg-sky-50 text-[#0067A1] border-sky-200" },
+    video: { label: "Video", full: "Video Consultation", icon: Video, cls: "bg-sky-50 text-[#0067A1] border-sky-200" },
+    video_call: { label: "Video", full: "Video Consultation", icon: Video, cls: "bg-sky-50 text-[#0067A1] border-sky-200" },
+    video_follow_up: { label: "Video Follow-Up", full: "Video Follow-Up", icon: Video, cls: "bg-sky-50 text-[#0067A1] border-sky-200" },
+    instant: { label: "Instant Video", full: "Instant Video Consultation", icon: Zap, cls: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+    clinic_visit: { label: "In-Clinic", full: "In-Clinic Visit (OPD)", icon: Building2, cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    in_person: { label: "In-Clinic", full: "In-Clinic Visit (OPD)", icon: Building2, cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    clinic: { label: "In-Clinic", full: "In-Clinic Visit (OPD)", icon: Building2, cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    home_visit: { label: "Home Visit", full: "Home Visit Consultation", icon: Home, cls: "bg-amber-50 text-amber-700 border-amber-200" },
+    home_follow_up: { label: "Home Follow-Up", full: "Home Visit Follow-Up", icon: Home, cls: "bg-amber-50 text-amber-700 border-amber-200" },
+    consultation: { label: "Consultation", full: "Medical Consultation", icon: Stethoscope, cls: "bg-slate-50 text-slate-700 border-slate-200" },
   };
-  const getTypeMeta = (t) =>
-    TYPE_META[t] || {
-      label: t ? String(t).replace(/_/g, " ") : "N/A",
-      full: t ? String(t).replace(/_/g, " ") : "N/A",
-      cls: "bg-slate-50 text-slate-600 border-slate-200",
-    };
+
+  const getTypeMeta = (t) => {
+    if (!t) return { label: "Consultation", full: "Medical Consultation", icon: Stethoscope, cls: "bg-slate-50 text-slate-700 border-slate-200" };
+    const key = String(t).toLowerCase();
+    return (
+      TYPE_META[key] || {
+        label: String(t).replace(/_/g, " "),
+        full: String(t).replace(/_/g, " "),
+        icon: Stethoscope,
+        cls: "bg-slate-50 text-slate-700 border-slate-200",
+      }
+    );
+  };
 
   // Actual amount charged to patient (final_fee) - never fall back to doctor's list fee
   const getPaidFee = (apt) => {
     const v = apt?.final_fee;
-    return v === null || v === undefined || v === "" ? 0 : Number(v) || 0;
+    if (v === null || v === undefined || v === "") return 0;
+    const n = Number(v);
+    return isNaN(n) ? 0 : n;
   };
+
   const formatFee = (apt) => {
     const fee = getPaidFee(apt);
-    return fee > 0 ? `₹${fee.toLocaleString("en-IN")}` : "Free";
+    return fee > 0 ? `₹${fee.toLocaleString("en-IN")}` : "Free (₹0)";
   };
 
   // Pagination state
@@ -84,6 +106,8 @@ export default function AppointmentsPage() {
     search = searchTerm,
     status = statusFilter,
     date = dateFilter,
+    type = typeFilter,
+    payment = paymentFilter,
     limit = pagination.itemsPerPage || 10
   ) => {
     try {
@@ -94,8 +118,8 @@ export default function AppointmentsPage() {
         ...(search && { search }),
         ...(status !== "all" && { status }),
         ...(date && { date }),
-        ...(typeFilter !== "all" && { type: typeFilter }),
-        ...(paymentFilter !== "all" && { payment: paymentFilter }),
+        ...(type !== "all" && { type }),
+        ...(payment !== "all" && { payment }),
       });
 
       const res = await fetch(`/api/appointment/web?${params}`);
@@ -175,24 +199,20 @@ export default function AppointmentsPage() {
           .brand-subtitle { font-size: 12px; color: #64748b; margin-top: 2px; }
           .inv-meta { text-align: right; }
           .inv-badge { display: inline-block; background: #ecfdf5; color: #059669; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid #a7f3d0; margin-bottom: 6px; }
-          .inv-num { font-size: 16px; font-weight: 700; color: #0f172a; }
+          .inv-num { font-size: 14px; font-weight: 700; color: #0f172a; }
           .inv-date { font-size: 12px; color: #64748b; margin-top: 2px; }
-          .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
-          .party-box { background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #f1f5f9; }
-          .party-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #0067A1; margin-bottom: 8px; }
-          .party-name { font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+          .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding-bottom: 24px; border-bottom: 1px solid #e2e8f0; margin-bottom: 24px; }
+          .party-box { background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #edf2f7; }
+          .party-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #0067A1; letter-spacing: 0.5px; margin-bottom: 6px; }
+          .party-name { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
           .party-detail { font-size: 12px; color: #475569; line-height: 1.5; }
           .service-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-          .service-table th { background: #f1f5f9; text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 700; color: #334155; }
-          .service-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #f1f5f9; color: #1e293b; }
+          .service-table th { background: #f1f5f9; text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #475569; border-bottom: 1px solid #cbd5e1; }
+          .service-table td { padding: 14px 12px; font-size: 13px; color: #1e293b; border-bottom: 1px solid #e2e8f0; }
           .totals { margin-left: auto; width: 280px; margin-bottom: 28px; }
           .totals-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; color: #475569; }
-          .totals-row.grand { border-top: 2px solid #e2e8f0; font-size: 16px; font-weight: 800; color: #0067A1; padding-top: 8px; }
-          .footer-note { font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px; }
-          @media print {
-            body { background: white; padding: 0; }
-            .invoice-card { box-shadow: none; border: none; padding: 20px; }
-          }
+          .totals-row.grand { border-top: 2px solid #0f172a; padding-top: 10px; margin-top: 6px; font-size: 16px; font-weight: 800; color: #0f172a; }
+          .footer-note { font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 18px; }
         </style>
       </head>
       <body>
@@ -277,18 +297,19 @@ export default function AppointmentsPage() {
       </html>
     `;
 
-    const printWin = window.open("", "_blank", "width=850,height=900");
-    if (printWin) {
-      printWin.document.write(invoiceHtml);
-      printWin.document.close();
+    const blob = new Blob([invoiceHtml], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    if (!win) {
+      toast.error("Popup blocked. Please allow popups to view receipt.");
     }
   };
 
-  // Debounced search and filter
+  // Debounced search & filter listener
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchAppointments(1, searchTerm, statusFilter, dateFilter, pagination.itemsPerPage);
-    }, 500);
+      fetchAppointments(1, searchTerm, statusFilter, dateFilter, typeFilter, paymentFilter, pagination.itemsPerPage);
+    }, 400);
 
     return () => clearTimeout(timer);
   }, [searchTerm, statusFilter, dateFilter, typeFilter, paymentFilter, pagination.itemsPerPage]);
@@ -331,18 +352,11 @@ export default function AppointmentsPage() {
     }
   };
 
-  // Generate page numbers for pagination
   const getPageNumbers = () => {
     const pages = [];
     const maxVisiblePages = 5;
-    let startPage = Math.max(
-      1,
-      pagination.currentPage - Math.floor(maxVisiblePages / 2)
-    );
-    let endPage = Math.min(
-      pagination.totalPages,
-      startPage + maxVisiblePages - 1
-    );
+    let startPage = Math.max(1, pagination.currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(pagination.totalPages, startPage + maxVisiblePages - 1);
 
     if (endPage - startPage + 1 < maxVisiblePages) {
       startPage = Math.max(1, endPage - maxVisiblePages + 1);
@@ -361,30 +375,34 @@ export default function AppointmentsPage() {
         ?.split(" ")
         .map((n) => n[0])
         .join("")
-        .toUpperCase() || "U"
+        .toUpperCase()
+        .slice(0, 2) || "PT"
     );
   };
 
   const getStatusColor = (status) => {
     switch (status) {
       case "booked":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-300 border border-gray-200 dark:border-gray-800";
+        return "bg-blue-50 text-[#0067A1] border border-blue-200";
       case "approved":
-        return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800";
+        return "bg-teal-50 text-teal-700 border border-teal-200";
       case "completed":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700";
+        return "bg-emerald-50 text-emerald-700 border border-emerald-200";
       case "cancelled":
-        return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-800";
+        return "bg-rose-50 text-rose-700 border border-rose-200";
       case "rejected":
-        return "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 border border-orange-200 dark:border-orange-800";
+        return "bg-orange-50 text-orange-700 border border-orange-200";
+      case "expired":
+        return "bg-amber-50 text-amber-700 border border-amber-200";
       case "freezed":
-        return "bg-teal-100 text-[#004F7C] dark:bg-[#003358]/40 dark:text-teal-300 border border-teal-200 dark:border-teal-800";
+        return "bg-slate-100 text-slate-700 border border-slate-300";
       default:
-        return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800";
+        return "bg-slate-100 text-slate-700 border border-slate-200";
     }
   };
 
   const formatTime = (time) => {
+    if (!time) return "—";
     return new Date(`1970-01-01T${time}`).toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
@@ -393,1064 +411,833 @@ export default function AppointmentsPage() {
   };
 
   const formatDate = (date) => {
+    if (!date) return "—";
     return new Date(date).toLocaleDateString("en-US", {
       year: "numeric",
-      month: "long",
+      month: "short",
       day: "numeric",
     });
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        type: "spring",
-        stiffness: 100,
-      },
-    },
-  };
-
-  const cardVariants = {
-    hidden: { scale: 0.9, opacity: 0 },
-    visible: {
-      scale: 1,
-      opacity: 1,
-      transition: {
-        type: "spring",
-        stiffness: 100,
-      },
-    },
-    hover: {
-      scale: 1.02,
-      transition: {
-        type: "spring",
-        stiffness: 400,
-      },
-    },
-  };
+  const isFilterActive = searchTerm || statusFilter !== "all" || dateFilter || typeFilter !== "all" || paymentFilter !== "all";
 
   return (
-    <>
-      <main className="flex-1 overflow-auto relative z-0">
-        <div className="w-full p-3 sm:p-4 lg:p-6 bg-transparent">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-slate-200 dark:border-gray-700">
-            <div className="min-h-screen bg-slate-50 dark:bg-gray-900 rounded-xl p-3 sm:p-6">
-              {/* Header Section */}
-              <motion.div
-                className="mb-6"
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
+    <main className="flex-1 bg-slate-50 dark:bg-slate-900 min-h-screen relative w-full">
+      {/* Full width container */}
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        {/* Top Header & Breadcrumbs */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#0067A1] mb-1">
+              <span>Clinical Practice</span>
+              <span>/</span>
+              <span>Patients & Bookings</span>
+              <span>/</span>
+              <span className="text-slate-500">Appointments</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
+              Appointments Management
+              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#0067A1]/10 text-[#0067A1] border border-[#0067A1]/20">
+                {pagination.totalItems} Total Records
+              </span>
+            </h1>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 max-w-3xl">
+              Monitor, filter, and audit clinical patient bookings across Telemedicine, In-Person OPD, and Home Consultations.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchAppointments(pagination.currentPage)}
+              disabled={loading}
+              className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 rounded-lg text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+              title="Refresh appointment list"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#0067A1] ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Clinical KPI Metrics Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+          {[
+            {
+              label: "Total Bookings",
+              shortLabel: "Total",
+              filterValue: "all",
+              value: summary.total || 0,
+              icon: Calendar,
+              bg: "bg-slate-100",
+              iconColor: "text-slate-700",
+              badge: "bg-slate-200 text-slate-800",
+            },
+            {
+              label: "Booked",
+              shortLabel: "Booked",
+              filterValue: "booked",
+              value: summary.booked || 0,
+              icon: Activity,
+              bg: "bg-blue-50",
+              iconColor: "text-[#0067A1]",
+              badge: "bg-blue-100 text-[#0067A1]",
+            },
+            {
+              label: "Approved",
+              shortLabel: "Approved",
+              filterValue: "approved",
+              value: summary.approved || 0,
+              icon: Shield,
+              bg: "bg-teal-50",
+              iconColor: "text-teal-700",
+              badge: "bg-teal-100 text-teal-800",
+            },
+            {
+              label: "Completed",
+              shortLabel: "Completed",
+              filterValue: "completed",
+              value: summary.completed || 0,
+              icon: CheckCircle2,
+              bg: "bg-emerald-50",
+              iconColor: "text-emerald-700",
+              badge: "bg-emerald-100 text-emerald-800",
+            },
+            {
+              label: "Cancelled",
+              shortLabel: "Cancelled",
+              filterValue: "cancelled",
+              value: summary.cancelled || 0,
+              icon: AlertTriangle,
+              bg: "bg-rose-50",
+              iconColor: "text-rose-600",
+              badge: "bg-rose-100 text-rose-700",
+            },
+            {
+              label: "Rejected",
+              shortLabel: "Rejected",
+              filterValue: "rejected",
+              value: summary.rejected || 0,
+              icon: XCircle,
+              bg: "bg-orange-50",
+              iconColor: "text-orange-600",
+              badge: "bg-orange-100 text-orange-700",
+            },
+          ].map((stat) => {
+            const isActive = statusFilter === stat.filterValue;
+            const IconComponent = stat.icon;
+            return (
+              <div
+                key={stat.label}
+                onClick={() => setStatusFilter(stat.filterValue)}
+                className={`cursor-pointer bg-white dark:bg-slate-800 rounded-xl p-3.5 border transition-all shadow-2xs hover:shadow-md flex flex-col justify-between ${
+                  isActive
+                    ? "border-[#0067A1] ring-2 ring-[#0067A1]/20 bg-blue-50/20"
+                    : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                }`}
               >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h4 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">
-                      Appointments Management
-                    </h4>
-                    <p className="text-sm text-slate-600 dark:text-gray-400 mt-1">
-                      Showing {pagination.totalItems} appointments
-                    </p>
+                <div className="flex items-center justify-between gap-1 mb-2">
+                  <div className={`p-1.5 rounded-lg shrink-0 ${stat.bg}`}>
+                    <IconComponent className={`w-3.5 h-3.5 ${stat.iconColor}`} />
                   </div>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${stat.badge}`}>
+                    {stat.shortLabel}
+                  </span>
                 </div>
-              </motion.div>
-
-              {/* Stats Cards */}
-              <motion.div
-                className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 mb-6"
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-              >
-                {[
-                  {
-                    label: "Total",
-                    filterValue: "all",
-                    value: summary.total || 0,
-                    icon: Calendar,
-                    bg: "bg-slate-100",
-                    iconColor: "text-slate-600",
-                    badge: "bg-slate-200 text-slate-700",
-                  },
-                  {
-                    label: "Booked",
-                    filterValue: "booked",
-                    value: summary.booked || 0,
-                    icon: Activity,
-                    bg: "bg-teal-50",
-                    iconColor: "text-[#0067A1]",
-                    badge: "bg-teal-100 text-[#004F7C]",
-                  },
-                  {
-                    label: "Approved",
-                    filterValue: "approved",
-                    value: summary.approved || 0,
-                    icon: Shield,
-                    bg: "bg-emerald-50",
-                    iconColor: "text-emerald-600",
-                    badge: "bg-emerald-100 text-emerald-700",
-                  },
-                  {
-                    label: "Cancelled",
-                    filterValue: "cancelled",
-                    value: summary.cancelled || 0,
-                    icon: AlertTriangle,
-                    bg: "bg-red-50",
-                    iconColor: "text-red-500",
-                    badge: "bg-red-100 text-red-600",
-                  },
-                  {
-                    label: "Completed",
-                    filterValue: "completed",
-                    value: summary.completed || 0,
-                    icon: CheckCircle,
-                    bg: "bg-[#0067A1]/10",
-                    iconColor: "text-[#0067A1]",
-                    badge: "bg-[#0067A1]/10 text-[#0067A1]",
-                  },
-                  {
-                    label: "Rejected",
-                    filterValue: "rejected",
-                    value: summary.rejected || 0,
-                    icon: XCircle,
-                    bg: "bg-orange-50",
-                    iconColor: "text-orange-500",
-                    badge: "bg-orange-100 text-orange-600",
-                  },
-                ].map((stat) => (
-                  <motion.div
-                    key={stat.label}
-                    variants={cardVariants}
-                    whileHover="hover"
-                    onClick={() => setStatusFilter(stat.filterValue)}
-                    className="cursor-pointer bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-slate-100 hover:shadow-md transition-all duration-300 flex flex-col gap-2 min-w-0"
-                  >
-                    <div className="flex items-center justify-between gap-1">
-                      <div className={`p-1.5 rounded-xl flex-shrink-0 ${stat.bg}`}>
-                        <stat.icon className={`w-3.5 h-3.5 ${stat.iconColor}`} />
-                      </div>
-                      <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full truncate max-w-[70px] text-center ${stat.badge}`}>
-                        {stat.label}
-                      </span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xl sm:text-2xl font-black text-slate-900 leading-none">{stat.value}</p>
-                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 truncate">{stat.label}</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </motion.div>
-
-
-              {/* Controls Section */}
-              <motion.div
-                className="bg-white/80 dark:bg-gray-800/80 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 p-6 mb-6"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-              >
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                  {/* Search Bar */}
-                  <motion.div
-                    className="relative flex-1 lg:max-w-md w-full"
-                    whileFocus={{ scale: 1.02 }}
-                  >
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                      type="text"
-                      placeholder="Search appointments by patient, doctor, or contact..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-300 cursor-text"
-                    />
-                  </motion.div>
-
-                  {/* Filters and Actions */}
-                  <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2 mt-3 lg:mt-0">
-                    <select
-                      value={typeFilter}
-                      onChange={(e) => setTypeFilter(e.target.value)}
-                      className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#0067A1] focus:border-transparent cursor-pointer"
-                    >
-                      <option value="all">All Types</option>
-                      <option value="video_consultation">Video</option>
-                      <option value="clinic_visit">Clinic</option>
-                      <option value="home_visit">Home Visit</option>
-                    </select>
-
-                    <select
-                      value={paymentFilter}
-                      onChange={(e) => setPaymentFilter(e.target.value)}
-                      className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#0067A1] focus:border-transparent cursor-pointer"
-                    >
-                      <option value="all">All Fees</option>
-                      <option value="paid">Paid</option>
-                      <option value="free">Free (₹0)</option>
-                      <option value="unpaid">Unpaid</option>
-                    </select>
-
-                    <motion.select
-                      whileFocus={{ scale: 1.05 }}
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-300 cursor-pointer"
-                    >
-                      <option value="all">All Status</option>
-                      <option value="booked">Booked</option>
-                      <option value="approved">Approved</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                      <option value="rejected">Rejected</option>
-                    </motion.select>
-
-                    <motion.input
-                      whileFocus={{ scale: 1.05 }}
-                      type="date"
-                      value={dateFilter}
-                      onChange={(e) => setDateFilter(e.target.value)}
-                      className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-300 cursor-pointer"
-                    />
-
-                    {(searchTerm || statusFilter !== "all" || dateFilter || typeFilter !== "all" || paymentFilter !== "all") && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSearchTerm("");
-                          setStatusFilter("all");
-                          setDateFilter("");
-                          setTypeFilter("all");
-                          setPaymentFilter("all");
-                        }}
-                        className="px-3 py-2 text-sm font-semibold text-rose-600 border border-rose-200 hover:bg-rose-50 rounded-lg cursor-pointer"
-                      >
-                        Reset
-                      </button>
-                    )}
-
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => fetchAppointments(pagination.currentPage)}
-                      disabled={loading}
-                      className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white/50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      <RefreshCw
-                        size={20}
-                        className={loading ? "animate-spin" : ""}
-                      />
-                    </motion.button>
-                  </div>
+                <div>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white leading-none">
+                    {stat.value}
+                  </p>
+                  <p className="text-[11px] font-medium text-slate-500 mt-1 truncate">
+                    {stat.label}
+                  </p>
                 </div>
+              </div>
+            );
+          })}
+        </div>
 
-                {/* Bulk Actions */}
-                <AnimatePresence>
-                  {selectedIds.length > 0 && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="flex items-center justify-between mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800/50"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-                        <span className="text-red-800 dark:text-red-300 font-medium">
-                          {selectedIds.length} appointment(s) selected
+        {/* Filter & Search Toolbar */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 shadow-2xs space-y-3">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+            
+            {/* Search Input (Wide, clean, not cut off) */}
+            <div className="relative flex-1 min-w-[280px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <input
+                type="text"
+                placeholder="Search by patient name, phone, doctor, or booking ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 text-xs sm:text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1]"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2.5 top-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Filter Dropdowns Grid */}
+            <div className="flex flex-wrap items-center gap-2">
+              
+              {/* Consultation Mode Filter */}
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="py-2 px-2.5 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0067A1] cursor-pointer"
+              >
+                <option value="all">All Modes</option>
+                <option value="video">Video (Telemedicine)</option>
+                <option value="clinic">In-Clinic (OPD)</option>
+                <option value="home">Home Visit</option>
+              </select>
+
+              {/* Payment / Fee Filter */}
+              <select
+                value={paymentFilter}
+                onChange={(e) => setPaymentFilter(e.target.value)}
+                className="py-2 px-2.5 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0067A1] cursor-pointer"
+              >
+                <option value="all">All Fees</option>
+                <option value="paid">Paid Consultations</option>
+                <option value="free">Free / No Charge (₹0)</option>
+                <option value="unpaid">Unpaid / Due</option>
+              </select>
+
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="py-2 px-2.5 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0067A1] cursor-pointer"
+              >
+                <option value="all">All Status</option>
+                <option value="booked">Booked</option>
+                <option value="approved">Approved</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="rejected">Rejected</option>
+              </select>
+
+              {/* Date Filter */}
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="py-1.5 px-2 text-xs font-medium bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-[#0067A1] cursor-pointer"
+                />
+                {dateFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setDateFilter("")}
+                    className="p-1 text-xs text-slate-400 hover:text-rose-600 cursor-pointer"
+                    title="Clear date"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Reset Button */}
+              {isFilterActive && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setStatusFilter("all");
+                    setDateFilter("");
+                    setTypeFilter("all");
+                    setPaymentFilter("all");
+                  }}
+                  className="px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700/60 text-xs text-slate-500">
+            <span>
+              Showing <strong className="text-slate-800 dark:text-slate-200">{appointments.length}</strong> of {pagination.totalItems} appointments
+            </span>
+            {isFilterActive && (
+              <span className="text-[#0067A1] font-semibold flex items-center gap-1">
+                <Filter className="w-3 h-3" /> Filters active
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Bulk Actions Banner */}
+        {selectedIds.length > 0 && (
+          <div className="p-3 bg-rose-50 dark:bg-rose-900/20 rounded-xl border border-rose-200 dark:border-rose-800 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold text-rose-800 dark:text-rose-300">
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <span>{selectedIds.length} appointment(s) selected</span>
+            </div>
+            <button
+              onClick={() => setConfirmOpen(true)}
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete Selected
+            </button>
+          </div>
+        )}
+
+        {/* Main Records Container */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs overflow-hidden">
+          {loading ? (
+            <div className="py-24 flex flex-col items-center justify-center">
+              <div className="w-10 h-10 border-4 border-[#0067A1]/20 border-t-[#0067A1] rounded-full animate-spin"></div>
+              <p className="mt-3 text-xs font-semibold text-slate-600 dark:text-slate-400">Loading appointments...</p>
+            </div>
+          ) : appointments.length === 0 ? (
+            <div className="py-20 text-center flex flex-col items-center max-w-sm mx-auto px-4">
+              <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mb-3">
+                <Calendar className="w-6 h-6 text-slate-400" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">
+                No Appointments Found
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                {isFilterActive
+                  ? "No appointments match your active filter criteria."
+                  : "No patient appointments have been scheduled yet."}
+              </p>
+              {isFilterActive && (
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setStatusFilter("all");
+                    setDateFilter("");
+                    setTypeFilter("all");
+                    setPaymentFilter("all");
+                  }}
+                  className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-[#0067A1] text-white hover:bg-[#004F7C] transition-colors cursor-pointer"
+                >
+                  Reset All Filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Responsive Mobile Cards View (md:hidden) */}
+              <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-700">
+                {appointments.map((appointment) => {
+                  const typeMeta = getTypeMeta(appointment.appointment_type);
+                  const TypeIcon = typeMeta.icon;
+                  const fee = getPaidFee(appointment);
+
+                  return (
+                    <div key={appointment.id} className="p-3.5 space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(appointment.id)}
+                            onChange={() => toggleSelect(appointment.id)}
+                            className="rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1] cursor-pointer"
+                          />
+                          <div className="w-8 h-8 rounded-full bg-[#0067A1]/10 text-[#0067A1] font-bold text-xs flex items-center justify-center shrink-0">
+                            {getInitials(appointment.patient?.full_name)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                              {appointment.patient?.full_name || "Unknown Patient"}
+                            </p>
+                            <p className="text-[11px] text-slate-500 truncate">{appointment.patient?.phone_number || "—"}</p>
+                          </div>
+                        </div>
+
+                        <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusColor(appointment.status)}`}>
+                          {appointment.status}
                         </span>
                       </div>
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setConfirmOpen(true)}
-                        className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-all duration-300 cursor-pointer"
-                      >
-                        <Trash2 size={18} className="mr-2" />
-                        Delete
-                      </motion.button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
 
-              {/* Appointments Table */}
-              <motion.div
-                className="bg-white/80 dark:bg-gray-800/80 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 overflow-hidden mb-6"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                {loading ? (
-                  <motion.div
-                    className="flex items-center justify-center py-12"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                  >
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{
-                        duration: 1,
-                        repeat: Infinity,
-                        ease: "linear",
-                      }}
-                    >
-                      <RefreshCw
-                        size={32}
-                        className="text-gray-800 dark:text-gray-200"
-                      />
-                    </motion.div>
-                  </motion.div>
-                ) : appointments.length === 0 ? (
-                  <motion.div
-                    className="text-center py-12"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                  >
-                    <Calendar className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                      No appointments found
-                    </h3>
-                    <p className="text-gray-500 dark:text-gray-400 mb-4">
-                      {searchTerm || statusFilter !== "all" || dateFilter
-                        ? "Try adjusting your search criteria"
-                        : "No appointments scheduled yet"}
-                    </p>
-                  </motion.div>
-                ) : (
-                  <>
-                  {/* Mobile cards */}
-                  <div className="md:hidden divide-y divide-slate-100 dark:divide-gray-700">
-                    {appointments.map((appointment) => (
-                      <div key={appointment.id} className="p-3 space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/60 p-2 rounded-lg">
+                        <span className="flex items-center gap-1 font-medium">
+                          <Calendar className="w-3.5 h-3.5 text-[#0067A1]" />
+                          {formatDate(appointment.appointment_date)}
+                        </span>
+                        <span className="flex items-center gap-1 text-slate-500">
+                          <Clock className="w-3 h-3" />
+                          {formatTime(appointment.appointment_time)}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                          <Stethoscope className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="font-semibold">{appointment.doctor?.full_name || "Doctor"}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold border ${typeMeta.cls}`}>
+                            <TypeIcon className="w-3 h-3" />
+                            {typeMeta.label}
+                          </span>
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                            {formatFee(appointment)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-1 pt-1 border-t border-slate-100 dark:border-slate-700/60">
+                        <button
+                          onClick={() => fetchAppointmentDetails(appointment.id)}
+                          className="px-2.5 py-1 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" /> View
+                        </button>
+                        <button
+                          onClick={() => handleDownloadInvoice(appointment)}
+                          className="px-2.5 py-1 text-xs font-semibold text-[#0067A1] bg-sky-50 hover:bg-sky-100 rounded flex items-center gap-1 cursor-pointer"
+                        >
+                          <FileText className="w-3 h-3" /> Receipt
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedIds([appointment.id]);
+                            setConfirmOpen(true);
+                          }}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Professional Table (hidden md:block) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 uppercase text-[10.5px] font-bold tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3 w-10">
+                        <input
+                          type="checkbox"
+                          onChange={(e) =>
+                            setSelectedIds(
+                              e.target.checked ? appointments.map((a) => a.id) : []
+                            )
+                          }
+                          checked={
+                            appointments.length > 0 &&
+                            selectedIds.length === appointments.length
+                          }
+                          className="rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1] cursor-pointer"
+                        />
+                      </th>
+                      <th className="px-4 py-3">Schedule</th>
+                      <th className="px-4 py-3">Patient</th>
+                      <th className="px-4 py-3">Doctor & Specialty</th>
+                      <th className="px-4 py-3">Consultation Mode</th>
+                      <th className="px-4 py-3">Fee / Charged</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {appointments.map((appointment) => {
+                      const typeMeta = getTypeMeta(appointment.appointment_type);
+                      const TypeIcon = typeMeta.icon;
+                      const fee = getPaidFee(appointment);
+
+                      return (
+                        <tr
+                          key={appointment.id}
+                          className="hover:bg-slate-50/70 dark:hover:bg-slate-700/30 transition-colors"
+                        >
+                          <td className="px-4 py-3">
                             <input
                               type="checkbox"
                               checked={selectedIds.includes(appointment.id)}
                               onChange={() => toggleSelect(appointment.id)}
-                              className="rounded border-gray-300 cursor-pointer"
+                              className="rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1] cursor-pointer"
                             />
-                            <div className="min-w-0">
-                              <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                                {appointment.patient?.full_name || "Unknown Patient"}
-                              </p>
-                              <p className="text-xs text-slate-500">{appointment.patient?.phone_number}</p>
-                            </div>
-                          </div>
-                          <span className={`shrink-0 inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium ${getStatusColor(appointment.status)}`}>
-                            {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-gray-300">
-                          <span className="flex items-center gap-1"><Calendar size={12} />{formatDate(appointment.appointment_date)}</span>
-                          <span className="flex items-center gap-1"><Clock size={12} />{formatTime(appointment.appointment_time)}</span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="font-medium text-slate-800 dark:text-white">{appointment.doctor?.full_name || "Unknown Doctor"}</span>
-                          <span className={`px-2 py-0.5 rounded-md font-semibold border ${getTypeMeta(appointment.appointment_type).cls}`}>
-                            {getTypeMeta(appointment.appointment_type).label}
-                          </span>
-                          <span className="font-semibold text-slate-900 dark:text-white">{formatFee(appointment)}</span>
-                        </div>
-                        <div className="flex items-center gap-1 pt-1">
-                          <button onClick={() => handleDownloadInvoice(appointment)} className="p-2 text-[#0067A1] cursor-pointer" title="Invoice"><FileText size={18} /></button>
-                          <button onClick={() => fetchAppointmentDetails(appointment.id)} className="p-2 text-gray-600 cursor-pointer" title="View"><Eye size={18} /></button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                          </td>
 
-                  <div className="hidden md:block overflow-x-auto rounded-xl">
-                    <table className="w-full whitespace-nowrap min-w-[1000px]">
-                      <thead className="bg-gray-50/80 dark:bg-gray-700/80 border-b border-gray-200 dark:border-gray-600">
-                        <tr>
-                          <th className="px-4 py-3 text-left">
-                            <input
-                              type="checkbox"
-                              onChange={(e) =>
-                                setSelectedIds(
-                                  e.target.checked
-                                    ? appointments.map((a) => a.id)
-                                    : []
-                                )
-                              }
-                              checked={
-                                appointments.length > 0 &&
-                                selectedIds.length === appointments.length
-                              }
-                              className="rounded border-gray-300 text-gray-600 focus:ring-gray-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
-                            />
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Appointment
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Patient
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Doctor
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Type
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Fee
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Status
-                          </th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {appointments.map((appointment, index) => (
-                          <motion.tr
-                            key={appointment.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.1 }}
-                            className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-all duration-300"
-                          >
-                            <td className="px-4 py-3">
-                              <input
-                                type="checkbox"
-                                checked={selectedIds.includes(appointment.id)}
-                                onChange={() => toggleSelect(appointment.id)}
-                                className="rounded border-gray-300 text-gray-600 focus:ring-gray-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
-                              />
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center">
-                                <div className="flex-shrink-0 h-10 w-10 bg-[#475569] rounded-full flex items-center justify-center text-white font-medium text-sm shadow-sm">
-                                  <Calendar size={16} />
-                                </div>
-                                <div className="ml-4">
-                                  <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {formatDate(appointment.appointment_date)}
-                                  </div>
-                                  <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center mt-1">
-                                    <Clock size={14} className="mr-1" />
-                                    {formatTime(appointment.appointment_time)}
-                                  </div>
-                                </div>
+                          {/* Schedule Column */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 shrink-0">
+                                <Calendar className="w-4 h-4 text-[#0067A1]" />
                               </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center">
-                                <div className="flex-shrink-0 h-8 w-8 bg-emerald-600 rounded-full flex items-center justify-center text-white text-xs font-medium">
-                                  {getInitials(appointment.patient?.full_name)}
-                                </div>
-                                <div className="ml-3">
-                                  <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {appointment.patient?.full_name ||
-                                      "Unknown Patient"}
-                                  </div>
-                                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                                    {appointment.patient?.phone_number}
-                                  </div>
-                                </div>
+                              <div>
+                                <p className="font-semibold text-slate-900 dark:text-white">
+                                  {formatDate(appointment.appointment_date)}
+                                </p>
+                                <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                                  <Clock className="w-3 h-3" />
+                                  {formatTime(appointment.appointment_time)}
+                                </p>
                               </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center">
-                                <div className="flex-shrink-0 h-8 w-8 bg-[#0067A1] rounded-full flex items-center justify-center text-white text-xs font-medium">
-                                  {getInitials(appointment.doctor?.full_name)}
-                                </div>
-                                <div className="ml-3">
-                                  <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                    {appointment.doctor?.full_name ||
-                                      "Unknown Doctor"}
-                                  </div>
-                                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                                    {appointment.doctor?.specialization}
-                                  </div>
-                                </div>
+                            </div>
+                          </td>
+
+                          {/* Patient Column */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                                {getInitials(appointment.patient?.full_name)}
                               </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold border ${getTypeMeta(appointment.appointment_type).cls}`}>
-                                {getTypeMeta(appointment.appointment_type).label}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`text-sm font-semibold ${getPaidFee(appointment) > 0 ? "text-slate-900 dark:text-white" : "text-slate-500"}`}>
+                              <div className="min-w-0 max-w-[180px]">
+                                <p className="font-bold text-slate-900 dark:text-white truncate">
+                                  {appointment.patient?.full_name || "Unknown Patient"}
+                                </p>
+                                <p className="text-[11px] text-slate-500 truncate">
+                                  {appointment.patient?.phone_number || "—"}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Doctor Column */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-[#0067A1] text-white font-bold text-xs flex items-center justify-center shrink-0">
+                                {getInitials(appointment.doctor?.full_name)}
+                              </div>
+                              <div className="min-w-0 max-w-[180px]">
+                                <p className="font-bold text-slate-900 dark:text-white truncate">
+                                  {appointment.doctor?.full_name || "Doctor"}
+                                </p>
+                                <p className="text-[11px] text-slate-500 truncate flex items-center gap-1">
+                                  <Stethoscope className="w-3 h-3 text-[#0067A1]" />
+                                  {appointment.doctor?.specialization || "General Medicine"}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Consultation Mode Column */}
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold border ${typeMeta.cls}`}>
+                              <TypeIcon className="w-3.5 h-3.5" />
+                              {typeMeta.label}
+                            </span>
+                          </td>
+
+                          {/* Fee & Payment Column */}
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`font-bold ${fee > 0 ? "text-slate-900 dark:text-white" : "text-emerald-700"}`}>
                                 {formatFee(appointment)}
                               </span>
-                              {getPaidFee(appointment) > 0 && appointment.payment_status && appointment.payment_status !== "paid" && (
-                                <span className="ml-1.5 text-[10px] font-bold uppercase text-amber-600">{appointment.payment_status}</span>
+                              {fee > 0 && (
+                                <span className={`text-[9.5px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded ${
+                                  appointment.payment_status === "paid"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}>
+                                  {appointment.payment_status || "pending"}
+                                </span>
                               )}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span
-                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                                  appointment.status
-                                )}`}
+                            </div>
+                          </td>
+
+                          {/* Status Column */}
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wider ${getStatusColor(appointment.status)}`}>
+                              {appointment.status}
+                            </span>
+                          </td>
+
+                          {/* Actions Column */}
+                          <td className="px-4 py-3 text-right">
+                            <div className="inline-flex items-center gap-1 justify-end">
+                              <button
+                                onClick={() => fetchAppointmentDetails(appointment.id)}
+                                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                                title="View Appointment Details"
                               >
-                                {appointment.status.charAt(0).toUpperCase() +
-                                  appointment.status.slice(1)}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end space-x-2">
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => handleDownloadInvoice(appointment)}
-                                  className="p-2 text-[#0067A1] hover:text-[#004F7C] dark:text-blue-400 dark:hover:text-blue-300 transition-all duration-300 cursor-pointer"
-                                  title="Download / View Invoice"
-                                >
-                                  <FileText size={18} />
-                                </motion.button>
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() =>
-                                    fetchAppointmentDetails(appointment.id)
-                                  }
-                                  className="p-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300 transition-all duration-300 cursor-pointer"
-                                  title="View Details"
-                                >
-                                  <Eye size={18} />
-                                </motion.button>
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => toggleSelect(appointment.id)}
-                                  className="p-2 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-all duration-300 cursor-pointer"
-                                  title="Delete"
-                                >
-                                  <Trash2 size={18} />
-                                </motion.button>
-                              </div>
-                            </td>
-                          </motion.tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  </>
-                )}
-              </motion.div>
+                                <Eye className="w-4 h-4" />
+                              </button>
 
-              {/* Pagination Component */}
-              {appointments.length > 0 && (
-                <motion.div
-                  className="bg-white/80 dark:bg-gray-800/80 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 p-6"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.8 }}
+                              <button
+                                onClick={() => handleDownloadInvoice(appointment)}
+                                className="p-1.5 text-[#0067A1] hover:text-[#004F7C] hover:bg-sky-50 rounded-md transition-colors cursor-pointer"
+                                title="Print / Download Invoice"
+                              >
+                                <FileText className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setSelectedIds([appointment.id]);
+                                  setConfirmOpen(true);
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
+                                title="Delete Appointment"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* Pagination Footer */}
+          {appointments.length > 0 && (
+            <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-400">
+              <div>
+                Showing <strong className="text-slate-900 dark:text-white">{(pagination.currentPage - 1) * pagination.itemsPerPage + 1}</strong> to <strong className="text-slate-900 dark:text-white">{Math.min(pagination.currentPage * pagination.itemsPerPage, pagination.totalItems)}</strong> of {pagination.totalItems} entries
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handlePageChange(1)}
+                  disabled={!pagination.hasPrevPage}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="First Page"
                 >
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Showing{" "}
-                      {(pagination.currentPage - 1) * pagination.itemsPerPage +
-                        1}{" "}
-                      to{" "}
-                      {Math.min(
-                        pagination.currentPage * pagination.itemsPerPage,
-                        pagination.totalItems
-                      )}{" "}
-                      of {pagination.totalItems} appointments
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => handlePageChange(pagination.currentPage - 1)}
+                  disabled={!pagination.hasPrevPage}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+
+                {getPageNumbers().map((num) => (
+                  <button
+                    key={num}
+                    onClick={() => handlePageChange(num)}
+                    className={`px-2.5 py-1 rounded text-xs font-semibold cursor-pointer ${
+                      num === pagination.currentPage
+                        ? "bg-[#0067A1] text-white shadow-xs"
+                        : "border border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    {num}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => handlePageChange(pagination.currentPage + 1)}
+                  disabled={!pagination.hasNextPage}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="Next Page"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => handlePageChange(pagination.totalPages)}
+                  disabled={!pagination.hasNextPage}
+                  className="p-1.5 rounded border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="Last Page"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* APPOINTMENT DETAILS MODAL */}
+      {viewAppointment && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-2xl border border-slate-200 dark:border-slate-700 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden my-auto">
+            {/* Modal Header */}
+            <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-900 shrink-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Appointment Details
+                </h3>
+                <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase ${getStatusColor(viewAppointment.status)}`}>
+                  {viewAppointment.status}
+                </span>
+                <span className="font-mono text-xs font-bold text-[#0067A1] bg-[#0067A1]/10 px-2 py-0.5 rounded border border-[#0067A1]/20">
+                  #APT-{String(viewAppointment.id).slice(0, 8).toUpperCase()}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewAppointment(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto flex-1 space-y-4 text-xs">
+              
+              {/* Patient Card */}
+              <div className="bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#0067A1] uppercase tracking-wider text-[10px]">Patient Profile</span>
+                  <span className="text-slate-400 font-mono text-[10px]">ID: #{viewAppointment.patient?.un_id || "VERIFIED"}</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#0067A1]/10 text-[#0067A1] font-bold text-xs flex items-center justify-center shrink-0">
+                    {getInitials(viewAppointment.patient?.full_name)}
+                  </div>
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <p className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                      {viewAppointment.patient?.full_name || "Patient"}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-600 dark:text-slate-400 text-xs">
+                      {viewAppointment.patient?.gender && <span className="capitalize">{viewAppointment.patient.gender}</span>}
+                      {viewAppointment.patient?.blood_group && <span>🩸 {viewAppointment.patient.blood_group}</span>}
+                      {viewAppointment.patient?.phone_number && <span>📞 {viewAppointment.patient.phone_number}</span>}
+                      {viewAppointment.patient?.email && <span>✉ {viewAppointment.patient.email}</span>}
                     </div>
+                    {viewAppointment.patient?.address && (
+                      <p className="text-[11px] text-slate-500 mt-1">📍 {viewAppointment.patient.address}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-                    <div className="flex flex-wrap justify-center items-center gap-1 mt-4 sm:mt-0">
-                      {/* First Page */}
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handlePageChange(1)}
-                        disabled={!pagination.hasPrevPage}
-                        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all duration-300"
-                      >
-                        <ChevronsLeft size={16} />
-                      </motion.button>
-
-                      {/* Previous Page */}
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() =>
-                          handlePageChange(pagination.currentPage - 1)
-                        }
-                        disabled={!pagination.hasPrevPage}
-                        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all duration-300"
-                      >
-                        <ChevronLeft size={16} />
-                      </motion.button>
-
-                      {/* Page Numbers */}
-                      {getPageNumbers().map((pageNum) => (
-                        <motion.button
-                          key={pageNum}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handlePageChange(pageNum)}
-                          className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all duration-300 cursor-pointer ${
-                            pageNum === pagination.currentPage
-                              ? "bg-[#0067A1] border-transparent text-white shadow-sm"
-                              : "border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600"
-                          }`}
-                        >
-                          {pageNum}
-                        </motion.button>
-                      ))}
-
-                      {/* Next Page */}
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() =>
-                          handlePageChange(pagination.currentPage + 1)
-                        }
-                        disabled={!pagination.hasNextPage}
-                        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all duration-300"
-                      >
-                        <ChevronRight size={16} />
-                      </motion.button>
-
-                      {/* Last Page */}
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handlePageChange(pagination.totalPages)}
-                        disabled={!pagination.hasNextPage}
-                        className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all duration-300"
-                      >
-                        <ChevronsRight size={16} />
-                      </motion.button>
-                    </div>
-
-                    {/* Items Per Page Selector */}
-                    <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                      <span>Show:</span>
-                      <select
-                        value={pagination.itemsPerPage}
-                        onChange={(e) => {
-                          const newLimit = parseInt(e.target.value);
-                          setPagination((prev) => ({
-                            ...prev,
-                            itemsPerPage: newLimit,
-                            currentPage: 1,
-                          }));
-                        }}
-                        className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white focus:ring-2 focus:ring-gray-500 focus:border-transparent cursor-pointer"
-                      >
-                        <option value="5">5</option>
-                        <option value="10">10</option>
-                        <option value="25">25</option>
-                        <option value="50">50</option>
-                      </select>
-                      <span>per page</span>
+              {/* Doctor Card */}
+              <div className="bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#0067A1] uppercase tracking-wider text-[10px]">Attending Doctor</span>
+                  <span className="text-slate-400 text-[10px]">{viewAppointment.doctor?.specialization}</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center shrink-0">
+                    {getInitials(viewAppointment.doctor?.full_name)}
+                  </div>
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <p className="font-bold text-sm text-slate-900 dark:text-white">
+                      {viewAppointment.doctor?.full_name || "Doctor"}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-600 dark:text-slate-400 text-xs">
+                      {viewAppointment.doctor?.clinic_name && <span>🏥 {viewAppointment.doctor.clinic_name}</span>}
+                      {viewAppointment.doctor?.phone_number && <span>📞 {viewAppointment.doctor.phone_number}</span>}
+                      {viewAppointment.doctor?.email && <span>✉ {viewAppointment.doctor.email}</span>}
                     </div>
                   </div>
-                </motion.div>
+                </div>
+              </div>
+
+              {/* Consultation Details Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Date</p>
+                  <p className="font-semibold text-slate-800 dark:text-white mt-0.5">{formatDate(viewAppointment.appointment_date)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Time</p>
+                  <p className="font-semibold text-slate-800 dark:text-white mt-0.5">{formatTime(viewAppointment.appointment_time)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Mode</p>
+                  <p className="font-semibold text-slate-800 dark:text-white mt-0.5">{getTypeMeta(viewAppointment.appointment_type).full}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Fee Charged</p>
+                  <p className="font-bold text-[#0067A1] mt-0.5">{formatFee(viewAppointment)}</p>
+                </div>
+              </div>
+
+              {/* Financial Breakdown */}
+              <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">Payment Status: </span>
+                  <span className={`px-2 py-0.5 rounded text-[10.5px] font-bold uppercase ${
+                    viewAppointment.payment_status === "paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                  }`}>
+                    {viewAppointment.payment_status || "not_applicable"}
+                  </span>
+                </div>
+                <div className="text-slate-600 dark:text-slate-400">
+                  {Number(viewAppointment.discount_amount) > 0 && (
+                    <span className="mr-2 italic text-slate-500">
+                      (Original ₹{Number(viewAppointment.original_fee) || 0}, Discount ₹{Number(viewAppointment.discount_amount)})
+                    </span>
+                  )}
+                  <span>Final Fee: <strong className="text-slate-900 dark:text-white">{formatFee(viewAppointment)}</strong></span>
+                </div>
+              </div>
+
+              {/* Consultation / Disease Notes */}
+              {viewAppointment.disease_info && (
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                  <p className="font-bold text-[#0067A1] uppercase tracking-wider text-[10px]">Clinical Notes / Reason</p>
+                  <p className="text-slate-700 leading-relaxed whitespace-pre-line">
+                    {typeof viewAppointment.disease_info === "string"
+                      ? viewAppointment.disease_info
+                      : JSON.stringify(viewAppointment.disease_info, null, 2)}
+                  </p>
+                </div>
               )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex justify-end gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewAppointment(null)}
+                className="px-4 py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-100 cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadInvoice(viewAppointment)}
+                className="px-4 py-1.5 rounded-lg bg-[#0067A1] text-white text-xs font-semibold hover:bg-[#004F7C] flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Print Receipt
+              </button>
             </div>
           </div>
         </div>
-      </main>
+      )}
 
-      {/* Fixed Confirm Delete Modal */}
-      <AnimatePresence>
-        {confirmOpen && (
-          <motion.div
-            className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md transform transition-all border border-gray-200/50 dark:border-gray-700/50"
-            >
-              <div className="p-6 text-center">
-                <motion.div
-                  className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center"
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.1 }}
-                >
-                  <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
-                </motion.div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  Confirm Deletion
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">
-                  Are you sure you want to delete {selectedIds.length}{" "}
-                  appointment(s)? This action cannot be undone.
-                </p>
-                <div className="flex gap-3 justify-center">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setConfirmOpen(false)}
-                    className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300 font-medium cursor-pointer"
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handleDelete}
-                    className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all duration-300 font-medium cursor-pointer"
-                  >
-                    Delete
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* DELETE CONFIRMATION MODAL */}
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-5 max-w-sm w-full border border-slate-200 dark:border-slate-700 shadow-xl space-y-3">
+            <div className="flex items-center gap-2 text-rose-600">
+              <AlertTriangle className="w-5 h-5" />
+              <h4 className="font-bold text-sm text-slate-900 dark:text-white">Delete Appointments</h4>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Are you sure you want to delete {selectedIds.length} selected appointment(s)? This action cannot be reversed.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                className="px-3.5 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 cursor-pointer"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      {/* Fixed Appointment Details Modal */}
-      <AnimatePresence>
-        {viewAppointment && (
-          <motion.div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl transform transition-all max-h-[90vh] overflow-hidden border border-gray-200/50 dark:border-gray-700/50 flex flex-col"
-            >
-              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Appointment Details
-                  </h3>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => setViewAppointment(null)}
-                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all duration-300 cursor-pointer"
-                  >
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </motion.button>
-                </div>
-              </div>
-
-              <div className="p-6 overflow-y-auto  flex-1">
-                {/* Appointment Overview */}
-                <div className="flex items-start space-x-6 mb-8">
-                  <div className="flex-shrink-0">
-                    <motion.div
-                      whileHover={{ scale: 1.1 }}
-                      className="h-20 w-20 rounded-full bg-slate-600 flex items-center justify-center text-white font-medium text-2xl shadow-sm"
-                    >
-                      <Calendar size={32} />
-                    </motion.div>
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                      Appointment #{viewAppointment.id.slice(0, 8)}
-                    </h4>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-800">
-                        {formatDate(viewAppointment.appointment_date)} at{" "}
-                        {formatTime(viewAppointment.appointment_time)}
-                      </span>
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
-                          viewAppointment.status
-                        )}`}
-                      >
-                        {viewAppointment.status.charAt(0).toUpperCase() +
-                          viewAppointment.status.slice(1)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {/* Patient Information */}
-                  <div className="space-y-6">
-                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                      <User className="w-5 h-5 mr-2" />
-                      Patient Information
-                    </h4>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                          Full Name
-                        </label>
-                        <p className="text-gray-900 dark:text-white">
-                          {viewAppointment.patient?.full_name}
-                        </p>
-                      </div>
-                      <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4">
-                        <div className="min-w-0">
-                          <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                            Email
-                          </label>
-                          <p className="text-gray-900 dark:text-white break-all">
-                            {viewAppointment.patient?.email || "N/A"}
-                          </p>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                            Phone
-                          </label>
-                          <p className="text-gray-900 dark:text-white">
-                            {viewAppointment.patient?.phone_number}
-                          </p>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                          Gender
-                        </label>
-                        <p className="text-gray-900 dark:text-white">
-                          {viewAppointment.patient?.gender || "N/A"}
-                        </p>
-                      </div>
-                      {viewAppointment.patient?.date_of_birth && (
-                        <div>
-                          <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                            Date of Birth
-                          </label>
-                          <p className="text-gray-900 dark:text-white">
-                            {formatDate(viewAppointment.patient.date_of_birth)}
-                          </p>
-                        </div>
-                      )}
-                      {viewAppointment.patient?.address && (
-                        <div>
-                          <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                            Address
-                          </label>
-                          <p className="text-gray-900 dark:text-white">
-                            {viewAppointment.patient.address}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Doctor Information */}
-                  <div className="space-y-6">
-                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                      <Stethoscope className="w-5 h-5 mr-2" />
-                      Doctor Information
-                    </h4>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                          Full Name
-                        </label>
-                        <p className="text-gray-900 dark:text-white">
-                          {viewAppointment.doctor?.full_name}
-                        </p>
-                      </div>
-                      <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4">
-                        <div className="min-w-0">
-                          <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                            Email
-                          </label>
-                          <p className="text-gray-900 dark:text-white break-all">
-                            {viewAppointment.doctor?.email || "N/A"}
-                          </p>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                            Phone
-                          </label>
-                          <p className="text-gray-900 dark:text-white">
-                            {viewAppointment.doctor?.phone_number}
-                          </p>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                          Specialization
-                        </label>
-                        <p className="text-gray-900 dark:text-white">
-                          {viewAppointment.doctor?.specialization}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                          Clinic
-                        </label>
-                        <p className="text-gray-900 dark:text-white font-medium">
-                          {viewAppointment.doctor?.clinic_name}
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          {viewAppointment.doctor?.clinic_address}
-                        </p>
-                        {viewAppointment.appointment_type === 'clinic_visit' && viewAppointment.doctor?.latitude && viewAppointment.doctor?.longitude && (
-                          <a
-                            href={`https://www.google.com/maps?q=${viewAppointment.doctor.latitude},${viewAppointment.doctor.longitude}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center mt-2 text-sm text-[#0067A1] hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
-                          >
-                            <MapPin className="w-4 h-4 mr-1" />
-                            View on Map
-                          </a>
-                        )}
-                      </div>
-                      <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                            Experience
-                          </label>
-                          <p className="text-gray-900 dark:text-white">
-                            {viewAppointment.doctor?.experience_years} years
-                          </p>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                            Booking Type / Fee Paid
-                          </label>
-                          <p className="text-gray-900 dark:text-white flex items-center">
-                            {getTypeMeta(viewAppointment.appointment_type).full} · {formatFee(viewAppointment)}
-                            {Number(viewAppointment.discount_amount) > 0 && (
-                              <span className="ml-2 text-xs text-gray-500">
-                                (list ₹{Number(viewAppointment.original_fee) || 0}, discount ₹{Number(viewAppointment.discount_amount)})
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Disease Information */}
-                <div className="space-y-4">
-                  {/* 🧠 Disease Information Section */}
-                  {viewAppointment?.disease_info ? (
-                    typeof viewAppointment.disease_info === "string" ? (
-                      <div className="p-4 bg-white/60 dark:bg-gray-800/40 rounded-xl shadow-sm border border-gray-200/30 dark:border-gray-700/30">
-                        <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
-                          <Activity className="w-5 h-5 mr-2 text-[#0067A1] dark:text-blue-400" />
-                          Consultation Details
-                        </h4>
-                        <ul className="space-y-3">
-                          {viewAppointment.disease_info.split("|").map((line, idx) => (
-                            <li key={idx} className="flex items-start">
-                              <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-[#0067A1] dark:text-blue-400 text-xs font-bold mr-3 mt-0.5">
-                                {idx + 1}
-                              </span>
-                              <span className="text-sm text-gray-700 dark:text-gray-300 pt-0.5">
-                                {line.trim()}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {Object.entries(viewAppointment.disease_info).map(
-                          ([key, value]) => (
-                            <div
-                              key={key}
-                              className="p-3 bg-white/60 dark:bg-gray-800/40 rounded-lg shadow-sm border border-gray-200/30 dark:border-gray-700/30"
-                            >
-                              <h5 className="text-sm font-semibold text-gray-800 dark:text-gray-100 capitalize mb-1">
-                                {key.replace(/_/g, " ")}
-                              </h5>
-  
-                              {/* 🧩 Auto-format structured content */}
-                              {Array.isArray(value) ? (
-                                <ul className="list-disc pl-5 text-sm text-gray-700 dark:text-gray-300">
-                                  {value.map((item, i) => (
-                                    <li key={i}>
-                                      {typeof item === "object"
-                                        ? Object.entries(item).map(([k, v]) => (
-                                            <span key={k} className="block">
-                                              <strong className="capitalize">
-                                                {k.replace(/_/g, " ")}:
-                                              </strong>{" "}
-                                              {String(v)}
-                                            </span>
-                                          ))
-                                        : String(item)}
-                                    </li>
-                                  ))}
-                                </ul>
-                              ) : typeof value === "object" ? (
-                                <div className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                                  {Object.entries(value).map(([k, v]) => (
-                                    <div key={k}>
-                                      <strong className="capitalize">
-                                        {k.replace(/_/g, " ")}:
-                                      </strong>{" "}
-                                      {String(v)}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                  {value || "N/A"}
-                                </p>
-                              )}
-                            </div>
-                          )
-                        )}
-                      </div>
-                    )
-                  ) : (
-                    <p className="text-gray-500 text-sm italic">
-                      No disease information available.
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                <div className="flex items-center justify-between w-full">
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadInvoice(viewAppointment)}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#0067A1] text-white rounded-lg hover:bg-[#004F7C] text-sm font-semibold transition-colors cursor-pointer"
-                  >
-                    <FileText size={16} /> Download Invoice
-                  </button>
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setViewAppointment(null)}
-                    className="px-6 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium rounded-lg transition-all duration-300 cursor-pointer"
-                  >
-                    Close
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+    </main>
   );
 }
