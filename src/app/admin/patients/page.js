@@ -245,29 +245,81 @@ export default function PatientsPage() {
     return url;
   };
 
-  const formatAddress = (val) => {
-    if (!val) return "Not provided";
-    if (typeof val === "string") return val;
-    if (typeof val === "object") {
-      const parts = [val.street, val.city, val.state, val.pincode || val.zip].filter(
-        Boolean
-      );
-      return parts.length > 0 ? parts.join(", ") : JSON.stringify(val);
+  const parseAddress = (val) => {
+    if (!val) return null;
+    let data = val;
+    if (typeof val === "string") {
+      const trimmed = val.trim();
+      if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+        try {
+          data = JSON.parse(trimmed);
+        } catch {
+          data = trimmed;
+        }
+      } else {
+        data = trimmed;
+      }
     }
-    return String(val);
+
+    if (typeof data === "object" && data !== null) {
+      const parts = [data.street, data.city, data.state, data.pincode || data.zip].filter(
+        (p) => p && typeof p === "string" && p.trim() !== ""
+      );
+      if (parts.length === 0) return null;
+      return parts.join(", ");
+    }
+
+    if (typeof data === "string") {
+      const cleaned = data.trim();
+      if (!cleaned || cleaned === "{}" || cleaned === '{"address":""}') return null;
+      return cleaned;
+    }
+
+    return null;
   };
 
-  const formatEmergencyContact = (val) => {
-    if (!val) return "Not provided";
-    if (typeof val === "string") return val;
-    if (typeof val === "object") {
-      const name = val.name || val.contact_name || "";
-      const phone = val.phone || val.phone_number || val.mobile || "";
-      const relation = val.relation || val.relationship || "";
-      const parts = [name, relation ? `(${relation})` : "", phone].filter(Boolean);
-      return parts.length > 0 ? parts.join(" ") : JSON.stringify(val);
+  const parseEmergencyContact = (val) => {
+    if (!val) return null;
+    let data = val;
+    if (typeof val === "string") {
+      const trimmed = val.trim();
+      if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+        try {
+          data = JSON.parse(trimmed);
+        } catch {
+          data = trimmed;
+        }
+      } else {
+        data = trimmed;
+      }
     }
-    return String(val);
+
+    if (typeof data === "object" && data !== null) {
+      const name = (data.name || data.contact_name || data.fullName || "").trim();
+      const phone = (data.phone || data.phone_number || data.mobile || "").trim();
+      const relation = (data.relation || data.relationship || "").trim();
+
+      if (!name && !phone && !relation) {
+        return null;
+      }
+
+      return { name, phone, relation };
+    }
+
+    if (typeof data === "string") {
+      const cleaned = data.trim();
+      if (
+        !cleaned ||
+        cleaned === "{}" ||
+        cleaned === '{"name":"","phone":""}' ||
+        cleaned.replace(/[{}\s,"':]/g, "") === "namephone"
+      ) {
+        return null;
+      }
+      return { name: "", phone: cleaned, relation: "" };
+    }
+
+    return null;
   };
 
   const isFilterActive =
@@ -1039,174 +1091,210 @@ export default function PatientsPage() {
       )}
 
       {/* Medical-Grade Patient Details Modal */}
-      {viewPatient && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-2xl border border-slate-200 dark:border-slate-700 overflow-hidden my-8">
-            {/* Header */}
-            <div className="px-6 py-4 bg-[#0067A1] text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-white/15 text-white font-bold text-sm flex items-center justify-center border border-white/20">
-                  {getInitials(viewPatient.patient_details?.full_name)}
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white">
-                    {viewPatient.patient_details?.full_name || "Unknown Patient"}
-                  </h3>
-                  <div className="flex items-center gap-2 mt-0.5 text-xs text-white/80 font-mono">
-                    <span>{formatPatientUnId(viewPatient.un_id)}</span>
-                    <span>•</span>
-                    <span>{viewPatient.phone_number || "No phone"}</span>
+      {viewPatient && (() => {
+        const parsedAddress = parseAddress(viewPatient.patient_details?.address);
+        const parsedEmergency = parseEmergencyContact(
+          viewPatient.patient_details?.emergency_contact
+        );
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 overflow-y-auto">
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-2xl border border-slate-200 dark:border-slate-700 overflow-hidden my-8">
+              {/* Header */}
+              <div className="px-6 py-4 bg-[#0067A1] text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-white/15 text-white font-bold text-sm flex items-center justify-center border border-white/20">
+                    {getInitials(viewPatient.patient_details?.full_name)}
                   </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setViewPatient(null)}
-                className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
-              {/* Badges Bar */}
-              <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-700">
-                {viewPatient.is_verified ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    Verified Patient
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                    Unverified Account
-                  </span>
-                )}
-
-                {viewPatient.patient_details?.blood_group && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                    <Droplets className="w-3 h-3 text-rose-600" />
-                    Blood Group: {viewPatient.patient_details.blood_group}
-                  </span>
-                )}
-
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-[#0067A1] border border-blue-200">
-                  Enrolled: {formatDate(viewPatient.created_at)}
-                </span>
-              </div>
-
-              {/* 2-Column Clinical Details */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
-                {/* Section 1: Demographics */}
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#0067A1]">
-                    Clinical Demographics
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Gender:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 capitalize">
-                        {viewPatient.patient_details?.gender || "Not specified"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Date of Birth:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {formatDate(viewPatient.patient_details?.date_of_birth)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Age:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {calculateAge(viewPatient.patient_details?.date_of_birth) !==
-                        null
-                          ? `${calculateAge(
-                              viewPatient.patient_details?.date_of_birth
-                            )} years`
-                          : "Not provided"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Blood Group:</span>
-                      <span className="font-semibold text-rose-600">
-                        {viewPatient.patient_details?.blood_group || "Not provided"}
-                      </span>
+                  <div>
+                    <h3 className="text-base font-bold text-white">
+                      {viewPatient.patient_details?.full_name || "Unknown Patient"}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-white/80 font-mono">
+                      <span>{formatPatientUnId(viewPatient.un_id)}</span>
+                      <span>•</span>
+                      <span>{viewPatient.phone_number || "No phone"}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Section 2: Contact Information */}
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#0067A1]">
-                    Contact & Communication
-                  </h4>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Phone Number:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono">
-                        {viewPatient.phone_number || "Not provided"}
-                      </span>
+                <button
+                  onClick={() => setViewPatient(null)}
+                  className="p-1 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+                {/* Badges Bar */}
+                <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-700">
+                  {viewPatient.is_verified ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      Verified Patient
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                      Unverified Account
+                    </span>
+                  )}
+
+                  {viewPatient.patient_details?.blood_group && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                      <Droplets className="w-3 h-3 text-rose-600" />
+                      Blood Group: {viewPatient.patient_details.blood_group}
+                    </span>
+                  )}
+
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-[#0067A1] border border-blue-200">
+                    Enrolled: {formatDate(viewPatient.created_at)}
+                  </span>
+                </div>
+
+                {/* 2-Column Clinical Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+                  {/* Section 1: Demographics */}
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#0067A1]">
+                      Clinical Demographics
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">Gender:</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 capitalize text-right">
+                          {viewPatient.patient_details?.gender || "Not specified"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">Date of Birth:</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
+                          {formatDate(viewPatient.patient_details?.date_of_birth)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">Age:</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
+                          {calculateAge(viewPatient.patient_details?.date_of_birth) !==
+                          null
+                            ? `${calculateAge(
+                                viewPatient.patient_details?.date_of_birth
+                              )} years`
+                            : "Not provided"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">Blood Group:</span>
+                        <span className="font-semibold text-rose-600 text-right">
+                          {viewPatient.patient_details?.blood_group || "Not provided"}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Email Address:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[180px]">
-                        {viewPatient.patient_details?.email || "Not provided"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Account Status:</span>
-                      <span className="font-semibold text-emerald-700">
-                        {viewPatient.status === 0 ? "Inactive" : "Active"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Identity Status:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {viewPatient.is_verified ? "Verified" : "Unverified"}
-                      </span>
+                  </div>
+
+                  {/* Section 2: Contact Information */}
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#0067A1]">
+                      Contact & Communication
+                    </h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">Phone Number:</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono text-right">
+                          {viewPatient.phone_number || "Not provided"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">Email Address:</span>
+                        <span
+                          className="font-semibold text-slate-800 dark:text-slate-200 truncate text-right max-w-[200px]"
+                          title={viewPatient.patient_details?.email || ""}
+                        >
+                          {viewPatient.patient_details?.email || "Not provided"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">Account Status:</span>
+                        <span className="font-semibold text-emerald-700 text-right">
+                          {viewPatient.status === 0 ? "Inactive" : "Active"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-500 shrink-0">Identity Status:</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">
+                          {viewPatient.is_verified ? "Verified" : "Unverified"}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Section 3: Address & Emergency Contact */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-2">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#0067A1] flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5" />
-                    Residential Address
-                  </h4>
-                  <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
-                    {formatAddress(viewPatient.patient_details?.address)}
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-2">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#0067A1] flex items-center gap-1">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                    Emergency Contact
-                  </h4>
-                  <p className="text-slate-700 dark:text-slate-300 leading-relaxed font-mono">
-                    {formatEmergencyContact(
-                      viewPatient.patient_details?.emergency_contact
+                {/* Section 3: Address & Emergency Contact */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-2">
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#0067A1] flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5" />
+                      Residential Address
+                    </h4>
+                    {parsedAddress ? (
+                      <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
+                        {parsedAddress}
+                      </p>
+                    ) : (
+                      <p className="text-slate-400 italic">Not provided</p>
                     )}
-                  </p>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-2">
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#0067A1] flex items-center gap-1">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                      Emergency Contact
+                    </h4>
+                    {parsedEmergency ? (
+                      <div className="space-y-1">
+                        {parsedEmergency.name && (
+                          <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                            <span>{parsedEmergency.name}</span>
+                            {parsedEmergency.relation && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                                {parsedEmergency.relation}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {parsedEmergency.phone && (
+                          <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-mono text-xs">
+                            <Phone className="w-3 h-3 text-slate-400" />
+                            <span>{parsedEmergency.phone}</span>
+                          </div>
+                        )}
+                        {!parsedEmergency.name && parsedEmergency.relation && (
+                          <span className="text-slate-500 font-medium">
+                            {parsedEmergency.relation}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-slate-400 italic">Not provided</p>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Footer */}
-            <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end">
-              <button
-                onClick={() => setViewPatient(null)}
-                className="px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-              >
-                Close
-              </button>
+              {/* Footer */}
+              <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end">
+                <button
+                  onClick={() => setViewPatient(null)}
+                  className="px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </main>
   );
 }
