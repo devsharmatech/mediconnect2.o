@@ -54,8 +54,10 @@ const formatDate = (dateString) => {
 const formatTime = (timeString) => {
   if (!timeString) return "";
   const str = String(timeString).trim();
-  // If it's a full ISO timestamp or date-like string (e.g. 2026-07-08T... or 2026-07-08 ...)
-  if (str.includes("-") || str.includes("T")) {
+  if (str === "" || str === "null" || str === "undefined") return "";
+
+  // 1. If it's a date or ISO string
+  if (str.includes("-") || str.includes("T") || str.includes("/")) {
     const d = new Date(str);
     if (!isNaN(d.getTime())) {
       return d.toLocaleTimeString("en-US", {
@@ -65,21 +67,25 @@ const formatTime = (timeString) => {
       });
     }
   }
-  // If it's already formatted like "10:30 AM" or "10:30 PM"
-  if (/am|pm/i.test(str)) {
+
+  // 2. If it's already "10:30 AM" or "7:00 AM"
+  if (/(am|pm)/i.test(str)) {
     return str;
   }
-  // If it's a 24-hr time like "14:30" or "09:15:00"
+
+  // 3. If it's "14:30" or "09:15:00" or "10:00"
   const parts = str.split(":");
-  if (parts.length >= 2) {
+  if (parts.length >= 1) {
     const h = parseInt(parts[0], 10);
-    const m = parts[1].slice(0, 2);
+    const rawM = parts.length >= 2 ? parts[1].replace(/\D/g, "") : "00";
+    const m = (rawM || "00").slice(0, 2).padStart(2, "0");
     if (!isNaN(h)) {
       const suffix = h >= 12 ? "PM" : "AM";
       const hour12 = ((h + 11) % 12) + 1;
       return `${hour12}:${m} ${suffix}`;
     }
   }
+
   return str;
 };
 
@@ -281,6 +287,10 @@ export default function PatientTransactionsPage() {
         logging: false,
         backgroundColor: "#ffffff",
         windowWidth: 794,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0,
       });
 
       const imgData = canvas.toDataURL("image/png", 1.0);
@@ -416,7 +426,7 @@ export default function PatientTransactionsPage() {
               ? `Across ${stats.total_count} free consultations`
               : paymentStatusFilter === "pending"
               ? `Across ${stats.total_count} pending transactions`
-              : `Collected revenue • ${stats.total_count} transactions`}
+              : `₹${stats.labs_volume.toLocaleString("en-IN")} Labs + ₹${stats.appointments_volume.toLocaleString("en-IN")} Consultations`}
           </div>
         </div>
 
@@ -429,7 +439,7 @@ export default function PatientTransactionsPage() {
             ₹{stats.appointments_volume.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            {stats.appointments_count} consultations {paymentStatusFilter === "paid" ? "paid" : "booked"}
+            {stats.appointments_count} consultations {stats.appointments_volume === 0 ? "(Free OPD / ₹0)" : "booked"}
           </div>
         </div>
 
@@ -442,9 +452,7 @@ export default function PatientTransactionsPage() {
             ₹{stats.labs_volume.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
           </div>
           <div className="text-xs text-slate-400 mt-1">
-            {stats.labs_volume === 0 && stats.labs_count > 0 && paymentStatusFilter !== "free"
-              ? `${stats.labs_count} orders (pending payment)`
-              : `${stats.labs_count} diagnostic orders`}
+            {stats.labs_count} diagnostic test orders
           </div>
         </div>
 
@@ -1020,15 +1028,16 @@ export default function PatientTransactionsPage() {
         </div>
       )}
 
-      {/* Off-screen Printable Invoice Container for html2canvas & jsPDF */}
+      {/* Printable Invoice Container for html2canvas & jsPDF */}
       {invoiceTransaction && (
         <div
+          className="admin-invoice-wrapper"
           style={{
-            position: "absolute",
-            left: "-99999px",
-            top: 0,
+            position: "fixed",
+            top: "-9999px",
+            left: "0px",
             width: "794px",
-            overflow: "hidden",
+            zIndex: -9999,
             pointerEvents: "none",
           }}
           aria-hidden="true"
@@ -1270,27 +1279,39 @@ export default function PatientTransactionsPage() {
       {/* Embedded CSS for Native Print fallback */}
       <style>{`
         @media print {
-          body * {
+          html, body {
+            background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          body > * {
             visibility: hidden !important;
+          }
+          .admin-invoice-wrapper {
+            position: static !important;
+            top: auto !important;
+            left: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+            visibility: visible !important;
+            z-index: 999999 !important;
           }
           #admin-invoice-print-area,
           #admin-invoice-print-area * {
             visibility: visible !important;
           }
           #admin-invoice-print-area {
-            position: fixed !important;
-            left: 0 !important;
-            top: 0 !important;
+            display: block !important;
             width: 100% !important;
             max-width: 100% !important;
             min-width: 100% !important;
             margin: 0 !important;
-            padding: 12mm 15mm !important;
+            padding: 10mm 15mm !important;
             box-shadow: none !important;
             border: none !important;
             background: #ffffff !important;
             color: #0f172a !important;
-            z-index: 999999 !important;
           }
           @page {
             size: A4 portrait;

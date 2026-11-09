@@ -367,9 +367,7 @@ export default function FindDoctorsPage() {
         const mapped = allDocs
           .filter((doc) => {
             const d = doc.doctor_details || {};
-            const hasHome = d.home_slots && Object.keys(d.home_slots).length > 0 && JSON.stringify(d.home_slots) !== "{}";
-            const hasClinic = d.clinic_slots && Object.keys(d.clinic_slots).length > 0 && JSON.stringify(d.clinic_slots) !== "{}";
-            return (d.onboarding_status === "approved" || doc.status === 1) && (hasHome || hasClinic);
+            return (d.onboarding_status === "approved" || doc.status === 1);
           })
           .map((doc) => {
             const d = doc.doctor_details || {};

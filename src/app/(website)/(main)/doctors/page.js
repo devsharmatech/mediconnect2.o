@@ -106,12 +106,13 @@ const isFeeServed = (val) => {
   const str = String(val).trim();
   if (str === "") return false;
   const num = Number(str);
-  return !Number.isNaN(num) && num > 0;
+  return !Number.isNaN(num) && num >= 0;
 };
 
 const formatModeFee = (val) => {
   if (!isFeeServed(val)) return null;
   const num = Number(val);
+  if (num === 0) return "Free (₹0)";
   return `₹${num.toLocaleString('en-IN')}`;
 };
 
@@ -887,28 +888,37 @@ function DoctorsContent() {
         const homeFeeNum = parseModeFeeNum(homeVal);
 
         const modes = [];
-        if (clinicFeeNum !== null && clinicFeeNum > 0) {
+        if (clinicFeeNum !== null && clinicFeeNum >= 0) {
           modes.push({
             id: "clinic",
             label: "Clinic",
             fee: clinicFeeNum,
-            formatted: `₹${clinicFeeNum.toLocaleString("en-IN")}`,
+            formatted: clinicFeeNum === 0 ? "Free (₹0)" : `₹${clinicFeeNum.toLocaleString("en-IN")}`,
           });
         }
-        if (videoFeeNum !== null && videoFeeNum > 0) {
+        if (videoFeeNum !== null && videoFeeNum >= 0) {
           modes.push({
             id: "video",
             label: "Video",
             fee: videoFeeNum,
-            formatted: `₹${videoFeeNum.toLocaleString("en-IN")}`,
+            formatted: videoFeeNum === 0 ? "Free (₹0)" : `₹${videoFeeNum.toLocaleString("en-IN")}`,
           });
         }
-        if (homeFeeNum !== null && homeFeeNum > 0) {
+        if (homeFeeNum !== null && homeFeeNum >= 0) {
           modes.push({
             id: "home",
             label: "Home",
             fee: homeFeeNum,
-            formatted: `₹${homeFeeNum.toLocaleString("en-IN")}`,
+            formatted: homeFeeNum === 0 ? "Free (₹0)" : `₹${homeFeeNum.toLocaleString("en-IN")}`,
+          });
+        }
+
+        if (modes.length === 0) {
+          modes.push({
+            id: "clinic",
+            label: "Clinic",
+            fee: 0,
+            formatted: "Available",
           });
         }
 
@@ -1576,10 +1586,10 @@ function DoctorsContent() {
                         {loadingMore ? (
                           <>
                             <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            <span>Loading More Doctors...</span>
+                            <span>Loading...</span>
                           </>
                         ) : (
-                          <span>Load More Doctors</span>
+                          <span>Load More {totalDoctorsCount > doctors.length ? `(${totalDoctorsCount - doctors.length} more)` : ""}</span>
                         )}
                       </button>
                     </div>

@@ -38,7 +38,7 @@ function isFeeServed(val) {
   const str = String(val).trim();
   if (str === "") return false;
   const num = Number(str);
-  return !Number.isNaN(num) && num > 0;
+  return !Number.isNaN(num) && num >= 0;
 }
 
 export async function getDoctorsAction({
@@ -71,7 +71,6 @@ export async function getDoctorsAction({
       LEFT JOIN doctor_onboarding_status dos ON dos.doctor_id = u.id
       WHERE u.role = 'doctor'
         AND u.status = 1
-        AND COALESCE(d.is_open, true) = true
         AND (d.onboarding_status = 'approved' OR d.onboarding_status IS NULL)
         AND (dos.allowed_to_consult = true OR d.onboarding_status = 'approved')
         AND (dos.registration_verified = true OR d.registration_verified = true)

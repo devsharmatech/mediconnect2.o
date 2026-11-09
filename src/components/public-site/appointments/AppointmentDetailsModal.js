@@ -185,13 +185,15 @@ const AppointmentDetailsModal = ({
   const [verification, setVerification] = useState(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
+  const appointmentId = appointment?.id || null;
+
   useEffect(() => {
-    if (!isOpen || !appointment?.id) {
+    if (!isOpen || !appointmentId) {
       setVerification(null);
       return;
     }
     let isMounted = true;
-    fetch(`/api/doctor/patient-verification?appointment_id=${appointment.id}`)
+    fetch(`/api/doctor/patient-verification?appointment_id=${appointmentId}`)
       .then((r) => r.json())
       .then((d) => {
         if (isMounted && d.success && d.verification) {
@@ -202,7 +204,7 @@ const AppointmentDetailsModal = ({
     return () => {
       isMounted = false;
     };
-  }, [appointment?.id]);
+  }, [appointmentId, isOpen]);
 
   if (!isOpen || !appointment) return null;
 
@@ -358,6 +360,10 @@ const AppointmentDetailsModal = ({
         logging: false,
         backgroundColor: "#ffffff",
         windowWidth: 794,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0,
       });
 
       const imgData = canvas.toDataURL("image/png", 1.0);
@@ -395,8 +401,7 @@ const AppointmentDetailsModal = ({
         console.warn("Could not open PDF in new tab:", err);
       }
     } catch (err) {
-      console.error("PDF Invoice generation failed, falling back to window.print():", err);
-      window.print();
+      console.error("PDF Invoice generation failed:", err);
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -764,14 +769,15 @@ const AppointmentDetailsModal = ({
         </div>
       </div>
 
-      {/* Off-screen Printable Invoice Container for html2canvas & jsPDF */}
+      {/* Printable Invoice Container for html2canvas & jsPDF */}
       <div
+        className="consultation-invoice-wrapper"
         style={{
-          position: "absolute",
-          left: "-99999px",
-          top: 0,
+          position: "fixed",
+          top: "-9999px",
+          left: "0px",
           width: "794px",
-          overflow: "hidden",
+          zIndex: -9999,
           pointerEvents: "none",
         }}
         aria-hidden="true"
@@ -1001,27 +1007,49 @@ const AppointmentDetailsModal = ({
       {/* Embedded CSS for Native Print fallback */}
       <style>{`
         @media print {
-          body * {
+          html, body {
+            background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          body > * {
             visibility: hidden !important;
+          }
+          .fixed.inset-0.z-\\[9999\\] {
+            position: static !important;
+            background: transparent !important;
+            backdrop-filter: none !important;
+            padding: 0 !important;
+            visibility: visible !important;
+          }
+          .fixed.inset-0.z-\\[9999\\] > *:not(.consultation-invoice-wrapper) {
+            display: none !important;
+          }
+          .consultation-invoice-wrapper {
+            position: static !important;
+            top: auto !important;
+            left: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+            visibility: visible !important;
+            z-index: 999999 !important;
           }
           #consultation-invoice-document,
           #consultation-invoice-document * {
             visibility: visible !important;
           }
           #consultation-invoice-document {
-            position: fixed !important;
-            left: 0 !important;
-            top: 0 !important;
+            display: block !important;
             width: 100% !important;
             max-width: 100% !important;
             min-width: 100% !important;
             margin: 0 !important;
-            padding: 12mm 15mm !important;
+            padding: 10mm 15mm !important;
             box-shadow: none !important;
             border: none !important;
             background: #ffffff !important;
             color: #0f172a !important;
-            z-index: 999999 !important;
           }
           @page {
             size: A4 portrait;
