@@ -71,7 +71,7 @@ export async function POST(req) {
           d.kyc_data, d.meta
         FROM users u
         LEFT JOIN doctor_details d ON u.id = d.id
-        WHERE u.role = 'doctor'
+        WHERE u.role = 'doctor' AND COALESCE(d.onboarding_status, '') != 'deleted'
         ORDER BY u.created_at DESC
       `;
     }

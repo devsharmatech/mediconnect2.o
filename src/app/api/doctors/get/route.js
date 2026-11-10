@@ -17,7 +17,10 @@ export async function GET(request) {
     const offset = Math.max(0, (page - 1) * limit);
 
     // Build conditions
-    const conditions = [sql`u.role = 'doctor'`];
+    const conditions = [
+      sql`u.role = 'doctor'`,
+      sql`COALESCE(d.onboarding_status, '') != 'deleted'`,
+    ];
 
     if (publicOnly) {
       conditions.push(sql`u.status = 1`);
@@ -90,7 +93,7 @@ export async function GET(request) {
         FROM users u
         LEFT JOIN doctor_details d ON d.id = u.id
         LEFT JOIN doctor_onboarding_status dos ON dos.doctor_id = u.id
-        WHERE u.role = 'doctor'
+        WHERE u.role = 'doctor' AND COALESCE(d.onboarding_status, '') != 'deleted'
       `,
       sql`
         SELECT COUNT(*)::int as total_filtered
