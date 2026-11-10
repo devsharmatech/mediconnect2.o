@@ -51,7 +51,7 @@ async function handleGetAttempts(doctorId) {
         b.updated_at,
         p.full_name as patient_full_name,
         u.phone_number as patient_phone,
-        u.email as patient_email
+        p.email as patient_email
       FROM booking_attempts b
       LEFT JOIN patient_details p ON b.patient_id = p.id
       LEFT JOIN users u ON b.patient_id = u.id

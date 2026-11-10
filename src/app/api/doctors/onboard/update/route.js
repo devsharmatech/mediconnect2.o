@@ -45,13 +45,13 @@ export async function PUT(request) {
       ? String(rawLicense).trim()
       : undefined;
 
-    // Speciality (stored in specialization column)
+    // Speciality (stored in specialization text column)
     const rawSpeciality = formData.get("speciality") || formData.get("specialization");
     let specialization = undefined;
-    if (rawSpeciality) {
+    if (rawSpeciality !== null) {
       const parsed = parseJSON(rawSpeciality);
       if (Array.isArray(parsed)) {
-        specialization = parsed;
+        specialization = parsed.map((s) => String(s).trim()).filter(Boolean).join(", ");
       } else {
         specialization = String(rawSpeciality).trim();
       }
@@ -106,12 +106,16 @@ export async function PUT(request) {
     const video_slots = parseJSON(formData.get("video_slots"));
     const home_slots = parseJSON(formData.get("home_slots"));
 
-    // Qualification
+    // Qualification (stored in qualification text column)
     const rawQualification = formData.get("qualification");
     let qualification = undefined;
-    if (rawQualification) {
+    if (rawQualification !== null) {
       const parsed = parseJSON(rawQualification);
-      qualification = parsed !== undefined ? parsed : String(rawQualification).trim();
+      if (Array.isArray(parsed)) {
+        qualification = parsed.map((q) => String(q).trim()).filter(Boolean).join(", ");
+      } else {
+        qualification = parsed !== undefined ? String(parsed).trim() : String(rawQualification).trim();
+      }
     }
 
     // Speciality tags
@@ -129,26 +133,21 @@ export async function PUT(request) {
       }
     }
 
-    const rawVideoFee = formData.get("video_consultation_fee");
-    const video_consultation_fee = rawVideoFee ? parseFloat(String(rawVideoFee)) : undefined;
+    const parseOptionalFee = (raw) => {
+      if (raw === null || raw === undefined) return undefined;
+      const trimmed = String(raw).trim();
+      if (trimmed === "") return null;
+      const num = parseFloat(trimmed);
+      return Number.isNaN(num) ? undefined : num;
+    };
 
-    const rawVideoFollowUpFee = formData.get("video_follow_up_fee");
-    const video_follow_up_fee = rawVideoFollowUpFee ? parseFloat(String(rawVideoFollowUpFee)) : undefined;
-
-    const rawClinicFee = formData.get("clinic_consultation_fee");
-    const clinic_consultation_fee = rawClinicFee ? parseFloat(String(rawClinicFee)) : undefined;
-
-    const rawClinicFollowUpFee = formData.get("clinic_follow_up_fee");
-    const clinic_follow_up_fee = rawClinicFollowUpFee ? parseFloat(String(rawClinicFollowUpFee)) : undefined;
-
-    const rawHomeFee = formData.get("home_visit_fee");
-    const home_visit_fee = rawHomeFee ? parseFloat(String(rawHomeFee)) : undefined;
-
-    const rawHomeFollowUpFee = formData.get("home_follow_up_fee");
-    const home_follow_up_fee = rawHomeFollowUpFee ? parseFloat(String(rawHomeFollowUpFee)) : undefined;
-
-    const rawFollowUpFee = formData.get("follow_up_fee");
-    const follow_up_fee = rawFollowUpFee ? parseFloat(String(rawFollowUpFee)) : undefined;
+    const video_consultation_fee = parseOptionalFee(formData.get("video_consultation_fee"));
+    const video_follow_up_fee = parseOptionalFee(formData.get("video_follow_up_fee"));
+    const clinic_consultation_fee = parseOptionalFee(formData.get("clinic_consultation_fee"));
+    const clinic_follow_up_fee = parseOptionalFee(formData.get("clinic_follow_up_fee"));
+    const home_visit_fee = parseOptionalFee(formData.get("home_visit_fee"));
+    const home_follow_up_fee = parseOptionalFee(formData.get("home_follow_up_fee"));
+    const follow_up_fee = parseOptionalFee(formData.get("follow_up_fee"));
 
     const rawInsurance =
       formData.get("insurance") || formData.get("indemnity_insurance");

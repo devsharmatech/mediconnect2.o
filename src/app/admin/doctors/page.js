@@ -479,36 +479,29 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
   ];
 
   useEffect(() => {
+    const parseTagList = (raw) => {
+      if (!raw) return [];
+      if (Array.isArray(raw)) return raw.map((x) => String(x).trim()).filter(Boolean);
+      if (typeof raw === "string") {
+        const trimmed = raw.trim();
+        if (!trimmed) return [];
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) return parsed.map((x) => String(x).trim()).filter(Boolean);
+          if (typeof parsed === "string") return parsed.split(",").map((x) => x.trim()).filter(Boolean);
+        } catch {
+          return trimmed.split(",").map((x) => x.trim()).filter(Boolean);
+        }
+      }
+      return [];
+    };
+
     if (doctor) {
       const details = doctor.doctor_details || {};
 
-      // Parse specialization - could be string or array
-      let specialityArray = [];
-      if (details.specialization) {
-        if (Array.isArray(details.specialization)) {
-          specialityArray = details.specialization;
-        } else if (typeof details.specialization === 'string') {
-          try {
-            specialityArray = JSON.parse(details.specialization);
-          } catch {
-            specialityArray = [details.specialization];
-          }
-        }
-      }
-
-      // Parse qualification - could be string or array
-      let qualificationArray = [];
-      if (details.qualification) {
-        if (Array.isArray(details.qualification)) {
-          qualificationArray = details.qualification;
-        } else if (typeof details.qualification === 'string') {
-          try {
-            qualificationArray = JSON.parse(details.qualification);
-          } catch {
-            qualificationArray = [details.qualification];
-          }
-        }
-      }
+      // Parse specialization and qualification - handles JSON array or comma-separated strings
+      const specialityArray = parseTagList(details.specialization);
+      const qualificationArray = parseTagList(details.qualification);
 
       let dmcArray = [];
       if (details.dmc_mci_certificate) {
@@ -1038,7 +1031,7 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
 
       const { availableDays, availableTime } = computeAvailability();
       
-      if (availableDays.length === 0) {
+      if (!doctor && availableDays.length === 0) {
         toast.error("Please configure at least one day of schedule for the doctor.");
         setLoading(false);
         return;
@@ -3572,7 +3565,7 @@ export default function DoctorsPage() {
       await handleSendInvite(result.doctorId || result.data?.id);
     }
 
-    fetchDoctors(pagination.currentPage);
+    await fetchDoctors(pagination.currentPage);
     setEditDoctor(null);
     setOnboardingOpen(false);
   };
@@ -4179,7 +4172,7 @@ export default function DoctorsPage() {
                                     )}
                                   </div>
                                   <div className="text-sm text-gray-500 dark:text-gray-400">
-                                    ID: {formatDoctorUnId(doctor.un_id)}
+                                    ID: {formatDoctorUnId(doctor.un_id, doctor.doctor_details?.specialization)}
                                   </div>
                                 </div>
                               </div>
@@ -4225,7 +4218,7 @@ export default function DoctorsPage() {
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <div className="text-sm text-gray-900 dark:text-white">
-                                {doctor.doctor_details?.email || "No email"}
+                                {doctor.doctor_details?.email || doctor.email || "No email"}
                               </div>
                               <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center mt-1">
                                 <Phone size={14} className="mr-1" />

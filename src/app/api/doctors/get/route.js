@@ -41,13 +41,19 @@ export async function GET(request) {
     }
 
     if (search) {
-      const searchPattern = `%${search.toLowerCase()}%`;
+      const lowerSearch = search.toLowerCase();
+      const searchPattern = `%${lowerSearch}%`;
+      const strippedDr = lowerSearch.replace(/^dr\.?\s+/i, "").trim();
+      const namePattern = strippedDr ? `%${strippedDr}%` : searchPattern;
       conditions.push(sql`(
         LOWER(COALESCE(d.full_name, '')) LIKE ${searchPattern} OR
-        LOWER(COALESCE(u.email, '')) LIKE ${searchPattern} OR
+        LOWER(COALESCE(d.full_name, '')) LIKE ${namePattern} OR
+        LOWER(COALESCE(d.email, '')) LIKE ${searchPattern} OR
         LOWER(COALESCE(u.phone_number, '')) LIKE ${searchPattern} OR
         LOWER(COALESCE(d.clinic_name, '')) LIKE ${searchPattern} OR
-        LOWER(COALESCE(d.specialization, '')) LIKE ${searchPattern}
+        LOWER(COALESCE(d.specialization, '')) LIKE ${searchPattern} OR
+        LOWER(COALESCE(d.license_number, '')) LIKE ${searchPattern} OR
+        COALESCE(u.un_id::text, '') LIKE ${searchPattern}
       )`);
     }
 
@@ -79,7 +85,7 @@ export async function GET(request) {
         SELECT 
           COUNT(*)::int as total,
           COUNT(*) FILTER (WHERE u.status = 1)::int as active,
-          COUNT(*) FILTER (WHERE d.onboarding_status = 'pending')::int as pending,
+          COUNT(*) FILTER (WHERE d.onboarding_status = 'pending' OR d.onboarding_status IS NULL)::int as pending,
           COUNT(*) FILTER (WHERE u.is_verified = true OR dos.registration_verified = true)::int as verified
         FROM users u
         LEFT JOIN doctor_details d ON d.id = u.id
@@ -135,7 +141,8 @@ export async function GET(request) {
 
       return {
         id: row.id,
-        email: row.email,
+        un_id: row.un_id,
+        email: details.email || null,
         phone_number: row.phone_number,
         role: row.role,
         status: row.status,

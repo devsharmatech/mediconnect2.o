@@ -233,11 +233,27 @@ export async function POST(req) {
       signature_url = fields._uploaded_signature_url || null;
     }
 
+    const parseTextOrJoined = (v) => {
+      const parsed = parseJSON(v);
+      if (Array.isArray(parsed)) {
+        return parsed.map((x) => String(x).trim()).filter(Boolean).join(", ");
+      }
+      return parsed;
+    };
+
+    const parseOptionalFee = (v) => {
+      if (v === undefined || v === null) return null;
+      const trimmed = String(v).trim();
+      if (trimmed === "") return null;
+      const num = parseFloat(trimmed);
+      return Number.isNaN(num) ? null : num;
+    };
+
     const details = {
       id: doctorId,
       full_name: fields.doctor_name,
       email: fields.email,
-      specialization: parseJSON(fields.speciality),
+      specialization: parseTextOrJoined(fields.speciality),
       experience_years: parseInt(fields.years_experience || 0),
       available_time: parseJSON(fields.available_time) || { start: "09:00", end: "17:00" },
       available_days: parseJSON(fields.available_days) || ["Mon", "Wed", "Fri", "Sat"],
@@ -246,20 +262,20 @@ export async function POST(req) {
       clinic_address: fields.clinic_address,
       latitude: parseFloat(fields.clinic_lat || 0),
       longitude: parseFloat(fields.clinic_lng || 0),
-      qualification: parseJSON(fields.qualification),
+      qualification: parseTextOrJoined(fields.qualification),
       clinic_slots: parseJSON(fields.clinic_slots),
       video_slots: parseJSON(fields.video_slots),
       kyc_data: parseJSON(fields.kyc_data),
       home_slots: parseJSON(fields.home_slots),
       leave_days: parseJSON(fields.leave_days),
       speciality_tags: parseJSON(fields.speciality_tags),
-      video_consultation_fee: parseFloat(fields.video_consultation_fee || 0),
-      video_follow_up_fee: parseFloat(fields.video_follow_up_fee || fields.follow_up_fee || 0),
-      clinic_consultation_fee: parseFloat(fields.clinic_consultation_fee || 0),
-      clinic_follow_up_fee: parseFloat(fields.clinic_follow_up_fee || fields.follow_up_fee || 0),
-      home_visit_fee: parseFloat(fields.home_visit_fee || 0),
-      home_follow_up_fee: parseFloat(fields.home_follow_up_fee || fields.follow_up_fee || 0),
-      follow_up_fee: parseFloat(fields.follow_up_fee || 0),
+      video_consultation_fee: parseOptionalFee(fields.video_consultation_fee),
+      video_follow_up_fee: parseOptionalFee(fields.video_follow_up_fee ?? fields.follow_up_fee),
+      clinic_consultation_fee: parseOptionalFee(fields.clinic_consultation_fee),
+      clinic_follow_up_fee: parseOptionalFee(fields.clinic_follow_up_fee ?? fields.follow_up_fee),
+      home_visit_fee: parseOptionalFee(fields.home_visit_fee),
+      home_follow_up_fee: parseOptionalFee(fields.home_follow_up_fee ?? fields.follow_up_fee),
+      follow_up_fee: parseOptionalFee(fields.follow_up_fee),
       indemnity_insurance: parseFloat(fields.insurance || 0),
       dmc_mci_certificate: dmc,
       aadhaar_pan_license: aadhaarPan,
@@ -288,10 +304,10 @@ export async function POST(req) {
         driving_license: fields.driving_license,
         address: fields.address,
         additional_clinics: parseJSON(fields.additional_clinics),
-        video_follow_up_fee: parseFloat(fields.video_follow_up_fee || fields.follow_up_fee || 0),
-        clinic_follow_up_fee: parseFloat(fields.clinic_follow_up_fee || fields.follow_up_fee || 0),
-        home_follow_up_fee: parseFloat(fields.home_follow_up_fee || fields.follow_up_fee || 0),
-        follow_up_fee: parseFloat(fields.follow_up_fee || 0),
+        video_follow_up_fee: parseOptionalFee(fields.video_follow_up_fee ?? fields.follow_up_fee),
+        clinic_follow_up_fee: parseOptionalFee(fields.clinic_follow_up_fee ?? fields.follow_up_fee),
+        home_follow_up_fee: parseOptionalFee(fields.home_follow_up_fee ?? fields.follow_up_fee),
+        follow_up_fee: parseOptionalFee(fields.follow_up_fee),
       },
     };
 
