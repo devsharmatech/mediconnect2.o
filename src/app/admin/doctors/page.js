@@ -3457,9 +3457,6 @@ export default function DoctorsPage() {
           "Physiotherapy",
           "General Surgery",
         ]);
-          "ENT",
-          "Ophthalmology",
-        ]);
       }
     }
     fetchSpecialties();
