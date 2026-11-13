@@ -140,7 +140,11 @@ export async function POST(req) {
 
     if (cleanUserId) {
       const rows = await sql`
-        SELECT * FROM users WHERE id = ${cleanUserId} LIMIT 1
+        SELECT * FROM users 
+        WHERE id = ${cleanUserId} 
+          AND (status IS NULL OR status != 0)
+          AND phone_number NOT LIKE 'ANONYMIZED_%'
+        LIMIT 1
       `;
       user = rows[0];
     } else if (cleanPhone) {
@@ -148,6 +152,8 @@ export async function POST(req) {
         const rows = await sql`
           SELECT * FROM users 
           WHERE phone_number LIKE ${'%' + cleanPhone + '%'} AND role = ${role}
+            AND (status IS NULL OR status != 0)
+            AND phone_number NOT LIKE 'ANONYMIZED_%'
           ORDER BY created_at DESC LIMIT 1
         `;
         user = rows[0];
@@ -155,6 +161,8 @@ export async function POST(req) {
         const rows = await sql`
           SELECT * FROM users 
           WHERE phone_number LIKE ${'%' + cleanPhone + '%'}
+            AND (status IS NULL OR status != 0)
+            AND phone_number NOT LIKE 'ANONYMIZED_%'
           ORDER BY created_at DESC LIMIT 1
         `;
         user = rows[0];
@@ -167,6 +175,9 @@ export async function POST(req) {
         SELECT u.* FROM users u
         JOIN patient_details pd ON pd.id = u.id
         WHERE LOWER(pd.email) = ${cleanEmail}
+          AND (u.status IS NULL OR u.status != 0)
+          AND u.phone_number NOT LIKE 'ANONYMIZED_%'
+          AND pd.full_name != 'DE-IDENTIFIED PATIENT'
         LIMIT 1
       `;
       if (pts.length > 0) {
@@ -176,6 +187,8 @@ export async function POST(req) {
           SELECT u.* FROM users u
           JOIN doctor_details dd ON dd.id = u.id
           WHERE LOWER(dd.email) = ${cleanEmail}
+            AND (u.status IS NULL OR u.status != 0)
+            AND u.phone_number NOT LIKE 'ANONYMIZED_%'
           LIMIT 1
         `;
         if (docs.length > 0) {
@@ -185,6 +198,8 @@ export async function POST(req) {
             SELECT u.* FROM users u
             JOIN chemist_details cd ON cd.id = u.id
             WHERE LOWER(cd.email) = ${cleanEmail}
+              AND (u.status IS NULL OR u.status != 0)
+              AND u.phone_number NOT LIKE 'ANONYMIZED_%'
             LIMIT 1
           `;
           if (chemists.length > 0) {
@@ -194,6 +209,8 @@ export async function POST(req) {
               SELECT u.* FROM users u
               JOIN lab_details ld ON ld.id = u.id
               WHERE LOWER(ld.email) = ${cleanEmail}
+                AND (u.status IS NULL OR u.status != 0)
+                AND u.phone_number NOT LIKE 'ANONYMIZED_%'
               LIMIT 1
             `;
             if (labs.length > 0) {
@@ -206,6 +223,15 @@ export async function POST(req) {
 
     if (!user) {
       return failure("User not found.", null, 404, { headers: corsHeaders });
+    }
+
+    if (
+      user.status === 0 || 
+      user.status === "0" || 
+      user.status === "deleted" || 
+      String(user.phone_number || "").startsWith("ANONYMIZED_")
+    ) {
+      return failure("This account has been deleted.", null, 403, { headers: corsHeaders });
     }
 
     const isPermanentTestUser = Boolean(

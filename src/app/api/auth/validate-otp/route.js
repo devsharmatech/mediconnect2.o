@@ -165,6 +165,15 @@ export async function POST(req) {
 
     if (!user) return failure("User not found.", null, 404, { headers: corsHeaders });
 
+    if (
+      user.status === 0 || 
+      user.status === "0" || 
+      user.status === "deleted" || 
+      String(user.phone_number || "").startsWith("ANONYMIZED_")
+    ) {
+      return failure("This account has been deleted.", null, 403, { headers: corsHeaders });
+    }
+
     const isPermanentTestUser = Boolean(
       user.phone_number?.includes("9999999991") ||
       user.phone_number?.includes("9999999992") ||

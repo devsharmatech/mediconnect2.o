@@ -30,6 +30,8 @@ export async function GET(req) {
 
     const u = users[0];
     const isDeletedOrAnonymized = 
+      u.status === 0 ||
+      u.status === "0" ||
       u.status === "deleted" ||
       String(u.phone_number || "").startsWith("ANONYMIZED_") ||
       u.patient_name === "DE-IDENTIFIED PATIENT";

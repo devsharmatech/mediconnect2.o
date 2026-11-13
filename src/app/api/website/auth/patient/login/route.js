@@ -51,7 +51,7 @@ export async function POST(req) {
         FROM users 
         WHERE RIGHT(REGEXP_REPLACE(phone_number, '[^0-9]', '', 'g'), 10) = ${cleanPhone}
           AND role IN ('patient', 'chemist', 'lab', 'doctor')
-          AND (status IS NULL OR status != 'deleted')
+          AND (status IS NULL OR status != 0)
           AND phone_number NOT LIKE 'ANONYMIZED_%'
         ORDER BY 
           CASE 
@@ -76,7 +76,7 @@ export async function POST(req) {
         FROM patient_details pd
         JOIN users u ON u.id = pd.id
         WHERE LOWER(pd.email) = ${cleanEmail}
-          AND (u.status IS NULL OR u.status != 'deleted')
+          AND (u.status IS NULL OR u.status != 0)
           AND u.phone_number NOT LIKE 'ANONYMIZED_%'
           AND pd.full_name != 'DE-IDENTIFIED PATIENT'
         LIMIT 1
@@ -92,6 +92,8 @@ export async function POST(req) {
           FROM doctor_details dd
           JOIN users u ON u.id = dd.id
           WHERE LOWER(dd.email) = ${cleanEmail}
+            AND (u.status IS NULL OR u.status != 0)
+            AND u.phone_number NOT LIKE 'ANONYMIZED_%'
           LIMIT 1
         `;
         if (docs.length > 0) {
@@ -104,6 +106,8 @@ export async function POST(req) {
             FROM chemist_details cd
             JOIN users u ON u.id = cd.id
             WHERE LOWER(cd.email) = ${cleanEmail}
+              AND (u.status IS NULL OR u.status != 0)
+              AND u.phone_number NOT LIKE 'ANONYMIZED_%'
             LIMIT 1
           `;
           if (chemists.length > 0) {
@@ -115,6 +119,8 @@ export async function POST(req) {
               FROM lab_details ld
               JOIN users u ON u.id = ld.id
               WHERE LOWER(ld.email) = ${cleanEmail}
+                AND (u.status IS NULL OR u.status != 0)
+                AND u.phone_number NOT LIKE 'ANONYMIZED_%'
               LIMIT 1
             `;
             if (labs.length > 0) {

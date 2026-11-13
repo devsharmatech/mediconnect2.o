@@ -94,7 +94,7 @@ export async function anonymizePatientAccount(userId, reason = "USER_REQUEST") {
           profile_picture = NULL,
           otp_code = NULL,
           otp_expires_at = NULL,
-          status = 'deleted',
+          status = 0,
           updated_at = NOW()
       WHERE id = ${userId}
     `;

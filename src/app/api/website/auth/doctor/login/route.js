@@ -42,6 +42,8 @@ export async function POST(req) {
         LEFT JOIN doctor_details dd ON dd.id = u.id
         WHERE u.phone_number LIKE ${'%' + cleanPhone + '%'}
           AND u.role = 'doctor'
+          AND (u.status IS NULL OR u.status != 0)
+          AND u.phone_number NOT LIKE 'ANONYMIZED_%'
         LIMIT 1
       `;
       user = users[0];
@@ -53,6 +55,8 @@ export async function POST(req) {
         FROM doctor_details dd
         JOIN users u ON u.id = dd.id
         WHERE LOWER(dd.email) = ${cleanEmail}
+          AND (u.status IS NULL OR u.status != 0)
+          AND u.phone_number NOT LIKE 'ANONYMIZED_%'
         LIMIT 1
       `;
       user = docs[0];

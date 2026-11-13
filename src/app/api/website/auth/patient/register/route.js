@@ -58,7 +58,10 @@ export async function POST(req) {
     const verifiedUsers = await sql`
       SELECT id, role, phone_number, is_verified
       FROM users
-      WHERE phone_number LIKE ${'%' + cleanPhone + '%'} AND is_verified = true
+      WHERE phone_number LIKE ${'%' + cleanPhone + '%'} 
+        AND is_verified = true
+        AND (status IS NULL OR status != 0)
+        AND phone_number NOT LIKE 'ANONYMIZED_%'
       LIMIT 1
     `;
 
@@ -72,7 +75,11 @@ export async function POST(req) {
         SELECT pd.id 
         FROM patient_details pd
         JOIN users u ON u.id = pd.id
-        WHERE LOWER(pd.email) = ${cleanEmail} AND u.is_verified = true
+        WHERE LOWER(pd.email) = ${cleanEmail} 
+          AND u.is_verified = true
+          AND (u.status IS NULL OR u.status != 0)
+          AND u.phone_number NOT LIKE 'ANONYMIZED_%'
+          AND pd.full_name != 'DE-IDENTIFIED PATIENT'
         LIMIT 1
       `;
       if (verifiedEmails.length > 0) {

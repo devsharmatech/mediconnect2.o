@@ -45,6 +45,8 @@ export async function GET(req) {
 
     // Check if account has been deleted or anonymized under DPDP
     const isDeleted = 
+      user?.status === 0 ||
+      user?.status === "0" ||
       user?.status === "deleted" ||
       String(user?.phone_number || "").startsWith("ANONYMIZED_") ||
       profile?.full_name === "DE-IDENTIFIED PATIENT" ||
