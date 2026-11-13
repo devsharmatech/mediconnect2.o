@@ -958,6 +958,178 @@ export default function DigitalLockerPage() {
     setVerificationMessage("");
   };
 
+  const renderForgotPinModal = () => {
+    if (!showForgotPinModal) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm z-0"
+          onClick={() => setShowForgotPinModal(false)}
+        />
+        <div className="relative z-10 w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-6">
+          <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-[#0067A1]/10 rounded-xl flex items-center justify-center text-[#0067A1]">
+                <FaKey className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Reset 4-Digit PIN</h2>
+                <p className="text-xs text-slate-500">Verify via registered mobile OTP</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowForgotPinModal(false)}
+              className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+            >
+              <FaTimes className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="mt-4">
+            {forgotError && (
+              <div className="mb-4 p-3 rounded-xl border border-red-200 bg-red-50 text-xs sm:text-sm text-red-700">
+                {forgotError}
+              </div>
+            )}
+            {forgotSuccess && (
+              <div className="mb-4 p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-xs sm:text-sm text-emerald-700">
+                {forgotSuccess}
+              </div>
+            )}
+
+            {/* Step 1: Send OTP */}
+            {forgotStep === "send" && (
+              <div className="space-y-4">
+                <p className="text-sm text-slate-600">
+                  We will send a 6-digit OTP to your registered phone number:
+                </p>
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-mono font-semibold text-slate-800">
+                  {maskedPhone || phoneNumber || "Registered Mobile Number"}
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPinModal(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleForgotPinSendOtp}
+                    disabled={forgotLoading}
+                    className="px-5 py-2 rounded-xl bg-[#0067A1] text-white text-sm font-semibold hover:bg-[#004F7C] transition-colors disabled:opacity-50 shadow-sm"
+                  >
+                    {forgotLoading ? "Sending..." : "Send OTP"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Verify OTP */}
+            {forgotStep === "verify" && (
+              <div className="space-y-4">
+                <p className="text-sm text-slate-600">
+                  Enter the 6-digit OTP sent to your phone:
+                </p>
+                <div>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    autoFocus
+                    placeholder="••••••"
+                    value={forgotOtp}
+                    onChange={(e) => {
+                      setForgotOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+                      setForgotError("");
+                    }}
+                    className="w-full text-center text-2xl tracking-[0.5em] font-mono font-bold py-2.5 px-3 rounded-xl border border-slate-200 focus:border-[#0067A1] outline-none transition-all bg-white text-slate-900"
+                  />
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <button
+                    type="button"
+                    onClick={handleForgotPinSendOtp}
+                    disabled={forgotLoading}
+                    className="text-xs font-semibold text-[#0067A1] hover:underline"
+                  >
+                    Resend OTP
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleForgotPinVerifyOtp}
+                    disabled={forgotLoading || forgotOtp.length !== 6}
+                    className="px-5 py-2 rounded-xl bg-[#0067A1] text-white text-sm font-semibold hover:bg-[#004F7C] transition-colors disabled:opacity-50 shadow-sm"
+                  >
+                    {forgotLoading ? "Verifying..." : "Verify"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Reset New PIN */}
+            {forgotStep === "reset" && (
+              <div className="space-y-4">
+                <p className="text-sm text-slate-600">
+                  Set your new 4-digit security PIN:
+                </p>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                    New 4-Digit PIN
+                  </label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={4}
+                    placeholder="4 digits"
+                    value={forgotNewPin}
+                    onChange={(e) => {
+                      setForgotNewPin(e.target.value.replace(/\D/g, "").slice(0, 4));
+                      setForgotError("");
+                    }}
+                    className="w-full text-center text-2xl tracking-[0.4em] font-mono font-bold py-2 px-3 rounded-xl border border-slate-200 focus:border-[#0067A1] outline-none bg-white text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                    Confirm New PIN
+                  </label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={4}
+                    placeholder="Re-enter 4 digits"
+                    value={forgotConfirmPin}
+                    onChange={(e) => {
+                      setForgotConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 4));
+                      setForgotError("");
+                    }}
+                    className="w-full text-center text-2xl tracking-[0.4em] font-mono font-bold py-2 px-3 rounded-xl border border-slate-200 focus:border-[#0067A1] outline-none bg-white text-slate-900"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleForgotPinReset}
+                    disabled={forgotLoading || forgotNewPin.length !== 4 || forgotConfirmPin.length !== 4}
+                    className="w-full py-2.5 rounded-xl bg-[#0067A1] text-white text-sm font-semibold hover:bg-[#004F7C] transition-colors disabled:opacity-50 shadow-sm"
+                  >
+                    {forgotLoading ? "Resetting..." : "Reset PIN"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (checkingVerification) {
     return <LoadingScreen message="Checking security..." submessage="Verifying your DigiLocker PIN status" />;
   }
@@ -1111,174 +1283,7 @@ export default function DigitalLockerPage() {
         </div>
 
         {/* Forgot PIN Modal */}
-        {showForgotPinModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm z-0"
-              onClick={() => setShowForgotPinModal(false)}
-            />
-            <div className="relative z-10 w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-6">
-              <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-[#0067A1]/10 rounded-xl flex items-center justify-center text-[#0067A1]">
-                    <FaKey className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900">Reset 4-Digit PIN</h2>
-                    <p className="text-xs text-slate-500">Verify via registered mobile OTP</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowForgotPinModal(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
-                >
-                  <FaTimes className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="mt-4">
-                {forgotError && (
-                  <div className="mb-4 p-3 rounded-xl border border-red-200 bg-red-50 text-xs sm:text-sm text-red-700">
-                    {forgotError}
-                  </div>
-                )}
-                {forgotSuccess && (
-                  <div className="mb-4 p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-xs sm:text-sm text-emerald-700">
-                    {forgotSuccess}
-                  </div>
-                )}
-
-                {/* Step 1: Send OTP */}
-                {forgotStep === "send" && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-slate-600">
-                      We will send a 6-digit OTP to your registered phone number:
-                    </p>
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-mono font-semibold text-slate-800">
-                      {maskedPhone || phoneNumber || "Registered Mobile Number"}
-                    </div>
-                    <div className="flex justify-end gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowForgotPinModal(false)}
-                        className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleForgotPinSendOtp}
-                        disabled={forgotLoading}
-                        className="px-5 py-2 rounded-xl bg-[#0067A1] text-white text-sm font-semibold hover:bg-[#004F7C] transition-colors disabled:opacity-50 shadow-sm"
-                      >
-                        {forgotLoading ? "Sending..." : "Send OTP"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Step 2: Verify OTP */}
-                {forgotStep === "verify" && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-slate-600">
-                      Enter the 6-digit OTP sent to your phone:
-                    </p>
-                    <div>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={6}
-                        autoFocus
-                        placeholder="••••••"
-                        value={forgotOtp}
-                        onChange={(e) => {
-                          setForgotOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
-                          setForgotError("");
-                        }}
-                        className="w-full text-center text-2xl tracking-[0.5em] font-mono font-bold py-2.5 px-3 rounded-xl border border-slate-200 focus:border-[#0067A1] outline-none transition-all bg-white text-slate-900"
-                      />
-                    </div>
-                    <div className="flex items-center justify-between pt-2">
-                      <button
-                        type="button"
-                        onClick={handleForgotPinSendOtp}
-                        disabled={forgotLoading}
-                        className="text-xs font-semibold text-[#0067A1] hover:underline"
-                      >
-                        Resend OTP
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleForgotPinVerifyOtp}
-                        disabled={forgotLoading || forgotOtp.length !== 6}
-                        className="px-5 py-2 rounded-xl bg-[#0067A1] text-white text-sm font-semibold hover:bg-[#004F7C] transition-colors disabled:opacity-50 shadow-sm"
-                      >
-                        {forgotLoading ? "Verifying..." : "Verify"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Step 3: Reset New PIN */}
-                {forgotStep === "reset" && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-slate-600">
-                      Set your new 4-digit security PIN:
-                    </p>
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                        New 4-Digit PIN
-                      </label>
-                      <input
-                        type="password"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={4}
-                        placeholder="4 digits"
-                        value={forgotNewPin}
-                        onChange={(e) => {
-                          setForgotNewPin(e.target.value.replace(/\D/g, "").slice(0, 4));
-                          setForgotError("");
-                        }}
-                        className="w-full text-center text-2xl tracking-[0.4em] font-mono font-bold py-2 px-3 rounded-xl border border-slate-200 focus:border-[#0067A1] outline-none bg-white text-slate-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
-                        Confirm New PIN
-                      </label>
-                      <input
-                        type="password"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={4}
-                        placeholder="Re-enter 4 digits"
-                        value={forgotConfirmPin}
-                        onChange={(e) => {
-                          setForgotConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 4));
-                          setForgotError("");
-                        }}
-                        className="w-full text-center text-2xl tracking-[0.4em] font-mono font-bold py-2 px-3 rounded-xl border border-slate-200 focus:border-[#0067A1] outline-none bg-white text-slate-900"
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={handleForgotPinReset}
-                        disabled={forgotLoading || forgotNewPin.length !== 4 || forgotConfirmPin.length !== 4}
-                        className="w-full py-2.5 rounded-xl bg-[#0067A1] text-white text-sm font-semibold hover:bg-[#004F7C] transition-colors disabled:opacity-50 shadow-sm"
-                      >
-                        {forgotLoading ? "Resetting..." : "Reset PIN"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+        {renderForgotPinModal()}
       </div>
     );
   }
@@ -2135,7 +2140,8 @@ export default function DigitalLockerPage() {
         </div>
       )}
 
-      {/* Note */}
+      {/* Forgot PIN Modal for Unlocked View */}
+      {renderForgotPinModal()}
       <div className="text-xs text-gray-500 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 border-t border-gray-100">
         <span>
           Documents are securely encrypted and stored in your Digital Locker for instant access. If you need

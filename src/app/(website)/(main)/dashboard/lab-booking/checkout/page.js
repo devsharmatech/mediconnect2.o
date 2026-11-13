@@ -11,6 +11,7 @@ import {
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 import { LoadingScreen } from "@/components/public-site/ui/LoadingStates";
+import { resolveTestCollectionType } from "@/lib/labSearchHelper";
 
 const CART_KEY = "lab_test_cart";
 
@@ -82,7 +83,17 @@ export default function CheckoutPage() {
             return;
         }
         setCart(c);
-        if (c.visit_type) setVisitType(c.visit_type);
+        const hasLabOnly = c.tests?.some(t =>
+            t.collection_type === "lab" ||
+            t.requires_lab_visit === true ||
+            t.mandates_lab_visit === true ||
+            resolveTestCollectionType(t) === "lab"
+        );
+        if (hasLabOnly) {
+            setVisitType("walk_in");
+        } else if (c.visit_type) {
+            setVisitType(c.visit_type);
+        }
 
         // Get patient ID
         const userId = localStorage.getItem("userId") || localStorage.getItem("user_id");
@@ -187,12 +198,30 @@ export default function CheckoutPage() {
         });
     };
 
+    const cartHasLabOnlyTest = Boolean(
+        cart?.tests?.some(t =>
+            t.collection_type === "lab" ||
+            t.requires_lab_visit === true ||
+            t.mandates_lab_visit === true ||
+            resolveTestCollectionType(t) === "lab"
+        )
+    );
+
+    // Auto-lock to walk-in if tests mandate lab visit
+    useEffect(() => {
+        if (cartHasLabOnlyTest && visitType !== "walk_in") {
+            setVisitType("walk_in");
+        }
+    }, [cartHasLabOnlyTest, visitType]);
+
     const handlePayment = async () => {
-        const addrError = validateAddressDetails(address);
-        if (addrError) {
-            toast.error(addrError);
-            goToStep(2);
-            return;
+        if (visitType === "home_collection") {
+            const addrError = validateAddressDetails(address);
+            if (addrError) {
+                toast.error(addrError);
+                goToStep(2);
+                return;
+            }
         }
         if (!allConsentsGiven) {
             toast.error("All consents are mandatory under Indian medical regulations");
@@ -211,7 +240,9 @@ export default function CheckoutPage() {
                     lab_id: cart.lab_id,
                     tests: cart.tests,
                     prescription_url: prescriptionUrl || null,
-                    address,
+                    address: visitType === "walk_in"
+                        ? (address?.full_address ? address : { full_address: "Walk-in Diagnostic Center Visit", city: address?.city || "In-Lab", pincode: address?.pincode || "000000" })
+                        : address,
                     visit_type: visitType,
                     patient_notes: patientNotes,
                     consents,
@@ -265,7 +296,7 @@ export default function CheckoutPage() {
                                 payment_method: "Online Payment (Razorpay)",
                                 payment_status: "Paid",
                                 visit_type: visitType,
-                                address: address.full_address,
+                                address: visitType === "walk_in" ? `Walk-in at ${lab_name || "Diagnostic Center"}` : (address.full_address || "Home Address"),
                                 prescription_url: prescriptionUrl,
                                 tests: cart.tests,
                             });
@@ -689,25 +720,60 @@ export default function CheckoutPage() {
                                         Sample Collection Mode & Address
                                     </h2>
 
+                                    {/* Lab-Only Tests Notice */}
+                                    {cartHasLabOnlyTest && (
+                                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs flex items-start gap-2.5">
+                                            <FaFlask className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                                            <div>
+                                                <span className="font-bold block">Lab Visit Mandatory for Selected Tests</span>
+                                                <span className="text-amber-800 leading-relaxed">
+                                                    Your cart includes specialized diagnostic tests (such as imaging, ultrasound, X-ray, or biopsies) that require in-lab clinical equipment. Home collection is unavailable.
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Collection Mode Selection Cards */}
                                     <div className="flex flex-col sm:flex-row gap-2.5 mb-4">
                                         <button
                                             type="button"
-                                            onClick={() => setVisitType("home_collection")}
-                                            className={`flex-1 flex items-center gap-2.5 p-3 rounded-lg border-2 transition-colors cursor-pointer text-left ${
-                                                visitType === "home_collection"
-                                                    ? "border-[#0067A1] bg-[#0067A1]/[0.03]"
-                                                    : "border-slate-200 text-gray-600 hover:border-slate-300"
+                                            disabled={cartHasLabOnlyTest}
+                                            onClick={() => {
+                                                if (!cartHasLabOnlyTest) setVisitType("home_collection");
+                                            }}
+                                            className={`flex-1 flex items-center gap-2.5 p-3 rounded-lg border-2 transition-colors text-left ${
+                                                cartHasLabOnlyTest
+                                                    ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed"
+                                                    : visitType === "home_collection"
+                                                        ? "border-[#0067A1] bg-[#0067A1]/[0.03] cursor-pointer"
+                                                        : "border-slate-200 text-gray-600 hover:border-slate-300 cursor-pointer"
                                             }`}
                                         >
-                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${visitType === 'home_collection' ? 'bg-[#0067A1] text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                                cartHasLabOnlyTest
+                                                    ? "bg-gray-200 text-gray-400"
+                                                    : visitType === 'home_collection'
+                                                        ? 'bg-[#0067A1] text-white'
+                                                        : 'bg-slate-100 text-slate-500'
+                                            }`}>
                                                 <FaHome className="w-3.5 h-3.5" />
                                             </div>
-                                            <div>
-                                                <span className={`block font-bold text-xs sm:text-sm ${visitType === 'home_collection' ? 'text-[#0067A1]' : 'text-gray-900'}`}>
-                                                    Home Sample Collection
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between">
+                                                    <span className={`block font-bold text-xs sm:text-sm ${
+                                                        cartHasLabOnlyTest ? 'text-gray-400' : visitType === 'home_collection' ? 'text-[#0067A1]' : 'text-gray-900'
+                                                    }`}>
+                                                        Home Sample Collection
+                                                    </span>
+                                                    {cartHasLabOnlyTest && (
+                                                        <span className="text-[10px] bg-amber-100 text-amber-800 font-semibold px-2 py-0.5 rounded">
+                                                            Unavailable
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span className={`text-[11px] block ${cartHasLabOnlyTest ? 'text-gray-400' : 'text-emerald-600 font-medium'}`}>
+                                                    {cartHasLabOnlyTest ? "Not supported for in-lab tests" : "Technician visits home (Free)"}
                                                 </span>
-                                                <span className="text-[11px] text-emerald-600 font-medium">Technician visits home (Free)</span>
                                             </div>
                                         </button>
 
@@ -732,64 +798,97 @@ export default function CheckoutPage() {
                                         </button>
                                     </div>
 
-                                    {/* Address Input Form */}
-                                    <div className="space-y-3.5">
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-700 mb-1">
-                                                {visitType === "home_collection" ? "Sample Collection Address *" : "Residential Address *"}
-                                            </label>
-                                            <textarea
-                                                value={address.full_address}
-                                                onChange={(e) => setAddress({ ...address, full_address: e.target.value })}
-                                                rows={2}
-                                                placeholder={visitType === "home_collection" ? "Flat/House number, building, street, area..." : "Your address for medical records"}
-                                                className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] bg-gray-50/50 resize-none outline-none"
-                                            />
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-700 mb-1">City *</label>
-                                                <input
-                                                    value={address.city}
-                                                    onChange={(e) => setAddress({ ...address, city: e.target.value })}
-                                                    placeholder="City name"
-                                                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] bg-gray-50/50 outline-none"
-                                                />
+                                    {/* Mode-Specific Information or Address Form */}
+                                    {visitType === "walk_in" ? (
+                                        <div className="p-4 bg-sky-50/70 border border-sky-200 rounded-xl space-y-3">
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-9 h-9 rounded-lg bg-[#0067A1] text-white flex items-center justify-center shrink-0">
+                                                    <FaWalking className="w-4 h-4" />
+                                                </div>
+                                                <div className="flex-1 text-xs">
+                                                    <span className="font-bold text-gray-900 block text-sm">Direct Center Walk-in</span>
+                                                    <p className="text-gray-600 mt-0.5 leading-relaxed">
+                                                        No home address required. You will visit the diagnostic center in person with your Booking ID / confirmation receipt.
+                                                    </p>
+                                                    {cart.lab_name && (
+                                                        <div className="mt-2.5 p-2.5 bg-white rounded-lg border border-sky-100 flex items-center gap-2 text-[#0067A1] font-semibold">
+                                                            <FaMapMarkerAlt className="w-3.5 h-3.5 shrink-0" />
+                                                            <span>Facility: {cart.lab_name}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-700 mb-1">Pincode *</label>
-                                                <input
-                                                    value={address.pincode}
-                                                    onChange={(e) => setAddress({ ...address, pincode: e.target.value })}
-                                                    placeholder="6-digit pincode"
-                                                    maxLength={6}
-                                                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] bg-gray-50/50 outline-none"
+
+                                            <div className="pt-2 border-t border-sky-100">
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Patient Notes for Lab (Optional)</label>
+                                                <textarea
+                                                    value={patientNotes}
+                                                    onChange={(e) => setPatientNotes(e.target.value)}
+                                                    rows={2}
+                                                    placeholder="e.g. Fasting sample required, preferred time slot, specific requirements..."
+                                                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] bg-white resize-none outline-none"
                                                 />
                                             </div>
                                         </div>
+                                    ) : (
+                                        <div className="space-y-3.5">
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">
+                                                    Sample Collection Address *
+                                                </label>
+                                                <textarea
+                                                    value={address.full_address}
+                                                    onChange={(e) => setAddress({ ...address, full_address: e.target.value })}
+                                                    rows={2}
+                                                    placeholder="Flat/House number, building, street, area..."
+                                                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] bg-gray-50/50 resize-none outline-none"
+                                                />
+                                            </div>
 
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-700 mb-1">Landmark (Optional)</label>
-                                            <input
-                                                value={address.landmark}
-                                                onChange={(e) => setAddress({ ...address, landmark: e.target.value })}
-                                                placeholder="Nearby landmark (e.g. Near City Hospital)"
-                                                className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] bg-gray-50/50 outline-none"
-                                            />
-                                        </div>
+                                            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-700 mb-1">City *</label>
+                                                    <input
+                                                        value={address.city}
+                                                        onChange={(e) => setAddress({ ...address, city: e.target.value })}
+                                                        placeholder="City name"
+                                                        className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] bg-gray-50/50 outline-none"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold text-gray-700 mb-1">Pincode *</label>
+                                                    <input
+                                                        value={address.pincode}
+                                                        onChange={(e) => setAddress({ ...address, pincode: e.target.value })}
+                                                        placeholder="6-digit pincode"
+                                                        maxLength={6}
+                                                        className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] bg-gray-50/50 outline-none"
+                                                    />
+                                                </div>
+                                            </div>
 
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-700 mb-1">Technician / Lab Notes (Optional)</label>
-                                            <textarea
-                                                value={patientNotes}
-                                                onChange={(e) => setPatientNotes(e.target.value)}
-                                                rows={2}
-                                                placeholder="e.g. Fasting sample required, ring doorbell, preferred morning slot..."
-                                                className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] bg-gray-50/50 resize-none outline-none"
-                                            />
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Landmark (Optional)</label>
+                                                <input
+                                                    value={address.landmark}
+                                                    onChange={(e) => setAddress({ ...address, landmark: e.target.value })}
+                                                    placeholder="Nearby landmark (e.g. Near City Hospital)"
+                                                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] bg-gray-50/50 outline-none"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-700 mb-1">Technician / Phlebotomist Notes (Optional)</label>
+                                                <textarea
+                                                    value={patientNotes}
+                                                    onChange={(e) => setPatientNotes(e.target.value)}
+                                                    rows={2}
+                                                    placeholder="e.g. Fasting sample required, ring doorbell, preferred morning slot..."
+                                                    className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-xs sm:text-sm text-gray-900 focus:ring-1 focus:ring-[#0067A1] focus:border-[#0067A1] bg-gray-50/50 resize-none outline-none"
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
 
                                     <div className="pt-2 flex justify-between items-center border-t border-slate-100">
                                         <button
@@ -802,10 +901,12 @@ export default function CheckoutPage() {
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                const addrError = validateAddressDetails(address);
-                                                if (addrError) {
-                                                    toast.error(addrError);
-                                                    return;
+                                                if (visitType === "home_collection") {
+                                                    const addrError = validateAddressDetails(address);
+                                                    if (addrError) {
+                                                        toast.error(addrError);
+                                                        return;
+                                                    }
                                                 }
                                                 goToStep(3);
                                             }}
@@ -961,8 +1062,12 @@ export default function CheckoutPage() {
                                             </span>
                                         </div>
                                         <div className="flex justify-between text-gray-600">
-                                            <span className="font-medium">Collection Address</span>
-                                            <span className="font-bold text-gray-900 text-right max-w-[220px] truncate">{address.full_address}, {address.city}</span>
+                                            <span className="font-medium">{visitType === "home_collection" ? "Collection Address" : "Service Mode"}</span>
+                                            <span className="font-bold text-gray-900 text-right max-w-[220px] truncate">
+                                                {visitType === "home_collection"
+                                                    ? `${address.full_address || "Home Address"}${address.city ? `, ${address.city}` : ""}`
+                                                    : `Walk-in at ${cart.lab_name || "Diagnostic Center"}`}
+                                            </span>
                                         </div>
                                         {prescriptionUrl && (
                                             <div className="flex justify-between text-gray-600">

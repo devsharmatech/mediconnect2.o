@@ -6,6 +6,7 @@ import Link from "next/link";
 import { logoutUser } from "@/lib/authHelpers";
 import {
   FaUser,
+  FaUserMd,
   FaSignOutAlt,
   FaChevronDown,
   FaBell,
@@ -668,8 +669,13 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
       user?.name ||
       ""
     );
+    if (raw === "DE-IDENTIFIED PATIENT" || String(user?.phone_number || "").startsWith("ANONYMIZED_")) {
+      logoutUser("patient", "/");
+      return "Patient";
+    }
     if (!raw || raw.trim().toLowerCase() === "administrator" || raw.trim().toLowerCase() === "admin") {
-      return user?.admin_name || "Dev Sharma";
+      if (user?.role === "admin" && user?.admin_name) return user.admin_name;
+      return user?.phone_number ? `Patient (${String(user.phone_number).slice(-4)})` : "Patient";
     }
     return raw;
   };
@@ -764,7 +770,37 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
         </div>
 
         {/* Right Section */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Quick return to professional portal for Doctors / Chemists / Labs in Patient View */}
+          {getDisplayRole() === "Doctor" && (
+            <Link
+              href="/doctor"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-[#0067A1] hover:bg-[#005282] text-white text-xs font-semibold transition-colors shadow-xs"
+              title="Return to Doctor Portal"
+            >
+              <FaUserMd className="w-3.5 h-3.5" />
+              <span>Doctor Portal</span>
+            </Link>
+          )}
+          {getDisplayRole() === "Chemist" && (
+            <Link
+              href="/chemist/dashboard"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold transition-colors shadow-xs"
+              title="Return to Chemist Portal"
+            >
+              <span>Chemist Portal</span>
+            </Link>
+          )}
+          {getDisplayRole() === "Lab Partner" && (
+            <Link
+              href="/lab/dashboard"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors shadow-xs"
+              title="Return to Lab Portal"
+            >
+              <span>Lab Portal</span>
+            </Link>
+          )}
+
           {/* Notifications */}
           <div className="relative" ref={notificationRef}>
             {/* Mobile backdrop */}
@@ -1061,6 +1097,34 @@ const PatientHeader = ({ user, onMenuClick, isSidebarCollapsed }) => {
 
                 {/* Menu Items */}
                 <div className="py-2">
+                  {getDisplayRole() === "Doctor" && (
+                    <Link
+                      href="/doctor"
+                      onClick={() => setIsProfileOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-[#0067A1] bg-sky-50 hover:bg-sky-100/70 font-semibold transition-colors"
+                    >
+                      <FaUserMd className="w-4 h-4 text-[#0067A1]" />
+                      <span>Doctor Portal</span>
+                    </Link>
+                  )}
+                  {getDisplayRole() === "Chemist" && (
+                    <Link
+                      href="/chemist/dashboard"
+                      onClick={() => setIsProfileOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-teal-700 bg-teal-50 hover:bg-teal-100/70 font-semibold transition-colors"
+                    >
+                      <span>Chemist Portal</span>
+                    </Link>
+                  )}
+                  {getDisplayRole() === "Lab Partner" && (
+                    <Link
+                      href="/lab/dashboard"
+                      onClick={() => setIsProfileOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-indigo-700 bg-indigo-50 hover:bg-indigo-100/70 font-semibold transition-colors"
+                    >
+                      <span>Lab Portal</span>
+                    </Link>
+                  )}
                   <Link
                     href="/website/profile"
                     onClick={() => setIsProfileOpen(false)}

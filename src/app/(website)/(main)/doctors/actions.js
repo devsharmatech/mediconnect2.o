@@ -117,65 +117,89 @@ export async function getDoctorsAction({
         const matchesSuper = superSpecs.some(ss => ss.includes(specLower) || specLower.includes(ss));
         if (matchesSuper) return true;
 
-        if (
-          specLower === "uro/neuro" ||
-          specLower === "uro / neuro" ||
-          specLower === "urology/neurology" ||
-          specLower === "urology / neurology" ||
-          (specLower.includes("uro") && specLower.includes("neuro"))
-        ) {
-          return (docSpec.includes("urology") || docSpec.includes("neurology") || docSpec.includes("urologist") || docSpec.includes("neurologist") || docSpec.includes("neurosurg")) && !docSpec.includes("psychiat");
-        } else if (specLower === "urology" || specLower.includes("urolog")) {
-          return (docSpec.includes("urology") || docSpec.includes("urologist")) && !docSpec.includes("neurology") && !docSpec.includes("psychiat");
-        } else if (specLower === "neurology" || (specLower.includes("neuro") && !specLower.includes("uro"))) {
-          return (docSpec.includes("neurology") || docSpec.includes("neurologist") || docSpec.includes("neurosurg")) && !docSpec.includes("urology") && !docSpec.includes("psychiat");
-        } else if (specLower.includes("gastro")) {
-          return docSpec.includes("gastro") || docSpec.includes("stomach") || docSpec.includes("digestive");
-        } else if (specLower.includes("dentist") || specLower.includes("dental") || specLower.includes("dentistry")) {
-          return docSpec.includes("dentist") || docSpec.includes("dental") || docSpec.includes("dentistry");
-        } else if (specLower === "general physician" || specLower === "gp" || specLower.includes("physician")) {
-          return (
-            docSpec.includes("general physician") ||
-            docSpec.includes("physician") ||
-            docSpec === "gp"
-          ) && !docSpec.includes("surgery");
-        } else if (specLower === "general medicine" || specLower === "medicine specialist" || specLower === "internal medicine") {
-          return (
-            docSpec.includes("general medicine") ||
-            docSpec.includes("internal medicine") ||
-            docSpec.includes("medicine specialist") ||
-            docSpec.includes("general physician")
-          ) && !docSpec.includes("surgery") && !docSpec.includes("sports") && !docSpec.includes("pain") && !docSpec.includes("emergency") && !docSpec.includes("critical");
-        } else if (specLower.includes("general") && !specLower.includes("surgery")) {
-          return docSpec.includes("general physician") || docSpec.includes("general medicine");
-        } else if (specLower.includes("gynecol") || specLower.includes("gynaecol") || specLower.includes("obgyn")) {
-          return docSpec.includes("gynecol") || docSpec.includes("gynaecol") || docSpec.includes("obgyn");
-        } else if (specLower.includes("pediatr") || specLower.includes("paediatr")) {
-          return docSpec.includes("pediatr") || docSpec.includes("paediatr") || docSpec.includes("child");
-        } else if (specLower.includes("orthoped") || specLower.includes("orthopaed")) {
-          return docSpec.includes("orthoped") || docSpec.includes("orthopaed") || docSpec.includes("bone");
-        } else if (
-          specLower === "ent" ||
-          specLower === "ent doctor" ||
-          specLower.includes("otorhinolaryngol") ||
-          specLower.includes("otolaryngol") ||
-          specLower.includes("ear, nose") ||
-          specLower.includes("ear nose")
-        ) {
-          return (docSpec.includes("ent") || docSpec.includes("otorhinolaryngol") || docSpec.includes("otolaryngol")) && !docSpec.includes("dent") && !docSpec.includes("cardio");
-        } else if (specLower.includes("cardio") || specLower.includes("heart")) {
-          return docSpec.includes("cardio") || docSpec.includes("heart");
-        } else if (specLower.includes("derma") || specLower.includes("skin")) {
-          return docSpec.includes("derma") || docSpec.includes("skin");
-        } else if (specLower.includes("ophthal") || specLower.includes("eye")) {
-          return docSpec.includes("ophthal") || docSpec.includes("eye");
-        } else if (specLower.includes("psychiat") || specLower.includes("mental")) {
-          return (docSpec.includes("psychiat") || docSpec.includes("mental")) && !docSpec.includes("urology") && !docSpec.includes("neurology");
-        } else if (specLower.includes("pulmon") || specLower.includes("chest") || specLower.includes("lung")) {
-          return docSpec.includes("pulmon") || docSpec.includes("chest") || docSpec.includes("lung");
-        } else {
-          return docSpec.includes(specLower);
-        }
+        // Match against whole docSpec or comma-separated tokens
+        const tokens = docSpec.split(",").map(t => t.trim()).filter(Boolean);
+        const isUro = (str) => (str.startsWith("uro") || (/\burolog/i).test(str)) && !str.includes("neuro");
+        const isNeuro = (str) => str.includes("neuro") && !str.startsWith("uro") && !(/\burolog/i).test(str);
+
+        const checkMatch = (specStr) => {
+          if (
+            specLower === "uro/neuro" ||
+            specLower === "uro / neuro" ||
+            specLower === "urology/neurology" ||
+            specLower === "urology / neurology" ||
+            (isUro(specLower) && isNeuro(specLower))
+          ) {
+            return isUro(specStr) || isNeuro(specStr);
+          } else if (isUro(specLower)) {
+            return isUro(specStr);
+          } else if (isNeuro(specLower)) {
+            return isNeuro(specStr);
+          } else if (specLower.includes("gastro")) {
+            return specStr.includes("gastro") || specStr.includes("stomach") || specStr.includes("digestive") || specStr.includes("liver") || specStr.includes("hepatol");
+          } else if (specLower.includes("dentist") || specLower.includes("dental") || specLower.includes("dentistry")) {
+            return specStr.includes("dentist") || specStr.includes("dental") || specStr.includes("dentistry") || specStr.includes("teeth");
+          } else if (specLower === "general physician" || specLower === "gp" || specLower.includes("physician") || specLower === "general medicine" || specLower.includes("internal medicine")) {
+            return (
+              specStr.includes("general physician") ||
+              specStr.includes("physician") ||
+              specStr.includes("general medicine") ||
+              specStr.includes("internal medicine") ||
+              specStr.includes("family medicine") ||
+              specStr.includes("medicine specialist") ||
+              specStr === "gp"
+            );
+          } else if (specLower.includes("general") && !specLower.includes("surgery")) {
+            return specStr.includes("general physician") || specStr.includes("general medicine") || specStr.includes("physician");
+          } else if (specLower.includes("gynecol") || specLower.includes("gynaecol") || specLower.includes("obgyn") || specLower.includes("obstetric")) {
+            return specStr.includes("gynecol") || specStr.includes("gynaecol") || specStr.includes("obgyn") || specStr.includes("obstetric");
+          } else if (specLower.includes("pediatr") || specLower.includes("paediatr")) {
+            return specStr.includes("pediatr") || specStr.includes("paediatr") || specStr.includes("child") || specStr.includes("neonat");
+          } else if (specLower.includes("orthoped") || specLower.includes("orthopaed")) {
+            return specStr.includes("orthoped") || specStr.includes("orthopaed") || specStr.includes("bone") || specStr.includes("joint");
+          } else if (
+            specLower === "ent" ||
+            specLower === "ent doctor" ||
+            specLower.includes("otorhinolaryngol") ||
+            specLower.includes("otolaryngol") ||
+            specLower.includes("ear, nose") ||
+            specLower.includes("ear nose")
+          ) {
+            if (specStr.includes("dentist") || specStr.includes("dental") || specStr.includes("gastro")) return false;
+            return (/\bent\b/i).test(specStr) || specStr.includes("otorhinolaryngol") || specStr.includes("otolaryngol") || specStr.includes("ear");
+          } else if (specLower.includes("cardio") || specLower.includes("heart")) {
+            return specStr.includes("cardio") || specStr.includes("heart");
+          } else if (specLower.includes("derma") || specLower.includes("skin")) {
+            return specStr.includes("derma") || specStr.includes("skin") || specStr.includes("cosmetol");
+          } else if (specLower.includes("ophthal") || specLower.includes("eye")) {
+            return specStr.includes("ophthal") || specStr.includes("eye") || specStr.includes("vision");
+          } else if (specLower.includes("psychiat") || specLower.includes("mental")) {
+            return specStr.includes("psychiat") || specStr.includes("mental") || specStr.includes("psycholog");
+          } else if (specLower.includes("pulmon") || specLower.includes("chest") || specLower.includes("lung")) {
+            return specStr.includes("pulmon") || specStr.includes("chest") || specStr.includes("lung") || specStr.includes("respirat");
+          } else if (specLower.includes("nephro") || specLower.includes("kidney") || specLower.includes("renal")) {
+            return specStr.includes("nephro") || specStr.includes("kidney") || specStr.includes("renal");
+          } else if (specLower === "surgery" || specLower === "general surgery") {
+            return specStr.includes("surgery") || specStr.includes("surgeon");
+          } else if (specLower.includes("physio")) {
+            return specStr.includes("physio") || specStr.includes("physical therap");
+          } else if (specLower.includes("oncol") || specLower.includes("cancer")) {
+            return specStr.includes("oncol") || specStr.includes("cancer");
+          } else if (specLower.includes("rheumat")) {
+            return specStr.includes("rheumat") || specStr.includes("arthritis");
+          } else if (specLower.includes("endocrin")) {
+            return specStr.includes("endocrin") || specStr.includes("diabet") || specStr.includes("thyroid");
+          } else {
+            if (isUro(specLower) && isNeuro(specStr)) return false;
+            if (isNeuro(specLower) && isUro(specStr)) return false;
+            if (specLower === "ent" && (specStr.includes("dentist") || specStr.includes("dental"))) return false;
+            if ((specLower.includes("dentist") || specLower.includes("dental")) && (/\bent\b/i).test(specStr) && !specStr.includes("dent")) return false;
+            return specStr.includes(specLower);
+          }
+        };
+
+        if (checkMatch(docSpec)) return true;
+        return tokens.some(t => checkMatch(t));
       });
     }
 

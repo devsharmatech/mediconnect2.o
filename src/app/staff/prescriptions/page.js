@@ -442,7 +442,7 @@ export default function StaffPrescriptionsPage() {
                     {/* Meta Info */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs pt-2 border-t border-gray-100">
                       <div><p className="text-gray-400">Created</p><p className="text-gray-700">{viewPrescription.created_at ? new Date(viewPrescription.created_at).toLocaleString("en-IN") : "—"}</p></div>
-                      <div><p className="text-gray-400">Type</p><p className="text-gray-700 capitalize">{viewPrescription.appointment_type?.replace(/_/g, " ") || "—"}</p></div>
+                      <div><p className="text-gray-400">Type</p><p className="text-gray-700 capitalize">{['clinic', 'clinic_visit', 'in_person'].includes(String(viewPrescription.appointment_type || '').toLowerCase()) ? 'Clinic' : (viewPrescription.appointment_type?.replace(/_/g, " ") || "—")}</p></div>
                       <div><p className="text-gray-400">Status</p>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium border capitalize ${STATUS_COLORS[viewPrescription.status] || "bg-gray-100 text-gray-600 border-gray-200"}`}>
                           {viewPrescription.is_draft ? "Draft" : (viewPrescription.status || "active")}

@@ -17,14 +17,31 @@ export async function GET(req) {
     }
 
     const users = await sql`
-      SELECT role FROM users WHERE id = ${token} LIMIT 1
+      SELECT u.id, u.role, u.phone_number, u.status, pd.full_name as patient_name
+      FROM users u
+      LEFT JOIN patient_details pd ON pd.id = u.id
+      WHERE u.id = ${token}
+      LIMIT 1
     `;
 
     if (!users || users.length === 0) {
-      return NextResponse.json({ role: null }, { status: 200 });
+      return NextResponse.json({ role: null, valid: false }, { status: 200 });
     }
 
-    return NextResponse.json({ role: users[0].role });
+    const u = users[0];
+    const isDeletedOrAnonymized = 
+      u.status === "deleted" ||
+      String(u.phone_number || "").startsWith("ANONYMIZED_") ||
+      u.patient_name === "DE-IDENTIFIED PATIENT";
+
+    if (isDeletedOrAnonymized) {
+      return NextResponse.json(
+        { role: null, valid: false, is_deleted: true, error: "account_deleted" },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.json({ role: u.role, valid: true });
   } catch (error) {
     console.error("[verify-session] Session verification error:", error);
     return NextResponse.json({ role: null }, { status: 500 });

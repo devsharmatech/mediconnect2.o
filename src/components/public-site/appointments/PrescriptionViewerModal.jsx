@@ -1237,55 +1237,47 @@ export default function PrescriptionViewerModal({
           </div>
         </div>
 
-        {/* ─── Responsive Action / Order Cards Footer (100% responsive, outside horizontal scroll) ─── */}
-        <div className="bg-white border-t border-slate-200 p-3 sm:p-4 shrink-0 shadow-sm z-10 w-full">
-          <div className="w-full">
-            <div className={`grid grid-cols-1 ${uniqueLabs.length > 0 ? "sm:grid-cols-2" : ""} gap-3 w-full`}>
-              {/* Chemist Order Card */}
-              <div className="rounded-2xl border border-slate-200 bg-sky-50/40 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-[#0067A1]/40 transition-all">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-[#0067A1] text-white flex items-center justify-center shadow-xs shrink-0">
-                    <Building2 className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Chemist Order</p>
-                      {chemistOrder && (
-                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          chemistOrder.status === "payment_submitted"
-                            ? "bg-blue-100 text-blue-700"
-                            : chemistOrder.status === "payment_pending"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-emerald-100 text-emerald-700"
-                        }`}>
-                          {chemistOrder.status === "payment_submitted"
-                            ? "Payment Submitted"
-                            : chemistOrder.status === "payment_pending"
-                            ? "Awaiting Payment"
-                            : chemistOrder.status || "Ordered"}
-                        </span>
+        {/* ─── Responsive Action / Order Cards Footer (Only for Patients, hidden on Doctor Portal) ─── */}
+        {!isDoctor && (
+          <div className="bg-white border-t border-slate-200 p-3 sm:p-4 shrink-0 shadow-sm z-10 w-full">
+            <div className="w-full">
+              <div className={`grid grid-cols-1 ${uniqueLabs.length > 0 ? "sm:grid-cols-2" : ""} gap-3 w-full`}>
+                {/* Chemist Order Card */}
+                <div className="rounded-2xl border border-slate-200 bg-sky-50/40 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-[#0067A1]/40 transition-all">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-[#0067A1] text-white flex items-center justify-center shadow-xs shrink-0">
+                      <Building2 className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Chemist Order</p>
+                        {chemistOrder && (
+                          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            chemistOrder.status === "payment_submitted"
+                              ? "bg-blue-100 text-blue-700"
+                              : chemistOrder.status === "payment_pending"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-emerald-100 text-emerald-700"
+                          }`}>
+                            {chemistOrder.status === "payment_submitted"
+                              ? "Payment Submitted"
+                              : chemistOrder.status === "payment_pending"
+                              ? "Awaiting Payment"
+                              : chemistOrder.status || "Ordered"}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold text-slate-900 truncate">
+                        {chemistOrder ? chemistName : "Not ordered yet"}
+                      </p>
+                      {chemistOrder && (chemistSub || chemistOrder.unid) && (
+                        <p className="text-[11px] text-slate-500 truncate">
+                          {chemistSub ? chemistSub : ""}{chemistOrder.unid ? ` • #${chemistOrder.unid}` : ""}
+                        </p>
                       )}
                     </div>
-                    <p className="text-sm font-bold text-slate-900 truncate">
-                      {chemistOrder ? chemistName : "Not ordered yet"}
-                    </p>
-                    {chemistOrder && (chemistSub || chemistOrder.unid) && (
-                      <p className="text-[11px] text-slate-500 truncate">
-                        {chemistSub ? chemistSub : ""}{chemistOrder.unid ? ` • #${chemistOrder.unid}` : ""}
-                      </p>
-                    )}
                   </div>
-                </div>
 
-                {isDoctor ? (
-                  <span className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold ${
-                    chemistOrder
-                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                      : "bg-slate-100 text-slate-500"
-                  }`}>
-                    {chemistOrder ? "Ordered" : "Pending Patient"}
-                  </span>
-                ) : (
                   <button
                     type="button"
                     onClick={() => setShareTarget("chemist")}
@@ -1320,45 +1312,35 @@ export default function PrescriptionViewerModal({
                       </>
                     )}
                   </button>
-                )}
-              </div>
+                </div>
 
-              {/* Lab Order Card */}
-              {uniqueLabs.length > 0 && (
-                <div className="rounded-2xl border border-slate-200 bg-teal-50/40 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-teal-600/40 transition-all">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                      <FlaskConical className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Lab Order</p>
-                        {labOrder && (
-                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
-                            {labOrder.status || "Ordered"}
-                          </span>
+                {/* Lab Order Card */}
+                {uniqueLabs.length > 0 && (
+                  <div className="rounded-2xl border border-slate-200 bg-teal-50/40 p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-xs hover:border-teal-600/40 transition-all">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                        <FlaskConical className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Lab Order</p>
+                          {labOrder && (
+                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                              {labOrder.status || "Ordered"}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-bold text-slate-900 truncate">
+                          {labOrder ? labName : "Not ordered yet"}
+                        </p>
+                        {labOrder && (labSub || labOrder.unid) && (
+                          <p className="text-[11px] text-slate-500 truncate">
+                            {labSub ? labSub : ""}{labOrder.unid ? ` • #${labOrder.unid}` : ""}
+                          </p>
                         )}
                       </div>
-                      <p className="text-sm font-bold text-slate-900 truncate">
-                        {labOrder ? labName : "Not ordered yet"}
-                      </p>
-                      {labOrder && (labSub || labOrder.unid) && (
-                        <p className="text-[11px] text-slate-500 truncate">
-                          {labSub ? labSub : ""}{labOrder.unid ? ` • #${labOrder.unid}` : ""}
-                        </p>
-                      )}
                     </div>
-                  </div>
 
-                  {isDoctor ? (
-                    <span className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold ${
-                      labOrder
-                        ? "bg-teal-50 text-teal-700 border border-teal-200"
-                        : "bg-slate-100 text-slate-500"
-                    }`}>
-                      {labOrder ? "Booked" : "Pending Patient"}
-                    </span>
-                  ) : (
                     <button
                       type="button"
                       onClick={() => setShareTarget("lab")}
@@ -1380,12 +1362,12 @@ export default function PrescriptionViewerModal({
                         </>
                       )}
                     </button>
-                  )}
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
       </div>
 

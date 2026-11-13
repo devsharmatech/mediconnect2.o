@@ -816,7 +816,7 @@ export default function PrescriptionTemplatesCMS() {
                   <div className="flex items-center gap-2 text-xs text-slate-500">
                     <span>{previewTemplate.specialization}</span>
                     <span>•</span>
-                    <span className="capitalize">{previewTemplate.appointment_type.replace(/_/g, " ")}</span>
+                    <span className="capitalize">{['clinic', 'clinic_visit', 'in_person'].includes(String(previewTemplate.appointment_type).toLowerCase()) ? 'Clinic' : previewTemplate.appointment_type.replace(/_/g, " ")}</span>
                   </div>
                 </div>
               </div>

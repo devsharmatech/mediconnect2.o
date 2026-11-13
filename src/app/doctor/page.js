@@ -121,7 +121,7 @@ export default function DoctorDashboard() {
       }
 
       const completed = appointments.filter((a) => a.status === "completed").length;
-      const pending = appointments.filter((a) => ["booked", "approved"].includes(a.status)).length;
+      const pending = appointments.filter((a) => ["pending", "pending_approval", "booked"].includes(a.status)).length;
       const cancelled = appointments.filter((a) => a.status === "cancelled").length;
       const rejected = appointments.filter((a) => a.status === "rejected").length;
 
@@ -449,6 +449,124 @@ export default function DoctorDashboard() {
           </div>
         </section>
 
+        {/* Main Grid: Consultations & Appointments + Prescriptions (Prioritized at Top) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
+          {/* Recent Appointments / Consultations */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg border border-slate-200 p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3.5">
+                <div>
+                  <h3 className="text-sm sm:text-base font-semibold text-slate-800">Recent Consultations & Appointments</h3>
+                  <p className="text-xs text-slate-500">Today&apos;s schedule</p>
+                </div>
+                <Link
+                  href="/doctor/appointments"
+                  className="text-xs text-[#0067A1] hover:text-[#004F7C] font-medium flex items-center gap-1"
+                >
+                  View All <FaChevronRight className="w-2.5 h-2.5" />
+                </Link>
+              </div>
+              {recentAppointments.length > 0 ? (
+                <div className="space-y-2">
+                  {recentAppointments.map((apt) => (
+                    <div
+                      key={apt.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-md border border-slate-100 hover:bg-slate-50/70 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-md bg-sky-50 border border-sky-100 flex items-center justify-center shrink-0">
+                          <FaUser className="w-3.5 h-3.5 text-[#0067A1]" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate">{apt.patient}</p>
+                          <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                            <FaClock className="w-3 h-3 text-slate-400" />
+                            <span>{apt.date} &bull; {apt.time}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto flex-wrap">
+                        <StatusBadge status={apt.status} />
+                        {["rejected", "cancelled"].includes(apt.status) ? (
+                          <span className="text-[11px] font-medium text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
+                            {apt.status === "rejected" ? "Rejected" : "Cancelled"}
+                          </span>
+                        ) : isAppointmentExpired(apt) ? (
+                          <span className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                            Expired
+                          </span>
+                        ) : (apt.status === "booked" || apt.status === "approved") ? (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleStartCall(apt)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-medium rounded-md transition-colors cursor-pointer"
+                            >
+                              <FaVideo className="w-3 h-3" />
+                              <span>Join Call</span>
+                            </button>
+                            <button
+                              onClick={() => handleNotifyPatient(apt)}
+                              disabled={isLoading}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 rounded-md text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                              title="Notify Patient"
+                            >
+                              <FaBell className="w-3 h-3" />
+                              <span>Notify</span>
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon={FaCalendarAlt} title="No appointments today" sub="Scheduled appointments will appear here" />
+              )}
+            </div>
+          </div>
+
+          {/* Recent Prescriptions */}
+          <div>
+            <div className="bg-white rounded-lg border border-slate-200 p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3.5">
+                <div>
+                  <h3 className="text-sm sm:text-base font-semibold text-slate-800">Recent Prescriptions</h3>
+                  <p className="text-xs text-slate-500">Latest records</p>
+                </div>
+                <Link
+                  href="/doctor/prescriptions"
+                  className="text-xs text-[#0067A1] hover:text-[#004F7C] font-medium flex items-center gap-1"
+                >
+                  View All <FaChevronRight className="w-2.5 h-2.5" />
+                </Link>
+              </div>
+              {recentPrescriptions.length > 0 ? (
+                <div className="space-y-2">
+                  {recentPrescriptions.map((rx) => (
+                    <div
+                      key={rx.id}
+                      className="flex items-center gap-3 p-3 rounded-md border border-slate-100 hover:bg-slate-50/70 transition-colors"
+                    >
+                      <div className="w-9 h-9 rounded-md bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                        <FaFileMedical className="w-3.5 h-3.5 text-indigo-700" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-800 truncate">{rx.patient}</p>
+                        <div className="flex items-center justify-between text-xs text-slate-500 mt-0.5">
+                          <span>{rx.medicines} medicine{rx.medicines !== 1 ? "s" : ""}</span>
+                          <span>{rx.date}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon={FaFileMedical} title="No prescriptions" sub="Prescription history will appear here" />
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Clinical Performance Scorecard (M8) */}
         {scorecard && (
           <section>
@@ -572,123 +690,7 @@ export default function DoctorDashboard() {
           </section>
         )}
 
-        {/* Main Grid: Appointments + Prescriptions */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-5">
-          {/* Recent Appointments */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg border border-slate-200 p-4 sm:p-5">
-              <div className="flex items-center justify-between mb-3.5">
-                <div>
-                  <h3 className="text-sm sm:text-base font-semibold text-slate-800">Recent Appointments</h3>
-                  <p className="text-xs text-slate-500">Today&apos;s schedule</p>
-                </div>
-                <Link
-                  href="/doctor/appointments"
-                  className="text-xs text-[#0067A1] hover:text-[#004F7C] font-medium flex items-center gap-1"
-                >
-                  View All <FaChevronRight className="w-2.5 h-2.5" />
-                </Link>
-              </div>
-              {recentAppointments.length > 0 ? (
-                <div className="space-y-2">
-                  {recentAppointments.map((apt) => (
-                    <div
-                      key={apt.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-md border border-slate-100 hover:bg-slate-50/70 transition-colors"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-md bg-sky-50 border border-sky-100 flex items-center justify-center shrink-0">
-                          <FaUser className="w-3.5 h-3.5 text-[#0067A1]" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-800 truncate">{apt.patient}</p>
-                          <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
-                            <FaClock className="w-3 h-3 text-slate-400" />
-                            <span>{apt.date} &bull; {apt.time}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto flex-wrap">
-                        <StatusBadge status={apt.status} />
-                        {["rejected", "cancelled"].includes(apt.status) ? (
-                          <span className="text-[11px] font-medium text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-md">
-                            {apt.status === "rejected" ? "Rejected" : "Cancelled"}
-                          </span>
-                        ) : isAppointmentExpired(apt) ? (
-                          <span className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                            Expired
-                          </span>
-                        ) : (apt.status === "booked" || apt.status === "approved") ? (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => handleStartCall(apt)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-medium rounded-md transition-colors cursor-pointer"
-                            >
-                              <FaVideo className="w-3 h-3" />
-                              <span>Join Call</span>
-                            </button>
-                            <button
-                              onClick={() => handleNotifyPatient(apt)}
-                              disabled={isLoading}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 rounded-md text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
-                              title="Notify Patient"
-                            >
-                              <FaBell className="w-3 h-3" />
-                              <span>Notify</span>
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState icon={FaCalendarAlt} title="No appointments today" sub="Scheduled appointments will appear here" />
-              )}
-            </div>
-          </div>
 
-          {/* Recent Prescriptions */}
-          <div>
-            <div className="bg-white rounded-lg border border-slate-200 p-4 sm:p-5">
-              <div className="flex items-center justify-between mb-3.5">
-                <div>
-                  <h3 className="text-sm sm:text-base font-semibold text-slate-800">Recent Prescriptions</h3>
-                  <p className="text-xs text-slate-500">Latest records</p>
-                </div>
-                <Link
-                  href="/doctor/prescriptions"
-                  className="text-xs text-[#0067A1] hover:text-[#004F7C] font-medium flex items-center gap-1"
-                >
-                  View All <FaChevronRight className="w-2.5 h-2.5" />
-                </Link>
-              </div>
-              {recentPrescriptions.length > 0 ? (
-                <div className="space-y-2">
-                  {recentPrescriptions.map((rx) => (
-                    <div
-                      key={rx.id}
-                      className="flex items-center gap-3 p-3 rounded-md border border-slate-100 hover:bg-slate-50/70 transition-colors"
-                    >
-                      <div className="w-9 h-9 rounded-md bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                        <FaFileMedical className="w-3.5 h-3.5 text-indigo-700" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{rx.patient}</p>
-                        <div className="flex items-center justify-between text-xs text-slate-500 mt-0.5">
-                          <span>{rx.medicines} medicine{rx.medicines !== 1 ? "s" : ""}</span>
-                          <span>{rx.date}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState icon={FaFileMedical} title="No prescriptions" sub="Prescription history will appear here" />
-              )}
-            </div>
-          </div>
-        </div>
 
         {/* Activity Logs */}
         <section>

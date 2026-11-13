@@ -659,7 +659,7 @@ export default function ManageSlots() {
                   {blockedAppointments.map((apt, i) => (
                     <div key={i} className="flex items-center justify-between p-2.5 bg-amber-50/70 rounded-md border border-amber-200 text-xs">
                       <span className="font-medium text-slate-800">
-                        {apt.appointment_time?.slice(0, 5)} — {apt.appointment_type?.replace('_', ' ')}
+                        {apt.appointment_time?.slice(0, 5)} — {['clinic', 'clinic_visit', 'in_person'].includes(String(apt.appointment_type || '').toLowerCase()) ? 'Clinic' : (apt.appointment_type?.replace('_', ' ') || 'Consultation')}
                       </span>
                       <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${apt.status === 'booked' ? 'bg-sky-50 text-[#0067A1] border-sky-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
                         {apt.status}

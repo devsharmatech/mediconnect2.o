@@ -473,13 +473,6 @@ export default function Prescriptions() {
               </div>
               <div className="text-base md:text-lg font-bold text-slate-800">{prescriptions.length}</div>
             </div>
-            <button
-              onClick={() => setShowNewPrescription(true)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#0067A1] text-white font-semibold rounded-xl hover:bg-[#004F7C] transition-all duration-200"
-            >
-              <FaPlus className="w-4 h-4" />
-              New Prescription
-            </button>
           </div>
         </div>
 
@@ -666,21 +659,12 @@ export default function Prescriptions() {
                 <h3 className="text-lg font-semibold text-slate-700 mb-2">
                   {searchTerm ? 'No prescriptions found' : 'No prescriptions yet'}
                 </h3>
-                <p className="text-slate-500 max-w-md mx-auto mb-6">
+                <p className="text-slate-500 max-w-md mx-auto">
                   {searchTerm 
                     ? 'Try adjusting your search terms or filters'
-                    : 'Start by creating your first prescription for a patient'
+                    : 'Prescriptions issued during consultations will appear here.'
                   }
                 </p>
-                {!searchTerm && (
-                  <button
-                    onClick={() => setShowNewPrescription(true)}
-                    className="px-5 py-2.5 bg-[#0067A1] text-white font-semibold rounded-xl hover:bg-[#004F7C] transition-all duration-200"
-                  >
-                    <FaPlus className="w-4 h-4 inline mr-2" />
-                    Create New Prescription
-                  </button>
-                )}
               </div>
             )}
           </div>

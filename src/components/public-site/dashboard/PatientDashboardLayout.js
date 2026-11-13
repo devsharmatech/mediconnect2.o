@@ -79,19 +79,8 @@ const PatientDashboardLayout = ({ children }) => {
       return;
     }
 
-    // Strict Role Separation: If logged-in user is a Doctor/Chemist/Lab/Admin, redirect to their dedicated portal
-    if (userRole === "doctor") {
-      router.replace("/doctor");
-      return;
-    }
-    if (userRole === "chemist") {
-      router.replace("/chemist/dashboard");
-      return;
-    }
-    if (userRole === "lab") {
-      router.replace("/lab/dashboard");
-      return;
-    }
+    // Strict Role Separation: Admin accounts must use their dedicated admin dashboard
+    // (Doctors, Chemists, and Labs are allowed to access Patient View)
     if (userRole === "admin") {
       router.replace("/admin/dashboard");
       return;
@@ -105,32 +94,29 @@ const PatientDashboardLayout = ({ children }) => {
 
     // Verify session is active and valid against backend
     fetch(`/api/auth/verify-session?token=${encodeURIComponent(userId)}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (res.status === 401) {
+          toast.error("This account has been deleted. You have been logged out.");
+          logoutUser("patient", "/");
+          return null;
+        }
+        return res.json();
+      })
       .then((data) => {
-        if (!data || !data.role) {
-          // Stale or logged out session detected — wipe and redirect to home
+        if (!data) return;
+        if (!data.role || data.is_deleted || data.valid === false) {
+          // Stale, deleted, or logged out session detected — wipe and redirect to home
+          toast.error("This account has been deleted. You have been logged out.");
           logoutUser("patient", "/");
           return;
         }
 
-        // Enforce verified backend role boundary
-        if (data.role === "doctor") {
-          localStorage.setItem("userRole", "doctor");
-          router.replace("/doctor");
-          return;
+        // Store role; Admin accounts are redirected to admin dashboard
+        if (data.role) {
+          localStorage.setItem("userRole", data.role);
         }
-        if (data.role === "chemist") {
-          localStorage.setItem("userRole", "chemist");
-          router.replace("/chemist/dashboard");
-          return;
-        }
-        if (data.role === "lab") {
-          localStorage.setItem("userRole", "lab");
-          router.replace("/lab/dashboard");
-          return;
-        }
+
         if (data.role === "admin") {
-          localStorage.setItem("userRole", "admin");
           router.replace("/admin/dashboard");
           return;
         }
@@ -139,7 +125,15 @@ const PatientDashboardLayout = ({ children }) => {
 
         if (userData) {
           try {
-            setUser(JSON.parse(userData));
+            const parsed = JSON.parse(userData);
+            if (
+              parsed?.full_name === "DE-IDENTIFIED PATIENT" ||
+              String(parsed?.phone_number || "").startsWith("ANONYMIZED_")
+            ) {
+              logoutUser("patient", "/");
+              return;
+            }
+            setUser(parsed);
           } catch (e) {
             console.error("Failed to parse user data:", e);
           }
@@ -160,10 +154,30 @@ const PatientDashboardLayout = ({ children }) => {
     // Fetch fresh user profile in background to ensure latest profile_picture & details are synced
     if (userId) {
       fetch(`/api/patient/profile?id=${userId}`)
-        .then((res) => res.json())
         .then((res) => {
+          if (res.status === 401) {
+            toast.error("This account has been deleted. Logging out...");
+            logoutUser("patient", "/");
+            return null;
+          }
+          return res.json();
+        })
+        .then((res) => {
+          if (!res) return;
+          if (res.data?.is_deleted || res.error?.includes("deleted") || res.message?.includes("deleted")) {
+            toast.error("This account has been deleted. Logging out...");
+            logoutUser("patient", "/");
+            return;
+          }
           if (res.success && res.data) {
             const freshUser = res.data;
+            if (
+              freshUser.full_name === "DE-IDENTIFIED PATIENT" ||
+              String(freshUser.phone_number || "").startsWith("ANONYMIZED_")
+            ) {
+              logoutUser("patient", "/");
+              return;
+            }
             setUser((prev) => ({
               ...prev,
               ...freshUser,

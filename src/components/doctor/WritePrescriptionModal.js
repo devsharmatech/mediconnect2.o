@@ -1585,7 +1585,7 @@ export default function WritePrescriptionModal({
                               <p className="text-[11px] text-[#0067A1] font-semibold capitalize">{tpl.specialization.replace(/_/g, " ")}</p>
                             )}
                             {tpl.appointment_type && (
-                              <span className="text-[10px] text-slate-500 font-normal capitalize">• {tpl.appointment_type.replace(/_/g, " ")}</span>
+                              <span className="text-[10px] text-slate-500 font-normal capitalize">• {['clinic', 'clinic_visit', 'in_person'].includes(String(tpl.appointment_type).toLowerCase()) ? 'Clinic' : tpl.appointment_type.replace(/_/g, " ")}</span>
                             )}
                           </div>
                         </div>

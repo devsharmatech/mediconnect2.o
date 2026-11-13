@@ -157,7 +157,7 @@ export default function BookingAttemptsPage() {
                       </p>
                       <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
                         {attempt.appointment_type === 'video_consultation' ? <FaVideo className="text-blue-500" /> : <FaClinicMedical className="text-green-500" />}
-                        <span className="capitalize">{attempt.appointment_type?.replace('_', ' ')}</span>
+                        <span className="capitalize">{['clinic', 'clinic_visit', 'in_person'].includes(String(attempt.appointment_type || '').toLowerCase()) ? 'Clinic' : (attempt.appointment_type?.replace('_', ' ') || 'Consultation')}</span>
                       </p>
                     </td>
                     <td className="px-6 py-4 font-medium">

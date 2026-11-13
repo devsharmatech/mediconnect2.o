@@ -28,7 +28,35 @@ import { HiOutlineBadgeCheck } from "react-icons/hi";
 import dynamic from "next/dynamic";
 import HowItWorksSteps from "@/components/public-site/ui/HowItWorksSteps";
 import { getSavedPatientLocation, savePatientLocation } from "@/lib/patientLocation";
-import { ALL_SPECIALTIES_FOR_FILTER } from "@/lib/doctorSpecialties";
+
+// Default list of specialties directly reflecting Admin Website CMS -> Specialties
+export const DEFAULT_CMS_SPECIALTIES = [
+  "All Specialties",
+  "General Physician",
+  "Dermatology",
+  "Gynecology",
+  "Pediatrics",
+  "Gynecology & Obstetrics",
+  "Orthopedics",
+  "Ophthalmology",
+  "Cardiology",
+  "Neurology",
+  "Endocrinology",
+  "Nephrologist",
+  "Psychiatry",
+  "Dentistry",
+  "Pulmonology",
+  "Gastroenterology",
+  "Surgery",
+  "ENT",
+  "Urology",
+  "Nephrology",
+  "Oncology",
+  "Rheumatology",
+  "Dental",
+  "Physiotherapy",
+  "General Surgery",
+];
 
 
 const LoginModal = dynamic(
@@ -796,28 +824,31 @@ function DoctorsContent() {
     setIsSignupOpen(true);
   };
 
-  const [specialties, setSpecialties] = useState(ALL_SPECIALTIES_FOR_FILTER);
+  const [specialties, setSpecialties] = useState(DEFAULT_CMS_SPECIALTIES);
 
   useEffect(() => {
     async function fetchSpecialties() {
       try {
         const res = await fetch("/api/cms/specialties");
         const json = await res.json();
-        if (json.success && json.data?.length > 0) {
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
           const active = json.data
             .filter((s) => s.is_active !== false)
-            .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+            .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || (a.name || "").localeCompare(b.name || ""));
           const cmsNames = active.map((s) => s.name?.trim()).filter(Boolean);
-          const merged = [
-            "All Specialties",
-            ...new Set([...ALL_SPECIALTIES_FOR_FILTER.slice(1), ...cmsNames]),
-          ];
-          setSpecialties(merged);
-        } else {
-          setSpecialties(ALL_SPECIALTIES_FOR_FILTER);
+          if (cmsNames.length > 0) {
+            const list = ["All Specialties", ...new Set(cmsNames)];
+            if (initialSpecialty && initialSpecialty !== "All Specialties" && !list.includes(initialSpecialty)) {
+              list.push(initialSpecialty);
+            }
+            setSpecialties(list);
+            return;
+          }
         }
+        setSpecialties(DEFAULT_CMS_SPECIALTIES);
       } catch (e) {
-        setSpecialties(ALL_SPECIALTIES_FOR_FILTER);
+        console.error("Failed to load CMS specialties", e);
+        setSpecialties(DEFAULT_CMS_SPECIALTIES);
       }
     }
     async function fetchHeaders() {

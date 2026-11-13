@@ -486,8 +486,21 @@ export default function DoctorAppointmentsPage() {
   }, [appointments, statusFilter, typeFilter, searchQuery, dateFilter, todayStr]);
 
   function isVideoAppointment(apt) {
-    const t = String(apt.appointment_type || apt.type || "").toLowerCase();
+    const t = String(apt?.appointment_type || apt?.type || "").toLowerCase();
     return ["video", "video_consultation", "video_call", "teleconsultation", "instant_call", "telemedicine", "instant"].includes(t);
+  }
+
+  function formatAppointmentTypeLabel(aptOrType) {
+    const val = typeof aptOrType === "object" && aptOrType !== null
+      ? aptOrType.appointment_type || aptOrType.type
+      : aptOrType;
+    const t = String(val || "").toLowerCase().trim();
+    if (["clinic", "clinic_visit", "in_person"].includes(t)) return "Clinic";
+    if (["video", "video_consultation", "video_call", "teleconsultation", "instant_call", "telemedicine", "instant"].includes(t)) return "Video";
+    if (t === "video_follow_up") return "Video Follow-up";
+    if (["home", "home_visit"].includes(t)) return "Home";
+    if (t === "home_follow_up") return "Home Follow-up";
+    return t ? t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Clinic";
   }
 
   function getVideoCallTiming(apt, now = currentTime) {
@@ -553,7 +566,7 @@ export default function DoctorAppointmentsPage() {
     }
 
     try {
-      const isClinic = apt.appointment_type === "clinic_visit" || apt.type === "clinic_visit" || apt.appointment_type === "home_visit";
+      const isClinic = ["clinic", "clinic_visit", "in_person", "home", "home_visit"].includes(String(apt.appointment_type || apt.type || "").toLowerCase());
       const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "23:59";
       const dateStr = typeof apt.appointment_date === "string" 
         ? apt.appointment_date 
@@ -995,12 +1008,8 @@ export default function DoctorAppointmentsPage() {
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold ${
                             TYPE_COLORS[apt.appointment_type] || "bg-slate-100 text-slate-700"
                           }`}>
-                            {(() => {
-                              const tKey = String(apt.appointment_type || apt.type || "").toLowerCase();
-                              if (["video", "video_consultation", "video_call", "teleconsultation", "instant_call", "telemedicine", "instant"].includes(tKey)) return <><Video className="w-2.5 h-2.5" /> Video</>;
-                              if (["home", "home_visit"].includes(tKey)) return "Home";
-                              return "Clinic";
-                            })()}
+                            {isVideoAppointment(apt) && <Video className="w-2.5 h-2.5" />}
+                            {formatAppointmentTypeLabel(apt)}
                           </span>
 
                           {isNext && (
@@ -1144,9 +1153,9 @@ export default function DoctorAppointmentsPage() {
                       </div>
                     </div>
 
-                    {/* Card Action Buttons (Concise per AGENTS.md) */}
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5 mt-1">
-                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                    {/* Card Action Buttons (Concise per AGENTS.md & Responsive) */}
+                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5 mt-1">
+                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                         {["rejected", "cancelled"].includes(apt.status) ? (
                           <span className="text-[10.5px] font-medium text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-200/50 inline-flex items-center gap-1">
                             <Info className="w-3 h-3 text-slate-400" />
@@ -1204,7 +1213,7 @@ export default function DoctorAppointmentsPage() {
                                   type="button"
                                   onClick={() => handleStartCall(apt)}
                                   disabled={isLoading || !timing.isAvailable}
-                                  className={`h-7.5 px-2.5 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 ${
+                                  className={`h-7.5 px-2.5 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 shrink-0 ${
                                     timing.isAvailable
                                       ? "bg-[#0067A1] text-white hover:bg-[#004F7C] shadow-xs cursor-pointer active:scale-95"
                                       : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
@@ -1221,7 +1230,8 @@ export default function DoctorAppointmentsPage() {
                               const isVideo = isVideoAppointment(apt);
                               const canWriteRx = hasRx || apt.status === "completed" || !isVideo || hasDoctorJoinedVideoCall(apt);
 
-                              if (!hasRx && isVideo && apt.status === "booked" && !canWriteRx) return null;
+                              // Only show write prescription if approved or already has rx
+                              if (!hasRx && apt.status === "booked") return null;
 
                               return (
                                 <button
@@ -1254,7 +1264,7 @@ export default function DoctorAppointmentsPage() {
                                 <button
                                   onClick={() => updateAppointmentStatus(apt.id, "approved")}
                                   disabled={isLoading || isExpired}
-                                  className="h-7.5 px-2.5 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/70 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                                  className="h-7.5 px-2.5 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/70 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 shrink-0"
                                 >
                                   <CheckSquare className="w-3 h-3" />
                                   Approve
@@ -1262,36 +1272,41 @@ export default function DoctorAppointmentsPage() {
                                 <button
                                   onClick={() => updateAppointmentStatus(apt.id, "rejected")}
                                   disabled={isLoading}
-                                  className="h-7.5 px-2 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/70 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                                  className="h-7.5 px-2 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/70 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 shrink-0"
                                 >
                                   <XCircle className="w-3 h-3" />
                                   Reject
                                 </button>
                               </>
                             )}
-
-                            <button
-                              onClick={() => handleNotifyPatient(apt)}
-                              disabled={isLoading}
-                              className="h-7.5 px-2 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10.5px] font-semibold transition-all cursor-pointer flex items-center gap-1 shrink-0"
-                              title="Notify Patient"
-                            >
-                              <Bell className="w-3 h-3" />
-                              Notify
-                            </button>
                           </>
                         )}
                       </div>
 
-                      <button
-                        onClick={() => {
-                          setSelectedAppointment(apt);
-                          setActiveModalTab("overview");
-                        }}
-                        className="h-7.5 px-2.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-semibold border border-slate-200/80 transition-all cursor-pointer shrink-0"
-                      >
-                        Details
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                        {!["rejected", "cancelled"].includes(apt.status) && (
+                          <button
+                            type="button"
+                            onClick={() => handleNotifyPatient(apt)}
+                            disabled={isLoading}
+                            className="h-7.5 w-7.5 flex items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#0067A1] transition-all cursor-pointer shrink-0"
+                            title="Notify Patient"
+                          >
+                            <Bell className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAppointment(apt);
+                            setActiveModalTab("overview");
+                          }}
+                          className="h-7.5 px-2.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-semibold border border-slate-200/80 transition-all cursor-pointer shrink-0"
+                        >
+                          Details
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -1513,8 +1528,8 @@ export default function DoctorAppointmentsPage() {
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Type</p>
-                  <p className="font-semibold text-slate-800 capitalize mt-0.5">
-                    {selectedAppointment.appointment_type?.replace(/_/g, ' ') || 'Consultation'}
+                  <p className="font-semibold text-slate-800 mt-0.5">
+                    {formatAppointmentTypeLabel(selectedAppointment)}
                   </p>
                 </div>
                 <div>
@@ -1592,7 +1607,7 @@ export default function DoctorAppointmentsPage() {
               )}
 
               {/* Clinic Address if clinic visit */}
-              {selectedAppointment.appointment_type === 'clinic_visit' && selectedAppointment.doctor?.clinic_address && (
+              {['clinic', 'clinic_visit', 'in_person'].includes(String(selectedAppointment.appointment_type || selectedAppointment.type || "").toLowerCase()) && selectedAppointment.doctor?.clinic_address && (
                 <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-2.5 text-xs">
                   <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Clinic Location</p>
                   <p className="font-semibold text-slate-800">{selectedAppointment.doctor.clinic_name}</p>
@@ -1726,7 +1741,7 @@ export default function DoctorAppointmentsPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Type:</span>
-                <span className="capitalize font-medium text-slate-700">{extendingAppointment.appointment_type?.replace("_", " ") || "Consultation"}</span>
+                <span className="font-medium text-slate-700">{formatAppointmentTypeLabel(extendingAppointment)}</span>
               </div>
             </div>
 

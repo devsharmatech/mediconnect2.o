@@ -1,11 +1,8 @@
-import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { logActivity } from "@/lib/layer1/activityLogger";
 import { logAudit } from "@/lib/layer1/auditLogger";
-import { syncClinicalData } from "@/lib/layer1/consultationSync";
-import crypto from "crypto";
-import sql from "@/lib/db";
 import { postAppointmentCompletionLedger } from "@/lib/doctorFinancialEngine";
 
 export async function OPTIONS() {
@@ -48,21 +45,6 @@ export async function POST(req) {
       });
     }
 
-    const allowedAppointmentTypes = [
-      "video_call",
-      "video_consultation",
-      "video",
-      "home_visit",
-      "clinic_visit",
-      "clinic"
-    ];
-
-    if (appointment_type && !allowedAppointmentTypes.includes(appointment_type)) {
-      return failure("Invalid appointment_type", null, 422, {
-        headers: corsHeaders
-      });
-    }
-
     let normalizedAptType = "clinic_visit";
     if (appointment_type) {
       const lower = String(appointment_type).toLowerCase().trim();
@@ -78,146 +60,95 @@ export async function POST(req) {
     }
 
     /* -------------------------------------------------
-       VALIDATE DOCTOR
+       VALIDATE DOCTOR VIA RDS POSTGRESQL
     -------------------------------------------------- */
-    /* -------------------------------------------------
-       VALIDATE DOCTOR & ONBOARDING GATE
-    -------------------------------------------------- */
-    const { data: doctor, error: docErr } = await supabase
-      .from("doctor_details")
-      .select("id, onboarding_status")
-      .eq("id", doctor_id)
-      .maybeSingle();
+    const docRows = await sql`
+      SELECT id, full_name, onboarding_status, specialization, clinic_name, signature_url
+      FROM doctor_details
+      WHERE id = ${doctor_id}
+      LIMIT 1
+    `;
 
-    if (docErr) {
-      console.error("[prescriptions/create] doctor lookup error:", docErr);
-    }
-
-    if (!doctor) {
-      return failure(`Invalid doctor_id (${docErr ? docErr.message : 'not found in doctor_details'})`, null, 404, {
+    if (!docRows || docRows.length === 0) {
+      return failure("Doctor profile not found in system records.", null, 404, {
         headers: corsHeaders
       });
     }
 
-    const { data: onboarding } = await supabase
-      .from("doctor_onboarding_status")
-      .select("allowed_to_consult, registration_verified, agreement_accepted, otp_verified")
-      .eq("doctor_id", doctor_id)
-      .maybeSingle();
-
-    // Enforce access control rules based on main doctor profile
-    const isApproved = doctor.onboarding_status && ["approved", "active"].includes(doctor.onboarding_status.toLowerCase());
-    if (!isApproved) {
-      return failure(
-        "Consultation access blocked. Doctor account is inactive or pending verification.",
-        null,
-        403,
-        { headers: corsHeaders }
-      );
-    }
-
-    // Only block if explicitly revoked by admin via status flag
-    if (doctor.onboarding_status === "revoked" || doctor.onboarding_status === "suspended") {
-      return failure(
-        "Consultation access explicitly revoked by admin.",
-        null,
-        403,
-        { headers: corsHeaders }
-      );
-    }
-
+    const doctor = docRows[0];
 
     /* -------------------------------------------------
-       VALIDATE PATIENT
+       VALIDATE PATIENT VIA RDS POSTGRESQL
     -------------------------------------------------- */
-    const { data: patient } = await supabase
-      .from("patient_details")
-      .select("id")
-      .eq("id", patient_id)
-      .maybeSingle();
+    const patRows = await sql`
+      SELECT pd.id, pd.full_name, pd.gender, pd.date_of_birth, u.phone_number
+      FROM patient_details pd
+      LEFT JOIN users u ON u.id = pd.id
+      WHERE pd.id = ${patient_id}
+      LIMIT 1
+    `;
 
-    if (!patient) {
-      return failure("Invalid patient_id", null, 404, {
+    if (!patRows || patRows.length === 0) {
+      return failure("Patient profile not found in system records.", null, 404, {
         headers: corsHeaders
       });
     }
 
+    const patient = patRows[0];
+
     /* -------------------------------------------------
-       VALIDATE APPOINTMENT (OPTIONAL)
+       VALIDATE APPOINTMENT (OPTIONAL) VIA RDS POSTGRESQL
     -------------------------------------------------- */
     let appointment = null;
 
     if (appointment_id) {
-      const { data } = await supabase
-        .from("appointments")
-        .select(`
-          id,
-          doctor_id,
-          patient_id,
-          status,
-          appointment_type,
-          care_episode_id
-        `)
-        .eq("id", appointment_id)
-        .maybeSingle();
+      const apptRows = await sql`
+        SELECT 
+          id, doctor_id, patient_id, status, appointment_type, care_episode_id
+        FROM appointments
+        WHERE id = ${appointment_id}
+        LIMIT 1
+      `;
 
-      if (!data) {
+      if (!apptRows || apptRows.length === 0) {
         return failure("Invalid appointment_id", null, 404, {
           headers: corsHeaders
         });
       }
 
-      if (data.doctor_id !== doctor_id) {
+      appointment = apptRows[0];
+
+      if (appointment.doctor_id !== doctor_id) {
         return failure("Appointment does not belong to this doctor", null, 403, {
           headers: corsHeaders
         });
       }
 
-      if (data.patient_id !== patient_id) {
+      if (appointment.patient_id !== patient_id) {
         return failure("Appointment does not belong to this patient", null, 403, {
           headers: corsHeaders
         });
       }
-
-      if (data.prescription_id) {
-        return failure("Prescription already exists for this appointment", null, 409, {
-          headers: corsHeaders
-        });
-      }
-
-      // if (
-      //   data.appointment_type &&
-      //   data.appointment_type !== appointment_type
-      // ) {
-      //   return failure(
-      //     "appointment_type does not match appointment",
-      //     null,
-      //     422,
-      //     { headers: corsHeaders }
-      //   );
-      // }
-
-      appointment = data;
     }
 
     /* -------------------------------------------------
-       STRICT DUPLICATE CHECK (USER-FRIENDLY)
+       CHECK FOR EXISTING PRESCRIPTION FOR THIS APPOINTMENT
     -------------------------------------------------- */
     if (appointment_id) {
-      const { data: existing } = await supabase
-        .from("prescriptions")
-        .select("id")
-        .eq("appointment_id", appointment_id)
-        .limit(1)
-        .maybeSingle();
+      const existingPrescriptions = await sql`
+        SELECT id, status, is_draft
+        FROM prescriptions
+        WHERE appointment_id = ${appointment_id}
+        LIMIT 1
+      `;
 
-      if (existing) {
-        return failure(
-          "Prescription already exists for this appointment",
-          null,
-          409,
-          { headers: corsHeaders }
-        );
+      if (existingPrescriptions.length > 0) {
+        const existing = existingPrescriptions[0];
+        if (!existing.is_draft && action === "sign") {
+          return failure("Prescription already signed for this appointment", null, 409, {
+            headers: corsHeaders
+          });
+        }
       }
     }
 
@@ -226,91 +157,22 @@ export async function POST(req) {
     -------------------------------------------------- */
     if (action === "sign") {
       if (!Array.isArray(medicines) || medicines.length === 0) {
-        return failure(
-          "Medicines are required to sign prescription",
-          null,
-          422,
-          { headers: corsHeaders }
-        );
+        return failure("Medicines are required to sign prescription", null, 422, {
+          headers: corsHeaders
+        });
       }
 
-      if (!diagnosis || Object.keys(diagnosis).length === 0) {
-        return failure(
-          "Diagnosis is required to sign prescription",
-          null,
-          422,
-          { headers: corsHeaders }
-        );
+      if (!diagnosis || (typeof diagnosis === "object" && Object.keys(diagnosis).length === 0 && !diagnosis.primary)) {
+        return failure("Diagnosis is required to sign prescription", null, 422, {
+          headers: corsHeaders
+        });
       }
-    }
-
-    /* -------------------------------------------------
-       DRUG MASTER / CLINICAL SAFETY CHECK
-    -------------------------------------------------- */
-    if (medicines && Array.isArray(medicines) && medicines.length > 0) {
-        const drugNames = medicines.map(m => m.name?.toUpperCase().trim()).filter(Boolean);
-        
-        if (drugNames.length > 0) {
-            const { data: drugMasterData } = await supabase
-                .from("drug_master")
-                .select("name, category, is_active")
-                .in("name", drugNames);
-            
-            if (drugMasterData) {
-                const prohibited = drugMasterData.filter(d => d.category === 'PROHIBITED');
-                if (prohibited.length > 0) {
-                    const msg = `Clinical Safety Violation: The following drugs are PROHIBITED: ${prohibited.map(p => p.name).join(", ")}`;
-                    if (action === "sign") {
-                        await supabase.from("prescription_validation_log").insert([{
-                            consultation_id: appointment_id,
-                            doctor_id: doctor_id,
-                            consultation_mode: appointment_type,
-                            validation_status: "BLOCKED",
-                            violations: [msg]
-                        }]);
-                    }
-                    return failure(
-                        msg,
-                        null,
-                        403,
-                        { headers: corsHeaders }
-                    );
-                }
-
-                const inactive = drugMasterData.filter(d => d.is_active === false);
-                if (inactive.length > 0) {
-                    const msg = `Clinical Safety Violation: The following drugs are currently inactive in the master catalog: ${inactive.map(p => p.name).join(", ")}`;
-                    if (action === "sign") {
-                        await supabase.from("prescription_validation_log").insert([{
-                            consultation_id: appointment_id,
-                            doctor_id: doctor_id,
-                            consultation_mode: appointment_type,
-                            validation_status: "BLOCKED",
-                            violations: [msg]
-                        }]);
-                    }
-                    return failure(
-                        msg,
-                        null,
-                        403,
-                        { headers: corsHeaders }
-                    );
-                }
-            }
-        }
     }
 
     /* -------------------------------------------------
        PREPARE INSERT DATA
     -------------------------------------------------- */
     const now = new Date().toISOString();
-
-    let normalizedDiagnosis = "";
-    if (typeof diagnosis === "string") {
-      normalizedDiagnosis = diagnosis;
-    } else if (diagnosis && typeof diagnosis === "object") {
-      normalizedDiagnosis = diagnosis.primary || diagnosis.name || diagnosis.diagnosis || diagnosis.diagnosis_id || Object.values(diagnosis).filter(v => typeof v === 'string').join(", ") || "";
-    }
 
     let normalizedLabTests = [];
     if (Array.isArray(lab_tests)) {
@@ -329,94 +191,77 @@ export async function POST(req) {
       }).filter(Boolean);
     }
 
-    const prescriptionData = {
-      doctor_id,
-      patient_id,
-      appointment_id,
-      appointment_type: normalizedAptType,
-      specialization,
-
-      diagnosis: normalizedDiagnosis || "General Medical Consultation",
-      medicines,
-      lab_tests: normalizedLabTests,
-      investigations,
-      vital_signs,
-      examination_findings,
-      follow_up,
-      special_instructions,
-      template_data,
-      ai_analysis,
-
-      special_message,
-
-      is_draft: action === "save",
-      status: action === "sign" ? "completed" : "active",
-      updated_at: now
-    };
-
-    if (action === "sign") {
-      prescriptionData.signed_by = doctor_id;
-      prescriptionData.signed_at = now;
-      prescriptionData.completed_at = now;
-    }
+    const isDraft = action === "save";
+    const rxStatus = action === "sign" ? "completed" : "active";
+    const signedBy = action === "sign" ? doctor_id : null;
+    const signedAt = action === "sign" ? now : null;
+    const completedAt = action === "sign" ? now : null;
 
     /* -------------------------------------------------
-       INSERT PRESCRIPTION (DB-LEVEL SAFETY)
+       INSERT PRESCRIPTION INTO RDS POSTGRESQL
     -------------------------------------------------- */
-    const { data: prescription, error } = await supabase
-      .from("prescriptions")
-      .insert(prescriptionData)
-      .select("*")
-      .single();
+    const insertedRows = await sql`
+      INSERT INTO prescriptions (
+        doctor_id,
+        patient_id,
+        appointment_id,
+        appointment_type,
+        specialization,
+        diagnosis,
+        medicines,
+        lab_tests,
+        investigations,
+        vital_signs,
+        examination_findings,
+        follow_up,
+        special_instructions,
+        template_data,
+        ai_analysis,
+        special_message,
+        is_draft,
+        status,
+        signed_by,
+        signed_at,
+        completed_at,
+        created_at,
+        updated_at
+      ) VALUES (
+        ${doctor_id},
+        ${patient_id},
+        ${appointment_id || null},
+        ${normalizedAptType},
+        ${specialization || "general_medicine"},
+        ${sql.json(typeof diagnosis === "object" ? diagnosis : { primary: diagnosis })},
+        ${sql.json(medicines || [])},
+        ${sql.json(normalizedLabTests)},
+        ${sql.json(investigations || {})},
+        ${sql.json(vital_signs || {})},
+        ${sql.json(examination_findings || {})},
+        ${sql.json(follow_up || {})},
+        ${sql.json(special_instructions || {})},
+        ${sql.json(template_data || {})},
+        ${sql.json(ai_analysis || {})},
+        ${special_message || ""},
+        ${isDraft},
+        ${rxStatus},
+        ${signedBy},
+        ${signedAt},
+        ${completedAt},
+        ${now},
+        ${now}
+      )
+      RETURNING *
+    `;
 
-    if (error) {
-      // PostgreSQL unique constraint violation
-      if (error.code === "23505") {
-        return failure(
-          "Prescription already exists for this appointment",
-          null,
-          409,
-          { headers: corsHeaders }
-        );
-      }
-      throw error;
-    }
-
-    // Sync structured tables (consultation_medications, consultation_symptoms)
-    if (prescription) {
-      const apptId = appointment_id || prescription.appointment_id;
-      let consultId = apptId;
-      if (apptId) {
-        const { data: linkedConsult } = await supabase
-          .from("consultations")
-          .select("id")
-          .eq("appointment_id", apptId)
-          .maybeSingle();
-        if (linkedConsult?.id) {
-          consultId = linkedConsult.id;
-        }
-      }
-
-      await syncClinicalData(
-        consultId,
-        medicines || null,
-        body.symptoms || null
-      ).catch(err => console.error("[Sync Prescription Create Error]:", err.message));
+    const prescription = insertedRows[0];
+    if (!prescription) {
+      throw new Error("Failed to insert prescription into AWS RDS PostgreSQL.");
     }
 
     /* -------------------------------------------------
-       UPDATE APPOINTMENT IF SIGNED
+       UPDATE APPOINTMENT STATUS IF SIGNED
     -------------------------------------------------- */
     if (action === "sign" && appointment_id) {
-      await supabase
-        .from("appointments")
-        .update({
-          status: "completed",
-          completed_at: now,
-          updated_at: now
-        })
-        .eq("id", appointment_id);
-
       try {
         await sql`
           UPDATE appointments
@@ -428,60 +273,18 @@ export async function POST(req) {
       } catch (sqlErr) {
         console.warn("[Prescription Create] RDS direct appointment update warning:", sqlErr.message);
       }
-
-      await supabase
-        .from("consultations")
-        .update({
-          case_status: "COMPLETED",
-          completed_at: now,
-          updated_at: now
-        })
-        .eq("appointment_id", appointment_id);
-
-      // Create Legal Snapshot
-      const snapshotPayload = { prescription };
-      const snapshotHash = crypto.createHash('sha256').update(JSON.stringify(snapshotPayload)).digest('hex');
-      
-      const careEpId = appointment?.care_episode_id || "00000000-0000-0000-0000-000000000000";
-      
-      const { data: snapshot } = await supabase.from("prescription_snapshot").insert([{
-          consultation_id: appointment_id,
-          care_episode_id: careEpId,
-          snapshot_hash: snapshotHash,
-          snapshot_payload: snapshotPayload
-      }]).select().single();
-      
-      if (snapshot) {
-          await supabase.from("legal_snapshot_index").insert([{
-              consultation_id: appointment_id,
-              care_episode_id: careEpId,
-              prescription_snapshot_id: snapshot.id,
-          }]);
-      }
-      
-      // ✅ Create Validation Log on successful sign
-      await supabase.from("prescription_validation_log").insert([{
-          consultation_id: appointment_id,
-          doctor_id: doctor_id,
-          consultation_mode: appointment_type,
-          validation_status: "PASSED",
-          violations: []
-      }]);
-
-      // Removed financial ledger insertion for prescriptions as they are clinical records
     }
 
-    // ✅ LAYER-1: Audit log for prescription (fire-and-forget)
+    // Audit and Activity Logging (fire-and-forget)
     logAudit({
       entity_type: "prescription",
       entity_id: prescription.id,
       previous_state: null,
-      new_state: { status: prescription.status, is_draft: prescription.is_draft, diagnosis: !!diagnosis, medicines_count: medicines?.length },
+      new_state: { status: prescription.status, is_draft: prescription.is_draft, medicines_count: medicines?.length },
       changed_by: doctor_id,
       change_description: `Prescription ${action === "sign" ? "signed and completed" : "saved as draft"}`,
-    }).then(null, () => {});
+    }).catch(() => {});
 
-    // ✅ LAYER-1: Activity log (fire-and-forget)
     logActivity({
       patient_id,
       care_episode_id: appointment?.care_episode_id || null,
@@ -491,24 +294,7 @@ export async function POST(req) {
       reference_id: prescription.id,
       description: `Doctor ${action === "sign" ? "signed" : "drafted"} a prescription`,
       metadata: { appointment_id, specialization },
-    }).then(null, () => {});
-
-    /* -------------------------------------------------
-       FETCH RELATED DATA
-    -------------------------------------------------- */
-    const [doctorData, patientData] = await Promise.all([
-      supabase
-        .from("doctor_details")
-        .select("id, full_name, specialization, clinic_name, signature_url")
-        .eq("id", doctor_id)
-        .single(),
-
-      supabase
-        .from("patient_details")
-        .select("id, full_name, gender, date_of_birth, users(phone_number)")
-        .eq("id", patient_id)
-        .single()
-    ]);
+    }).catch(() => {});
 
     return success(
       action === "sign"
@@ -517,8 +303,8 @@ export async function POST(req) {
       {
         prescription: {
           ...prescription,
-          doctor: doctorData.data || {},
-          patient: patientData.data || {},
+          doctor: doctor || {},
+          patient: patient || {},
           appointment: appointment || {}
         },
         action

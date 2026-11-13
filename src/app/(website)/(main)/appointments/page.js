@@ -87,15 +87,23 @@ const getAppointmentStart = (apt) => {
   return start;
 };
 
+const isVideoAppointment = (apt) => {
+  const t = String(apt?.appointment_type || apt?.type || "").toLowerCase().trim();
+  return (
+    t.includes("video") ||
+    ["teleconsultation", "instant_call", "telemedicine", "instant"].includes(t)
+  );
+};
+
 const getAppointmentEnd = (apt) => {
   if (apt.extended_until) {
     const ext = new Date(apt.extended_until);
     if (!isNaN(ext.getTime())) return ext;
   }
-  const isClinic = apt.appointment_type === "clinic_visit" || apt.type === "clinic_visit" || apt.appointment_type === "home_visit";
+  const isVideo = isVideoAppointment(apt);
   const start = getAppointmentStart(apt);
   if (!start) return null;
-  if (isClinic) {
+  if (!isVideo) {
     const endOfDay = new Date(start);
     endOfDay.setHours(23, 59, 59, 999);
     return endOfDay;
@@ -125,11 +133,11 @@ const getEffectiveStatus = (apt, now = new Date()) => {
     if (!isNaN(ext.getTime()) && now <= ext) return base;
   }
 
-  const isClinic = apt.appointment_type === "clinic_visit" || apt.type === "clinic_visit" || apt.appointment_type === "home_visit";
+  const isVideo = isVideoAppointment(apt);
   const start = getAppointmentStart(apt);
   if (!start) return base;
 
-  if (isClinic) {
+  if (!isVideo) {
     // If the doctor approved/confirmed a Clinic Visit or Home Visit, keep it confirmed (Approved) matching Doctor Portal
     if (base === "confirmed") return "confirmed";
     const endOfDay = new Date(start);
@@ -180,9 +188,24 @@ const canModifyAppointment = (apt, now = new Date()) => {
   return diffMs >= 2 * 60 * 60 * 1000;
 };
 
-const isVideoAppointment = (apt) => {
-  const t = apt.appointment_type || apt.type || "";
-  return ["video", "video_consultation", "video_call", "teleconsultation", "instant_call", "telemedicine", "instant"].includes(t.toLowerCase());
+const getAppointmentTypeKey = (apt) => {
+  const t = String(apt?.appointment_type || apt?.type || "clinic_visit").toLowerCase().trim();
+  if (t.includes("video") || ["teleconsultation", "instant_call", "telemedicine", "instant"].includes(t)) return "video";
+  if (t.includes("home")) return "home";
+  return "clinic";
+};
+
+const getAppointmentTypeLabel = (apt) => {
+  const raw = String(apt?.appointment_type || apt?.type || "").toLowerCase().trim();
+  if (raw.includes("follow_up") || raw.includes("follow-up") || apt?.is_follow_up) {
+    if (raw.includes("video")) return "Video Follow-up";
+    if (raw.includes("home")) return "Home Follow-up";
+    return "Clinic Follow-up";
+  }
+  const key = getAppointmentTypeKey(apt);
+  if (key === "video") return "Video";
+  if (key === "home") return "Home";
+  return "Clinic";
 };
 
 const getVideoCallTiming = (apt, now = new Date()) => {
@@ -270,20 +293,7 @@ const APPOINTMENT_TYPE_ICONS = {
   clinic: FaHospital,
 };
 
-const getAppointmentTypeKey = (apt) => {
-  const t = apt.appointment_type || apt.type || "clinic_visit";
-  const val = String(t).toLowerCase();
-  if (["video", "video_consultation", "video_call", "teleconsultation", "instant_call", "telemedicine", "instant"].includes(val)) return "video";
-  if (["home", "home_visit"].includes(val)) return "home";
-  return "clinic";
-};
 
-const getAppointmentTypeLabel = (apt) => {
-  const key = getAppointmentTypeKey(apt);
-  if (key === "video") return "Video";
-  if (key === "home") return "Home";
-  return "Clinic";
-};
 
 const formatTimeTo12Hour = (timeStr) => {
   if (!timeStr) return "";

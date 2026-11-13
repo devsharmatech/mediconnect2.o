@@ -3399,35 +3399,64 @@ export default function DoctorsPage() {
         if (json.success && json.data?.length > 0) {
           const active = json.data
             .filter((s) => s.is_active !== false)
-            .sort((a, b) => a.display_order - b.display_order);
+            .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || (a.name || "").localeCompare(b.name || ""));
           setSpecialties(active.map((s) => s.name));
         } else {
           setSpecialties([
-            "Cardiology",
-            "Dermatology",
-            "Neurology",
-            "Pediatrics",
-            "Orthopedics",
-            "Gynecology",
-            "Dentistry",
-            "Psychiatry",
             "General Physician",
-            "ENT",
+            "Dermatology",
+            "Gynecology",
+            "Pediatrics",
+            "Gynecology & Obstetrics",
+            "Orthopedics",
             "Ophthalmology",
+            "Cardiology",
+            "Neurology",
+            "Endocrinology",
+            "Nephrologist",
+            "Psychiatry",
+            "Dentistry",
+            "Pulmonology",
+            "Gastroenterology",
+            "Surgery",
+            "ENT",
+            "Urology",
+            "Nephrology",
+            "Oncology",
+            "Rheumatology",
+            "Dental",
+            "Physiotherapy",
+            "General Surgery",
           ]);
         }
       } catch (e) {
         console.error("Failed to load specialties", e);
         setSpecialties([
-          "Cardiology",
-          "Dermatology",
-          "Neurology",
-          "Pediatrics",
-          "Orthopedics",
-          "Gynecology",
-          "Dentistry",
-          "Psychiatry",
           "General Physician",
+          "Dermatology",
+          "Gynecology",
+          "Pediatrics",
+          "Gynecology & Obstetrics",
+          "Orthopedics",
+          "Ophthalmology",
+          "Cardiology",
+          "Neurology",
+          "Endocrinology",
+          "Nephrologist",
+          "Psychiatry",
+          "Dentistry",
+          "Pulmonology",
+          "Gastroenterology",
+          "Surgery",
+          "ENT",
+          "Urology",
+          "Nephrology",
+          "Oncology",
+          "Rheumatology",
+          "Dental",
+          "Physiotherapy",
+          "General Surgery",
+        ]);
           "ENT",
           "Ophthalmology",
         ]);

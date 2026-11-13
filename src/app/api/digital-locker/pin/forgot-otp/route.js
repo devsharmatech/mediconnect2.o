@@ -65,7 +65,7 @@ export async function POST(req) {
       return failure("No registered phone number found on this user profile.", null, 400);
     }
 
-    // Check if user has an existing PIN set
+    // Ensure user_digilocker_pins record exists
     const pinRows = await sql`
       SELECT id, pin_hash
       FROM user_digilocker_pins
@@ -73,8 +73,12 @@ export async function POST(req) {
       LIMIT 1
     `;
     const pinRecord = pinRows[0];
-    if (!pinRecord || !pinRecord.pin_hash) {
-      return failure("No DigiLocker PIN has been set for this account. Please set a new PIN directly.", null, 400);
+    if (!pinRecord) {
+      await sql`
+        INSERT INTO user_digilocker_pins (user_id, failed_attempts, created_at, updated_at)
+        VALUES (${user.id}, 0, NOW(), NOW())
+        ON CONFLICT (user_id) DO NOTHING
+      `;
     }
 
     const otp = generateOTP(targetPhone);

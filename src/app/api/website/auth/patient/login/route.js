@@ -49,16 +49,18 @@ export async function POST(req) {
       const users = await sql`
         SELECT id, role, phone_number, is_verified 
         FROM users 
-        WHERE phone_number LIKE ${'%' + cleanPhone + '%'}
+        WHERE RIGHT(REGEXP_REPLACE(phone_number, '[^0-9]', '', 'g'), 10) = ${cleanPhone}
           AND role IN ('patient', 'chemist', 'lab', 'doctor')
+          AND (status IS NULL OR status != 'deleted')
+          AND phone_number NOT LIKE 'ANONYMIZED_%'
         ORDER BY 
           CASE 
-            WHEN role = 'doctor' THEN 1 
-            WHEN role = 'chemist' THEN 2 
-            WHEN role = 'lab' THEN 3 
+            WHEN role = 'patient' THEN 1 
+            WHEN role = 'doctor' THEN 2 
+            WHEN role = 'chemist' THEN 3 
             ELSE 4 
           END ASC, 
-          created_at ASC
+          created_at DESC
         LIMIT 1
       `;
       user = users[0];
@@ -74,6 +76,9 @@ export async function POST(req) {
         FROM patient_details pd
         JOIN users u ON u.id = pd.id
         WHERE LOWER(pd.email) = ${cleanEmail}
+          AND (u.status IS NULL OR u.status != 'deleted')
+          AND u.phone_number NOT LIKE 'ANONYMIZED_%'
+          AND pd.full_name != 'DE-IDENTIFIED PATIENT'
         LIMIT 1
       `;
 

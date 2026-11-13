@@ -27,18 +27,18 @@ export async function POST(req) {
         LIMIT 1
       `;
 
-      if (appt) {
-        const completionTimestamp = appt.completed_at || (appt.status === "completed" ? appt.updated_at : null);
+      if (appt && (appt.status === "completed" || appt.status === "cancelled")) {
+        const completionTimestamp = appt.completed_at || appt.updated_at;
         if (completionTimestamp) {
           const completedTime = new Date(completionTimestamp).getTime();
           const diffMs = Date.now() - completedTime;
-          const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
+          const GRACE_PERIOD_MS = 30 * 60 * 1000; // 30 minutes grace period
 
           if (diffMs > GRACE_PERIOD_MS) {
             return NextResponse.json(
               {
                 status: false,
-                message: "Consultation ended. Rejoining is only allowed within 15 minutes of completion.",
+                message: "Consultation ended. Rejoining is only allowed within 30 minutes of completion.",
               },
               { status: 403, headers: corsHeaders }
             );

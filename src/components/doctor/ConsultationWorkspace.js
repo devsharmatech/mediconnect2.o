@@ -610,7 +610,7 @@ export default function ConsultationWorkspace({ appointment, onConsultationUpdat
           </div>
           {appointment.appointment_type && (
             <span className="text-[10px] font-bold uppercase tracking-wider bg-white border border-slate-200 px-2.5 py-1 rounded-full text-slate-600">
-              {appointment.appointment_type.replace(/_/g, " ")}
+              {['clinic', 'clinic_visit', 'in_person'].includes(String(appointment.appointment_type || '').toLowerCase()) ? 'CLINIC' : appointment.appointment_type.replace(/_/g, " ")}
             </span>
           )}
         </div>

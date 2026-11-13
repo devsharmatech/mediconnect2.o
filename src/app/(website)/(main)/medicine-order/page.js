@@ -1731,42 +1731,24 @@ function MedicineOrderContent() {
                       </div>
                     )}
 
-                    {/* Instant Order to Chemist Banner when items added */}
+                    {/* Step guidance when items added */}
                     {cartItems.length > 0 && (
-                      <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                            <Send className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <span className="font-medium text-xs text-emerald-900 block">
-                              {cartItems.length} {cartItems.length === 1 ? "Medicine" : "Medicines"} Ready to Order
-                            </span>
-                            <span className="text-[11px] text-emerald-700">
-                              Send to nearby licensed chemists for quotes & fast delivery.
-                            </span>
-                          </div>
+                      <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between gap-2 mt-2.5 text-xs">
+                        <div className="flex items-center gap-2 text-[#0067A1]">
+                          <CheckCircle2 className="w-4 h-4 shrink-0 text-[#0067A1]" />
+                          <span className="font-medium text-slate-800">
+                            {cartItems.length} {cartItems.length === 1 ? "medicine" : "medicines"} added. Attach prescription below to proceed.
+                          </span>
                         </div>
-
                         <button
                           type="button"
                           onClick={() => {
-                            if (!deliveryAddress.trim()) {
-                              toast.error("Please enter delivery address to send order to chemist");
-                              const el = document.getElementById("delivery-address-input");
-                              if (el) {
-                                el.focus();
-                                el.scrollIntoView({ behavior: "smooth", block: "center" });
-                              }
-                              return;
-                            }
-                            handleBroadcastOrder();
+                            const el = document.getElementById("prescription-upload-card");
+                            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
                           }}
-                          className="px-4 py-2 bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium text-xs rounded-md flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
+                          className="text-[11px] font-semibold text-[#0067A1] hover:underline shrink-0 cursor-pointer"
                         >
-                          <Send className="w-3.5 h-3.5" />
-                          <span>Order & Send to Chemist</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
+                          Step 2: Upload Rx ↓
                         </button>
                       </div>
                     )}
@@ -1912,7 +1894,7 @@ function MedicineOrderContent() {
                   <div className="pt-1 space-y-2">
                     <button
                       type="button"
-                      disabled={broadcasting}
+                      disabled={broadcasting || (!uploadedRxUrl && !prescriptionFile)}
                       onClick={() => {
                         if (!uploadedRxUrl && !prescriptionFile) {
                           toast.error("Attaching a valid doctor prescription is mandatory to order medicines.");
@@ -1931,23 +1913,32 @@ function MedicineOrderContent() {
                         }
                         handleBroadcastOrder();
                       }}
-                      className="w-full py-3.5 px-4 bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium rounded-md text-sm transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                      className={`w-full py-3.5 px-4 rounded-md text-sm font-medium transition-all shadow-sm flex items-center justify-center gap-2 ${
+                        !uploadedRxUrl && !prescriptionFile
+                          ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                          : "bg-[#0067A1] hover:bg-[#004F7C] text-white cursor-pointer"
+                      }`}
                     >
                       {broadcasting ? (
                         <>
                           <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span>Sending Order to Chemist Pool...</span>
+                          <span>Sending Order...</span>
+                        </>
+                      ) : !uploadedRxUrl && !prescriptionFile ? (
+                        <>
+                          <Lock className="w-4 h-4" />
+                          <span>Upload Prescription to Order</span>
                         </>
                       ) : (
                         <>
                           <Send className="w-4 h-4" />
-                          <span>Order & Send to Chemist Now</span>
+                          <span>Order & Send</span>
                           <ArrowRight className="w-4 h-4" />
                         </>
                       )}
                     </button>
                     <p className="text-[11px] text-center text-slate-500">
-                      Sent to nearby licensed pharmacies &bull; Free home delivery & quotes
+                      Prescription verified by licensed chemists &bull; Free home delivery
                     </p>
                   </div>
 
@@ -2399,10 +2390,10 @@ function MedicineOrderContent() {
 
               <button
                 type="button"
-                disabled={broadcasting}
+                disabled={broadcasting || (!uploadedRxUrl && !prescriptionFile)}
                 onClick={() => {
                   if (!uploadedRxUrl && !prescriptionFile) {
-                    toast.error("Attaching a valid doctor prescription is mandatory to order medicines.");
+                    toast.error("Doctor prescription is mandatory to order medicines.");
                     const rxEl = document.getElementById("prescription-upload-card");
                     if (rxEl) rxEl.scrollIntoView({ behavior: "smooth", block: "center" });
                     return;
@@ -2418,17 +2409,26 @@ function MedicineOrderContent() {
                   }
                   handleBroadcastOrder();
                 }}
-                className="px-5 py-2.5 bg-[#0067A1] hover:bg-[#004F7C] text-white font-bold rounded-md text-xs sm:text-sm transition-all shadow-md flex items-center gap-2 cursor-pointer shrink-0"
+                className={`px-5 py-2.5 rounded-md text-xs sm:text-sm font-bold transition-all shadow-md flex items-center gap-2 shrink-0 ${
+                  !uploadedRxUrl && !prescriptionFile
+                    ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                    : "bg-[#0067A1] hover:bg-[#004F7C] text-white cursor-pointer"
+                }`}
               >
                 {broadcasting ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Sending to Chemist...</span>
+                    <span>Sending...</span>
+                  </>
+                ) : !uploadedRxUrl && !prescriptionFile ? (
+                  <>
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Upload Rx to Order</span>
                   </>
                 ) : (
                   <>
                     <Send className="w-3.5 h-3.5" />
-                    <span>Order & Send to Chemist</span>
+                    <span>Order & Send</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </>
                 )}

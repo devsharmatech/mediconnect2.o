@@ -156,7 +156,7 @@ const getAppointmentTypeLabel = (appointment) => {
     return "Home Visit";
   }
   if (["clinic", "clinic_visit", "in_person"].includes(value)) {
-    return "In-Clinic Visit";
+    return "Clinic Visit";
   }
 
   return capitalize(raw.toString().replace("_", " "), "Consultation");

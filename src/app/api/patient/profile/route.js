@@ -27,7 +27,7 @@ export async function GET(req) {
 
     // 1. Fetch user from AWS RDS
     const userRows = await sql`
-      SELECT id, un_id, role, phone_number, profile_picture, is_verified, created_at
+      SELECT id, un_id, role, phone_number, profile_picture, is_verified, created_at, status
       FROM users
       WHERE id = ${id}
       LIMIT 1
@@ -42,6 +42,19 @@ export async function GET(req) {
       LIMIT 1
     `;
     let profile = patientRows[0] || null;
+
+    // Check if account has been deleted or anonymized under DPDP
+    const isDeleted = 
+      user?.status === "deleted" ||
+      String(user?.phone_number || "").startsWith("ANONYMIZED_") ||
+      profile?.full_name === "DE-IDENTIFIED PATIENT" ||
+      String(profile?.email || "").startsWith("anonymized_");
+
+    if (isDeleted) {
+      return failure("This account has been deleted.", { is_deleted: true }, 401, {
+        headers: corsHeaders,
+      });
+    }
 
     // 3. Auto-provision patient_details if missing for professional accounts (doctor, chemist, lab, admin)
     if (!profile && user) {
@@ -108,9 +121,9 @@ export async function GET(req) {
       cleanPic = `https://ui-avatars.com/api/?name=${encodeURIComponent(pName.trim())}&background=0067A1&color=fff&bold=true`;
     }
 
-    let finalFullName = profile?.full_name;
-    if (!finalFullName || finalFullName.trim().toLowerCase() === "administrator" || finalFullName.trim().toLowerCase() === "admin") {
-      finalFullName = "Dev Sharma";
+    let finalFullName = profile?.full_name?.trim();
+    if (!finalFullName || finalFullName.toLowerCase() === "administrator" || finalFullName.toLowerCase() === "admin") {
+      finalFullName = user?.phone_number ? `Patient (${String(user.phone_number).slice(-4)})` : "Patient";
     }
 
     const mergedProfile = {

@@ -468,7 +468,7 @@ function VideoCall({ appointmentId, userId, role }) {
           if (mediaType === "video") {
             const playRemoteVideo = (attempt = 0) => {
               if (!remoteVideoRef.current || !user.videoTrack) {
-                if (attempt < 15) setTimeout(() => playRemoteVideo(attempt + 1), 250);
+                if (attempt < 30) setTimeout(() => playRemoteVideo(attempt + 1), 250);
                 return;
               }
               try {
@@ -476,7 +476,7 @@ function VideoCall({ appointmentId, userId, role }) {
                 console.log(`[Agora] Remote video playing from uid=${user.uid}`);
               } catch (e) {
                 console.warn("Remote video play error:", e);
-                if (attempt < 15) setTimeout(() => playRemoteVideo(attempt + 1), 250);
+                if (attempt < 30) setTimeout(() => playRemoteVideo(attempt + 1), 250);
               }
             };
             playRemoteVideo();
@@ -492,7 +492,14 @@ function VideoCall({ appointmentId, userId, role }) {
                 console.log(`[Agora] Remote audio playing from uid=${user.uid}`);
               }
             } catch (e) {
-              console.warn("Remote audio play error:", e);
+              console.warn("Remote audio play error, waiting for user gesture:", e);
+              const resumeAudio = () => {
+                user.audioTrack?.play();
+                window.removeEventListener("click", resumeAudio);
+                window.removeEventListener("touchstart", resumeAudio);
+              };
+              window.addEventListener("click", resumeAudio, { once: true });
+              window.addEventListener("touchstart", resumeAudio, { once: true });
             }
           }
         } catch (err) {
@@ -3719,7 +3726,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
                         <p className="text-[11px] text-[#0067A1] font-medium capitalize mt-0.5">{tpl.specialization.replace(/_/g, " ")}</p>
                       )}
                       {tpl.appointment_type && (
-                        <p className="text-[10px] text-slate-500 font-normal mt-0.5 capitalize">{tpl.appointment_type.replace(/_/g, " ")}</p>
+                        <p className="text-[10px] text-slate-500 font-normal mt-0.5 capitalize">{['clinic', 'clinic_visit', 'in_person'].includes(String(tpl.appointment_type).toLowerCase()) ? 'Clinic' : tpl.appointment_type.replace(/_/g, " ")}</p>
                       )}
                     </div>
                     <svg className="w-4 h-4 text-slate-400 group-hover:text-[#0067A1] shrink-0 mt-1 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

@@ -16,7 +16,10 @@ export async function DELETE(req) {
     }
 
     const result = await anonymizePatientAccount(user_id, "PATIENT_REQUEST_DELETE_ACCOUNT");
-    return success("Patient account anonymized and PII erased successfully.", result, 200, { headers: corsHeaders });
+    const response = success("Patient account anonymized and PII erased successfully.", result, 200, { headers: corsHeaders });
+    response.cookies.set("session_id", "", { path: "/", maxAge: 0 });
+    response.cookies.set("token", "", { path: "/", maxAge: 0 });
+    return response;
   } catch (error) {
     console.error("Delete/anonymize patient account error:", error);
     return failure("Failed to process account deletion.", error.message, 500, { headers: corsHeaders });

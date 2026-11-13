@@ -24,6 +24,7 @@ import {
   Lock,
   Download,
   Video,
+  Building2,
   Clock,
   Shield,
   Loader2,
@@ -536,8 +537,17 @@ export default function AdminPrescriptionsPage() {
 
                       <td className="py-2.5 px-3">
                         <span className="inline-flex items-center gap-1 text-[11px] text-slate-600">
-                          <Video className="w-3 h-3 text-[#0067A1]" />
-                          <span>{p.appointment_type ? p.appointment_type.replace(/_/g, " ") : "Teleconsultation"}</span>
+                          {['clinic', 'clinic_visit', 'in_person'].includes(String(p.appointment_type || '').toLowerCase()) ? (
+                            <>
+                              <Building2 className="w-3 h-3 text-[#0067A1]" />
+                              <span>Clinic</span>
+                            </>
+                          ) : (
+                            <>
+                              <Video className="w-3 h-3 text-[#0067A1]" />
+                              <span>{p.appointment_type ? p.appointment_type.replace(/_/g, " ") : "Teleconsultation"}</span>
+                            </>
+                          )}
                         </span>
                       </td>
 
@@ -741,8 +751,17 @@ export default function AdminPrescriptionsPage() {
                   <div>
                     <span className="text-slate-400 block text-[10px]">Consultation Channel</span>
                     <span className="font-medium text-slate-800 flex items-center gap-1">
-                      <Video className="w-3 h-3 text-[#0067A1]" />
-                      <span>{viewPrescription.appointment_type?.replace(/_/g, " ") || "Teleconsultation"}</span>
+                      {['clinic', 'clinic_visit', 'in_person'].includes(String(viewPrescription.appointment_type || '').toLowerCase()) ? (
+                        <>
+                          <Building2 className="w-3 h-3 text-[#0067A1]" />
+                          <span>Clinic</span>
+                        </>
+                      ) : (
+                        <>
+                          <Video className="w-3 h-3 text-[#0067A1]" />
+                          <span>{viewPrescription.appointment_type?.replace(/_/g, " ") || "Teleconsultation"}</span>
+                        </>
+                      )}
                     </span>
                   </div>
 

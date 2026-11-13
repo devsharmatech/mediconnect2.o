@@ -9,6 +9,7 @@ import {
 } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+import { logoutUser } from "@/lib/authHelpers";
 
 // ─── Delete Account Modal ─────────────────────────────────────────────────────
 function DeleteAccountModal({ userId, onClose }) {
@@ -28,9 +29,7 @@ function DeleteAccountModal({ userId, onClose }) {
       const data = await res.json();
       if (data.success) {
         toast.success("Account deleted successfully");
-        localStorage.clear();
-        sessionStorage.clear();
-        router.push("/");
+        logoutUser("patient", "/");
       } else {
         toast.error(data.error || "Failed to delete account");
       }

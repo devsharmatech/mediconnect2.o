@@ -11,6 +11,7 @@ import {
   FaClock,
   FaVideo,
   FaCalendarAlt,
+  FaCalendarCheck,
   FaChevronLeft,
   FaChevronRight,
   FaCheckCircle,
@@ -198,9 +199,9 @@ const DoctorCard = ({ doctor, onBook }) => {
           <button
             type="button"
             onClick={() => onBook(doctor.id)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0067A1] text-white text-sm font-semibold shadow-md shadow-[#0067A1]/20 hover:bg-[#004F7C] transition-all active:scale-95"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#0067A1] text-white text-xs font-semibold shadow-xs hover:bg-[#004F7C] transition-all active:scale-95 cursor-pointer"
           >
-            <FaVideo className="h-3.5 w-3.5" />
+            <FaCalendarCheck className="h-3.5 w-3.5" />
             Book Now
           </button>
         </div>
@@ -242,17 +243,24 @@ const SkeletonCard = () => (
 // ─────────────────────────────────────────────────────────────────────────────
 const CLUSTERS = [
   ["dentistry", "dentist", "dental", "teeth"],
-  ["general physician", "general medicine", "family physician", "gp", "physician"],
-  ["gynecology", "gynaecology", "gynecologist", "obstetrics", "obgyn"],
-  ["pediatrics", "paediatrics", "pediatrician", "child", "children"],
+  ["general physician", "general medicine", "family physician", "family medicine", "internal medicine", "gp", "physician"],
+  ["gynecology", "gynaecology", "gynecologist", "obstetrics", "obgyn", "gynecology & obstetrics", "obstetrics & gynecology"],
+  ["pediatrics", "paediatrics", "pediatrician", "child", "children", "neonatology"],
   ["orthopedics", "orthopaedics", "orthopedic", "bone", "joints"],
-  ["ent", "ear nose throat", "otolaryngology"],
+  ["ent", "ear nose throat", "otolaryngology", "otorhinolaryngology"],
   ["cardiology", "cardiologist", "heart", "cardio"],
   ["ophthalmology", "eye", "ophthalmologist", "vision"],
-  ["dermatology", "skin", "dermatologist", "hair"],
+  ["dermatology", "skin", "dermatologist", "hair", "cosmetology"],
   ["psychiatry", "mental health", "psychiatrist", "psychology"],
   ["nephrology", "nephrologist", "kidney", "renal"],
   ["surgery", "surgeon", "general surgery", "surgical"],
+  ["pulmonology", "pulmonologist", "chest", "lung", "respiratory"],
+  ["gastroenterology", "gastroenterologist", "gastro", "digestive", "stomach", "liver"],
+  ["urology", "urologist", "urinary"],
+  ["oncology", "oncologist", "cancer"],
+  ["endocrinology", "endocrinologist", "diabetes", "diabetic", "thyroid"],
+  ["rheumatology", "rheumatologist", "arthritis"],
+  ["physiotherapy", "physiotherapist", "physical therapy"],
 ];
 
 const matchesSpecialty = (docSpecialty, filter) => {
@@ -261,6 +269,8 @@ const matchesSpecialty = (docSpecialty, filter) => {
   if (!target || target === "all specialties") return true;
   if (docSpec === target) return true;
 
+  const tokens = docSpec.split(",").map(t => t.trim()).filter(Boolean);
+
   const hasWord = (str, word) => {
     if (!str || !word) return false;
     const escaped = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -268,11 +278,20 @@ const matchesSpecialty = (docSpecialty, filter) => {
     return regex.test(str);
   };
 
-  // Exact negative guards for common collisions (e.g. ENT vs Dentistry/Gastroenterology)
+  const isUro = (str) => (str.startsWith("uro") || (/\burolog/i).test(str)) && !str.includes("neuro");
+  const isNeuro = (str) => str.includes("neuro") && !str.startsWith("uro") && !(/\burolog/i).test(str);
+
+  // Exact negative guards for common collisions (e.g. ENT vs Dentistry, Urology vs Neurology)
   if (target === "ent" && (docSpec.includes("dentist") || docSpec.includes("dental") || docSpec.includes("gastro"))) {
     return false;
   }
-  if ((target.includes("dentist") || target.includes("dental")) && docSpec === "ent") {
+  if ((target.includes("dentist") || target.includes("dental")) && hasWord(docSpec, "ent") && !docSpec.includes("dent")) {
+    return false;
+  }
+  if (isUro(target) && isNeuro(docSpec)) {
+    return false;
+  }
+  if (isNeuro(target) && isUro(docSpec)) {
     return false;
   }
 
@@ -287,20 +306,20 @@ const matchesSpecialty = (docSpecialty, filter) => {
     if (inFilter) {
       const inDoc = cluster.some((w) => {
         if (w.length <= 3) {
-          return hasWord(docSpec, w) || docSpec === w;
+          return hasWord(docSpec, w) || docSpec === w || tokens.some(t => hasWord(t, w) || t === w);
         }
-        return docSpec.includes(w);
+        return docSpec.includes(w) || tokens.some(t => t.includes(w));
       });
       if (inDoc) return true;
     }
   }
 
   if (target.length <= 3) {
-    return hasWord(docSpec, target);
+    return hasWord(docSpec, target) || tokens.some(t => hasWord(t, target));
   }
-  if (target === "urology" && docSpec.includes("neurology")) return false;
-  if (target === "neurology" && docSpec.includes("urology") && !docSpec.includes("neurology")) return false;
-  return docSpec.includes(target) || (target.length >= 4 && target.includes(docSpec));
+  if (isUro(target) && isNeuro(docSpec)) return false;
+  if (isNeuro(target) && isUro(docSpec)) return false;
+  return docSpec.includes(target) || (target.length >= 4 && target.includes(docSpec)) || tokens.some(t => t.includes(target));
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -309,16 +328,29 @@ const matchesSpecialty = (docSpecialty, filter) => {
 const DEFAULT_SPECIALTIES = [
   "All Specialties",
   "General Physician",
-  "Cardiology",
   "Dermatology",
-  "Pediatrics",
-  "Orthopedics",
   "Gynecology",
-  "Neurology",
-  "Psychiatry",
-  "ENT",
+  "Pediatrics",
+  "Gynecology & Obstetrics",
+  "Orthopedics",
   "Ophthalmology",
+  "Cardiology",
+  "Neurology",
+  "Endocrinology",
+  "Nephrologist",
+  "Psychiatry",
   "Dentistry",
+  "Pulmonology",
+  "Gastroenterology",
+  "Surgery",
+  "ENT",
+  "Urology",
+  "Nephrology",
+  "Oncology",
+  "Rheumatology",
+  "Dental",
+  "Physiotherapy",
+  "General Surgery",
 ];
 
 const PAGE_SIZE = 9;
@@ -335,8 +367,27 @@ export default function FindDoctorsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState("default"); // default | fee_asc | fee_desc | exp_desc
 
-  // ── Parse URL params on mount ──────────────────────────────────────────────
+  // ── Parse URL params & fetch CMS specialties on mount ─────────────────────────
   useEffect(() => {
+    async function fetchCmsSpecialties() {
+      try {
+        const res = await fetch("/api/cms/specialties");
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const active = json.data
+            .filter((s) => s.is_active !== false)
+            .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || (a.name || "").localeCompare(b.name || ""));
+          const cmsNames = active.map((s) => s.name?.trim()).filter(Boolean);
+          if (cmsNames.length > 0) {
+            setSpecialties(["All Specialties", ...new Set(cmsNames)]);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch CMS specialties", err);
+      }
+    }
+    fetchCmsSpecialties();
+
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const spec = params.get("specialty");
@@ -409,6 +460,23 @@ export default function FindDoctorsPage() {
           const s = d.specialty.split(",")[0].trim();
           return s;
         }))];
+        // Load specialties from CMS
+        try {
+          const cmsRes = await fetch("/api/cms/specialties");
+          const cmsJson = await cmsRes.json();
+          if (cmsJson.success && Array.isArray(cmsJson.data) && cmsJson.data.length > 0) {
+            const cmsNames = cmsJson.data
+              .filter((s) => s.is_active !== false)
+              .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || (a.name || "").localeCompare(b.name || ""))
+              .map((s) => s.name?.trim())
+              .filter(Boolean);
+            if (cmsNames.length > 0) {
+              setSpecialties(["All Specialties", ...new Set(cmsNames)]);
+              return;
+            }
+          }
+        } catch (_) {}
+
         const merged = ["All Specialties", ...new Set([...docSpecialties, ...DEFAULT_SPECIALTIES.slice(1)])];
         setSpecialties(merged);
       } catch (err) {
@@ -460,7 +528,9 @@ export default function FindDoctorsPage() {
 
   const visible = filtered.slice(0, visibleCount);
 
-  const handleBook = (id) => router.push(`/website/doctor/${id}`);
+  const handleBook = (id) => {
+    router.push(`/doctor/${id}`);
+  };
 
   const resetFilters = () => {
     setSearch("");
@@ -474,7 +544,7 @@ export default function FindDoctorsPage() {
   return (
     <div className="min-h-screen">
       {/* ── Page Header ─────────────────────────────────────────────────────── */}
-      <div className="bg-gradient-to-br from-[#0067A1] via-[#0080C6] to-[#0067A1] rounded-2xl px-5 py-8 mb-6 relative overflow-hidden">
+      <div className="bg-[#0067A1] border border-[#005585] rounded-2xl px-5 py-8 mb-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-48 h-48 bg-white/5 rounded-full -mr-24 -mt-24" />
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full -ml-16 -mb-16" />
         <div className="relative">

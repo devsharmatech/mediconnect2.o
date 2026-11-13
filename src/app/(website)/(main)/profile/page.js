@@ -21,6 +21,7 @@ import api from '@/utils/websiteApi';
 import EditProfileModal from "@/components/public-site/profile/EditProfileModal";
 import AbhaConnectModal from "@/components/public-site/abha/AbhaConnectModal";
 import { LoadingScreen } from "@/components/public-site/ui/LoadingStates";
+import { logoutUser } from "@/lib/authHelpers";
 
 export default function ProfilePage() {
   // Modal state
@@ -281,9 +282,8 @@ export default function ProfilePage() {
       if (!data.success) throw new Error(data.error || data.message || "Failed to anonymize data");
       toast.success("Your data has been anonymized. You will be logged out.", { id: toastId });
       setTimeout(() => {
-        localStorage.clear();
-        window.location.href = "/";
-      }, 2000);
+        logoutUser("patient", "/");
+      }, 1500);
     } catch (err) {
       console.error(err);
       toast.error(err.message, { id: toastId });

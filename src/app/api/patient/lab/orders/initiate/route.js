@@ -36,14 +36,27 @@ export async function POST(req) {
             return failure("At least one test is required", null, 400);
         }
 
-        // ── 2. Validate address ───────────────────────────────────
-        if (!address || !address.full_address) {
-            return failure("Delivery/visit address is required", null, 400);
-        }
-
-        // ── 3. Validate visit_type ────────────────────────────────
+        // ── 2. Validate visit_type ────────────────────────────────
         const validVisitTypes = ["home_collection", "walk_in"];
         const selectedVisitType = validVisitTypes.includes(visit_type) ? visit_type : "home_collection";
+
+        // ── 3. Validate address ───────────────────────────────────
+        let orderAddress = address;
+        if (selectedVisitType === "home_collection") {
+            if (!orderAddress || !orderAddress.full_address) {
+                return failure("Collection address is required for home sample collection", null, 400);
+            }
+        } else {
+            // For walk-in visits, patient visits the diagnostic center directly; residential address is optional
+            if (!orderAddress || !orderAddress.full_address) {
+                orderAddress = {
+                    full_address: "Walk-in Diagnostic Center Visit",
+                    city: address?.city || "In-Lab",
+                    pincode: address?.pincode || "000000",
+                    is_walk_in: true,
+                };
+            }
+        }
 
         // ── 4. Validate Indian Medical Law Consents ───────────────
         if (!consents || typeof consents !== "object") {
@@ -218,7 +231,7 @@ export async function POST(req) {
                 ${totalAmount},
                 ${patient_notes || null},
                 ${razorpayOrder ? razorpayOrder.id : null},
-                ${sql.json(address)},
+                ${sql.json(orderAddress)},
                 ${selectedVisitType},
                 NOW(),
                 NOW()

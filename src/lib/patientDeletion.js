@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseAdmin";
+import sql from "@/lib/db";
 import { deleteFromS3, extractKeyFromUrl } from "@/lib/s3";
 import { randomUUID } from "crypto";
 
@@ -85,7 +86,22 @@ export async function anonymizePatientAccount(userId, reason = "USER_REQUEST") {
   const anonymizedHash = randomUUID().replace(/-/g, "").substring(0, 10);
   const nowIso = new Date().toISOString();
 
-  // 2. Anonymize Base User (Mask phone_number, clear OTP/tokens, remove avatar)
+  // 2. Anonymize Base User (Mask phone_number, clear OTP/tokens, remove avatar, set status to deleted)
+  try {
+    await sql`
+      UPDATE users
+      SET phone_number = ${`ANONYMIZED_${anonymizedHash}`},
+          profile_picture = NULL,
+          otp_code = NULL,
+          otp_expires_at = NULL,
+          status = 'deleted',
+          updated_at = NOW()
+      WHERE id = ${userId}
+    `;
+  } catch (sqlErr) {
+    console.error("[DPDP ANONYMIZE] RDS update users error:", sqlErr.message);
+  }
+
   const { error: userErr } = await supabase
     .from("users")
     .update({
@@ -99,10 +115,26 @@ export async function anonymizePatientAccount(userId, reason = "USER_REQUEST") {
 
   if (userErr) {
     console.error("[DPDP ANONYMIZE] Error updating users:", userErr);
-    throw new Error(`Failed to anonymize user record: ${userErr.message}`);
   }
 
   // 3. Anonymize Patient Details Table (Scrub full_name, email, address, DOB, emergency contact)
+  try {
+    await sql`
+      UPDATE patient_details
+      SET full_name = 'DE-IDENTIFIED PATIENT',
+          email = ${`anonymized_${anonymizedHash}@mediconnect.fit`},
+          address = 'ANONYMIZED',
+          date_of_birth = '1970-01-01',
+          emergency_contact = NULL,
+          blood_group = NULL,
+          gender = 'other',
+          updated_at = NOW()
+      WHERE id = ${userId}
+    `;
+  } catch (sqlErr) {
+    console.error("[DPDP ANONYMIZE] RDS update patient_details error:", sqlErr.message);
+  }
+
   const { error: detailsErr } = await supabase
     .from("patient_details")
     .update({

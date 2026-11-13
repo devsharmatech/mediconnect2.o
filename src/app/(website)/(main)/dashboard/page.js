@@ -28,6 +28,7 @@ import {
   FaFilter,
 } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
+import { logoutUser } from "@/lib/authHelpers";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import ConsentGate from "@/components/public-site/auth/ConsentGate";
@@ -57,18 +58,6 @@ const Dashboard = () => {
 
   useEffect(() => {
     const role = localStorage.getItem("userRole");
-    if (role === "doctor") {
-      router.replace("/doctor");
-      return;
-    }
-    if (role === "chemist") {
-      router.replace("/chemist/dashboard");
-      return;
-    }
-    if (role === "lab") {
-      router.replace("/lab/dashboard");
-      return;
-    }
     if (role === "admin") {
       router.replace("/admin/dashboard");
       return;
@@ -99,6 +88,15 @@ const Dashboard = () => {
       parsed = { id: localStorage.getItem("userId") };
     }
     if (parsed) {
+      if (
+        parsed?.full_name === "DE-IDENTIFIED PATIENT" ||
+        parsed?.details?.full_name === "DE-IDENTIFIED PATIENT" ||
+        String(parsed?.phone_number || "").startsWith("ANONYMIZED_") ||
+        String(parsed?.email || "").startsWith("anonymized_")
+      ) {
+        logoutUser("patient", "/");
+        return;
+      }
       setUser(parsed);
       const uid = parsed.id || parsed.user_id || parsed.user?.id;
       if (uid) {
@@ -227,7 +225,7 @@ const Dashboard = () => {
   const firstName = (() => {
     const details = user?.user?.details || user?.details;
     const name = details?.full_name || user?.user?.full_name || user?.full_name || user?.name;
-    if (!name) return "";
+    if (!name || name === "DE-IDENTIFIED PATIENT") return "";
     return name.split(" ")[0];
   })();
 
@@ -239,18 +237,22 @@ const Dashboard = () => {
   })();
 
   const quickActions = [
-    { label: "Appointments", sub: "Book & manage", href: "/appointments", image: "/images/dashboard-icons/appointments.png", gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50/80", text: "text-[#004F7C]" },
-    { label: "Video Consult", sub: "Talk to doctors", href: "/doctors?mode=video", image: "/images/dashboard-icons/video-consult.png", gradient: "from-sky-500 to-blue-600", bg: "bg-sky-50/80", text: "text-sky-600" },
-    { label: "LungConnect", sub: "Breathe better", href: "/lung-connect", image: "/images/dashboard-icons/lung-connect.png", gradient: "from-teal-500 to-emerald-600", bg: "bg-teal-50/80", text: "text-[#0067A1]" },
-    { label: "CardioConnect", sub: "Heart vitals & care", href: "/cardio-connect", image: "/images/dashboard-icons/cardio-connect.png", gradient: "from-rose-500 to-pink-600", bg: "bg-rose-50/80", text: "text-rose-600" },
-    { label: "Medicines", sub: "Order online", href: "/medicine-order", image: "/images/dashboard-icons/medicines.png", gradient: "from-amber-500 to-orange-600", bg: "bg-amber-50/80", text: "text-amber-700" },
-    { label: "Lab Reports", sub: "Records & tests", href: "/lab-reports", image: "/images/dashboard-icons/medical-records.png", gradient: "from-purple-500 to-violet-600", bg: "bg-purple-50/80", text: "text-purple-700" },
-    { label: "Nursing Care", sub: "Home nurse care", href: "/nursing-care/status", image: "/images/dashboard-icons/nursing-care.png", gradient: "from-fuchsia-500 to-purple-600", bg: "bg-fuchsia-50/80", text: "text-fuchsia-700" },
-    { label: "Digital Locker", sub: "Secure health vault", href: "/digital-locker", image: "/images/dashboard-icons/digilocker.png", gradient: "from-slate-500 to-gray-700", bg: "bg-slate-50/80", text: "text-slate-700" },
-    { label: "Lab Tests", sub: "Sample collection", href: "/dashboard/lab-booking", image: "/images/dashboard-icons/lab-tests.png", gradient: "from-blue-500 to-indigo-600", bg: "bg-blue-50/80", text: "text-[#004F7C]" },
-    { label: "Home Doctor", sub: "Doctor at home", href: "/doctors?mode=home", image: "/images/dashboard-icons/home-visit.png", gradient: "from-rose-500 to-red-600", bg: "bg-rose-50/80", text: "text-rose-700" },
-    { label: "Breathing", sub: "Relax & exercise", href: "/lung-connect?action=breathing", image: "/images/dashboard-icons/lung-connect.png", gradient: "from-emerald-400 to-teal-500", bg: "bg-emerald-50/80", text: "text-emerald-700" },
-    { label: "Health Assistant", sub: "24/7 AI guide", onClick: () => window.dispatchEvent(new CustomEvent("open-dr-mediconnect-chat")), image: "/images/dashboard-icons/consultation.png", gradient: "from-emerald-500 to-teal-600", bg: "bg-emerald-50/80", text: "text-emerald-700" },
+    // 1. Doctor Consultations
+    { label: "Appointments", sub: "Book & manage", href: "/appointments", image: "/images/dashboard-icons/appointments.png", bg: "bg-teal-50/80", text: "text-[#004F7C]" },
+    { label: "Video Consult", sub: "Online doctor", href: "/doctors?mode=video", image: "/images/dashboard-icons/video-consult.png", bg: "bg-sky-50/80", text: "text-sky-600" },
+    { label: "Home Doctor", sub: "Doctor at home", href: "/doctors?mode=home", image: "/images/dashboard-icons/home-visit.png", bg: "bg-rose-50/80", text: "text-rose-700" },
+    // 2. Pharmacy & Diagnostics
+    { label: "Medicines", sub: "Order online", href: "/medicine-order", image: "/images/dashboard-icons/medicines.png", bg: "bg-amber-50/80", text: "text-amber-700" },
+    { label: "Lab Tests", sub: "Book lab & home", href: "/dashboard/lab-booking", image: "/images/dashboard-icons/lab-tests.png", bg: "bg-blue-50/80", text: "text-[#004F7C]" },
+    { label: "Lab Reports", sub: "Records & results", href: "/lab-reports", image: "/images/dashboard-icons/medical-records.png", bg: "bg-purple-50/80", text: "text-purple-700" },
+    // 3. Specialized Care Hubs
+    { label: "LungConnect", sub: "Breathe better", href: "/lung-connect", image: "/images/dashboard-icons/lung-connect.png", bg: "bg-teal-50/80", text: "text-[#0067A1]" },
+    { label: "CardioConnect", sub: "Heart vitals & care", href: "/cardio-connect", image: "/images/dashboard-icons/cardio-connect.png", bg: "bg-rose-50/80", text: "text-rose-600" },
+    { label: "Nursing Care", sub: "Home nurse care", href: "/nursing-care/status", image: "/images/dashboard-icons/nursing-care.png", bg: "bg-fuchsia-50/80", text: "text-fuchsia-700" },
+    // 4. Digital Vault & AI Tools
+    { label: "Digital Locker", sub: "Secure health vault", href: "/digital-locker", image: "/images/dashboard-icons/digilocker.png", bg: "bg-slate-50/80", text: "text-slate-700" },
+    { label: "Breathing", sub: "Relax & exercise", href: "/lung-connect?action=breathing", image: "/images/dashboard-icons/lung-connect.png", bg: "bg-emerald-50/80", text: "text-emerald-700" },
+    { label: "AI Assistant", sub: "24/7 Health guide", onClick: () => window.dispatchEvent(new CustomEvent("open-dr-mediconnect-chat")), image: "/images/dashboard-icons/consultation.png", bg: "bg-emerald-50/80", text: "text-emerald-700" },
   ];
 
   return (

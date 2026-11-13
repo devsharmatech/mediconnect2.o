@@ -45,6 +45,13 @@ export default function PatientSidebar({
   const [localCollapsed, setLocalCollapsed] = useState(false);
   const isCollapsed = propCollapsed !== undefined ? propCollapsed : localCollapsed;
   const setIsCollapsed = propSetCollapsed !== undefined ? propSetCollapsed : setLocalCollapsed;
+  const [userRole, setUserRole] = useState(null);
+
+  useEffect(() => {
+    try {
+      setUserRole(localStorage.getItem("userRole"));
+    } catch (_) {}
+  }, []);
 
   const navRef = useRef(null);
   const [openGroups, setOpenGroups] = useState(() => {
@@ -84,8 +91,13 @@ export default function PatientSidebar({
       user?.name ||
       ""
     );
+    if (raw === "DE-IDENTIFIED PATIENT" || String(user?.phone_number || "").startsWith("ANONYMIZED_")) {
+      logoutUser("patient", "/");
+      return "Patient";
+    }
     if (!raw || raw.trim().toLowerCase() === "administrator" || raw.trim().toLowerCase() === "admin") {
-      return user?.admin_name || "Dev Sharma";
+      if (user?.role === "admin" && user?.admin_name) return user.admin_name;
+      return user?.phone_number ? `Patient (${String(user.phone_number).slice(-4)})` : "Patient";
     }
     return raw;
   };
@@ -554,6 +566,31 @@ export default function PatientSidebar({
 
         {/* Footer actions */}
         <div className="p-4 shrink-0 border-t border-white/10 bg-black/10">
+          {userRole === "doctor" && (
+            <Link
+              href="/doctor"
+              className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[#0067A1] text-white text-xs font-semibold hover:bg-[#005282] transition-colors w-full mb-3 shadow-xs"
+            >
+              <FaUserMd className="w-3.5 h-3.5" />
+              <span>Doctor Portal</span>
+            </Link>
+          )}
+          {userRole === "chemist" && (
+            <Link
+              href="/chemist/dashboard"
+              className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 transition-colors w-full mb-3 shadow-xs"
+            >
+              <span>Chemist Portal</span>
+            </Link>
+          )}
+          {userRole === "lab" && (
+            <Link
+              href="/lab/dashboard"
+              className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors w-full mb-3 shadow-xs"
+            >
+              <span>Lab Portal</span>
+            </Link>
+          )}
           <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-[5px] border border-white/10 mb-3 overflow-hidden">
             <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-400 flex items-center justify-center text-[#003358] font-bold text-sm shadow-md overflow-hidden">
               {avatarUrl && !imageError ? (
@@ -575,7 +612,7 @@ export default function PatientSidebar({
               </p>
               <p className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                Patient
+                {userRole === "doctor" ? "Doctor (Patient View)" : userRole === "chemist" ? "Chemist (Patient View)" : userRole === "lab" ? "Lab (Patient View)" : "Patient"}
               </p>
             </div>
           </div>

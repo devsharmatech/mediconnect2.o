@@ -3,21 +3,40 @@ import sql from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req) {
     try {
+        const { searchParams } = new URL(req?.url || "http://localhost/api/cms/specialties");
+        const activeOnly = searchParams.get("active_only") === "true";
+
         let data;
         try {
-            data = await sql`
-                SELECT * FROM specialty 
-                ORDER BY display_order ASC
-            `;
+            if (activeOnly) {
+                data = await sql`
+                    SELECT * FROM specialty 
+                    WHERE is_active = true
+                    ORDER BY display_order ASC, name ASC
+                `;
+            } else {
+                data = await sql`
+                    SELECT * FROM specialty 
+                    ORDER BY display_order ASC, name ASC
+                `;
+            }
         } catch (firstErr) {
             if (firstErr?.code === 'CONNECT_TIMEOUT' || firstErr?.message?.includes('CONNECT_TIMEOUT')) {
                 console.warn("[specialties] Retrying query after initial connect timeout...");
-                data = await sql`
-                    SELECT * FROM specialty 
-                    ORDER BY display_order ASC
-                `;
+                if (activeOnly) {
+                    data = await sql`
+                        SELECT * FROM specialty 
+                        WHERE is_active = true
+                        ORDER BY display_order ASC, name ASC
+                    `;
+                } else {
+                    data = await sql`
+                        SELECT * FROM specialty 
+                        ORDER BY display_order ASC, name ASC
+                    `;
+                }
             } else {
                 throw firstErr;
             }
@@ -30,17 +49,29 @@ export async function GET() {
             error: err.message,
             data: [
                 { id: "gp", name: "General Physician", is_active: true, display_order: 1 },
-                { id: "cardio", name: "Cardiology", is_active: true, display_order: 2 },
-                { id: "derma", name: "Dermatology", is_active: true, display_order: 3 },
+                { id: "derma", name: "Dermatology", is_active: true, display_order: 2 },
+                { id: "gynae", name: "Gynecology", is_active: true, display_order: 3 },
                 { id: "ped", name: "Pediatrics", is_active: true, display_order: 4 },
-                { id: "neuro", name: "Neurology", is_active: true, display_order: 5 },
-                { id: "ortho", name: "Orthopedics", is_active: true, display_order: 6 },
-                { id: "gynae", name: "Gynecology", is_active: true, display_order: 7 },
-                { id: "dent", name: "Dentistry", is_active: true, display_order: 8 },
-                { id: "psych", name: "Psychiatry", is_active: true, display_order: 9 },
-                { id: "ent", name: "ENT", is_active: true, display_order: 10 },
-                { id: "eye", name: "Ophthalmology", is_active: true, display_order: 11 },
-                { id: "pulm", name: "Pulmonology", is_active: true, display_order: 12 },
+                { id: "gynae_obs", name: "Gynecology & Obstetrics", is_active: true, display_order: 5 },
+                { id: "ortho", name: "Orthopedics", is_active: true, display_order: 5 },
+                { id: "eye", name: "Ophthalmology", is_active: true, display_order: 6 },
+                { id: "cardio", name: "Cardiology", is_active: true, display_order: 7 },
+                { id: "neuro", name: "Neurology", is_active: true, display_order: 7 },
+                { id: "endo", name: "Endocrinology", is_active: true, display_order: 8 },
+                { id: "nephro_doc", name: "Nephrologist", is_active: true, display_order: 9 },
+                { id: "psych", name: "Psychiatry", is_active: true, display_order: 10 },
+                { id: "dent", name: "Dentistry", is_active: true, display_order: 11 },
+                { id: "pulm", name: "Pulmonology", is_active: true, display_order: 11 },
+                { id: "gastro", name: "Gastroenterology", is_active: true, display_order: 12 },
+                { id: "surg", name: "Surgery", is_active: true, display_order: 12 },
+                { id: "ent", name: "ENT", is_active: true, display_order: 13 },
+                { id: "uro", name: "Urology", is_active: true, display_order: 13 },
+                { id: "nephro", name: "Nephrology", is_active: true, display_order: 15 },
+                { id: "onco", name: "Oncology", is_active: true, display_order: 16 },
+                { id: "rheuma", name: "Rheumatology", is_active: true, display_order: 17 },
+                { id: "dental", name: "Dental", is_active: true, display_order: 18 },
+                { id: "physio", name: "Physiotherapy", is_active: true, display_order: 19 },
+                { id: "gen_surg", name: "General Surgery", is_active: true, display_order: 20 },
             ]
         }, { status: 200 });
     }
