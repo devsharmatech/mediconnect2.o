@@ -534,8 +534,8 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
         video_slots: details.video_slots || {},
         home_slots: details.home_slots || {},
         qualification: qualificationArray,
-        video_consultation_fee: details.video_consultation_fee || "",
-        clinic_consultation_fee: details.clinic_consultation_fee || "",
+        video_consultation_fee: details.video_consultation_fee ?? (details.consultation_fee || ""),
+        clinic_consultation_fee: details.clinic_consultation_fee ?? (details.consultation_fee || ""),
         home_visit_fee: details.home_visit_fee || "",
         insurance: details.indemnity_insurance || "",
         // Identity fields from KYC
@@ -572,9 +572,9 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
       });
       setSignatureData(Array.isArray(details.signature_url) ? details.signature_url[0] : (details.signature_url || ""));
       setFeeModes({
-        video: Boolean(details.video_consultation_fee && Number(details.video_consultation_fee) > 0),
-        clinic: Boolean(details.clinic_consultation_fee && Number(details.clinic_consultation_fee) > 0),
-        home: Boolean(details.home_visit_fee && Number(details.home_visit_fee) > 0),
+        video: Boolean(Number(details.video_consultation_fee ?? details.consultation_fee) > 0),
+        clinic: Boolean(Number(details.clinic_consultation_fee ?? details.consultation_fee) > 0),
+        home: Boolean(Number(details.home_visit_fee) > 0),
       });
     } else {
       setFeeModes({ video: true, clinic: true, home: false });
@@ -1064,6 +1064,12 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
       Object.entries(uploadedUrls).forEach(([key, urls]) => {
         submitFormData.append(key, JSON.stringify(urls));
       });
+
+      // Explicitly append primary consultation_fee
+      submitFormData.append(
+        "consultation_fee",
+        formData.clinic_consultation_fee || formData.video_consultation_fee || formData.home_visit_fee || "0"
+      );
 
       // Add ID for updates
       if (doctor) {
@@ -2532,12 +2538,14 @@ function DoctorDetailsModal({ doctor, isOpen, onClose }) {
   };
 
   const getProfilePhoto = () => {
-    if (doctor?.profile_picture && doctor.profile_picture !== "[]") return doctor.profile_picture;
+    if (!doctor) return null;
+    const pic = doctor.profile_picture;
+    if (pic && pic !== "[]" && pic !== "null" && typeof pic === "string" && pic.startsWith("http") && !pic.includes("placehold.co")) return pic;
     const passport = details.passport_photo;
-    if (Array.isArray(passport) && passport.length > 0) return passport[0];
-    if (typeof passport === "string" && passport && passport !== "[]") return passport;
-    // Fallback placeholder when no passport photo is available
-    return "https://placehold.co/96x96?text=DR";
+    if (Array.isArray(passport) && passport.length > 0 && passport[0]?.startsWith("http")) return passport[0];
+    if (typeof passport === "string" && passport && passport !== "[]" && passport.startsWith("http")) return passport;
+    const docName = details.full_name || "Doctor";
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(docName.trim())}&background=0067A1&color=fff&bold=true`;
   };
 
   const getFileNameFromUrl = (url) => {
@@ -2615,7 +2623,12 @@ function DoctorDetailsModal({ doctor, isOpen, onClose }) {
                         whileHover={{ scale: 1.05 }}
                         className="h-24 w-24 rounded-full object-cover shadow-xl border-4 border-gray-300 dark:border-gray-700"
                         src={getProfilePhoto()}
-                        alt=""
+                        alt={details.full_name || "Doctor"}
+                        onError={(e) => {
+                          const docName = details.full_name || doctor?.doctor_details?.full_name || "Doctor";
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(docName.trim())}&background=0067A1&color=fff&bold=true`;
+                        }}
                       />
                     ) : (
                       <motion.div
@@ -2636,7 +2649,7 @@ function DoctorDetailsModal({ doctor, isOpen, onClose }) {
                     <div className="flex flex-wrap gap-2">
                       <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
                         <BadgeCheck size={14} className="mr-1" />
-                        ID: {formatDoctorUnId(doctor.un_id)}
+                        ID: {doctor.doctor_details?.license_number || formatDoctorUnId(doctor.un_id)}
                       </span>
                       <span
                         className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
@@ -2652,12 +2665,12 @@ function DoctorDetailsModal({ doctor, isOpen, onClose }) {
                       >
                         {details.onboarding_status || "pending"}
                       </span>
-                      {details.rating && (
+                      {Number(details.rating) > 0 ? (
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
                           <Star size={14} className="mr-1" />
                           {details.rating} ⭐ ({details.total_reviews || 0} reviews)
                         </span>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -2755,44 +2768,41 @@ function DoctorDetailsModal({ doctor, isOpen, onClose }) {
                         </div>
                         {(() => {
                           const fees = [];
-                          if (details.video_consultation_fee && parseFloat(details.video_consultation_fee) > 0) {
-                            fees.push({ label: "Video Consultation Fee", value: details.video_consultation_fee });
+                          const clinicVal = details.clinic_consultation_fee ?? details.consultation_fee;
+                          const videoVal = details.video_consultation_fee;
+                          const homeVal = details.home_visit_fee;
+                          const baseVal = details.consultation_fee;
+
+                          if (clinicVal && parseFloat(clinicVal) > 0) {
+                            fees.push({ label: "Clinic Consultation Fee", value: clinicVal });
                           }
-                          if (details.clinic_consultation_fee && parseFloat(details.clinic_consultation_fee) > 0) {
-                            fees.push({ label: "Clinic Consultation Fee", value: details.clinic_consultation_fee });
+                          if (videoVal && parseFloat(videoVal) > 0) {
+                            fees.push({ label: "Video Consultation Fee", value: videoVal });
                           }
-                          if (details.home_visit_fee && parseFloat(details.home_visit_fee) > 0) {
-                            fees.push({ label: "Home Visit Fee", value: details.home_visit_fee });
+                          if (homeVal && parseFloat(homeVal) > 0) {
+                            fees.push({ label: "Home Visit Fee", value: homeVal });
                           }
 
-                          if (fees.length > 0) {
-                            return fees.map((fee, idx) => (
-                              <div
-                                key={fee.label}
-                                className={`flex justify-between items-center py-2 ${
-                                  idx < fees.length - 1 ? "border-b border-gray-200 dark:border-gray-700" : ""
-                                }`}
-                              >
-                                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                                  {fee.label}
-                                </span>
-                                <span className="text-sm text-gray-900 dark:text-white font-medium">
-                                  ₹{parseFloat(fee.value).toFixed(2)}
-                                </span>
-                              </div>
-                            ));
-                          } else {
-                            return (
-                              <div className="flex justify-between items-center py-2">
-                                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                                  Consultation Fee
-                                </span>
-                                <span className="text-sm text-gray-900 dark:text-white font-medium">
-                                  ₹{parseFloat(details.consultation_fee || "0").toFixed(2)}
-                                </span>
-                              </div>
-                            );
+                          if (fees.length === 0) {
+                            const val = baseVal && parseFloat(baseVal) > 0 ? baseVal : "0.00";
+                            fees.push({ label: "Consultation Fee", value: val });
                           }
+
+                          return fees.map((fee, idx) => (
+                            <div
+                              key={fee.label}
+                              className={`flex justify-between items-center py-2 ${
+                                idx < fees.length - 1 ? "border-b border-gray-200 dark:border-gray-700" : ""
+                              }`}
+                            >
+                              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                                {fee.label}
+                              </span>
+                              <span className="text-sm text-gray-900 dark:text-white font-medium">
+                                ₹{parseFloat(fee.value).toFixed(2)}
+                              </span>
+                            </div>
+                          ));
                         })()}
                       </div>
                     </div>
@@ -3132,16 +3142,16 @@ function DoctorDetailsModal({ doctor, isOpen, onClose }) {
                         </div>
 
                         {/* Indemnity Insurance */}
-                        {details.indemnity_insurance && (
-                          <div className="flex justify-between items-center py-2">
+                        {Number(details.indemnity_insurance) > 0 ? (
+                          <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
                             <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                               Indemnity Insurance
                             </span>
                             <span className="text-sm text-gray-900 dark:text-white font-medium">
-                              ₹{details.indemnity_insurance}
+                              ₹{parseFloat(details.indemnity_insurance).toLocaleString("en-IN")}
                             </span>
                           </div>
-                        )}
+                        ) : null}
 
                         {/* Bank Details */}
                         {details.bank_account_details && (
@@ -3766,13 +3776,16 @@ export default function DoctorsPage() {
   };
 
   const getProfilePhoto = (doctor) => {
-    if (doctor.profile_picture && doctor.profile_picture !== "[]") return doctor.profile_picture;
-    if (doctor.users?.profile_picture && doctor.users.profile_picture !== "[]") return doctor.users.profile_picture;
+    if (!doctor) return null;
+    const pic = doctor.profile_picture;
+    if (pic && pic !== "[]" && pic !== "null" && typeof pic === "string" && pic.startsWith("http") && !pic.includes("placehold.co")) return pic;
+    const userPic = doctor.users?.profile_picture;
+    if (userPic && userPic !== "[]" && userPic !== "null" && typeof userPic === "string" && userPic.startsWith("http") && !userPic.includes("placehold.co")) return userPic;
     const passport = doctor.doctor_details?.passport_photo;
-    if (Array.isArray(passport) && passport.length > 0) return passport[0];
-    if (typeof passport === "string" && passport && passport !== "[]") return passport;
-    // Fallback placeholder when no passport photo is available
-    return "https://placehold.co/40x40?text=DR";
+    if (Array.isArray(passport) && passport.length > 0 && passport[0]?.startsWith("http")) return passport[0];
+    if (typeof passport === "string" && passport && passport !== "[]" && passport.startsWith("http")) return passport;
+    const docName = doctor.doctor_details?.full_name || "Doctor";
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(docName.trim())}&background=0067A1&color=fff&bold=true`;
   };
 
   return (
@@ -4163,7 +4176,12 @@ export default function DoctorsPage() {
                                       whileHover={{ scale: 1.1 }}
                                       className="h-10 w-10 rounded-full object-cover shadow-sm"
                                       src={getProfilePhoto(doctor)}
-                                      alt=""
+                                      alt={doctor.doctor_details?.full_name || "Doctor"}
+                                      onError={(e) => {
+                                        const docName = doctor.doctor_details?.full_name || "Doctor";
+                                        e.currentTarget.onerror = null;
+                                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(docName.trim())}&background=0067A1&color=fff&bold=true`;
+                                      }}
                                     />
                                   ) : (
                                     <motion.div
@@ -4197,8 +4215,17 @@ export default function DoctorsPage() {
                                       </span>
                                     )}
                                   </div>
-                                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                                    ID: {formatDoctorUnId(doctor.un_id, doctor.doctor_details?.specialization)}
+                                  <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2 mt-0.5">
+                                    <span>ID: {doctor.doctor_details?.license_number || formatDoctorUnId(doctor.un_id, doctor.doctor_details?.specialization)}</span>
+                                    {(() => {
+                                      const details = doctor.doctor_details || {};
+                                      const fee = Number(details.clinic_consultation_fee || details.video_consultation_fee || details.consultation_fee || 0);
+                                      return fee > 0 ? (
+                                        <span className="inline-flex items-center text-xs font-semibold text-[#0067A1] dark:text-[#62bcfb] bg-sky-50 dark:bg-sky-950/40 px-1.5 py-0.5 rounded border border-sky-200 dark:border-sky-800">
+                                          ₹{fee.toLocaleString("en-IN")}
+                                        </span>
+                                      ) : null;
+                                    })()}
                                   </div>
                                 </div>
                               </div>

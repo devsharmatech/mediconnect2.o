@@ -2,6 +2,7 @@ import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { resolveCallerFromRequest } from "@/lib/layer1/authGuard";
+import { parseFamilyMember } from "@/lib/familyMemberHelper";
 
 export const dynamic = 'force-dynamic';
 
@@ -126,6 +127,9 @@ export async function POST(req) {
         a.extended_until,
         a.status,
         a.disease_info,
+        a.booked_for,
+        a.family_member_id,
+        a.family_member_details,
         a.appointment_type,
         a.payment_status,
         a.razorpay_order_id,
@@ -264,6 +268,9 @@ export async function POST(req) {
       );
       const isSavedInDigiLocker = matchedRx ? digiLockerRxIds.has(matchedRx.id) : false;
 
+      const fam = parseFamilyMember(a.family_member_details, a.disease_info);
+      const isFamily = (a.booked_for === "family_member") || Boolean(fam);
+
       return {
         id: a.id,
         doctor_id: a.doctor_id,
@@ -274,6 +281,9 @@ export async function POST(req) {
         extended_until: a.extended_until,
         status: a.status,
         disease_info: a.disease_info,
+        booked_for: isFamily ? "family_member" : "self",
+        family_member: isFamily ? fam : null,
+        family_member_id: a.family_member_id || (fam?.id) || null,
         appointment_type: a.appointment_type,
         payment_status: a.payment_status,
         razorpay_order_id: a.razorpay_order_id,
@@ -319,9 +329,14 @@ export async function POST(req) {
         } : null,
         patient: a.patient_id ? {
           id: a.patient_id,
-          full_name: a.patient_full_name || null,
-          gender: a.patient_gender || null,
-          date_of_birth: a.patient_date_of_birth || null,
+          full_name: isFamily && fam?.name ? fam.name : (a.patient_full_name || null),
+          gender: isFamily && fam?.gender ? fam.gender : (a.patient_gender || null),
+          date_of_birth: isFamily && fam?.dob ? fam.dob : (a.patient_date_of_birth || null),
+          blood_group: isFamily && fam?.blood_group ? fam.blood_group : null,
+          age: isFamily && fam?.age ? fam.age : null,
+          relation: isFamily && fam?.relation ? fam.relation : null,
+          profile_picture: isFamily && fam?.profile_picture ? fam.profile_picture : null,
+          primary_patient_name: a.patient_full_name || null,
           address: a.patient_address || null,
         } : null,
       };

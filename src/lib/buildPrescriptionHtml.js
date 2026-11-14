@@ -1,4 +1,5 @@
 import dayjs from "dayjs";
+import { parseFamilyMember } from "@/lib/familyMemberHelper";
 
 const escapeHtml = (unsafe) => {
   if (unsafe === null || unsafe === undefined) return "";
@@ -251,6 +252,17 @@ export const buildPrescriptionHtml = (rec, options = {}) => {
     ...(rec.patient || {}),
     ...(rec.patient_details || {}),
   };
+
+  const rawFam = rec.family_member || rec.appointments?.family_member || rec.appointments?.family_member_details || rec.template_data?.family_member || null;
+  const fam = parseFamilyMember(rawFam, rec.appointments?.disease_info);
+  if (fam) {
+    if (fam.name || fam.full_name) pDetails.full_name = fam.name || fam.full_name;
+    if (fam.gender) pDetails.gender = fam.gender;
+    if (fam.blood_group) pDetails.blood_group = fam.blood_group;
+    if (fam.dob) pDetails.dob = fam.dob;
+    if (fam.age_str || fam.age) pDetails.age = fam.age_str || `${fam.age} yrs`;
+    pDetails.relation = fam.relation;
+  }
 
   const calculatePatientAge = (dob, explicitAge) => {
     if (explicitAge) {

@@ -34,6 +34,9 @@ export async function POST(req) {
       doctor_migration_code,
       original_fee,
       discount_amount,
+      booked_for,
+      family_member_id,
+      family_member_details,
     } = body || {};
 
     // 1. Basic Validation
@@ -95,6 +98,9 @@ export async function POST(req) {
         doctor_migration_code,
         original_fee,
         discount_amount,
+        booked_for: booked_for || (disease_info?.booked_for) || "self",
+        family_member_id: family_member_id || (disease_info?.family_member?.id) || null,
+        family_member_details: family_member_details || (disease_info?.family_member) || null,
       }
     });
 

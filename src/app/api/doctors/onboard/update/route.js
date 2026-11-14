@@ -148,6 +148,11 @@ export async function PUT(request) {
     const home_visit_fee = parseOptionalFee(formData.get("home_visit_fee"));
     const home_follow_up_fee = parseOptionalFee(formData.get("home_follow_up_fee"));
     const follow_up_fee = parseOptionalFee(formData.get("follow_up_fee"));
+    const rawConsultationFee = parseOptionalFee(formData.get("consultation_fee"));
+    const consultation_fee =
+      rawConsultationFee !== undefined && rawConsultationFee !== null && rawConsultationFee > 0
+        ? rawConsultationFee
+        : (clinic_consultation_fee || video_consultation_fee || home_visit_fee || 0);
 
     const rawInsurance =
       formData.get("insurance") || formData.get("indemnity_insurance");
@@ -238,6 +243,7 @@ export async function PUT(request) {
       home_slots,
       leave_days,
       speciality_tags,
+      consultation_fee,
       video_consultation_fee,
       video_follow_up_fee,
       clinic_consultation_fee,

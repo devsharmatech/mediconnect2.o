@@ -1857,6 +1857,25 @@ const AppointmentCard = ({
             </span>
           </div>
 
+          {/* Family Member Indicator */}
+          {(appointment.booked_for === "family_member" || appointment.family_member || appointment.patient?.relation) && (
+            <div className="mb-2 bg-purple-50 text-purple-700 border border-purple-200/80 px-2 py-0.5 rounded text-[10.5px] font-semibold flex items-center justify-between">
+              <div className="flex items-center gap-1.5 truncate">
+                {appointment.family_member?.profile_picture && (
+                  <img
+                    src={appointment.family_member.profile_picture}
+                    alt={appointment.family_member?.name || "Family Member"}
+                    className="w-4 h-4 rounded-full object-cover shrink-0 border border-purple-300"
+                  />
+                )}
+                <span className="truncate">For: {appointment.family_member?.name || appointment.patient?.full_name}</span>
+              </div>
+              <span className="text-[9.5px] bg-purple-200/80 text-purple-900 px-1.5 py-0.2 rounded font-bold shrink-0">
+                {appointment.family_member?.relation || appointment.patient?.relation || "Family"}
+              </span>
+            </div>
+          )}
+
           {/* Doctor Info Row */}
           <div className="flex items-center gap-2.5 mb-2">
             <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200/80 ring-1 ring-slate-100 flex items-center justify-center shrink-0 overflow-hidden">

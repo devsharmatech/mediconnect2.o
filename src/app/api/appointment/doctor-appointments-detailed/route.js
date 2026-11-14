@@ -1,6 +1,7 @@
 import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+import { parseFamilyMember } from "@/lib/familyMemberHelper";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -109,6 +110,9 @@ export async function POST(req) {
           ORDER BY pr.created_at DESC LIMIT 1
         ) AS prescription_id,
         a.disease_info,
+        a.booked_for,
+        a.family_member_id,
+        a.family_member_details,
         a.appointment_type,
         a.care_episode_id,
         COALESCE(ce.episode_id, CASE WHEN a.care_episode_id IS NOT NULL THEN 'EP-' || UPPER(SUBSTRING(a.care_episode_id::text, 1, 8)) ELSE 'EP-' || UPPER(SUBSTRING(a.id::text, 1, 8)) END) AS episode_id,
@@ -204,6 +208,9 @@ export async function POST(req) {
         ? screenings.find((s) => s.id === a.screening_id) || null
         : null;
 
+      const fam = parseFamilyMember(a.family_member_details, a.disease_info);
+      const isFamily = (a.booked_for === "family_member") || Boolean(fam);
+
       let patientAge = null;
       if (a.patient_date_of_birth) {
         const dob = new Date(a.patient_date_of_birth);
@@ -216,24 +223,40 @@ export async function POST(req) {
         }
       }
 
+      const primaryPatientName = (a.patient_full_name && !a.patient_full_name.includes("DE-IDENTIFIED")) 
+        ? a.patient_full_name 
+        : `Patient #${a.patient_un_id || "Verified"}`;
+
+      const finalFullName = (isFamily && (fam?.name || fam?.full_name))
+        ? (fam.name || fam.full_name)
+        : primaryPatientName;
+
       const simplePatient = {
         id: a.patient_id,
         phone: a.patient_phone || null,
-        full_name: (a.patient_full_name && !a.patient_full_name.includes("DE-IDENTIFIED")) 
-          ? a.patient_full_name 
-          : `Patient #${a.patient_un_id || "Verified"}`,
+        full_name: finalFullName,
+        primary_patient_name: primaryPatientName,
+        primary_patient_phone: a.patient_phone || null,
+        primary_patient_email: (a.patient_email && !a.patient_email.startsWith("anonymized_") && !a.patient_email.startsWith("deleted_")) 
+          ? a.patient_email 
+          : null,
+        primary_patient_address: a.patient_address || null,
         email: (a.patient_email && !a.patient_email.startsWith("anonymized_") && !a.patient_email.startsWith("deleted_")) 
           ? a.patient_email 
           : null,
-        gender: a.patient_gender || null,
-        date_of_birth: a.patient_date_of_birth || null,
-        age: patientAge,
-        patient_age: patientAge !== null ? `${patientAge} yrs` : null,
-        blood_group: a.patient_blood_group || null,
+        gender: isFamily && fam?.gender ? fam.gender : (a.patient_gender || null),
+        date_of_birth: isFamily && fam?.dob ? fam.dob : (a.patient_date_of_birth || null),
+        age: isFamily && fam?.age !== null && fam?.age !== undefined ? fam.age : patientAge,
+        patient_age: isFamily && fam?.age_str ? fam.age_str : (isFamily && fam?.age !== null && fam?.age !== undefined ? `${fam.age} yrs` : (patientAge !== null ? `${patientAge} yrs` : null)),
+        blood_group: isFamily && fam?.blood_group ? fam.blood_group : (a.patient_blood_group || null),
+        profile_picture: isFamily && fam?.profile_picture ? fam.profile_picture : null,
+        relation: isFamily && fam?.relation ? fam.relation : null,
         address: a.patient_address || null,
         un_id: a.patient_un_id || null,
         is_identity_verified: Boolean(a.patient_is_identity_verified),
         identity_verified_at: a.patient_identity_verified_at || null,
+        booked_for: isFamily ? "family_member" : "self",
+        family_member: isFamily ? fam : null,
       };
 
       const simpleDoctor = {
@@ -261,6 +284,8 @@ export async function POST(req) {
         has_prescription: Boolean(a.has_prescription),
         prescription_id: a.prescription_id || null,
         disease_info: a.disease_info,
+        booked_for: isFamily ? "family_member" : "self",
+        family_member: isFamily ? fam : null,
         appointment_type: a.appointment_type,
         payment_status: a.payment_status,
         razorpay_order_id: a.razorpay_order_id,

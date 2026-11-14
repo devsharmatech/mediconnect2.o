@@ -162,6 +162,26 @@ export async function POST(req) {
     const signedAt = action === "sign" ? now : (prescription.signed_at || null);
     const completedAt = action === "sign" ? now : (prescription.completed_at || null);
 
+    let fam = body.family_member || template_data?.family_member || prescription.template_data?.family_member || null;
+    if (!fam && (appointment_id || prescription.appointment_id)) {
+      const targetApptId = appointment_id || prescription.appointment_id;
+      const [apptRow] = await sql`SELECT booked_for, family_member_details, disease_info FROM appointments WHERE id = ${targetApptId} LIMIT 1`;
+      if (apptRow) {
+        fam = apptRow.family_member_details || null;
+        if (!fam && apptRow.disease_info) {
+          try {
+            const d = typeof apptRow.disease_info === "object" ? apptRow.disease_info : JSON.parse(apptRow.disease_info);
+            fam = d?.family_member || null;
+          } catch (_) {}
+        }
+      }
+    }
+    const finalTemplateData = {
+      ...(prescription.template_data || {}),
+      ...(template_data || {}),
+      ...(fam ? { family_member: fam, booked_for: "family_member" } : {}),
+    };
+
     /* ---------------------------------
        UPDATE PRESCRIPTION IN RDS
     ---------------------------------- */
@@ -178,7 +198,7 @@ export async function POST(req) {
         examination_findings = ${sql.json(examination_findings || {})},
         follow_up = ${sql.json(follow_up || {})},
         special_instructions = ${sql.json(special_instructions || {})},
-        template_data = ${sql.json(template_data || {})},
+        template_data = ${sql.json(finalTemplateData)},
         ai_analysis = ${sql.json(ai_analysis || {})},
         special_message = ${special_message || ""},
         is_draft = ${isDraft},

@@ -2,6 +2,7 @@ import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
 import { resolveCallerFromRequest } from "@/lib/layer1/authGuard";
+import { parseFamilyMember } from "@/lib/familyMemberHelper";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -79,14 +80,40 @@ export async function POST(req) {
       sql`SELECT un_id FROM users WHERE id = ${prescription.patient_id} LIMIT 1`,
     ]);
 
+    const patDetails = patRows[0] || {};
+    const apptDetails = fullApptRows[0] || {};
+    const fam = parseFamilyMember(apptDetails.family_member_details, apptDetails.disease_info) || 
+      parseFamilyMember(prescription.template_data?.family_member, null);
+    const isFamily = (apptDetails.booked_for === "family_member") || Boolean(fam);
+
     const careEpisodeCode = prescription.care_episode_code || 
       (prescription.care_episode_id ? `EP-${String(prescription.care_episode_id).slice(0, 8).toUpperCase()}` : (appt.care_episode_id ? `EP-${String(appt.care_episode_id).slice(0, 8).toUpperCase()}` : null));
 
+    const enrichedPatient = {
+      ...patDetails,
+      full_name: (isFamily && (fam?.name || fam?.full_name)) ? (fam.name || fam.full_name) : patDetails.full_name,
+      gender: isFamily && fam?.gender ? fam.gender : patDetails.gender,
+      date_of_birth: isFamily && fam?.dob ? fam.dob : patDetails.date_of_birth,
+      blood_group: isFamily && fam?.blood_group ? fam.blood_group : patDetails.blood_group,
+      age: isFamily && fam?.age_str ? fam.age_str : (isFamily && fam?.age ? `${fam.age} yrs` : patDetails.age),
+      relation: isFamily && fam?.relation ? fam.relation : null,
+      profile_picture: isFamily && fam?.profile_picture ? fam.profile_picture : null,
+      primary_patient_name: patDetails.full_name,
+      un_id: patUserRows[0]?.un_id || null,
+      family_member: isFamily ? fam : null,
+    };
+
     const response = {
       ...prescription,
+      booked_for: isFamily ? "family_member" : "self",
+      family_member: fam,
       doctor_details: { ...(docRows[0] || {}), un_id: docUserRows[0]?.un_id || null },
-      patient_details: { ...(patRows[0] || {}), un_id: patUserRows[0]?.un_id || null },
-      appointments: fullApptRows[0] || {},
+      patient_details: enrichedPatient,
+      appointments: {
+        ...apptDetails,
+        booked_for: isFamily ? "family_member" : "self",
+        family_member: fam,
+      },
       care_episode_id: prescription.care_episode_id || appt.care_episode_id,
       episode_id: careEpisodeCode,
     };

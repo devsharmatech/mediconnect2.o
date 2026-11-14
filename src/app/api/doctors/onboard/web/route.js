@@ -269,6 +269,12 @@ export async function POST(req) {
       home_slots: parseJSON(fields.home_slots),
       leave_days: parseJSON(fields.leave_days),
       speciality_tags: parseJSON(fields.speciality_tags),
+      consultation_fee:
+        parseOptionalFee(fields.consultation_fee) ??
+        parseOptionalFee(fields.clinic_consultation_fee) ??
+        parseOptionalFee(fields.video_consultation_fee) ??
+        parseOptionalFee(fields.home_visit_fee) ??
+        0,
       video_consultation_fee: parseOptionalFee(fields.video_consultation_fee),
       video_follow_up_fee: parseOptionalFee(fields.video_follow_up_fee ?? fields.follow_up_fee),
       clinic_consultation_fee: parseOptionalFee(fields.clinic_consultation_fee),

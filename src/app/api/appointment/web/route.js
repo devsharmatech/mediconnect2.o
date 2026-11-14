@@ -1,6 +1,7 @@
 import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+import { parseFamilyMember } from "@/lib/familyMemberHelper";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -72,7 +73,8 @@ export async function GET(req) {
     const appointments = await sql`
       SELECT 
         a.id, a.appointment_date, a.appointment_time, a.appointment_type, a.status,
-        a.disease_info, a.created_at, a.updated_at, a.patient_id, a.doctor_id,
+        a.disease_info, a.booked_for, a.family_member_id, a.family_member_details,
+        a.created_at, a.updated_at, a.patient_id, a.doctor_id,
         COALESCE(a.original_appointment_time, a.appointment_time)::text AS original_appointment_time,
         a.extended_until,
         a.final_fee, a.original_fee, a.discount_amount, a.payment_status,
@@ -129,41 +131,57 @@ export async function GET(req) {
       totalAll += r.count;
     }
 
-    const transformedAppointments = appointments.map((apt) => ({
-      id: apt.id,
-      appointment_date: apt.appointment_date,
-      appointment_time: apt.appointment_time,
-      original_appointment_time: apt.original_appointment_time,
-      extended_until: apt.extended_until,
-      appointment_type: apt.appointment_type,
-      status: apt.status,
-      final_fee: apt.final_fee,
-      original_fee: apt.original_fee,
-      discount_amount: apt.discount_amount,
-      payment_status: apt.payment_status,
-      disease_info: apt.disease_info,
-      created_at: apt.created_at,
-      patient: {
-        id: apt.patient_id,
-        un_id: apt.patient_un_id,
-        phone_number: apt.patient_phone,
-        profile_picture: apt.patient_picture,
-        full_name: apt.patient_name,
-        email: apt.patient_email,
-        gender: apt.patient_gender,
-      },
-      doctor: {
-        id: apt.doctor_id,
-        un_id: apt.doctor_un_id,
-        phone_number: apt.doctor_phone,
-        profile_picture: apt.doctor_picture,
-        full_name: apt.doctor_name,
-        email: apt.doctor_email,
-        specialization: apt.specialization,
-        clinic_name: apt.clinic_name,
-        consultation_fee: apt.consultation_fee,
-      },
-    }));
+    const transformedAppointments = appointments.map((apt) => {
+      const fam = parseFamilyMember(apt.family_member_details, apt.disease_info);
+      const isFamily = (apt.booked_for === "family_member") || Boolean(fam);
+
+      const patientName = (isFamily && (fam?.name || fam?.full_name)) ? (fam.name || fam.full_name) : apt.patient_name;
+
+      return {
+        id: apt.id,
+        appointment_date: apt.appointment_date,
+        appointment_time: apt.appointment_time,
+        original_appointment_time: apt.original_appointment_time,
+        extended_until: apt.extended_until,
+        appointment_type: apt.appointment_type,
+        status: apt.status,
+        booked_for: isFamily ? "family_member" : "self",
+        family_member: isFamily ? fam : null,
+        final_fee: apt.final_fee,
+        original_fee: apt.original_fee,
+        discount_amount: apt.discount_amount,
+        payment_status: apt.payment_status,
+        disease_info: apt.disease_info,
+        created_at: apt.created_at,
+        patient: {
+          id: apt.patient_id,
+          un_id: apt.patient_un_id,
+          phone_number: apt.patient_phone,
+          profile_picture: (isFamily && fam?.profile_picture) ? fam.profile_picture : apt.patient_picture,
+          full_name: patientName,
+          primary_patient_name: apt.patient_name,
+          email: apt.patient_email,
+          gender: (isFamily && fam?.gender) ? fam.gender : apt.patient_gender,
+          blood_group: (isFamily && fam?.blood_group) ? fam.blood_group : null,
+          dob: (isFamily && fam?.dob) ? fam.dob : null,
+          age: (isFamily && fam?.age_str) ? fam.age_str : (fam?.age ? `${fam.age} yrs` : null),
+          relation: (isFamily && fam?.relation) ? fam.relation : null,
+          is_family_member: isFamily,
+          family_member: isFamily ? fam : null,
+        },
+        doctor: {
+          id: apt.doctor_id,
+          un_id: apt.doctor_un_id,
+          phone_number: apt.doctor_phone,
+          profile_picture: apt.doctor_picture,
+          full_name: apt.doctor_name,
+          email: apt.doctor_email,
+          specialization: apt.specialization,
+          clinic_name: apt.clinic_name,
+          consultation_fee: apt.consultation_fee,
+        },
+      };
+    });
 
     return success(
       "Appointments fetched successfully.",

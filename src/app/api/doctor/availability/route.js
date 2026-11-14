@@ -65,7 +65,7 @@ export async function POST(req) {
 
       await sql`
         UPDATE doctor_details
-        SET is_open = ${nextOpen}
+        SET is_open = ${nextOpen}, is_available = ${nextOpen}
         WHERE id = ${doctor_id}
       `;
 

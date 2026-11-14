@@ -116,6 +116,11 @@ export default function PatientVerificationCard({
         } else if (isMounted) {
           if (isMinor) {
             setIsMinorPatient(true);
+            if (patientObj.primary_patient_name && patientObj.primary_patient_name !== patientName) {
+              setGuardianName(patientObj.primary_patient_name);
+              setGuardianRelationship(patientObj.relation || "Parent / Guardian");
+              setGuardianPhone(patientObj.primary_patient_phone || patientObj.phone || "");
+            }
           }
         }
       } catch (err) {
@@ -376,7 +381,7 @@ export default function PatientVerificationCard({
             <div className="min-w-0">
               <p className="text-xs font-bold text-slate-900">1. Confirm Identity</p>
               <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                Verified presenting patient matches profile (<strong className="text-slate-800 font-medium">{patientName}</strong>).
+                Verified presenting patient matches profile (<strong className="text-slate-800 font-medium">{patientName}{patientObj.relation ? `, ${patientObj.relation}` : ""}</strong>){patientObj.primary_patient_name && patientObj.primary_patient_name !== patientName ? <> booked by <span className="font-medium text-slate-700">{patientObj.primary_patient_name}</span></> : ""}.
               </p>
             </div>
           </div>

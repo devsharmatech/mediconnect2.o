@@ -23,6 +23,7 @@ import {
   FaSpinner,
 } from "react-icons/fa";
 import { MEDICONNECT_LOGO_BASE64 } from "@/lib/prescriptionAssets";
+import { parseFamilyMember } from "@/lib/familyMemberHelper";
 
 const normalizeStatus = (status) => {
   if (!status) return "pending";
@@ -230,12 +231,21 @@ const AppointmentDetailsModal = ({
   const clinicName = appointment.doctor?.clinic_name || "MediConnect Partner Clinic";
   const clinicAddress = appointment.doctor?.clinic_address || "N/A";
 
+  const fam = parseFamilyMember(appointment.family_member || appointment.family_member_details, appointment.disease_info);
+  const isFamily = (appointment.booked_for === "family_member") || Boolean(fam);
+
   // Patient Info
-  const patientName = appointment.patient?.full_name || "Patient";
-  const patientAge = calculateAge(appointment.patient?.date_of_birth);
-  const patientGender = appointment.patient?.gender
-    ? capitalize(appointment.patient.gender)
+  const patientName = isFamily && (fam?.name || fam?.full_name) ? (fam.name || fam.full_name) : (appointment.patient?.full_name || "Patient");
+  const patientAge = isFamily && (fam?.age_str || fam?.age)
+    ? (fam.age_str || `${fam.age} yrs`) 
+    : calculateAge(isFamily && fam?.dob ? fam.dob : appointment.patient?.date_of_birth);
+  const patientGender = (isFamily && fam?.gender ? fam.gender : appointment.patient?.gender)
+    ? capitalize(isFamily && fam?.gender ? fam.gender : appointment.patient.gender)
     : "N/A";
+  const patientBloodGroup = isFamily && fam?.blood_group ? fam.blood_group : (appointment.patient?.blood_group || null);
+  const patientRelation = isFamily && fam?.relation ? fam.relation : (appointment.patient?.relation || null);
+  const patientPicture = (isFamily && fam?.profile_picture) ? fam.profile_picture : (appointment.patient?.profile_picture || null);
+  const primaryPatientName = appointment.patient?.primary_patient_name || null;
 
   const dateLabel = formatDate(appointment);
   const timeLabel = formatTime(appointment);
@@ -543,17 +553,36 @@ const AppointmentDetailsModal = ({
 
             {/* Column 2: Patient & Consultation */}
             <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 space-y-2.5 text-xs shadow-2xs">
-              <div className="flex items-center gap-1.5 font-bold uppercase text-[10.5px] tracking-wider text-[#0067A1]">
-                <FaUser className="w-3.5 h-3.5" />
-                <span>Patient & Schedule</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-bold uppercase text-[10.5px] tracking-wider text-[#0067A1]">
+                  <FaUser className="w-3.5 h-3.5" />
+                  <span>Patient & Schedule</span>
+                </div>
+                {patientPicture && (
+                  <img
+                    src={patientPicture}
+                    alt={patientName}
+                    className="w-7 h-7 rounded-full object-cover border border-[#0067A1]/30 shrink-0"
+                  />
+                )}
               </div>
               <div className="space-y-2">
                 <div>
-                  <p className="font-bold text-slate-900 dark:text-white text-sm">
-                    {patientName}
-                  </p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="font-bold text-slate-900 dark:text-white text-sm">
+                      {patientName}
+                    </p>
+                    {isFamily && (
+                      <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                        Family: {patientRelation || "Member"}
+                      </span>
+                    )}
+                  </div>
+                  {primaryPatientName && primaryPatientName !== patientName && (
+                    <p className="text-[10.5px] text-slate-500 font-normal">Booked by: <span className="text-slate-700 dark:text-slate-300 font-medium">{primaryPatientName}</span></p>
+                  )}
                   <p className="text-slate-600 dark:text-slate-300 font-medium mt-0.5">
-                    {patientAge} • {patientGender}
+                    {patientAge} • {patientGender} {patientBloodGroup ? `• 🩸 ${patientBloodGroup}` : ""}
                   </p>
                 </div>
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 grid grid-cols-2 gap-2 text-[11px]">

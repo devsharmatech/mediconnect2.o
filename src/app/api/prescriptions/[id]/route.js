@@ -1,6 +1,7 @@
 import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+import { parseFamilyMember } from "@/lib/familyMemberHelper";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -60,20 +61,41 @@ export async function GET(req, { params }) {
     const docUnId = docUserRows[0]?.un_id || null;
     const patUnId = patUserRows[0]?.un_id || null;
 
+    const fam = parseFamilyMember(apptDetails.family_member_details, apptDetails.disease_info) || 
+      parseFamilyMember(prescription.template_data?.family_member, null);
+    const isFamily = (apptDetails.booked_for === "family_member") || Boolean(fam);
+
     const careEpisodeCode = prescription.care_episode_code || 
       (prescription.care_episode_id ? `EP-${String(prescription.care_episode_id).slice(0, 8).toUpperCase()}` : (apptDetails.care_episode_id ? `EP-${String(apptDetails.care_episode_id).slice(0, 8).toUpperCase()}` : null));
 
+    const enrichedPatient = {
+      ...patDetails,
+      full_name: (isFamily && (fam?.name || fam?.full_name)) ? (fam.name || fam.full_name) : patDetails.full_name,
+      gender: isFamily && fam?.gender ? fam.gender : patDetails.gender,
+      date_of_birth: isFamily && fam?.dob ? fam.dob : patDetails.date_of_birth,
+      blood_group: isFamily && fam?.blood_group ? fam.blood_group : patDetails.blood_group,
+      age: isFamily && fam?.age_str ? fam.age_str : (isFamily && fam?.age ? `${fam.age} yrs` : patDetails.age),
+      relation: isFamily && fam?.relation ? fam.relation : null,
+      profile_picture: isFamily && fam?.profile_picture ? fam.profile_picture : null,
+      primary_patient_name: patDetails.full_name,
+      un_id: patUnId,
+      family_member: isFamily ? fam : null,
+    };
+
     const response = {
       ...prescription,
+      booked_for: isFamily ? "family_member" : "self",
+      family_member: fam,
       doctor_details: {
         ...docDetails,
         un_id: docUnId,
       },
-      patient_details: {
-        ...patDetails,
-        un_id: patUnId,
+      patient_details: enrichedPatient,
+      appointments: {
+        ...apptDetails,
+        booked_for: isFamily ? "family_member" : "self",
+        family_member: fam,
       },
-      appointments: apptDetails,
       care_episode_id: prescription.care_episode_id || apptDetails.care_episode_id,
       episode_id: careEpisodeCode,
       // Backwards compatibility mappings:
@@ -83,6 +105,8 @@ export async function GET(req, { params }) {
         time: apptDetails.appointment_time,
         status: apptDetails.status,
         disease_info: apptDetails.disease_info || {},
+        booked_for: isFamily ? "family_member" : "self",
+        family_member: fam,
       },
       doctor: {
         id: docDetails.id,
@@ -100,16 +124,7 @@ export async function GET(req, { params }) {
         signature_url: docDetails.signature_url,
         un_id: docUnId,
       },
-      patient: {
-        id: patDetails.id,
-        full_name: patDetails.full_name,
-        email: patDetails.email,
-        gender: patDetails.gender,
-        date_of_birth: patDetails.date_of_birth,
-        blood_group: patDetails.blood_group,
-        address: patDetails.address,
-        un_id: patUnId,
-      },
+      patient: enrichedPatient,
     };
 
     return success("Prescription fetched successfully.", response, 200, {

@@ -47,7 +47,7 @@ export async function GET() {
     `;
 
     const availableDoctors = (doctors || []).filter((doc) => {
-      if (doc.is_open === false || doc.is_available === false) return false;
+      if (doc.is_open === false) return false;
 
       if (doc.available_days && doc.available_days.length > 0) {
         const isToday = Array.isArray(doc.available_days)
@@ -120,7 +120,7 @@ export async function GET() {
     });
 
     if (availableDoctors.length === 0) {
-      const fallbackDoctors = (doctors || []).filter((doc) => doc.is_open !== false && doc.is_available !== false);
+      const fallbackDoctors = (doctors || []).filter((doc) => doc.is_open !== false);
       return success("Available doctors", fallbackDoctors, 200, {
         headers: corsHeaders,
       });

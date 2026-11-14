@@ -83,7 +83,7 @@ const formatAppointmentId = (id) => {
   return `APT-${clean.slice(0, 8).toUpperCase()}`;
 };
 
-export default function DoctorAppointmentsPage() {
+function DoctorAppointmentsPage() {
   const [appointments, setAppointments] = useState([]);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState(null);
@@ -1059,9 +1059,17 @@ export default function DoctorAppointmentsPage() {
                       {/* Patient Row */}
                       <div className="flex items-center gap-2.5 mb-2.5">
                         <div className="relative shrink-0">
-                          <div className="w-9 h-9 rounded-full bg-[#0067A1]/10 flex items-center justify-center border border-[#0067A1]/20">
-                            <User className="w-4 h-4 text-[#0067A1]" />
-                          </div>
+                          {apt.patient?.profile_picture ? (
+                            <img
+                              src={apt.patient.profile_picture}
+                              alt={apt.patient?.full_name || "Patient"}
+                              className="w-9 h-9 rounded-full object-cover border border-[#0067A1]/20"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-[#0067A1]/10 flex items-center justify-center border border-[#0067A1]/20">
+                              <User className="w-4 h-4 text-[#0067A1]" />
+                            </div>
+                          )}
                           {withinSlot && (
                             <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border border-white animate-ping" />
                           )}
@@ -1074,6 +1082,11 @@ export default function DoctorAppointmentsPage() {
                                 ? apt.patient.full_name
                                 : `Patient #${apt.patient?.un_id || "Verified"}`}
                             </h4>
+                            {(apt.booked_for === "family_member" || apt.patient?.relation || apt.family_member) && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 shrink-0">
+                                Family: {apt.family_member?.relation || apt.patient?.relation || "Member"}
+                              </span>
+                            )}
                             {apt.patient?.is_identity_verified && (
                               <span 
                                 className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0"
@@ -1090,6 +1103,17 @@ export default function DoctorAppointmentsPage() {
                               </span>
                             )}
                           </div>
+                          {(apt.patient?.patient_age || apt.patient?.gender) && (
+                            <div className="text-[10px] text-slate-500 font-medium">
+                              {[apt.patient?.gender, apt.patient?.patient_age].filter(Boolean).join(" • ")}
+                            </div>
+                          )}
+                          {apt.patient?.primary_patient_name && apt.patient?.primary_patient_name !== apt.patient?.full_name && (
+                            <div className="text-[10px] text-slate-500 font-medium mt-0.5 truncate">
+                              <span className="text-slate-400">Booked by: </span>
+                              <span className="font-semibold text-slate-700">{apt.patient.primary_patient_name}</span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-2 text-[10.5px] text-slate-500 truncate mt-0.5">
                             {apt.patient?.phone && !String(apt.patient.phone).startsWith("ANONYMIZED_") ? (
                               <a
@@ -1426,9 +1450,17 @@ export default function DoctorAppointmentsPage() {
               {/* Unified Patient Profile Card with Verified Highlight */}
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 sm:p-3.5">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#0067A1]/10 border border-[#0067A1]/20 flex items-center justify-center shrink-0">
-                    <User className="w-5 h-5 text-[#0067A1]" />
-                  </div>
+                  {selectedAppointment.patient?.profile_picture ? (
+                    <img
+                      src={selectedAppointment.patient.profile_picture}
+                      alt={selectedAppointment.patient?.full_name || "Patient"}
+                      className="w-12 h-12 rounded-full object-cover border-2 border-[#0067A1]/20 shrink-0 mt-0.5"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-[#0067A1]/10 border border-[#0067A1]/20 flex items-center justify-center shrink-0 mt-0.5">
+                      <User className="w-6 h-6 text-[#0067A1]" />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="text-sm sm:text-base font-bold text-slate-900 truncate">
@@ -1436,6 +1468,11 @@ export default function DoctorAppointmentsPage() {
                           ? selectedAppointment.patient.full_name
                           : `Patient #${selectedAppointment.patient?.un_id || "Verified"}`}
                       </h4>
+                      {(selectedAppointment.booked_for === "family_member" || selectedAppointment.patient?.relation || selectedAppointment.family_member) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                          Family: {selectedAppointment.family_member?.relation || selectedAppointment.patient?.relation || "Member"}
+                        </span>
+                      )}
                       {/* Identity Verification Highlight */}
                       {selectedAppointment.patient?.is_identity_verified ? (
                         <span 
@@ -1457,22 +1494,13 @@ export default function DoctorAppointmentsPage() {
                       {selectedAppointment.patient?.gender && (
                         <span className="capitalize">{selectedAppointment.patient.gender}</span>
                       )}
-                      {(() => {
-                        let displayAge = selectedAppointment.patient?.age;
-                        if (!displayAge && selectedAppointment.patient?.date_of_birth) {
-                          const dob = new Date(selectedAppointment.patient.date_of_birth);
-                          if (!isNaN(dob.getTime())) {
-                            const today = new Date();
-                            let a = today.getFullYear() - dob.getFullYear();
-                            const m = today.getMonth() - dob.getMonth();
-                            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) a--;
-                            if (a >= 0) displayAge = `${a} years`;
-                          }
-                        }
-                        if (!displayAge) return null;
-                        const str = String(displayAge);
-                        return <span>• {str.includes("year") ? str : `${str} years`}</span>;
-                      })()}
+                      {selectedAppointment.patient?.patient_age ? (
+                        <span>• {selectedAppointment.patient.patient_age}</span>
+                      ) : selectedAppointment.patient?.age ? (
+                        <span>• {selectedAppointment.patient.age} yrs</span>
+                      ) : selectedAppointment.patient?.date_of_birth ? (
+                        <span>• {new Date(selectedAppointment.patient.date_of_birth).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+                      ) : null}
                       {selectedAppointment.patient?.blood_group && (
                         <span className="inline-flex items-center gap-1 font-semibold text-rose-600">
                           <Droplet className="w-3.5 h-3.5" />
@@ -1512,6 +1540,30 @@ export default function DoctorAppointmentsPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* Primary Account Holder Info (If family member booking) */}
+                    {selectedAppointment.patient?.primary_patient_name && selectedAppointment.patient.primary_patient_name !== selectedAppointment.patient.full_name && (
+                      <div className="mt-2.5 p-2 bg-blue-50/70 border border-blue-200/60 rounded-md text-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                          <span className="font-semibold text-blue-900">
+                            Booked by Account Holder: <span className="font-bold text-slate-900">{selectedAppointment.patient.primary_patient_name}</span>
+                          </span>
+                          {selectedAppointment.patient.primary_patient_phone && (
+                            <a
+                              href={`tel:${selectedAppointment.patient.primary_patient_phone}`}
+                              className="text-[#0067A1] font-medium hover:underline"
+                            >
+                              📞 {formatPatientPhone(selectedAppointment.patient.primary_patient_phone)}
+                            </a>
+                          )}
+                        </div>
+                        {selectedAppointment.patient.primary_patient_email && (
+                          <div className="text-[10.5px] text-slate-600 mt-0.5 truncate">
+                            ✉️ {selectedAppointment.patient.primary_patient_email}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1881,3 +1933,5 @@ export default function DoctorAppointmentsPage() {
     </>
   );
 }
+
+export default DoctorAppointmentsPage;

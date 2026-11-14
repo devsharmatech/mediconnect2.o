@@ -39,7 +39,11 @@ export async function GET(req) {
           pu.phone_number AS patient_phone,
           a.appointment_date,
           a.appointment_time,
-          a.status AS appointment_status
+          a.status AS appointment_status,
+          a.booked_for,
+          a.family_member_id,
+          a.family_member_details,
+          a.disease_info
         FROM prescriptions p
         LEFT JOIN doctor_details dd ON dd.id = p.doctor_id
         LEFT JOIN patient_details pd ON pd.id = p.patient_id
@@ -55,17 +59,31 @@ export async function GET(req) {
 
       const r = rows[0];
 
+      let parsedDisease = null;
+      if (r.disease_info) {
+        if (typeof r.disease_info === "object") parsedDisease = r.disease_info;
+        else if (typeof r.disease_info === "string" && r.disease_info.trim().startsWith("{")) {
+          try { parsedDisease = JSON.parse(r.disease_info); } catch (_) {}
+        }
+      }
+      const fam = r.family_member_details || parsedDisease?.family_member || r.template_data?.family_member || null;
+      const isFamily = (r.booked_for === "family_member") || Boolean(fam);
+
       let age = null;
-      if (r.patient_dob) {
-        const dob = new Date(r.patient_dob);
+      const effectiveDob = isFamily && fam?.dob ? fam.dob : r.patient_dob;
+      if (effectiveDob) {
+        const dob = new Date(effectiveDob);
         const today = new Date();
         age = today.getFullYear() - dob.getFullYear();
         const m = today.getMonth() - dob.getMonth();
         if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
       }
+      if (isFamily && fam?.age) age = fam.age;
 
       const result = {
         ...r,
+        booked_for: isFamily ? "family_member" : "self",
+        family_member: fam,
         doctor: r.doctor_id ? {
           id: r.doctor_id,
           full_name: r.doctor_full_name,
@@ -74,15 +92,18 @@ export async function GET(req) {
         } : null,
         patient: r.patient_id ? {
           id: r.patient_id,
-          full_name: r.patient_full_name,
-          gender: r.patient_gender,
-          date_of_birth: r.patient_dob,
-          blood_group: r.patient_blood_group,
+          full_name: isFamily && fam?.name ? fam.name : r.patient_full_name,
+          gender: isFamily && fam?.gender ? fam.gender : r.patient_gender,
+          date_of_birth: effectiveDob,
+          blood_group: isFamily && fam?.blood_group ? fam.blood_group : r.patient_blood_group,
           email: r.patient_email,
           address: r.patient_address,
           emergency_contact: r.patient_emergency_contact,
           phone: r.patient_phone,
           age,
+          relation: isFamily && fam?.relation ? fam.relation : null,
+          profile_picture: isFamily && fam?.profile_picture ? fam.profile_picture : null,
+          primary_patient_name: r.patient_full_name,
         } : null,
         appointment: r.appointment_id ? {
           id: r.appointment_id,
@@ -156,34 +177,55 @@ export async function GET(req) {
         pd.full_name AS patient_full_name,
         pd.gender AS patient_gender,
         pd.date_of_birth AS patient_dob,
-        pu.phone_number AS patient_phone
+        pu.phone_number AS patient_phone,
+        a.booked_for,
+        a.family_member_details,
+        a.disease_info
       FROM prescriptions p
       LEFT JOIN patient_details pd ON pd.id = p.patient_id
       LEFT JOIN doctor_details dd ON dd.id = p.doctor_id
       LEFT JOIN users pu ON pu.id = p.patient_id
+      LEFT JOIN appointments a ON a.id = p.appointment_id
       WHERE ${whereClause}
       ORDER BY p.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
 
     const enriched = rows.map((r) => {
+      let parsedDisease = null;
+      if (r.disease_info) {
+        if (typeof r.disease_info === "object") parsedDisease = r.disease_info;
+        else if (typeof r.disease_info === "string" && r.disease_info.trim().startsWith("{")) {
+          try { parsedDisease = JSON.parse(r.disease_info); } catch (_) {}
+        }
+      }
+      const fam = r.family_member_details || parsedDisease?.family_member || r.template_data?.family_member || null;
+      const isFamily = (r.booked_for === "family_member") || Boolean(fam);
+
       let age = null;
-      if (r.patient_dob) {
-        const dob = new Date(r.patient_dob);
+      const effectiveDob = isFamily && fam?.dob ? fam.dob : r.patient_dob;
+      if (effectiveDob) {
+        const dob = new Date(effectiveDob);
         const today = new Date();
         age = today.getFullYear() - dob.getFullYear();
         const m = today.getMonth() - dob.getMonth();
         if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
       }
+      if (isFamily && fam?.age) age = fam.age;
 
       return {
         ...r,
+        booked_for: isFamily ? "family_member" : "self",
+        family_member: fam,
         patient: r.patient_id ? {
-          full_name: r.patient_full_name,
-          gender: r.patient_gender,
-          date_of_birth: r.patient_dob,
+          full_name: isFamily && fam?.name ? fam.name : r.patient_full_name,
+          gender: isFamily && fam?.gender ? fam.gender : r.patient_gender,
+          date_of_birth: effectiveDob,
           phone: r.patient_phone,
           age,
+          relation: isFamily && fam?.relation ? fam.relation : null,
+          profile_picture: isFamily && fam?.profile_picture ? fam.profile_picture : null,
+          primary_patient_name: r.patient_full_name,
         } : null,
         doctor: r.doctor_id ? {
           full_name: r.doctor_full_name,

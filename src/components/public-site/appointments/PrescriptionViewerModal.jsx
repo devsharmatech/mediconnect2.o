@@ -10,6 +10,7 @@ import toast from "react-hot-toast";
 import { exportPrescriptionPdf, createPrescriptionJsPdf } from "@/lib/prescriptionPdfEngine";
 import { MEDICONNECT_LOGO_BASE64, DOCTOR_CADUCEUS_BASE64 } from "@/lib/prescriptionAssets";
 import SharePrescriptionModal from "./SharePrescriptionModal";
+import { parseFamilyMember } from "@/lib/familyMemberHelper";
 
 function SectionHeading({ title }) {
   return (
@@ -198,14 +199,28 @@ export default function PrescriptionViewerModal({
 
   const doc = data.doctor_details || {};
   const appt = data.appointments || {};
+  const td = safeJsonParse(data.template_data, {});
+  const rawFam = data.family_member || appt.family_member || appt.family_member_details || td?.family_member || null;
+  const fam = parseFamilyMember(rawFam, appt.disease_info);
+  const isFamily = Boolean(fam) || appt.booked_for === "family_member" || data.booked_for === "family_member";
+
   const pat = {
     ...(data.patient || {}),
     ...(appt.patient || {}),
     ...(appt.patient_details || {}),
     ...(data.patient_details || {}),
   };
+
+  if (isFamily && fam) {
+    if (fam.name || fam.full_name) pat.full_name = fam.name || fam.full_name;
+    if (fam.gender) pat.gender = fam.gender;
+    if (fam.blood_group) pat.blood_group = fam.blood_group;
+    if (fam.dob) pat.date_of_birth = fam.dob;
+    if (fam.age_str || fam.age) pat.age = fam.age_str || `${fam.age} yrs`;
+    pat.relation = fam.relation;
+    pat.is_family_member = true;
+  }
   const medicines = Array.isArray(data.medicines) ? data.medicines : [];
-  const td = safeJsonParse(data.template_data, {});
 
   const rawVitals = safeJsonParse(data.vital_signs || data.vitals, null);
   const vitals = (() => {
@@ -884,7 +899,14 @@ export default function PrescriptionViewerModal({
                     <div className="mt-1 divide-y divide-dotted divide-gray-300 text-xs">
                       <div className="py-1 flex justify-between gap-2">
                         <span className="font-semibold text-gray-500 shrink-0">Name:</span>
-                        <span className="text-[#0067A1] font-bold text-right">{pat.full_name || "—"}</span>
+                        <span className="text-[#0067A1] font-bold text-right">
+                          {pat.full_name || "—"}
+                          {pat.relation && (
+                            <span className="ml-1 text-[10.5px] font-semibold text-slate-600">
+                              ({pat.relation})
+                            </span>
+                          )}
+                        </span>
                       </div>
                       <div className="py-1 flex justify-between gap-2">
                         <span className="font-semibold text-gray-500 shrink-0">Gender:</span>

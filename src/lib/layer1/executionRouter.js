@@ -20,6 +20,7 @@ import { sendAppointmentUpdateAlert, formatDoctorName, formatWhatsAppDate } from
 import { sendPushAndInAppNotification } from "../notificationHelper";
 import { calculateBookingFinancialQuote, freezeBookingFinancialSnapshot, postAppointmentCompletionLedger } from "../doctorFinancialEngine";
 import { initiateRefund } from "./refundEngine";
+import { parseFamilyMember } from "@/lib/familyMemberHelper";
 
 
 /**
@@ -83,6 +84,9 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
     clinic_name,
     clinic_address,
     fee: requestedFee,
+    booked_for: rawBookedFor,
+    family_member_id: rawFamilyMemberId,
+    family_member_details: rawFamilyMemberDetails,
   } = payload;
 
   if (!doctor_id || !patient_id || !appointment_date || !appointment_time) {
@@ -308,9 +312,27 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
   }
 
   // Insert appointment with follow-up, pricing, and migration code tracking
-  const diseaseInfoVal = disease_info
-    ? (typeof disease_info === 'string' ? disease_info : JSON.stringify(disease_info))
+  const bookedForVal = rawBookedFor || (disease_info?.booked_for) || "self";
+  const parsedFamily = parseFamilyMember(rawFamilyMemberDetails, disease_info);
+  const familyMemberDetailsVal = parsedFamily || rawFamilyMemberDetails || (disease_info?.family_member) || null;
+  const familyMemberIdVal = rawFamilyMemberId || parsedFamily?.id || familyMemberDetailsVal?.id || null;
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const validFamilyId = (typeof familyMemberIdVal === "string" && UUID_REGEX.test(familyMemberIdVal.trim()))
+    ? familyMemberIdVal.trim()
     : null;
+
+  let mergedDiseaseInfo = typeof disease_info === 'string'
+    ? (() => { try { return JSON.parse(disease_info); } catch { return { notes: disease_info }; } })()
+    : (disease_info && typeof disease_info === 'object' ? { ...disease_info } : {});
+
+  if (bookedForVal === 'family_member' && (parsedFamily || familyMemberDetailsVal)) {
+    mergedDiseaseInfo.booked_for = 'family_member';
+    mergedDiseaseInfo.family_member = parsedFamily || familyMemberDetailsVal;
+  } else {
+    mergedDiseaseInfo.booked_for = 'self';
+  }
+  const diseaseInfoVal = JSON.stringify(mergedDiseaseInfo);
+  const familyMemberJson = parsedFamily ? JSON.stringify(parsedFamily) : (familyMemberDetailsVal ? (typeof familyMemberDetailsVal === "string" ? familyMemberDetailsVal : JSON.stringify(familyMemberDetailsVal)) : null);
 
   const apptRows = await sql`
     INSERT INTO appointments (
@@ -321,6 +343,9 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
       appointment_time,
       appointment_type,
       disease_info,
+      booked_for,
+      family_member_id,
+      family_member_details,
       razorpay_order_id,
       razorpay_payment_id,
       status,
@@ -343,7 +368,10 @@ async function executeBookAppointment(payload, actorId, careEpisodeId) {
       ${appointment_date}::date,
       ${appointment_time}::time,
       ${appointment_type || "clinic_visit"},
-      ${diseaseInfoVal},
+      ${diseaseInfoVal ? sql`${diseaseInfoVal}::jsonb` : null},
+      ${bookedForVal},
+      ${validFamilyId},
+      ${familyMemberJson ? sql`${familyMemberJson}::jsonb` : null},
       ${razorpay_order_id || null},
       ${payment_id || null},
       'booked',

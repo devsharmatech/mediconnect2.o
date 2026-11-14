@@ -4,6 +4,7 @@ import { corsHeaders } from "@/lib/cors";
 import { logActivity } from "@/lib/layer1/activityLogger";
 import { logAudit } from "@/lib/layer1/auditLogger";
 import { postAppointmentCompletionLedger } from "@/lib/doctorFinancialEngine";
+import { parseFamilyMember } from "@/lib/familyMemberHelper";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -104,7 +105,8 @@ export async function POST(req) {
     if (appointment_id) {
       const apptRows = await sql`
         SELECT 
-          id, doctor_id, patient_id, status, appointment_type, care_episode_id
+          id, doctor_id, patient_id, status, appointment_type, care_episode_id,
+          booked_for, family_member_id, family_member_details, disease_info
         FROM appointments
         WHERE id = ${appointment_id}
         LIMIT 1
@@ -197,6 +199,15 @@ export async function POST(req) {
     const signedAt = action === "sign" ? now : null;
     const completedAt = action === "sign" ? now : null;
 
+    let fam = parseFamilyMember(body.family_member || template_data?.family_member, null);
+    if (!fam && appointment) {
+      fam = parseFamilyMember(appointment.family_member_details, appointment.disease_info);
+    }
+    const finalTemplateData = {
+      ...(template_data || {}),
+      ...(fam ? { family_member: fam, booked_for: "family_member" } : {}),
+    };
+
     /* -------------------------------------------------
        INSERT PRESCRIPTION INTO RDS POSTGRESQL
     -------------------------------------------------- */
@@ -239,7 +250,7 @@ export async function POST(req) {
         ${sql.json(examination_findings || {})},
         ${sql.json(follow_up || {})},
         ${sql.json(special_instructions || {})},
-        ${sql.json(template_data || {})},
+        ${sql.json(finalTemplateData)},
         ${sql.json(ai_analysis || {})},
         ${special_message || ""},
         ${isDraft},

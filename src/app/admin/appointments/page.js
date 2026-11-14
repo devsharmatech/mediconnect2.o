@@ -99,7 +99,11 @@ export default function AppointmentsPage() {
 
   const formatFee = (apt) => {
     const fee = getPaidFee(apt);
-    return fee > 0 ? `₹${fee.toLocaleString("en-IN")}` : "Free (₹0)";
+    if (fee > 0) return `₹${fee.toLocaleString("en-IN")}`;
+    if (apt?.payment_status === "free") return "Free (₹0)";
+    const orig = Number(apt?.original_fee || apt?.doctor?.consultation_fee || 0);
+    if (orig > 0 && apt?.payment_status === "paid") return `₹${orig.toLocaleString("en-IN")}`;
+    return "Free (₹0)";
   };
 
   // Pagination state
@@ -758,13 +762,33 @@ export default function AppointmentsPage() {
                             onChange={() => toggleSelect(appointment.id)}
                             className="rounded border-slate-300 text-[#0067A1] focus:ring-[#0067A1] cursor-pointer"
                           />
-                          <div className="w-8 h-8 rounded-full bg-[#0067A1]/10 text-[#0067A1] font-bold text-xs flex items-center justify-center shrink-0">
-                            {getInitials(appointment.patient?.full_name)}
+                          <div className="w-8 h-8 rounded-full overflow-hidden border border-[#0067A1]/20 shrink-0">
+                            {appointment.patient?.profile_picture ? (
+                              <img
+                                src={appointment.patient.profile_picture}
+                                alt={appointment.patient?.full_name || "Patient"}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-[#0067A1]/10 text-[#0067A1] font-bold text-xs flex items-center justify-center">
+                                {getInitials(appointment.patient?.full_name)}
+                              </div>
+                            )}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                              {appointment.patient?.full_name || "Unknown Patient"}
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {appointment.patient?.full_name || "Unknown Patient"}
+                              </p>
+                              {(appointment.booked_for === "family_member" || appointment.family_member || appointment.patient?.relation) && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                                  Family: {appointment.family_member?.relation || appointment.patient?.relation || "Member"}
+                                </span>
+                              )}
+                            </div>
+                            {appointment.patient?.primary_patient_name && appointment.patient.primary_patient_name !== appointment.patient.full_name && (
+                              <p className="text-[10px] text-slate-500 truncate">Booked by: {appointment.patient.primary_patient_name}</p>
+                            )}
                             <p className="text-[11px] text-slate-500 truncate">{appointment.patient?.phone_number || "—"}</p>
                           </div>
                         </div>
@@ -900,13 +924,33 @@ export default function AppointmentsPage() {
                           {/* Patient Column */}
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
-                                {getInitials(appointment.patient?.full_name)}
+                              <div className="w-8 h-8 rounded-full overflow-hidden border border-[#0067A1]/20 shrink-0">
+                                {appointment.patient?.profile_picture ? (
+                                  <img
+                                    src={appointment.patient.profile_picture}
+                                    alt={appointment.patient?.full_name || "Patient"}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-[#0067A1]/10 text-[#0067A1] font-bold text-xs flex items-center justify-center">
+                                    {getInitials(appointment.patient?.full_name)}
+                                  </div>
+                                )}
                               </div>
-                              <div className="min-w-0 max-w-[180px]">
-                                <p className="font-bold text-slate-900 dark:text-white truncate">
-                                  {appointment.patient?.full_name || "Unknown Patient"}
-                                </p>
+                              <div className="min-w-0 max-w-[200px]">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className="font-bold text-slate-900 dark:text-white truncate">
+                                    {appointment.patient?.full_name || "Unknown Patient"}
+                                  </p>
+                                  {(appointment.booked_for === "family_member" || appointment.family_member || appointment.patient?.relation) && (
+                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-purple-100 text-purple-800 border border-purple-200 shrink-0">
+                                      Family: {appointment.family_member?.relation || appointment.patient?.relation || "Member"}
+                                    </span>
+                                  )}
+                                </div>
+                                {appointment.patient?.primary_patient_name && appointment.patient.primary_patient_name !== appointment.patient.full_name && (
+                                  <p className="text-[10px] text-slate-500 truncate">Booked by: {appointment.patient.primary_patient_name}</p>
+                                )}
                                 <p className="text-[11px] text-slate-500 truncate">
                                   {appointment.patient?.phone_number || "—"}
                                 </p>
@@ -1103,15 +1147,37 @@ export default function AppointmentsPage() {
                   <span className="text-slate-400 font-mono text-[10px]">ID: #{viewAppointment.patient?.un_id || "VERIFIED"}</span>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#0067A1]/10 text-[#0067A1] font-bold text-xs flex items-center justify-center shrink-0">
-                    {getInitials(viewAppointment.patient?.full_name)}
+                  <div className="w-11 h-11 rounded-full overflow-hidden border border-[#0067A1]/20 shrink-0">
+                    {viewAppointment.patient?.profile_picture ? (
+                      <img
+                        src={viewAppointment.patient.profile_picture}
+                        alt={viewAppointment.patient?.full_name || "Patient"}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-[#0067A1]/10 text-[#0067A1] font-bold text-xs flex items-center justify-center">
+                        {getInitials(viewAppointment.patient?.full_name)}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-1 min-w-0 flex-1">
-                    <p className="font-bold text-sm text-slate-900 dark:text-white truncate">
-                      {viewAppointment.patient?.full_name || "Patient"}
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                        {viewAppointment.patient?.full_name || "Patient"}
+                      </p>
+                      {(viewAppointment.booked_for === "family_member" || viewAppointment.family_member || viewAppointment.patient?.relation) && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-purple-100 text-purple-800 border border-purple-300">
+                          Family Member: {viewAppointment.family_member?.relation || viewAppointment.patient?.relation || "Member"}
+                        </span>
+                      )}
+                    </div>
+                    {viewAppointment.patient?.primary_patient_name && viewAppointment.patient.primary_patient_name !== viewAppointment.patient.full_name && (
+                      <p className="text-xs text-slate-500 font-medium">Booked by account holder: <strong className="text-slate-800 dark:text-slate-200">{viewAppointment.patient.primary_patient_name}</strong></p>
+                    )}
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-600 dark:text-slate-400 text-xs">
                       {viewAppointment.patient?.gender && <span className="capitalize">{viewAppointment.patient.gender}</span>}
+                      {viewAppointment.patient?.age && <span>• {viewAppointment.patient.age}</span>}
+                      {viewAppointment.patient?.dob && <span>• DOB: {new Date(viewAppointment.patient.dob).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>}
                       {viewAppointment.patient?.blood_group && <span>🩸 {viewAppointment.patient.blood_group}</span>}
                       {viewAppointment.patient?.phone_number && <span>📞 {viewAppointment.patient.phone_number}</span>}
                       {viewAppointment.patient?.email && <span>✉ {viewAppointment.patient.email}</span>}

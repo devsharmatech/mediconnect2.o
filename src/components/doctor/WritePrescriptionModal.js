@@ -28,6 +28,7 @@ import {
   FileText,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { parseFamilyMember } from "@/lib/familyMemberHelper";
 import { Autocomplete } from "@/components/ui/Autocomplete";
 import { exportPrescriptionPdf, printPrescriptionPdf } from "@/lib/prescriptionPdfEngine";
 import { MEDICONNECT_LOGO_BASE64, DOCTOR_CADUCEUS_BASE64 } from "@/lib/prescriptionAssets";
@@ -72,20 +73,29 @@ function buildMetaFromAppointment(apt) {
     (careEpId ? (String(careEpId).toUpperCase().startsWith("EP-") ? String(careEpId).toUpperCase() : `EP-${String(careEpId).slice(0, 8).toUpperCase()}`) : null) ||
     (aptId ? `EP-${String(aptId).slice(0, 8).toUpperCase()}` : null);
 
-  const calculatedAge = calculatePatientAge(patient.date_of_birth || patient.dob, patient.age || patient.patient_age);
+  const fam = parseFamilyMember(apt.family_member || apt.family_member_details, apt.disease_info);
+  const isFamily = (apt.booked_for === "family_member") || Boolean(fam);
+
+  const calculatedAge = isFamily && (fam?.age_str || fam?.age)
+    ? (fam.age_str || `${fam.age} yrs`)
+    : calculatePatientAge(isFamily && fam?.dob ? fam.dob : (patient.date_of_birth || patient.dob), patient.age || patient.patient_age);
 
   return {
     patient_id: patient.id || apt.patient_id,
     doctor_id: doctor.id || apt.doctor_id,
     care_episode_id: careEpId,
     episode_id: epCode,
-    patient_name: patient.full_name || apt.patient_name || "Patient",
-    patient_gender: patient.gender || "",
+    patient_name: isFamily && (fam?.name || fam?.full_name) ? (fam.name || fam.full_name) : (patient.full_name || apt.patient_name || "Patient"),
+    patient_gender: isFamily && fam?.gender ? fam.gender : (patient.gender || ""),
     patient_age: calculatedAge,
-    patient_dob: patient.date_of_birth || patient.dob || "",
+    patient_dob: isFamily && fam?.dob ? fam.dob : (patient.date_of_birth || patient.dob || ""),
     patient_email: patient.email || "",
-    patient_blood_group: patient.blood_group || "",
+    patient_blood_group: isFamily && fam?.blood_group ? fam.blood_group : (patient.blood_group || ""),
     patient_address: patient.address || "",
+    booked_for: isFamily ? "family_member" : "self",
+    family_member: isFamily ? fam : null,
+    relation: isFamily && fam?.relation ? fam.relation : null,
+    primary_patient_name: patient.full_name || apt.patient_name || null,
     doctor_name: doctor.full_name || apt.doctor_name || "",
     doctor_specialization: doctor.specialization || apt.specialization || "",
     doctor_qualification: qual,
@@ -1166,11 +1176,19 @@ export default function WritePrescriptionModal({
           doctor_id: meta?.doctor_id || loggedDoctorId,
         };
       }
+      const fam = parseFamilyMember(appointment.family_member || appointment.family_member_details, appointment.disease_info) ||
+        parseFamilyMember(meta?.family_member, null);
+      const isFamily = appointment.booked_for === "family_member" || meta?.booked_for === "family_member" || Boolean(fam);
+      const famName = isFamily && (fam?.name || fam?.full_name) ? (fam.name || fam.full_name) : (appointment.patient?.full_name || appointment.patient_name || meta?.patient_name || "Patient");
+
       return {
         ...meta,
         patient_id: appointment.patient?.id || appointment.patient_id || meta?.patient_id,
         doctor_id: appointment.doctor?.id || appointment.doctor_id || meta?.doctor_id || loggedDoctorId,
-        patient_name: appointment.patient?.full_name || appointment.patient_name || meta?.patient_name || "Patient",
+        patient_name: famName,
+        booked_for: isFamily ? "family_member" : "self",
+        family_member: fam,
+        relation: isFamily && fam?.relation ? fam.relation : (meta?.relation || null),
         care_episode_id: appointment.care_episode_id || meta?.care_episode_id || null,
         episode_id: appointment.episode_id || meta?.episode_id || (appointment.care_episode_id ? `EP-${String(appointment.care_episode_id).slice(0, 8).toUpperCase()}` : null),
         appointment_type: appointment.appointment_type || meta?.appointment_type || "clinic",
@@ -1291,6 +1309,8 @@ export default function WritePrescriptionModal({
             }
           : {},
         special_message: finalSpecialMessage,
+        family_member: resolvedMeta.family_member || meta?.family_member || null,
+        booked_for: resolvedMeta.booked_for || meta?.booked_for || "self",
         template_data: {
           ...customFields,
           _dynamic_complaints: presentingComplaints.filter(c => c.complaint.trim()),
@@ -1298,7 +1318,9 @@ export default function WritePrescriptionModal({
           CONDITIONS__conditions: conditions.trim(),
           template_id: selectedTemplate?.id,
           raw_special_message: specialMessage.trim(),
-          raw_examination_findings: examinationFindings.trim()
+          raw_examination_findings: examinationFindings.trim(),
+          family_member: resolvedMeta.family_member || meta?.family_member || null,
+          booked_for: resolvedMeta.booked_for || meta?.booked_for || "self",
         },
         action,
       };
@@ -1459,7 +1481,14 @@ export default function WritePrescriptionModal({
                   {meta?.patient_name && (
                     <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-100">
                       <div className="flex items-center justify-between gap-1 mb-1">
-                        <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider">Patient</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-[10px] font-medium text-[#0067A1] uppercase tracking-wider">Patient</p>
+                          {(meta?.booked_for === "family_member" || meta?.relation) && (
+                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                              Family: {meta.relation || "Member"}
+                            </span>
+                          )}
+                        </div>
                         {(appointment?.patient?.is_identity_verified || meta?.is_identity_verified) && (
                           <span className="inline-flex items-center gap-0.5 text-[9.5px] font-semibold text-emerald-700 bg-emerald-100/90 px-1.5 py-0.2 rounded border border-emerald-200">
                             ✓ Verified
@@ -1467,6 +1496,9 @@ export default function WritePrescriptionModal({
                         )}
                       </div>
                       <p className="text-xs font-semibold text-slate-800">{meta.patient_name}</p>
+                      {meta?.primary_patient_name && meta.patient_name !== meta.primary_patient_name && (
+                        <p className="text-[10px] text-slate-500 font-normal">Account: {meta.primary_patient_name}</p>
+                      )}
                       {meta.patient_gender && <p className="text-[11px] text-slate-600 font-normal capitalize">{meta.patient_gender}</p>}
                       {patientAge && <p className="text-[11px] font-medium text-slate-700">Age: {patientAge}</p>}
                       {meta.patient_blood_group && <p className="text-[10px] text-slate-500 font-normal">Blood: {meta.patient_blood_group}</p>}

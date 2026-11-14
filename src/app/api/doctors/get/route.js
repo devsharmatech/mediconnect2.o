@@ -131,15 +131,43 @@ export async function GET(request) {
       const details = row.doctor_details || {};
       const dos = row.onboarding_status_row || null;
 
-      let derivedProfilePicture = cleanUrl(row.profile_picture) || null;
+      // Check real uploaded passport photo from doctor_details
+      let passportUrl = null;
       const passportPhoto = details.passport_photo;
-
-      if (!derivedProfilePicture && passportPhoto) {
+      if (passportPhoto) {
         if (Array.isArray(passportPhoto) && passportPhoto.length > 0) {
-          derivedProfilePicture = cleanUrl(passportPhoto[0]);
+          passportUrl = cleanUrl(passportPhoto[0]);
         } else if (typeof passportPhoto === "string") {
-          derivedProfilePicture = cleanUrl(passportPhoto);
+          try {
+            const parsed = JSON.parse(passportPhoto);
+            if (Array.isArray(parsed) && parsed.length > 0) passportUrl = cleanUrl(parsed[0]);
+            else if (typeof parsed === "string") passportUrl = cleanUrl(parsed);
+          } catch {
+            if (passportPhoto && passportPhoto !== "[]") passportUrl = cleanUrl(passportPhoto);
+          }
         }
+      }
+
+      const userPic = cleanUrl(row.profile_picture);
+      const isRealUserPic = userPic && !userPic.includes("ui-avatars.com") && userPic.startsWith("http");
+      const isRealPassport = passportUrl && !passportUrl.includes("ui-avatars.com") && passportUrl.startsWith("http");
+
+      const docName = details.full_name || "Doctor";
+      if (!details.consultation_fee || Number(details.consultation_fee) === 0) {
+        details.consultation_fee = details.clinic_consultation_fee || details.video_consultation_fee || details.home_visit_fee || "0.00";
+      }
+
+      // Prioritize real uploaded photo: passport_photo or custom user profile picture
+      let derivedProfilePicture = null;
+      if (isRealPassport) {
+        derivedProfilePicture = passportUrl;
+      } else if (isRealUserPic) {
+        derivedProfilePicture = userPic;
+      } else if (userPic && userPic.startsWith("http")) {
+        derivedProfilePicture = userPic;
+      } else {
+        const docName = details.full_name || "Doctor";
+        derivedProfilePicture = `https://ui-avatars.com/api/?name=${encodeURIComponent(docName.trim())}&background=0067A1&color=fff&bold=true`;
       }
 
       return {

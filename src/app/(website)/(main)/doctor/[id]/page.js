@@ -19,7 +19,15 @@ import {
   FaPhoneAlt,
   FaWhatsapp,
   FaArrowDown,
+  FaUser,
+  FaUsers,
+  FaPlus,
+  FaCamera,
+  FaTint,
+  FaTimes,
+  FaTrash,
 } from "react-icons/fa";
+import { toast } from "react-hot-toast";
 import { getDoctorDetailsAction, checkDoctorDiscountAction, checkDoctorFollowupAndPricingAction, getDoctorSlotsAction } from "./actions";
 import { loadRazorpayScript } from "@/lib/razorpay";
 import { LoadingScreen } from "@/components/public-site/ui/LoadingStates";
@@ -195,6 +203,148 @@ function DoctorProfileContent() {
   });
   const [slotSessionFilter, setSlotSessionFilter] = useState("all");
   const [showPastSlots, setShowPastSlots] = useState(false);
+
+  // Family Member Consultation States
+  const [bookedFor, setBookedFor] = useState("self"); // "self" | "family_member"
+  const [familyMembers, setFamilyMembers] = useState([]);
+  const [selectedFamilyMember, setSelectedFamilyMember] = useState(null);
+  const [loadingFamily, setLoadingFamily] = useState(false);
+  const [isAddingFamilyMember, setIsAddingFamilyMember] = useState(false);
+  const [savingMember, setSavingMember] = useState(false);
+  const [uploadingMemberPhoto, setUploadingMemberPhoto] = useState(false);
+  const [memberForm, setMemberForm] = useState({
+    name: "",
+    relation: "Father",
+    dob: "",
+    gender: "Male",
+    blood_group: "",
+    profile_picture: "",
+  });
+
+  const calculateAge = (dob) => {
+    if (!dob) return null;
+    const b = new Date(dob);
+    if (isNaN(b.getTime())) return null;
+    const today = new Date();
+    let a = today.getFullYear() - b.getFullYear();
+    const m = today.getMonth() - b.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < b.getDate())) a--;
+    return a >= 0 ? `${a} yrs` : null;
+  };
+
+  const fetchFamilyMembers = async (overrideUid = null) => {
+    const uid = overrideUid || resolveCurrentUserId();
+    if (!uid) return;
+    try {
+      setLoadingFamily(true);
+      const res = await fetch(`/api/patient/family?user_id=${uid}`);
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setFamilyMembers(json.data);
+        if (json.data.length > 0) {
+          setSelectedFamilyMember((curr) => curr || json.data[0]);
+          setIsAddingFamilyMember(false);
+        } else {
+          setIsAddingFamilyMember(true);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to fetch family members:", e);
+    } finally {
+      setLoadingFamily(false);
+    }
+  };
+
+  const handleMemberPhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size must be less than 5MB");
+      return;
+    }
+    setUploadingMemberPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/cms/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json().catch(() => null);
+      if (data?.success && data?.url) {
+        setMemberForm((prev) => ({ ...prev, profile_picture: data.url }));
+        toast.success("Photo uploaded");
+      } else {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setMemberForm((prev) => ({ ...prev, profile_picture: reader.result }));
+        };
+        reader.readAsDataURL(file);
+      }
+    } catch (_) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setMemberForm((prev) => ({ ...prev, profile_picture: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setUploadingMemberPhoto(false);
+    }
+  };
+
+  const handleSaveMember = async (e) => {
+    if (e) e.preventDefault();
+    const uid = resolveCurrentUserId();
+    if (!uid) {
+      setIsLoginOpen(true);
+      return;
+    }
+    if (!memberForm.name.trim()) {
+      toast.error("Please enter the member's full name");
+      return;
+    }
+    if (!memberForm.dob) {
+      toast.error("Please select Date of Birth");
+      return;
+    }
+    try {
+      setSavingMember(true);
+      const res = await fetch("/api/patient/family", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: uid,
+          name: memberForm.name.trim(),
+          relation: memberForm.relation,
+          dob: memberForm.dob,
+          gender: memberForm.gender,
+          blood_group: memberForm.blood_group || null,
+          profile_picture: memberForm.profile_picture || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || "Failed to add family member");
+      }
+      const created = json.data;
+      toast.success(`${created.name} added!`);
+      setFamilyMembers((prev) => [...prev, created]);
+      setSelectedFamilyMember(created);
+      setIsAddingFamilyMember(false);
+      setMemberForm({
+        name: "",
+        relation: "Father",
+        dob: "",
+        gender: "Male",
+        blood_group: "",
+        profile_picture: "",
+      });
+    } catch (err) {
+      toast.error(err.message || "Failed to save family member");
+    } finally {
+      setSavingMember(false);
+    }
+  };
 
   const scrollToBooking = () => {
     const el = document.getElementById("booking-panel");
@@ -572,6 +722,20 @@ function DoctorProfileContent() {
       return;
     }
 
+    if (bookedFor === "family_member") {
+      if (isAddingFamilyMember && memberForm.name.trim()) {
+        toast.error("Please save the family member details before booking.");
+        scrollToBooking();
+        return;
+      }
+      if (!selectedFamilyMember) {
+        toast.error("Please select or add a family member for this appointment.");
+        setIsAddingFamilyMember(true);
+        scrollToBooking();
+        return;
+      }
+    }
+
     try {
       setBooking(true);
       setError("");
@@ -651,6 +815,9 @@ function DoctorProfileContent() {
               fee: fee,
               clinic_name: clinicName,
               clinic_address: clinicAddress,
+              booked_for: bookedFor,
+              family_member_id: bookedFor === "family_member" ? selectedFamilyMember?.id || null : null,
+              family_member_details: bookedFor === "family_member" ? selectedFamilyMember || null : null,
             }),
           });
           const attemptJson = await attemptRes.json();
@@ -733,6 +900,9 @@ function DoctorProfileContent() {
               fee: 0,
               clinic_name: clinicName,
               clinic_address: clinicAddress,
+              booked_for: bookedFor,
+              family_member_id: bookedFor === "family_member" ? selectedFamilyMember?.id || null : null,
+              family_member_details: bookedFor === "family_member" ? selectedFamilyMember || null : null,
             }),
           });
           const attemptJson = await attemptRes.json();
@@ -794,13 +964,20 @@ function DoctorProfileContent() {
         care_episode_id: careEpisodeId,
         idempotency_key: idempotencyKey,
         fee: bookingFee,
+        booked_for: bookedFor,
+        family_member_id: bookedFor === "family_member" ? selectedFamilyMember?.id || null : null,
+        family_member_details: bookedFor === "family_member" ? selectedFamilyMember || null : null,
         consents: {
           data_sharing: dataSharingConsent,
           teleconsultation: teleconsultConsent,
         },
-        disease_info: paymentDetails
-          ? `Booked via website | Payment ID: ${paymentDetails.payment_id}`
-          : "Booked via website",
+        disease_info: {
+          note: paymentDetails
+            ? `Booked via website | Payment ID: ${paymentDetails.payment_id}`
+            : "Booked via website",
+          booked_for: bookedFor,
+          family_member: bookedFor === "family_member" ? selectedFamilyMember : null,
+        },
         payment_id: paymentDetails?.payment_id || null,
         razorpay_order_id: paymentDetails?.order_id || null,
         attempt_id: attemptId,
@@ -1202,11 +1379,347 @@ function DoctorProfileContent() {
                   </div>
                 </div>
 
-                {/* Step 1: Consultation Mode Selection */}
+                {/* Step 1: Who is this consultation for? */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                       <span className="w-5 h-5 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-[11px] font-bold inline-flex items-center justify-center">1</span>
+                      <span>Consultation For</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-medium">Select patient</span>
+                  </div>
+
+                  {/* Two Main Tabs: Myself vs Family Member */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBookedFor("self");
+                        setIsAddingFamilyMember(false);
+                      }}
+                      className={`flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                        bookedFor === "self"
+                          ? "border-[#0067A1] bg-sky-50/80 text-[#0067A1] ring-2 ring-[#0067A1]/20 font-bold"
+                          : "border-slate-200/90 bg-white text-slate-700 hover:border-slate-300 font-medium"
+                      }`}
+                    >
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+                        bookedFor === "self" ? "bg-[#0067A1] text-white" : "bg-slate-100 text-slate-500"
+                      }`}>
+                        <FaUser className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs block leading-tight font-bold">Myself</span>
+                        <span className="text-[10px] text-slate-500 font-normal truncate block">Account Holder</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const uid = resolveCurrentUserId();
+                        if (!uid) {
+                          setIsLoginOpen(true);
+                          return;
+                        }
+                        setBookedFor("family_member");
+                        fetchFamilyMembers(uid);
+                      }}
+                      className={`flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                        bookedFor === "family_member"
+                          ? "border-[#0067A1] bg-sky-50/80 text-[#0067A1] ring-2 ring-[#0067A1]/20 font-bold"
+                          : "border-slate-200/90 bg-white text-slate-700 hover:border-slate-300 font-medium"
+                      }`}
+                    >
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+                        bookedFor === "family_member" ? "bg-[#0067A1] text-white" : "bg-slate-100 text-slate-500"
+                      }`}>
+                        <FaUsers className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-xs block leading-tight font-bold">Family Member</span>
+                        <span className="text-[10px] text-slate-500 font-normal truncate block">Parent, Child, Spouse</span>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Family Member Selection / Add Container */}
+                  {bookedFor === "family_member" && (
+                    <div className="bg-slate-50/70 border border-slate-200/80 rounded-lg p-2.5 space-y-2.5">
+                      {loadingFamily ? (
+                        <div className="py-4 text-center">
+                          <div className="animate-spin h-5 w-5 border-2 border-[#0067A1] border-t-transparent rounded-full mx-auto mb-1"></div>
+                          <p className="text-[11px] text-slate-500 font-normal">Loading family members...</p>
+                        </div>
+                      ) : !isAddingFamilyMember ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-slate-700">Choose family member:</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMemberForm({
+                                  name: "",
+                                  relation: "Father",
+                                  dob: "",
+                                  gender: "Male",
+                                  blood_group: "",
+                                  profile_picture: "",
+                                });
+                                setIsAddingFamilyMember(true);
+                              }}
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0067A1] hover:underline cursor-pointer"
+                            >
+                              <FaPlus className="w-2.5 h-2.5" />
+                              <span>Add Member</span>
+                            </button>
+                          </div>
+
+                          {familyMembers.length === 0 ? (
+                            <div className="text-center py-4 bg-white rounded-lg border border-dashed border-slate-300 p-3">
+                              <p className="text-xs text-slate-600 font-medium mb-1">No family members added yet</p>
+                              <p className="text-[11px] text-slate-400 font-normal mb-2.5">Add a member to book on their behalf</p>
+                              <button
+                                type="button"
+                                onClick={() => setIsAddingFamilyMember(true)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-[#0067A1] text-white text-xs font-semibold cursor-pointer shadow-xs hover:bg-[#005585]"
+                              >
+                                <FaPlus className="w-2.5 h-2.5" />
+                                <span>Add Member</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+                              {familyMembers.map((m) => {
+                                const isSelected = selectedFamilyMember?.id === m.id;
+                                const calculatedAge = m.age || (m.dob ? calculateAge(m.dob) : null);
+                                return (
+                                  <div
+                                    key={m.id}
+                                    onClick={() => setSelectedFamilyMember(m)}
+                                    className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer ${
+                                      isSelected
+                                        ? "bg-white border-[#0067A1] shadow-2xs ring-2 ring-[#0067A1]/20"
+                                        : "bg-white/90 border-slate-200 hover:border-slate-300"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <div className="w-8 h-8 rounded-full bg-[#0067A1]/10 border border-[#0067A1]/20 flex items-center justify-center shrink-0 overflow-hidden">
+                                        {m.profile_picture ? (
+                                          <img src={m.profile_picture} alt={m.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                          <FaUser className="w-3.5 h-3.5 text-[#0067A1]" />
+                                        )}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <p className="text-xs font-bold text-slate-800 truncate">{m.name}</p>
+                                          <span className="inline-block px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-purple-100 text-purple-800 border border-purple-200">
+                                            {m.relation}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[10.5px] text-slate-500 font-normal">
+                                          {m.gender && <span className="capitalize">{m.gender}</span>}
+                                          {calculatedAge && <span>• {calculatedAge}</span>}
+                                          {m.blood_group && <span>• 🩸 {m.blood_group}</span>}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="shrink-0 ml-2">
+                                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                        isSelected ? "border-[#0067A1] bg-[#0067A1]" : "border-slate-300 bg-white"
+                                      }`}>
+                                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        /* Add Family Member Form */
+                        <form onSubmit={handleSaveMember} className="space-y-2.5 bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                            <span className="text-xs font-bold text-slate-800">Add Family Member</span>
+                            {familyMembers.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setIsAddingFamilyMember(false)}
+                                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                              >
+                                <FaTimes className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Profile Picture Upload (Optional) */}
+                          <div className="flex items-center gap-3">
+                            <div className="relative w-12 h-12 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 overflow-hidden group">
+                              {memberForm.profile_picture ? (
+                                <img src={memberForm.profile_picture} alt="Preview" className="w-full h-full object-cover" />
+                              ) : (
+                                <FaUser className="w-5 h-5 text-slate-400" />
+                              )}
+                              {uploadingMemberPhoto && (
+                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                  <div className="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full"></div>
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <label className="text-[11px] font-semibold text-slate-700 block mb-0.5">
+                                Photo <span className="text-slate-400 font-normal">(Optional)</span>
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <label className="inline-flex items-center gap-1 px-2.5 py-1 rounded border border-slate-200 text-[11px] font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 cursor-pointer transition-colors">
+                                  <FaCamera className="w-2.5 h-2.5 text-[#0067A1]" />
+                                  <span>{memberForm.profile_picture ? "Change" : "Upload"}</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleMemberPhotoUpload}
+                                    className="hidden"
+                                    disabled={uploadingMemberPhoto}
+                                  />
+                                </label>
+                                {memberForm.profile_picture && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setMemberForm((p) => ({ ...p, profile_picture: "" }))}
+                                    className="text-[11px] text-rose-600 hover:underline cursor-pointer"
+                                  >
+                                    Remove
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Full Name & Relation */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                                Full Name <span className="text-rose-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                value={memberForm.name}
+                                onChange={(e) => setMemberForm((p) => ({ ...p, name: e.target.value }))}
+                                placeholder="e.g. Ramesh Sharma"
+                                required
+                                className="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-xs font-normal focus:outline-none focus:border-[#0067A1]"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                                Relation <span className="text-rose-500">*</span>
+                              </label>
+                              <select
+                                value={memberForm.relation}
+                                onChange={(e) => setMemberForm((p) => ({ ...p, relation: e.target.value }))}
+                                className="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-xs font-normal focus:outline-none focus:border-[#0067A1] bg-white"
+                              >
+                                {["Father", "Mother", "Spouse", "Son", "Daughter", "Brother", "Sister", "Grandfather", "Grandmother", "Other"].map((rel) => (
+                                  <option key={rel} value={rel}>{rel}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* DOB & Gender */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="text-[11px] font-semibold text-slate-700">
+                                  Date of Birth <span className="text-rose-500">*</span>
+                                </label>
+                                {memberForm.dob && (
+                                  <span className="text-[10px] font-bold text-[#0067A1]">
+                                    {calculateAge(memberForm.dob)}
+                                  </span>
+                                )}
+                              </div>
+                              <input
+                                type="date"
+                                max={todayStr}
+                                value={memberForm.dob}
+                                onChange={(e) => setMemberForm((p) => ({ ...p, dob: e.target.value }))}
+                                required
+                                className="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-xs font-normal focus:outline-none focus:border-[#0067A1] bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                                Gender <span className="text-rose-500">*</span>
+                              </label>
+                              <div className="grid grid-cols-3 gap-1">
+                                {["Male", "Female", "Other"].map((g) => (
+                                  <button
+                                    key={g}
+                                    type="button"
+                                    onClick={() => setMemberForm((p) => ({ ...p, gender: g }))}
+                                    className={`py-1 text-[11px] rounded border font-medium cursor-pointer transition-colors ${
+                                      memberForm.gender === g
+                                        ? "bg-[#0067A1] text-white border-[#0067A1]"
+                                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                                    }`}
+                                  >
+                                    {g}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Blood Group (Optional) */}
+                          <div>
+                            <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                              Blood Group <span className="text-slate-400 font-normal">(Optional)</span>
+                            </label>
+                            <select
+                              value={memberForm.blood_group}
+                              onChange={(e) => setMemberForm((p) => ({ ...p, blood_group: e.target.value }))}
+                              className="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-xs font-normal focus:outline-none focus:border-[#0067A1] bg-white"
+                            >
+                              <option value="">Select blood group</option>
+                              {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bg) => (
+                                <option key={bg} value={bg}>{bg}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              type="submit"
+                              disabled={savingMember}
+                              className="flex-1 py-1.5 px-3 rounded-md bg-[#0067A1] hover:bg-[#005585] text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              {savingMember ? "Saving..." : "Save Member"}
+                            </button>
+                            {familyMembers.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setIsAddingFamilyMember(false)}
+                                className="py-1.5 px-3 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Step 2: Consultation Mode Selection */}
+                <div className="space-y-2.5 pt-1 border-t border-slate-100">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-[11px] font-bold inline-flex items-center justify-center">2</span>
                       <span>Consultation Mode</span>
                     </label>
                     <div className="inline-flex rounded-lg p-0.5 bg-slate-100 border border-slate-200/80 shrink-0">
@@ -1331,11 +1844,11 @@ function DoctorProfileContent() {
                   </div>
                 )}
 
-                {/* Step 2: Date Picker with 4-Column Responsive Day Strip */}
-                <div className="space-y-2">
+                {/* Step 3: Date Picker with 4-Column Responsive Day Strip */}
+                <div className="space-y-2 pt-1 border-t border-slate-100">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <span className="w-5 h-5 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-[11px] font-bold inline-flex items-center justify-center">2</span>
+                      <span className="w-5 h-5 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-[11px] font-bold inline-flex items-center justify-center">3</span>
                       <span>Select Date</span>
                     </label>
                     <span className="text-[11px] font-bold text-[#0067A1] bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100">
@@ -1442,7 +1955,7 @@ function DoctorProfileContent() {
                         {/* Section Header with Available Count Badge */}
                         <div className="flex items-center justify-between">
                           <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                            <span className="w-5 h-5 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-[11px] font-bold inline-flex items-center justify-center">3</span>
+                            <span className="w-5 h-5 rounded-full bg-[#0067A1]/10 text-[#0067A1] text-[11px] font-bold inline-flex items-center justify-center">4</span>
                             <span>Available Time Slots</span>
                             {availableSlotsCount > 0 ? (
                               <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
@@ -1572,7 +2085,7 @@ function DoctorProfileContent() {
                             <div className="animate-spin h-5 w-5 border-2 border-[#0067A1] border-t-transparent rounded-full mx-auto mb-1.5"></div>
                             <p className="text-xs text-slate-500 font-normal">Checking doctor slots...</p>
                           </div>
-                        ) : (details.is_open === false || details.is_available === false) ? (
+                        ) : details.is_open === false ? (
                           <div className="text-center py-5 bg-rose-50/70 rounded-lg border border-rose-200 p-3">
                             <p className="text-xs text-rose-800 font-semibold mb-0.5">
                               Doctor is Currently Closed
@@ -1728,7 +2241,6 @@ function DoctorProfileContent() {
                     disabled={
                       booking ||
                       details.is_open === false ||
-                      details.is_available === false ||
                       !dataSharingConsent ||
                       !teleconsultConsent
                     }

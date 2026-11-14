@@ -1,6 +1,7 @@
 import sql from "@/lib/db";
 import { success, failure } from "@/lib/response";
 import { corsHeaders } from "@/lib/cors";
+import { parseFamilyMember } from "@/lib/familyMemberHelper";
 
 export async function OPTIONS() {
   return new Response("OK", { headers: corsHeaders });
@@ -17,7 +18,8 @@ export async function GET(req, { params }) {
     const rows = await sql`
       SELECT 
         a.id, a.appointment_date, a.appointment_time, a.appointment_type, a.status,
-        a.disease_info, a.created_at, a.updated_at, a.patient_id, a.doctor_id,
+        a.disease_info, a.booked_for, a.family_member_id, a.family_member_details,
+        a.created_at, a.updated_at, a.patient_id, a.doctor_id,
         a.care_episode_id,
         a.final_fee, a.original_fee, a.discount_amount, a.payment_status,
         COALESCE(a.original_appointment_time, a.appointment_time)::text AS original_appointment_time,
@@ -52,6 +54,9 @@ export async function GET(req, { params }) {
 
     const generatedEpisodeCode = row.care_episode_code || (row.care_episode_id ? `EP-${String(row.care_episode_id).slice(0, 8).toUpperCase()}` : null);
 
+    const fam = parseFamilyMember(row.family_member_details, row.disease_info);
+    const isFamily = (row.booked_for === "family_member") || Boolean(fam);
+
     const transformedAppointment = {
       id: row.id,
       appointment_date: row.appointment_date,
@@ -60,6 +65,8 @@ export async function GET(req, { params }) {
       extended_until: row.extended_until,
       appointment_type: row.appointment_type,
       status: row.status,
+      booked_for: isFamily ? "family_member" : "self",
+      family_member: isFamily ? fam : null,
       final_fee: row.final_fee,
       original_fee: row.original_fee,
       discount_amount: row.discount_amount,
@@ -76,13 +83,18 @@ export async function GET(req, { params }) {
         id: row.patient_id,
         un_id: row.patient_un_id,
         phone_number: row.patient_phone,
-        profile_picture: row.patient_picture,
+        profile_picture: (isFamily && fam?.profile_picture) ? fam.profile_picture : row.patient_picture,
         created_at: row.created_at,
-        full_name: row.patient_name,
+        full_name: (isFamily && (fam?.name || fam?.full_name)) ? (fam.name || fam.full_name) : row.patient_name,
+        primary_patient_name: row.patient_name,
         email: row.patient_email,
-        gender: row.patient_gender,
-        date_of_birth: row.patient_dob,
-        blood_group: row.patient_blood_group,
+        gender: (isFamily && fam?.gender) ? fam.gender : row.patient_gender,
+        date_of_birth: (isFamily && fam?.dob) ? fam.dob : row.patient_dob,
+        age: (isFamily && fam?.age_str) ? fam.age_str : (fam?.age ? `${fam.age} yrs` : null),
+        blood_group: (isFamily && fam?.blood_group) ? fam.blood_group : row.patient_blood_group,
+        relation: (isFamily && fam?.relation) ? fam.relation : null,
+        is_family_member: isFamily,
+        family_member: isFamily ? fam : null,
         address: row.patient_address,
         emergency_contact: row.patient_emergency,
       },
