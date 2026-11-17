@@ -289,6 +289,7 @@ export default function MasterTestSelectorModal({
                   </th>
                   <th className="py-2.5 px-3">Test Code</th>
                   <th className="py-2.5 px-3">Test Name</th>
+                  <th className="py-2.5 px-3">Mode</th>
                   <th className="py-2.5 px-3">Category</th>
                   <th className="py-2.5 px-3">Sample Type</th>
                   <th className="py-2.5 px-3 text-right">MRP (₹)</th>
@@ -329,6 +330,17 @@ export default function MasterTestSelectorModal({
                       </td>
                       <td className="py-2 px-3 font-medium text-gray-900 dark:text-white">
                         {t.test_name}
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded border ${
+                          t.collection_type === 'home'
+                            ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300'
+                            : t.collection_type === 'both'
+                            ? 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300'
+                            : 'bg-blue-50 text-[#0067A1] border-blue-200 dark:bg-blue-900/30 dark:text-blue-300'
+                        }`}>
+                          {t.collection_type === 'home' ? 'Home Visit' : t.collection_type === 'both' ? 'Both' : 'Lab Visit'}
+                        </span>
                       </td>
                       <td className="py-2 px-3">
                         <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">

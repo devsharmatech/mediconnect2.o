@@ -5,7 +5,7 @@ import {
   Microscope, Plus, Search, Filter, Download, Upload,
   Edit2, Trash2, CheckCircle, XCircle, FileText, 
   Activity, AlertTriangle, Database, RefreshCw,
-  Percent, Coins, ShieldAlert, Save
+  Percent, Coins, ShieldAlert, Save, Home
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Papa from "papaparse";
@@ -18,6 +18,7 @@ export default function LabTestsMasterPage() {
   const [processing, setProcessing] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [collectionFilter, setCollectionFilter] = useState("");
   const [selectedLab, setSelectedLab] = useState("");
   const [labsList, setLabsList] = useState([]);
   const [selectedLabDetails, setSelectedLabDetails] = useState(null);
@@ -42,7 +43,8 @@ export default function LabTestsMasterPage() {
     schedule: "",
     reporting_schedule: "",
     instructions: "",
-    is_active: true
+    is_active: true,
+    collection_type: "lab"
   });
 
   const adminId = getLoggedInUser("admin")?.id;
@@ -110,7 +112,7 @@ export default function LabTestsMasterPage() {
     }
   };
 
-  const fetchLabTests = async (targetPage = pagination.page, querySearch = search, cat = categoryFilter, lab = selectedLab) => {
+  const fetchLabTests = async (targetPage = pagination.page, querySearch = search, cat = categoryFilter, lab = selectedLab, col = collectionFilter) => {
     setLoading(true);
     try {
       const queryParams = {
@@ -120,6 +122,7 @@ export default function LabTestsMasterPage() {
         limit: 10
       };
       if (lab) queryParams.lab_id = lab;
+      if (col && col !== "all") queryParams.collection_type = col;
 
       const query = new URLSearchParams(queryParams).toString();
 
@@ -146,17 +149,17 @@ export default function LabTestsMasterPage() {
     }
   };
 
-  // Debounce search, category, and selectedLab (resets to page 1)
+  // Debounce search, category, collectionFilter, and selectedLab (resets to page 1)
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchLabTests(1, search, categoryFilter, selectedLab);
+      fetchLabTests(1, search, categoryFilter, selectedLab, collectionFilter);
     }, 400);
     return () => clearTimeout(timer);
-  }, [search, categoryFilter, selectedLab]);
+  }, [search, categoryFilter, selectedLab, collectionFilter]);
 
   // Page change
   useEffect(() => {
-    fetchLabTests(pagination.page, search, categoryFilter, selectedLab);
+    fetchLabTests(pagination.page, search, categoryFilter, selectedLab, collectionFilter);
   }, [pagination.page]);
 
   const handleSave = async (e) => {
@@ -235,6 +238,7 @@ export default function LabTestsMasterPage() {
         test_code: t.test_code || "",
         test_name: t.test_name || "",
         category: t.category || "",
+        collection_type: t.collection_type || "lab",
         mrp: t.mrp !== undefined ? t.mrp : 0,
         commission_percentage: t.commission_percentage !== undefined ? t.commission_percentage : 0,
         sample_type: t.sample_type || "",
@@ -261,6 +265,7 @@ export default function LabTestsMasterPage() {
       "test_code",
       "test_name",
       "category",
+      "collection_type",
       "mrp",
       "commission_percentage",
       "sample_type",
@@ -276,6 +281,7 @@ export default function LabTestsMasterPage() {
         "MGR0712",
         "Complete Blood Count (CBC)",
         "Category 1",
+        "both",
         "350",
         "50",
         "Whole blood EDTA",
@@ -290,6 +296,7 @@ export default function LabTestsMasterPage() {
         "MGR0381",
         "HbA1c",
         "Category 1",
+        "lab",
         "500",
         "50",
         "Whole blood EDTA",
@@ -326,22 +333,27 @@ export default function LabTestsMasterPage() {
     reader.onload = async (event) => {
       try {
         const results = Papa.parse(event.target.result, { header: true, skipEmptyLines: true });
-        const importedData = results.data.map((item, idx) => ({
-          _id: idx, // temporary id for editing
-          test_code: (item.test_code || item.Test_Code || item['Test Code'] || item.code || "").trim(),
-          test_name: (item.test_name || item.Test_Name || item['Test Name'] || item.name || "").trim(),
-          category: (item.category || item.Category || "Category 1").trim(),
-          mrp: parseFloat(item.mrp || item.MRP || item.price || item.Price || 0) || 0,
-          commission_percentage: parseFloat(item.commission_percentage || item['Commission %'] || item.commission || 0) || 0,
-          sample_type: (item.sample_type || item.Sample_Type || item['Sample Type'] || "").trim(),
-          container: (item.container || item.Container || "").trim(),
-          temp: (item.temp || item.Temp || item.temperature || item.Temperature || "").trim(),
-          remarks: (item.remarks || item.Remarks || "").trim(),
-          schedule: (item.schedule || item.Schedule || "").trim(),
-          reporting_schedule: (item.reporting_schedule || item.Reporting_Schedule || item['Reporting Schedule'] || "").trim(),
-          instructions: (item.remarks || item.Remarks || item.instructions || item.Instructions || "").trim(),
-          is_active: String(item.is_active || item.Is_Active || item.Active || item.active || "true").toLowerCase() === "true"
-        })).filter(row => row.test_name);
+        const importedData = results.data.map((item, idx) => {
+          const rawCol = String(item.collection_type || item.Collection_Type || item['Collection Type'] || item.mode || item.Mode || "lab").toLowerCase().trim();
+          const validCol = ['home', 'lab', 'both'].includes(rawCol) ? rawCol : 'lab';
+          return {
+            _id: idx, // temporary id for editing
+            test_code: (item.test_code || item.Test_Code || item['Test Code'] || item.code || "").trim(),
+            test_name: (item.test_name || item.Test_Name || item['Test Name'] || item.name || "").trim(),
+            category: (item.category || item.Category || "Category 1").trim(),
+            collection_type: validCol,
+            mrp: parseFloat(item.mrp || item.MRP || item.price || item.Price || 0) || 0,
+            commission_percentage: parseFloat(item.commission_percentage || item['Commission %'] || item.commission || 0) || 0,
+            sample_type: (item.sample_type || item.Sample_Type || item['Sample Type'] || "").trim(),
+            container: (item.container || item.Container || "").trim(),
+            temp: (item.temp || item.Temp || item.temperature || item.Temperature || "").trim(),
+            remarks: (item.remarks || item.Remarks || "").trim(),
+            schedule: (item.schedule || item.Schedule || "").trim(),
+            reporting_schedule: (item.reporting_schedule || item.Reporting_Schedule || item['Reporting Schedule'] || "").trim(),
+            instructions: (item.remarks || item.Remarks || item.instructions || item.Instructions || "").trim(),
+            is_active: String(item.is_active || item.Is_Active || item.Active || item.active || "true").toLowerCase() === "true"
+          };
+        }).filter(row => row.test_name);
 
         if (importedData.length === 0) {
           throw new Error("No valid data found in file");
@@ -449,7 +461,8 @@ export default function LabTestsMasterPage() {
                 schedule: "",
                 reporting_schedule: "",
                 instructions: "",
-                is_active: true
+                is_active: true,
+                collection_type: "lab"
               });
               setIsModalOpen(true);
             }}
@@ -546,6 +559,21 @@ export default function LabTestsMasterPage() {
             {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
 
+          {/* Collection Mode Filter Dropdown */}
+          <select
+            value={collectionFilter}
+            onChange={(e) => {
+              setCollectionFilter(e.target.value);
+              setPagination(prev => ({ ...prev, page: 1 }));
+            }}
+            className="w-full md:w-48 py-2.5 px-4 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-[#0067A1]"
+          >
+            <option value="">All Visit Modes</option>
+            <option value="lab">🔬 Lab Visit</option>
+            <option value="home">🏠 Home Visit</option>
+            <option value="both">🔄 Both (Lab & Home)</option>
+          </select>
+
           <button
             onClick={fetchLabTests}
             className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
@@ -600,6 +628,7 @@ export default function LabTestsMasterPage() {
                 <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider">Test Name</th>
                 <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider w-24">MRP (₹)</th>
                 <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider w-36">Commission Tier</th>
+                <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider w-36">Visit Mode</th>
                 <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider">Container</th>
                 <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider">Status</th>
                 <th className="px-4 py-3 text-sm font-bold text-gray-400 capitalize tracking-wider text-right">Actions</th>
@@ -609,12 +638,12 @@ export default function LabTestsMasterPage() {
               {loading ? (
                 [...Array(5)].map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td colSpan="8" className="px-6 py-8"><div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-full"></div></td>
+                    <td colSpan="9" className="px-6 py-8"><div className="h-4 bg-gray-100 dark:bg-gray-800 rounded w-full"></div></td>
                   </tr>
                 ))
               ) : labTests.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-6 py-12 text-center text-gray-500 italic">No lab tests found</td>
+                  <td colSpan="9" className="px-6 py-12 text-center text-gray-500 italic">No lab tests found</td>
                 </tr>
               ) : (
                 labTests.map((test, index) => (
@@ -663,6 +692,32 @@ export default function LabTestsMasterPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${
+                        test.collection_type === 'home'
+                          ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800'
+                          : test.collection_type === 'both'
+                          ? 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800'
+                          : 'bg-blue-50 text-[#0067A1] border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
+                      }`}>
+                        {test.collection_type === 'home' ? (
+                          <>
+                            <Home size={12} />
+                            Home Visit
+                          </>
+                        ) : test.collection_type === 'both' ? (
+                          <>
+                            <RefreshCw size={12} />
+                            Both
+                          </>
+                        ) : (
+                          <>
+                            <Microscope size={12} />
+                            Lab Visit
+                          </>
+                        )}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
                       <p className="text-sm font-medium text-gray-700 dark:text-gray-400 max-w-xs truncate" title={test.container}>
                         {test.container || "-"}
                       </p>
@@ -695,7 +750,8 @@ export default function LabTestsMasterPage() {
                               schedule: test.schedule || "",
                               reporting_schedule: test.reporting_schedule || "",
                               instructions: test.instructions || "", 
-                              is_active: test.is_active 
+                              is_active: test.is_active,
+                              collection_type: test.collection_type || "lab"
                             });
                             setIsModalOpen(true);
                           }}
@@ -829,6 +885,40 @@ export default function LabTestsMasterPage() {
                     <option value="Category 4">Category 4 (5% Commission)</option>
                     <option value="Package">Package (50% Commission)</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Collection Mode Selection */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-400 capitalize tracking-widest flex items-center justify-between">
+                  <span>Collection Mode / Visit Type *</span>
+                  <span className="text-[11px] font-normal text-gray-500">Select where/how test is conducted</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[
+                    { id: "lab", label: "Lab Visit", desc: "Patient visits diagnostic lab", icon: Microscope },
+                    { id: "home", label: "Home Visit", desc: "Sample collected at home", icon: Home },
+                    { id: "both", label: "Both (Lab & Home)", desc: "Flexible for patient", icon: RefreshCw },
+                  ].map(item => {
+                    const Icon = item.icon;
+                    const isSelected = (formData.collection_type || "lab") === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, collection_type: item.id })}
+                        className={`flex flex-col items-center justify-center p-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                          isSelected 
+                            ? 'bg-blue-50/90 border-[#0067A1] text-[#0067A1] dark:bg-blue-950/40 dark:border-blue-400 dark:text-blue-300 ring-2 ring-[#0067A1]'
+                            : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600 text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800'
+                        }`}
+                      >
+                        <Icon className="w-5 h-5 mb-1" />
+                        <span className="text-xs font-bold">{item.label}</span>
+                        <span className="text-[10px] opacity-75 mt-0.5">{item.desc}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1002,6 +1092,7 @@ export default function LabTestsMasterPage() {
                         <th className="px-4 py-3 text-xs font-black text-gray-500 uppercase tracking-widest border-b border-gray-200 dark:border-gray-700">Code</th>
                         <th className="px-4 py-3 text-xs font-black text-gray-500 uppercase tracking-widest border-b border-gray-200 dark:border-gray-700">Test Name *</th>
                         <th className="px-4 py-3 text-xs font-black text-gray-500 uppercase tracking-widest border-b border-gray-200 dark:border-gray-700">Category</th>
+                        <th className="px-4 py-3 text-xs font-black text-gray-500 uppercase tracking-widest border-b border-gray-200 dark:border-gray-700">Mode</th>
                         <th className="px-4 py-3 text-xs font-black text-gray-500 uppercase tracking-widest border-b border-gray-200 dark:border-gray-700">Sample Type</th>
                         <th className="px-4 py-3 text-xs font-black text-gray-500 uppercase tracking-widest border-b border-gray-200 dark:border-gray-700">Container</th>
                         <th className="px-4 py-3 text-xs font-black text-gray-500 uppercase tracking-widest border-b border-gray-200 dark:border-gray-700">Temp</th>
@@ -1040,6 +1131,17 @@ export default function LabTestsMasterPage() {
                             >
                               <option value="">None</option>
                               {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-4 py-2">
+                            <select
+                              value={item.collection_type || 'lab'}
+                              onChange={(e) => updatePreviewField(i, 'collection_type', e.target.value)}
+                              className="w-full px-2 py-1 bg-transparent hover:bg-white dark:hover:bg-gray-700 focus:bg-white dark:focus:bg-gray-700 border border-transparent hover:border-gray-300 focus:border-[#0067A1] rounded outline-none text-gray-700 dark:text-gray-300 transition-all font-semibold appearance-none text-xs"
+                            >
+                              <option value="lab">🔬 Lab Visit</option>
+                              <option value="home">🏠 Home Visit</option>
+                              <option value="both">🔄 Both</option>
                             </select>
                           </td>
                           <td className="px-4 py-2">

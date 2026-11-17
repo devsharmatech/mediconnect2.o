@@ -2004,7 +2004,9 @@ function LabTestsContent({ labId, onOpenUploadCsv }) {
   const [assigningMaster, setAssigningMaster] = useState(false);
   const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
   const [nablFilter, setNablFilter] = useState("all");
+  const [modeFilter, setModeFilter] = useState("all");
   const [togglingId, setTogglingId] = useState(null);
+  const [togglingModeId, setTogglingModeId] = useState(null);
 
   const fetchTests = async () => {
     try {
@@ -2047,6 +2049,30 @@ function LabTestsContent({ labId, onOpenUploadCsv }) {
     }
   };
 
+  const handleUpdateMode = async (testId, nextMode) => {
+    try {
+      setTogglingModeId(testId);
+      const res = await fetch("/api/lab/tests", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ test_id: testId, collection_type: nextMode }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Mode set to ${nextMode === 'home' ? 'Home Visit' : nextMode === 'both' ? 'Both' : 'Lab Visit'}`);
+        setTests((prev) =>
+          prev.map((t) => (t.id === testId ? { ...t, collection_type: nextMode } : t))
+        );
+      } else {
+        toast.error(data.message || "Failed to update test mode");
+      }
+    } catch {
+      toast.error("Error updating collection mode");
+    } finally {
+      setTogglingModeId(null);
+    }
+  };
+
   const handleAssignMasterTests = async () => {
     try {
       setAssigningMaster(true);
@@ -2085,8 +2111,9 @@ function LabTestsContent({ labId, onOpenUploadCsv }) {
 
   const nablCount = tests.filter((t) => t.is_nabl_accredited).length;
   const filteredTests = tests.filter((t) => {
-    if (nablFilter === "nabl") return t.is_nabl_accredited;
-    if (nablFilter === "non_nabl") return !t.is_nabl_accredited;
+    if (nablFilter === "nabl" && !t.is_nabl_accredited) return false;
+    if (nablFilter === "non_nabl" && t.is_nabl_accredited) return false;
+    if (modeFilter !== "all" && (t.collection_type || "lab") !== modeFilter) return false;
     return true;
   });
 
@@ -2118,42 +2145,59 @@ function LabTestsContent({ labId, onOpenUploadCsv }) {
         </div>
       </div>
 
-      {/* NABL Scope Filter Bar */}
-      <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-3">
-        <button
-          type="button"
-          onClick={() => setNablFilter("all")}
-          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-            nablFilter === "all"
-              ? "bg-[#0067A1] text-white"
-              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
-          }`}
-        >
-          All Tests ({tests.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setNablFilter("nabl")}
-          className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-            nablFilter === "nabl"
-              ? "bg-amber-600 text-white"
-              : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-300"
-          }`}
-        >
-          <Award size={13} />
-          NABL In-Scope ({nablCount})
-        </button>
-        <button
-          type="button"
-          onClick={() => setNablFilter("non_nabl")}
-          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-            nablFilter === "non_nabl"
-              ? "bg-gray-700 text-white"
-              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
-          }`}
-        >
-          Non-NABL ({tests.length - nablCount})
-        </button>
+      {/* NABL Scope and Collection Mode Filter Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-700 pb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setNablFilter("all")}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+              nablFilter === "all"
+                ? "bg-[#0067A1] text-white"
+                : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
+            }`}
+          >
+            All Tests ({tests.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setNablFilter("nabl")}
+            className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+              nablFilter === "nabl"
+                ? "bg-amber-600 text-white"
+                : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/30 dark:text-amber-300"
+            }`}
+          >
+            <Award size={13} />
+            NABL In-Scope ({nablCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setNablFilter("non_nabl")}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+              nablFilter === "non_nabl"
+                ? "bg-gray-700 text-white"
+                : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
+            }`}
+          >
+            Non-NABL ({tests.length - nablCount})
+          </button>
+        </div>
+
+        {/* Collection Mode Filter */}
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Mode:</label>
+          <select
+            value={modeFilter}
+            onChange={(e) => setModeFilter(e.target.value)}
+            className="text-xs font-semibold py-1.5 px-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-700 dark:text-gray-200 outline-none cursor-pointer focus:ring-1 focus:ring-[#0067A1]"
+          >
+            <option value="all">All Modes ({tests.length})</option>
+            <option value="lab">🔬 Lab Visit ({tests.filter(t => (t.collection_type || 'lab') === 'lab').length})</option>
+            <option value="home">🏠 Home Visit ({tests.filter(t => t.collection_type === 'home').length})</option>
+            <option value="both">🔄 Both ({tests.filter(t => t.collection_type === 'both').length})</option>
+          </select>
+        </div>
       </div>
 
       {tests.length === 0 ? (
@@ -2212,31 +2256,26 @@ function LabTestsContent({ labId, onOpenUploadCsv }) {
                       Non-NABL
                     </span>
                   )}
-                  {/* Collection Type Badge */}
-                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 border ${
-                    test.collection_type === 'home'
-                      ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800'
-                      : test.collection_type === 'both'
-                      ? 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800'
-                      : 'bg-blue-50 text-[#0067A1] border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
-                  }`}>
-                    {test.collection_type === 'home' ? (
-                      <>
-                        <Home size={11} />
-                        Home Collection
-                      </>
-                    ) : test.collection_type === 'both' ? (
-                      <>
-                        <RefreshCw size={11} />
-                        Home & Lab
-                      </>
-                    ) : (
-                      <>
-                        <Microscope size={11} />
-                        Lab Visit
-                      </>
-                    )}
-                  </span>
+                  {/* Collection Type Selector */}
+                  <div className="relative inline-flex items-center">
+                    <select
+                      value={test.collection_type || "lab"}
+                      onChange={(e) => handleUpdateMode(test.id, e.target.value)}
+                      disabled={togglingModeId === test.id}
+                      className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border cursor-pointer outline-none transition-all disabled:opacity-50 ${
+                        test.collection_type === 'home'
+                          ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800'
+                          : test.collection_type === 'both'
+                          ? 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-900/30 dark:text-teal-300 dark:border-teal-800'
+                          : 'bg-blue-50 text-[#0067A1] border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800'
+                      }`}
+                      title="Change Collection Mode (Lab Visit, Home Visit, Both)"
+                    >
+                      <option value="lab">🔬 Lab Visit</option>
+                      <option value="home">🏠 Home Visit</option>
+                      <option value="both">🔄 Both (Lab & Home)</option>
+                    </select>
+                  </div>
                   {!test.is_active && (
                     <span className="text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-0.5 rounded-full">
                       Inactive

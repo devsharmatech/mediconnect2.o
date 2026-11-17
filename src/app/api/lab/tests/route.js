@@ -159,7 +159,11 @@ export async function POST(req) {
 export async function PATCH(req) {
     try {
         const body = await req.json();
-        const { test_id, test_ids, is_nabl_accredited, nabl_scope_notes } = body;
+        const { test_id, test_ids, is_nabl_accredited, nabl_scope_notes, collection_type } = body;
+
+        const normalizedCollectionType = collection_type !== undefined
+            ? (['home', 'lab', 'both'].includes((collection_type || '').toLowerCase()) ? collection_type.toLowerCase() : 'lab')
+            : null;
 
         if (Array.isArray(test_ids) && test_ids.length > 0) {
             const cleanIds = test_ids.map(safeUuid).filter(Boolean);
@@ -169,12 +173,13 @@ export async function PATCH(req) {
             await sql`
                 UPDATE lab_tests
                 SET 
-                    is_nabl_accredited = ${is_nabl_accredited !== undefined ? !!is_nabl_accredited : false},
+                    is_nabl_accredited = COALESCE(${is_nabl_accredited !== undefined ? !!is_nabl_accredited : null}, is_nabl_accredited),
+                    collection_type = COALESCE(${normalizedCollectionType}, collection_type),
                     nabl_scope_notes = COALESCE(${nabl_scope_notes}, nabl_scope_notes),
                     updated_at = NOW()
                 WHERE id = ANY(${cleanIds})
             `;
-            return success(`Updated ${cleanIds.length} tests NABL scope status`, { count: cleanIds.length }, 200, { headers: corsHeaders });
+            return success(`Updated ${cleanIds.length} tests status`, { count: cleanIds.length }, 200, { headers: corsHeaders });
         }
 
         const cleanTestId = safeUuid(test_id);
@@ -185,7 +190,8 @@ export async function PATCH(req) {
         const [updated] = await sql`
             UPDATE lab_tests
             SET
-                is_nabl_accredited = ${is_nabl_accredited !== undefined ? !!is_nabl_accredited : false},
+                is_nabl_accredited = COALESCE(${is_nabl_accredited !== undefined ? !!is_nabl_accredited : null}, is_nabl_accredited),
+                collection_type = COALESCE(${normalizedCollectionType}, collection_type),
                 nabl_scope_notes = COALESCE(${nabl_scope_notes}, nabl_scope_notes),
                 updated_at = NOW()
             WHERE id = ${cleanTestId}
@@ -196,10 +202,10 @@ export async function PATCH(req) {
             return failure("Test not found", null, 404, { headers: corsHeaders });
         }
 
-        return success("Test NABL accreditation status updated", updated, 200, { headers: corsHeaders });
+        return success("Test status updated successfully", updated, 200, { headers: corsHeaders });
     } catch (error) {
-        console.error("Error updating test NABL status:", error);
-        return failure("Failed to update test NABL status", error.message, 500, { headers: corsHeaders });
+        console.error("Error updating test status:", error);
+        return failure("Failed to update test status", error.message, 500, { headers: corsHeaders });
     }
 }
 

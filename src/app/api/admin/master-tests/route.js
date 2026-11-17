@@ -58,6 +58,7 @@ export async function GET(req) {
             m.schedule,
             m.reporting_schedule,
             m.department,
+            COALESCE(m.collection_type, 'lab') as collection_type,
             COALESCE(m.is_package, false) as is_package,
             COALESCE(c.id, NULL) as category_id,
             ${labId ? sql`EXISTS(SELECT 1 FROM lab_tests lt WHERE lt.lab_id = ${labId} AND lt.test_code = m.test_code)` : sql`false`} as is_assigned
@@ -81,6 +82,7 @@ export async function GET(req) {
             m.schedule,
             m.reporting_schedule,
             m.department,
+            COALESCE(m.collection_type, 'lab') as collection_type,
             COALESCE(m.is_package, false) as is_package,
             COALESCE(c.id, NULL) as category_id,
             ${labId ? sql`EXISTS(SELECT 1 FROM lab_tests lt WHERE lt.lab_id = ${labId} AND lt.test_code = m.test_code)` : sql`false`} as is_assigned
@@ -175,7 +177,7 @@ export async function POST(req) {
           m.schedule,
           m.reporting_schedule,
           COALESCE(m.requires_fasting, false),
-          'lab',
+          COALESCE(m.collection_type, 'lab'),
           m.category,
           COALESCE(m.discount_percentage, 0),
           m.offer_price,
@@ -232,7 +234,7 @@ export async function POST(req) {
           m.schedule,
           m.reporting_schedule,
           COALESCE(m.requires_fasting, false),
-          'lab',
+          COALESCE(m.collection_type, 'lab'),
           m.category,
           COALESCE(m.discount_percentage, 0),
           m.offer_price,

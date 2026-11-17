@@ -11,6 +11,7 @@ export async function GET(req) {
     const q = searchParams.get("q") || "";
     const category = searchParams.get("category") || "";
     const labId = searchParams.get("lab_id") || "";
+    const collectionType = searchParams.get("collection_type") || searchParams.get("mode") || "";
 
     const offset = (page - 1) * limit;
 
@@ -43,6 +44,9 @@ export async function GET(req) {
       if (category) {
         conditions.push(sql`lt.commission_category = ${category}`);
       }
+      if (collectionType && collectionType !== "all") {
+        conditions.push(sql`lt.collection_type = ${collectionType}`);
+      }
 
       const whereClause = sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`;
 
@@ -65,6 +69,7 @@ export async function GET(req) {
             lt.remarks,
             lt.schedule,
             lt.reporting_schedule,
+            COALESCE(lt.collection_type, 'lab') as collection_type,
             lt.is_active,
             lt.created_at,
             lt.updated_at
@@ -89,12 +94,16 @@ export async function GET(req) {
       if (category) {
         conditions.push(sql`category = ${category}`);
       }
+      if (collectionType && collectionType !== "all") {
+        conditions.push(sql`collection_type = ${collectionType}`);
+      }
 
       const whereClause = sql`WHERE ${conditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`;
 
       const activeConditions = [sql`is_active = true`, sql`(is_package = false OR is_package IS NULL)`];
       if (q) activeConditions.push(sql`(test_name ILIKE ${'%' + q + '%'} OR test_code ILIKE ${'%' + q + '%'})`);
       if (category) activeConditions.push(sql`category = ${category}`);
+      if (collectionType && collectionType !== "all") activeConditions.push(sql`collection_type = ${collectionType}`);
       const activeWhere = sql`WHERE ${activeConditions.reduce((acc, curr) => sql`${acc} AND ${curr}`)}`;
 
       const [countRes, activeRes, rows] = await Promise.all([
@@ -156,6 +165,7 @@ export async function POST(req) {
         category: b.category || "Category 1",
         mrp: b.mrp !== undefined ? parseFloat(b.mrp) : 0,
         commission_percentage: b.commission_percentage !== undefined ? parseFloat(b.commission_percentage) : 0,
+        collection_type: ['home', 'lab', 'both'].includes((b.collection_type || '').toLowerCase()) ? b.collection_type.toLowerCase() : 'lab',
         instructions: b.instructions || null,
         is_active: b.is_active !== false,
         test_code: b.test_code || null,
@@ -180,15 +190,20 @@ export async function POST(req) {
     }
 
     // Handle Single Insert
+    const normalizedCollection = ['home', 'lab', 'both'].includes((body.collection_type || '').toLowerCase())
+      ? body.collection_type.toLowerCase()
+      : 'lab';
+
     const rows = await sql`
       INSERT INTO lab_master (
-        test_name, category, mrp, commission_percentage, instructions, is_active, test_code,
+        test_name, category, mrp, commission_percentage, collection_type, instructions, is_active, test_code,
         sample_type, container, temp, remarks, schedule, reporting_schedule
       ) VALUES (
         ${body.test_name},
         ${body.category || "Category 1"},
         ${body.mrp !== undefined ? parseFloat(body.mrp) : 0},
         ${body.commission_percentage !== undefined ? parseFloat(body.commission_percentage) : 0},
+        ${normalizedCollection},
         ${body.instructions || null},
         ${body.is_active !== false},
         ${body.test_code || null},
@@ -204,13 +219,14 @@ export async function POST(req) {
 
     await sql`
       INSERT INTO lab_test_master (
-        test_name, category, mrp, commission_percentage, is_active, test_code,
+        test_name, category, mrp, commission_percentage, collection_type, is_active, test_code,
         sample_type, container, temp, remarks, schedule, reporting_schedule
       ) VALUES (
         ${body.test_name},
         ${body.category || "Category 1"},
         ${body.mrp !== undefined ? parseFloat(body.mrp) : 0},
         ${body.commission_percentage !== undefined ? parseFloat(body.commission_percentage) : 0},
+        ${normalizedCollection},
         ${body.is_active !== false},
         ${body.test_code || null},
         ${body.sample_type || null},
@@ -250,6 +266,11 @@ export async function PUT(req) {
       if (updateData.remarks !== undefined) labUpdates.remarks = updateData.remarks;
       if (updateData.schedule !== undefined) labUpdates.schedule = updateData.schedule;
       if (updateData.reporting_schedule !== undefined) labUpdates.reporting_schedule = updateData.reporting_schedule;
+      if (updateData.collection_type !== undefined) {
+        labUpdates.collection_type = ['home', 'lab', 'both'].includes((updateData.collection_type || '').toLowerCase())
+          ? updateData.collection_type.toLowerCase()
+          : 'lab';
+      }
       if (updateData.is_active !== undefined) labUpdates.is_active = updateData.is_active;
       labUpdates.updated_at = new Date().toISOString();
 
@@ -263,7 +284,14 @@ export async function PUT(req) {
     }
 
     // Otherwise update in lab_master
-    const updates = { ...updateData, updated_at: new Date().toISOString() };
+    const updates = { ...updateData };
+    if (updates.collection_type !== undefined) {
+      updates.collection_type = ['home', 'lab', 'both'].includes((updates.collection_type || '').toLowerCase())
+        ? updates.collection_type.toLowerCase()
+        : 'lab';
+    }
+    updates.updated_at = new Date().toISOString();
+
     const rows = await sql`
       UPDATE lab_master
       SET ${sql(updates)}
@@ -273,6 +301,16 @@ export async function PUT(req) {
 
     if (!rows || rows.length === 0) {
       return NextResponse.json({ success: false, error: "Lab test not found" }, { status: 404 });
+    }
+
+    // Sync collection_type to lab_test_master if test_code is available
+    if (rows[0]?.test_code && updates.collection_type) {
+      await sql`
+        UPDATE lab_test_master
+        SET collection_type = ${updates.collection_type},
+            updated_at = NOW()
+        WHERE test_code = ${rows[0].test_code}
+      `.catch(e => console.warn("Failed to sync lab_test_master on PUT:", e.message));
     }
 
     return NextResponse.json({ success: true, data: rows[0] });
