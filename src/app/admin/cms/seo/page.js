@@ -423,7 +423,7 @@ export default function SeoManagementPage() {
   }, [pages, selectedKey]);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="p-4 sm:p-6 lg:p-8 pt-6 sm:pt-8 space-y-6 max-w-7xl mx-auto pb-16">
       {/* Top Banner / Header */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
