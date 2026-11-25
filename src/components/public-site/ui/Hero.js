@@ -87,7 +87,7 @@ export default function Hero({ onLoginClick }) {
   const microTrust = [
     { label: "Doctor-led Care", icon: FaUserMd },
     { label: "Verified Specialists", icon: FaShieldAlt },
-    { label: "100% Private & Secure", icon: FaLock },
+    { label: "Private & Secure", icon: FaLock },
     { label: "Patient-First Support", icon: FaHeart },
   ];
 

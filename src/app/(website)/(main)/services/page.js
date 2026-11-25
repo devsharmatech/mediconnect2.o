@@ -290,7 +290,7 @@ export default function ServicesPage() {
       icon: FaShieldAlt,
       title: "Secure & Encrypted",
       description:
-        "Bank-grade security and ABDM compliance to protect sensitive clinical data.",
+        "ABDM compliance and 256-bit encryption to protect sensitive clinical data.",
     },
     {
       icon: FaMobileAlt,
