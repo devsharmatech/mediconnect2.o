@@ -97,6 +97,18 @@ async function handleFetchProfile(userId, req) {
     cleanPic = `https://ui-avatars.com/api/?name=${encodeURIComponent(name.trim())}&background=0067A1&color=fff&bold=true`;
   }
 
+  if (details?.meta && typeof details.meta === "object") {
+    if (details.meta["0"] !== undefined && details.meta["1"] !== undefined) {
+      try {
+        const joined = Object.keys(details.meta)
+          .sort((a, b) => Number(a) - Number(b))
+          .map((k) => details.meta[k])
+          .join("");
+        details.meta = JSON.parse(joined);
+      } catch {}
+    }
+  }
+
   const userPayload = { ...user, profile_picture: cleanPic, ...details, details };
   return success(
     "Profile fetched successfully.",

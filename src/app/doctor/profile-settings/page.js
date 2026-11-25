@@ -657,28 +657,41 @@ export default function DoctorProfile() {
       setSelectedQualifications(qualificationArray);
 
       const dbMeta = typeof details.meta === "object" && details.meta !== null ? details.meta : {};
-      const rawEnabled = details.enabled_modes || dbMeta.enabled_modes;
+      let rawEnabled = details.enabled_modes || dbMeta.enabled_modes;
+      if (typeof rawEnabled === "string") {
+        try {
+          rawEnabled = JSON.parse(rawEnabled);
+        } catch {
+          rawEnabled = null;
+        }
+      }
 
-      const hasExplicitVideo = typeof details.is_video_enabled === "boolean"
-        ? details.is_video_enabled
-        : (typeof rawEnabled?.video === "boolean" ? rawEnabled.video : null);
+      const parseBool = (val) => {
+        if (val === true || val === "true" || val === 1 || val === "1") return true;
+        if (val === false || val === "false" || val === 0 || val === "0") return false;
+        return null;
+      };
 
-      const hasExplicitClinic = typeof details.is_clinic_enabled === "boolean"
-        ? details.is_clinic_enabled
-        : (typeof rawEnabled?.clinic === "boolean" ? rawEnabled.clinic : null);
+      const hasExplicitVideo = parseBool(details.is_video_enabled) !== null
+        ? parseBool(details.is_video_enabled)
+        : parseBool(rawEnabled?.video);
 
-      const hasExplicitHome = typeof details.is_home_enabled === "boolean"
-        ? details.is_home_enabled
-        : (typeof rawEnabled?.home === "boolean" ? rawEnabled.home : null);
+      const hasExplicitClinic = parseBool(details.is_clinic_enabled) !== null
+        ? parseBool(details.is_clinic_enabled)
+        : parseBool(rawEnabled?.clinic);
+
+      const hasExplicitHome = parseBool(details.is_home_enabled) !== null
+        ? parseBool(details.is_home_enabled)
+        : parseBool(rawEnabled?.home);
 
       const hasVideo = details.video_consultation_fee !== null && details.video_consultation_fee !== undefined && Number(details.video_consultation_fee) > 0;
       const hasClinic = details.clinic_consultation_fee !== null && details.clinic_consultation_fee !== undefined && Number(details.clinic_consultation_fee) > 0;
       const hasHome = details.home_visit_fee !== null && details.home_visit_fee !== undefined && Number(details.home_visit_fee) > 0;
 
       setEnabledModes({
-        video: hasExplicitVideo !== null ? hasExplicitVideo : hasVideo,
-        clinic: hasExplicitClinic !== null ? hasExplicitClinic : hasClinic,
-        home: hasExplicitHome !== null ? hasExplicitHome : hasHome,
+        video: hasExplicitVideo !== null && hasExplicitVideo !== undefined ? hasExplicitVideo : hasVideo,
+        clinic: hasExplicitClinic !== null && hasExplicitClinic !== undefined ? hasExplicitClinic : hasClinic,
+        home: hasExplicitHome !== null && hasExplicitHome !== undefined ? hasExplicitHome : hasHome,
       });
 
       // Derive simple stats from doctor details if available
@@ -1207,7 +1220,8 @@ export default function DoctorProfile() {
 
       try {
         if (typeof window !== "undefined") {
-          window.localStorage.setItem("userData", JSON.stringify(res.data));
+          const current = JSON.parse(window.localStorage.getItem("userData") || "{}");
+          window.localStorage.setItem("userData", JSON.stringify({ ...current, ...res.data }));
         }
       } catch (storageError) {
         console.error("Failed to store updated userData after save", storageError);
@@ -1221,7 +1235,15 @@ export default function DoctorProfile() {
     } finally {
       setIsLoading(false);
     }
-  }, [profile, loadProfile, selectedSpecialities, selectedQualifications, weeklyAvailability]);
+  }, [
+    profile,
+    loadProfile,
+    selectedSpecialities,
+    selectedQualifications,
+    weeklyAvailability,
+    enabledModes,
+    slotIntervalMinutes,
+  ]);
 
   if (isLoading && !profile.name) {
     return (

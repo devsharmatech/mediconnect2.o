@@ -157,7 +157,19 @@ export async function PUT(req) {
     let existingMeta = {};
     if (existingDoc?.meta) {
       if (typeof existingDoc.meta === "object" && existingDoc.meta !== null) {
-        existingMeta = existingDoc.meta;
+        if (existingDoc.meta["0"] !== undefined && existingDoc.meta["1"] !== undefined) {
+          try {
+            const joined = Object.keys(existingDoc.meta)
+              .sort((a, b) => Number(a) - Number(b))
+              .map((k) => existingDoc.meta[k])
+              .join("");
+            existingMeta = JSON.parse(joined);
+          } catch {
+            existingMeta = {};
+          }
+        } else {
+          existingMeta = existingDoc.meta;
+        }
       } else if (typeof existingDoc.meta === "string") {
         try { existingMeta = JSON.parse(existingDoc.meta); } catch {}
       }
