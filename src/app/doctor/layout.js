@@ -102,17 +102,23 @@ export default function DoctorDashboardLayout({ children }) {
   const [doctorName, setDoctorName] = useState("Doctor");
   const [doctorId, setDoctorId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("doctorSidebarCollapsed") === "true";
+      const saved = localStorage.getItem("doctorSidebarCollapsed") === "true";
+      if (saved) {
+        setIsSidebarCollapsed(true);
+      }
     }
-    return false;
-  });
+  }, []);
 
   const toggleSidebarCollapse = () => {
     setIsSidebarCollapsed((prev) => {
       const next = !prev;
-      localStorage.setItem("doctorSidebarCollapsed", String(next));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("doctorSidebarCollapsed", String(next));
+      }
       return next;
     });
   };
@@ -784,10 +790,10 @@ export default function DoctorDashboardLayout({ children }) {
       description: "Patient directory & visits",
     },
     {
-      href: "/doctor/revenue",
-      label: "Revenue",
+      href: "/doctor/payments",
+      label: "Payments",
       icon: FaWallet,
-      description: "Financial earnings & settlements",
+      description: "Appointment payments & history",
     },
     {
       href: "/doctor/profile-settings",
@@ -806,6 +812,14 @@ export default function DoctorDashboardLayout({ children }) {
   const isActive = (href) => {
     if (href === "/doctor") {
       return pathname === "/doctor";
+    }
+    if (href === "/doctor/payments") {
+      return (
+        pathname === "/doctor/payments" ||
+        pathname?.startsWith("/doctor/payments/") ||
+        pathname === "/doctor/revenue" ||
+        pathname?.startsWith("/doctor/revenue/")
+      );
     }
     return pathname === href || pathname.startsWith(`${href}/`);
   };
@@ -1019,6 +1033,8 @@ export default function DoctorDashboardLayout({ children }) {
             </Link>
 
             <button
+              suppressHydrationWarning
+              type="button"
               onClick={toggleSidebarCollapse}
               className={`hidden md:flex p-1.5 rounded-md text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer ${
                 isSidebarCollapsed 
@@ -1590,17 +1606,17 @@ export default function DoctorDashboardLayout({ children }) {
             </Link>
 
             <Link
-              href="/doctor/revenue"
+              href="/doctor/payments"
               className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-md transition-colors ${
-                pathname?.startsWith("/doctor/revenue")
+                pathname?.startsWith("/doctor/payments") || pathname?.startsWith("/doctor/revenue")
                   ? "text-[#0067A1] font-semibold"
                   : "text-slate-500 hover:text-slate-800 font-medium"
               }`}
             >
-              <div className={`p-1 rounded-md ${pathname?.startsWith("/doctor/revenue") ? "bg-sky-50 text-[#0067A1]" : ""}`}>
+              <div className={`p-1 rounded-md ${pathname?.startsWith("/doctor/payments") || pathname?.startsWith("/doctor/revenue") ? "bg-sky-50 text-[#0067A1]" : ""}`}>
                 <FaWallet className="w-4 h-4" />
               </div>
-              <span className="text-[10px] mt-0.5">Revenue</span>
+              <span className="text-[10px] mt-0.5">Payments</span>
             </Link>
 
             <Link

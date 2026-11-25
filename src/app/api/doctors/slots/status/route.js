@@ -9,7 +9,7 @@ export async function OPTIONS() {
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { doctor_id, appointment_date, appointment_times, action } = body || {};
+    const { doctor_id, appointment_date, appointment_times, action, reason } = body || {};
 
     if (!doctor_id || !appointment_date || !appointment_times?.length || !action) {
       return failure(
@@ -24,6 +24,7 @@ export async function POST(req) {
       return failure("Invalid action. Use 'freeze' or 'unfreeze'.", null, 400, { headers: corsHeaders });
     }
 
+    const blockReasonObj = { block_reason: reason || "Blocked" };
     const results = [];
 
     for (const time of appointment_times) {
@@ -44,6 +45,15 @@ export async function POST(req) {
         }
 
         if (existing && existing.status === "freezed") {
+          // If already freezed, update reason if a new reason was specified
+          if (reason) {
+            await sql`
+              UPDATE appointments
+              SET disease_info = ${sql.json(blockReasonObj)},
+                  updated_at = NOW()
+              WHERE id = ${existing.id}
+            `;
+          }
           results.push({ time, status: "skipped", message: "Slot already freezed" });
           continue;
         }
@@ -53,14 +63,15 @@ export async function POST(req) {
             UPDATE appointments
             SET status = 'freezed',
                 patient_id = ${doctor_id},
+                disease_info = ${sql.json(blockReasonObj)},
                 updated_at = NOW()
             WHERE id = ${existing.id}
           `;
           results.push({ time, status: "success", action: "freezed" });
         } else {
           await sql`
-            INSERT INTO appointments (doctor_id, patient_id, appointment_date, appointment_time, status)
-            VALUES (${doctor_id}, ${doctor_id}, ${appointment_date}::date, ${time}, 'freezed')
+            INSERT INTO appointments (doctor_id, patient_id, appointment_date, appointment_time, status, disease_info)
+            VALUES (${doctor_id}, ${doctor_id}, ${appointment_date}::date, ${time}, 'freezed', ${sql.json(blockReasonObj)})
           `;
           results.push({ time, status: "success", action: "freezed" });
         }

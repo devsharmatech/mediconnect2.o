@@ -111,9 +111,13 @@ export async function POST(req) {
     if (doctorErr) throw doctorErr;
     if (!doctor) return failure("Doctor not found", null, 404, { headers: corsHeaders });
 
-    // Check if doctor is open
-    if (doctor.is_open === false) {
-      return success("Doctor is currently not accepting appointments.", [], 200, { headers: corsHeaders });
+    const todayIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const todayStr = `${todayIST.getFullYear()}-${String(todayIST.getMonth() + 1).padStart(2, "0")}-${String(todayIST.getDate()).padStart(2, "0")}`;
+    const isToday = date === todayStr;
+
+    // Check if doctor is open today. Future dates remain bookable!
+    if (doctor.is_open === false && isToday) {
+      return success("Doctor is currently off duty for today. Available for upcoming dates.", [], 200, { headers: corsHeaders });
     }
 
     // Derive weekday names
@@ -127,8 +131,17 @@ export async function POST(req) {
       ? doctor.leave_days
       : (typeof doctor.leave_days === "string" ? JSON.parse(doctor.leave_days) : []);
 
-    if (leaveDays.some(ld => String(ld).toLowerCase() === fullWeekday.toLowerCase() || String(ld).toLowerCase() === shortWeekday.toLowerCase())) {
-      return success(`Doctor is on leave on ${fullWeekday}.`, [], 200, { headers: corsHeaders });
+    if (
+      leaveDays.some((ld) => {
+        const ldStr = String(ld).trim().toLowerCase();
+        return (
+          ldStr === date.toLowerCase() ||
+          ldStr === fullWeekday.toLowerCase() ||
+          ldStr === shortWeekday.toLowerCase()
+        );
+      })
+    ) {
+      return success(`Doctor is on leave on ${date}.`, [], 200, { headers: corsHeaders });
     }
 
     // Check available_days if configured

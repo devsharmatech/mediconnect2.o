@@ -40,29 +40,6 @@ export async function POST(req) {
     if (action === "toggle") {
       const nextOpen = Boolean(is_open);
 
-      // If turning offline, check if doctor has active appointments today
-      if (!nextOpen) {
-        const todayStr = new Date().toISOString().split("T")[0];
-        const appointments = await sql`
-          SELECT id, appointment_time::text AS appointment_time, appointment_type, status
-          FROM appointments
-          WHERE doctor_id = ${doctor_id}
-            AND appointment_date = ${todayStr}::date
-            AND status IN ('approved', 'booked', 'pending')
-        `;
-
-        if (appointments && appointments.length > 0) {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              message: "Cannot go offline: You have active appointments today.",
-              appointments,
-            }),
-            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-      }
-
       await sql`
         UPDATE doctor_details
         SET is_open = ${nextOpen}, is_available = ${nextOpen}
@@ -71,7 +48,7 @@ export async function POST(req) {
 
       const statusMsg = nextOpen
         ? "Now You Are Live — Open for Appointments"
-        : "Now You Are Closed — Offline for Appointments";
+        : "Now You Are Closed — Duty Off for Today";
 
       return success(
         statusMsg,

@@ -49,6 +49,7 @@ export async function POST(req) {
         total_reviews,
         available_days,
         available_time,
+        is_open,
         latitude,
         longitude,
         users:users!inner(

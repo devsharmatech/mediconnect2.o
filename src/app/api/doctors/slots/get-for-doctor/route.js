@@ -80,8 +80,12 @@ export async function POST(req) {
     const doctor = docRows[0];
     if (!doctor) return failure("Doctor not found", null, 404, { headers: corsHeaders });
 
-    if (doctor.is_open === false) {
-      return success("Doctor is currently closed for appointments.", [], 200, { headers: corsHeaders });
+    const todayIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const todayStr = `${todayIST.getFullYear()}-${String(todayIST.getMonth() + 1).padStart(2, "0")}-${String(todayIST.getDate()).padStart(2, "0")}`;
+    const isToday = date === todayStr;
+
+    if (doctor.is_open === false && isToday) {
+      return success("Doctor is currently closed for appointments today.", [], 200, { headers: corsHeaders });
     }
 
     const [_y, _m, _d] = date.split("-").map(Number);
@@ -103,13 +107,16 @@ export async function POST(req) {
 
     if (
       Array.isArray(leaveDays) &&
-      leaveDays.some(
-        (ld) =>
-          String(ld).toLowerCase() === fullWeekday.toLowerCase() ||
-          String(ld).toLowerCase() === shortWeekday.toLowerCase()
-      )
+      leaveDays.some((ld) => {
+        const ldStr = String(ld).trim().toLowerCase();
+        return (
+          ldStr === date.toLowerCase() ||
+          ldStr === fullWeekday.toLowerCase() ||
+          ldStr === shortWeekday.toLowerCase()
+        );
+      })
     ) {
-      return success(`Doctor is on leave on ${fullWeekday}.`, [], 200, { headers: corsHeaders });
+      return success(`Doctor is on leave on ${date}.`, [], 200, { headers: corsHeaders });
     }
 
     // Collect intervals from clinic_slots, video_slots, home_slots for this weekday
@@ -182,7 +189,7 @@ export async function POST(req) {
     });
 
     const appointments = await sql`
-      SELECT a.id, a.appointment_time::text AS appointment_time, a.status, p.full_name AS patient_name
+      SELECT a.id, a.appointment_time::text AS appointment_time, a.status, a.disease_info, p.full_name AS patient_name
       FROM appointments a
       LEFT JOIN patient_details p ON p.id = a.patient_id
       WHERE a.doctor_id = ${doctor_id}
@@ -195,7 +202,16 @@ export async function POST(req) {
       if (appt) {
         slot.status = appt.status;
         slot.id = appt.id;
-        if (appt.patient_name && appt.status !== "freezed") {
+        if (appt.status === "freezed") {
+          let reason = "Blocked";
+          if (appt.disease_info) {
+            const d = typeof appt.disease_info === "object"
+              ? appt.disease_info
+              : (() => { try { return JSON.parse(appt.disease_info); } catch { return null; } })();
+            if (d?.block_reason) reason = d.block_reason;
+          }
+          slot.block_reason = reason;
+        } else if (appt.patient_name) {
           slot.patient_name = appt.patient_name;
         }
       }

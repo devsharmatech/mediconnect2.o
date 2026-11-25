@@ -120,24 +120,55 @@ export default function DoctorDashboard() {
         console.error("Failed to fetch AI alerts", err);
       }
 
-      const completed = appointments.filter((a) => a.status === "completed").length;
-      const pending = appointments.filter((a) => ["pending", "pending_approval", "booked"].includes(a.status)).length;
-      const cancelled = appointments.filter((a) => a.status === "cancelled").length;
-      const rejected = appointments.filter((a) => a.status === "rejected").length;
+      const isDeletedOrDeIdentified = (name, email, phone) => {
+        const n = String(name || "").trim().toUpperCase();
+        const e = String(email || "").trim().toLowerCase();
+        const p = String(phone || "").trim().toUpperCase();
+        return (
+          !n ||
+          n === "" ||
+          n === "UNKNOWN PATIENT" ||
+          n.includes("DE-IDENTIFIED") ||
+          n.includes("ANONYMIZED") ||
+          e.startsWith("anonymized_") ||
+          e.startsWith("deleted_") ||
+          p.startsWith("ANONYMIZED_") ||
+          p.startsWith("DELETED_")
+        );
+      };
+
+      const validAppointments = appointments.filter((a) => {
+        const name = a.patient?.full_name || a.patient_full_name || "";
+        const email = a.patient?.email || a.patient_email || "";
+        const phone = a.patient?.phone || a.patient_phone || "";
+        return !isDeletedOrDeIdentified(name, email, phone);
+      });
+
+      const validPrescriptions = prescriptions.filter((p) => {
+        const name = p.patient_details?.full_name || p.patientName || p.patient || "";
+        const email = p.patient_details?.email || "";
+        const phone = p.patient_details?.phone || "";
+        return !isDeletedOrDeIdentified(name, email, phone);
+      });
+
+      const completed = validAppointments.filter((a) => a.status === "completed").length;
+      const pending = validAppointments.filter((a) => ["pending", "pending_approval", "booked"].includes(a.status)).length;
+      const cancelled = validAppointments.filter((a) => a.status === "cancelled").length;
+      const rejected = validAppointments.filter((a) => a.status === "rejected").length;
 
       setStats({
-        totalAppointments: appointments.length,
+        totalAppointments: validAppointments.length,
         completed,
         pending,
         cancelled,
         rejected,
-        totalPrescriptions: prescriptions.length,
+        totalPrescriptions: validPrescriptions.length,
       });
 
       setRecentAppointments(
-        appointments.slice(0, 5).map((apt) => ({
+        validAppointments.slice(0, 5).map((apt) => ({
           id: apt.id,
-          patient: apt.patient?.full_name || "Patient",
+          patient: apt.patient?.full_name || apt.patient_full_name || "Patient",
           patient_id: apt.patient_id,
           date: apt.appointment_date,
           time: apt.appointment_time ? formatTimeString(apt.appointment_time) : "",
@@ -147,9 +178,9 @@ export default function DoctorDashboard() {
       );
 
       setRecentPrescriptions(
-        prescriptions.slice(0, 5).map((p) => ({
+        validPrescriptions.slice(0, 5).map((p) => ({
           id: p.id,
-          patient: p.patient_details?.full_name || "Patient",
+          patient: p.patient_details?.full_name || p.patientName || "Patient",
           date: p.created_at?.slice(0, 10) || "",
           medicines: Array.isArray(p.medicines)
             ? p.medicines.length
@@ -159,17 +190,15 @@ export default function DoctorDashboard() {
         }))
       );
 
-
-
-      const logsFromAppointments = appointments.slice(0, 5).map((a) => ({
+      const logsFromAppointments = validAppointments.slice(0, 5).map((a) => ({
         id: `apt-${a.id}`,
-        action: `Appointment ${a.status} for ${a.patient?.full_name || "patient"}`,
+        action: `Appointment ${a.status} for ${a.patient?.full_name || a.patient_full_name || "patient"}`,
         date: a.appointment_date,
         time: a.appointment_time ? formatTimeString(a.appointment_time) : "",
       }));
-      const logsFromPrescriptions = prescriptions.slice(0, 5).map((p) => ({
+      const logsFromPrescriptions = validPrescriptions.slice(0, 5).map((p) => ({
         id: `rx-${p.id}`,
-        action: `Prescription created for ${p.patient_details?.full_name || "patient"}`,
+        action: `Prescription created for ${p.patient_details?.full_name || p.patientName || "patient"}`,
         date: p.created_at?.slice(0, 10) || "",
         time: "",
       }));

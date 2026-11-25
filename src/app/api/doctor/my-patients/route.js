@@ -35,11 +35,17 @@ export async function POST(req) {
         SELECT id, full_name, email, gender, date_of_birth, blood_group, is_identity_verified, identity_verified_at
         FROM patient_details
         WHERE id = ANY(${patientIds}::uuid[])
+          AND full_name != 'DE-IDENTIFIED PATIENT'
+          AND full_name NOT ILIKE '%DE-IDENTIFIED%'
+          AND email NOT ILIKE 'anonymized_%'
+          AND email NOT ILIKE 'deleted_%'
       `,
       sql`
         SELECT id, phone_number
         FROM users
         WHERE id = ANY(${patientIds}::uuid[])
+          AND phone_number NOT ILIKE 'ANONYMIZED_%'
+          AND phone_number NOT ILIKE 'deleted_%'
       `
     ]);
 
@@ -56,10 +62,28 @@ export async function POST(req) {
       const patId = apt.patient_id;
       if (!patId) return;
 
-      if (!patientMap[patId]) {
-        const pInfo = patientLookup.get(patId) || {};
-        const uInfo = userLookup.get(patId) || {};
+      const pInfo = patientLookup.get(patId);
+      const uInfo = userLookup.get(patId) || {};
 
+      // Filter out deleted or de-identified patient records
+      if (!pInfo) return;
+
+      const fullName = String(pInfo.full_name || "").trim();
+      const email = String(pInfo.email || "").trim().toLowerCase();
+      const phone = String(uInfo.phone_number || "").trim().toUpperCase();
+
+      if (
+        fullName === "" ||
+        fullName.toUpperCase().includes("DE-IDENTIFIED") ||
+        email.startsWith("anonymized_") ||
+        email.startsWith("deleted_") ||
+        phone.startsWith("ANONYMIZED_") ||
+        phone.startsWith("DELETED_")
+      ) {
+        return;
+      }
+
+      if (!patientMap[patId]) {
         let calculatedAge = null;
         if (pInfo.date_of_birth) {
           const birthDate = new Date(pInfo.date_of_birth);
@@ -74,7 +98,7 @@ export async function POST(req) {
 
         patientMap[patId] = {
           id: patId,
-          full_name: pInfo.full_name || "Unknown Patient",
+          full_name: pInfo.full_name,
           email: pInfo.email || "",
           phone: uInfo.phone_number || "",
           gender: pInfo.gender || "Unknown",

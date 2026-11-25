@@ -49,7 +49,7 @@ export async function POST(req) {
     const patientIds = [...new Set(prescriptions.map(p => p.patient_id).filter(Boolean))];
     const appointmentIds = [...new Set(prescriptions.map(p => p.appointment_id).filter(Boolean))];
 
-    // Bulk fetch patients and appointments
+    // Bulk fetch patients and appointments (excluding deleted / de-identified patients)
     const [patientRows, apptRows] = await Promise.all([
       patientIds.length > 0 
         ? sql`
@@ -57,6 +57,10 @@ export async function POST(req) {
             FROM patient_details p 
             LEFT JOIN users u ON u.id = p.id 
             WHERE p.id = ANY(${patientIds}::uuid[])
+              AND p.full_name != 'DE-IDENTIFIED PATIENT'
+              AND p.full_name NOT ILIKE '%DE-IDENTIFIED%'
+              AND p.full_name NOT ILIKE '%ANONYMIZED%'
+              AND (p.email IS NULL OR (p.email NOT ILIKE 'anonymized_%' AND p.email NOT ILIKE 'deleted_%'))
           `
         : [],
       appointmentIds.length > 0
@@ -73,35 +77,54 @@ export async function POST(req) {
     const apptMap = new Map();
     apptRows.forEach(a => apptMap.set(a.id, a));
 
-    const response = prescriptions.map((p) => {
-      const pat = patientMap.get(p.patient_id) || {};
-      const appt = apptMap.get(p.appointment_id) || {};
-      const careEpisodeCode = p.care_episode_code || 
-        (p.care_episode_id ? `EP-${String(p.care_episode_id).slice(0, 8).toUpperCase()}` : (appt.care_episode_id ? `EP-${String(appt.care_episode_id).slice(0, 8).toUpperCase()}` : null));
+    const isDeletedOrDeIdentified = (pat) => {
+      if (!pat) return true;
+      const name = String(pat.full_name || "").trim().toUpperCase();
+      const email = String(pat.email || "").trim().toLowerCase();
+      return (
+        !name ||
+        name === "" ||
+        name === "UNKNOWN PATIENT" ||
+        name.includes("DE-IDENTIFIED") ||
+        name.includes("ANONYMIZED") ||
+        email.startsWith("anonymized_") ||
+        email.startsWith("deleted_")
+      );
+    };
 
-      let patAge = null;
-      if (pat.date_of_birth) {
-        const dob = new Date(pat.date_of_birth);
-        if (!isNaN(dob.getTime())) {
-          const today = new Date();
-          let age = today.getFullYear() - dob.getFullYear();
-          const m = today.getMonth() - dob.getMonth();
-          if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-          if (age >= 0) patAge = age;
+    const response = prescriptions
+      .map((p) => {
+        const pat = patientMap.get(p.patient_id);
+        if (!pat || isDeletedOrDeIdentified(pat)) return null;
+
+        const appt = apptMap.get(p.appointment_id) || {};
+        const careEpisodeCode = p.care_episode_code || 
+          (p.care_episode_id ? `EP-${String(p.care_episode_id).slice(0, 8).toUpperCase()}` : (appt.care_episode_id ? `EP-${String(appt.care_episode_id).slice(0, 8).toUpperCase()}` : null));
+
+        let patAge = null;
+        if (pat.date_of_birth) {
+          const dob = new Date(pat.date_of_birth);
+          if (!isNaN(dob.getTime())) {
+            const today = new Date();
+            let age = today.getFullYear() - dob.getFullYear();
+            const m = today.getMonth() - dob.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+            if (age >= 0) patAge = age;
+          }
         }
-      }
 
-      return {
-        ...p,
-        doctor_details: doctorDetails,
-        patient_details: {
-          ...pat,
-          age: patAge !== null ? patAge : pat.age,
-        },
-        appointments: appt,
-        episode_id: careEpisodeCode,
-      };
-    });
+        return {
+          ...p,
+          doctor_details: doctorDetails,
+          patient_details: {
+            ...pat,
+            age: patAge !== null ? patAge : pat.age,
+          },
+          appointments: appt,
+          episode_id: careEpisodeCode,
+        };
+      })
+      .filter(Boolean);
 
     return success("Prescriptions fetched successfully.", response, 200, {
       headers: corsHeaders,

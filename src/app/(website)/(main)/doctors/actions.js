@@ -38,7 +38,7 @@ function isFeeServed(val) {
   const str = String(val).trim();
   if (str === "") return false;
   const num = Number(str);
-  return !Number.isNaN(num) && num >= 0;
+  return !Number.isNaN(num) && num > 0;
 }
 
 export async function getDoctorsAction({

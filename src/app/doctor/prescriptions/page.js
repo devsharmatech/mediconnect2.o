@@ -170,7 +170,22 @@ export default function Prescriptions() {
         return;
       }
 
-      const mapped = res.data.map((p) => {
+      const isDeletedOrDeIdentifiedPatient = (name, email) => {
+        const n = String(name || "").trim().toUpperCase();
+        const e = String(email || "").trim().toLowerCase();
+        return (
+          !n ||
+          n === "UNKNOWN PATIENT" ||
+          n.includes("DE-IDENTIFIED") ||
+          n.includes("ANONYMIZED") ||
+          e.startsWith("anonymized_") ||
+          e.startsWith("deleted_")
+        );
+      };
+
+      const mapped = res.data
+        .filter((p) => !isDeletedOrDeIdentifiedPatient(p.patient_details?.full_name, p.patient_details?.email))
+        .map((p) => {
         let rawDiagnosis = p.diagnosis || p.icd_diagnosis || '';
         let diagnosisNotes = '';
 

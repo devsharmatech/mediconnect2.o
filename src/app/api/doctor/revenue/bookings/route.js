@@ -27,7 +27,7 @@ export async function GET(req) {
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '15', 10)));
     const offset = (page - 1) * limit;
-    const filter = searchParams.get('filter') || 'all'; // 'all' | 'paid'
+    const filter = searchParams.get('filter') || 'all'; // 'all' | 'paid' | 'clinic' | 'video' | 'home'
     const search = (searchParams.get('search') || '').trim();
     const startDate = searchParams.get('start_date');
     const endDate = searchParams.get('end_date');
@@ -37,44 +37,63 @@ export async function GET(req) {
     // Count total matching rows
     const [countRow] = await sql`
       SELECT COUNT(*)::int AS total
-      FROM appointments
-      WHERE doctor_id = ${doctorId}
-        AND (status = 'completed' OR payment_status = 'paid')
-        AND (${startDate ? sql`appointment_date >= ${startDate}::date` : sql`1=1`})
-        AND (${endDate ? sql`appointment_date <= ${endDate}::date` : sql`1=1`})
-        AND (${filter === 'paid' ? sql`(COALESCE(final_fee, 0) > 0 OR COALESCE(original_fee, 0) > 0)` : sql`1=1`})
-        AND (${searchPattern ? sql`(id::text ILIKE ${searchPattern} OR appointment_date::text ILIKE ${searchPattern})` : sql`1=1`})
+      FROM appointments a
+      LEFT JOIN patient_details pd ON pd.id = a.patient_id
+      WHERE a.doctor_id = ${doctorId}
+        AND (a.status = 'completed' OR a.payment_status = 'paid' OR COALESCE(a.final_fee, 0) > 0 OR COALESCE(a.original_fee, 0) > 0)
+        AND (${startDate ? sql`a.appointment_date >= ${startDate}::date` : sql`1=1`})
+        AND (${endDate ? sql`a.appointment_date <= ${endDate}::date` : sql`1=1`})
+        AND (${filter === 'paid' ? sql`(COALESCE(a.final_fee, 0) > 0 OR COALESCE(a.original_fee, 0) > 0)` : sql`1=1`})
+        AND (${filter === 'clinic' ? sql`a.appointment_type ILIKE '%clinic%'` : filter === 'video' ? sql`a.appointment_type ILIKE '%video%'` : filter === 'home' ? sql`a.appointment_type ILIKE '%home%'` : sql`1=1`})
+        AND (${searchPattern ? sql`(a.id::text ILIKE ${searchPattern} OR a.appointment_date::text ILIKE ${searchPattern} OR pd.full_name ILIKE ${searchPattern})` : sql`1=1`})
     `;
     const total = countRow?.total || 0;
 
-    // Fetch paginated rows
+    // Fetch paginated rows with patient details and payment info
     const bookings = await sql`
       SELECT
-        id, appointment_date, appointment_time, appointment_type, status,
-        payment_status, final_fee, original_fee, commission_rate, commission_amount,
-        commission_gst_amount, doctor_tds_amount, doctor_net_payable,
-        financial_snapshot, settlement_status, completed_at, created_at
-      FROM appointments
-      WHERE doctor_id = ${doctorId}
-        AND (status = 'completed' OR payment_status = 'paid')
-        AND (${startDate ? sql`appointment_date >= ${startDate}::date` : sql`1=1`})
-        AND (${endDate ? sql`appointment_date <= ${endDate}::date` : sql`1=1`})
-        AND (${filter === 'paid' ? sql`(COALESCE(final_fee, 0) > 0 OR COALESCE(original_fee, 0) > 0)` : sql`1=1`})
-        AND (${searchPattern ? sql`(id::text ILIKE ${searchPattern} OR appointment_date::text ILIKE ${searchPattern})` : sql`1=1`})
-      ORDER BY created_at DESC
+        a.id, a.patient_id, a.appointment_date, a.appointment_time, a.appointment_type, a.status,
+        a.payment_status, a.final_fee, a.original_fee, a.commission_rate, a.commission_amount,
+        a.commission_gst_amount, a.doctor_tds_amount, a.doctor_net_payable,
+        a.financial_snapshot, a.settlement_status, a.completed_at, a.created_at,
+        pd.full_name AS patient_name,
+        pd.email AS patient_email,
+        u.phone_number AS patient_phone
+      FROM appointments a
+      LEFT JOIN patient_details pd ON pd.id = a.patient_id
+      LEFT JOIN users u ON u.id = a.patient_id
+      WHERE a.doctor_id = ${doctorId}
+        AND (a.status = 'completed' OR a.payment_status = 'paid' OR COALESCE(a.final_fee, 0) > 0 OR COALESCE(a.original_fee, 0) > 0)
+        AND (${startDate ? sql`a.appointment_date >= ${startDate}::date` : sql`1=1`})
+        AND (${endDate ? sql`a.appointment_date <= ${endDate}::date` : sql`1=1`})
+        AND (${filter === 'paid' ? sql`(COALESCE(a.final_fee, 0) > 0 OR COALESCE(a.original_fee, 0) > 0)` : sql`1=1`})
+        AND (${filter === 'clinic' ? sql`a.appointment_type ILIKE '%clinic%'` : filter === 'video' ? sql`a.appointment_type ILIKE '%video%'` : filter === 'home' ? sql`a.appointment_type ILIKE '%home%'` : sql`1=1`})
+        AND (${searchPattern ? sql`(a.id::text ILIKE ${searchPattern} OR a.appointment_date::text ILIKE ${searchPattern} OR pd.full_name ILIKE ${searchPattern})` : sql`1=1`})
+      ORDER BY a.appointment_date DESC, a.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
+
+    const sanitizedBookings = bookings.map((bk) => {
+      let pName = String(bk.patient_name || '').trim();
+      if (!pName || pName.toUpperCase().includes('DE-IDENTIFIED') || pName.toUpperCase().includes('ANONYMIZED')) {
+        pName = 'Patient';
+      }
+      return {
+        ...bk,
+        patient_name: pName,
+      };
+    });
 
     return NextResponse.json({
       success: true,
       data: {
-        bookings,
+        bookings: sanitizedBookings,
         pagination: {
           page,
           limit,
           total,
           totalPages: Math.ceil(total / limit),
-          hasMore: offset + bookings.length < total,
+          hasMore: offset + sanitizedBookings.length < total,
         },
       },
     });

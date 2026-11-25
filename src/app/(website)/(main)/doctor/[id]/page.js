@@ -26,6 +26,7 @@ import {
   FaTint,
   FaTimes,
   FaTrash,
+  FaChevronRight,
 } from "react-icons/fa";
 import { toast } from "react-hot-toast";
 import { getDoctorDetailsAction, checkDoctorDiscountAction, checkDoctorFollowupAndPricingAction, getDoctorSlotsAction } from "./actions";
@@ -479,6 +480,14 @@ function DoctorProfileContent() {
           return;
         }
         setDoctor(res.data);
+        if (res.data?.is_open === false) {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const yyyy = tomorrow.getFullYear();
+          const mm = String(tomorrow.getMonth() + 1).padStart(2, "0");
+          const dd = String(tomorrow.getDate()).padStart(2, "0");
+          setSelectedDate(`${yyyy}-${mm}-${dd}`);
+        }
         if (res.support_contact) {
           setSupportContact(res.support_contact);
         }
@@ -501,8 +510,8 @@ function DoctorProfileContent() {
       const n = Number(String(v).replace(/[^0-9.]/g, ""));
       return isNaN(n) ? 0 : n;
     };
-    const vFee = parseN(details.video_consultation_fee ?? details.consultation_fee);
-    const cFee = parseN(details.clinic_consultation_fee ?? details.consultation_fee);
+    const vFee = parseN(details.video_consultation_fee);
+    const cFee = parseN(details.clinic_consultation_fee);
     const hFee = parseN(details.home_visit_fee);
 
     const preferred = normalizeAppointmentMode(rawModeParam);
@@ -517,16 +526,13 @@ function DoctorProfileContent() {
       return;
     }
 
-    // Fallback if the currently selected appointment type is not served (fee <= 0)
-    if (appointmentType === "video_consultation" && vFee <= 0) {
-      if (cFee > 0) setAppointmentType("clinic_visit");
-      else if (hFee > 0) setAppointmentType("home_visit");
-    } else if (appointmentType === "clinic_visit" && cFee <= 0) {
-      if (vFee > 0) setAppointmentType("video_consultation");
-      else if (hFee > 0) setAppointmentType("home_visit");
-    } else if (appointmentType === "home_visit" && hFee <= 0) {
-      if (vFee > 0) setAppointmentType("video_consultation");
-      else if (cFee > 0) setAppointmentType("clinic_visit");
+    // Auto-pick first available mode if preferred is not available
+    if (cFee > 0) {
+      setAppointmentType("clinic_visit");
+    } else if (vFee > 0) {
+      setAppointmentType("video_consultation");
+    } else if (hFee > 0) {
+      setAppointmentType("home_visit");
     }
   }, [doctor, rawModeParam]);
 
@@ -547,7 +553,31 @@ function DoctorProfileContent() {
   }, []);
 
   useEffect(() => {
-    if (!doctorId || !selectedDate) return;
+    if (!doctorId || !selectedDate || !doctor) return;
+
+    const details = doctor.doctor_details || {};
+    const parseN = (val) => {
+      if (val === undefined || val === null || val === "") return 0;
+      const n = Number(String(val).replace(/[^0-9.]/g, ""));
+      return isNaN(n) ? 0 : n;
+    };
+    const vFee = parseN(details.video_consultation_fee);
+    const cFee = parseN(details.clinic_consultation_fee);
+    const hFee = parseN(details.home_visit_fee);
+
+    const hasAnyMode = isFollowUp ? true : (vFee > 0 || cFee > 0 || hFee > 0);
+    const isModeActive = isFollowUp ? true : (
+      appointmentType === "video_consultation" ? vFee > 0 :
+      appointmentType === "home_visit" ? hFee > 0 :
+      cFee > 0
+    );
+
+    if (!hasAnyMode || !isModeActive) {
+      setSlots([]);
+      setSelectedSlot(null);
+      setSlotsLoading(false);
+      return;
+    }
 
     const fetchSlots = async () => {
       try {
@@ -581,7 +611,7 @@ function DoctorProfileContent() {
     };
 
     fetchSlots();
-  }, [doctorId, selectedDate, appointmentType, isFollowUp]);
+  }, [doctorId, selectedDate, appointmentType, isFollowUp, doctor]);
 
   const details = doctor?.doctor_details || {};
   const fullName = details.full_name || doctor?.name || "Doctor";
@@ -677,6 +707,14 @@ function DoctorProfileContent() {
   const fee = (!isFollowUp && discountDetails?.is_discount_applicable)
     ? Number(discountDetails.discounted_fee)
     : baseFee;
+
+  const hasAnyServedMode = isFollowUp ? true : (videoFee > 0 || clinicFee > 0 || homeFee > 0);
+  const isCurrentModeServed = isFollowUp ? true : (
+    appointmentType === "video_consultation" ? videoFee > 0 :
+    appointmentType === "home_visit" ? homeFee > 0 :
+    clinicFee > 0
+  );
+
   const rating = details.rating || 0;
   const reviews = details.total_reviews || 0;
 
@@ -1086,6 +1124,12 @@ function DoctorProfileContent() {
                     <span className="font-normal text-amber-700">({reviews} Reviews)</span>
                   </div>
                 )}
+                {details.is_open === false && (
+                  <div className="inline-flex items-center gap-1.5 bg-amber-50 px-2.5 py-0.5 rounded border border-amber-200 font-semibold text-amber-800 text-xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    <span>Duty Off Today • Available for Upcoming Dates</span>
+                  </div>
+                )}
               </div>
 
               {/* High-Visibility Appointment Action Box - Sleek & Airy */}
@@ -1118,13 +1162,22 @@ function DoctorProfileContent() {
                           </span>
                         </>
                       ) : fee > 0 ? (
-                        <span className="text-xl sm:text-2xl font-semibold text-slate-800">
-                          ₹{fee}
-                        </span>
+                        <>
+                          <span className="text-xl sm:text-2xl font-semibold text-slate-800">
+                            ₹{fee}
+                          </span>
+                          <span className="text-xs text-slate-400 font-normal">/ visit</span>
+                        </>
+                      ) : isFollowUp ? (
+                        <>
+                          <span className="text-xl sm:text-2xl font-semibold text-emerald-600">Free</span>
+                          <span className="text-xs text-slate-400 font-normal">/ visit</span>
+                        </>
                       ) : (
-                        <span className="text-xl sm:text-2xl font-semibold text-emerald-600">Free</span>
+                        <span className="text-xs sm:text-sm font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          Not Available
+                        </span>
                       )}
-                      <span className="text-xs text-slate-400 font-normal">/ visit</span>
                     </div>
                   </div>
                   <span className="sm:hidden inline-flex items-center gap-1 text-[11px] font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
@@ -1210,8 +1263,8 @@ function DoctorProfileContent() {
                                 Video Consultation
                               </span>
                               <div className="flex items-center gap-1.5">
-                                <span className={`font-semibold ${videoFee > 0 ? "text-slate-800" : "text-emerald-700 font-bold"}`}>
-                                  {videoFee > 0 ? `₹${videoFee}` : "Free"}
+                                <span className={videoFee > 0 ? "font-semibold text-slate-800" : "text-slate-400 font-medium text-[11px]"}>
+                                  {videoFee > 0 ? `₹${videoFee}` : "Not Available"}
                                 </span>
                                 {videoFollowUpFee > 0 && (
                                   <span className="text-[11px] font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 whitespace-nowrap">
@@ -1226,8 +1279,8 @@ function DoctorProfileContent() {
                                 Clinic Visit
                               </span>
                               <div className="flex items-center gap-1.5">
-                                <span className={`font-semibold ${clinicFee > 0 ? "text-slate-800" : "text-emerald-700 font-bold"}`}>
-                                  {clinicFee > 0 ? `₹${clinicFee}` : "Free"}
+                                <span className={clinicFee > 0 ? "font-semibold text-slate-800" : "text-slate-400 font-medium text-[11px]"}>
+                                  {clinicFee > 0 ? `₹${clinicFee}` : "Not Available"}
                                 </span>
                                 {clinicFollowUpFee > 0 && (
                                   <span className="text-[11px] font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 whitespace-nowrap">
@@ -1366,8 +1419,12 @@ function DoctorProfileContent() {
                         <span className="text-xl font-semibold text-slate-800">
                           ₹{fee}
                         </span>
-                      ) : (
+                      ) : isFollowUp ? (
                         <span className="text-xl font-semibold text-emerald-600">Free</span>
+                      ) : (
+                        <span className="text-xs sm:text-sm font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          Not Available
+                        </span>
                       )}
                     </div>
                     <div className="text-[11px] text-slate-400 font-normal text-right leading-tight">
@@ -1789,32 +1846,48 @@ function DoctorProfileContent() {
                       },
                     ].map((type) => {
                       const isSelected = appointmentType === type.id;
+                      const isAvailable = isFollowUp ? true : type.fee > 0;
                       return (
                         <button
                           key={type.id}
                           type="button"
-                          onClick={() => setAppointmentType(type.id)}
-                          className={`flex flex-col items-center justify-between p-2.5 rounded-lg border text-center transition-all cursor-pointer relative ${
-                            isSelected
-                              ? "border-[#0067A1] bg-sky-50/80 text-[#0067A1] shadow-2xs ring-2 ring-[#0067A1]/20"
-                              : "border-slate-200/90 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/80"
+                          disabled={!isAvailable}
+                          onClick={() => {
+                            if (isAvailable) setAppointmentType(type.id);
+                          }}
+                          className={`flex flex-col items-center justify-between p-2.5 rounded-lg border text-center transition-all relative ${
+                            !isAvailable
+                              ? "border-slate-200 bg-slate-50/70 text-slate-400 opacity-60 cursor-not-allowed"
+                              : isSelected
+                              ? "border-[#0067A1] bg-sky-50/80 text-[#0067A1] shadow-2xs ring-2 ring-[#0067A1]/20 cursor-pointer"
+                              : "border-slate-200/90 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50/80 cursor-pointer"
                           }`}
                         >
-                          {isSelected && (
+                          {isSelected && isAvailable && (
                             <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#0067A1]" />
                           )}
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 transition-colors ${
-                            isSelected ? "bg-[#0067A1] text-white" : "bg-slate-100 text-slate-500"
+                            !isAvailable
+                              ? "bg-slate-200 text-slate-400"
+                              : isSelected
+                              ? "bg-[#0067A1] text-white"
+                              : "bg-slate-100 text-slate-500"
                           }`}>
                             {type.icon}
                           </div>
-                          <span className={`text-xs leading-tight whitespace-nowrap ${isSelected ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}>
+                          <span className={`text-xs leading-tight whitespace-nowrap ${isSelected && isAvailable ? "font-bold text-slate-900" : "font-semibold text-slate-700"}`}>
                             {type.title}
                           </span>
-                          <span className={`text-xs font-extrabold mt-1 leading-none ${isSelected ? "text-[#0067A1]" : "text-slate-900"}`}>
-                            {type.fee > 0 ? `₹${type.fee}` : "Free"}
+                          <span className={`mt-1 leading-none ${
+                            !isAvailable
+                              ? "text-[11px] font-medium text-slate-400"
+                              : isSelected
+                              ? "text-xs font-extrabold text-[#0067A1]"
+                              : "text-xs font-extrabold text-slate-900"
+                          }`}>
+                            {type.fee > 0 ? `₹${type.fee}` : isFollowUp ? "Free" : "Not Available"}
                           </span>
-                          <span className={`text-[10px] mt-0.5 leading-tight truncate max-w-full ${isSelected ? "text-[#0067A1] font-medium" : "text-slate-400 font-normal"}`}>
+                          <span className={`text-[10px] mt-0.5 leading-tight truncate max-w-full ${isSelected && isAvailable ? "text-[#0067A1] font-medium" : "text-slate-400 font-normal"}`}>
                             {type.sub}
                           </span>
                         </button>
@@ -1844,6 +1917,23 @@ function DoctorProfileContent() {
                   </div>
                 )}
 
+                {!hasAnyServedMode ? (
+                  <div className="text-center py-7 px-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 mt-4">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                      <FaClock className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-sm font-semibold text-slate-800">Consultation Not Available</h4>
+                    <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                      This doctor is currently not accepting new appointments across any consultation mode.
+                    </p>
+                  </div>
+                ) : !isCurrentModeServed ? (
+                  <div className="text-center py-6 px-4 bg-amber-50/70 rounded-xl border border-amber-200 space-y-1.5 mt-4">
+                    <p className="text-xs font-semibold text-amber-900">Selected mode is not available</p>
+                    <p className="text-[11px] text-amber-700">Please choose an active consultation mode above to view available dates and time slots.</p>
+                  </div>
+                ) : (
+                  <>
                 {/* Step 3: Date Picker with 4-Column Responsive Day Strip */}
                 <div className="space-y-2 pt-1 border-t border-slate-100">
                   <div className="flex items-center justify-between">
@@ -1860,6 +1950,7 @@ function DoctorProfileContent() {
                   <div className="grid grid-cols-4 gap-1.5">
                     {getQuickDates().map((q) => {
                       const isSelected = selectedDate === q.dateStr;
+                      const isTodayOff = details.is_open === false && q.dateStr === todayStr;
                       return (
                         <button
                           key={q.dateStr}
@@ -1868,11 +1959,13 @@ function DoctorProfileContent() {
                           className={`py-2 px-1 rounded-lg border text-center transition-all flex flex-col items-center justify-center cursor-pointer ${
                             isSelected
                               ? "border-[#0067A1] bg-[#0067A1] text-white shadow-xs font-bold ring-2 ring-[#0067A1]/20 scale-[1.02]"
+                              : isTodayOff
+                              ? "border-amber-200 bg-amber-50/70 text-amber-800 hover:bg-amber-100/70"
                               : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                           }`}
                         >
-                          <span className={`text-[11px] leading-tight ${isSelected ? "text-sky-100 font-semibold" : "text-slate-500 font-medium"}`}>
-                            {q.label}
+                          <span className={`text-[11px] leading-tight ${isSelected ? "text-sky-100 font-semibold" : isTodayOff ? "text-amber-700 font-semibold" : "text-slate-500 font-medium"}`}>
+                            {q.label} {isTodayOff ? "(Off)" : ""}
                           </span>
                           <span className={`text-xs mt-0.5 leading-tight ${isSelected ? "text-white font-extrabold" : "text-slate-900 font-bold"}`}>
                             {q.dateNum}
@@ -2085,14 +2178,29 @@ function DoctorProfileContent() {
                             <div className="animate-spin h-5 w-5 border-2 border-[#0067A1] border-t-transparent rounded-full mx-auto mb-1.5"></div>
                             <p className="text-xs text-slate-500 font-normal">Checking doctor slots...</p>
                           </div>
-                        ) : details.is_open === false ? (
-                          <div className="text-center py-5 bg-rose-50/70 rounded-lg border border-rose-200 p-3">
-                            <p className="text-xs text-rose-800 font-semibold mb-0.5">
-                              Doctor is Currently Closed
+                        ) : (details.is_open === false && selectedDate === todayStr) ? (
+                          <div className="text-center py-5 bg-amber-50/80 rounded-lg border border-amber-200 p-3 space-y-2">
+                            <p className="text-xs text-amber-900 font-semibold mb-0.5">
+                              Doctor is Currently Off Duty for Today
                             </p>
-                            <p className="text-[11px] text-rose-600">
-                              This doctor has temporarily paused new appointment bookings.
+                            <p className="text-[11px] text-amber-700">
+                              This doctor is currently offline today, but available for tomorrow & upcoming dates.
                             </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const tomorrow = new Date();
+                                tomorrow.setDate(tomorrow.getDate() + 1);
+                                const yyyy = tomorrow.getFullYear();
+                                const mm = String(tomorrow.getMonth() + 1).padStart(2, "0");
+                                const dd = String(tomorrow.getDate()).padStart(2, "0");
+                                setSelectedDate(`${yyyy}-${mm}-${dd}`);
+                              }}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0067A1] bg-white px-3 py-1.5 rounded-md border border-sky-200 hover:bg-sky-50 shadow-2xs transition-colors cursor-pointer"
+                            >
+                              <span>Book for Tomorrow</span>
+                              <FaChevronRight className="w-2.5 h-2.5" />
+                            </button>
                           </div>
                         ) : slots.length === 0 ? (
                           <div className="text-center py-5 bg-slate-50/60 rounded-lg border border-slate-100 p-3">
@@ -2240,12 +2348,13 @@ function DoctorProfileContent() {
                     }}
                     disabled={
                       booking ||
-                      details.is_open === false ||
+                      (details.is_open === false && selectedDate === todayStr) ||
+                      (!isFollowUp && fee <= 0) ||
                       !dataSharingConsent ||
                       !teleconsultConsent
                     }
                     className={`w-full py-3 px-4 rounded-lg font-bold text-sm tracking-wide transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                      !selectedSlot
+                      !selectedSlot || (!isFollowUp && fee <= 0) || (details.is_open === false && selectedDate === todayStr)
                         ? "bg-slate-200 text-slate-700 hover:bg-slate-300 active:scale-[0.99]"
                         : "bg-[#0067A1] hover:bg-[#005585] active:bg-[#004870] text-white active:scale-[0.99] shadow-md hover:shadow-lg"
                     }`}
@@ -2255,6 +2364,10 @@ function DoctorProfileContent() {
                         <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         <span>Booking...</span>
                       </>
+                    ) : (details.is_open === false && selectedDate === todayStr) ? (
+                      <span>Off Duty Today • Choose Next Date</span>
+                    ) : !isFollowUp && fee <= 0 ? (
+                      <span>Not Available</span>
                     ) : !selectedSlot ? (
                       <>
                         <FaClock className="w-3.5 h-3.5 text-slate-500" />
@@ -2263,7 +2376,7 @@ function DoctorProfileContent() {
                     ) : (
                       <>
                         <FaCalendarCheck className="w-4 h-4 text-sky-200" />
-                        <span>Book Slot • {fee > 0 ? `₹${fee}` : "Free"}</span>
+                        <span>Book Slot • {fee > 0 ? `₹${fee}` : isFollowUp ? "Free" : "Not Available"}</span>
                       </>
                     )}
                   </button>
@@ -2274,6 +2387,8 @@ function DoctorProfileContent() {
                     </div>
                   )}
                 </div>
+                </>
+                )}
 
                 {/* Direct Phone / WhatsApp Assistance (from database) */}
                 {(() => {
@@ -2325,7 +2440,11 @@ function DoctorProfileContent() {
               <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wide block leading-none mb-1">
                 {isFollowUp ? "Follow-up Fee" : "Consultation Fee"}
               </span>
-              <span className="text-base font-semibold text-[#0067A1] leading-none">
+              <span className={`leading-none ${
+                !isFollowUp && fee <= 0
+                  ? "text-xs font-semibold text-slate-500"
+                  : "text-base font-semibold text-[#0067A1]"
+              }`}>
                 {isFollowUp ? (
                   fee > 0 ? `₹${fee}` : "Free"
                 ) : discountDetails?.is_discount_applicable ? (
@@ -2333,7 +2452,7 @@ function DoctorProfileContent() {
                 ) : fee > 0 ? (
                   `₹${fee}`
                 ) : (
-                  "Free"
+                  "Not Available"
                 )}
               </span>
             </div>
@@ -2341,6 +2460,10 @@ function DoctorProfileContent() {
               type="button"
               disabled={
                 booking ||
+                !hasAnyServedMode ||
+                !isCurrentModeServed ||
+                (details.is_open === false && selectedDate === todayStr) ||
+                (!isFollowUp && fee <= 0) ||
                 (selectedSlot && (!dataSharingConsent || !teleconsultConsent))
               }
               onClick={() => {
@@ -2353,9 +2476,11 @@ function DoctorProfileContent() {
               className={`flex-1 max-w-[200px] inline-flex items-center justify-center gap-1.5 text-white py-2.5 px-3 rounded-lg font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
                 booking
                   ? "bg-[#005585] cursor-not-allowed"
-                  : !selectedSlot
-                    ? "bg-slate-700 hover:bg-slate-800 active:scale-95"
-                    : "bg-[#0067A1] hover:bg-[#005585] active:bg-[#004F7C] active:scale-95"
+                  : !hasAnyServedMode || !isCurrentModeServed || (!isFollowUp && fee <= 0)
+                    ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                    : !selectedSlot
+                      ? "bg-slate-700 hover:bg-slate-800 active:scale-95"
+                      : "bg-[#0067A1] hover:bg-[#005585] active:bg-[#004F7C] active:scale-95"
               }`}
             >
               {booking ? (
@@ -2368,6 +2493,8 @@ function DoctorProfileContent() {
                   <FaCheckCircle className="w-3.5 h-3.5 text-emerald-300" />
                   <span>Booked!</span>
                 </>
+              ) : !hasAnyServedMode || !isCurrentModeServed ? (
+                <span>Not Available</span>
               ) : !selectedSlot ? (
                 <>
                   <FaClock className="w-3.5 h-3.5 text-slate-300" />

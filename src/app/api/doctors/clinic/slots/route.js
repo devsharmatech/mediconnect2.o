@@ -37,8 +37,12 @@ export async function POST(req) {
     const doctor = docRows[0];
     if (!doctor) return failure("Doctor not found", null, 404, { headers: corsHeaders });
 
-    if (doctor.is_open === false) {
-      return success("Doctor is currently closed for appointments", [], 200, {
+    const todayIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const todayStr = `${todayIST.getFullYear()}-${String(todayIST.getMonth() + 1).padStart(2, "0")}-${String(todayIST.getDate()).padStart(2, "0")}`;
+    const isToday = date === todayStr;
+
+    if (doctor.is_open === false && isToday) {
+      return success("Doctor is currently closed for appointments today", [], 200, {
         headers: corsHeaders,
       });
     }
@@ -97,7 +101,12 @@ export async function POST(req) {
             }
           })()
         : [];
-    if (leaveDays.includes(weekday)) {
+    if (
+      leaveDays.some((ld) => {
+        const ldStr = String(ld).trim().toLowerCase();
+        return ldStr === date.toLowerCase() || ldStr === weekday.toLowerCase();
+      })
+    ) {
       return success("Doctor is on leave this day", [], 200, {
         headers: corsHeaders,
       });

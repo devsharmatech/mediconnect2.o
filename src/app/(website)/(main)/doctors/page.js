@@ -134,13 +134,12 @@ const isFeeServed = (val) => {
   const str = String(val).trim();
   if (str === "") return false;
   const num = Number(str);
-  return !Number.isNaN(num) && num >= 0;
+  return !Number.isNaN(num) && num > 0;
 };
 
 const formatModeFee = (val) => {
   if (!isFeeServed(val)) return null;
   const num = Number(val);
-  if (num === 0) return "Free (₹0)";
   return `₹${num.toLocaleString('en-IN')}`;
 };
 
@@ -224,7 +223,8 @@ const DoctorCard = ({ doctor, activeMode = "all", feeFilter = "all", isHighlight
     consultationFeeLabel = "Consultation";
     consultationFeeDisplay = `From ₹${minVal.toLocaleString("en-IN")}`;
   } else {
-    consultationFeeDisplay = "On Request";
+    consultationFeeLabel = "Consultation";
+    consultationFeeDisplay = "Not Available";
   }
 
   return (
@@ -280,7 +280,7 @@ const DoctorCard = ({ doctor, activeMode = "all", feeFilter = "all", isHighlight
           <p className="text-xs font-medium text-[#0067A1] truncate">
             {doctor.specialty}
           </p>
-          <div className="mt-1 flex items-center gap-1.5">
+          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
             {typeof doctor.rating === "number" && doctor.rating > 0 ? (
               <div className="inline-flex items-center gap-1 bg-amber-50 px-1.5 py-0.5 rounded text-[10px] font-medium text-amber-800 border border-amber-200/60">
                 <FaStar className="h-2.5 w-2.5 text-amber-500" />
@@ -291,6 +291,12 @@ const DoctorCard = ({ doctor, activeMode = "all", feeFilter = "all", isHighlight
               <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
                 <HiOutlineBadgeCheck className="h-3 w-3 text-emerald-600" />
                 Verified Specialist
+              </span>
+            )}
+            {doctor.isOpen === false && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title="Doctor is currently off duty for today, but available for upcoming dates">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                Duty Off
               </span>
             )}
           </div>
@@ -316,7 +322,7 @@ const DoctorCard = ({ doctor, activeMode = "all", feeFilter = "all", isHighlight
       </div>
 
       {/* Consultation Modes & Pricing - Clickable interactive chips */}
-      {availableModes.length > 0 && (
+      {availableModes.length > 0 ? (
         <div className="pt-0.5">
           <div className="flex flex-wrap items-center gap-1.5">
             {availableModes.map((m) => {
@@ -346,6 +352,12 @@ const DoctorCard = ({ doctor, activeMode = "all", feeFilter = "all", isHighlight
             })}
           </div>
         </div>
+      ) : (
+        <div className="pt-0.5">
+          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/70">
+            Consultation Not Available
+          </span>
+        </div>
       )}
 
       {/* Footer Fee & Action CTA */}
@@ -354,7 +366,11 @@ const DoctorCard = ({ doctor, activeMode = "all", feeFilter = "all", isHighlight
           <span className="text-[10px] font-medium text-slate-400 block leading-tight">
             {consultationFeeLabel}
           </span>
-          <span className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+          <span className={`tracking-tight ${
+            consultationFeeDisplay === "Not Available"
+              ? "text-xs sm:text-sm font-semibold text-slate-500"
+              : "text-sm sm:text-base font-bold text-slate-900"
+          }`}>
             {consultationFeeDisplay}
           </span>
         </div>
@@ -919,37 +935,28 @@ function DoctorsContent() {
         const homeFeeNum = parseModeFeeNum(homeVal);
 
         const modes = [];
-        if (clinicFeeNum !== null && clinicFeeNum >= 0) {
+        if (clinicFeeNum !== null && clinicFeeNum > 0) {
           modes.push({
             id: "clinic",
             label: "Clinic",
             fee: clinicFeeNum,
-            formatted: clinicFeeNum === 0 ? "Free (₹0)" : `₹${clinicFeeNum.toLocaleString("en-IN")}`,
+            formatted: `₹${clinicFeeNum.toLocaleString("en-IN")}`,
           });
         }
-        if (videoFeeNum !== null && videoFeeNum >= 0) {
+        if (videoFeeNum !== null && videoFeeNum > 0) {
           modes.push({
             id: "video",
             label: "Video",
             fee: videoFeeNum,
-            formatted: videoFeeNum === 0 ? "Free (₹0)" : `₹${videoFeeNum.toLocaleString("en-IN")}`,
+            formatted: `₹${videoFeeNum.toLocaleString("en-IN")}`,
           });
         }
-        if (homeFeeNum !== null && homeFeeNum >= 0) {
+        if (homeFeeNum !== null && homeFeeNum > 0) {
           modes.push({
             id: "home",
             label: "Home",
             fee: homeFeeNum,
-            formatted: homeFeeNum === 0 ? "Free (₹0)" : `₹${homeFeeNum.toLocaleString("en-IN")}`,
-          });
-        }
-
-        if (modes.length === 0) {
-          modes.push({
-            id: "clinic",
-            label: "Clinic",
-            fee: 0,
-            formatted: "Available",
+            formatted: `₹${homeFeeNum.toLocaleString("en-IN")}`,
           });
         }
 
@@ -991,6 +998,7 @@ function DoctorsContent() {
           homeFee: homeFeeNum,
           homeFeeFormatted: formatModeFee(homeVal),
           minFee: minFee,
+          isOpen: details.is_open !== false,
           channels: [],
         };
       });

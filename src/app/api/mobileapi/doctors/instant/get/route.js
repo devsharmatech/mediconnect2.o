@@ -117,7 +117,7 @@ export async function GET(req) {
 
     if (availableDoctors.length === 0) {
       const fallbackDoctors = (doctors || []).filter((doc) => doc.is_open !== false);
-      return success("Available doctors", fallbackDoctors.length > 0 ? fallbackDoctors : doctors || [], 200, {
+      return success("Available doctors", fallbackDoctors, 200, {
         headers: corsHeaders,
       });
     }

@@ -44,6 +44,22 @@ export default function ManageSlots() {
   const [showBlockedModal, setShowBlockedModal] = useState(false);
   const [availabilityMessage, setAvailabilityMessage] = useState('');
 
+  // ── Date Off & Busy Hours States ──────────────────────────────────────────
+  const [dateOffLoading, setDateOffLoading] = useState(false);
+  const [showBusyModal, setShowBusyModal] = useState(false);
+  const [busyStart, setBusyStart] = useState('02:00 PM');
+  const [busyEnd, setBusyEnd] = useState('05:00 PM');
+  const [busyReason, setBusyReason] = useState('Surgery');
+  const [busyLoading, setBusyLoading] = useState(false);
+
+  const standardTimeOptions = [
+    '07:00 AM', '07:30 AM', '08:00 AM', '08:30 AM', '09:00 AM', '09:30 AM',
+    '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM',
+    '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM',
+    '04:00 PM', '04:30 PM', '05:00 PM', '05:30 PM', '06:00 PM', '06:30 PM',
+    '07:00 PM', '07:30 PM', '08:00 PM', '08:30 PM', '09:00 PM', '09:30 PM', '10:00 PM'
+  ];
+
 
   const daysOfWeek = [
     'Sunday',
@@ -318,13 +334,17 @@ export default function ManageSlots() {
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     return date.toLocaleDateString('en-US', options);
   };
 
   const formatShortDate = (dateString) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
@@ -366,7 +386,11 @@ export default function ManageSlots() {
   };
 
   const getSlotStatus = (slot) => {
-    if (slot.status === 'freezed') return 'Blocked';
+    if (slot.status === 'freezed') {
+      return slot.block_reason && slot.block_reason !== 'Blocked'
+        ? `Blocked (${slot.block_reason})`
+        : 'Blocked';
+    }
 
     if (["booked", "approved", "completed"].includes(slot.status)) {
       return 'Booked';
@@ -374,6 +398,117 @@ export default function ManageSlots() {
 
     const isAvailable = slot.status === 'available' || slot.slot_booked === false;
     return isAvailable ? 'Available' : 'Booked';
+  };
+
+  const isDateOff = (() => {
+    if (!selectedDate) return false;
+    const leaveDays = weeklyAvailability?.leave_days || [];
+    const date = new Date(selectedDate);
+    if (isNaN(date.getTime())) return false;
+    const dayName = daysOfWeek[date.getDay()];
+    return leaveDays.some((ld) => {
+      const ldStr = String(ld).trim().toLowerCase();
+      return ldStr === selectedDate.toLowerCase() || (dayName && ldStr === dayName.toLowerCase());
+    });
+  })();
+
+  const handleToggleDateOff = async (isMarkingOff) => {
+    const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+    if (!userId) return;
+
+    setDateOffLoading(true);
+    try {
+      const res = await fetch('/api/doctor/date-off', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          doctor_id: userId,
+          date: selectedDate,
+          action: isMarkingOff ? 'mark_off' : 'mark_available',
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        toast.success(
+          isMarkingOff
+            ? `${formatShortDate(selectedDate)} marked as Day Off`
+            : `${formatShortDate(selectedDate)} marked as Working Day`
+        );
+        setWeeklyAvailability((prev) => ({
+          ...prev,
+          leave_days: json.data?.leave_days || [],
+        }));
+        await fetchSlots(selectedDate);
+      } else {
+        toast.error(json.message || 'Failed to update date status');
+      }
+    } catch (err) {
+      toast.error('Failed to update date status');
+    } finally {
+      setDateOffLoading(false);
+    }
+  };
+
+  const handleBlockBusyHours = async (action = 'freeze') => {
+    const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+    if (!userId) return;
+
+    const startMins = parseTimeToMinutes(busyStart);
+    const endMins = parseTimeToMinutes(busyEnd);
+
+    if (startMins == null || endMins == null || startMins >= endMins) {
+      toast.error('End time must be after start time');
+      return;
+    }
+
+    let matchingTimes = [];
+    if (timeSlots.length > 0) {
+      matchingTimes = timeSlots
+        .map((s) => s.time)
+        .filter((t) => {
+          const m = parseTimeToMinutes(t);
+          return m != null && m >= startMins && m < endMins;
+        });
+    }
+
+    if (matchingTimes.length === 0) {
+      const step = slotInterval || 10;
+      let curr = startMins;
+      while (curr < endMins) {
+        const hh = String(Math.floor(curr / 60)).padStart(2, '0');
+        const mm = String(curr % 60).padStart(2, '0');
+        matchingTimes.push(`${hh}:${mm}`);
+        curr += step;
+      }
+    }
+
+    setBusyLoading(true);
+    try {
+      const res = await api.post('/doctors/slots/status', {
+        doctor_id: userId,
+        appointment_date: selectedDate,
+        appointment_times: matchingTimes,
+        action,
+        reason: busyReason,
+      });
+
+      if (res.success) {
+        toast.success(
+          action === 'freeze'
+            ? `Blocked ${matchingTimes.length} slots for ${busyReason}`
+            : `Unblocked ${matchingTimes.length} slots`
+        );
+        setShowBusyModal(false);
+        await fetchSlots(selectedDate);
+      } else {
+        toast.error(res.error || 'Failed to update slots');
+      }
+    } catch (err) {
+      toast.error('Failed to update slots');
+    } finally {
+      setBusyLoading(false);
+    }
   };
 
   const getSlotColor = (slot) => {
@@ -508,64 +643,66 @@ export default function ManageSlots() {
       <div
         key={slot.time}
         className={`bg-white rounded-md border transition-colors ${
-          isAvailable ? 'border-sky-200 hover:border-[#0067A1]' : 'border-rose-200 hover:border-rose-300'
+          isAvailable ? 'border-sky-200 hover:border-[#0067A1]' : slot.status === 'freezed' ? 'border-amber-200 hover:border-amber-300' : 'border-rose-200 hover:border-rose-300'
         }`}
       >
-        <div className="p-3.5 sm:p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
+        <div className="p-3 sm:p-3.5">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
               <div
-                className={`w-8 h-8 rounded-md border flex items-center justify-center shrink-0 ${
-                  isAvailable ? 'bg-sky-50 text-[#0067A1] border-sky-100' : 'bg-rose-50 text-rose-600 border-rose-100'
+                className={`w-7 h-7 rounded-md border flex items-center justify-center shrink-0 ${
+                  isAvailable ? 'bg-sky-50 text-[#0067A1] border-sky-100' : slot.status === 'freezed' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-600 border-rose-100'
                 }`}
               >
                 {getSlotIcon(slot)}
               </div>
-              <div>
-                <div className="text-base sm:text-lg font-semibold text-slate-800">
+              <div className="min-w-0">
+                <div className="text-sm sm:text-[15px] font-semibold text-slate-800 leading-tight">
                   {formatTimeTo12h(slot.time)}
                 </div>
                 <div
-                  className={`text-xs font-medium ${
-                    isAvailable ? 'text-[#0067A1]' : 'text-rose-600'
+                  className={`text-[11px] font-medium leading-tight mt-0.5 truncate ${
+                    isAvailable ? 'text-[#0067A1]' : slot.status === 'freezed' ? 'text-amber-700' : 'text-rose-600'
                   }`}
                 >
-                  {getSlotStatus(slot)}
+                  {slot.status === 'freezed'
+                    ? (slot.block_reason && slot.block_reason !== 'Blocked' ? `Blocked (${slot.block_reason})` : 'Blocked')
+                    : getSlotStatus(slot)}
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="space-y-2 text-xs sm:text-sm">
+          <div className="space-y-1.5 text-xs">
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Consultation Type</span>
-              <span className="font-medium text-slate-700">
+              <span className="text-[11px] text-slate-500">Consultation Type</span>
+              <span className="text-xs font-medium text-slate-700">
                 {getSlotCategoryLabel(category)}
               </span>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Duration</span>
-              <span className="font-medium text-slate-700">
+              <span className="text-[11px] text-slate-500">Duration</span>
+              <span className="text-xs font-medium text-slate-700">
                 {slot.duration || '30 min'}
               </span>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-slate-500">Time Range</span>
-              <span className="font-medium text-slate-700 capitalize">
+              <span className="text-[11px] text-slate-500">Time Range</span>
+              <span className="text-xs font-medium text-slate-700 capitalize">
                 {getTimeRange(slot.time)}
               </span>
             </div>
           </div>
 
           {slot.patient_name && (
-            <div className="mt-3 pt-3 border-t border-slate-100">
-              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <div className="mt-2.5 pt-2.5 border-t border-slate-100">
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                 <FaUsers className="w-3 h-3 text-slate-400" />
                 <span>Patient</span>
               </div>
-              <p className="text-xs sm:text-sm font-medium text-slate-700 truncate mt-0.5">
+              <p className="text-xs font-medium text-slate-700 truncate mt-0.5">
                 {slot.patient_name}
               </p>
             </div>
@@ -573,29 +710,32 @@ export default function ManageSlots() {
         </div>
 
         <div
-          className={`px-3.5 py-2.5 rounded-b-md border-t border-slate-100 flex items-center justify-between gap-2 ${
-            isAvailable ? 'bg-sky-50/30' : 'bg-rose-50/30'
+          className={`px-3 py-2 rounded-b-md border-t border-slate-100 flex items-center justify-between gap-1.5 ${
+            isAvailable ? 'bg-sky-50/30' : slot.status === 'freezed' ? 'bg-amber-50/30' : 'bg-rose-50/30'
           }`}
         >
-          <span className="text-[11px] text-slate-500 font-mono">
-            #{slot.id || slot.time.replace(/[: ]/g, '')}
+          <span className="text-[10px] text-slate-400 font-mono shrink-0">
+            #{slot.time ? slot.time.replace(/[: ]/g, '') : String(slot.id || '').slice(0, 6)}
           </span>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0 justify-end">
             <span
-              className={`px-2 py-0.5 rounded-md text-[11px] font-medium border ${
+              className={`px-2 py-0.5 rounded text-[10px] font-medium border truncate max-w-[120px] ${
                 isAvailable
                   ? 'bg-sky-50 text-[#0067A1] border-sky-200'
+                  : slot.status === 'freezed'
+                  ? 'bg-amber-50 text-amber-800 border-amber-200 font-semibold'
                   : 'bg-rose-50 text-rose-700 border-rose-200'
               }`}
+              title={slot.status === 'freezed' ? (slot.block_reason || 'Blocked') : getSlotStatus(slot)}
             >
-              {getSlotStatus(slot)}
+              {slot.status === 'freezed' ? (slot.block_reason || 'Blocked') : getSlotStatus(slot)}
             </span>
             {(slot.status === 'available' || slot.status === 'freezed') && (
               <button
                 type="button"
                 disabled={isLoading}
                 onClick={() => handleSlotToggle(slot)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors disabled:opacity-50 cursor-pointer ${
+                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors disabled:opacity-50 cursor-pointer shrink-0 ${
                   slot.status === 'freezed'
                     ? 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                     : 'bg-[#0067A1] text-white border-[#0067A1] hover:bg-[#004F7C]'
@@ -778,18 +918,31 @@ export default function ManageSlots() {
 
         {/* Date Navigation */}
         <div className="bg-white rounded-md border border-slate-200 p-3.5 sm:p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-md bg-sky-50 text-[#0067A1] border border-sky-100 flex items-center justify-center shrink-0">
                 <FaCalendarDay className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-sm sm:text-base font-semibold text-slate-800">Select Date</h3>
-                <p className="text-xs text-slate-500">Choose date to view availability</p>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm sm:text-base font-semibold text-slate-800">Select Date</h3>
+                  {isDateOff ? (
+                    <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                      Day Off
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      Working Day
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500">Manage duty, leaves, and busy hours for this date</p>
               </div>
             </div>
             
-            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1 bg-slate-50 rounded-md p-1 border border-slate-200 w-full sm:w-auto">
                 <button
                   onClick={() => handleDateChange(-1)}
@@ -824,12 +977,65 @@ export default function ManageSlots() {
               >
                 Today
               </button>
+
+              <button
+                disabled={dateOffLoading}
+                onClick={() => handleToggleDateOff(!isDateOff)}
+                className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors cursor-pointer border shrink-0 disabled:opacity-50 ${
+                  isDateOff
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                    : 'bg-white hover:bg-rose-50 text-rose-700 border-rose-300'
+                }`}
+              >
+                {dateOffLoading ? (
+                  <span className="flex items-center gap-1.5"><FaSpinner className="animate-spin w-3 h-3" /> Updating...</span>
+                ) : isDateOff ? (
+                  'Mark as Working'
+                ) : (
+                  'Mark Date Off'
+                )}
+              </button>
+
+              <button
+                onClick={() => setShowBusyModal(true)}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs sm:text-sm font-medium rounded-md transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+              >
+                <FaUserClock className="w-3.5 h-3.5 text-amber-300" />
+                <span>Busy Hours</span>
+              </button>
             </div>
           </div>
         </div>
 
         {/* Main Content */}
         <div className="bg-white rounded-md border border-slate-200 p-3.5 sm:p-5">
+          {/* Day Off Warning Banner if Date is Off */}
+          {isDateOff && (
+            <div className="mb-4 p-4 bg-amber-50/80 border border-amber-200 rounded-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-md bg-amber-100 border border-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                  <FaCalendarTimes className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-amber-900">
+                    {formatDate(selectedDate)} is Marked as Day Off
+                  </h4>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    You are marked on leave for this specific date. All slots are hidden from patients, while other dates remain available.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={dateOffLoading}
+                onClick={() => handleToggleDateOff(false)}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-md transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                Resume Duty
+              </button>
+            </div>
+          )}
+
           {/* Filter Tabs */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-5">
             <div>
@@ -1075,6 +1281,114 @@ export default function ManageSlots() {
             </div>
           )}
         </div>
+
+        {/* ── Set Busy Hours Modal ──────────────────────────────── */}
+        {showBusyModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white rounded-lg border border-slate-200 w-full max-w-md p-5 shadow-xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-md bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center shrink-0">
+                    <FaUserClock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-sm sm:text-base text-slate-800">Set Busy Hours</h3>
+                    <p className="text-xs text-slate-500">Block a time window on {formatShortDate(selectedDate)}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowBusyModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-md cursor-pointer"
+                >
+                  <FaTimes className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-xs sm:text-sm">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                      From Time
+                    </label>
+                    <select
+                      value={busyStart}
+                      onChange={(e) => setBusyStart(e.target.value)}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-md bg-white text-slate-800 text-xs sm:text-sm focus:outline-none focus:border-[#0067A1]"
+                    >
+                      {standardTimeOptions.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                      To Time
+                    </label>
+                    <select
+                      value={busyEnd}
+                      onChange={(e) => setBusyEnd(e.target.value)}
+                      className="w-full px-2.5 py-1.5 border border-slate-200 rounded-md bg-white text-slate-800 text-xs sm:text-sm focus:outline-none focus:border-[#0067A1]"
+                    >
+                      {standardTimeOptions.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                    Reason / Duty Type
+                  </label>
+                  <select
+                    value={busyReason}
+                    onChange={(e) => setBusyReason(e.target.value)}
+                    className="w-full px-2.5 py-1.5 border border-slate-200 rounded-md bg-white text-slate-800 text-xs sm:text-sm focus:outline-none focus:border-[#0067A1]"
+                  >
+                    <option value="Surgery">Surgery</option>
+                    <option value="Hospital Rounds">Hospital Rounds</option>
+                    <option value="Lunch Break">Lunch Break</option>
+                    <option value="Clinical Duty">Clinical Duty</option>
+                    <option value="Personal Emergency">Personal Emergency</option>
+                    <option value="Out of Clinic">Out of Clinic</option>
+                    <option value="Other">Other Duty</option>
+                  </select>
+                </div>
+
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-md text-[11px] text-slate-500">
+                  Slots between <span className="font-semibold text-slate-700">{busyStart}</span> and <span className="font-semibold text-slate-700">{busyEnd}</span> on {formatShortDate(selectedDate)} will be marked as busy.
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowBusyModal(false)}
+                  className="px-3 py-1.5 text-xs sm:text-sm text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={busyLoading}
+                  onClick={() => handleBlockBusyHours('unfreeze')}
+                  className="px-3 py-1.5 text-xs sm:text-sm bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-md transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Unblock
+                </button>
+                <button
+                  type="button"
+                  disabled={busyLoading}
+                  onClick={() => handleBlockBusyHours('freeze')}
+                  className="px-4 py-1.5 text-xs sm:text-sm bg-[#0067A1] hover:bg-[#004F7C] text-white font-medium rounded-md transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {busyLoading ? 'Saving...' : 'Block Hours'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer Note */}
         <div className="text-center">
