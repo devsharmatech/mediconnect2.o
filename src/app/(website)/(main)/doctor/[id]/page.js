@@ -510,9 +510,20 @@ function DoctorProfileContent() {
       const n = Number(String(v).replace(/[^0-9.]/g, ""));
       return isNaN(n) ? 0 : n;
     };
-    const vFee = parseN(details.video_consultation_fee);
-    const cFee = parseN(details.clinic_consultation_fee);
-    const hFee = parseN(details.home_visit_fee);
+    const metaModes = details.enabled_modes || (typeof details.meta === "object" && details.meta !== null ? details.meta.enabled_modes : null);
+    const isVideoOn = typeof details.is_video_enabled === "boolean"
+      ? details.is_video_enabled
+      : (typeof metaModes?.video === "boolean" ? metaModes.video : true);
+    const isClinicOn = typeof details.is_clinic_enabled === "boolean"
+      ? details.is_clinic_enabled
+      : (typeof metaModes?.clinic === "boolean" ? metaModes.clinic : true);
+    const isHomeOn = typeof details.is_home_enabled === "boolean"
+      ? details.is_home_enabled
+      : (typeof metaModes?.home === "boolean" ? metaModes.home : false);
+
+    const vFee = isVideoOn ? parseN(details.video_consultation_fee) : 0;
+    const cFee = isClinicOn ? parseN(details.clinic_consultation_fee) : 0;
+    const hFee = isHomeOn ? parseN(details.home_visit_fee) : 0;
 
     const preferred = normalizeAppointmentMode(rawModeParam);
     if (preferred === "video_consultation" && vFee > 0) {
@@ -561,15 +572,30 @@ function DoctorProfileContent() {
       const n = Number(String(val).replace(/[^0-9.]/g, ""));
       return isNaN(n) ? 0 : n;
     };
-    const vFee = parseN(details.video_consultation_fee);
-    const cFee = parseN(details.clinic_consultation_fee);
-    const hFee = parseN(details.home_visit_fee);
+    const metaModes = details.enabled_modes || (typeof details.meta === "object" && details.meta !== null ? details.meta.enabled_modes : null);
+    const isVideoOn = typeof details.is_video_enabled === "boolean"
+      ? details.is_video_enabled
+      : (typeof metaModes?.video === "boolean" ? metaModes.video : true);
+    const isClinicOn = typeof details.is_clinic_enabled === "boolean"
+      ? details.is_clinic_enabled
+      : (typeof metaModes?.clinic === "boolean" ? metaModes.clinic : true);
+    const isHomeOn = typeof details.is_home_enabled === "boolean"
+      ? details.is_home_enabled
+      : (typeof metaModes?.home === "boolean" ? metaModes.home : false);
 
-    const hasAnyMode = isFollowUp ? true : (vFee > 0 || cFee > 0 || hFee > 0);
-    const isModeActive = isFollowUp ? true : (
-      appointmentType === "video_consultation" ? vFee > 0 :
-      appointmentType === "home_visit" ? hFee > 0 :
-      cFee > 0
+    const vFee = isVideoOn ? parseN(details.video_consultation_fee) : 0;
+    const cFee = isClinicOn ? parseN(details.clinic_consultation_fee) : 0;
+    const hFee = isHomeOn ? parseN(details.home_visit_fee) : 0;
+
+    const hasAnyMode = isFollowUp ? (isVideoOn || isClinicOn || isHomeOn) : (vFee > 0 || cFee > 0 || hFee > 0);
+    const isModeActive = isFollowUp ? (
+      appointmentType === "video_consultation" ? isVideoOn :
+      appointmentType === "home_visit" ? isHomeOn :
+      isClinicOn
+    ) : (
+      appointmentType === "video_consultation" ? (isVideoOn && vFee > 0) :
+      appointmentType === "home_visit" ? (isHomeOn && hFee > 0) :
+      (isClinicOn && cFee > 0)
     );
 
     if (!hasAnyMode || !isModeActive) {
@@ -680,14 +706,29 @@ function DoctorProfileContent() {
     return isNaN(n) ? 0 : n;
   };
 
-  const videoFee = parseFeeNum(details.video_consultation_fee);
-  const videoFollowUpFee = parseFeeNum(details.video_follow_up_fee ?? details.meta?.video_follow_up_fee ?? details.follow_up_fee ?? details.meta?.follow_up_fee);
-  
-  const clinicFee = parseFeeNum(details.clinic_consultation_fee);
-  const clinicFollowUpFee = parseFeeNum(details.clinic_follow_up_fee ?? details.meta?.clinic_follow_up_fee ?? details.follow_up_fee ?? details.meta?.follow_up_fee);
+  const metaModes = details.enabled_modes || (typeof details.meta === "object" && details.meta !== null ? details.meta.enabled_modes : null);
+  const isVideoOn = typeof details.is_video_enabled === "boolean"
+    ? details.is_video_enabled
+    : (typeof metaModes?.video === "boolean" ? metaModes.video : true);
+  const isClinicOn = typeof details.is_clinic_enabled === "boolean"
+    ? details.is_clinic_enabled
+    : (typeof metaModes?.clinic === "boolean" ? metaModes.clinic : true);
+  const isHomeOn = typeof details.is_home_enabled === "boolean"
+    ? details.is_home_enabled
+    : (typeof metaModes?.home === "boolean" ? metaModes.home : false);
 
-  const homeFee = parseFeeNum(details.home_visit_fee);
-  const homeFollowUpFee = parseFeeNum(details.home_follow_up_fee ?? details.meta?.home_follow_up_fee ?? details.follow_up_fee ?? details.meta?.follow_up_fee);
+  const rawVideoFee = parseFeeNum(details.video_consultation_fee);
+  const rawClinicFee = parseFeeNum(details.clinic_consultation_fee);
+  const rawHomeFee = parseFeeNum(details.home_visit_fee);
+
+  const videoFee = isVideoOn ? rawVideoFee : 0;
+  const videoFollowUpFee = isVideoOn ? parseFeeNum(details.video_follow_up_fee ?? details.meta?.video_follow_up_fee ?? details.follow_up_fee ?? details.meta?.follow_up_fee) : 0;
+  
+  const clinicFee = isClinicOn ? rawClinicFee : 0;
+  const clinicFollowUpFee = isClinicOn ? parseFeeNum(details.clinic_follow_up_fee ?? details.meta?.clinic_follow_up_fee ?? details.follow_up_fee ?? details.meta?.follow_up_fee) : 0;
+
+  const homeFee = isHomeOn ? rawHomeFee : 0;
+  const homeFollowUpFee = isHomeOn ? parseFeeNum(details.home_follow_up_fee ?? details.meta?.home_follow_up_fee ?? details.follow_up_fee ?? details.meta?.follow_up_fee) : 0;
 
   const baseFee = (() => {
     if (appointmentType === "video_consultation" || appointmentType === "video") {
@@ -708,11 +749,15 @@ function DoctorProfileContent() {
     ? Number(discountDetails.discounted_fee)
     : baseFee;
 
-  const hasAnyServedMode = isFollowUp ? true : (videoFee > 0 || clinicFee > 0 || homeFee > 0);
-  const isCurrentModeServed = isFollowUp ? true : (
-    appointmentType === "video_consultation" ? videoFee > 0 :
-    appointmentType === "home_visit" ? homeFee > 0 :
-    clinicFee > 0
+  const hasAnyServedMode = isFollowUp ? (isVideoOn || isClinicOn || isHomeOn) : (videoFee > 0 || clinicFee > 0 || homeFee > 0);
+  const isCurrentModeServed = isFollowUp ? (
+    appointmentType === "video_consultation" ? isVideoOn :
+    appointmentType === "home_visit" ? isHomeOn :
+    isClinicOn
+  ) : (
+    appointmentType === "video_consultation" ? (isVideoOn && videoFee > 0) :
+    appointmentType === "home_visit" ? (isHomeOn && homeFee > 0) :
+    (isClinicOn && clinicFee > 0)
   );
 
   const rating = details.rating || 0;
@@ -1829,6 +1874,7 @@ function DoctorProfileContent() {
                         title: "Video Call",
                         fee: isFollowUp ? (videoFollowUpFee || videoFee) : videoFee,
                         sub: "Online",
+                        isEnabled: isVideoOn,
                       },
                       {
                         id: "clinic_visit",
@@ -1836,6 +1882,7 @@ function DoctorProfileContent() {
                         title: "Clinic Visit",
                         fee: isFollowUp ? (clinicFollowUpFee || clinicFee) : clinicFee,
                         sub: "In-Person",
+                        isEnabled: isClinicOn,
                       },
                       {
                         id: "home_visit",
@@ -1843,10 +1890,11 @@ function DoctorProfileContent() {
                         title: "Home Visit",
                         fee: isFollowUp ? (homeFollowUpFee || homeFee) : homeFee,
                         sub: "At Home",
+                        isEnabled: isHomeOn,
                       },
                     ].map((type) => {
                       const isSelected = appointmentType === type.id;
-                      const isAvailable = isFollowUp ? true : type.fee > 0;
+                      const isAvailable = isFollowUp ? type.isEnabled : (type.isEnabled && type.fee > 0);
                       return (
                         <button
                           key={type.id}

@@ -47,13 +47,17 @@ export async function PUT(req) {
       second_booking_discount_value,
       additional_clinics,
       slot_interval_minutes,
+      is_video_enabled,
+      is_clinic_enabled,
+      is_home_enabled,
+      enabled_modes,
     } = body || {};
 
     if (!user_id) {
       return failure("user_id is required", null, 400, { headers: corsHeaders });
     }
 
-    // Ensure follow_up fee and clinic columns exist in doctor_details
+    // Ensure follow_up fee, enabled modes and clinic columns exist in doctor_details
     await sql`
       ALTER TABLE doctor_details 
         ADD COLUMN IF NOT EXISTS video_follow_up_fee NUMERIC DEFAULT 0,
@@ -64,9 +68,13 @@ export async function PUT(req) {
         ADD COLUMN IF NOT EXISTS second_booking_discount_type TEXT DEFAULT 'none',
         ADD COLUMN IF NOT EXISTS second_booking_discount_value NUMERIC DEFAULT 0,
         ADD COLUMN IF NOT EXISTS slot_interval_minutes INTEGER DEFAULT 15,
-        ADD COLUMN IF NOT EXISTS allowed_to_consult BOOLEAN DEFAULT true;
+        ADD COLUMN IF NOT EXISTS allowed_to_consult BOOLEAN DEFAULT true,
+        ADD COLUMN IF NOT EXISTS is_video_enabled BOOLEAN DEFAULT true,
+        ADD COLUMN IF NOT EXISTS is_clinic_enabled BOOLEAN DEFAULT true,
+        ADD COLUMN IF NOT EXISTS is_home_enabled BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS enabled_modes JSONB DEFAULT '{"video":true,"clinic":true,"home":false}'::jsonb;
     `.catch((err) => {
-      console.warn("Could not alter doctor_details for follow_up fees:", err.message);
+      console.warn("Could not alter doctor_details for follow_up fees or mode flags:", err.message);
     });
 
     const [existingDoc] = await sql`
@@ -185,6 +193,33 @@ export async function PUT(req) {
       newMeta.follow_up_fee = Number(follow_up_fee) || 0;
       metaUpdated = true;
     }
+
+    // Persist consultation modes active/disabled state in both dedicated columns and meta
+    const videoEnabledBool = is_video_enabled !== undefined
+      ? Boolean(is_video_enabled)
+      : (enabled_modes?.video !== undefined ? Boolean(enabled_modes.video) : undefined);
+    const clinicEnabledBool = is_clinic_enabled !== undefined
+      ? Boolean(is_clinic_enabled)
+      : (enabled_modes?.clinic !== undefined ? Boolean(enabled_modes.clinic) : undefined);
+    const homeEnabledBool = is_home_enabled !== undefined
+      ? Boolean(is_home_enabled)
+      : (enabled_modes?.home !== undefined ? Boolean(enabled_modes.home) : undefined);
+
+    if (videoEnabledBool !== undefined) updateData.is_video_enabled = videoEnabledBool;
+    if (clinicEnabledBool !== undefined) updateData.is_clinic_enabled = clinicEnabledBool;
+    if (homeEnabledBool !== undefined) updateData.is_home_enabled = homeEnabledBool;
+
+    if (enabled_modes !== undefined || videoEnabledBool !== undefined || clinicEnabledBool !== undefined || homeEnabledBool !== undefined) {
+      const modeObj = {
+        video: videoEnabledBool !== undefined ? videoEnabledBool : (existingMeta?.enabled_modes?.video ?? true),
+        clinic: clinicEnabledBool !== undefined ? clinicEnabledBool : (existingMeta?.enabled_modes?.clinic ?? true),
+        home: homeEnabledBool !== undefined ? homeEnabledBool : (existingMeta?.enabled_modes?.home ?? false),
+      };
+      updateData.enabled_modes = sql.json(modeObj);
+      newMeta.enabled_modes = modeObj;
+      metaUpdated = true;
+    }
+
     if (metaUpdated) {
       updateData.meta = sql.json(newMeta);
     }

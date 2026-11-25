@@ -128,6 +128,22 @@ export default function CheckoutPage() {
         return () => { if (document.body.contains(script)) document.body.removeChild(script); };
     }, [router]);
 
+    const cartHasLabOnlyTest = Boolean(
+        cart?.tests?.some(t =>
+            t.collection_type === "lab" ||
+            t.requires_lab_visit === true ||
+            t.mandates_lab_visit === true ||
+            resolveTestCollectionType(t) === "lab"
+        )
+    );
+
+    // Auto-lock to walk-in if tests mandate lab visit
+    useEffect(() => {
+        if (cartHasLabOnlyTest && visitType !== "walk_in") {
+            setVisitType("walk_in");
+        }
+    }, [cartHasLabOnlyTest, visitType]);
+
     // Prescription File Upload Handler
     const handlePrescriptionSelect = async (e) => {
         const file = e.target.files?.[0];
@@ -180,9 +196,7 @@ export default function CheckoutPage() {
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
-    if (!cart) return <LoadingScreen message="Preparing checkout..." submessage="Loading your order details" />;
-
-    const testsTotal = cart.tests.reduce((s, t) => s + (parseFloat(t.price) || 0), 0);
+    const testsTotal = (cart?.tests || []).reduce((s, t) => s + (parseFloat(t.price) || 0), 0);
     const collectionFee = 0;
     const totalAmount = testsTotal;
     const allConsentsGiven = Object.values(consents).every(Boolean);
@@ -197,22 +211,6 @@ export default function CheckoutPage() {
             terms_accepted: targetVal,
         });
     };
-
-    const cartHasLabOnlyTest = Boolean(
-        cart?.tests?.some(t =>
-            t.collection_type === "lab" ||
-            t.requires_lab_visit === true ||
-            t.mandates_lab_visit === true ||
-            resolveTestCollectionType(t) === "lab"
-        )
-    );
-
-    // Auto-lock to walk-in if tests mandate lab visit
-    useEffect(() => {
-        if (cartHasLabOnlyTest && visitType !== "walk_in") {
-            setVisitType("walk_in");
-        }
-    }, [cartHasLabOnlyTest, visitType]);
 
     const handlePayment = async () => {
         if (visitType === "home_collection") {
@@ -341,13 +339,13 @@ export default function CheckoutPage() {
         {
             key: "sample_collection_consent",
             title: "Biological Sample Collection Consent",
-            desc: `I authorize certified phlebotomist from ${cart.lab_name} to collect biological samples adhering to standard clinical safety protocols.`,
+            desc: `I authorize certified phlebotomist from ${cart?.lab_name || "Diagnostic Center"} to collect biological samples adhering to standard clinical safety protocols.`,
             mandate: "Mandatory under Clinical Establishments Act & ICMR Guidelines",
         },
         {
             key: "testing_and_reporting_consent",
             title: "Diagnostic Testing & Reporting Consent",
-            desc: `I grant consent to ${cart.lab_name} to process samples and generate verified laboratory reports.`,
+            desc: `I grant consent to ${cart?.lab_name || "Diagnostic Center"} to process samples and generate verified laboratory reports.`,
             mandate: "Mandatory for clinical diagnostic validity",
         },
         {
@@ -363,6 +361,8 @@ export default function CheckoutPage() {
             mandate: "Mandatory agreement to service policy",
         },
     ];
+
+    if (!cart) return <LoadingScreen message="Preparing checkout..." submessage="Loading your order details" />;
 
     return (
         <div className="min-h-screen pb-12">

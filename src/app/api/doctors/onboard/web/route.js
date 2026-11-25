@@ -282,6 +282,14 @@ export async function POST(req) {
       home_visit_fee: parseOptionalFee(fields.home_visit_fee),
       home_follow_up_fee: parseOptionalFee(fields.home_follow_up_fee ?? fields.follow_up_fee),
       follow_up_fee: parseOptionalFee(fields.follow_up_fee),
+      is_video_enabled: fields.is_video_enabled !== undefined ? toBool(fields.is_video_enabled) : true,
+      is_clinic_enabled: fields.is_clinic_enabled !== undefined ? toBool(fields.is_clinic_enabled) : true,
+      is_home_enabled: fields.is_home_enabled !== undefined ? toBool(fields.is_home_enabled) : false,
+      enabled_modes: parseJSON(fields.enabled_modes) || {
+        video: fields.is_video_enabled !== undefined ? toBool(fields.is_video_enabled) : true,
+        clinic: fields.is_clinic_enabled !== undefined ? toBool(fields.is_clinic_enabled) : true,
+        home: fields.is_home_enabled !== undefined ? toBool(fields.is_home_enabled) : false,
+      },
       indemnity_insurance: parseFloat(fields.insurance || 0),
       dmc_mci_certificate: dmc,
       aadhaar_pan_license: aadhaarPan,
@@ -314,6 +322,11 @@ export async function POST(req) {
         clinic_follow_up_fee: parseOptionalFee(fields.clinic_follow_up_fee ?? fields.follow_up_fee),
         home_follow_up_fee: parseOptionalFee(fields.home_follow_up_fee ?? fields.follow_up_fee),
         follow_up_fee: parseOptionalFee(fields.follow_up_fee),
+        enabled_modes: parseJSON(fields.enabled_modes) || {
+          video: fields.is_video_enabled !== undefined ? toBool(fields.is_video_enabled) : true,
+          clinic: fields.is_clinic_enabled !== undefined ? toBool(fields.is_clinic_enabled) : true,
+          home: fields.is_home_enabled !== undefined ? toBool(fields.is_home_enabled) : false,
+        },
       },
     };
 

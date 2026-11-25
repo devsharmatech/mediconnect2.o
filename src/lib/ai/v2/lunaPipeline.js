@@ -14,6 +14,7 @@ import { getPromptVersions } from "./prompts";
 function ceilingFor(routeId) {
     if (routeId === "LUNG") return LUNA_CONFIG.OUTPUT_CEILINGS.LUNG;
     if (routeId === "CARDIO") return LUNA_CONFIG.OUTPUT_CEILINGS.CARDIO;
+    if (routeId === "CONSULT") return LUNA_CONFIG.OUTPUT_CEILINGS.HEALTH_EDUCATION;
     if (routeId === "NONE") return LUNA_CONFIG.OUTPUT_CEILINGS.GENERAL_NAVIGATION;
     return LUNA_CONFIG.OUTPUT_CEILINGS.SERVICE_NAVIGATION;
 }

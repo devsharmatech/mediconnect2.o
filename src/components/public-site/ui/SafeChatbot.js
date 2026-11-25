@@ -104,7 +104,7 @@ const SPECIALTY_ROUTING = [
         filterValue: "Pediatrics",
         buttonLabel: "Consult Pediatrician",
         title: "Pediatrician",
-        regex: /(pediatric(ian|s)?|paediatric(ian|s)?|child doctor|baby doctor|infant|bacha|bacche|bachon|बाल रोग|बच्चा|बच्चे)/i,
+        regex: /(pediatric(ian|s)?|paediatric(ian|s)?|child(ren)?(\s*doctor)?|baby|babies|newborn(s)?|neonate(s)?|neonatal|infant(s)?|toddler(s)?|kid(s)?|bacha|bacche|bachon|chhota baccha|chhoti bacchi|shishu|बाल रोग|बच्चा|बच्चे|शिशु|पीलिया|jaundice|bilirubin|phototherapy)/i,
     },
     {
         specialty: "ENT",
@@ -132,7 +132,7 @@ const SPECIALTY_ROUTING = [
         filterValue: "Urology",
         buttonLabel: "Consult Urologist",
         title: "Urologist",
-        regex: /(urolog(ist|y)?|kidney stone|urinary|prostate|pathri|peshab|पथरी|पेशाब में जलन|किडनी)/i,
+        regex: /(urolog(ist|y)?|kidney stone|urinary|prostate|pathri|peshab|पथरी|पेशाब में जलन|पेशाब|मूत्र)/i,
     },
     {
         specialty: "Ophthalmology",
@@ -141,12 +141,76 @@ const SPECIALTY_ROUTING = [
         title: "Eye Specialist",
         regex: /(op?thalmolog(ist|y)?|eye doctor|eyesight|cataract|vision|aankh|motiyabind|आंख|आंखों में जलन|मोतियाबिंद|दृष्टि)/i,
     },
+    {
+        specialty: "Nephrology",
+        filterValue: "Nephrology",
+        buttonLabel: "Consult Nephrologist",
+        title: "Nephrologist",
+        regex: /(nephrolog(ist|y)?|kidney disease|kidney failure|renal|creatinine|dialysis|kidney problem|गुर्दा|डायलिसिस|क्रिएटिनिन|gurda)/i,
+    },
+    {
+        specialty: "Nephrologist",
+        filterValue: "Nephrology",
+        buttonLabel: "Consult Nephrologist",
+        title: "Nephrologist",
+        regex: /(nephrologist)/i,
+    },
+    {
+        specialty: "Oncology",
+        filterValue: "Oncology",
+        buttonLabel: "Consult Oncologist",
+        title: "Oncologist",
+        regex: /(oncolog(ist|y)?|cancer|tumor|tumour|malignan(t|cy)|chemo(therapy)?|radiation therapy|biopsy|pet scan|कैंसर|ट्यूमर|कीमोथेरेपी|leukemia|lymphoma)/i,
+    },
+    {
+        specialty: "Rheumatology",
+        filterValue: "Rheumatology",
+        buttonLabel: "Consult Rheumatologist",
+        title: "Rheumatologist",
+        regex: /(rheumatolog(ist|y)?|rheumatoid arthritis|joint inflammation|uric acid|gout|gathiya|गठिया|यूरिक एसिड|autoimmune|lupus|sle|ankylosing spondylitis)/i,
+    },
+    {
+        specialty: "Physiotherapy",
+        filterValue: "Physiotherapy",
+        buttonLabel: "Consult Physiotherapist",
+        title: "Physiotherapist",
+        regex: /(physiotherap(ist|y)?|physical therapy|rehab(ilitation)?|posture correction|muscle stiffness|exercise therapy|फिजियोथेरेपी|कसरत)/i,
+    },
+    {
+        specialty: "General Surgery",
+        filterValue: "General Surgery",
+        buttonLabel: "Consult General Surgeon",
+        title: "General Surgeon",
+        regex: /(general surgeon|general surgery|surgeon|surgery|operation|hernia|appendix|appendicitis|gallstones?|gallbladder stones?|हर्निया|अपेंडिक्स|सर्जरी|ऑपरेशन|piles|bawaseer|fissure|fistula)/i,
+    },
+    {
+        specialty: "Surgery",
+        filterValue: "Surgery",
+        buttonLabel: "Consult Surgeon",
+        title: "Surgeon",
+        regex: /\b(surgery|surgeon|surgical)\b/i,
+    },
+    {
+        specialty: "Gynecology & Obstetrics",
+        filterValue: "Gynecology & Obstetrics",
+        buttonLabel: "Consult Obstetrician",
+        title: "Obstetrician & Gynecologist",
+        regex: /(obstetric(s|ian)?|pregnancy|pregnant|childbirth|delivery|prenatal|c-section|garbhavastha|गर्भावस्था|प्रसव|डिलीवरी)/i,
+    },
+    {
+        specialty: "Dental",
+        filterValue: "Dental",
+        buttonLabel: "Consult Dentist",
+        title: "Dentist",
+        regex: /(dental|dentist|tooth|teeth|cavity|gums?)/i,
+    },
 ];
 
 const CLINICAL_TO_PLATFORM_SPECIALTY = {
     "dental surgery": "Dentistry",
     "oral medicine": "Dentistry",
     "dentistry": "Dentistry",
+    "dental": "Dental",
     "occupational medicine": "General Physician",
     "internal medicine": "General Physician",
     "family medicine": "General Physician",
@@ -158,7 +222,8 @@ const CLINICAL_TO_PLATFORM_SPECIALTY = {
     "orthopedics": "Orthopedics",
     "otolaryngology": "ENT",
     "ent": "ENT",
-    "obstetrics and gynecology": "Gynecology",
+    "obstetrics and gynecology": "Gynecology & Obstetrics",
+    "gynecology & obstetrics": "Gynecology & Obstetrics",
     "gynecology": "Gynecology",
     "pulmonary disease": "Pulmonology",
     "chest medicine": "Pulmonology",
@@ -173,6 +238,22 @@ const CLINICAL_TO_PLATFORM_SPECIALTY = {
     "endocrinology": "Endocrinology",
     "endocrinologist": "Endocrinology",
     "diabetology": "Endocrinology",
+    "nephrology": "Nephrology",
+    "nephrologist": "Nephrology",
+    "renal disease": "Nephrology",
+    "renal": "Nephrology",
+    "oncology": "Oncology",
+    "oncologist": "Oncology",
+    "medical oncology": "Oncology",
+    "surgical oncology": "Oncology",
+    "rheumatology": "Rheumatology",
+    "rheumatologist": "Rheumatology",
+    "physiotherapy": "Physiotherapy",
+    "physiotherapist": "Physiotherapy",
+    "physical therapy": "Physiotherapy",
+    "general surgery": "General Surgery",
+    "surgery": "Surgery",
+    "surgical": "Surgery",
 };
 
 // Assume we have access to user data in the real app via a context. 
@@ -198,8 +279,27 @@ const SafeChatbot = () => {
     const [suggestions, setSuggestions] = useState([]);
     const [historySessions, setHistorySessions] = useState([]);
     const [showHistory, setShowHistory] = useState(false);
+    const [cmsSpecialties, setCmsSpecialties] = useState([]);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
+
+    // Fetch active CMS specialties for dynamic platform alignment
+    useEffect(() => {
+        let isMounted = true;
+        async function fetchActiveCms() {
+            try {
+                const res = await fetch("/api/cms/specialties?active_only=true");
+                const json = await res.json();
+                if (isMounted && json.success && Array.isArray(json.data)) {
+                    setCmsSpecialties(json.data);
+                }
+            } catch (err) {
+                // Silently fallback to built-in SPECIALTY_ROUTING
+            }
+        }
+        fetchActiveCms();
+        return () => { isMounted = false; };
+    }, []);
 
     // Initialize session, restore persisted chat, and user on mount
     useEffect(() => {
@@ -450,8 +550,10 @@ const SafeChatbot = () => {
             const lowerText = text.toLowerCase().trim();
 
             // 1. VETERINARY / ANIMAL / PET GUARD: MediConnect is strictly for human healthcare
-            const ANIMAL_PET_REGEX = /(dog|dogs|puppy|puppies|cat|cats|kitten|kittens|pet|pets|animal|animals|kutta|kuta|kutti|kutte|billi|billian|jaanwar|janwar|pashu|pashuon|gay|gaay|bhains|bakri|bakra|veterinary|veterinarian|vet doctor|vet clinic|doggy|कुत्ता|कुत्ते|बिल्ली|जानवर|पशु|गाय|भैंस|बकरी|वेटरनरी)/i;
-            if (ANIMAL_PET_REGEX.test(lowerText) || data.is_animal_query || data.route_id === "OUT_OF_SCOPE_ANIMAL") {
+            const ANIMAL_PET_REGEX = /\b(dog|dogs|puppy|puppies|cat|cats|kitten|kittens|pet|pets|animal|animals|kutta|kuta|kutti|kutte|billi|billian|jaanwar|janwar|pashu|pashuon|gay|gaay|bhains|bakri|bakra|veterinary|veterinarian|vet\s?doctor|vet\s?clinic|doggy)\b/i;
+            const isHindiAnimal = /(कुत्ता|कुत्ते|बिल्ली|जानवर|पशु|गाय|भैंस|बकरी|वेटरनरी)/i.test(lowerText);
+            const isFalsePositiveAnimal = /\b(cataract|medication|certificate)\b/i.test(lowerText);
+            if (((ANIMAL_PET_REGEX.test(lowerText) || isHindiAnimal) && !isFalsePositiveAnimal) || data.is_animal_query || data.route_id === "OUT_OF_SCOPE_ANIMAL") {
                 const animalNotice = "MediConnect केवल मानव स्वास्थ्य (Human Healthcare) सेवाओं और डॉक्टरों के परामर्श के लिए है। हम पशुओं (Animals / Pets) का इलाज या परामर्श प्रदान नहीं करते हैं। कृपया अपने पेट या जानवर के स्वास्थ्य के लिए किसी योग्य पशु चिकित्सक (Veterinary Doctor / Vet Clinic) से संपर्क करें।";
                 const botMsg = { id: Date.now(), type: "bot", text: animalNotice, actions: [], action: null };
                 setMessages((prev) => [...prev, botMsg]);
@@ -487,15 +589,36 @@ const SafeChatbot = () => {
             // Strict dental keyword check: ONLY consider dental if the USER'S input explicitly mentions teeth/mouth/dental
             const userHasDentalWords = /(dentist(s)?|dentistry|dental|teeth|tooth|toothache|cavity|cavities|gums?|root canal|braces|scaling|dant|daant|danto me dard|दांत|दांत दर्द|मसूड़े|mouth pain|oral)/i.test(lowerText);
 
-            // 1. Detect ALL matching specialties from user inquiry
-            let matchedSpecialties = SPECIALTY_ROUTING.filter((s) => {
-                if (s.specialty === "Dentistry" && !userHasDentalWords) return false;
+            // 1. Build active catalog merging static routing with active CMS specialties
+            const activeCatalog = [...SPECIALTY_ROUTING];
+            if (Array.isArray(cmsSpecialties) && cmsSpecialties.length > 0) {
+                for (const item of cmsSpecialties) {
+                    if (!item.name) continue;
+                    const exists = activeCatalog.some(
+                        (s) => s.specialty.toLowerCase() === item.name.toLowerCase()
+                    );
+                    if (!exists) {
+                        const cleanName = item.name.trim();
+                        activeCatalog.push({
+                            specialty: cleanName,
+                            filterValue: cleanName,
+                            buttonLabel: `Consult ${cleanName}`,
+                            title: cleanName,
+                            regex: new RegExp(`\\b(${cleanName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})\\b`, "i"),
+                        });
+                    }
+                }
+            }
+
+            // 2. Detect matching specialties from user inquiry
+            let matchedSpecialties = activeCatalog.filter((s) => {
+                if ((s.specialty === "Dentistry" || s.specialty === "Dental") && !userHasDentalWords) return false;
                 return s.regex.test(lowerText);
             });
 
-            // 2. Also check if the bot specifically recommended/named any specialty in its response text
-            for (const spec of SPECIALTY_ROUTING) {
-                if (spec.specialty === "Dentistry" && !userHasDentalWords) {
+            // 3. Also check if the bot specifically recommended/named any specialty in its response text
+            for (const spec of activeCatalog) {
+                if ((spec.specialty === "Dentistry" || spec.specialty === "Dental") && !userHasDentalWords) {
                     continue;
                 }
                 const specNameRegex = new RegExp(`\\b(${spec.specialty}|${spec.title})\\b`, "i");
@@ -504,17 +627,36 @@ const SafeChatbot = () => {
                 }
             }
 
-            // 3. Strict dental guard: Never route to Dentistry unless user asked about teeth/mouth
+            // 4. Strict dental guard: Never route to Dentistry/Dental unless user asked about teeth/mouth
             if (!userHasDentalWords) {
-                matchedSpecialties = matchedSpecialties.filter((s) => s.specialty !== "Dentistry");
+                matchedSpecialties = matchedSpecialties.filter((s) => s.specialty !== "Dentistry" && s.specialty !== "Dental");
             }
 
-            // 4. General Fever / Infection / Weakness Guard: Ensure General Physician is included if general symptoms mentioned
+            // 5. De-duplicate equivalent aliases (e.g. Nephrologist -> Nephrology, Dental -> Dentistry, Surgery -> General Surgery)
+            if (matchedSpecialties.some((s) => s.specialty === "Nephrology") && matchedSpecialties.some((s) => s.specialty === "Nephrologist")) {
+                matchedSpecialties = matchedSpecialties.filter((s) => s.specialty !== "Nephrologist");
+            }
+            if (matchedSpecialties.some((s) => s.specialty === "Dentistry") && matchedSpecialties.some((s) => s.specialty === "Dental")) {
+                matchedSpecialties = matchedSpecialties.filter((s) => s.specialty !== "Dental");
+            }
+            if (matchedSpecialties.some((s) => s.specialty === "General Surgery") && matchedSpecialties.some((s) => s.specialty === "Surgery")) {
+                matchedSpecialties = matchedSpecialties.filter((s) => s.specialty !== "Surgery");
+            }
+
+            // 6. General Fever / Infection / Weakness Guard: Ensure General Physician is included if general symptoms mentioned
             const hasGeneralSymptom = /(fever|fevr|fev|febrile|temp|temperature|high temp|bukhar|bukhaar|cold|sardi|zukham|jukham|cough|khasi|khansi|flu|viral|infection|headache|sir dard|sar dard|body pain|badan dard|weakness|kamzori|fatigue|unwell|sick|bimar|bimaar|ill|illness|बुखार|सर्दी|जुकाम|खांसी|सिर दर्द|बदन दर्द|कमजोरी|कमज़ोरी|थकान|सुस्ती|अस्वस्थ|बीमार)/i.test(lowerText) ||
                                       /(fever|cold|cough|headache|infection|flu|viral)/i.test(cleanBot);
             if (hasGeneralSymptom && !matchedSpecialties.some((s) => s.specialty === "General Physician")) {
-                const gp = SPECIALTY_ROUTING.find((s) => s.specialty === "General Physician");
+                const gp = activeCatalog.find((s) => s.specialty === "General Physician");
                 if (gp) matchedSpecialties.push(gp);
+            }
+
+            // 7. Pediatric / Newborn / Baby Guard: Prioritize Pediatrics for child/infant/newborn/jaundice
+            const hasPediatricContext = /(baby|babies|newborn|newborns|neonate|neonatal|infant|infants|toddler|toddlers|child|children|kid|kids|bacha|bacche|bachon|shishu|पीलिया|jaundice|bilirubin|phototherapy)/i.test(lowerText) ||
+                                        /(pediatric|pediatrician|newborn|infant|neonatal|jaundice|bilirubin)/i.test(cleanBot);
+            if (hasPediatricContext && !matchedSpecialties.some((s) => s.specialty === "Pediatrics")) {
+                const peds = activeCatalog.find((s) => s.specialty === "Pediatrics");
+                if (peds) matchedSpecialties.unshift(peds);
             }
 
             const isPatientLoggedIn = typeof window !== "undefined" && Boolean(localStorage.getItem("patientUser"));
@@ -586,7 +728,7 @@ const SafeChatbot = () => {
                                     if (detailsData.success && detailsData.data && detailsData.data.routing?.primary_specialty) {
                                         const rawSpec = detailsData.data.routing.primary_specialty.toLowerCase();
                                         const platformSpecialty = CLINICAL_TO_PLATFORM_SPECIALTY[rawSpec] || "General Physician";
-                                        const foundSpec = SPECIALTY_ROUTING.find((s) => s.specialty.toLowerCase() === platformSpecialty.toLowerCase());
+                                        const foundSpec = activeCatalog.find((s) => s.specialty.toLowerCase() === platformSpecialty.toLowerCase());
                                         if (foundSpec) {
                                             matchedSpecialties.push(foundSpec);
                                         }
@@ -600,7 +742,7 @@ const SafeChatbot = () => {
                 }
 
                 // Health Concern Check: Did user ask a health/symptom/doctor related query?
-                const hasHealthOrDoctorIntent = /(pain|dard|fever|bukhar|cough|khasi|khansi|cold|sardi|zukham|jukham|headache|sir dard|sar dard|vomit|rash|sick|bimar|ill|swelling|throat|pet dard|infection|allergy|वजन|सूजन|थकान|कमजोरी|कमज़ोरी|सुस्ती|बीमार|दवा|doctor|chikitsak|tabiyat|tabiyat kharab|dikhana|treatment|ilaj|consult|consultation|appointment|specialist|hospital|clinic|problem|health|medical|illness|disease|bimaari|bimari|swasthya|जांच|prescription|परामर्श)/i.test(lowerText) || hasGeneralSymptom || data.route_id === "CONSULT" || data.cta_id === "CTA_CONSULT";
+                const hasHealthOrDoctorIntent = /(pain|dard|fever|bukhar|cough|khasi|khansi|cold|sardi|zukham|jukham|headache|sir dard|sar dard|vomit|rash|sick|bimar|ill|swelling|throat|pet dard|infection|allergy|baby|babies|newborn|infant|child|kid|yellow|yellowing|jaundice|peeliya|पीलिया|वजन|सूजन|थकान|कमजोरी|कमज़ोरी|सुस्ती|बीमार|दवा|doctor|chikitsak|tabiyat|tabiyat kharab|dikhana|treatment|ilaj|consult|consultation|appointment|specialist|hospital|clinic|problem|health|medical|illness|disease|bimaari|bimari|swasthya|जांच|prescription|परामर्श|normal hai|is this normal)/i.test(lowerText) || hasGeneralSymptom || hasPediatricContext || data.route_id === "CONSULT" || data.cta_id === "CTA_CONSULT";
 
                 // Button Generation Rules:
                 // 1) Multiple specialties detected -> Show up to 3 buttons

@@ -143,8 +143,12 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
     clinic_name: "",
     available_days: [],
     video_consultation_fee: "",
+    video_follow_up_fee: "",
     clinic_consultation_fee: "",
+    clinic_follow_up_fee: "",
     home_visit_fee: "",
+    home_follow_up_fee: "",
+    follow_up_fee: "",
     onboarding_status: "pending",
     additional_clinics: [],
   });
@@ -535,8 +539,12 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
         home_slots: details.home_slots || {},
         qualification: qualificationArray,
         video_consultation_fee: details.video_consultation_fee ?? (details.consultation_fee || ""),
+        video_follow_up_fee: details.video_follow_up_fee ?? details.meta?.video_follow_up_fee ?? details.follow_up_fee ?? details.meta?.follow_up_fee ?? "",
         clinic_consultation_fee: details.clinic_consultation_fee ?? (details.consultation_fee || ""),
+        clinic_follow_up_fee: details.clinic_follow_up_fee ?? details.meta?.clinic_follow_up_fee ?? details.follow_up_fee ?? details.meta?.follow_up_fee ?? "",
         home_visit_fee: details.home_visit_fee || "",
+        home_follow_up_fee: details.home_follow_up_fee ?? details.meta?.home_follow_up_fee ?? details.follow_up_fee ?? details.meta?.follow_up_fee ?? "",
+        follow_up_fee: details.follow_up_fee ?? details.meta?.follow_up_fee ?? "",
         insurance: details.indemnity_insurance || "",
         // Identity fields from KYC
         aadhaar: details.kyc_data?.aadhaar_number || details.meta?.aadhaar || "",
@@ -571,10 +579,22 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
         signature_url: Array.isArray(details.signature_url) ? details.signature_url[0] : (details.signature_url || null),
       });
       setSignatureData(Array.isArray(details.signature_url) ? details.signature_url[0] : (details.signature_url || ""));
+
+      const metaModes = details.enabled_modes || details.meta?.enabled_modes;
+      const isVideoOn = typeof details.is_video_enabled === "boolean"
+        ? details.is_video_enabled
+        : (typeof metaModes?.video === "boolean" ? metaModes.video : Boolean(Number(details.video_consultation_fee ?? details.consultation_fee) > 0));
+      const isClinicOn = typeof details.is_clinic_enabled === "boolean"
+        ? details.is_clinic_enabled
+        : (typeof metaModes?.clinic === "boolean" ? metaModes.clinic : Boolean(Number(details.clinic_consultation_fee ?? details.consultation_fee) > 0));
+      const isHomeOn = typeof details.is_home_enabled === "boolean"
+        ? details.is_home_enabled
+        : (typeof metaModes?.home === "boolean" ? metaModes.home : Boolean(Number(details.home_visit_fee) > 0));
+
       setFeeModes({
-        video: Boolean(Number(details.video_consultation_fee ?? details.consultation_fee) > 0),
-        clinic: Boolean(Number(details.clinic_consultation_fee ?? details.consultation_fee) > 0),
-        home: Boolean(Number(details.home_visit_fee) > 0),
+        video: isVideoOn,
+        clinic: isClinicOn,
+        home: isHomeOn,
       });
     } else {
       setFeeModes({ video: true, clinic: true, home: false });
@@ -621,8 +641,12 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
         clinic_name: "",
         available_days: [],
         video_consultation_fee: "",
+        video_follow_up_fee: "",
         clinic_consultation_fee: "",
+        clinic_follow_up_fee: "",
         home_visit_fee: "",
+        home_follow_up_fee: "",
+        follow_up_fee: "",
         onboarding_status: "pending",
         additional_clinics: [],
       });
@@ -1065,11 +1089,22 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
         submitFormData.append(key, JSON.stringify(urls));
       });
 
-      // Explicitly append primary consultation_fee
+      // Explicitly append consultation fees and follow-up fees
       submitFormData.append(
         "consultation_fee",
         formData.clinic_consultation_fee || formData.video_consultation_fee || formData.home_visit_fee || "0"
       );
+      submitFormData.append("video_follow_up_fee", formData.video_follow_up_fee || "0");
+      submitFormData.append("clinic_follow_up_fee", formData.clinic_follow_up_fee || "0");
+      submitFormData.append("home_follow_up_fee", formData.home_follow_up_fee || "0");
+      submitFormData.append(
+        "follow_up_fee",
+        formData.follow_up_fee || formData.video_follow_up_fee || formData.clinic_follow_up_fee || "0"
+      );
+      submitFormData.append("is_video_enabled", Boolean(feeModes.video).toString());
+      submitFormData.append("is_clinic_enabled", Boolean(feeModes.clinic).toString());
+      submitFormData.append("is_home_enabled", Boolean(feeModes.home).toString());
+      submitFormData.append("enabled_modes", JSON.stringify(feeModes));
 
       // Add ID for updates
       if (doctor) {
@@ -1283,17 +1318,15 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
             placeholder="5"
           />
         </div>
-        <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 space-y-2">
+        <div className="p-3.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 space-y-2.5">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Video Consultation Fee
+              Video Consultation
             </label>
             <button
               type="button"
               onClick={() => {
-                const next = !feeModes.video;
-                setFeeModes(prev => ({ ...prev, video: next }));
-                if (!next) handleInputChange("video_consultation_fee", "");
+                setFeeModes(prev => ({ ...prev, video: !prev.video }));
               }}
               className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-colors cursor-pointer ${
                 feeModes.video 
@@ -1304,32 +1337,57 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
               {feeModes.video ? "Enabled" : "Disabled"}
             </button>
           </div>
-          <input
-            type="number"
-            disabled={!feeModes.video}
-            value={formData.video_consultation_fee}
-            onChange={(e) =>
-              handleInputChange("video_consultation_fee", e.target.value)
-            }
-            className={`w-full px-3 py-2 border rounded-lg transition-colors ${
-              !feeModes.video
-                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
-                : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
-            }`}
-            placeholder={feeModes.video ? "500" : "Enable toggle to set fee"}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Consultation Fee (₹)
+              </span>
+              <input
+                type="number"
+                disabled={!feeModes.video}
+                value={formData.video_consultation_fee}
+                onChange={(e) =>
+                  handleInputChange("video_consultation_fee", e.target.value)
+                }
+                className={`w-full px-2.5 py-1.5 text-sm border rounded-lg transition-colors ${
+                  !feeModes.video
+                    ? "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
+                    : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#0067A1] focus:border-transparent"
+                }`}
+                placeholder={feeModes.video ? "500" : "Disabled"}
+              />
+            </div>
+            <div>
+              <span className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Follow-up Fee (₹)
+              </span>
+              <input
+                type="number"
+                disabled={!feeModes.video}
+                value={formData.video_follow_up_fee}
+                onChange={(e) =>
+                  handleInputChange("video_follow_up_fee", e.target.value)
+                }
+                className={`w-full px-2.5 py-1.5 text-sm border rounded-lg transition-colors ${
+                  !feeModes.video
+                    ? "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
+                    : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#0067A1] focus:border-transparent"
+                }`}
+                placeholder={feeModes.video ? "300" : "Disabled"}
+              />
+            </div>
+          </div>
         </div>
-        <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 space-y-2">
+
+        <div className="p-3.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 space-y-2.5">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Clinic Consultation Fee
+              Clinic Consultation
             </label>
             <button
               type="button"
               onClick={() => {
-                const next = !feeModes.clinic;
-                setFeeModes(prev => ({ ...prev, clinic: next }));
-                if (!next) handleInputChange("clinic_consultation_fee", "");
+                setFeeModes(prev => ({ ...prev, clinic: !prev.clinic }));
               }}
               className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-colors cursor-pointer ${
                 feeModes.clinic 
@@ -1340,32 +1398,57 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
               {feeModes.clinic ? "Enabled" : "Disabled"}
             </button>
           </div>
-          <input
-            type="number"
-            disabled={!feeModes.clinic}
-            value={formData.clinic_consultation_fee}
-            onChange={(e) =>
-              handleInputChange("clinic_consultation_fee", e.target.value)
-            }
-            className={`w-full px-3 py-2 border rounded-lg transition-colors ${
-              !feeModes.clinic
-                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
-                : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
-            }`}
-            placeholder={feeModes.clinic ? "800" : "Enable toggle to set fee"}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Consultation Fee (₹)
+              </span>
+              <input
+                type="number"
+                disabled={!feeModes.clinic}
+                value={formData.clinic_consultation_fee}
+                onChange={(e) =>
+                  handleInputChange("clinic_consultation_fee", e.target.value)
+                }
+                className={`w-full px-2.5 py-1.5 text-sm border rounded-lg transition-colors ${
+                  !feeModes.clinic
+                    ? "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
+                    : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#0067A1] focus:border-transparent"
+                }`}
+                placeholder={feeModes.clinic ? "800" : "Disabled"}
+              />
+            </div>
+            <div>
+              <span className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Follow-up Fee (₹)
+              </span>
+              <input
+                type="number"
+                disabled={!feeModes.clinic}
+                value={formData.clinic_follow_up_fee}
+                onChange={(e) =>
+                  handleInputChange("clinic_follow_up_fee", e.target.value)
+                }
+                className={`w-full px-2.5 py-1.5 text-sm border rounded-lg transition-colors ${
+                  !feeModes.clinic
+                    ? "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
+                    : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#0067A1] focus:border-transparent"
+                }`}
+                placeholder={feeModes.clinic ? "400" : "Disabled"}
+              />
+            </div>
+          </div>
         </div>
-        <div className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 space-y-2">
+
+        <div className="p-3.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 space-y-2.5">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Home Visit Fee
+              Home Visit Consultation
             </label>
             <button
               type="button"
               onClick={() => {
-                const next = !feeModes.home;
-                setFeeModes(prev => ({ ...prev, home: next }));
-                if (!next) handleInputChange("home_visit_fee", "");
+                setFeeModes(prev => ({ ...prev, home: !prev.home }));
               }}
               className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-colors cursor-pointer ${
                 feeModes.home 
@@ -1376,20 +1459,46 @@ function OnboardingModal({ isOpen, onClose, doctor, onSave }) {
               {feeModes.home ? "Enabled" : "Disabled"}
             </button>
           </div>
-          <input
-            type="number"
-            disabled={!feeModes.home}
-            value={formData.home_visit_fee}
-            onChange={(e) =>
-              handleInputChange("home_visit_fee", e.target.value)
-            }
-            className={`w-full px-3 py-2 border rounded-lg transition-colors ${
-              !feeModes.home
-                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
-                : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-black focus:border-transparent"
-            }`}
-            placeholder={feeModes.home ? "1500" : "Enable toggle to set fee"}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Consultation Fee (₹)
+              </span>
+              <input
+                type="number"
+                disabled={!feeModes.home}
+                value={formData.home_visit_fee}
+                onChange={(e) =>
+                  handleInputChange("home_visit_fee", e.target.value)
+                }
+                className={`w-full px-2.5 py-1.5 text-sm border rounded-lg transition-colors ${
+                  !feeModes.home
+                    ? "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
+                    : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#0067A1] focus:border-transparent"
+                }`}
+                placeholder={feeModes.home ? "1500" : "Disabled"}
+              />
+            </div>
+            <div>
+              <span className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Follow-up Fee (₹)
+              </span>
+              <input
+                type="number"
+                disabled={!feeModes.home}
+                value={formData.home_follow_up_fee}
+                onChange={(e) =>
+                  handleInputChange("home_follow_up_fee", e.target.value)
+                }
+                className={`w-full px-2.5 py-1.5 text-sm border rounded-lg transition-colors ${
+                  !feeModes.home
+                    ? "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
+                    : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#0067A1] focus:border-transparent"
+                }`}
+                placeholder={feeModes.home ? "800" : "Disabled"}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2769,18 +2878,30 @@ function DoctorDetailsModal({ doctor, isOpen, onClose }) {
                         {(() => {
                           const fees = [];
                           const clinicVal = details.clinic_consultation_fee ?? details.consultation_fee;
+                          const clinicFollowUp = details.clinic_follow_up_fee ?? details.meta?.clinic_follow_up_fee;
                           const videoVal = details.video_consultation_fee;
+                          const videoFollowUp = details.video_follow_up_fee ?? details.meta?.video_follow_up_fee;
                           const homeVal = details.home_visit_fee;
+                          const homeFollowUp = details.home_follow_up_fee ?? details.meta?.home_follow_up_fee;
                           const baseVal = details.consultation_fee;
 
                           if (clinicVal && parseFloat(clinicVal) > 0) {
                             fees.push({ label: "Clinic Consultation Fee", value: clinicVal });
                           }
+                          if (clinicFollowUp && parseFloat(clinicFollowUp) > 0) {
+                            fees.push({ label: "Clinic Follow-up Fee", value: clinicFollowUp });
+                          }
                           if (videoVal && parseFloat(videoVal) > 0) {
                             fees.push({ label: "Video Consultation Fee", value: videoVal });
                           }
+                          if (videoFollowUp && parseFloat(videoFollowUp) > 0) {
+                            fees.push({ label: "Video Follow-up Fee", value: videoFollowUp });
+                          }
                           if (homeVal && parseFloat(homeVal) > 0) {
                             fees.push({ label: "Home Visit Fee", value: homeVal });
+                          }
+                          if (homeFollowUp && parseFloat(homeFollowUp) > 0) {
+                            fees.push({ label: "Home Follow-up Fee", value: homeFollowUp });
                           }
 
                           if (fees.length === 0) {

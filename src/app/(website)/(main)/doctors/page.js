@@ -934,8 +934,19 @@ function DoctorsContent() {
         const videoFeeNum = parseModeFeeNum(videoVal);
         const homeFeeNum = parseModeFeeNum(homeVal);
 
+        const metaModes = details.enabled_modes || (typeof details.meta === "object" && details.meta !== null ? details.meta.enabled_modes : null);
+        const isClinicEnabled = typeof details.is_clinic_enabled === "boolean"
+          ? details.is_clinic_enabled
+          : (typeof metaModes?.clinic === "boolean" ? metaModes.clinic : true);
+        const isVideoEnabled = typeof details.is_video_enabled === "boolean"
+          ? details.is_video_enabled
+          : (typeof metaModes?.video === "boolean" ? metaModes.video : true);
+        const isHomeEnabled = typeof details.is_home_enabled === "boolean"
+          ? details.is_home_enabled
+          : (typeof metaModes?.home === "boolean" ? metaModes.home : false);
+
         const modes = [];
-        if (clinicFeeNum !== null && clinicFeeNum > 0) {
+        if (isClinicEnabled && clinicFeeNum !== null && clinicFeeNum > 0) {
           modes.push({
             id: "clinic",
             label: "Clinic",
@@ -943,7 +954,7 @@ function DoctorsContent() {
             formatted: `₹${clinicFeeNum.toLocaleString("en-IN")}`,
           });
         }
-        if (videoFeeNum !== null && videoFeeNum > 0) {
+        if (isVideoEnabled && videoFeeNum !== null && videoFeeNum > 0) {
           modes.push({
             id: "video",
             label: "Video",
@@ -951,7 +962,7 @@ function DoctorsContent() {
             formatted: `₹${videoFeeNum.toLocaleString("en-IN")}`,
           });
         }
-        if (homeFeeNum !== null && homeFeeNum > 0) {
+        if (isHomeEnabled && homeFeeNum !== null && homeFeeNum > 0) {
           modes.push({
             id: "home",
             label: "Home",

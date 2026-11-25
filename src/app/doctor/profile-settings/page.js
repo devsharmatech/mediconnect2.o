@@ -656,13 +656,29 @@ export default function DoctorProfile() {
       setSelectedSpecialities(specializationArray);
       setSelectedQualifications(qualificationArray);
 
+      const dbMeta = typeof details.meta === "object" && details.meta !== null ? details.meta : {};
+      const rawEnabled = details.enabled_modes || dbMeta.enabled_modes;
+
+      const hasExplicitVideo = typeof details.is_video_enabled === "boolean"
+        ? details.is_video_enabled
+        : (typeof rawEnabled?.video === "boolean" ? rawEnabled.video : null);
+
+      const hasExplicitClinic = typeof details.is_clinic_enabled === "boolean"
+        ? details.is_clinic_enabled
+        : (typeof rawEnabled?.clinic === "boolean" ? rawEnabled.clinic : null);
+
+      const hasExplicitHome = typeof details.is_home_enabled === "boolean"
+        ? details.is_home_enabled
+        : (typeof rawEnabled?.home === "boolean" ? rawEnabled.home : null);
+
       const hasVideo = details.video_consultation_fee !== null && details.video_consultation_fee !== undefined && Number(details.video_consultation_fee) > 0;
       const hasClinic = details.clinic_consultation_fee !== null && details.clinic_consultation_fee !== undefined && Number(details.clinic_consultation_fee) > 0;
       const hasHome = details.home_visit_fee !== null && details.home_visit_fee !== undefined && Number(details.home_visit_fee) > 0;
+
       setEnabledModes({
-        video: hasVideo || (!hasClinic && !hasHome),
-        clinic: hasClinic,
-        home: hasHome,
+        video: hasExplicitVideo !== null ? hasExplicitVideo : hasVideo,
+        clinic: hasExplicitClinic !== null ? hasExplicitClinic : hasClinic,
+        home: hasExplicitHome !== null ? hasExplicitHome : hasHome,
       });
 
       // Derive simple stats from doctor details if available
@@ -1152,12 +1168,16 @@ export default function DoctorProfile() {
         specialization: selectedSpecialities,
         qualification: selectedQualifications,
         experience_years: experienceYears,
-        video_consultation_fee: enabledModes.video ? parseFee(profile.videoConsultationFee) : 0,
-        video_follow_up_fee: enabledModes.video ? parseFee(profile.videoFollowUpFee) : 0,
-        clinic_consultation_fee: enabledModes.clinic ? parseFee(profile.clinicConsultationFee) : 0,
-        clinic_follow_up_fee: enabledModes.clinic ? parseFee(profile.clinicFollowUpFee) : 0,
-        home_visit_fee: enabledModes.home ? parseFee(profile.homeVisitFee) : 0,
-        home_follow_up_fee: enabledModes.home ? parseFee(profile.homeFollowUpFee) : 0,
+        enabled_modes: enabledModes,
+        is_video_enabled: Boolean(enabledModes.video),
+        is_clinic_enabled: Boolean(enabledModes.clinic),
+        is_home_enabled: Boolean(enabledModes.home),
+        video_consultation_fee: parseFee(profile.videoConsultationFee),
+        video_follow_up_fee: parseFee(profile.videoFollowUpFee),
+        clinic_consultation_fee: parseFee(profile.clinicConsultationFee),
+        clinic_follow_up_fee: parseFee(profile.clinicFollowUpFee),
+        home_visit_fee: parseFee(profile.homeVisitFee),
+        home_follow_up_fee: parseFee(profile.homeFollowUpFee),
         follow_up_fee: parseFee(profile.followUpFee || profile.videoFollowUpFee || profile.clinicFollowUpFee),
         clinic_name: profile.hospital,
         clinic_address: profile.address,
@@ -1564,7 +1584,7 @@ export default function DoctorProfile() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <Field
                     label="Video Consultation Fee (₹)"
-                    value={enabledModes.video ? profile.videoConsultationFee : ""}
+                    value={isEditing ? profile.videoConsultationFee : (enabledModes.video ? profile.videoConsultationFee : "")}
                     isEditing={isEditing}
                     disabled={!enabledModes.video}
                     placeholder="e.g. 500"
@@ -1573,7 +1593,7 @@ export default function DoctorProfile() {
                   />
                   <Field
                     label="Video Follow-up Fee (₹)"
-                    value={enabledModes.video ? profile.videoFollowUpFee : ""}
+                    value={isEditing ? profile.videoFollowUpFee : (enabledModes.video ? profile.videoFollowUpFee : "")}
                     isEditing={isEditing}
                     disabled={!enabledModes.video}
                     placeholder="e.g. 300"
@@ -1625,7 +1645,7 @@ export default function DoctorProfile() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <Field
                     label="Clinic Visit Fee (₹)"
-                    value={enabledModes.clinic ? profile.clinicConsultationFee : ""}
+                    value={isEditing ? profile.clinicConsultationFee : (enabledModes.clinic ? profile.clinicConsultationFee : "")}
                     isEditing={isEditing}
                     disabled={!enabledModes.clinic}
                     placeholder="e.g. 700"
@@ -1634,7 +1654,7 @@ export default function DoctorProfile() {
                   />
                   <Field
                     label="Clinic Follow-up Fee (₹)"
-                    value={enabledModes.clinic ? profile.clinicFollowUpFee : ""}
+                    value={isEditing ? profile.clinicFollowUpFee : (enabledModes.clinic ? profile.clinicFollowUpFee : "")}
                     isEditing={isEditing}
                     disabled={!enabledModes.clinic}
                     placeholder="e.g. 400"
@@ -1686,7 +1706,7 @@ export default function DoctorProfile() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <Field
                     label="Home Visit Fee (₹)"
-                    value={enabledModes.home ? profile.homeVisitFee : ""}
+                    value={isEditing ? profile.homeVisitFee : (enabledModes.home ? profile.homeVisitFee : "")}
                     isEditing={isEditing}
                     disabled={!enabledModes.home}
                     placeholder="e.g. 1500"
@@ -1695,7 +1715,7 @@ export default function DoctorProfile() {
                   />
                   <Field
                     label="Home Visit Follow-up Fee (₹)"
-                    value={enabledModes.home ? profile.homeFollowUpFee : ""}
+                    value={isEditing ? profile.homeFollowUpFee : (enabledModes.home ? profile.homeFollowUpFee : "")}
                     isEditing={isEditing}
                     disabled={!enabledModes.home}
                     placeholder="e.g. 800"

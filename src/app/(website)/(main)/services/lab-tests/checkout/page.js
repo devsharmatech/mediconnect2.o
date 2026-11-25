@@ -185,9 +185,7 @@ export default function PublicCheckoutPage() {
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
-    if (!cart) return <LoadingScreen message="Preparing checkout..." submessage="Loading your order" />;
-
-    const testsTotal = cart.tests.reduce((s, t) => s + (parseFloat(t.price) || 0), 0);
+    const testsTotal = (cart?.tests || []).reduce((s, t) => s + (parseFloat(t.price) || 0), 0);
     const collectionFee = 0;
     const totalAmount = testsTotal;
     const allConsentsGiven = Object.values(consents).every(Boolean);
@@ -337,13 +335,13 @@ export default function PublicCheckoutPage() {
         {
             key: "sample_collection_consent",
             title: "Biological Sample Collection Consent",
-            desc: `I authorize certified phlebotomist from ${cart.lab_name} to collect biological samples adhering to standard clinical safety protocols.`,
+            desc: `I authorize certified phlebotomist from ${cart?.lab_name || "Diagnostic Center"} to collect biological samples adhering to standard clinical safety protocols.`,
             mandate: "Mandatory under Clinical Establishments Act & ICMR Guidelines",
         },
         {
             key: "testing_and_reporting_consent",
             title: "Diagnostic Testing & Reporting Consent",
-            desc: `I grant consent to ${cart.lab_name} to process samples and generate verified laboratory reports.`,
+            desc: `I grant consent to ${cart?.lab_name || "Diagnostic Center"} to process samples and generate verified laboratory reports.`,
             mandate: "Mandatory for clinical diagnostic validity",
         },
         {
@@ -359,6 +357,8 @@ export default function PublicCheckoutPage() {
             mandate: "Mandatory agreement to service policy",
         },
     ];
+
+    if (!cart) return <LoadingScreen message="Preparing checkout..." submessage="Loading your order" />;
 
     return (
         <div className="min-h-[85vh] bg-[#F6F8FA] pb-16 pt-5">

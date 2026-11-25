@@ -148,6 +148,10 @@ export async function PUT(request) {
     const home_visit_fee = parseOptionalFee(formData.get("home_visit_fee"));
     const home_follow_up_fee = parseOptionalFee(formData.get("home_follow_up_fee"));
     const follow_up_fee = parseOptionalFee(formData.get("follow_up_fee"));
+    const is_video_enabled_raw = formData.get("is_video_enabled");
+    const is_clinic_enabled_raw = formData.get("is_clinic_enabled");
+    const is_home_enabled_raw = formData.get("is_home_enabled");
+    const raw_enabled_modes = formData.get("enabled_modes");
     const rawConsultationFee = parseOptionalFee(formData.get("consultation_fee"));
     const consultation_fee =
       rawConsultationFee !== undefined && rawConsultationFee !== null && rawConsultationFee > 0
@@ -256,6 +260,22 @@ export async function PUT(request) {
       updated_at: new Date().toISOString(),
     };
 
+    if (is_video_enabled_raw !== null && is_video_enabled_raw !== undefined) {
+      updateData.is_video_enabled = String(is_video_enabled_raw) === "true";
+    }
+    if (is_clinic_enabled_raw !== null && is_clinic_enabled_raw !== undefined) {
+      updateData.is_clinic_enabled = String(is_clinic_enabled_raw) === "true";
+    }
+    if (is_home_enabled_raw !== null && is_home_enabled_raw !== undefined) {
+      updateData.is_home_enabled = String(is_home_enabled_raw) === "true";
+    }
+    if (raw_enabled_modes) {
+      const parsedModes = parseJSON(raw_enabled_modes);
+      if (parsedModes) {
+        updateData.enabled_modes = sql.json(parsedModes);
+      }
+    }
+
     // Only set full_name when we actually have a value
     if (full_name) {
       updateData.full_name = full_name;
@@ -334,6 +354,10 @@ export async function PUT(request) {
     if (clinic_follow_up_fee !== undefined) metaUpdate.clinic_follow_up_fee = clinic_follow_up_fee;
     if (home_follow_up_fee !== undefined) metaUpdate.home_follow_up_fee = home_follow_up_fee;
     if (follow_up_fee !== undefined) metaUpdate.follow_up_fee = follow_up_fee;
+    if (raw_enabled_modes) {
+      const parsedModes = parseJSON(raw_enabled_modes);
+      if (parsedModes) metaUpdate.enabled_modes = parsedModes;
+    }
 
     if (Object.keys(metaUpdate).length > 0) {
       updateData.meta = {

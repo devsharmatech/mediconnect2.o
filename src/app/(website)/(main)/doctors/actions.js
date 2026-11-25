@@ -41,6 +41,29 @@ function isFeeServed(val) {
   return !Number.isNaN(num) && num > 0;
 }
 
+function isDocModeServed(doc, mode) {
+  const metaModes = doc.enabled_modes || (typeof doc.meta === "object" && doc.meta !== null ? doc.meta.enabled_modes : null);
+  if (mode === "clinic") {
+    const isEnabled = typeof doc.is_clinic_enabled === "boolean"
+      ? doc.is_clinic_enabled
+      : (typeof metaModes?.clinic === "boolean" ? metaModes.clinic : true);
+    return isEnabled && (isFeeServed(doc.clinic_consultation_fee) || isFeeServed(doc.consultation_fee));
+  }
+  if (mode === "video") {
+    const isEnabled = typeof doc.is_video_enabled === "boolean"
+      ? doc.is_video_enabled
+      : (typeof metaModes?.video === "boolean" ? metaModes.video : true);
+    return isEnabled && isFeeServed(doc.video_consultation_fee);
+  }
+  if (mode === "home") {
+    const isEnabled = typeof doc.is_home_enabled === "boolean"
+      ? doc.is_home_enabled
+      : (typeof metaModes?.home === "boolean" ? metaModes.home : false);
+    return isEnabled && isFeeServed(doc.home_visit_fee);
+  }
+  return false;
+}
+
 export async function getDoctorsAction({
   page = 1,
   limit = 12,
@@ -65,6 +88,7 @@ export async function getDoctorsAction({
         d.home_visit_fee, d.consultation_fee, d.rating, d.total_reviews, d.experience_years, 
         d.onboarding_status, d.clinic_name, d.clinic_address, d.latitude, d.longitude, d.passport_photo,
         d.meta, d.is_open, d.slot_interval_minutes,
+        d.is_video_enabled, d.is_clinic_enabled, d.is_home_enabled, d.enabled_modes,
         dos.allowed_to_consult, dos.registration_verified
       FROM users u
       JOIN doctor_details d ON d.id = u.id
@@ -227,13 +251,13 @@ export async function getDoctorsAction({
     if (appointmentMode && appointmentMode !== "all") {
       filteredDetails = filteredDetails.filter((doc) => {
         if (appointmentMode === "clinic") {
-          return isFeeServed(doc.clinic_consultation_fee) || isFeeServed(doc.consultation_fee);
+          return isDocModeServed(doc, "clinic");
         }
         if (appointmentMode === "video") {
-          return isFeeServed(doc.video_consultation_fee);
+          return isDocModeServed(doc, "video");
         }
         if (appointmentMode === "home") {
-          return isFeeServed(doc.home_visit_fee);
+          return isDocModeServed(doc, "home");
         }
         return true;
       });
@@ -244,17 +268,29 @@ export async function getDoctorsAction({
       filteredDetails = filteredDetails.filter((doc) => {
         let fees = [];
         if (appointmentMode === "clinic") {
-          const f = doc.clinic_consultation_fee ?? doc.consultation_fee;
-          if (isFeeServed(f)) fees.push(Number(f));
+          if (isDocModeServed(doc, "clinic")) {
+            const f = doc.clinic_consultation_fee ?? doc.consultation_fee;
+            fees.push(Number(f));
+          }
         } else if (appointmentMode === "video") {
-          if (isFeeServed(doc.video_consultation_fee)) fees.push(Number(doc.video_consultation_fee));
+          if (isDocModeServed(doc, "video")) {
+            fees.push(Number(doc.video_consultation_fee));
+          }
         } else if (appointmentMode === "home") {
-          if (isFeeServed(doc.home_visit_fee)) fees.push(Number(doc.home_visit_fee));
+          if (isDocModeServed(doc, "home")) {
+            fees.push(Number(doc.home_visit_fee));
+          }
         } else {
-          const clinicVal = doc.clinic_consultation_fee ?? doc.consultation_fee;
-          if (isFeeServed(clinicVal)) fees.push(Number(clinicVal));
-          if (isFeeServed(doc.video_consultation_fee)) fees.push(Number(doc.video_consultation_fee));
-          if (isFeeServed(doc.home_visit_fee)) fees.push(Number(doc.home_visit_fee));
+          if (isDocModeServed(doc, "clinic")) {
+            const clinicVal = doc.clinic_consultation_fee ?? doc.consultation_fee;
+            fees.push(Number(clinicVal));
+          }
+          if (isDocModeServed(doc, "video")) {
+            fees.push(Number(doc.video_consultation_fee));
+          }
+          if (isDocModeServed(doc, "home")) {
+            fees.push(Number(doc.home_visit_fee));
+          }
         }
 
         if (fees.length === 0) return false;
@@ -325,13 +361,10 @@ export async function getDoctorsAction({
       }
       if (sortBy === "fee_low" || sortBy === "fee_high") {
         const getMinServed = (doc) => {
-          const list = [
-            doc.clinic_consultation_fee ?? doc.consultation_fee,
-            doc.video_consultation_fee,
-            doc.home_visit_fee,
-          ]
-            .filter(isFeeServed)
-            .map(Number);
+          const list = [];
+          if (isDocModeServed(doc, "clinic")) list.push(Number(doc.clinic_consultation_fee ?? doc.consultation_fee));
+          if (isDocModeServed(doc, "video")) list.push(Number(doc.video_consultation_fee));
+          if (isDocModeServed(doc, "home")) list.push(Number(doc.home_visit_fee));
           return list.length > 0 ? Math.min(...list) : 9999999;
         };
         const feeA = getMinServed(a);
