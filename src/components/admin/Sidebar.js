@@ -237,6 +237,7 @@ export default function Sidebar({ open, mobileOpen, onToggle, onCloseMobile }) {
             { name: "Contact Page", path: `/admin/cms/contact` },
             { name: "Legal Pages", path: `/admin/cms/legal` },
             { name: "Compliance Logos", path: `/admin/cms/compliance-logos` },
+            { name: "SEO Management", path: `/admin/cms/seo` },
             { name: "Website Settings", path: `/admin/cms/settings` },
           ],
         },
