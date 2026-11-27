@@ -277,15 +277,22 @@ export default function DoctorDashboard() {
       const ext = new Date(apt.extended_until);
       if (!isNaN(ext.getTime()) && Date.now() <= ext.getTime()) return false;
     }
+    const isClinic = apt?.appointment_type === "clinic_visit" || apt?.type === "clinic_visit" || apt?.appointment_type === "home_visit";
     const dateStr = apt?.date || apt?.appointment_date;
     if (!dateStr) return false;
     try {
-      const datePart = String(dateStr).split("T")[0];
-      const [year, month, day] = datePart.split("-").map(Number);
+      const timeStr = apt?.time || apt?.appointment_time || "23:59";
+      const timePart = timeStr.slice(0, 5);
+      const [year, month, day] = String(dateStr).split("T")[0].split("-").map(Number);
+      const [hours, minutes] = timePart.split(":").map(Number);
       if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
-      const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+      const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
       const now = new Date();
-      return now.getTime() > endOfDay.getTime();
+      if (isClinic) {
+        const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+        return now.getTime() > endOfDay.getTime();
+      }
+      return now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000;
     } catch {
       return false;
     }

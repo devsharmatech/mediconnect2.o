@@ -507,11 +507,12 @@ function DoctorAppointmentsPage() {
   }
 
   function getVideoCallTiming(apt, now = currentTime) {
-    if (!apt?.appointment_date) {
+    if (!apt?.appointment_date || !apt?.appointment_time) {
       return { isAvailable: false, label: "Start Call", status: "unavailable" };
     }
 
     try {
+      const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "00:00";
       const dateStr = typeof apt.appointment_date === "string" 
         ? apt.appointment_date 
         : apt.appointment_date instanceof Date 
@@ -519,12 +520,13 @@ function DoctorAppointmentsPage() {
         : String(apt.appointment_date || "");
       const dateOnly = dateStr.split("T")[0];
       const [year, month, day] = dateOnly.split("-").map(Number);
+      const [hours, minutes] = timePart.split(":").map(Number);
       if (isNaN(year) || isNaN(month) || isNaN(day)) {
         return { isAvailable: false, label: "Start Call", status: "unavailable" };
       }
+      const start = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
 
       const checkNow = now instanceof Date ? now : new Date();
-      const today = checkNow.toLocaleDateString("en-CA");
 
       // Active slot extension window
       if (apt.extended_until) {
@@ -534,23 +536,17 @@ function DoctorAppointmentsPage() {
         }
       }
 
-      // For appointments scheduled on today's date: doctor can always start call
-      if (dateOnly === today) {
+      // Call is available from 5 minutes before up to 30 minutes after start (or extended_until)
+      const earlyStart = new Date(start.getTime() - 5 * 60 * 1000);
+      let end = new Date(start.getTime() + 30 * 60 * 1000);
+
+      if (checkNow < earlyStart) {
+        return { isAvailable: false, label: "Opens 5m before", status: "early", earlyStart };
+      } else if (checkNow > end) {
+        return { isAvailable: false, label: "Call Ended", status: "expired" };
+      } else {
         return { isAvailable: true, label: "Start Call", status: "active" };
       }
-
-      // If scheduled in the future (future calendar date)
-      if (dateOnly > today) {
-        return { isAvailable: false, label: "Scheduled", status: "future" };
-      }
-
-      // Past date: expired if past end of day (23:59:59)
-      const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
-      if (checkNow.getTime() > endOfDay.getTime()) {
-        return { isAvailable: false, label: "Call Ended", status: "expired" };
-      }
-
-      return { isAvailable: true, label: "Start Call", status: "active" };
     } catch {
       return { isAvailable: false, label: "Start Call", status: "unavailable" };
     }
@@ -577,6 +573,8 @@ function DoctorAppointmentsPage() {
     }
 
     try {
+      const isClinic = ["clinic", "clinic_visit", "in_person", "home", "home_visit"].includes(String(apt.appointment_type || apt.type || "").toLowerCase());
+      const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "23:59";
       const dateStr = typeof apt.appointment_date === "string" 
         ? apt.appointment_date 
         : apt.appointment_date instanceof Date 
@@ -584,11 +582,18 @@ function DoctorAppointmentsPage() {
         : String(apt.appointment_date || "");
       const dateOnly = dateStr.split("T")[0];
       const [year, month, day] = dateOnly.split("-").map(Number);
+      const [hours, minutes] = timePart.split(":").map(Number);
       if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
+      const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
 
-      // Both video and clinic appointments stay active through the end of the scheduled appointment day (23:59:59)
-      const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
-      return checkNow.getTime() > endOfDay.getTime();
+      if (isClinic) {
+        // Clinic visits stay active through the end of the scheduled appointment day
+        const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+        return checkNow.getTime() > endOfDay.getTime();
+      }
+
+      // Video appointments expire 30 minutes after scheduled slot start time (unless extended)
+      return checkNow.getTime() > aptDateTime.getTime() + 30 * 60 * 1000;
     } catch {
       return false;
     }
@@ -1029,7 +1034,7 @@ function DoctorAppointmentsPage() {
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {isExpired && apt.status === "booked" && !apt.has_prescription ? (
+                          {isExpired && !apt.has_prescription && apt.status !== "completed" ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700 text-[10.5px] font-semibold">
                               <Clock className="w-2.5 h-2.5" />
                               Expired
@@ -1221,6 +1226,19 @@ function DoctorAppointmentsPage() {
                           <>
                             {isVideoAppointment(apt) && ["approved", "booked"].includes(apt.status) && (() => {
                               const timing = getVideoCallTiming(apt, currentTime);
+
+                              if (timing.status === "early") {
+                                return (
+                                  <button
+                                    type="button"
+                                    disabled={true}
+                                    className="h-7.5 px-2 rounded-md bg-slate-100 text-slate-400 border border-slate-200 text-[10.5px] font-medium cursor-not-allowed"
+                                    title="Opens 5 minutes before scheduled start time"
+                                  >
+                                    Opens in 5m
+                                  </button>
+                                );
+                              }
 
                               if (timing.status === "future") {
                                 return (
