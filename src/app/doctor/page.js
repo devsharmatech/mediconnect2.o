@@ -277,6 +277,7 @@ export default function DoctorDashboard() {
       const ext = new Date(apt.extended_until);
       if (!isNaN(ext.getTime()) && Date.now() <= ext.getTime()) return false;
     }
+    if (String(apt?.status).toLowerCase() === "expired") return true;
     const isClinic = apt?.appointment_type === "clinic_visit" || apt?.type === "clinic_visit" || apt?.appointment_type === "home_visit";
     const dateStr = apt?.date || apt?.appointment_date;
     if (!dateStr) return false;

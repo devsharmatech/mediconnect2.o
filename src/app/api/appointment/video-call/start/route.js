@@ -50,19 +50,6 @@ export async function POST(req) {
 
     const patient_id = appointment.patient_id;
 
-    // Auto-extend appointment window so patient can join seamlessly even if call starts later
-    try {
-      await sql`
-        UPDATE appointments
-        SET 
-          extended_until = GREATEST(COALESCE(extended_until, NOW() AT TIME ZONE 'Asia/Kolkata'), (NOW() AT TIME ZONE 'Asia/Kolkata') + INTERVAL '45 minutes'),
-          updated_at = NOW()
-        WHERE id = ${appointment_id}
-      `;
-    } catch (extErr) {
-      console.warn("Could not auto-extend appointment window on video call start:", extErr?.message);
-    }
-
     // Send in-app notification directly to RDS notifications table and FCM push
     await sendPushAndInAppNotification({
       user_id: patient_id,

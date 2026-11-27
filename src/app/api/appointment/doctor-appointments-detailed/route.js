@@ -38,12 +38,12 @@ export async function POST(req) {
         UPDATE appointments
         SET status = 'expired', updated_at = NOW()
         WHERE doctor_id = ${doctor_id}
-          AND status IN ('booked', 'freezed')
+          AND status IN ('booked', 'freezed', 'approved')
           AND id NOT IN (
             SELECT appointment_id FROM prescriptions 
             WHERE appointment_id IS NOT NULL AND (is_draft IS NULL OR is_draft = false)
           )
-          AND (extended_until IS NULL OR extended_until < (NOW() AT TIME ZONE 'Asia/Kolkata'))
+          AND (extended_until IS NULL OR extended_until < NOW())
           AND (
             -- Video calls expire based on doctor slot interval (e.g. 15m) if unextended
             (COALESCE(appointment_type, 'video') NOT IN ('clinic_visit', 'home_visit') 

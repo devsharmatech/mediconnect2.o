@@ -47,6 +47,7 @@ const STATUS_COLORS = {
   completed: "bg-blue-50 text-[#004F7C] border-blue-100",
   cancelled: "bg-red-50 text-red-700 border-red-100",
   rejected: "bg-amber-50 text-amber-700 border-amber-100",
+  expired: "bg-amber-50 text-amber-700 border-amber-200",
   pending: "bg-slate-50 text-slate-700 border-slate-100",
 };
 
@@ -573,6 +574,10 @@ function DoctorAppointmentsPage() {
       }
     }
 
+    if (String(apt.status).toLowerCase() === "expired") {
+      return true;
+    }
+
     try {
       const isClinic = ["clinic", "clinic_visit", "in_person", "home", "home_visit"].includes(String(apt.appointment_type || apt.type || "").toLowerCase());
       const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "23:59";
@@ -810,6 +815,7 @@ function DoctorAppointmentsPage() {
       case 'approved': return <CheckSquare className="w-3.5 h-3.5" />;
       case 'cancelled': return <XCircle className="w-3.5 h-3.5" />;
       case 'rejected': return <XCircle className="w-3.5 h-3.5" />;
+      case 'expired': return <Clock className="w-3.5 h-3.5" />;
       default: return <Clock className="w-3.5 h-3.5" />;
     }
   };
@@ -1032,7 +1038,7 @@ function DoctorAppointmentsPage() {
                           </div>
 
                           <div className="flex items-center gap-1.5 shrink-0">
-                            {isExpired && !apt.has_prescription && apt.status !== "completed" ? (
+                            {(isExpired || apt.status === "expired") && !apt.has_prescription && apt.status !== "completed" ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700 text-[10.5px] font-semibold">
                                 <Clock className="w-2.5 h-2.5" />
                                 Expired
@@ -1189,7 +1195,7 @@ function DoctorAppointmentsPage() {
                               <Info className="w-3 h-3 text-slate-400" />
                               {apt.status === "rejected" ? "Rejected" : "Cancelled"}
                             </span>
-                          ) : isExpired && !apt.has_prescription && apt.status !== "completed" ? (
+                          ) : (isExpired || apt.status === "expired") && !apt.has_prescription && apt.status !== "completed" ? (
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="text-[10.5px] font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200/60">
                                 Expired
@@ -1748,7 +1754,7 @@ function DoctorAppointmentsPage() {
                     </button>
                   );
                 })()}
-                {isVideoAppointment(selectedAppointment) && !["rejected", "cancelled", "completed"].includes(String(selectedAppointment.status).toLowerCase()) && !isAppointmentExpired(selectedAppointment, currentTime) && (() => {
+                {isVideoAppointment(selectedAppointment) && !["rejected", "cancelled", "completed", "expired"].includes(String(selectedAppointment.status).toLowerCase()) && !isAppointmentExpired(selectedAppointment, currentTime) && (() => {
                   const timing = getVideoCallTiming(selectedAppointment, currentTime);
                   return (
                     <button

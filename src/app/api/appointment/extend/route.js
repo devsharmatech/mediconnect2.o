@@ -76,7 +76,7 @@ export async function POST(req) {
       UPDATE appointments
       SET 
         original_appointment_time = COALESCE(original_appointment_time, appointment_time),
-        extended_until = (NOW() AT TIME ZONE 'Asia/Kolkata') + (${durationMinutes} || ' minutes')::interval,
+        extended_until = NOW() + (${durationMinutes} || ' minutes')::interval,
         status = CASE WHEN status = 'expired' THEN 'approved' ELSE status END,
         updated_at = NOW()
       WHERE id = ${appointment_id}
