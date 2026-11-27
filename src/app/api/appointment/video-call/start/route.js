@@ -37,10 +37,10 @@ export async function POST(req) {
       return failure("Forbidden", null, 403, { headers: corsHeaders });
     }
 
+    const rawType = String(appointment.appointment_type || "").toLowerCase().trim();
     const isVideoType =
-      appointment.appointment_type === "video" ||
-      appointment.appointment_type === "video_call" ||
-      appointment.appointment_type === "video_consultation";
+      rawType.includes("video") ||
+      ["teleconsultation", "instant_call", "telemedicine", "instant"].includes(rawType);
 
     if (!isVideoType) {
       return failure("This appointment is not a video appointment", null, 422, {
@@ -49,6 +49,19 @@ export async function POST(req) {
     }
 
     const patient_id = appointment.patient_id;
+
+    // Auto-extend appointment window so patient can join seamlessly even if call starts later
+    try {
+      await sql`
+        UPDATE appointments
+        SET 
+          extended_until = GREATEST(COALESCE(extended_until, NOW() AT TIME ZONE 'Asia/Kolkata'), (NOW() AT TIME ZONE 'Asia/Kolkata') + INTERVAL '45 minutes'),
+          updated_at = NOW()
+        WHERE id = ${appointment_id}
+      `;
+    } catch (extErr) {
+      console.warn("Could not auto-extend appointment window on video call start:", extErr?.message);
+    }
 
     // Send in-app notification directly to RDS notifications table and FCM push
     await sendPushAndInAppNotification({

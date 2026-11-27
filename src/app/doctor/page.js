@@ -263,27 +263,29 @@ export default function DoctorDashboard() {
     }
   };
 
+  const isVideoAppointment = (apt) => {
+    const t = String(apt?.appointment_type || apt?.type || "").toLowerCase().trim();
+    return (
+      t.includes("video") ||
+      ["teleconsultation", "instant_call", "telemedicine", "instant"].includes(t)
+    );
+  };
+
   const isAppointmentExpired = (apt) => {
     if (["completed", "cancelled", "rejected"].includes(String(apt?.status).toLowerCase())) return false;
     if (apt?.extended_until) {
       const ext = new Date(apt.extended_until);
       if (!isNaN(ext.getTime()) && Date.now() <= ext.getTime()) return false;
     }
-    const isClinic = apt?.appointment_type === "clinic_visit" || apt?.type === "clinic_visit" || apt?.appointment_type === "home_visit";
     const dateStr = apt?.date || apt?.appointment_date;
     if (!dateStr) return false;
     try {
-      const timeStr = apt?.time || apt?.appointment_time || "23:59";
-      const timePart = timeStr.slice(0, 5);
-      const [year, month, day] = dateStr.split("-").map(Number);
-      const [hours, minutes] = timePart.split(":").map(Number);
-      const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
+      const datePart = String(dateStr).split("T")[0];
+      const [year, month, day] = datePart.split("-").map(Number);
+      if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
+      const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
       const now = new Date();
-      if (isClinic) {
-        const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
-        return now.getTime() > endOfDay.getTime();
-      }
-      return now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000;
+      return now.getTime() > endOfDay.getTime();
     } catch {
       return false;
     }
@@ -524,7 +526,7 @@ export default function DoctorDashboard() {
                           <span className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
                             Expired
                           </span>
-                        ) : (apt.status === "booked" || apt.status === "approved") ? (
+                        ) : isVideoAppointment(apt) && (apt.status === "booked" || apt.status === "approved") ? (
                           <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => handleStartCall(apt)}
