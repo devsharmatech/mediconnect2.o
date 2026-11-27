@@ -45,9 +45,9 @@ export async function POST(req) {
           )
           AND (extended_until IS NULL OR extended_until < (NOW() AT TIME ZONE 'Asia/Kolkata'))
           AND (
-            -- Video calls expire 30 minutes after slot if unextended
+            -- Video calls expire based on doctor slot interval (e.g. 15m) if unextended
             (COALESCE(appointment_type, 'video') NOT IN ('clinic_visit', 'home_visit') 
-             AND (appointment_date + appointment_time + INTERVAL '30 minutes') < (NOW() AT TIME ZONE 'Asia/Kolkata'))
+             AND (appointment_date + appointment_time + (COALESCE((SELECT slot_interval_minutes FROM doctor_details WHERE id = appointments.doctor_id), 15) || ' minutes')::interval) < (NOW() AT TIME ZONE 'Asia/Kolkata'))
             OR
             -- Clinic and home visits only expire after the full appointment date has passed
             (COALESCE(appointment_type, 'video') IN ('clinic_visit', 'home_visit') 
@@ -141,6 +141,7 @@ export async function POST(req) {
         d.license_number AS doctor_license_number,
         d.clinic_name AS doctor_clinic_name,
         d.clinic_address AS doctor_clinic_address,
+        COALESCE(d.slot_interval_minutes, 15)::int AS slot_interval_minutes,
         COUNT(*) OVER()::int AS full_count
       FROM appointments a
       LEFT JOIN patient_details p ON p.id = a.patient_id

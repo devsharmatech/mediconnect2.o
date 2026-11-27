@@ -108,8 +108,9 @@ const getAppointmentEnd = (apt) => {
     endOfDay.setHours(23, 59, 59, 999);
     return endOfDay;
   }
-  // Video consultation window is active up to 30 minutes from start
-  return new Date(start.getTime() + 30 * 60 * 1000);
+  // Video consultation window is active based on doctor's slot interval from start
+  const intervalMinutes = Math.max(5, Number(apt.slot_interval_minutes || apt.duration_minutes || apt.slot_duration || 15));
+  return new Date(start.getTime() + intervalMinutes * 60 * 1000);
 };
 
 const getEffectiveStatus = (apt, now = new Date()) => {
@@ -146,8 +147,9 @@ const getEffectiveStatus = (apt, now = new Date()) => {
     return base;
   }
 
-  // After 30 minutes past start time, video appointment is expired (unless prescription exists or extended)
-  const end = new Date(start.getTime() + 30 * 60 * 1000);
+  // After slot interval past start time, video appointment is expired (unless prescription exists or extended)
+  const intervalMinutes = Math.max(5, Number(apt.slot_interval_minutes || apt.duration_minutes || apt.slot_duration || 15));
+  const end = new Date(start.getTime() + intervalMinutes * 60 * 1000);
   if (now > end) {
     if (hasPrescription) return "completed";
     return "expired";
@@ -235,7 +237,8 @@ const getVideoCallTiming = (apt, now = new Date()) => {
   const nowMs = now.getTime();
   const startMs = start.getTime();
   const windowStartMs = startMs - 5 * 60 * 1000; // Enabled 5 minutes before start
-  let windowEndMs = startMs + 30 * 60 * 1000;  // Disabled after 30 minutes (or extended_until)
+  const intervalMinutes = Math.max(5, Number(apt.slot_interval_minutes || apt.duration_minutes || apt.slot_duration || 15));
+  let windowEndMs = startMs + intervalMinutes * 60 * 1000;  // Disabled after slot interval (or extended_until)
   if (apt.extended_until) {
     const ext = new Date(apt.extended_until);
     if (!isNaN(ext.getTime()) && ext.getTime() > windowEndMs) {
@@ -264,7 +267,7 @@ const getVideoCallTiming = (apt, now = new Date()) => {
       isExpired: true,
       label: "Expired",
       disabledReason: "expired",
-      tooltip: "Appointment time expired (30 minutes after appointment start time)",
+      tooltip: `Appointment time expired (${intervalMinutes} minutes after appointment start time)`,
     };
   }
 

@@ -292,7 +292,8 @@ export default function DoctorDashboard() {
         const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
         return now.getTime() > endOfDay.getTime();
       }
-      return now.getTime() > aptDateTime.getTime() + 30 * 60 * 1000;
+      const intervalMinutes = Math.max(5, Number(apt?.slot_interval_minutes || apt?.duration_minutes || apt?.slot_duration || 15));
+      return now.getTime() > aptDateTime.getTime() + intervalMinutes * 60 * 1000;
     } catch {
       return false;
     }

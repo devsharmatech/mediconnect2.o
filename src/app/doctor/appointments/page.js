@@ -536,9 +536,10 @@ function DoctorAppointmentsPage() {
         }
       }
 
-      // Call is available from 5 minutes before up to 30 minutes after start (or extended_until)
+      // Call is available from 5 minutes before start up to doctor's slot interval (e.g. 15 minutes) after start (or extended_until)
+      const intervalMinutes = Math.max(5, Number(apt.slot_interval_minutes || apt.duration_minutes || apt.slot_duration || 15));
       const earlyStart = new Date(start.getTime() - 5 * 60 * 1000);
-      let end = new Date(start.getTime() + 30 * 60 * 1000);
+      let end = new Date(start.getTime() + intervalMinutes * 60 * 1000);
 
       if (checkNow < earlyStart) {
         return { isAvailable: false, label: "Opens 5m before", status: "early", earlyStart };
@@ -592,8 +593,9 @@ function DoctorAppointmentsPage() {
         return checkNow.getTime() > endOfDay.getTime();
       }
 
-      // Video appointments expire 30 minutes after scheduled slot start time (unless extended)
-      return checkNow.getTime() > aptDateTime.getTime() + 30 * 60 * 1000;
+      // Video appointments expire after doctor's slot interval (e.g. 15 mins) from scheduled slot start time (unless extended)
+      const intervalMinutes = Math.max(5, Number(apt.slot_interval_minutes || apt.duration_minutes || apt.slot_duration || 15));
+      return checkNow.getTime() > aptDateTime.getTime() + intervalMinutes * 60 * 1000;
     } catch {
       return false;
     }

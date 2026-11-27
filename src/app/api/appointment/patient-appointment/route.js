@@ -153,6 +153,7 @@ export async function POST(req) {
         d.home_visit_fee AS doctor_home_visit_fee,
         d.passport_photo AS doctor_passport_photo,
         d.meta AS doctor_meta,
+        COALESCE(d.slot_interval_minutes, 15)::int AS slot_interval_minutes,
         du.profile_picture AS doctor_profile_picture,
         p.full_name AS patient_full_name,
         p.gender AS patient_gender,
