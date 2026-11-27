@@ -2544,7 +2544,7 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
 
   const patientAge = (() => {
     if (meta?.patient_age) return meta.patient_age;
-    const pat = appointmentMeta?.patient || null;
+    const pat = meta?.patient || null;
     if (pat?.age) {
       const a = String(pat.age).trim();
       return a.toLowerCase().includes("yr") ? a : `${a} yrs`;
@@ -3702,8 +3702,8 @@ function WritePrescriptionModal({ appointmentId, meta, templates = [], onClose, 
               <div className="mb-5">
                 <h4 className="text-sm font-semibold text-slate-800">Choose a Prescription Template</h4>
                 <p className="text-xs text-slate-600 font-normal mt-1">
-                  {resolvedMeta?.doctor_specialization ? (
-                    <>Templates pre-configured for <strong className="text-[#0067A1] font-semibold">{resolvedMeta.doctor_specialization}</strong>.</>
+                  {meta?.doctor_specialization ? (
+                    <>Templates pre-configured for <strong className="text-[#0067A1] font-semibold">{meta.doctor_specialization}</strong>.</>
                   ) : (
                     "Select a template to pre-fill your prescription, or start with a blank form."
                   )}
