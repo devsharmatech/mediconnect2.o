@@ -101,7 +101,7 @@ export default function DoctorDashboard() {
               setIsDoctorOpen(avail.data?.is_open !== false);
             }
           })
-          .catch(() => {});
+          .catch(() => { });
 
         const scoreRes = await fetch(`/api/doctors/analytics/scorecard?doctor_id=${userId}`);
         const scoreData = await scoreRes.json();
@@ -391,11 +391,10 @@ export default function DoctorDashboard() {
                     setTogglingOpen(false);
                   }
                 }}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md border transition-colors cursor-pointer ${
-                  isDoctorOpen
-                    ? "bg-emerald-600/30 border-emerald-400/50 text-white hover:bg-emerald-600/40"
-                    : "bg-slate-800/40 border-white/20 text-slate-200 hover:bg-slate-800/60"
-                }`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md border transition-colors cursor-pointer ${isDoctorOpen
+                  ? "bg-emerald-600/30 border-emerald-400/50 text-white hover:bg-emerald-600/40"
+                  : "bg-slate-800/40 border-white/20 text-slate-200 hover:bg-slate-800/60"
+                  }`}
                 title="Click to toggle Live / Closed status"
               >
                 <div className={`w-2 h-2 rounded-full ${isDoctorOpen ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />

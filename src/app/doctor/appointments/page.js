@@ -109,7 +109,7 @@ function DoctorAppointmentsPage() {
       try {
         const stored = JSON.parse(localStorage.getItem("mediconnect_joined_calls") || "[]");
         if (Array.isArray(stored)) setJoinedCallIds(stored.map(String));
-      } catch {}
+      } catch { }
     };
     syncJoinedCalls();
     window.addEventListener("storage", syncJoinedCalls);
@@ -150,7 +150,7 @@ function DoctorAppointmentsPage() {
           url.searchParams.delete("appointment_id");
           window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
         }
-      } catch (_) {}
+      } catch (_) { }
     }
   };
 
@@ -164,7 +164,7 @@ function DoctorAppointmentsPage() {
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
-    
+
     // Set initial state
     if (typeof navigator !== 'undefined') {
       setIsOffline(!navigator.onLine);
@@ -289,7 +289,7 @@ function DoctorAppointmentsPage() {
             }).then((r) => {
               const found = r?.data?.appointments?.find((a) => a.id === targetId || String(a.id) === String(targetId));
               if (found) setSelectedAppointment(found);
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
       }
@@ -513,11 +513,11 @@ function DoctorAppointmentsPage() {
 
     try {
       const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "00:00";
-      const dateStr = typeof apt.appointment_date === "string" 
-        ? apt.appointment_date 
-        : apt.appointment_date instanceof Date 
-        ? apt.appointment_date.toISOString().split("T")[0]
-        : String(apt.appointment_date || "");
+      const dateStr = typeof apt.appointment_date === "string"
+        ? apt.appointment_date
+        : apt.appointment_date instanceof Date
+          ? apt.appointment_date.toISOString().split("T")[0]
+          : String(apt.appointment_date || "");
       const dateOnly = dateStr.split("T")[0];
       const [year, month, day] = dateOnly.split("-").map(Number);
       const [hours, minutes] = timePart.split(":").map(Number);
@@ -576,11 +576,11 @@ function DoctorAppointmentsPage() {
     try {
       const isClinic = ["clinic", "clinic_visit", "in_person", "home", "home_visit"].includes(String(apt.appointment_type || apt.type || "").toLowerCase());
       const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "23:59";
-      const dateStr = typeof apt.appointment_date === "string" 
-        ? apt.appointment_date 
-        : apt.appointment_date instanceof Date 
-        ? apt.appointment_date.toISOString().split("T")[0]
-        : String(apt.appointment_date || "");
+      const dateStr = typeof apt.appointment_date === "string"
+        ? apt.appointment_date
+        : apt.appointment_date instanceof Date
+          ? apt.appointment_date.toISOString().split("T")[0]
+          : String(apt.appointment_date || "");
       const dateOnly = dateStr.split("T")[0];
       const [year, month, day] = dateOnly.split("-").map(Number);
       const [hours, minutes] = timePart.split(":").map(Number);
@@ -611,11 +611,11 @@ function DoctorAppointmentsPage() {
 
     try {
       const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "23:59";
-      const dateStr = typeof apt.appointment_date === "string" 
-        ? apt.appointment_date 
-        : apt.appointment_date instanceof Date 
-        ? apt.appointment_date.toISOString().split("T")[0]
-        : String(apt.appointment_date || "");
+      const dateStr = typeof apt.appointment_date === "string"
+        ? apt.appointment_date
+        : apt.appointment_date instanceof Date
+          ? apt.appointment_date.toISOString().split("T")[0]
+          : String(apt.appointment_date || "");
       const dateOnly = dateStr.split("T")[0];
       const [year, month, day] = dateOnly.split("-").map(Number);
       const [hours, minutes] = timePart.split(":").map(Number);
@@ -647,11 +647,11 @@ function DoctorAppointmentsPage() {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const dateStr = typeof dateVal === "string" 
-        ? dateVal 
-        : dateVal instanceof Date 
-        ? dateVal.toISOString().split("T")[0]
-        : String(dateVal || "");
+      const dateStr = typeof dateVal === "string"
+        ? dateVal
+        : dateVal instanceof Date
+          ? dateVal.toISOString().split("T")[0]
+          : String(dateVal || "");
       const dateOnly = dateStr.split("T")[0];
       const [year, month, day] = dateOnly.split("-").map(Number);
       if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
@@ -674,7 +674,7 @@ function DoctorAppointmentsPage() {
       try {
         const stored = JSON.parse(localStorage.getItem("mediconnect_joined_calls") || "[]");
         if (Array.isArray(stored) && stored.map(String).includes(String(apt.id))) return true;
-      } catch {}
+      } catch { }
     }
     return false;
   };
@@ -730,7 +730,7 @@ function DoctorAppointmentsPage() {
         const next = Array.from(new Set([...(Array.isArray(existing) ? existing : []), String(apt.id)]));
         localStorage.setItem("mediconnect_joined_calls", JSON.stringify(next));
         setJoinedCallIds(next);
-      } catch {}
+      } catch { }
     }
 
     // Open call screen IMMEDIATELY (synchronous with click) so popup blocker won't block it
@@ -817,7 +817,7 @@ function DoctorAppointmentsPage() {
   return (
     <>
       <SessionAgreementModal />
-      
+
       {/* Offline Mode Banner */}
       {isOffline && (
         <div className="bg-red-500 text-white px-4 py-2.5 text-center text-sm font-medium flex items-center justify-center gap-2 sticky top-0 z-50">
@@ -827,806 +827,798 @@ function DoctorAppointmentsPage() {
       )}
 
       <div className="min-h-screen bg-[#F8FAFC]">
-      <div className="w-full mx-auto space-y-6">
-        {/* Header Section */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="space-y-2">
+        <div className="w-full mx-auto space-y-6">
+          {/* Header Section */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-[#0067A1]">
+                  <CalendarDays className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Appointments</h1>
+                  <p className="text-sm text-slate-600">Manage and track all your consultations in one place</p>
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-[#0067A1]">
-                <CalendarDays className="w-6 h-6 text-white" />
+              <div className="relative flex-1 lg:flex-none lg:w-80">
+                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                  <Search className="w-4 h-4 text-slate-400" />
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search patients, reasons, phone..."
+                  className="w-full pl-10 pr-4 py-2.5 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all text-sm"
+                />
               </div>
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-slate-800">Appointments</h1>
-                <p className="text-sm text-slate-600">Manage and track all your consultations in one place</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 lg:flex-none lg:w-80">
-              <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                <Search className="w-4 h-4 text-slate-400" />
-              </div>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search patients, reasons, phone..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all text-sm"
-              />
-            </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`p-2.5 rounded-md border transition-all ${
-                showFilters 
-                  ? "bg-[#0067A1] text-white border-[#0067A1]" 
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`p-2.5 rounded-md border transition-all ${showFilters
+                  ? "bg-[#0067A1] text-white border-[#0067A1]"
                   : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-              }`}
-            >
-              <Filter className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Stats Cards Dashboard Widget */}
-        <DoctorAnalyticsWidget />
-
-        {/* Filters Section */}
-        <div className={`bg-white rounded-lg border border-slate-200 p-4 sm:p-5 transition-all duration-300 ${
-          showFilters ? 'block' : 'hidden lg:block'
-        }`}>
-          <div className="flex items-center gap-2 mb-4">
-            <Filter className="w-5 h-5 text-[#0067A1]" />
-            <h3 className="text-sm font-semibold text-slate-800">Filters</h3>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-slate-600 flex items-center gap-2">
-                <Calendar className="w-3.5 h-3.5" />
-                Date Range
-              </label>
-              <select
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all text-sm"
+                  }`}
               >
-                <option value="today">Today</option>
-                <option value="tomorrow">Tomorrow</option>
-                <option value="this_week">This Week</option>
-                <option value="next_week">Next Week</option>
-                <option value="all">All Dates</option>
-              </select>
+                <Filter className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Stats Cards Dashboard Widget */}
+          <DoctorAnalyticsWidget />
+
+          {/* Filters Section */}
+          <div className={`bg-white rounded-lg border border-slate-200 p-4 sm:p-5 transition-all duration-300 ${showFilters ? 'block' : 'hidden lg:block'
+            }`}>
+            <div className="flex items-center gap-2 mb-4">
+              <Filter className="w-5 h-5 text-[#0067A1]" />
+              <h3 className="text-sm font-semibold text-slate-800">Filters</h3>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-slate-600 flex items-center gap-2">
-                <BarChart3 className="w-3.5 h-3.5" />
-                Status
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all text-sm"
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-slate-600 flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5" />
+                  Date Range
+                </label>
+                <select
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all text-sm"
+                >
+                  <option value="today">Today</option>
+                  <option value="tomorrow">Tomorrow</option>
+                  <option value="this_week">This Week</option>
+                  <option value="next_week">Next Week</option>
+                  <option value="all">All Dates</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-slate-600 flex items-center gap-2">
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  Status
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all text-sm"
+                >
+                  <option value="all">All Status</option>
+                  <option value="booked">Booked</option>
+                  <option value="approved">Approved</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="pending">Pending</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-slate-600 flex items-center gap-2">
+                  <Video className="w-3.5 h-3.5" />
+                  Appointment Type
+                </label>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all text-sm"
+                >
+                  <option value="all">All Types</option>
+                  <option value="clinic">Clinic Visit</option>
+                  <option value="video">Video Consultation</option>
+                  <option value="home">Home Visit</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Error Alert */}
+          {error && (
+            <div className="flex items-center gap-3 rounded-md bg-red-50 border border-red-100 px-4 py-3">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-700">{error}</p>
+              </div>
+              <button
+                onClick={() => setError("")}
+                className="text-red-500 hover:text-red-700"
               >
-                <option value="all">All Status</option>
-                <option value="booked">Booked</option>
-                <option value="approved">Approved</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="rejected">Rejected</option>
-                <option value="pending">Pending</option>
-              </select>
+                <XCircle className="w-5 h-5" />
+              </button>
             </div>
+          )}
 
-            <div className="space-y-2">
-              <label className="text-xs font-medium text-slate-600 flex items-center gap-2">
-                <Video className="w-3.5 h-3.5" />
-                Appointment Type
-              </label>
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="w-full p-2.5 rounded-md border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1] transition-all text-sm"
-              >
-                <option value="all">All Types</option>
-                <option value="clinic">Clinic Visit</option>
-                <option value="video">Video Consultation</option>
-                <option value="home">Home Visit</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Error Alert */}
-        {error && (
-          <div className="flex items-center gap-3 rounded-md bg-red-50 border border-red-100 px-4 py-3">
-            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-red-700">{error}</p>
-            </div>
-            <button
-              onClick={() => setError("")}
-              className="text-red-500 hover:text-red-700"
-            >
-              <XCircle className="w-5 h-5" />
-            </button>
-          </div>
-        )}
-
-        {/* Appointments Section */}
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-white px-5 py-3.5 rounded-xl border border-slate-200">
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-slate-800">Appointments</h3>
-              <p className="text-xs sm:text-sm text-slate-500">
-                Showing {filteredAppointments.length} of {pagination?.totalItems ?? pagination?.total ?? appointments.length} appointments • Prioritizing Today & Upcoming
-              </p>
-            </div>
-            {isLoading && (
-              <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500">
-                <Loader2 className="w-4 h-4 animate-spin text-[#0067A1]" />
-                Refreshing...
+          {/* Appointments Section */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-white px-5 py-3.5 rounded-xl border border-slate-200">
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-slate-800">Appointments</h3>
+                <p className="text-xs sm:text-sm text-slate-500">
+                  Showing {filteredAppointments.length} of {pagination?.totalItems ?? pagination?.total ?? appointments.length} appointments • Prioritizing Today & Upcoming
+                </p>
               </div>
-            )}
-          </div>
-
-          {isLoading && appointments.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#0067A1]/10 mb-4">
-                <Loader2 className="w-8 h-8 text-[#0067A1] animate-spin" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-700 mb-2">Loading Appointments</h3>
-              <p className="text-sm text-slate-500">Fetching your consultation details...</p>
+              {isLoading && (
+                <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#0067A1]" />
+                  Refreshing...
+                </div>
+              )}
             </div>
-          ) : filteredAppointments.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4">
-                <Calendar className="w-8 h-8 text-slate-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-700 mb-2">No Appointments Found</h3>
-              <p className="text-sm text-slate-500 max-w-md mx-auto">
-                {searchQuery || statusFilter !== "all" || typeFilter !== "all" 
-                  ? "Try changing your search or filter criteria" 
-                  : "You don't have any appointments scheduled yet"}
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
-              {filteredAppointments.map((apt) => {
-                const isNext = nextUpcomingId && apt.id === nextUpcomingId;
-                const isToday = apt.appointment_date && String(apt.appointment_date).slice(0, 10) === todayStr;
-                const isExpired = isAppointmentExpired(apt, currentTime);
-                const withinSlot = isWithinSlot(apt, currentTime) && !isExpired;
 
-                return (
-                  <div
-                    key={apt.id}
-                    className={`bg-white rounded-xl border transition-all duration-200 hover:shadow-md flex flex-col justify-between p-3.5 sm:p-4 ${
-                      isNext
+            {isLoading && appointments.length === 0 ? (
+              <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#0067A1]/10 mb-4">
+                  <Loader2 className="w-8 h-8 text-[#0067A1] animate-spin" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-700 mb-2">Loading Appointments</h3>
+                <p className="text-sm text-slate-500">Fetching your consultation details...</p>
+              </div>
+            ) : filteredAppointments.length === 0 ? (
+              <div className="bg-white rounded-xl border border-slate-200 py-16 text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4">
+                  <Calendar className="w-8 h-8 text-slate-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-700 mb-2">No Appointments Found</h3>
+                <p className="text-sm text-slate-500 max-w-md mx-auto">
+                  {searchQuery || statusFilter !== "all" || typeFilter !== "all"
+                    ? "Try changing your search or filter criteria"
+                    : "You don't have any appointments scheduled yet"}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
+                {filteredAppointments.map((apt) => {
+                  const isNext = nextUpcomingId && apt.id === nextUpcomingId;
+                  const isToday = apt.appointment_date && String(apt.appointment_date).slice(0, 10) === todayStr;
+                  const isExpired = isAppointmentExpired(apt, currentTime);
+                  const withinSlot = isWithinSlot(apt, currentTime) && !isExpired;
+
+                  return (
+                    <div
+                      key={apt.id}
+                      className={`bg-white rounded-xl border transition-all duration-200 hover:shadow-md flex flex-col justify-between p-3.5 sm:p-4 ${isNext
                         ? "border-emerald-400 shadow-sm shadow-emerald-50 ring-1 ring-emerald-300"
                         : isToday
-                        ? "border-sky-300/80 shadow-xs hover:border-[#0067A1]"
-                        : "border-slate-200/90 hover:border-slate-300"
-                    }`}
-                  >
-                    <div>
-                      {/* Top Badges & Actions */}
-                      <div className="flex items-center justify-between gap-1.5 mb-2.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold ${
-                            TYPE_COLORS[apt.appointment_type] || "bg-slate-100 text-slate-700"
-                          }`}>
-                            {isVideoAppointment(apt) && <Video className="w-2.5 h-2.5" />}
-                            {formatAppointmentTypeLabel(apt)}
-                          </span>
-
-                          {isNext && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider animate-pulse">
-                              <Clock className="w-2.5 h-2.5" />
-                              Next
+                          ? "border-sky-300/80 shadow-xs hover:border-[#0067A1]"
+                          : "border-slate-200/90 hover:border-slate-300"
+                        }`}
+                    >
+                      <div>
+                        {/* Top Badges & Actions */}
+                        <div className="flex items-center justify-between gap-1.5 mb-2.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold ${TYPE_COLORS[apt.appointment_type] || "bg-slate-100 text-slate-700"
+                              }`}>
+                              {isVideoAppointment(apt) && <Video className="w-2.5 h-2.5" />}
+                              {formatAppointmentTypeLabel(apt)}
                             </span>
+
+                            {isNext && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider animate-pulse">
+                                <Clock className="w-2.5 h-2.5" />
+                                Next
+                              </span>
+                            )}
+
+                            {isToday && !isNext && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-100/70 text-[#0067A1] text-[10px] font-bold uppercase tracking-wider">
+                                Today
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isExpired && !apt.has_prescription && apt.status !== "completed" ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700 text-[10.5px] font-semibold">
+                                <Clock className="w-2.5 h-2.5" />
+                                Expired
+                              </span>
+                            ) : (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10.5px] font-semibold ${apt.has_prescription || apt.status === "completed"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : (STATUS_COLORS[apt.status] || "bg-slate-100 text-slate-700 border-slate-200")
+                                }`}>
+                                {getStatusIcon(apt.has_prescription ? "completed" : apt.status)}
+                                <span className="capitalize">{apt.has_prescription ? "completed" : (apt.status || "unknown")}</span>
+                              </span>
+                            )}
+
+                            <button
+                              onClick={() => {
+                                setSelectedAppointment(apt);
+                                setActiveModalTab("overview");
+                              }}
+                              className="p-1 rounded-md text-slate-400 hover:text-[#0067A1] hover:bg-[#0067A1]/10 transition-colors cursor-pointer"
+                              title="View Details"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Patient Row */}
+                        <div className="flex items-center gap-2.5 mb-2.5">
+                          <div className="relative shrink-0">
+                            {apt.patient?.profile_picture ? (
+                              <img
+                                src={apt.patient.profile_picture}
+                                alt={apt.patient?.full_name || "Patient"}
+                                className="w-9 h-9 rounded-full object-cover border border-[#0067A1]/20"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-[#0067A1]/10 flex items-center justify-center border border-[#0067A1]/20">
+                                <User className="w-4 h-4 text-[#0067A1]" />
+                              </div>
+                            )}
+                            {withinSlot && (
+                              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border border-white animate-ping" />
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                              <h4 className="text-xs sm:text-[13px] font-bold text-slate-800 truncate leading-snug">
+                                {apt.patient?.full_name && !apt.patient.full_name.includes("DE-IDENTIFIED")
+                                  ? apt.patient.full_name
+                                  : `Patient #${apt.patient?.un_id || "Verified"}`}
+                              </h4>
+                              {(apt.booked_for === "family_member" || apt.patient?.relation || apt.family_member) && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 shrink-0">
+                                  Family: {apt.family_member?.relation || apt.patient?.relation || "Member"}
+                                </span>
+                              )}
+                              {apt.patient?.is_identity_verified && (
+                                <span
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0"
+                                  title={apt.patient?.identity_verified_at ? `Identity Verified on ${new Date(apt.patient.identity_verified_at).toLocaleDateString()}` : "Identity Verified"}
+                                >
+                                  <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
+                                  Verified
+                                </span>
+                              )}
+                              {apt.patient?.blood_group && (
+                                <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9.5px] font-semibold bg-rose-50 text-rose-600 border border-rose-100 shrink-0">
+                                  <Droplet className="w-2.5 h-2.5 text-rose-500" />
+                                  {apt.patient.blood_group}
+                                </span>
+                              )}
+                            </div>
+                            {(apt.patient?.patient_age || apt.patient?.gender) && (
+                              <div className="text-[10px] text-slate-500 font-medium">
+                                {[apt.patient?.gender, apt.patient?.patient_age].filter(Boolean).join(" • ")}
+                              </div>
+                            )}
+                            {apt.patient?.primary_patient_name && apt.patient?.primary_patient_name !== apt.patient?.full_name && (
+                              <div className="text-[10px] text-slate-500 font-medium mt-0.5 truncate">
+                                <span className="text-slate-400">Booked by: </span>
+                                <span className="font-semibold text-slate-700">{apt.patient.primary_patient_name}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 text-[10.5px] text-slate-500 truncate mt-0.5">
+                              {apt.patient?.phone && !String(apt.patient.phone).startsWith("ANONYMIZED_") ? (
+                                <a
+                                  href={`tel:${apt.patient.phone}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="truncate hover:text-[#0067A1] hover:underline transition-colors"
+                                  title="Click to call"
+                                >
+                                  {formatPatientPhone(apt.patient.phone)}
+                                </a>
+                              ) : (
+                                <span className="truncate">{formatPatientPhone(apt.patient?.phone)}</span>
+                              )}
+                              {formatPatientEmail(apt.patient?.email) && (
+                                <>
+                                  <span>•</span>
+                                  {!String(apt.patient.email).startsWith("deleted_") && !String(apt.patient.email).startsWith("ANONYMIZED_") ? (
+                                    <a
+                                      href={`mailto:${apt.patient.email}`}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="truncate hover:text-[#0067A1] hover:underline transition-colors"
+                                      title="Click to email"
+                                    >
+                                      {formatPatientEmail(apt.patient.email)}
+                                    </a>
+                                  ) : (
+                                    <span className="truncate">{formatPatientEmail(apt.patient.email)}</span>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Schedule & Notes Strip */}
+                        <div className="bg-slate-50/80 border border-slate-100/90 rounded-lg p-2 space-y-1 my-2">
+                          <div className="flex items-center gap-3 text-[11px] text-slate-700 font-medium flex-wrap">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <Calendar className="w-3 h-3 text-[#0067A1] shrink-0" />
+                              <span className="truncate">{apt.appointment_date}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-slate-600 font-semibold text-[10.5px] bg-white/90 px-1.5 py-0.5 rounded border border-slate-200/60">
+                              <Clock className="w-2.5 h-2.5 text-[#0067A1] shrink-0" />
+                              <span>{formatTime(apt.appointment_time)}</span>
+                            </div>
+                          </div>
+
+                          {apt.reason && (
+                            <div className="flex items-start gap-1 text-[10.5px] text-slate-600 pt-0.5 border-t border-slate-100/80">
+                              <MessageSquare className="w-2.5 h-2.5 mt-0.5 text-slate-400 shrink-0" />
+                              <span className="line-clamp-1">{apt.reason}</span>
+                            </div>
                           )}
 
-                          {isToday && !isNext && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-blue-100/70 text-[#0067A1] text-[10px] font-bold uppercase tracking-wider">
-                              Today
+                          {apt.screening?.analysis?.summary && (
+                            <div className="flex items-start gap-1 text-[10.5px] text-[#0067A1] pt-0.5">
+                              <BarChart3 className="w-2.5 h-2.5 mt-0.5 shrink-0" />
+                              <span className="line-clamp-1">{apt.screening.analysis.summary}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card Action Buttons (Concise per AGENTS.md & Responsive) */}
+                      <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5 mt-1">
+                        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                          {["rejected", "cancelled"].includes(apt.status) ? (
+                            <span className="text-[10.5px] font-medium text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-200/50 inline-flex items-center gap-1">
+                              <Info className="w-3 h-3 text-slate-400" />
+                              {apt.status === "rejected" ? "Rejected" : "Cancelled"}
                             </span>
+                          ) : isExpired && !apt.has_prescription && apt.status !== "completed" ? (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10.5px] font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200/60">
+                                Expired
+                              </span>
+                              {canExtendAppointmentSlot(apt, currentTime) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setExtendingAppointment(apt);
+                                    setExtendMode("now");
+                                    setExtendMinutes(15);
+                                  }}
+                                  className="h-7 px-2 rounded-md bg-blue-50 text-[#0067A1] hover:bg-blue-100 border border-blue-200/80 text-[10.5px] font-semibold transition-all cursor-pointer flex items-center gap-1"
+                                  title="Add minutes to expired slot"
+                                >
+                                  <Clock className="w-3 h-3 text-[#0067A1]" />
+                                  <span>+ Add Time</span>
+                                </button>
+                              )}
+                              {apt.status === "booked" && (
+                                <button
+                                  onClick={() => updateAppointmentStatus(apt.id, "rejected")}
+                                  disabled={isLoading}
+                                  className="h-7 px-2 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/60 text-[10.5px] font-semibold transition-all cursor-pointer"
+                                >
+                                  Reject
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <>
+                              {isVideoAppointment(apt) && ["approved", "booked"].includes(apt.status) && (() => {
+                                const timing = getVideoCallTiming(apt, currentTime);
+
+                                if (timing.status === "early") {
+                                  return (
+                                    <button
+                                      type="button"
+                                      disabled={true}
+                                      className="h-7.5 px-2 rounded-md bg-slate-100 text-slate-400 border border-slate-200 text-[10.5px] font-medium cursor-not-allowed"
+                                      title="Opens 5 minutes before scheduled start time"
+                                    >
+                                      Opens in 5m
+                                    </button>
+                                  );
+                                }
+
+                                if (timing.status === "future") {
+                                  return (
+                                    <button
+                                      type="button"
+                                      disabled={true}
+                                      className="h-7.5 px-2 rounded-md bg-slate-100 text-slate-400 border border-slate-200 text-[10.5px] font-medium cursor-not-allowed"
+                                      title="Appointment is scheduled for a future date"
+                                    >
+                                      Scheduled
+                                    </button>
+                                  );
+                                }
+
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartCall(apt)}
+                                    disabled={isLoading || !timing.isAvailable}
+                                    className={`h-7.5 px-2.5 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 shrink-0 ${timing.isAvailable
+                                      ? "bg-[#0067A1] text-white hover:bg-[#004F7C] shadow-xs cursor-pointer active:scale-95"
+                                      : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                                      }`}
+                                  >
+                                    <PhoneCall className="w-3 h-3" />
+                                    Start Call
+                                  </button>
+                                );
+                              })()}
+
+                              {(!["rejected", "cancelled"].includes(apt.status)) && (() => {
+                                const hasRx = Boolean(apt.has_prescription || apt.prescription_id);
+                                const isVideo = isVideoAppointment(apt);
+                                const canWriteRx = hasRx || apt.status === "completed" || !isVideo || hasDoctorJoinedVideoCall(apt);
+
+                                // Only show write prescription if approved or already has rx
+                                if (!hasRx && apt.status === "booked") return null;
+
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenPrescription(apt)}
+                                    disabled={isFetchingPrescription}
+                                    className={`h-7.5 px-2.5 rounded-md text-[11px] font-semibold transition-all shadow-xs flex items-center gap-1 shrink-0 ${hasRx
+                                      ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-95"
+                                      : canWriteRx
+                                        ? "bg-[#0067A1] hover:bg-[#004F7C] text-white cursor-pointer active:scale-95"
+                                        : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                                      }`}
+                                    title={
+                                      hasRx
+                                        ? "View official A4 prescription letterhead"
+                                        : canWriteRx
+                                          ? "Write & sign consultation prescription"
+                                          : "Join the video call first before writing a prescription"
+                                    }
+                                  >
+                                    <Stethoscope className="w-3 h-3" />
+                                    <span>{hasRx ? "Prescription" : "+ Prescription"}</span>
+                                  </button>
+                                );
+                              })()}
+
+                              {apt.status === "booked" && !isExpired && (
+                                <>
+                                  <button
+                                    onClick={() => updateAppointmentStatus(apt.id, "approved")}
+                                    disabled={isLoading || isExpired}
+                                    className="h-7.5 px-2.5 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/70 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                                  >
+                                    <CheckSquare className="w-3 h-3" />
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => updateAppointmentStatus(apt.id, "rejected")}
+                                    disabled={isLoading}
+                                    className="h-7.5 px-2 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/70 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                                  >
+                                    <XCircle className="w-3 h-3" />
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                            </>
                           )}
                         </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {isExpired && !apt.has_prescription && apt.status !== "completed" ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700 text-[10.5px] font-semibold">
-                              <Clock className="w-2.5 h-2.5" />
-                              Expired
-                            </span>
-                          ) : (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10.5px] font-semibold ${
-                              apt.has_prescription || apt.status === "completed"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : (STATUS_COLORS[apt.status] || "bg-slate-100 text-slate-700 border-slate-200")
-                            }`}>
-                              {getStatusIcon(apt.has_prescription ? "completed" : apt.status)}
-                              <span className="capitalize">{apt.has_prescription ? "completed" : (apt.status || "unknown")}</span>
-                            </span>
+                        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                          {!["rejected", "cancelled"].includes(apt.status) && (
+                            <button
+                              type="button"
+                              onClick={() => handleNotifyPatient(apt)}
+                              disabled={isLoading}
+                              className="h-7.5 w-7.5 flex items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#0067A1] transition-all cursor-pointer shrink-0"
+                              title="Notify Patient"
+                            >
+                              <Bell className="w-3.5 h-3.5" />
+                            </button>
                           )}
 
                           <button
+                            type="button"
                             onClick={() => {
                               setSelectedAppointment(apt);
                               setActiveModalTab("overview");
                             }}
-                            className="p-1 rounded-md text-slate-400 hover:text-[#0067A1] hover:bg-[#0067A1]/10 transition-colors cursor-pointer"
-                            title="View Details"
+                            className="h-7.5 px-2.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-semibold border border-slate-200/80 transition-all cursor-pointer shrink-0"
                           >
-                            <ExternalLink className="w-3.5 h-3.5" />
+                            Details
                           </button>
                         </div>
                       </div>
-
-                      {/* Patient Row */}
-                      <div className="flex items-center gap-2.5 mb-2.5">
-                        <div className="relative shrink-0">
-                          {apt.patient?.profile_picture ? (
-                            <img
-                              src={apt.patient.profile_picture}
-                              alt={apt.patient?.full_name || "Patient"}
-                              className="w-9 h-9 rounded-full object-cover border border-[#0067A1]/20"
-                            />
-                          ) : (
-                            <div className="w-9 h-9 rounded-full bg-[#0067A1]/10 flex items-center justify-center border border-[#0067A1]/20">
-                              <User className="w-4 h-4 text-[#0067A1]" />
-                            </div>
-                          )}
-                          {withinSlot && (
-                            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border border-white animate-ping" />
-                          )}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                            <h4 className="text-xs sm:text-[13px] font-bold text-slate-800 truncate leading-snug">
-                              {apt.patient?.full_name && !apt.patient.full_name.includes("DE-IDENTIFIED")
-                                ? apt.patient.full_name
-                                : `Patient #${apt.patient?.un_id || "Verified"}`}
-                            </h4>
-                            {(apt.booked_for === "family_member" || apt.patient?.relation || apt.family_member) && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 shrink-0">
-                                Family: {apt.family_member?.relation || apt.patient?.relation || "Member"}
-                              </span>
-                            )}
-                            {apt.patient?.is_identity_verified && (
-                              <span 
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0"
-                                title={apt.patient?.identity_verified_at ? `Identity Verified on ${new Date(apt.patient.identity_verified_at).toLocaleDateString()}` : "Identity Verified"}
-                              >
-                                <CheckCircle className="w-2.5 h-2.5 text-emerald-600" />
-                                Verified
-                              </span>
-                            )}
-                            {apt.patient?.blood_group && (
-                              <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9.5px] font-semibold bg-rose-50 text-rose-600 border border-rose-100 shrink-0">
-                                <Droplet className="w-2.5 h-2.5 text-rose-500" />
-                                {apt.patient.blood_group}
-                              </span>
-                            )}
-                          </div>
-                          {(apt.patient?.patient_age || apt.patient?.gender) && (
-                            <div className="text-[10px] text-slate-500 font-medium">
-                              {[apt.patient?.gender, apt.patient?.patient_age].filter(Boolean).join(" • ")}
-                            </div>
-                          )}
-                          {apt.patient?.primary_patient_name && apt.patient?.primary_patient_name !== apt.patient?.full_name && (
-                            <div className="text-[10px] text-slate-500 font-medium mt-0.5 truncate">
-                              <span className="text-slate-400">Booked by: </span>
-                              <span className="font-semibold text-slate-700">{apt.patient.primary_patient_name}</span>
-                            </div>
-                          )}
-                          <div className="flex items-center gap-2 text-[10.5px] text-slate-500 truncate mt-0.5">
-                            {apt.patient?.phone && !String(apt.patient.phone).startsWith("ANONYMIZED_") ? (
-                              <a
-                                href={`tel:${apt.patient.phone}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="truncate hover:text-[#0067A1] hover:underline transition-colors"
-                                title="Click to call"
-                              >
-                                {formatPatientPhone(apt.patient.phone)}
-                              </a>
-                            ) : (
-                              <span className="truncate">{formatPatientPhone(apt.patient?.phone)}</span>
-                            )}
-                            {formatPatientEmail(apt.patient?.email) && (
-                              <>
-                                <span>•</span>
-                                {!String(apt.patient.email).startsWith("deleted_") && !String(apt.patient.email).startsWith("ANONYMIZED_") ? (
-                                  <a
-                                    href={`mailto:${apt.patient.email}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="truncate hover:text-[#0067A1] hover:underline transition-colors"
-                                    title="Click to email"
-                                  >
-                                    {formatPatientEmail(apt.patient.email)}
-                                  </a>
-                                ) : (
-                                  <span className="truncate">{formatPatientEmail(apt.patient.email)}</span>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Schedule & Notes Strip */}
-                      <div className="bg-slate-50/80 border border-slate-100/90 rounded-lg p-2 space-y-1 my-2">
-                        <div className="flex items-center gap-3 text-[11px] text-slate-700 font-medium flex-wrap">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <Calendar className="w-3 h-3 text-[#0067A1] shrink-0" />
-                            <span className="truncate">{apt.appointment_date}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-slate-600 font-semibold text-[10.5px] bg-white/90 px-1.5 py-0.5 rounded border border-slate-200/60">
-                            <Clock className="w-2.5 h-2.5 text-[#0067A1] shrink-0" />
-                            <span>{formatTime(apt.appointment_time)}</span>
-                          </div>
-                        </div>
-
-                        {apt.reason && (
-                          <div className="flex items-start gap-1 text-[10.5px] text-slate-600 pt-0.5 border-t border-slate-100/80">
-                            <MessageSquare className="w-2.5 h-2.5 mt-0.5 text-slate-400 shrink-0" />
-                            <span className="line-clamp-1">{apt.reason}</span>
-                          </div>
-                        )}
-
-                        {apt.screening?.analysis?.summary && (
-                          <div className="flex items-start gap-1 text-[10.5px] text-[#0067A1] pt-0.5">
-                            <BarChart3 className="w-2.5 h-2.5 mt-0.5 shrink-0" />
-                            <span className="line-clamp-1">{apt.screening.analysis.summary}</span>
-                          </div>
-                        )}
-                      </div>
                     </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-                    {/* Card Action Buttons (Concise per AGENTS.md & Responsive) */}
-                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-1.5 mt-1">
-                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                        {["rejected", "cancelled"].includes(apt.status) ? (
-                          <span className="text-[10.5px] font-medium text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-200/50 inline-flex items-center gap-1">
-                            <Info className="w-3 h-3 text-slate-400" />
-                            {apt.status === "rejected" ? "Rejected" : "Cancelled"}
-                          </span>
-                        ) : isExpired && !apt.has_prescription && apt.status !== "completed" ? (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10.5px] font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200/60">
-                              Expired
-                            </span>
-                            {canExtendAppointmentSlot(apt, currentTime) && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setExtendingAppointment(apt);
-                                  setExtendMode("now");
-                                  setExtendMinutes(15);
-                                }}
-                                className="h-7 px-2 rounded-md bg-blue-50 text-[#0067A1] hover:bg-blue-100 border border-blue-200/80 text-[10.5px] font-semibold transition-all cursor-pointer flex items-center gap-1"
-                                title="Add minutes to expired slot"
-                              >
-                                <Clock className="w-3 h-3 text-[#0067A1]" />
-                                <span>+ Add Time</span>
-                              </button>
-                            )}
-                            {apt.status === "booked" && (
-                              <button
-                                onClick={() => updateAppointmentStatus(apt.id, "rejected")}
-                                disabled={isLoading}
-                                className="h-7 px-2 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/60 text-[10.5px] font-semibold transition-all cursor-pointer"
-                              >
-                                Reject
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <>
-                            {isVideoAppointment(apt) && ["approved", "booked"].includes(apt.status) && (() => {
-                              const timing = getVideoCallTiming(apt, currentTime);
+          {/* Pagination */}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white rounded-lg border border-slate-200 p-4">
+              <div className="text-sm text-slate-600">
+                Showing page {pagination.currentPage} of {pagination.totalPages} •{" "}
+                {(pagination.totalItems ?? pagination.total ?? 0)} total appointments
+              </div>
 
-                              if (timing.status === "early") {
-                                return (
-                                  <button
-                                    type="button"
-                                    disabled={true}
-                                    className="h-7.5 px-2 rounded-md bg-slate-100 text-slate-400 border border-slate-200 text-[10.5px] font-medium cursor-not-allowed"
-                                    title="Opens 5 minutes before scheduled start time"
-                                  >
-                                    Opens in 5m
-                                  </button>
-                                );
-                              }
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePageChange(page - 1)}
+                  disabled={page <= 1 || isLoading}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Previous
+                </button>
 
-                              if (timing.status === "future") {
-                                return (
-                                  <button
-                                    type="button"
-                                    disabled={true}
-                                    className="h-7.5 px-2 rounded-md bg-slate-100 text-slate-400 border border-slate-200 text-[10.5px] font-medium cursor-not-allowed"
-                                    title="Appointment is scheduled for a future date"
-                                  >
-                                    Scheduled
-                                  </button>
-                                );
-                              }
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (pagination.totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (page <= 3) {
+                      pageNum = i + 1;
+                    } else if (page >= pagination.totalPages - 2) {
+                      pageNum = pagination.totalPages - 4 + i;
+                    } else {
+                      pageNum = page - 2 + i;
+                    }
 
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() => handleStartCall(apt)}
-                                  disabled={isLoading || !timing.isAvailable}
-                                  className={`h-7.5 px-2.5 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 shrink-0 ${
-                                    timing.isAvailable
-                                      ? "bg-[#0067A1] text-white hover:bg-[#004F7C] shadow-xs cursor-pointer active:scale-95"
-                                      : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-                                  }`}
-                                >
-                                  <PhoneCall className="w-3 h-3" />
-                                  Start Call
-                                </button>
-                              );
-                            })()}
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        disabled={isLoading}
+                        className={`w-9 h-9 rounded-md text-sm font-medium transition-all ${page === pageNum
+                          ? "bg-[#0067A1] text-white"
+                          : "text-slate-600 hover:bg-slate-100"
+                          }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
 
-                            {(!["rejected", "cancelled"].includes(apt.status)) && (() => {
-                              const hasRx = Boolean(apt.has_prescription || apt.prescription_id);
-                              const isVideo = isVideoAppointment(apt);
-                              const canWriteRx = hasRx || apt.status === "completed" || !isVideo || hasDoctorJoinedVideoCall(apt);
-
-                              // Only show write prescription if approved or already has rx
-                              if (!hasRx && apt.status === "booked") return null;
-
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenPrescription(apt)}
-                                  disabled={isFetchingPrescription}
-                                  className={`h-7.5 px-2.5 rounded-md text-[11px] font-semibold transition-all shadow-xs flex items-center gap-1 shrink-0 ${
-                                    hasRx
-                                      ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-95"
-                                      : canWriteRx
-                                      ? "bg-[#0067A1] hover:bg-[#004F7C] text-white cursor-pointer active:scale-95"
-                                      : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-                                  }`}
-                                  title={
-                                    hasRx
-                                      ? "View official A4 prescription letterhead"
-                                      : canWriteRx
-                                      ? "Write & sign consultation prescription"
-                                      : "Join the video call first before writing a prescription"
-                                  }
-                                >
-                                  <Stethoscope className="w-3 h-3" />
-                                  <span>{hasRx ? "Prescription" : "+ Prescription"}</span>
-                                </button>
-                              );
-                            })()}
-
-                            {apt.status === "booked" && !isExpired && (
-                              <>
-                                <button
-                                  onClick={() => updateAppointmentStatus(apt.id, "approved")}
-                                  disabled={isLoading || isExpired}
-                                  className="h-7.5 px-2.5 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/70 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 shrink-0"
-                                >
-                                  <CheckSquare className="w-3 h-3" />
-                                  Approve
-                                </button>
-                                <button
-                                  onClick={() => updateAppointmentStatus(apt.id, "rejected")}
-                                  disabled={isLoading}
-                                  className="h-7.5 px-2 rounded-md bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/70 text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1 shrink-0"
-                                >
-                                  <XCircle className="w-3 h-3" />
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                          </>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                        {!["rejected", "cancelled"].includes(apt.status) && (
-                          <button
-                            type="button"
-                            onClick={() => handleNotifyPatient(apt)}
-                            disabled={isLoading}
-                            className="h-7.5 w-7.5 flex items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#0067A1] transition-all cursor-pointer shrink-0"
-                            title="Notify Patient"
-                          >
-                            <Bell className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedAppointment(apt);
-                            setActiveModalTab("overview");
-                          }}
-                          className="h-7.5 px-2.5 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10.5px] font-semibold border border-slate-200/80 transition-all cursor-pointer shrink-0"
-                        >
-                          Details
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                <button
+                  onClick={() => handlePageChange(page + 1)}
+                  disabled={page >= pagination.totalPages || isLoading}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Pagination */}
-        {pagination && pagination.totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white rounded-lg border border-slate-200 p-4">
-            <div className="text-sm text-slate-600">
-              Showing page {pagination.currentPage} of {pagination.totalPages} •{" "}
-              {(pagination.totalItems ?? pagination.total ?? 0)} total appointments
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handlePageChange(page - 1)}
-                disabled={page <= 1 || isLoading}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Previous
-              </button>
-              
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (pagination.totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (page <= 3) {
-                    pageNum = i + 1;
-                  } else if (page >= pagination.totalPages - 2) {
-                    pageNum = pagination.totalPages - 4 + i;
-                  } else {
-                    pageNum = page - 2 + i;
-                  }
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => handlePageChange(pageNum)}
-                      disabled={isLoading}
-                      className={`w-9 h-9 rounded-md text-sm font-medium transition-all ${
-                        page === pageNum
-                          ? "bg-[#0067A1] text-white"
-                          : "text-slate-600 hover:bg-slate-100"
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-              </div>
-              
-              <button
-                onClick={() => handlePageChange(page + 1)}
-                disabled={page >= pagination.totalPages || isLoading}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-md border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-all"
-              >
-                Next
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Appointment Details Modal */}
-      {selectedAppointment && (
-        <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-hidden">
-          <div className="w-full h-full sm:h-auto sm:max-w-xl rounded-none sm:rounded-xl bg-white border-0 sm:border border-slate-200 sm:max-h-[90vh] flex flex-col overflow-hidden shadow-xl">
-            {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-slate-100 z-10 shrink-0">
-              <div className="px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                      Appointment Details
-                    </h3>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS_COLORS[selectedAppointment.status] || "bg-slate-100 text-slate-700"}`}>
-                      {getStatusIcon(selectedAppointment.status)}
-                      <span className="capitalize">{selectedAppointment.status}</span>
-                    </span>
+        {/* Appointment Details Modal */}
+        {selectedAppointment && (
+          <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 overflow-hidden">
+            <div className="w-full h-full sm:h-auto sm:max-w-xl rounded-none sm:rounded-xl bg-white border-0 sm:border border-slate-200 sm:max-h-[90vh] flex flex-col overflow-hidden shadow-xl">
+              {/* Header */}
+              <div className="sticky top-0 bg-white border-b border-slate-100 z-10 shrink-0">
+                <div className="px-4 py-3 sm:px-5 sm:py-3.5 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                        Appointment Details
+                      </h3>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold ${STATUS_COLORS[selectedAppointment.status] || "bg-slate-100 text-slate-700"}`}>
+                        {getStatusIcon(selectedAppointment.status)}
+                        <span className="capitalize">{selectedAppointment.status}</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[11px] text-slate-500">Booking ID:</span>
+                      <span className="font-mono text-xs font-bold text-[#0067A1] bg-[#0067A1]/10 px-1.5 py-0.5 rounded border border-[#0067A1]/20">
+                        #{formatAppointmentId(selectedAppointment.id)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedAppointment.id);
+                          toast.success("Appointment ID copied");
+                        }}
+                        title={`Full ID: ${selectedAppointment.id}\nClick to copy`}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 hover:text-[#0067A1] bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded border border-slate-200 transition-colors cursor-pointer"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>Copy</span>
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[11px] text-slate-500">Booking ID:</span>
-                    <span className="font-mono text-xs font-bold text-[#0067A1] bg-[#0067A1]/10 px-1.5 py-0.5 rounded border border-[#0067A1]/20">
-                      #{formatAppointmentId(selectedAppointment.id)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(selectedAppointment.id);
-                        toast.success("Appointment ID copied");
-                      }}
-                      title={`Full ID: ${selectedAppointment.id}\nClick to copy`}
-                      className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 hover:text-[#0067A1] bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded border border-slate-200 transition-colors cursor-pointer"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>Copy</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={handleCloseModal}
+                    className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-                <button
-                  onClick={handleCloseModal}
-                  className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
               </div>
-            </div>
-            
-            {/* Modal Body - Sleek, Compact, Non-Bulky Clinical Layout */}
-            <div className="overflow-y-auto px-4 py-3.5 sm:px-5 sm:py-4 flex-1 min-h-0 space-y-3">
-              {/* Unified Patient Profile Card with Verified Highlight */}
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 sm:p-3.5">
-                <div className="flex items-start gap-3">
-                  {selectedAppointment.patient?.profile_picture ? (
-                    <img
-                      src={selectedAppointment.patient.profile_picture}
-                      alt={selectedAppointment.patient?.full_name || "Patient"}
-                      className="w-12 h-12 rounded-full object-cover border-2 border-[#0067A1]/20 shrink-0 mt-0.5"
-                    />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-[#0067A1]/10 border border-[#0067A1]/20 flex items-center justify-center shrink-0 mt-0.5">
-                      <User className="w-6 h-6 text-[#0067A1]" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="text-sm sm:text-base font-bold text-slate-900 truncate">
-                        {selectedAppointment.patient?.full_name && !selectedAppointment.patient.full_name.includes("DE-IDENTIFIED")
-                          ? selectedAppointment.patient.full_name
-                          : `Patient #${selectedAppointment.patient?.un_id || "Verified"}`}
-                      </h4>
-                      {(selectedAppointment.booked_for === "family_member" || selectedAppointment.patient?.relation || selectedAppointment.family_member) && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                          Family: {selectedAppointment.family_member?.relation || selectedAppointment.patient?.relation || "Member"}
-                        </span>
-                      )}
-                      {/* Identity Verification Highlight */}
-                      {selectedAppointment.patient?.is_identity_verified ? (
-                        <span 
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs"
-                          title={selectedAppointment.patient?.identity_verified_at ? `Verified on ${new Date(selectedAppointment.patient.identity_verified_at).toLocaleDateString()}` : "Patient identity confirmed"}
-                        >
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                          Identity Verified
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
-                          Verification Pending
-                        </span>
-                      )}
-                    </div>
 
-                    {/* Patient Attributes Strip */}
-                    <div className="flex flex-wrap items-center gap-2.5 mt-1 text-xs text-slate-600">
-                      {selectedAppointment.patient?.gender && (
-                        <span className="capitalize">{selectedAppointment.patient.gender}</span>
-                      )}
-                      {selectedAppointment.patient?.patient_age ? (
-                        <span>• {selectedAppointment.patient.patient_age}</span>
-                      ) : selectedAppointment.patient?.age ? (
-                        <span>• {selectedAppointment.patient.age} yrs</span>
-                      ) : selectedAppointment.patient?.date_of_birth ? (
-                        <span>• {new Date(selectedAppointment.patient.date_of_birth).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
-                      ) : null}
-                      {selectedAppointment.patient?.blood_group && (
-                        <span className="inline-flex items-center gap-1 font-semibold text-rose-600">
-                          <Droplet className="w-3.5 h-3.5" />
-                          {selectedAppointment.patient.blood_group}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Inline Contact & Address Strip */}
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t border-slate-200/70 text-xs text-slate-600">
-                      {selectedAppointment.patient?.phone && (
-                        <div className="flex items-center gap-1">
-                          <Phone className="w-3 h-3 text-[#0067A1]" />
-                          <a
-                            href={`tel:${selectedAppointment.patient.phone}`}
-                            className="font-medium text-slate-800 hover:text-[#0067A1] hover:underline"
-                          >
-                            {formatPatientPhone(selectedAppointment.patient.phone)}
-                          </a>
-                        </div>
-                      )}
-                      {formatPatientEmail(selectedAppointment.patient?.email) && (
-                        <div className="flex items-center gap-1">
-                          <Mail className="w-3 h-3 text-[#0067A1]" />
-                          <a
-                            href={`mailto:${selectedAppointment.patient.email}`}
-                            className="text-slate-700 hover:text-[#0067A1] hover:underline truncate max-w-[220px]"
-                          >
-                            {formatPatientEmail(selectedAppointment.patient.email)}
-                          </a>
-                        </div>
-                      )}
-                      {selectedAppointment.patient?.address && (
-                        <div className="flex items-center gap-1 w-full text-[11px] text-slate-500 mt-0.5">
-                          <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                          <span className="truncate">{selectedAppointment.patient.address}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Primary Account Holder Info (If family member booking) */}
-                    {selectedAppointment.patient?.primary_patient_name && selectedAppointment.patient.primary_patient_name !== selectedAppointment.patient.full_name && (
-                      <div className="mt-2.5 p-2 bg-blue-50/70 border border-blue-200/60 rounded-md text-xs">
-                        <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
-                          <span className="font-semibold text-blue-900">
-                            Booked by Account Holder: <span className="font-bold text-slate-900">{selectedAppointment.patient.primary_patient_name}</span>
+              {/* Modal Body - Sleek, Compact, Non-Bulky Clinical Layout */}
+              <div className="overflow-y-auto px-4 py-3.5 sm:px-5 sm:py-4 flex-1 min-h-0 space-y-3">
+                {/* Unified Patient Profile Card with Verified Highlight */}
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 sm:p-3.5">
+                  <div className="flex items-start gap-3">
+                    {selectedAppointment.patient?.profile_picture ? (
+                      <img
+                        src={selectedAppointment.patient.profile_picture}
+                        alt={selectedAppointment.patient?.full_name || "Patient"}
+                        className="w-12 h-12 rounded-full object-cover border-2 border-[#0067A1]/20 shrink-0 mt-0.5"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-[#0067A1]/10 border border-[#0067A1]/20 flex items-center justify-center shrink-0 mt-0.5">
+                        <User className="w-6 h-6 text-[#0067A1]" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                          {selectedAppointment.patient?.full_name && !selectedAppointment.patient.full_name.includes("DE-IDENTIFIED")
+                            ? selectedAppointment.patient.full_name
+                            : `Patient #${selectedAppointment.patient?.un_id || "Verified"}`}
+                        </h4>
+                        {(selectedAppointment.booked_for === "family_member" || selectedAppointment.patient?.relation || selectedAppointment.family_member) && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                            Family: {selectedAppointment.family_member?.relation || selectedAppointment.patient?.relation || "Member"}
                           </span>
-                          {selectedAppointment.patient.primary_patient_phone && (
+                        )}
+                        {/* Identity Verification Highlight */}
+                        {selectedAppointment.patient?.is_identity_verified ? (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs"
+                            title={selectedAppointment.patient?.identity_verified_at ? `Verified on ${new Date(selectedAppointment.patient.identity_verified_at).toLocaleDateString()}` : "Patient identity confirmed"}
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            Identity Verified
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-amber-50 text-amber-800 border border-amber-200">
+                            Verification Pending
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Patient Attributes Strip */}
+                      <div className="flex flex-wrap items-center gap-2.5 mt-1 text-xs text-slate-600">
+                        {selectedAppointment.patient?.gender && (
+                          <span className="capitalize">{selectedAppointment.patient.gender}</span>
+                        )}
+                        {selectedAppointment.patient?.patient_age ? (
+                          <span>• {selectedAppointment.patient.patient_age}</span>
+                        ) : selectedAppointment.patient?.age ? (
+                          <span>• {selectedAppointment.patient.age} yrs</span>
+                        ) : selectedAppointment.patient?.date_of_birth ? (
+                          <span>• {new Date(selectedAppointment.patient.date_of_birth).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+                        ) : null}
+                        {selectedAppointment.patient?.blood_group && (
+                          <span className="inline-flex items-center gap-1 font-semibold text-rose-600">
+                            <Droplet className="w-3.5 h-3.5" />
+                            {selectedAppointment.patient.blood_group}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Inline Contact & Address Strip */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t border-slate-200/70 text-xs text-slate-600">
+                        {selectedAppointment.patient?.phone && (
+                          <div className="flex items-center gap-1">
+                            <Phone className="w-3 h-3 text-[#0067A1]" />
                             <a
-                              href={`tel:${selectedAppointment.patient.primary_patient_phone}`}
-                              className="text-[#0067A1] font-medium hover:underline"
+                              href={`tel:${selectedAppointment.patient.phone}`}
+                              className="font-medium text-slate-800 hover:text-[#0067A1] hover:underline"
                             >
-                              📞 {formatPatientPhone(selectedAppointment.patient.primary_patient_phone)}
+                              {formatPatientPhone(selectedAppointment.patient.phone)}
                             </a>
-                          )}
-                        </div>
-                        {selectedAppointment.patient.primary_patient_email && (
-                          <div className="text-[10.5px] text-slate-600 mt-0.5 truncate">
-                            ✉️ {selectedAppointment.patient.primary_patient_email}
+                          </div>
+                        )}
+                        {formatPatientEmail(selectedAppointment.patient?.email) && (
+                          <div className="flex items-center gap-1">
+                            <Mail className="w-3 h-3 text-[#0067A1]" />
+                            <a
+                              href={`mailto:${selectedAppointment.patient.email}`}
+                              className="text-slate-700 hover:text-[#0067A1] hover:underline truncate max-w-[220px]"
+                            >
+                              {formatPatientEmail(selectedAppointment.patient.email)}
+                            </a>
+                          </div>
+                        )}
+                        {selectedAppointment.patient?.address && (
+                          <div className="flex items-center gap-1 w-full text-[11px] text-slate-500 mt-0.5">
+                            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span className="truncate">{selectedAppointment.patient.address}</span>
                           </div>
                         )}
                       </div>
-                    )}
+
+                      {/* Primary Account Holder Info (If family member booking) */}
+                      {selectedAppointment.patient?.primary_patient_name && selectedAppointment.patient.primary_patient_name !== selectedAppointment.patient.full_name && (
+                        <div className="mt-2.5 p-2 bg-blue-50/70 border border-blue-200/60 rounded-md text-xs">
+                          <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                            <span className="font-semibold text-blue-900">
+                              Booked by Account Holder: <span className="font-bold text-slate-900">{selectedAppointment.patient.primary_patient_name}</span>
+                            </span>
+                            {selectedAppointment.patient.primary_patient_phone && (
+                              <a
+                                href={`tel:${selectedAppointment.patient.primary_patient_phone}`}
+                                className="text-[#0067A1] font-medium hover:underline"
+                              >
+                                📞 {formatPatientPhone(selectedAppointment.patient.primary_patient_phone)}
+                              </a>
+                            )}
+                          </div>
+                          {selectedAppointment.patient.primary_patient_email && (
+                            <div className="text-[10.5px] text-slate-600 mt-0.5 truncate">
+                              ✉️ {selectedAppointment.patient.primary_patient_email}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Compact Appointment Info Strip */}
-              <div className="bg-white border border-slate-200 rounded-lg p-2.5 sm:p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Date</p>
-                  <p className="font-semibold text-slate-800 mt-0.5">{selectedAppointment.appointment_date}</p>
+                {/* Compact Appointment Info Strip */}
+                <div className="bg-white border border-slate-200 rounded-lg p-2.5 sm:p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Date</p>
+                    <p className="font-semibold text-slate-800 mt-0.5">{selectedAppointment.appointment_date}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Time</p>
+                    <p className="font-semibold text-slate-800 mt-0.5">{formatTime(selectedAppointment.appointment_time)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Type</p>
+                    <p className="font-semibold text-slate-800 mt-0.5">
+                      {formatAppointmentTypeLabel(selectedAppointment)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Care Episode</p>
+                    <p className="font-mono font-semibold text-[#0067A1] mt-0.5 truncate">
+                      {selectedAppointment.care_episode_id
+                        ? `EP-${String(selectedAppointment.care_episode_id).slice(0, 8).toUpperCase()}`
+                        : (selectedAppointment.care_episode?.episode_code || 'EP-ACTIVE')}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Time</p>
-                  <p className="font-semibold text-slate-800 mt-0.5">{formatTime(selectedAppointment.appointment_time)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Type</p>
-                  <p className="font-semibold text-slate-800 mt-0.5">
-                    {formatAppointmentTypeLabel(selectedAppointment)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Care Episode</p>
-                  <p className="font-mono font-semibold text-[#0067A1] mt-0.5 truncate">
-                    {selectedAppointment.care_episode_id 
-                      ? `EP-${String(selectedAppointment.care_episode_id).slice(0, 8).toUpperCase()}` 
-                      : (selectedAppointment.care_episode?.episode_code || 'EP-ACTIVE')}
-                  </p>
-                </div>
-              </div>
 
-              {/* Patient Identity & Consent Verification */}
-              {selectedAppointment && !["cancelled", "rejected"].includes(String(selectedAppointment.status).toLowerCase()) && (
-                <PatientVerificationCard
-                  appointment={selectedAppointment}
-                  doctorUserId={typeof window !== "undefined" ? localStorage.getItem("userId") : null}
-                  onVerificationComplete={(newVerification) => {
-                    const isVerified = newVerification?.status === "verified";
-                    setSelectedAppointment((prev) =>
-                      prev
-                        ? {
+                {/* Patient Identity & Consent Verification */}
+                {selectedAppointment && !["cancelled", "rejected"].includes(String(selectedAppointment.status).toLowerCase()) && (
+                  <PatientVerificationCard
+                    appointment={selectedAppointment}
+                    doctorUserId={typeof window !== "undefined" ? localStorage.getItem("userId") : null}
+                    onVerificationComplete={(newVerification) => {
+                      const isVerified = newVerification?.status === "verified";
+                      setSelectedAppointment((prev) =>
+                        prev
+                          ? {
                             ...prev,
                             patient: {
                               ...prev.patient,
@@ -1634,324 +1626,318 @@ function DoctorAppointmentsPage() {
                               identity_verified_at: newVerification?.verified_at || new Date().toISOString(),
                             },
                           }
-                        : null
-                    );
-                    setAppointments((prevList) =>
-                      prevList.map((item) => {
-                        const pId = item.patient_id || item.patient?.id;
-                        const targetId = selectedAppointment.patient_id || selectedAppointment.patient?.id;
-                        if (pId && targetId && pId === targetId) {
-                          return {
-                            ...item,
-                            patient: {
-                              ...item.patient,
-                              is_identity_verified: isVerified,
-                              identity_verified_at: newVerification?.verified_at || new Date().toISOString(),
-                            },
-                          };
-                        }
-                        return item;
-                      })
-                    );
-                  }}
-                />
-              )}
+                          : null
+                      );
+                      setAppointments((prevList) =>
+                        prevList.map((item) => {
+                          const pId = item.patient_id || item.patient?.id;
+                          const targetId = selectedAppointment.patient_id || selectedAppointment.patient?.id;
+                          if (pId && targetId && pId === targetId) {
+                            return {
+                              ...item,
+                              patient: {
+                                ...item.patient,
+                                is_identity_verified: isVerified,
+                                identity_verified_at: newVerification?.verified_at || new Date().toISOString(),
+                              },
+                            };
+                          }
+                          return item;
+                        })
+                      );
+                    }}
+                  />
+                )}
 
-              {/* Reason & Screening Summary (Compact) */}
-              {(selectedAppointment.reason || selectedAppointment.screening) && (
-                <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-2.5 sm:p-3 space-y-2 text-xs">
-                  {selectedAppointment.reason && (
-                    <div>
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Consultation Reason</p>
-                      <p className="text-slate-800 whitespace-pre-line leading-relaxed">{selectedAppointment.reason}</p>
-                    </div>
-                  )}
-                  {selectedAppointment.screening?.initial_symptoms && (
-                    <div className="pt-1.5 border-t border-slate-200/60">
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Reported Symptoms</p>
-                      <p className="text-slate-800">{selectedAppointment.screening.initial_symptoms}</p>
-                    </div>
-                  )}
-                  {selectedAppointment.screening?.analysis?.summary && (
-                    <div className="pt-1.5 border-t border-slate-200/60">
-                      <p className="text-[10px] font-bold text-[#0067A1] uppercase tracking-wider mb-0.5">Clinical Note / Screening</p>
-                      <p className="text-slate-700">{selectedAppointment.screening.analysis.summary}</p>
-                    </div>
-                  )}
-                </div>
-              )}
+                {/* Reason & Screening Summary (Compact) */}
+                {(selectedAppointment.reason || selectedAppointment.screening) && (
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-2.5 sm:p-3 space-y-2 text-xs">
+                    {selectedAppointment.reason && (
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Consultation Reason</p>
+                        <p className="text-slate-800 whitespace-pre-line leading-relaxed">{selectedAppointment.reason}</p>
+                      </div>
+                    )}
+                    {selectedAppointment.screening?.initial_symptoms && (
+                      <div className="pt-1.5 border-t border-slate-200/60">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Reported Symptoms</p>
+                        <p className="text-slate-800">{selectedAppointment.screening.initial_symptoms}</p>
+                      </div>
+                    )}
+                    {selectedAppointment.screening?.analysis?.summary && (
+                      <div className="pt-1.5 border-t border-slate-200/60">
+                        <p className="text-[10px] font-bold text-[#0067A1] uppercase tracking-wider mb-0.5">Clinical Note / Screening</p>
+                        <p className="text-slate-700">{selectedAppointment.screening.analysis.summary}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-              {/* Clinic Address if clinic visit */}
-              {['clinic', 'clinic_visit', 'in_person'].includes(String(selectedAppointment.appointment_type || selectedAppointment.type || "").toLowerCase()) && selectedAppointment.doctor?.clinic_address && (
-                <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-2.5 text-xs">
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Clinic Location</p>
-                  <p className="font-semibold text-slate-800">{selectedAppointment.doctor.clinic_name}</p>
-                  <p className="text-slate-600 mt-0.5">{selectedAppointment.doctor.clinic_address}</p>
-                </div>
-              )}
-            </div>
-            
-            <div className="sticky bottom-0 bg-white border-t border-slate-100 px-4 py-3 sm:px-6 sm:py-4 flex flex-wrap justify-end gap-2 sm:gap-3 z-10 shrink-0 pb-safe">
-              <button
-                onClick={handleCloseModal}
-                className="px-3.5 py-2 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors text-xs font-semibold cursor-pointer"
-              >
-                Close
-              </button>
-              {canExtendAppointmentSlot(selectedAppointment, currentTime) && (
+                {/* Clinic Address if clinic visit */}
+                {['clinic', 'clinic_visit', 'in_person'].includes(String(selectedAppointment.appointment_type || selectedAppointment.type || "").toLowerCase()) && selectedAppointment.doctor?.clinic_address && (
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-lg p-2.5 text-xs">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Clinic Location</p>
+                    <p className="font-semibold text-slate-800">{selectedAppointment.doctor.clinic_name}</p>
+                    <p className="text-slate-600 mt-0.5">{selectedAppointment.doctor.clinic_address}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="sticky bottom-0 bg-white border-t border-slate-100 px-4 py-3 sm:px-6 sm:py-4 flex flex-wrap justify-end gap-2 sm:gap-3 z-10 shrink-0 pb-safe">
                 <button
-                  type="button"
-                  onClick={() => {
-                    setExtendingAppointment(selectedAppointment);
-                    setExtendMode("now");
-                    setExtendMinutes(15);
-                  }}
-                  className="px-3 py-2 rounded-md bg-blue-50 text-[#0067A1] hover:bg-blue-100 border border-blue-200 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+                  onClick={handleCloseModal}
+                  className="px-3.5 py-2 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors text-xs font-semibold cursor-pointer"
                 >
-                  <Clock className="w-3.5 h-3.5 text-[#0067A1]" />
-                  + Add Time
+                  Close
                 </button>
-              )}
-              {selectedAppointment.screening?.id && (
-                <button
-                  onClick={() => {
-                    window.open(`/api/screening/${selectedAppointment.screening.id}/doctors`, "_blank");
-                  }}
-                  className="px-3 py-2 rounded-md border border-[#0067A1]/20 text-[#0067A1] bg-white hover:bg-[#0067A1]/5 transition-colors text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Screening
-                </button>
-              )}
-              {(!["rejected", "cancelled"].includes(String(selectedAppointment.status).toLowerCase())) && (() => {
-                const hasRx = Boolean(selectedAppointment.has_prescription || selectedAppointment.prescription_id);
-                const isVideo = isVideoAppointment(selectedAppointment);
-                const canWriteRx = hasRx || selectedAppointment.status === "completed" || !isVideo || hasDoctorJoinedVideoCall(selectedAppointment);
-
-                return (
+                {canExtendAppointmentSlot(selectedAppointment, currentTime) && (
                   <button
                     type="button"
                     onClick={() => {
-                      const apt = selectedAppointment;
-                      handleCloseModal();
-                      handleOpenPrescription(apt);
+                      setExtendingAppointment(selectedAppointment);
+                      setExtendMode("now");
+                      setExtendMinutes(15);
                     }}
-                    disabled={isFetchingPrescription}
-                    className={`px-3.5 py-2 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs ${
-                      hasRx
-                        ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-95"
-                        : canWriteRx
-                        ? "bg-[#0067A1] hover:bg-[#004F7C] text-white cursor-pointer active:scale-95"
-                        : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-                    }`}
-                    title={
-                      hasRx
-                        ? "View official A4 prescription letterhead"
-                        : canWriteRx
-                        ? "Write and digitally sign prescription"
-                        : "Join the video call first before writing a prescription"
-                    }
+                    className="px-3 py-2 rounded-md bg-blue-50 text-[#0067A1] hover:bg-blue-100 border border-blue-200 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
-                    <Stethoscope className="w-3.5 h-3.5" />
-                    <span>{hasRx ? "Prescription" : "+ Prescription"}</span>
+                    <Clock className="w-3.5 h-3.5 text-[#0067A1]" />
+                    + Add Time
                   </button>
-                );
-              })()}
-              {isVideoAppointment(selectedAppointment) && !["rejected", "cancelled", "completed"].includes(String(selectedAppointment.status).toLowerCase()) && !isAppointmentExpired(selectedAppointment, currentTime) && (() => {
-                const timing = getVideoCallTiming(selectedAppointment, currentTime);
-                return (
+                )}
+                {selectedAppointment.screening?.id && (
                   <button
                     onClick={() => {
-                      handleStartCall(selectedAppointment);
-                      handleCloseModal();
+                      window.open(`/api/screening/${selectedAppointment.screening.id}/doctors`, "_blank");
                     }}
-                    disabled={!timing.isAvailable}
-                    title={timing.status === "future" ? "Appointment is scheduled for a future date" : undefined}
-                    className={`px-3.5 py-2 rounded-md text-xs font-semibold transition-all ${
-                      timing.isAvailable
+                    className="px-3 py-2 rounded-md border border-[#0067A1]/20 text-[#0067A1] bg-white hover:bg-[#0067A1]/5 transition-colors text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Screening
+                  </button>
+                )}
+                {(!["rejected", "cancelled"].includes(String(selectedAppointment.status).toLowerCase())) && (() => {
+                  const hasRx = Boolean(selectedAppointment.has_prescription || selectedAppointment.prescription_id);
+                  const isVideo = isVideoAppointment(selectedAppointment);
+                  const canWriteRx = hasRx || selectedAppointment.status === "completed" || !isVideo || hasDoctorJoinedVideoCall(selectedAppointment);
+
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const apt = selectedAppointment;
+                        handleCloseModal();
+                        handleOpenPrescription(apt);
+                      }}
+                      disabled={isFetchingPrescription}
+                      className={`px-3.5 py-2 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs ${hasRx
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-95"
+                        : canWriteRx
+                          ? "bg-[#0067A1] hover:bg-[#004F7C] text-white cursor-pointer active:scale-95"
+                          : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                        }`}
+                      title={
+                        hasRx
+                          ? "View official A4 prescription letterhead"
+                          : canWriteRx
+                            ? "Write and digitally sign prescription"
+                            : "Join the video call first before writing a prescription"
+                      }
+                    >
+                      <Stethoscope className="w-3.5 h-3.5" />
+                      <span>{hasRx ? "Prescription" : "+ Prescription"}</span>
+                    </button>
+                  );
+                })()}
+                {isVideoAppointment(selectedAppointment) && !["rejected", "cancelled", "completed"].includes(String(selectedAppointment.status).toLowerCase()) && !isAppointmentExpired(selectedAppointment, currentTime) && (() => {
+                  const timing = getVideoCallTiming(selectedAppointment, currentTime);
+                  return (
+                    <button
+                      onClick={() => {
+                        handleStartCall(selectedAppointment);
+                        handleCloseModal();
+                      }}
+                      disabled={!timing.isAvailable}
+                      title={timing.status === "future" ? "Appointment is scheduled for a future date" : undefined}
+                      className={`px-3.5 py-2 rounded-md text-xs font-semibold transition-all ${timing.isAvailable
                         ? "bg-[#0067A1] text-white hover:bg-[#004F7C] shadow-xs cursor-pointer active:scale-95"
                         : "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
-                    }`}
+                        }`}
+                    >
+                      {timing.status === "future" ? "Scheduled" : "Start Call"}
+                    </button>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Extend Appointment Time Modal */}
+        {extendingAppointment && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-fade-in">
+            <div className="w-full max-w-md rounded-xl bg-white border border-slate-200 shadow-xl overflow-hidden p-5 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#0067A1] flex items-center justify-center">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-800">Add Time / Extend Slot</h3>
+                    <p className="text-xs text-slate-500">Reactivate expired consultation</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExtendingAppointment(null)}
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Patient:</span>
+                  <span className="font-semibold text-slate-800">{extendingAppointment.patient?.full_name || "Patient"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Original Slot:</span>
+                  <span className="font-medium text-slate-700">{extendingAppointment.appointment_date} • {formatTime(extendingAppointment.appointment_time)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Type:</span>
+                  <span className="font-medium text-slate-700">{formatAppointmentTypeLabel(extendingAppointment)}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Select Extension Option:
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setExtendMode("now"); setExtendMinutes(0); }}
+                    className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${extendMode === "now"
+                      ? "border-[#0067A1] bg-sky-50/70 text-[#0067A1] ring-1 ring-[#0067A1]"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
                   >
-                    {timing.status === "future" ? "Scheduled" : "Start Call"}
+                    <p className="text-xs font-bold flex items-center gap-1.5">
+                      <CheckCircle className={`w-3.5 h-3.5 ${extendMode === "now" ? "text-[#0067A1]" : "text-slate-300"}`} />
+                      Active Now
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-0.5 ml-5">Live immediately for next 40m</p>
                   </button>
-                );
-              })()}
+
+                  <button
+                    type="button"
+                    onClick={() => { setExtendMode("add"); setExtendMinutes(15); }}
+                    className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${extendMode === "add" && extendMinutes === 15
+                      ? "border-[#0067A1] bg-sky-50/70 text-[#0067A1] ring-1 ring-[#0067A1]"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                  >
+                    <p className="text-xs font-bold flex items-center gap-1.5">
+                      <CheckCircle className={`w-3.5 h-3.5 ${extendMode === "add" && extendMinutes === 15 ? "text-[#0067A1]" : "text-slate-300"}`} />
+                      +15 Mins
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-0.5 ml-5">Slot in 15 mins from now</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setExtendMode("add"); setExtendMinutes(30); }}
+                    className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${extendMode === "add" && extendMinutes === 30
+                      ? "border-[#0067A1] bg-sky-50/70 text-[#0067A1] ring-1 ring-[#0067A1]"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                  >
+                    <p className="text-xs font-bold flex items-center gap-1.5">
+                      <CheckCircle className={`w-3.5 h-3.5 ${extendMode === "add" && extendMinutes === 30 ? "text-[#0067A1]" : "text-slate-300"}`} />
+                      +30 Mins
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-0.5 ml-5">Slot in 30 mins from now</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setExtendMode("add"); setExtendMinutes(60); }}
+                    className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${extendMode === "add" && extendMinutes === 60
+                      ? "border-[#0067A1] bg-sky-50/70 text-[#0067A1] ring-1 ring-[#0067A1]"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                  >
+                    <p className="text-xs font-bold flex items-center gap-1.5">
+                      <CheckCircle className={`w-3.5 h-3.5 ${extendMode === "add" && extendMinutes === 60 ? "text-[#0067A1]" : "text-slate-300"}`} />
+                      +60 Mins
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-0.5 ml-5">Slot in 1 hour from now</p>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setExtendingAppointment(null)}
+                  disabled={isExtending}
+                  className="h-8.5 px-3 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExtendSlot(extendingAppointment, extendMinutes, extendMode)}
+                  disabled={isExtending}
+                  className="h-8.5 px-4 rounded-lg bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold shadow-xs transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isExtending ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Extend Slot
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Extend Appointment Time Modal */}
-      {extendingAppointment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-fade-in">
-          <div className="w-full max-w-md rounded-xl bg-white border border-slate-200 shadow-xl overflow-hidden p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#0067A1] flex items-center justify-center">
-                  <Clock className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-800">Add Time / Extend Slot</h3>
-                  <p className="text-xs text-slate-500">Reactivate expired consultation</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setExtendingAppointment(null)}
-                className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
-              >
-                <XCircle className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-100 rounded-lg p-3 text-xs space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Patient:</span>
-                <span className="font-semibold text-slate-800">{extendingAppointment.patient?.full_name || "Patient"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Original Slot:</span>
-                <span className="font-medium text-slate-700">{extendingAppointment.appointment_date} • {formatTime(extendingAppointment.appointment_time)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Type:</span>
-                <span className="font-medium text-slate-700">{formatAppointmentTypeLabel(extendingAppointment)}</span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-2">
-                Select Extension Option:
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setExtendMode("now"); setExtendMinutes(0); }}
-                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
-                    extendMode === "now"
-                      ? "border-[#0067A1] bg-sky-50/70 text-[#0067A1] ring-1 ring-[#0067A1]"
-                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-bold flex items-center gap-1.5">
-                    <CheckCircle className={`w-3.5 h-3.5 ${extendMode === "now" ? "text-[#0067A1]" : "text-slate-300"}`} />
-                    Active Now
-                  </p>
-                  <p className="text-[10px] text-slate-500 mt-0.5 ml-5">Live immediately for next 40m</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => { setExtendMode("add"); setExtendMinutes(15); }}
-                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
-                    extendMode === "add" && extendMinutes === 15
-                      ? "border-[#0067A1] bg-sky-50/70 text-[#0067A1] ring-1 ring-[#0067A1]"
-                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-bold flex items-center gap-1.5">
-                    <CheckCircle className={`w-3.5 h-3.5 ${extendMode === "add" && extendMinutes === 15 ? "text-[#0067A1]" : "text-slate-300"}`} />
-                    +15 Mins
-                  </p>
-                  <p className="text-[10px] text-slate-500 mt-0.5 ml-5">Slot in 15 mins from now</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => { setExtendMode("add"); setExtendMinutes(30); }}
-                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
-                    extendMode === "add" && extendMinutes === 30
-                      ? "border-[#0067A1] bg-sky-50/70 text-[#0067A1] ring-1 ring-[#0067A1]"
-                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-bold flex items-center gap-1.5">
-                    <CheckCircle className={`w-3.5 h-3.5 ${extendMode === "add" && extendMinutes === 30 ? "text-[#0067A1]" : "text-slate-300"}`} />
-                    +30 Mins
-                  </p>
-                  <p className="text-[10px] text-slate-500 mt-0.5 ml-5">Slot in 30 mins from now</p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => { setExtendMode("add"); setExtendMinutes(60); }}
-                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
-                    extendMode === "add" && extendMinutes === 60
-                      ? "border-[#0067A1] bg-sky-50/70 text-[#0067A1] ring-1 ring-[#0067A1]"
-                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  <p className="text-xs font-bold flex items-center gap-1.5">
-                    <CheckCircle className={`w-3.5 h-3.5 ${extendMode === "add" && extendMinutes === 60 ? "text-[#0067A1]" : "text-slate-300"}`} />
-                    +60 Mins
-                  </p>
-                  <p className="text-[10px] text-slate-500 mt-0.5 ml-5">Slot in 1 hour from now</p>
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setExtendingAppointment(null)}
-                disabled={isExtending}
-                className="h-8.5 px-3 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleExtendSlot(extendingAppointment, extendMinutes, extendMode)}
-                disabled={isExtending}
-                className="h-8.5 px-4 rounded-lg bg-[#0067A1] hover:bg-[#004F7C] text-white text-xs font-semibold shadow-xs transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-              >
-                {isExtending ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Updating...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    Extend Slot
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Clinical Consultation & Prescription Workspace Modal (Same template & interactive design as video call) */}
-      {prescriptionAppointment && (
-        <WritePrescriptionModal
-          appointmentId={prescriptionAppointment.id}
-          appointment={prescriptionAppointment}
-          onClose={() => setPrescriptionAppointment(null)}
-          onViewPrescription={() => {
-            const savedApt = prescriptionAppointment;
-            setPrescriptionAppointment(null);
-            handleOpenPrescription(savedApt);
-          }}
-          onPrescriptionSaved={async () => {
-            const savedApt = prescriptionAppointment;
-            setPrescriptionAppointment(null);
-            await loadAppointments(page, dateFilter);
-            if (savedApt) {
+        )}
+        {/* Clinical Consultation & Prescription Workspace Modal (Same template & interactive design as video call) */}
+        {prescriptionAppointment && (
+          <WritePrescriptionModal
+            appointmentId={prescriptionAppointment.id}
+            appointment={prescriptionAppointment}
+            onClose={() => setPrescriptionAppointment(null)}
+            onViewPrescription={() => {
+              const savedApt = prescriptionAppointment;
+              setPrescriptionAppointment(null);
               handleOpenPrescription(savedApt);
-            }
-          }}
-        />
-      )}
+            }}
+            onPrescriptionSaved={async () => {
+              const savedApt = prescriptionAppointment;
+              setPrescriptionAppointment(null);
+              await loadAppointments(page, dateFilter);
+              if (savedApt) {
+                handleOpenPrescription(savedApt);
+              }
+            }}
+          />
+        )}
 
-      {/* Official A4 Medical Prescription Letterhead Modal (exact same format as live video call) */}
-      {viewingPrescriptionData && (
-        <PrescriptionViewerModal
-          data={viewingPrescriptionData}
-          onClose={() => setViewingPrescriptionData(null)}
-          isDoctor={true}
-        />
-      )}
+        {/* Official A4 Medical Prescription Letterhead Modal (exact same format as live video call) */}
+        {viewingPrescriptionData && (
+          <PrescriptionViewerModal
+            data={viewingPrescriptionData}
+            onClose={() => setViewingPrescriptionData(null)}
+            isDoctor={true}
+          />
+        )}
       </div>
     </>
   );

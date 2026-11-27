@@ -116,10 +116,10 @@ const getAppointmentEnd = (apt) => {
 const getEffectiveStatus = (apt, now = new Date()) => {
   const base = normalizeStatus(apt.status);
   const hasPrescription = !!(
-    apt.hasRx || 
-    apt.has_prescription || 
-    apt.prescription || 
-    apt.prescription_id || 
+    apt.hasRx ||
+    apt.has_prescription ||
+    apt.prescription ||
+    apt.prescription_id ||
     (Array.isArray(apt.prescriptions) && apt.prescriptions.length > 0)
   );
 
@@ -317,7 +317,7 @@ function formatSpecialMessage(text) {
       {lines.map((line, idx) => {
         const trimmed = line.trim();
         if (!trimmed) return <div key={idx} className="h-1" />;
-        
+
         // Match [SECTION NAME]
         if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
           const sectionTitle = trimmed.slice(1, -1).replace(/_/g, " ").toUpperCase();
@@ -330,7 +330,7 @@ function formatSpecialMessage(text) {
             </div>
           );
         }
-        
+
         // Match key: value
         const colonIdx = trimmed.indexOf(":");
         if (colonIdx > 0) {
@@ -343,7 +343,7 @@ function formatSpecialMessage(text) {
             </div>
           );
         }
-        
+
         // Plain text line
         return (
           <div key={idx} className="text-gray-700 text-xs sm:text-sm leading-relaxed">
@@ -393,8 +393,8 @@ export default function AppointmentsPage() {
     if (!prescriptionData) return [];
     const rawLabs = prescriptionData.lab_tests || [];
     const rawInvs = prescriptionData.investigations || [];
-    const invArray = Array.isArray(rawInvs) 
-      ? rawInvs 
+    const invArray = Array.isArray(rawInvs)
+      ? rawInvs
       : (rawInvs?.requested || (typeof rawInvs === 'string' ? [rawInvs] : []));
     return [
       ...rawLabs.map(t => typeof t === "string" ? t : (t.test_name || t.name || "")),
@@ -462,7 +462,7 @@ export default function AppointmentsPage() {
         try {
           const userData = JSON.parse(localStorage.getItem("userData") || sessionStorage.getItem("userData") || "{}");
           patientId = userData?.id || userData?.user?.id || null;
-        } catch (_) {}
+        } catch (_) { }
       }
       if (!patientId || patientId === "undefined" || patientId === "null") {
         const roles = ["patientUser", "doctorUser", "chemistUser", "labUser", "adminUser"];
@@ -473,7 +473,7 @@ export default function AppointmentsPage() {
               patientId = u.id;
               break;
             }
-          } catch (_) {}
+          } catch (_) { }
         }
       }
 
@@ -481,7 +481,7 @@ export default function AppointmentsPage() {
         try {
           localStorage.setItem("userId", String(patientId));
           document.cookie = `session_id=${patientId}; path=/; max-age=2592000; SameSite=Lax`;
-        } catch (_) {}
+        } catch (_) { }
       }
 
       if (!patientId || patientId === "undefined" || patientId === "null") {
@@ -551,7 +551,7 @@ export default function AppointmentsPage() {
         try {
           const userData = JSON.parse(localStorage.getItem("userData") || "{}");
           patientId = userData?.id || null;
-        } catch (_) {}
+        } catch (_) { }
       }
       if (!patientId) return;
       try {
@@ -578,7 +578,7 @@ export default function AppointmentsPage() {
       try {
         const userData = JSON.parse(localStorage.getItem("userData") || "{}");
         patientId = userData?.id || null;
-      } catch (_) {}
+      } catch (_) { }
     }
     if (!patientId) return;
 
@@ -921,13 +921,13 @@ export default function AppointmentsPage() {
                 prev.map((apt) =>
                   apt.id === appointmentToReschedule.id
                     ? {
-                        ...apt,
-                        appointment_date: rescheduleDate,
-                        appointment_time: `${cleanTime}:00`,
-                        appointment_type: rescheduleType,
-                        payment_status: "paid",
-                        status: "booked",
-                      }
+                      ...apt,
+                      appointment_date: rescheduleDate,
+                      appointment_time: `${cleanTime}:00`,
+                      appointment_type: rescheduleType,
+                      payment_status: "paid",
+                      status: "booked",
+                    }
                     : apt
                 )
               );
@@ -1615,11 +1615,10 @@ export default function AppointmentsPage() {
               <button
                 key={tab.value}
                 onClick={() => setDateFilter(tab.value)}
-                className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                  dateFilter === tab.value
-                    ? "border-[#0067A1] text-[#0067A1]"
-                    : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
-                }`}
+                className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${dateFilter === tab.value
+                  ? "border-[#0067A1] text-[#0067A1]"
+                  : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                  }`}
               >
                 {tab.label}
               </button>
@@ -1747,27 +1746,27 @@ const AppointmentCard = ({
 
   const getStatusConfig = (status) => {
     switch (status) {
-      case "confirmed":   return { cls: "bg-green-100 text-green-700 border-green-200",   dot: "bg-green-500",  label: "Confirmed" };
-      case "pending":     return { cls: "bg-amber-100 text-amber-700 border-amber-200",   dot: "bg-amber-500",  label: "Pending Approval" };
-      case "completed":   return { cls: "bg-emerald-100 text-emerald-700 border-emerald-200", dot: "bg-emerald-500", label: "Completed" };
-      case "expired":     return { cls: "bg-gray-100 text-gray-500 border-gray-200",      dot: "bg-gray-400",   label: "Expired" };
-      case "cancelled":   return { cls: "bg-red-100 text-red-700 border-red-200",         dot: "bg-red-500",    label: "Cancelled" };
-      default:            return { cls: "bg-gray-100 text-gray-600 border-gray-200",      dot: "bg-gray-400",   label: status };
+      case "confirmed": return { cls: "bg-green-100 text-green-700 border-green-200", dot: "bg-green-500", label: "Confirmed" };
+      case "pending": return { cls: "bg-amber-100 text-amber-700 border-amber-200", dot: "bg-amber-500", label: "Pending Approval" };
+      case "completed": return { cls: "bg-emerald-100 text-emerald-700 border-emerald-200", dot: "bg-emerald-500", label: "Completed" };
+      case "expired": return { cls: "bg-gray-100 text-gray-500 border-gray-200", dot: "bg-gray-400", label: "Expired" };
+      case "cancelled": return { cls: "bg-red-100 text-red-700 border-red-200", dot: "bg-red-500", label: "Cancelled" };
+      default: return { cls: "bg-gray-100 text-gray-600 border-gray-200", dot: "bg-gray-400", label: status };
     }
   };
 
-  const effectiveStatus   = getEffectiveStatus(appointment, currentTime);
-  const statusCfg         = getStatusConfig(effectiveStatus);
-  const canModify         = canModifyAppointment(appointment, currentTime);
-  const timing            = getVideoCallTiming(appointment, currentTime);
+  const effectiveStatus = getEffectiveStatus(appointment, currentTime);
+  const statusCfg = getStatusConfig(effectiveStatus);
+  const canModify = canModifyAppointment(appointment, currentTime);
+  const timing = getVideoCallTiming(appointment, currentTime);
   const appointmentTypeKey = getAppointmentTypeKey(appointment);
-  const TypeIcon          = APPOINTMENT_TYPE_ICONS[appointmentTypeKey] || FaHospital;
-  const isExpired         = effectiveStatus === "expired" || normalizeStatus(appointment.status) === "expired";
-  const isPast            = effectiveStatus === "completed" || isExpired;
-  const isCompleted       = effectiveStatus === "completed" || normalizeStatus(appointment.status) === "completed";
-  const hasRx             = hasPrescription || appointment.has_prescription || !!appointment.prescription_id || isCompleted;
+  const TypeIcon = APPOINTMENT_TYPE_ICONS[appointmentTypeKey] || FaHospital;
+  const isExpired = effectiveStatus === "expired" || normalizeStatus(appointment.status) === "expired";
+  const isPast = effectiveStatus === "completed" || isExpired;
+  const isCompleted = effectiveStatus === "completed" || normalizeStatus(appointment.status) === "completed";
+  const hasRx = hasPrescription || appointment.has_prescription || !!appointment.prescription_id || isCompleted;
   const isDigiLockerSaved = !!(appointment.prescription_saved_in_digilocker || appointment.prescription?.is_saved_in_digilocker);
-  const showVideoButton   = timing.isVideo && !isCompleted && !isPast && !isExpired;
+  const showVideoButton = timing.isVideo && !isCompleted && !isPast && !isExpired;
 
   // Doctor image resolution
   const doctorImageUrl = (() => {
@@ -1787,7 +1786,7 @@ const AppointmentCard = ({
         const parsed = JSON.parse(pp);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
         if (typeof parsed === "string") return parsed;
-      } catch (_) {}
+      } catch (_) { }
       if (pp.startsWith("http")) return pp;
     }
     return null;
@@ -1829,11 +1828,10 @@ const AppointmentCard = ({
 
   return (
     <div
-      className={`bg-white border rounded-xl overflow-hidden transition-all duration-200 hover:shadow-md flex flex-col justify-between ${
-        isActiveCall
-          ? "border-emerald-400 shadow-sm shadow-emerald-100/50 ring-1 ring-emerald-300"
-          : "border-slate-200/90 shadow-xs hover:border-[#0067A1]/40"
-      }`}
+      className={`bg-white border rounded-xl overflow-hidden transition-all duration-200 hover:shadow-md flex flex-col justify-between ${isActiveCall
+        ? "border-emerald-400 shadow-sm shadow-emerald-100/50 ring-1 ring-emerald-300"
+        : "border-slate-200/90 shadow-xs hover:border-[#0067A1]/40"
+        }`}
     >
       {/* Active Call Alert Banner */}
       {isActiveCall && (
@@ -1953,13 +1951,12 @@ const AppointmentCard = ({
                 onClick={() => timing.canJoin && onJoinCall(appointment)}
                 disabled={!timing.canJoin}
                 title={timing.tooltip || (timing.canJoin ? "Join video consultation" : "Call unavailable")}
-                className={`h-8 w-full flex items-center justify-center gap-1 px-2 rounded-lg text-[11px] font-semibold transition-all ${
-                  timing.canJoin
-                    ? isActiveCall
-                      ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs ring-1 ring-emerald-400 cursor-pointer animate-pulse"
-                      : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
-                    : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none"
-                }`}
+                className={`h-8 w-full flex items-center justify-center gap-1 px-2 rounded-lg text-[11px] font-semibold transition-all ${timing.canJoin
+                  ? isActiveCall
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs ring-1 ring-emerald-400 cursor-pointer animate-pulse"
+                    : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
+                  : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none"
+                  }`}
               >
                 <FaVideo className={`h-3 w-3 shrink-0 ${!timing.canJoin ? "opacity-40" : "text-white"}`} />
                 <span className="truncate">{isActiveCall && timing.canJoin ? "Join" : timing.label}</span>
@@ -2000,11 +1997,10 @@ const AppointmentCard = ({
                 type="button"
                 onClick={() => onSaveToDigiLocker ? onSaveToDigiLocker(appointment) : null}
                 title={isDigiLockerSaved ? "Saved in DigiLocker" : "Save to DigiLocker"}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10.5px] font-semibold transition-all cursor-pointer border ${
-                  isDigiLockerSaved
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : "bg-sky-50 text-[#0067A1] hover:bg-sky-100 border-sky-200/80"
-                }`}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10.5px] font-semibold transition-all cursor-pointer border ${isDigiLockerSaved
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-sky-50 text-[#0067A1] hover:bg-sky-100 border-sky-200/80"
+                  }`}
               >
                 {isDigiLockerSaved ? (
                   <>
@@ -2062,11 +2058,10 @@ const AppointmentCard = ({
                     else if (action.action_id === "BOOK_FOLLOWUP" || action.action_id === "CONFIRM_FOLLOWUP") onReschedule(appointment);
                     else if (action.action_id?.startsWith("ORDER_")) onServiceRecommendations(appointment);
                   }}
-                  className={`h-7.5 w-full flex items-center justify-center gap-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
-                    action.priority === 1
-                      ? "bg-[#0067A1] hover:bg-[#004F7C] text-white shadow-xs"
-                      : "bg-sky-50 hover:bg-sky-100 text-[#004F7C] border border-sky-200"
-                  }`}
+                  className={`h-7.5 w-full flex items-center justify-center gap-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${action.priority === 1
+                    ? "bg-[#0067A1] hover:bg-[#004F7C] text-white shadow-xs"
+                    : "bg-sky-50 hover:bg-sky-100 text-[#004F7C] border border-sky-200"
+                    }`}
                   title={action.description}
                 >
                   {action.action_id === "SUBMIT_OUTCOME" ? <Activity className="h-3 w-3" /> : <ShieldAlert className="h-3 w-3" />}
