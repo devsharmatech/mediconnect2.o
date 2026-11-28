@@ -757,57 +757,89 @@ export default function DoctorDashboardLayout({ children }) {
     setModalHasMore(notifications.length === 15);
   };
 
-  const navItems = [
+  const navSections = [
     {
-      href: "/doctor",
-      label: "Overview",
-      icon: FaUserMd,
-      description: "Dashboard overview",
-    },
-
-    {
-      href: "/doctor/appointments",
-      label: "Appointments",
-      icon: FaCalendarAlt,
-      description: "Booked consultations",
-    },
-    {
-      href: "/doctor/manage-slots",
-      label: "Manage Slots",
-      icon: FaClock,
-      description: "Schedule management",
-    },
-    {
-      href: "/doctor/prescriptions",
-      label: "Prescriptions",
-      icon: FaFileMedical,
-      description: "Patient prescriptions",
-    },
-    {
-      href: "/doctor/my-patients",
-      label: "My Patients",
-      icon: FaUsers,
-      description: "Patient directory & visits",
-    },
-    {
-      href: "/doctor/payments",
-      label: "Payments",
-      icon: FaWallet,
-      description: "Appointment payments & history",
+      title: "Professional Activity",
+      items: [
+        {
+          href: "/doctor",
+          label: "Overview",
+          icon: FaUserMd,
+          description: "Dashboard overview",
+        },
+        {
+          href: "/doctor/appointments",
+          label: "Appointments",
+          icon: FaCalendarAlt,
+          description: "Booked consultations",
+        },
+        {
+          href: "/doctor/prescriptions",
+          label: "Prescriptions",
+          icon: FaFileMedical,
+          description: "Patient prescriptions",
+        },
+        {
+          href: "/doctor/my-patients",
+          label: "My Patients",
+          icon: FaUsers,
+          description: "Patient directory & visits",
+        },
+        {
+          href: "/doctor/payments",
+          label: "Payments",
+          icon: FaWallet,
+          description: "Appointment payments & history",
+        },
+      ],
     },
     {
-      href: "/doctor/profile-settings",
-      label: "Profile Settings",
-      icon: FaUser,
-      description: "Account settings",
+      title: "Practice Settings",
+      items: [
+        {
+          href: "/doctor/manage-slots",
+          label: "Manage Slots",
+          icon: FaClock,
+          description: "Schedule & booking availability",
+        },
+      ],
     },
     {
-      href: "/dashboard",
-      label: "Patient View",
-      icon: FaUser,
-      description: "Switch to patient view",
+      title: "Professional Profile",
+      items: [
+        {
+          href: "/doctor/profile-settings",
+          label: "Profile Settings",
+          icon: FaUser,
+          description: "Credentials, fees & clinic details",
+        },
+      ],
+    },
+    {
+      title: "Privacy & Security",
+      items: [
+        {
+          href: "/privacy-policy",
+          label: "Privacy & Security",
+          icon: FaCheckCircle,
+          description: "Telemedicine compliance & data policy",
+        },
+      ],
+    },
+    {
+      title: "Help & Support",
+      items: [
+        {
+          href: "/dashboard",
+          label: "Patient View",
+          icon: FaUser,
+          description: "Switch to patient view",
+        },
+      ],
     },
   ];
+
+  const navItems = navSections.flatMap((s) => s.items);
 
   const isActive = (href) => {
     if (href === "/doctor") {
@@ -930,39 +962,46 @@ export default function DoctorDashboardLayout({ children }) {
               </button>
             </div>
 
-            <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1 custom-scrollbar">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setIsSidebarOpen(false)}
-                    className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-md transition-colors group text-sm font-medium ${
-                      active
-                        ? "bg-white text-[#0067A1]"
-                        : "text-white/70 hover:bg-white/10 hover:text-white"
-                    }`}
-                  >
-                    <Icon
-                      className={`flex-shrink-0 transition-colors ${
-                        active ? "text-[#0067A1]" : "text-white/60 group-hover:text-white"
-                      } w-5 h-5`}
-                    />
-                    <span>{item.label}</span>
-                    {item.badge && (
-                      <span
-                        className={`ml-auto px-2 py-0.5 rounded-md text-xs font-semibold ${
-                          active ? "bg-[#0067A1]/10 text-[#0067A1]" : "bg-white/20 text-white"
+            <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-3 custom-scrollbar">
+              {navSections.map((sec, secIdx) => (
+                <div key={sec.title || secIdx} className="space-y-1">
+                  <div className="px-3 pt-1 pb-1 text-[10px] font-bold uppercase tracking-wider text-teal-300/70 select-none">
+                    {sec.title}
+                  </div>
+                  {sec.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActive(item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setIsSidebarOpen(false)}
+                        className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-md transition-colors group text-sm font-medium ${
+                          active
+                            ? "bg-white text-[#0067A1]"
+                            : "text-white/70 hover:bg-white/10 hover:text-white"
                         }`}
                       >
-                        {item.badge}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
+                        <Icon
+                          className={`flex-shrink-0 transition-colors ${
+                            active ? "text-[#0067A1]" : "text-white/60 group-hover:text-white"
+                          } w-5 h-5`}
+                        />
+                        <span>{item.label}</span>
+                        {item.badge && (
+                          <span
+                            className={`ml-auto px-2 py-0.5 rounded-md text-xs font-semibold ${
+                              active ? "bg-[#0067A1]/10 text-[#0067A1]" : "bg-white/20 text-white"
+                            }`}
+                          >
+                            {item.badge}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ))}
             </nav>
 
             {/* Footer actions */}
@@ -1050,39 +1089,48 @@ export default function DoctorDashboardLayout({ children }) {
             </button>
           </div>
 
-          <nav className="flex-1 overflow-y-auto px-2.5 py-4 space-y-1 custom-scrollbar min-h-0">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  title={isSidebarCollapsed ? item.label : undefined}
-                  className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors group text-xs sm:text-sm font-medium ${
-                    active
-                      ? "bg-white text-[#0067A1]"
-                      : "text-white/70 hover:bg-white/10 hover:text-white"
-                  } ${isSidebarCollapsed ? "justify-center" : ""}`}
-                >
-                  <Icon
-                    className={`flex-shrink-0 transition-colors ${
-                      active ? "text-[#0067A1]" : "text-white/60 group-hover:text-white"
-                    } ${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"}`}
-                  />
-                  {!isSidebarCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
-                  {!isSidebarCollapsed && item.badge && (
-                    <span
-                      className={`ml-auto px-2 py-0.5 rounded-md text-[11px] font-medium ${
-                        active ? "bg-[#0067A1]/10 text-[#0067A1]" : "bg-white/20 text-white"
-                      }`}
+          <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-3 custom-scrollbar min-h-0">
+            {navSections.map((sec, secIdx) => (
+              <div key={sec.title || secIdx} className="space-y-1">
+                {!isSidebarCollapsed && (
+                  <div className="px-3 pt-1 pb-1 text-[10px] font-bold uppercase tracking-wider text-teal-300/70 select-none">
+                    {sec.title}
+                  </div>
+                )}
+                {sec.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      title={isSidebarCollapsed ? item.label : undefined}
+                      className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors group text-xs sm:text-sm font-medium ${
+                        active
+                          ? "bg-white text-[#0067A1]"
+                          : "text-white/70 hover:bg-white/10 hover:text-white"
+                      } ${isSidebarCollapsed ? "justify-center" : ""}`}
                     >
-                      {item.badge}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
+                      <Icon
+                        className={`flex-shrink-0 transition-colors ${
+                          active ? "text-[#0067A1]" : "text-white/60 group-hover:text-white"
+                        } ${isSidebarCollapsed ? "w-5 h-5" : "w-4 h-4"}`}
+                      />
+                      {!isSidebarCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
+                      {!isSidebarCollapsed && item.badge && (
+                        <span
+                          className={`ml-auto px-2 py-0.5 rounded-md text-[11px] font-medium ${
+                            active ? "bg-[#0067A1]/10 text-[#0067A1]" : "bg-white/20 text-white"
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
 
           {/* Footer actions */}

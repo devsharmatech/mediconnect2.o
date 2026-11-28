@@ -28,6 +28,7 @@ export default function DoctorDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [scorecard, setScorecard] = useState(null);
   const [isDoctorOpen, setIsDoctorOpen] = useState(true);
+  const [hasAvailableSlots, setHasAvailableSlots] = useState(true);
   const [togglingOpen, setTogglingOpen] = useState(false);
   const router = useRouter();
 
@@ -99,6 +100,23 @@ export default function DoctorDashboard() {
           .then((avail) => {
             if (avail?.success) {
               setIsDoctorOpen(avail.data?.is_open !== false);
+            }
+          })
+          .catch(() => { });
+
+        const todayStr = new Date().toISOString().split("T")[0];
+        fetch("/api/doctors/slots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ doctor_id: userId, date: todayStr }),
+        })
+          .then((r) => r.json())
+          .then((slotsRes) => {
+            if (slotsRes?.success && Array.isArray(slotsRes.data)) {
+              const available = slotsRes.data.some(
+                (s) => s.status === "available" || s.slot_booked === false
+              );
+              setHasAvailableSlots(available);
             }
           })
           .catch(() => { });
@@ -379,8 +397,8 @@ export default function DoctorDashboard() {
                       setIsDoctorOpen(nextState);
                       toast.success(
                         nextState
-                          ? "Now You Are Live — Open for Appointments"
-                          : "Now You Are Closed — Offline for Appointments"
+                          ? "Accepting New Bookings"
+                          : "Not Accepting New Bookings — Confirmed appointments remain unchanged"
                       );
                       window.dispatchEvent(new CustomEvent("doctor-availability-changed", { detail: { is_open: nextState } }));
                     } else {
@@ -392,14 +410,31 @@ export default function DoctorDashboard() {
                     setTogglingOpen(false);
                   }
                 }}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-md border transition-colors cursor-pointer ${isDoctorOpen
-                  ? "bg-emerald-600/30 border-emerald-400/50 text-white hover:bg-emerald-600/40"
-                  : "bg-slate-800/40 border-white/20 text-slate-200 hover:bg-slate-800/60"
-                  }`}
-                title="Click to toggle Live / Closed status"
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md border transition-colors cursor-pointer ${
+                  !isDoctorOpen
+                    ? "bg-slate-800/40 border-white/20 text-slate-200 hover:bg-slate-800/60"
+                    : hasAvailableSlots
+                    ? "bg-emerald-600/30 border-emerald-400/50 text-white hover:bg-emerald-600/40"
+                    : "bg-amber-600/30 border-amber-400/50 text-white hover:bg-amber-600/40"
+                }`}
+                title="Click to toggle booking status"
               >
-                <div className={`w-2 h-2 rounded-full ${isDoctorOpen ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
-                <span className="text-xs font-semibold">{isDoctorOpen ? "Live (Open)" : "Closed"}</span>
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    !isDoctorOpen
+                      ? "bg-rose-400"
+                      : hasAvailableSlots
+                      ? "bg-emerald-400 animate-pulse"
+                      : "bg-amber-400"
+                  }`}
+                />
+                <span className="text-xs font-semibold">
+                  {!isDoctorOpen
+                    ? "Not accepting bookings"
+                    : !hasAvailableSlots
+                    ? "No slots available"
+                    : "Available for Consultations"}
+                </span>
               </button>
             </div>
           </div>
@@ -624,10 +659,21 @@ export default function DoctorDashboard() {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-slate-600 uppercase tracking-wider">Safety Compliance</span>
-                    <span className="text-sm font-semibold text-[#0067A1]">{scorecard.safety_score}</span>
+                    <span className="text-sm font-semibold text-[#0067A1]">
+                      {(!scorecard.safety_score || scorecard.safety_score === 'N/A' || scorecard.safety_score === '0%' || Number(scorecard.total_consultations || 0) < 5)
+                        ? "Not enough data yet"
+                        : scorecard.safety_score}
+                    </span>
                   </div>
                   <div className="h-1.5 bg-slate-100 rounded-sm overflow-hidden">
-                    <div className="h-full bg-[#0067A1] rounded-sm transition-all duration-700" style={{ width: scorecard.safety_score === 'N/A' ? '0%' : scorecard.safety_score }}></div>
+                    <div
+                      className="h-full bg-[#0067A1] rounded-sm transition-all duration-700"
+                      style={{
+                        width: (!scorecard.safety_score || scorecard.safety_score === 'N/A' || scorecard.safety_score === '0%' || Number(scorecard.total_consultations || 0) < 5)
+                          ? '0%'
+                          : scorecard.safety_score
+                      }}
+                    ></div>
                   </div>
                   <p className="text-[11px] text-slate-500 leading-tight">Percentage of high-severity alerts acknowledged with valid clinical justification.</p>
                 </div>
@@ -635,10 +681,21 @@ export default function DoctorDashboard() {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-slate-600 uppercase tracking-wider">Doc Quality</span>
-                    <span className="text-sm font-semibold text-emerald-700">{scorecard.quality_score}</span>
+                    <span className="text-sm font-semibold text-emerald-700">
+                      {(!scorecard.quality_score || scorecard.quality_score === 'N/A' || scorecard.quality_score === '0%' || Number(scorecard.total_consultations || 0) < 5)
+                        ? "Not enough data yet"
+                        : scorecard.quality_score}
+                    </span>
                   </div>
                   <div className="h-1.5 bg-slate-100 rounded-sm overflow-hidden">
-                    <div className="h-full bg-emerald-600 rounded-sm transition-all duration-700" style={{ width: scorecard.quality_score === 'N/A' ? '0%' : scorecard.quality_score }}></div>
+                    <div
+                      className="h-full bg-emerald-600 rounded-sm transition-all duration-700"
+                      style={{
+                        width: (!scorecard.quality_score || scorecard.quality_score === 'N/A' || scorecard.quality_score === '0%' || Number(scorecard.total_consultations || 0) < 5)
+                          ? '0%'
+                          : scorecard.quality_score
+                      }}
+                    ></div>
                   </div>
                   <p className="text-[11px] text-slate-500 leading-tight">Ratio of manual vs auto-populated entries. Indicates depth of clinical documentation.</p>
                 </div>
@@ -646,10 +703,21 @@ export default function DoctorDashboard() {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-slate-600 uppercase tracking-wider">Patient Impact</span>
-                    <span className="text-sm font-semibold text-indigo-700">{scorecard.patient_impact}</span>
+                    <span className="text-sm font-semibold text-indigo-700">
+                      {(!scorecard.patient_impact || scorecard.patient_impact === 'N/A' || scorecard.patient_impact === '0%' || Number(scorecard.total_consultations || 0) < 5)
+                        ? "Not enough data yet"
+                        : scorecard.patient_impact}
+                    </span>
                   </div>
                   <div className="h-1.5 bg-slate-100 rounded-sm overflow-hidden">
-                    <div className="h-full bg-indigo-600 rounded-sm transition-all duration-700" style={{ width: scorecard.patient_impact === 'N/A' ? '0%' : scorecard.patient_impact }}></div>
+                    <div
+                      className="h-full bg-indigo-600 rounded-sm transition-all duration-700"
+                      style={{
+                        width: (!scorecard.patient_impact || scorecard.patient_impact === 'N/A' || scorecard.patient_impact === '0%' || Number(scorecard.total_consultations || 0) < 5)
+                          ? '0%'
+                          : scorecard.patient_impact
+                      }}
+                    ></div>
                   </div>
                   <p className="text-[11px] text-slate-500 leading-tight">Aggregate improvement score based on patient follow-up feedback.</p>
                 </div>

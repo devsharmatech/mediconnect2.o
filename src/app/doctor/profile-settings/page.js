@@ -3,7 +3,8 @@
 import { 
   useState,
   useEffect,
-  useCallback } from "react";
+  useCallback,
+  useMemo } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { 
@@ -37,6 +38,8 @@ import {
   FaCheck,
   FaChevronDown,
   FaChevronUp,
+  FaChevronRight,
+  FaInfoCircle,
   FaVideo,
   FaHome
 } from "react-icons/fa";
@@ -193,12 +196,60 @@ const Field = ({
   onChange,
   disabled = false,
   placeholder = "",
+  code = 1, // 1: Editable, 2: Requires Verification / Request Change, 3: Locked
+  onRequestChange,
+  pendingValue,
 }) => (
   <div className="space-y-1.5">
-    <label className="block text-xs font-semibold text-slate-700">
-      {label}
-    </label>
-    {isEditing ? (
+    <div className="flex items-center justify-between gap-1">
+      <label className="block text-xs font-semibold text-slate-700">
+        {label}
+      </label>
+      <div className="flex items-center gap-1.5">
+        {code === 1 && (
+          <span className="text-[9.5px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+            Editable
+          </span>
+        )}
+        {code === 2 && (
+          <span className="text-[9.5px] font-semibold text-[#0067A1] bg-sky-50 px-1.5 py-0.2 rounded border border-sky-200">
+            Request Change
+          </span>
+        )}
+        {code === 3 && (
+          <span className="text-[9.5px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+            Locked
+          </span>
+        )}
+      </div>
+    </div>
+
+    {code === 2 && onRequestChange ? (
+      <div className="space-y-1">
+        <div className={`px-3 py-2 rounded-lg border text-sm min-h-[38px] flex items-center justify-between gap-2 ${
+          disabled ? "bg-slate-100/70 border-slate-200 text-slate-400 italic" : "bg-slate-50 border-slate-200/80 text-slate-800"
+        }`}>
+          <span className="truncate">{disabled ? "Mode Disabled" : (value || <span className="text-slate-400 font-normal">—</span>)}</span>
+          <button
+            type="button"
+            onClick={() => onRequestChange(name, label, value)}
+            className="px-2 py-0.5 rounded text-[11px] font-semibold bg-white text-[#0067A1] hover:bg-sky-50 border border-sky-200 shadow-2xs transition-colors shrink-0 cursor-pointer"
+          >
+            Request Change
+          </button>
+        </div>
+        {pendingValue && (
+          <p className="text-[10.5px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+            Pending change request: <strong>{pendingValue}</strong> (Under review)
+          </p>
+        )}
+      </div>
+    ) : code === 3 ? (
+      <div className="px-3 py-2 rounded-lg border text-sm min-h-[38px] flex items-center justify-between bg-slate-100/70 border-slate-200 text-slate-600">
+        <span>{value || <span className="text-slate-400 font-normal">—</span>}</span>
+        <span className="text-[10px] text-slate-400 font-medium">Compliance Verified</span>
+      </div>
+    ) : isEditing ? (
       textarea ? (
         <textarea
           name={name}
@@ -331,6 +382,108 @@ export default function DoctorProfile() {
   const [selectedSpecialities, setSelectedSpecialities] = useState([]);
   const [selectedQualifications, setSelectedQualifications] = useState([]);
   const [newSpeciality, setNewSpeciality] = useState("");
+
+  // Code 2 Verification Change Requests & Schedule Preview Modals
+  const [changeRequestModal, setChangeRequestModal] = useState({
+    isOpen: false,
+    fieldName: "",
+    fieldLabel: "",
+    currentValue: "",
+    proposedValue: "",
+    reason: "",
+    submitting: false,
+  });
+  const [pendingChangeRequests, setPendingChangeRequests] = useState([]);
+  const [schedulePreviewModal, setSchedulePreviewModal] = useState({
+    isOpen: false,
+    affectedDays: [],
+    newTimings: null,
+  });
+
+  const loadChangeRequests = useCallback(async (docId) => {
+    try {
+      const res = await fetch(`/api/doctor/profile/change-request?doctor_id=${docId}`);
+      const json = await res.json();
+      if (json?.success && Array.isArray(json.data)) {
+        setPendingChangeRequests(json.data);
+      }
+    } catch (e) {
+      console.warn("Could not load change requests:", e);
+    }
+  }, []);
+
+  const handleOpenChangeRequest = (fieldName, fieldLabel, currentValue) => {
+    setChangeRequestModal({
+      isOpen: true,
+      fieldName,
+      fieldLabel,
+      currentValue: currentValue || "",
+      proposedValue: "",
+      reason: "",
+      submitting: false,
+    });
+  };
+
+  const handleSubmitChangeRequest = async (e) => {
+    if (e) e.preventDefault();
+    const storedUserId = typeof window !== "undefined" ? window.localStorage.getItem("userId") : null;
+    if (!storedUserId || !changeRequestModal.proposedValue.trim()) {
+      toast.error("Please enter a proposed value");
+      return;
+    }
+
+    try {
+      setChangeRequestModal((p) => ({ ...p, submitting: true }));
+      const res = await fetch("/api/doctor/profile/change-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          doctor_id: storedUserId,
+          field_name: changeRequestModal.fieldName,
+          current_value: changeRequestModal.currentValue,
+          proposed_value: changeRequestModal.proposedValue,
+          reason: changeRequestModal.reason,
+        }),
+      });
+      const json = await res.json();
+      if (json?.success) {
+        toast.success("Change request submitted for verification. Current value remains live until reviewed.");
+        setChangeRequestModal({
+          isOpen: false,
+          fieldName: "",
+          fieldLabel: "",
+          currentValue: "",
+          proposedValue: "",
+          reason: "",
+          submitting: false,
+        });
+        loadChangeRequests(storedUserId);
+      } else {
+        toast.error(json?.message || "Failed to submit change request");
+        setChangeRequestModal((p) => ({ ...p, submitting: false }));
+      }
+    } catch (err) {
+      toast.error("Error submitting change request");
+      setChangeRequestModal((p) => ({ ...p, submitting: false }));
+    }
+  };
+
+  const profileCompletion = useMemo(() => {
+    let score = 0;
+    if (profilePicture) score += 10;
+    if (profile.name && profile.name.trim()) score += 10;
+    if (selectedSpecialities && selectedSpecialities.length > 0) score += 10;
+    if (selectedQualifications && selectedQualifications.length > 0) score += 10;
+    if (profile.experience && String(profile.experience).trim()) score += 10;
+    if (profile.about && String(profile.about).trim().length > 15) score += 10;
+    if (profile.languages && String(profile.languages).trim()) score += 10;
+    if (profile.videoConsultationFee || profile.clinicConsultationFee) score += 10;
+    if (profile.address && String(profile.address).trim()) score += 10;
+    const hasSlots = Object.values(weeklyAvailability.clinic_slots || {}).some((s) => s?.start) ||
+                     Object.values(weeklyAvailability.video_slots || {}).some((s) => s?.start);
+    if (hasSlots) score += 10;
+    return Math.min(100, score);
+  }, [profilePicture, profile, selectedSpecialities, selectedQualifications, weeklyAvailability]);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -992,6 +1145,22 @@ export default function DoctorProfile() {
       return;
     }
 
+    setSchedulePreviewModal({
+      isOpen: true,
+      affectedDays: [...quickDays],
+      newTimings: {
+        clinic: hasClinic ? { ...quickClinic } : null,
+        video: hasVideo ? { ...quickVideo } : null,
+        home: hasHome ? { ...quickHome } : null,
+      },
+    });
+  };
+
+  const handleConfirmBatchSchedule = () => {
+    const hasClinic = Boolean(quickClinic.start && quickClinic.end);
+    const hasVideo = Boolean(quickVideo.start && quickVideo.end);
+    const hasHome = Boolean(quickHome.start && quickHome.end);
+
     setWeeklyAvailability((prev) => {
       const c = { ...(prev.clinic_slots || {}) };
       const v = { ...(prev.video_slots || {}) };
@@ -1020,6 +1189,7 @@ export default function DoctorProfile() {
       };
     });
 
+    setSchedulePreviewModal({ isOpen: false, affectedDays: [], newTimings: null });
     toast.success(`Hours applied to ${quickDays.length} day(s)!`);
   };
 
@@ -1354,6 +1524,17 @@ export default function DoctorProfile() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-5">
           {/* Left Main Form Column */}
           <div className="lg:col-span-2 space-y-3 sm:space-y-5">
+            {/* Screen 15 Notice Banner */}
+            <div className="bg-sky-50 border border-sky-200 rounded-xl p-3 sm:p-4 text-xs text-slate-700 flex items-start gap-2.5">
+              <FaInfoCircle className="w-4 h-4 text-[#0067A1] shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-slate-900 mb-0.5">Profile Update &amp; Verification Notice</p>
+                <p className="text-slate-600 leading-relaxed">
+                  You can update fields marked <strong>Editable</strong>. For details requiring verification, select <strong>Request Change</strong>. Medical registration and licence details are read-only.
+                </p>
+              </div>
+            </div>
+
             {/* Personal Information */}
             <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 space-y-3 sm:space-y-4">
               <div className="border-b border-slate-100 pb-3">
@@ -1367,14 +1548,19 @@ export default function DoctorProfile() {
                   value={profile.name}
                   isEditing={isEditing}
                   name="name"
+                  code={2}
+                  onRequestChange={handleOpenChangeRequest}
+                  pendingValue={pendingChangeRequests.find(r => r.field_name === 'name' && r.status === 'pending')?.proposed_value}
                   onChange={handleInputChange}
                 />
                 
                 <Field
                   label="Email Address"
                   value={profile.email}
-                  isEditing={false}
+                  isEditing={isEditing}
                   name="email"
+                  code={1}
+                  disabled={true}
                   onChange={handleInputChange}
                 />
                 
@@ -1384,14 +1570,16 @@ export default function DoctorProfile() {
                   isEditing={isEditing}
                   name="phone"
                   type="tel"
+                  code={1}
                   onChange={handleInputChange}
                 />
                 
                 <Field
                   label="Medical License Number"
                   value={profile.licenseNumber}
-                  isEditing={isEditing}
+                  isEditing={false}
                   name="licenseNumber"
+                  code={3}
                   onChange={handleInputChange}
                 />
                 
@@ -1400,6 +1588,8 @@ export default function DoctorProfile() {
                   value={profile.languages}
                   isEditing={isEditing}
                   name="languages"
+                  code={1}
+                  placeholder="e.g. English, Hindi, Punjabi"
                   onChange={handleInputChange}
                 />
               </div>
@@ -1463,7 +1653,7 @@ export default function DoctorProfile() {
                               handleSpecialityAdd(newSpeciality);
                               setNewSpeciality("");
                             }}
-                            disabled={!newSpeciality.trim()}
+                            disabled={!String(newSpeciality || "").trim()}
                             className="px-3 py-1.5 text-xs font-medium rounded-md bg-[#0067A1] text-white hover:bg-[#004F7C] disabled:opacity-50"
                           >
                             Add
@@ -1543,8 +1733,10 @@ export default function DoctorProfile() {
             {/* Fees & Practice Details */}
             <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 space-y-4">
               <div className="border-b border-slate-100 pb-3">
-                <h2 className="text-base font-bold text-slate-900">Consultation Modes & Fees</h2>
-                <p className="text-xs text-slate-500">Enable consultation modes and configure consultation and follow-up fees</p>
+                <h2 className="text-base font-bold text-slate-900">Consultation Modes &amp; Fees</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Consultation fees are managed separately for each consultation mode. To request a fee change, submit it for review.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-1">
@@ -1553,6 +1745,9 @@ export default function DoctorProfile() {
                   value={profile.experience}
                   isEditing={isEditing}
                   name="experience"
+                  code={2}
+                  onRequestChange={handleOpenChangeRequest}
+                  pendingValue={pendingChangeRequests.find(r => r.field_name === 'experience' && r.status === 'pending')?.proposed_value}
                   onChange={handleInputChange}
                 />
                 <Field
@@ -1560,6 +1755,9 @@ export default function DoctorProfile() {
                   value={profile.hospital}
                   isEditing={isEditing}
                   name="hospital"
+                  code={2}
+                  onRequestChange={handleOpenChangeRequest}
+                  pendingValue={pendingChangeRequests.find(r => (r.field_name === 'hospital' || r.field_name === 'clinic_name') && r.status === 'pending')?.proposed_value}
                   onChange={handleInputChange}
                 />
               </div>
@@ -1568,7 +1766,7 @@ export default function DoctorProfile() {
               <div className={`p-4 rounded-xl border transition-all ${
                 enabledModes.video ? "bg-sky-50/40 border-sky-200" : "bg-slate-50 border-slate-200"
               }`}>
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <div className="flex items-center gap-2.5">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                       enabledModes.video ? "bg-[#0067A1] text-white" : "bg-slate-200 text-slate-500"
@@ -1580,47 +1778,60 @@ export default function DoctorProfile() {
                       <p className="text-[11px] text-slate-500">Teleconsultation via video calling</p>
                     </div>
                   </div>
-                  {isEditing ? (
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setEnabledModes((prev) => ({ ...prev, video: !prev.video }))}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        enabledModes.video ? "bg-[#0067A1]" : "bg-slate-300"
-                      }`}
+                      onClick={() => handleOpenChangeRequest("video_consultation_fee", "Video Consultation Fee", profile.videoConsultationFee)}
+                      className="px-2 py-1 bg-white text-[#0067A1] hover:bg-sky-50 border border-sky-200 rounded text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                     >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          enabledModes.video ? "translate-x-5" : "translate-x-0"
-                        }`}
-                      />
+                      Request Fee Change
                     </button>
-                  ) : (
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      enabledModes.video ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
-                    }`}>
-                      {enabledModes.video ? "Active" : "Disabled"}
-                    </span>
-                  )}
+                    {isEditing ? (
+                      <button
+                        type="button"
+                        onClick={() => setEnabledModes((prev) => ({ ...prev, video: !prev.video }))}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          enabledModes.video ? "bg-[#0067A1]" : "bg-slate-300"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            enabledModes.video ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    ) : (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        enabledModes.video ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
+                      }`}>
+                        {enabledModes.video ? "Active" : "Disabled"}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <Field
                     label="Video Consultation Fee (₹)"
-                    value={isEditing ? profile.videoConsultationFee : (enabledModes.video ? profile.videoConsultationFee : "")}
-                    isEditing={isEditing}
+                    value={profile.videoConsultationFee}
+                    isEditing={false}
                     disabled={!enabledModes.video}
                     placeholder="e.g. 500"
                     name="videoConsultationFee"
-                    onChange={handleInputChange}
+                    code={2}
+                    onRequestChange={handleOpenChangeRequest}
+                    pendingValue={pendingChangeRequests.find(r => r.field_name === 'video_consultation_fee' && r.status === 'pending')?.proposed_value}
                   />
                   <Field
                     label="Video Follow-up Fee (₹)"
-                    value={isEditing ? profile.videoFollowUpFee : (enabledModes.video ? profile.videoFollowUpFee : "")}
-                    isEditing={isEditing}
+                    value={profile.videoFollowUpFee}
+                    isEditing={false}
                     disabled={!enabledModes.video}
                     placeholder="e.g. 300"
                     name="videoFollowUpFee"
-                    onChange={handleInputChange}
+                    code={2}
+                    onRequestChange={handleOpenChangeRequest}
+                    pendingValue={pendingChangeRequests.find(r => r.field_name === 'video_follow_up_fee' && r.status === 'pending')?.proposed_value}
                   />
                 </div>
               </div>
@@ -1629,7 +1840,7 @@ export default function DoctorProfile() {
               <div className={`p-4 rounded-xl border transition-all ${
                 enabledModes.clinic ? "bg-emerald-50/40 border-emerald-200" : "bg-slate-50 border-slate-200"
               }`}>
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <div className="flex items-center gap-2.5">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                       enabledModes.clinic ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-500"
@@ -1641,47 +1852,60 @@ export default function DoctorProfile() {
                       <p className="text-[11px] text-slate-500">Physical visits at clinic or hospital</p>
                     </div>
                   </div>
-                  {isEditing ? (
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setEnabledModes((prev) => ({ ...prev, clinic: !prev.clinic }))}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        enabledModes.clinic ? "bg-[#0067A1]" : "bg-slate-300"
-                      }`}
+                      onClick={() => handleOpenChangeRequest("clinic_consultation_fee", "Clinic Consultation Fee", profile.clinicConsultationFee)}
+                      className="px-2 py-1 bg-white text-[#0067A1] hover:bg-sky-50 border border-sky-200 rounded text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                     >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          enabledModes.clinic ? "translate-x-5" : "translate-x-0"
-                        }`}
-                      />
+                      Request Fee Change
                     </button>
-                  ) : (
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      enabledModes.clinic ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
-                    }`}>
-                      {enabledModes.clinic ? "Active" : "Disabled"}
-                    </span>
-                  )}
+                    {isEditing ? (
+                      <button
+                        type="button"
+                        onClick={() => setEnabledModes((prev) => ({ ...prev, clinic: !prev.clinic }))}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          enabledModes.clinic ? "bg-[#0067A1]" : "bg-slate-300"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            enabledModes.clinic ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    ) : (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        enabledModes.clinic ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
+                      }`}>
+                        {enabledModes.clinic ? "Active" : "Disabled"}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <Field
                     label="Clinic Visit Fee (₹)"
-                    value={isEditing ? profile.clinicConsultationFee : (enabledModes.clinic ? profile.clinicConsultationFee : "")}
-                    isEditing={isEditing}
+                    value={profile.clinicConsultationFee}
+                    isEditing={false}
                     disabled={!enabledModes.clinic}
                     placeholder="e.g. 700"
                     name="clinicConsultationFee"
-                    onChange={handleInputChange}
+                    code={2}
+                    onRequestChange={handleOpenChangeRequest}
+                    pendingValue={pendingChangeRequests.find(r => r.field_name === 'clinic_consultation_fee' && r.status === 'pending')?.proposed_value}
                   />
                   <Field
                     label="Clinic Follow-up Fee (₹)"
-                    value={isEditing ? profile.clinicFollowUpFee : (enabledModes.clinic ? profile.clinicFollowUpFee : "")}
-                    isEditing={isEditing}
+                    value={profile.clinicFollowUpFee}
+                    isEditing={false}
                     disabled={!enabledModes.clinic}
                     placeholder="e.g. 400"
                     name="clinicFollowUpFee"
-                    onChange={handleInputChange}
+                    code={2}
+                    onRequestChange={handleOpenChangeRequest}
+                    pendingValue={pendingChangeRequests.find(r => r.field_name === 'clinic_follow_up_fee' && r.status === 'pending')?.proposed_value}
                   />
                 </div>
               </div>
@@ -1690,7 +1914,7 @@ export default function DoctorProfile() {
               <div className={`p-4 rounded-xl border transition-all ${
                 enabledModes.home ? "bg-purple-50/40 border-purple-200" : "bg-slate-50 border-slate-200"
               }`}>
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <div className="flex items-center gap-2.5">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                       enabledModes.home ? "bg-purple-600 text-white" : "bg-slate-200 text-slate-500"
@@ -1702,47 +1926,60 @@ export default function DoctorProfile() {
                       <p className="text-[11px] text-slate-500">Doctor visit at patient residence</p>
                     </div>
                   </div>
-                  {isEditing ? (
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setEnabledModes((prev) => ({ ...prev, home: !prev.home }))}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        enabledModes.home ? "bg-[#0067A1]" : "bg-slate-300"
-                      }`}
+                      onClick={() => handleOpenChangeRequest("home_visit_fee", "Home Visit Fee", profile.homeVisitFee)}
+                      className="px-2 py-1 bg-white text-[#0067A1] hover:bg-sky-50 border border-sky-200 rounded text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                     >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          enabledModes.home ? "translate-x-5" : "translate-x-0"
-                        }`}
-                      />
+                      Request Fee Change
                     </button>
-                  ) : (
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      enabledModes.home ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
-                    }`}>
-                      {enabledModes.home ? "Active" : "Disabled"}
-                    </span>
-                  )}
+                    {isEditing ? (
+                      <button
+                        type="button"
+                        onClick={() => setEnabledModes((prev) => ({ ...prev, home: !prev.home }))}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          enabledModes.home ? "bg-[#0067A1]" : "bg-slate-300"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                            enabledModes.home ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    ) : (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        enabledModes.home ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"
+                      }`}>
+                        {enabledModes.home ? "Active" : "Disabled"}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <Field
                     label="Home Visit Fee (₹)"
-                    value={isEditing ? profile.homeVisitFee : (enabledModes.home ? profile.homeVisitFee : "")}
-                    isEditing={isEditing}
+                    value={profile.homeVisitFee}
+                    isEditing={false}
                     disabled={!enabledModes.home}
                     placeholder="e.g. 1500"
                     name="homeVisitFee"
-                    onChange={handleInputChange}
+                    code={2}
+                    onRequestChange={handleOpenChangeRequest}
+                    pendingValue={pendingChangeRequests.find(r => r.field_name === 'home_visit_fee' && r.status === 'pending')?.proposed_value}
                   />
                   <Field
                     label="Home Visit Follow-up Fee (₹)"
-                    value={isEditing ? profile.homeFollowUpFee : (enabledModes.home ? profile.homeFollowUpFee : "")}
-                    isEditing={isEditing}
+                    value={profile.homeFollowUpFee}
+                    isEditing={false}
                     disabled={!enabledModes.home}
                     placeholder="e.g. 800"
                     name="homeFollowUpFee"
-                    onChange={handleInputChange}
+                    code={2}
+                    onRequestChange={handleOpenChangeRequest}
+                    pendingValue={pendingChangeRequests.find(r => r.field_name === 'home_follow_up_fee' && r.status === 'pending')?.proposed_value}
                   />
                 </div>
               </div>
@@ -1951,13 +2188,8 @@ export default function DoctorProfile() {
               {/* Header */}
               <div className="border-b border-slate-100 pb-2.5 sm:pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold text-slate-900">Weekly Schedule & Hours</h2>
-                    <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md bg-blue-50 text-[#0067A1] border border-blue-200">
-                      Weekly OPD
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">Configure clinic, video consultation, and home visit availability</p>
+                  <h2 className="text-base font-bold text-slate-900">Availability &amp; Working Hours</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Choose days and set hours for Clinic, Video and Home Visit.</p>
                 </div>
                 
                 <div className="flex items-center flex-wrap gap-2">
@@ -2307,7 +2539,7 @@ export default function DoctorProfile() {
                     }`}
                   >
                     <FaMapMarkerAlt className="w-3 h-3" />
-                    Home
+                    Home Visit
                   </button>
                 </div>
 
@@ -2427,7 +2659,13 @@ export default function DoctorProfile() {
                               )}
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                            <div>
+                              {!isEditing && !clinicSlot.start && !videoSlot.start && !homeSlot.start && (
+                                <div className="mb-2.5 p-2 rounded-lg bg-slate-50 border border-slate-200/70 text-slate-500 text-xs italic text-center">
+                                  No hours added. Select a consultation mode to add availability.
+                                </div>
+                              )}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                               {/* Clinic Visit */}
                               {(scheduleFilterService === "all" || scheduleFilterService === "clinic") && (
                                 <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/60 space-y-2">
@@ -2592,6 +2830,7 @@ export default function DoctorProfile() {
                                   )}
                                 </div>
                               )}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -2801,22 +3040,24 @@ export default function DoctorProfile() {
               )}
             </div>
 
-            {/* Address & Bio */}
+            {/* Clinic & Facility Details (Screen 14 & 17) */}
             <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 space-y-3 sm:space-y-4">
               <div className="border-b border-slate-100 pb-3">
-                <h2 className="text-base font-bold text-slate-900">Address & Professional Bio</h2>
-                <p className="text-xs text-slate-500">Physical address and summary for patients</p>
+                <h2 className="text-base font-bold text-slate-900">Clinic &amp; Facility Details</h2>
+                <p className="text-xs text-slate-500">Physical consultation address and professional summary</p>
               </div>
 
               <div className="space-y-4">
                 <Field
                   label="Primary Clinic Address"
                   value={profile.address}
-                  isEditing={isEditing}
+                  isEditing={false}
                   name="address"
                   textarea={true}
                   rows={3}
-                  onChange={handleInputChange}
+                  code={2}
+                  onRequestChange={handleOpenChangeRequest}
+                  pendingValue={pendingChangeRequests.find(r => r.field_name === 'clinic_address' && r.status === 'pending')?.proposed_value}
                 />
 
                 <Field
@@ -2826,6 +3067,7 @@ export default function DoctorProfile() {
                   name="about"
                   textarea={true}
                   rows={4}
+                  code={1}
                   onChange={handleInputChange}
                 />
               </div>
@@ -2859,6 +3101,33 @@ export default function DoctorProfile() {
                   </button>
                 </div>
               )}
+            </div>
+
+            {/* Privacy & Security Card (Screen 03) */}
+            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 space-y-3">
+              <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Privacy &amp; Security</h2>
+                  <p className="text-xs text-slate-500">Compliance and healthcare data governance</p>
+                </div>
+                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                  Protected
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Your personal and clinical practice information is managed according to Indian Telemedicine Practice Guidelines and relevant data protection standards. Patient contact numbers and sensitive identifiers are strictly safeguarded.
+              </p>
+              <div className="pt-2 flex items-center justify-between">
+                <a
+                  href="/privacy-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-[#0067A1] hover:underline flex items-center gap-1"
+                >
+                  <span>Read Privacy Notice</span>
+                  <FaChevronRight className="w-2.5 h-2.5" />
+                </a>
+              </div>
             </div>
 
           </div>
@@ -2911,6 +3180,23 @@ export default function DoctorProfile() {
               </div>
             </div>
 
+            {/* Profile Completion Card (Screen 20) */}
+            <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Profile Completion</h3>
+                <span className="text-xs font-bold text-[#0067A1]">{profileCompletion}%</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-[#0067A1] h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${profileCompletion}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Complete your profile to help patients understand your practice.
+              </p>
+            </div>
+
             {/* Quick Actions Panel */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2.5">
               <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">Quick Navigation</h3>
@@ -2936,6 +3222,158 @@ export default function DoctorProfile() {
           </div>
         </div>
       </div>
+
+      {/* Change Request Modal (Code 2 Verification) */}
+      {changeRequestModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Request Change: {changeRequestModal.fieldLabel}
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Submitted for administrative verification. Current value stays live.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChangeRequestModal((p) => ({ ...p, isOpen: false }))}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <FaTimes className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-600 mb-1">Current Approved Value</label>
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 font-medium break-words">
+                  {changeRequestModal.currentValue || <span className="text-slate-400 italic">None set</span>}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Proposed New Value <span className="text-rose-500">*</span>
+                </label>
+                {changeRequestModal.fieldName.includes("address") || changeRequestModal.fieldName.includes("bio") ? (
+                  <textarea
+                    rows={3}
+                    value={changeRequestModal.proposedValue}
+                    onChange={(e) => setChangeRequestModal((p) => ({ ...p, proposedValue: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1]"
+                    placeholder={`Enter new ${changeRequestModal.fieldLabel.toLowerCase()}...`}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={changeRequestModal.proposedValue}
+                    onChange={(e) => setChangeRequestModal((p) => ({ ...p, proposedValue: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1]"
+                    placeholder={`Enter proposed ${changeRequestModal.fieldLabel.toLowerCase()}...`}
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Reason / Note for Reviewers</label>
+                <input
+                  type="text"
+                  value={changeRequestModal.reason}
+                  onChange={(e) => setChangeRequestModal((p) => ({ ...p, reason: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0067A1]/20 focus:border-[#0067A1]"
+                  placeholder="e.g. Relocated clinic / Updated fee structure"
+                />
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setChangeRequestModal((p) => ({ ...p, isOpen: false }))}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-md border border-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitChangeRequest}
+                disabled={changeRequestModal.submitting || !changeRequestModal.proposedValue.trim()}
+                className="px-3.5 py-1.5 text-xs font-semibold bg-[#0067A1] hover:bg-[#005282] text-white rounded-md disabled:opacity-50 transition-colors cursor-pointer"
+              >
+                {changeRequestModal.submitting ? "Submitting..." : "Submit Request"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule Preview Modal (Document 2 Screen 03) */}
+      {schedulePreviewModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 space-y-4 border border-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Review &amp; Confirm Schedule</h3>
+                <p className="text-[11px] text-slate-500">Preview changes before applying to days</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSchedulePreviewModal({ isOpen: false, affectedDays: [], newTimings: null })}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <FaTimes className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-900 leading-relaxed text-[11.5px]">
+                You are setting hours for: <strong>{schedulePreviewModal.affectedDays.join(", ")}</strong>. Current settings for these days will be replaced. Confirmed bookings will remain untouched.
+              </div>
+
+              <div className="space-y-2 border border-slate-100 rounded-lg p-3 bg-slate-50/50">
+                <span className="text-[11px] font-bold text-slate-700 block">Timings to apply:</span>
+                {schedulePreviewModal.newTimings?.clinic && (
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span className="font-medium">Clinic Visit:</span>
+                    <span className="font-semibold">{formatTime12(schedulePreviewModal.newTimings.clinic.start)} – {formatTime12(schedulePreviewModal.newTimings.clinic.end)}</span>
+                  </div>
+                )}
+                {schedulePreviewModal.newTimings?.video && (
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span className="font-medium">Video Consultation:</span>
+                    <span className="font-semibold">{formatTime12(schedulePreviewModal.newTimings.video.start)} – {formatTime12(schedulePreviewModal.newTimings.video.end)}</span>
+                  </div>
+                )}
+                {schedulePreviewModal.newTimings?.home && (
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span className="font-medium">Home Visit:</span>
+                    <span className="font-semibold">{formatTime12(schedulePreviewModal.newTimings.home.start)} – {formatTime12(schedulePreviewModal.newTimings.home.end)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSchedulePreviewModal({ isOpen: false, affectedDays: [], newTimings: null })}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-md border border-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBatchSchedule}
+                className="px-3.5 py-1.5 text-xs font-semibold bg-[#0067A1] hover:bg-[#005282] text-white rounded-md transition-colors shadow-2xs cursor-pointer"
+              >
+                Review &amp; Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -74,7 +74,7 @@ export async function PUT(req) {
       );
     }
 
-    if (profile_picture_url && profile_picture_url !== userData.profile_picture) {
+    if (profile_picture_url) {
       await sql`
         UPDATE users
         SET profile_picture = ${profile_picture_url}, updated_at = NOW()
@@ -84,7 +84,7 @@ export async function PUT(req) {
       try {
         await sql`
           UPDATE doctor_details
-          SET passport_photo = ARRAY[${profile_picture_url}]::text[], updated_at = NOW()
+          SET passport_photo = ${JSON.stringify([profile_picture_url])}::jsonb, updated_at = NOW()
           WHERE id = ${user_id}
         `;
       } catch (ddErr) {

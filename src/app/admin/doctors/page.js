@@ -2649,10 +2649,13 @@ function DoctorDetailsModal({ doctor, isOpen, onClose }) {
   const getProfilePhoto = () => {
     if (!doctor) return null;
     const pic = doctor.profile_picture;
-    if (pic && pic !== "[]" && pic !== "null" && typeof pic === "string" && pic.startsWith("http") && !pic.includes("placehold.co")) return pic;
+    if (pic && pic !== "[]" && pic !== "null" && typeof pic === "string" && pic.startsWith("http") && !pic.includes("placehold.co") && !pic.includes("ui-avatars.com")) return pic;
+    const userPic = doctor.users?.profile_picture;
+    if (userPic && userPic !== "[]" && userPic !== "null" && typeof userPic === "string" && userPic.startsWith("http") && !userPic.includes("placehold.co") && !userPic.includes("ui-avatars.com")) return userPic;
     const passport = details.passport_photo;
-    if (Array.isArray(passport) && passport.length > 0 && passport[0]?.startsWith("http")) return passport[0];
-    if (typeof passport === "string" && passport && passport !== "[]" && passport.startsWith("http")) return passport;
+    if (Array.isArray(passport) && passport.length > 0 && passport[0]?.startsWith("http") && !passport[0].includes("ui-avatars.com")) return passport[0];
+    if (typeof passport === "string" && passport && passport !== "[]" && passport.startsWith("http") && !passport.includes("ui-avatars.com")) return passport;
+    if (pic && typeof pic === "string" && pic.startsWith("http")) return pic;
     const docName = details.full_name || "Doctor";
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(docName.trim())}&background=0067A1&color=fff&bold=true`;
   };
@@ -3899,12 +3902,13 @@ export default function DoctorsPage() {
   const getProfilePhoto = (doctor) => {
     if (!doctor) return null;
     const pic = doctor.profile_picture;
-    if (pic && pic !== "[]" && pic !== "null" && typeof pic === "string" && pic.startsWith("http") && !pic.includes("placehold.co")) return pic;
+    if (pic && pic !== "[]" && pic !== "null" && typeof pic === "string" && pic.startsWith("http") && !pic.includes("placehold.co") && !pic.includes("ui-avatars.com")) return pic;
     const userPic = doctor.users?.profile_picture;
-    if (userPic && userPic !== "[]" && userPic !== "null" && typeof userPic === "string" && userPic.startsWith("http") && !userPic.includes("placehold.co")) return userPic;
+    if (userPic && userPic !== "[]" && userPic !== "null" && typeof userPic === "string" && userPic.startsWith("http") && !userPic.includes("placehold.co") && !userPic.includes("ui-avatars.com")) return userPic;
     const passport = doctor.doctor_details?.passport_photo;
-    if (Array.isArray(passport) && passport.length > 0 && passport[0]?.startsWith("http")) return passport[0];
-    if (typeof passport === "string" && passport && passport !== "[]" && passport.startsWith("http")) return passport;
+    if (Array.isArray(passport) && passport.length > 0 && passport[0]?.startsWith("http") && !passport[0].includes("ui-avatars.com")) return passport[0];
+    if (typeof passport === "string" && passport && passport !== "[]" && passport.startsWith("http") && !passport.includes("ui-avatars.com")) return passport;
+    if (pic && typeof pic === "string" && pic.startsWith("http")) return pic;
     const docName = doctor.doctor_details?.full_name || "Doctor";
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(docName.trim())}&background=0067A1&color=fff&bold=true`;
   };

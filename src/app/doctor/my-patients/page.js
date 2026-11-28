@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import toast from "react-hot-toast";
+import PrescriptionViewerModal from "@/components/public-site/appointments/PrescriptionViewerModal";
 import {
   FaUser,
   FaCalendarAlt,
@@ -28,6 +30,41 @@ export default function DoctorMyPatientsPage() {
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeReport, setActiveReport] = useState(null);
+  const [selectedPatientForDetails, setSelectedPatientForDetails] = useState(null);
+  const [viewingPrescriptionData, setViewingPrescriptionData] = useState(null);
+  const [loadingPrescriptionId, setLoadingPrescriptionId] = useState(null);
+
+  const handleViewPrescription = async (patient) => {
+    if (!patient) return;
+    const userId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+    if (!userId) {
+      toast.error("Doctor session expired. Please log in.");
+      return;
+    }
+    setLoadingPrescriptionId(patient.id);
+    try {
+      const res = await fetch("/api/prescriptions/by-doctor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ doctor_id: userId })
+      });
+      const json = await res.json();
+      if (json?.success && Array.isArray(json.data)) {
+        const found = json.data.find((p) => p.patient_id === patient.id);
+        if (found) {
+          setViewingPrescriptionData(found);
+        } else {
+          toast("No prescription issued for this patient yet.");
+        }
+      } else {
+        toast("No prescription issued for this patient yet.");
+      }
+    } catch (e) {
+      toast.error("Could not load prescription.");
+    } finally {
+      setLoadingPrescriptionId(null);
+    }
+  };
 
   const loadReport = async (patient, type) => {
     setActiveReport({ patient, type, loading: true, graphData: null, summary: null, history: [] });
@@ -346,24 +383,41 @@ export default function DoctorMyPatientsPage() {
                 </div>
 
                 {/* Action Buttons row - Strict adherence to AGENTS.md concise button text */}
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPatientForDetails(patient)}
+                    className="flex-1 min-w-[70px] py-1.5 px-2 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition-colors cursor-pointer text-center"
+                    title="View patient details and encounter history"
+                  >
+                    Details
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleViewPrescription(patient)}
+                    disabled={loadingPrescriptionId === patient.id}
+                    className="flex-1 min-w-[85px] py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 text-center"
+                    title="View issued prescription in read-only mode"
+                  >
+                    {loadingPrescriptionId === patient.id ? "Loading..." : "Prescription"}
+                  </button>
                   <button
                     type="button"
                     onClick={() => loadReport(patient, "lung")}
-                    className="flex-1 py-1.5 px-2 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200/80 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer active:scale-95"
+                    className="py-1.5 px-2 bg-sky-50 hover:bg-sky-100 text-[#0067A1] border border-sky-200/80 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
                     title="View LungConnect telemetry report"
                   >
-                    <FaLungs className="w-3.5 h-3.5 text-[#0067A1]" />
-                    <span>LungConnect</span>
+                    <FaLungs className="w-3 h-3 text-[#0067A1]" />
+                    <span>Lung</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => loadReport(patient, "cardio")}
-                    className="flex-1 py-1.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer active:scale-95"
+                    className="py-1.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
                     title="View CardioConnect telemetry report"
                   >
-                    <FaHeartbeat className="w-3.5 h-3.5 text-rose-600" />
-                    <span>CardioConnect</span>
+                    <FaHeartbeat className="w-3 h-3 text-rose-600" />
+                    <span>Cardio</span>
                   </button>
                 </div>
               </div>
@@ -542,6 +596,109 @@ export default function DoctorMyPatientsPage() {
             </div>
           </div>
         </div>
+      )}
+      {/* Patient Details Modal */}
+      {selectedPatientForDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-full bg-[#0067A1]/10 text-[#0067A1] flex items-center justify-center font-bold text-base">
+                  {selectedPatientForDetails.full_name ? selectedPatientForDetails.full_name.charAt(0).toUpperCase() : "P"}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">{selectedPatientForDetails.full_name}</h3>
+                  <p className="text-xs text-slate-500">Patient Encounters &amp; Record</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPatientForDetails(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <FaTimes className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200/70">
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Gender &amp; Age</span>
+                  <span className="font-semibold text-slate-800">
+                    {selectedPatientForDetails.gender || "Unknown"}
+                    {selectedPatientForDetails.age ? ` • ${selectedPatientForDetails.age} yrs` : ""}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Blood Group</span>
+                  <span className="font-semibold text-rose-600">{selectedPatientForDetails.blood_group || "Not specified"}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Consultations</span>
+                  <span className="font-semibold text-[#0067A1]">{selectedPatientForDetails.visit_count || 1} visit(s)</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Latest Visit</span>
+                  <span className="font-semibold text-slate-800">{formatDate(selectedPatientForDetails.last_visit_date) || "Recent"}</span>
+                </div>
+              </div>
+
+              {/* Confidential Identifier Safeguard (ABHA / MRN Protected) */}
+              <div className="p-3 bg-sky-50/50 rounded-xl border border-sky-100 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-sky-700 font-bold uppercase tracking-wider block">Protected Health ID (ABHA)</span>
+                  <span className="font-mono text-slate-700 font-medium">•••• •••• •••• {(selectedPatientForDetails.id || "").slice(-4)}</span>
+                </div>
+                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  Verified
+                </span>
+              </div>
+
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
+                  <span className="text-slate-500 font-medium">Mobile Contact:</span>
+                  <span className="font-semibold text-slate-800">{selectedPatientForDetails.phone || "Not recorded"}</span>
+                </div>
+                {selectedPatientForDetails.email && (
+                  <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
+                    <span className="text-slate-500 font-medium">Email Address:</span>
+                    <span className="font-semibold text-slate-800 truncate max-w-[200px]">{selectedPatientForDetails.email}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedPatientForDetails(null)}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-md border border-slate-200 cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const pat = selectedPatientForDetails;
+                  setSelectedPatientForDetails(null);
+                  handleViewPrescription(pat);
+                }}
+                className="px-3.5 py-1.5 text-xs font-semibold bg-[#0067A1] hover:bg-[#005282] text-white rounded-md transition-colors cursor-pointer shadow-2xs"
+              >
+                Prescription
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Official A4 Medical Prescription Letterhead Modal (Read-Only) */}
+      {viewingPrescriptionData && (
+        <PrescriptionViewerModal
+          data={viewingPrescriptionData}
+          onClose={() => setViewingPrescriptionData(null)}
+          isDoctor={true}
+        />
       )}
     </div>
   );

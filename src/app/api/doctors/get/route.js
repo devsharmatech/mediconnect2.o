@@ -157,17 +157,22 @@ export async function GET(request) {
         details.consultation_fee = details.clinic_consultation_fee || details.video_consultation_fee || details.home_visit_fee || "0.00";
       }
 
-      // Prioritize real uploaded photo: passport_photo or custom user profile picture
+      // Prioritize doctor's active profile picture (users.profile_picture) over initial KYC passport scan
       let derivedProfilePicture = null;
-      if (isRealPassport) {
-        derivedProfilePicture = passportUrl;
-      } else if (isRealUserPic) {
+      if (isRealUserPic) {
         derivedProfilePicture = userPic;
+      } else if (isRealPassport) {
+        derivedProfilePicture = passportUrl;
       } else if (userPic && userPic.startsWith("http")) {
         derivedProfilePicture = userPic;
       } else {
         const docName = details.full_name || "Doctor";
         derivedProfilePicture = `https://ui-avatars.com/api/?name=${encodeURIComponent(docName.trim())}&background=0067A1&color=fff&bold=true`;
+      }
+
+      // Also ensure details.passport_photo reflects the active photo for drawer/modal previews
+      if (isRealUserPic) {
+        details.passport_photo = [userPic];
       }
 
       return {

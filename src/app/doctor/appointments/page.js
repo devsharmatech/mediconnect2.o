@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useRef } from "react";
+import Link from "next/link";
 import api from "@/utils/websiteApi";
 import {
   Calendar,
@@ -507,25 +508,46 @@ function DoctorAppointmentsPage() {
     return t ? t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "Clinic";
   }
 
+  const parseTimeTo24H = (timeStr) => {
+    if (!timeStr) return null;
+    const trimmed = String(timeStr).trim();
+    const isPM = /pm/i.test(trimmed);
+    const isAM = /am/i.test(trimmed);
+    const clean = trimmed.replace(/[^\d:]/g, "");
+    const [hStr, mStr] = clean.split(":");
+    let h = parseInt(hStr, 10);
+    const m = parseInt(mStr || "0", 10);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    if (isPM && h < 12) h += 12;
+    if (isAM && h === 12) h = 0;
+    return { hours: h, minutes: m };
+  };
+
+  const parseAptDateParts = (apt) => {
+    if (!apt?.appointment_date) return null;
+    const dateStr = typeof apt.appointment_date === "string"
+      ? apt.appointment_date
+      : apt.appointment_date instanceof Date
+        ? apt.appointment_date.toISOString().split("T")[0]
+        : String(apt.appointment_date || "");
+    const dateOnly = dateStr.split("T")[0].trim();
+    const parts = dateOnly.split("-").map(Number);
+    if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) return null;
+    return { year: parts[0], month: parts[1], day: parts[2] };
+  };
+
   function getVideoCallTiming(apt, now = currentTime) {
     if (!apt?.appointment_date || !apt?.appointment_time) {
       return { isAvailable: false, label: "Start Call", status: "unavailable" };
     }
 
     try {
-      const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "00:00";
-      const dateStr = typeof apt.appointment_date === "string"
-        ? apt.appointment_date
-        : apt.appointment_date instanceof Date
-          ? apt.appointment_date.toISOString().split("T")[0]
-          : String(apt.appointment_date || "");
-      const dateOnly = dateStr.split("T")[0];
-      const [year, month, day] = dateOnly.split("-").map(Number);
-      const [hours, minutes] = timePart.split(":").map(Number);
-      if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      const dateParts = parseAptDateParts(apt);
+      const parsedTime = parseTimeTo24H(apt.appointment_time);
+      if (!dateParts || !parsedTime) {
         return { isAvailable: false, label: "Start Call", status: "unavailable" };
       }
-      const start = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
+      const start = new Date(dateParts.year, dateParts.month - 1, dateParts.day, parsedTime.hours, parsedTime.minutes, 0, 0);
 
       const checkNow = now instanceof Date ? now : new Date();
 
@@ -580,25 +602,18 @@ function DoctorAppointmentsPage() {
 
     try {
       const isClinic = ["clinic", "clinic_visit", "in_person", "home", "home_visit"].includes(String(apt.appointment_type || apt.type || "").toLowerCase());
-      const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "23:59";
-      const dateStr = typeof apt.appointment_date === "string"
-        ? apt.appointment_date
-        : apt.appointment_date instanceof Date
-          ? apt.appointment_date.toISOString().split("T")[0]
-          : String(apt.appointment_date || "");
-      const dateOnly = dateStr.split("T")[0];
-      const [year, month, day] = dateOnly.split("-").map(Number);
-      const [hours, minutes] = timePart.split(":").map(Number);
-      if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
-      const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
+      const dateParts = parseAptDateParts(apt);
+      if (!dateParts) return false;
 
       if (isClinic) {
         // Clinic visits stay active through the end of the scheduled appointment day
-        const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+        const endOfDay = new Date(dateParts.year, dateParts.month - 1, dateParts.day, 23, 59, 59, 999);
         return checkNow.getTime() > endOfDay.getTime();
       }
 
       // Video appointments expire after doctor's slot interval (e.g. 15 mins) from scheduled slot start time (unless extended)
+      const parsedTime = parseTimeTo24H(apt.appointment_time || "23:59") || { hours: 23, minutes: 59 };
+      const aptDateTime = new Date(dateParts.year, dateParts.month - 1, dateParts.day, parsedTime.hours, parsedTime.minutes, 0, 0);
       const intervalMinutes = Math.max(5, Number(apt.slot_interval_minutes || apt.duration_minutes || apt.slot_duration || 15));
       return checkNow.getTime() > aptDateTime.getTime() + intervalMinutes * 60 * 1000;
     } catch {
@@ -615,22 +630,15 @@ function DoctorAppointmentsPage() {
     const checkNow = now instanceof Date ? now : new Date();
 
     try {
-      const timePart = apt.appointment_time ? String(apt.appointment_time).slice(0, 5) : "23:59";
-      const dateStr = typeof apt.appointment_date === "string"
-        ? apt.appointment_date
-        : apt.appointment_date instanceof Date
-          ? apt.appointment_date.toISOString().split("T")[0]
-          : String(apt.appointment_date || "");
-      const dateOnly = dateStr.split("T")[0];
-      const [year, month, day] = dateOnly.split("-").map(Number);
-      const [hours, minutes] = timePart.split(":").map(Number);
-      if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
+      const dateParts = parseAptDateParts(apt);
+      const parsedTime = parseTimeTo24H(apt.appointment_time || "23:59") || { hours: 23, minutes: 59 };
+      if (!dateParts) return false;
 
-      const aptDateTime = new Date(year, month - 1, day, hours || 0, minutes || 0, 0);
+      const aptDateTime = new Date(dateParts.year, dateParts.month - 1, dateParts.day, parsedTime.hours, parsedTime.minutes, 0, 0);
 
       // If appointment was on a past day, do not show Add Time
       const todayDateOnly = new Date(checkNow.getFullYear(), checkNow.getMonth(), checkNow.getDate()).getTime();
-      const aptDateOnly = new Date(year, month - 1, day).getTime();
+      const aptDateOnly = new Date(dateParts.year, dateParts.month - 1, dateParts.day).getTime();
       if (aptDateOnly < todayDateOnly) {
         return false;
       }
@@ -988,12 +996,34 @@ function DoctorAppointmentsPage() {
                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 mb-4">
                   <Calendar className="w-8 h-8 text-slate-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-700 mb-2">No Appointments Found</h3>
-                <p className="text-sm text-slate-500 max-w-md mx-auto">
-                  {searchQuery || statusFilter !== "all" || typeFilter !== "all"
-                    ? "Try changing your search or filter criteria"
-                    : "You don't have any appointments scheduled yet"}
+                <h3 className="text-lg font-semibold text-slate-700 mb-2">No appointments match the selected filters.</h3>
+                <p className="text-sm text-slate-500 max-w-md mx-auto mb-5">
+                  {searchQuery || statusFilter !== "all" || typeFilter !== "all" || dateFilter !== "today"
+                    ? "Try adjusting your search query, status, or date filters."
+                    : "You do not have any appointments scheduled for this period."}
                 </p>
+                <div className="flex items-center justify-center gap-3">
+                  {(searchQuery || statusFilter !== "all" || typeFilter !== "all" || dateFilter !== "today") && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery("");
+                        setStatusFilter("all");
+                        setTypeFilter("all");
+                        setDateFilter("today");
+                      }}
+                      className="px-4 py-2 rounded-md text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                  <Link
+                    href="/doctor/manage-slots"
+                    className="px-4 py-2 rounded-md text-xs font-semibold bg-[#0067A1] hover:bg-[#005282] text-white transition-colors cursor-pointer"
+                  >
+                    Manage Working Hours
+                  </Link>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
@@ -1227,8 +1257,12 @@ function DoctorAppointmentsPage() {
                             </div>
                           ) : (
                             <>
-                              {isVideoAppointment(apt) && ["approved", "booked"].includes(apt.status) && (() => {
+                              {isVideoAppointment(apt) && ["approved", "booked"].includes(apt.status) && !isExpired && (() => {
                                 const timing = getVideoCallTiming(apt, currentTime);
+
+                                if (timing.status === "expired" || (!timing.isAvailable && timing.status !== "early" && timing.status !== "future")) {
+                                  return null;
+                                }
 
                                 if (timing.status === "early") {
                                   return (
@@ -1261,10 +1295,7 @@ function DoctorAppointmentsPage() {
                                     type="button"
                                     onClick={() => handleStartCall(apt)}
                                     disabled={isLoading || !timing.isAvailable}
-                                    className={`h-7.5 px-2.5 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 shrink-0 ${timing.isAvailable
-                                      ? "bg-[#0067A1] text-white hover:bg-[#004F7C] shadow-xs cursor-pointer active:scale-95"
-                                      : "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-                                      }`}
+                                    className="h-7.5 px-2.5 rounded-md text-[11px] font-semibold transition-all flex items-center gap-1 shrink-0 bg-[#0067A1] text-white hover:bg-[#004F7C] shadow-xs cursor-pointer active:scale-95"
                                   >
                                     <PhoneCall className="w-3 h-3" />
                                     Start Call
@@ -1756,6 +1787,9 @@ function DoctorAppointmentsPage() {
                 })()}
                 {isVideoAppointment(selectedAppointment) && !["rejected", "cancelled", "completed", "expired"].includes(String(selectedAppointment.status).toLowerCase()) && !isAppointmentExpired(selectedAppointment, currentTime) && (() => {
                   const timing = getVideoCallTiming(selectedAppointment, currentTime);
+                  if (timing.status === "expired" || (!timing.isAvailable && timing.status !== "early" && timing.status !== "future")) {
+                    return null;
+                  }
                   return (
                     <button
                       onClick={() => {

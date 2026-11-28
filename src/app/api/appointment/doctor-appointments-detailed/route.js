@@ -47,11 +47,11 @@ export async function POST(req) {
           AND (
             -- Video calls expire based on doctor slot interval (e.g. 15m) if unextended
             (COALESCE(appointment_type, 'video') NOT IN ('clinic_visit', 'home_visit') 
-             AND (appointment_date + appointment_time + (COALESCE((SELECT slot_interval_minutes FROM doctor_details WHERE id = appointments.doctor_id), 15) || ' minutes')::interval) < (NOW() AT TIME ZONE 'Asia/Kolkata'))
+             AND (appointment_date::date + appointment_time::time + (COALESCE((SELECT slot_interval_minutes FROM doctor_details WHERE id = appointments.doctor_id), 15) || ' minutes')::interval) < (NOW() AT TIME ZONE 'Asia/Kolkata'))
             OR
             -- Clinic and home visits only expire after the full appointment date has passed
             (COALESCE(appointment_type, 'video') IN ('clinic_visit', 'home_visit') 
-             AND appointment_date < (NOW() AT TIME ZONE 'Asia/Kolkata')::date)
+             AND appointment_date::date < (NOW() AT TIME ZONE 'Asia/Kolkata')::date)
           )
       `;
 

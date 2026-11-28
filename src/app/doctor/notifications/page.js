@@ -15,9 +15,14 @@ import api from "@/utils/websiteApi";
 const formatMessageText = (message) => {
   if (!message) return "";
   try {
+    // 0. Confidentiality sanitizer: Never expose raw diagnosis or clinical prescription notes in previews
+    let sanitizedMessage = message
+      .replace(/(?:Diagnosis|Prescription|Clinical Notes|Rx|Medications?):\s*[^.\n]+/gi, "Clinical details protected")
+      .replace(/Prescribed:\s*[^.\n]+/gi, "Prescription issued");
+
     // 1. Match YYYY-MM-DD
     const dateRegex = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
-    let formattedMessage = message.replace(dateRegex, (match, y, m, d) => {
+    let formattedMessage = sanitizedMessage.replace(dateRegex, (match, y, m, d) => {
       const date = new Date(Number(y), Number(m) - 1, Number(d));
       if (isNaN(date.getTime())) return match;
       return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });

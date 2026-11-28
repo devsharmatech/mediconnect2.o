@@ -62,11 +62,60 @@ export async function getDoctorDetailsAction(doctorId) {
 
     if (!rows || rows.length === 0) return { success: false, error: "Doctor not found" };
 
+    const raw = rows[0];
+    const details = raw.doctor_details || {};
+
+    // Sanitize patient-visible profile data per Screens 09 & 10 & Compliance Section 5
+    // Strip private mobile/email, raw coordinates, uploaded certificate scans, and financial details
+    const sanitizedDetails = {
+      id: details.id,
+      full_name: details.full_name || raw.full_name,
+      specialization: details.specialization,
+      experience_years: details.experience_years,
+      license_number: details.license_number,
+      council_name: details.council_name,
+      registration_verified: details.registration_verified,
+      clinic_name: details.clinic_name,
+      clinic_address: details.clinic_address,
+      about_me: details.about_me,
+      languages: details.languages,
+      available_days: details.available_days,
+      available_time: details.available_time,
+      clinic_slots: details.clinic_slots,
+      video_slots: details.video_slots,
+      home_slots: details.home_slots,
+      leave_days: details.leave_days,
+      consultation_fee: details.consultation_fee,
+      video_consultation_fee: details.video_consultation_fee,
+      clinic_consultation_fee: details.clinic_consultation_fee,
+      home_visit_fee: details.home_visit_fee,
+      video_follow_up_fee: details.video_follow_up_fee,
+      clinic_follow_up_fee: details.clinic_follow_up_fee,
+      home_follow_up_fee: details.home_follow_up_fee,
+      follow_up_fee: details.follow_up_fee,
+      qualification: details.qualification,
+      rating: details.rating,
+      total_reviews: details.total_reviews,
+      is_open: details.is_open,
+      is_available: details.is_available,
+      onboarding_status: details.onboarding_status,
+      slot_interval_minutes: details.slot_interval_minutes,
+      meta: details.meta ? { super_speciality: details.meta.super_speciality } : {},
+    };
+
+    const sanitizedData = {
+      id: raw.id,
+      full_name: raw.full_name,
+      profile_picture: raw.profile_picture,
+      role: raw.role,
+      doctor_details: sanitizedDetails,
+    };
+
     const supportRes = await getPlatformSupportContactAction();
 
     return { 
       success: true, 
-      data: rows[0],
+      data: sanitizedData,
       support_contact: supportRes.data,
     };
   } catch (error) {

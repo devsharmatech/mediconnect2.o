@@ -975,12 +975,13 @@ function DoctorsContent() {
         const minFee = servedFees.length > 0 ? Math.min(...servedFees) : null;
 
         let profileImage = "";
-        if (details.passport_photo) {
+        if (doc.profile_picture && !doc.profile_picture.includes("ui-avatars.com")) {
+          profileImage = doc.profile_picture;
+        } else if (details.passport_photo) {
           profileImage = Array.isArray(details.passport_photo) 
             ? details.passport_photo[0] 
             : details.passport_photo;
-        }
-        if (!profileImage && doc.profile_picture) {
+        } else if (doc.profile_picture) {
           profileImage = doc.profile_picture;
         }
         if (profileImage && typeof profileImage === 'string' && profileImage.includes("ui-avatars.com")) {

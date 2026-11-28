@@ -425,12 +425,13 @@ export default function FindDoctorsPage() {
             const rawFee = d.clinic_consultation_fee || d.video_consultation_fee || d.home_visit_fee;
             const fee = typeof rawFee === "number" ? rawFee : rawFee ? Number(rawFee) : NaN;
             let profileImage = "";
-            if (d.passport_photo) {
+            if (doc.profile_picture && !doc.profile_picture.includes("ui-avatars.com")) {
+              profileImage = doc.profile_picture;
+            } else if (d.passport_photo) {
               profileImage = Array.isArray(d.passport_photo) 
                 ? d.passport_photo[0] 
                 : d.passport_photo;
-            }
-            if (!profileImage && doc.profile_picture) {
+            } else if (doc.profile_picture) {
               profileImage = doc.profile_picture;
             }
             if (profileImage && typeof profileImage === 'string' && profileImage.includes("ui-avatars.com")) {

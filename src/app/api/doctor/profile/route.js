@@ -164,10 +164,22 @@ export async function POST(req) {
       }
     }
 
+    // Enforce Code 3 locked mutations (registration number, council, verification status)
+    if (body.license_number !== undefined || body.registration_number !== undefined || body.council_name !== undefined || body.onboarding_status !== undefined || body.kyc_status !== undefined) {
+      return failure(
+        "Medical registration number, council authority, and verification status are locked compliance records and cannot be directly edited.",
+        null,
+        403,
+        { headers: corsHeaders }
+      );
+    }
+
     const bioValue = bio !== undefined ? bio : about_me;
     const rawExp = experience !== undefined ? experience : experience_years;
     const parsedExp = rawExp !== undefined ? parseInt(String(rawExp), 10) : undefined;
     const generalFee = videoConsultFee !== undefined ? Number(videoConsultFee) : (inPersonVisitFee !== undefined ? Number(inPersonVisitFee) : null);
+    const clinicNameVal = body.clinic_name !== undefined ? body.clinic_name : body.hospital;
+    const clinicAddressVal = body.clinic_address !== undefined ? body.clinic_address : body.address;
 
     // Update doctor_details in AWS RDS PostgreSQL
     await sql`
@@ -186,6 +198,8 @@ export async function POST(req) {
         qualification = COALESCE(${qualifications !== undefined ? (Array.isArray(qualifications) ? qualifications.join(", ") : qualifications) : null}, qualification),
         languages = COALESCE(${languages !== undefined ? languages : null}, languages),
         specialization = COALESCE(${specialty !== undefined ? specialty : null}, specialization),
+        clinic_name = COALESCE(${clinicNameVal !== undefined ? clinicNameVal : null}, clinic_name),
+        clinic_address = COALESCE(${clinicAddressVal !== undefined ? clinicAddressVal : null}, clinic_address),
         second_booking_discount_type = COALESCE(${secondBookingDiscountType !== undefined ? secondBookingDiscountType : null}, second_booking_discount_type),
         second_booking_discount_value = COALESCE(${secondBookingDiscountValue !== undefined ? Number(secondBookingDiscountValue) : null}, second_booking_discount_value),
         available_days = COALESCE(${available_days !== undefined ? sql.json(available_days) : null}, available_days),
@@ -197,13 +211,22 @@ export async function POST(req) {
       WHERE id = ${doctor_id};
     `;
 
-    // If profile_picture was provided, update users table as well
+    // If profile_picture was provided, update users table and doctor_details as well
     if (profile_picture) {
       await sql`
         UPDATE users
         SET profile_picture = ${profile_picture}, updated_at = NOW()
         WHERE id = ${doctor_id};
       `;
+      try {
+        await sql`
+          UPDATE doctor_details
+          SET passport_photo = ${JSON.stringify([profile_picture])}::jsonb, updated_at = NOW()
+          WHERE id = ${doctor_id};
+        `;
+      } catch (ddErr) {
+        console.warn("[DoctorProfile] doctor_details passport_photo sync skipped:", ddErr.message);
+      }
     }
 
     return success("Profile updated successfully", {}, 200, { headers: corsHeaders });

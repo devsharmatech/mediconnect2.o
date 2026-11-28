@@ -395,7 +395,11 @@ export async function getDoctorsAction({
         email: details.email,
         role: details.role,
         status: details.status,
-        profile_picture: details.profile_picture || (Array.isArray(details.passport_photo) ? details.passport_photo[0] : details.passport_photo),
+        profile_picture: (details.profile_picture && !details.profile_picture.includes("ui-avatars.com"))
+          ? details.profile_picture
+          : (Array.isArray(details.passport_photo) && details.passport_photo.length > 0
+            ? details.passport_photo[0]
+            : (details.passport_photo || details.profile_picture)),
         created_at: details.created_at,
         doctor_details: details,
         distanceKm: details.distanceKm,

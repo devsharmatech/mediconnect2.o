@@ -117,8 +117,8 @@ export default function ManageSlots() {
       } else if (json.success) {
         setIsOpen(newValue);
         const statusText = newValue
-          ? 'Now You Are Live — Open for Appointments'
-          : 'Now You Are Closed — Offline for Appointments';
+          ? 'Accepting New Bookings — Patients can book available slots'
+          : 'Not Accepting New Bookings — Confirmed appointments remain unchanged';
         setAvailabilityMessage(statusText);
         toast.success(statusText);
         if (typeof window !== 'undefined') {
@@ -363,17 +363,19 @@ export default function ManageSlots() {
   const bookedSlots = timeSlots.filter(slot => slot.status === 'booked' || slot.slot_booked === true);
 
   const timeRanges = {
-    morning: { label: 'Morning', start: 0, end: 12 * 60 },
-    afternoon: { label: 'Afternoon', start: 12 * 60, end: 17 * 60 },
-    evening: { label: 'Evening', start: 17 * 60, end: 24 * 60 },
+    slot1: { label: 'Slot 1: Morning (09:00 - 12:00)', start: 9 * 60, end: 12 * 60 },
+    slot2: { label: 'Slot 2: Afternoon (12:00 - 16:00)', start: 12 * 60, end: 16 * 60 },
+    slot3: { label: 'Slot 3: Evening (16:00 - 19:00)', start: 16 * 60, end: 19 * 60 },
+    slot4: { label: 'Slot 4: Night (19:00 - 21:00)', start: 19 * 60, end: 21 * 60 },
   };
 
   const getTimeRange = (time) => {
     const mins = parseTimeToMinutes(time);
-    if (mins == null) return 'morning';
-    if (mins < timeRanges.afternoon.start) return 'morning';
-    if (mins >= timeRanges.afternoon.start && mins < timeRanges.evening.start) return 'afternoon';
-    return 'evening';
+    if (mins == null) return 'slot1';
+    if (mins < timeRanges.slot2.start) return 'slot1';
+    if (mins < timeRanges.slot3.start) return 'slot2';
+    if (mins < timeRanges.slot4.start) return 'slot3';
+    return 'slot4';
   };
 
   const getSlotIcon = (slot) => {
@@ -836,12 +838,10 @@ export default function ManageSlots() {
               </div>
               <div>
                 <p className={`font-semibold text-sm sm:text-base ${isOpen ? 'text-emerald-800' : 'text-slate-700'}`}>
-                  {isOpen ? 'Open for Appointments' : 'Currently Closed'}
+                  {isOpen ? 'Accepting New Bookings' : 'Not Accepting New Bookings'}
                 </p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {isOpen
-                    ? 'Patients can see your slots and book appointments. You appear in instant calls.'
-                    : 'Your slots are hidden. You do not appear in instant call listings.'}
+                  When turned off, patients cannot make new bookings. Confirmed appointments remain unchanged.
                 </p>
                 {availabilityMessage && (
                   <p className="text-xs text-emerald-700 font-medium mt-1">{availabilityMessage}</p>
@@ -866,7 +866,7 @@ export default function ManageSlots() {
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-slate-400">Each appointment slot duration</p>
+              <p className="text-[10px] text-slate-400">Duration applies to future unbooked consultation slots across all modes (5–60 min).</p>
             </div>
           </div>
         </div>
@@ -1167,7 +1167,7 @@ export default function ManageSlots() {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
                   {Object.entries(timeRanges).map(([rangeKey, rangeConfig]) => {
                     const slotsInRange = getFilteredSlots().filter((slot) => {
                       const mins = parseTimeToMinutes(slot.time);

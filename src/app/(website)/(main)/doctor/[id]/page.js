@@ -679,12 +679,13 @@ function DoctorProfileContent() {
   })();
 
   let profileImage = "";
-  if (details.passport_photo) {
+  if (doctor?.profile_picture && !doctor.profile_picture.includes("ui-avatars.com")) {
+    profileImage = doctor.profile_picture;
+  } else if (details.passport_photo) {
     profileImage = Array.isArray(details.passport_photo) 
       ? details.passport_photo[0] 
       : details.passport_photo;
-  }
-  if (!profileImage && doctor?.profile_picture) {
+  } else if (doctor?.profile_picture) {
     profileImage = doctor.profile_picture;
   }
   if (profileImage && typeof profileImage === 'string' && profileImage.includes("ui-avatars.com")) {
